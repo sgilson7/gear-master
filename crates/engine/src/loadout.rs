@@ -12,6 +12,9 @@ use crate::stats::{StatKind, Stats};
 /// what happens when it does.
 #[derive(Clone, Debug)]
 pub struct ItemProfile {
+    /// The components this item is built from, so the interface can find them
+    /// on the board — used to shake an item when it fires.
+    pub pieces: Vec<PieceId>,
     /// Indices, within this same list, of assembled items touching this one.
     pub adjacent_items: Vec<usize>,
     /// Indices of assembled items in *other* slots lying on the same rows.
@@ -401,6 +404,7 @@ impl Loadout {
                 .collect();
 
             out.push(ItemProfile {
+                pieces: item.pieces.clone(),
                 adjacent_assembled_same_slot: adjacent.len(),
                 adjacent_items: adjacent,
                 aligned_items: aligned,

@@ -55,6 +55,10 @@ After `make install` you can just type `gearmaster` from anywhere. Plain
    loadout screen, with health, armour, curses and a cooldown column beside
    each. You can see exactly what you are up against and which of its items is
    about to fire.
+   * Each cooldown row carries a **slot icon** — sword, helm, breastplate,
+     gauntlet, boot — and the rows are ordered weapon first, then head to toe.
+   * An item **jolts on its board** each time it fires, so you can tie a bar
+     filling to the gear that produced it.
    * **Hover any cooldown row** for a full summary of that item: what it adds
      to you out of combat, and what it does each time it fires.
    * **SPEED** cycles 1x / 0.5x / 0.25x / 2x, mid-fight.

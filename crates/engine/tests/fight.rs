@@ -16,6 +16,7 @@ use gearmaster_engine::stats::Stats;
 /// loadout that happens to produce it.
 fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfile {
     ItemProfile {
+        pieces: Vec::new(),
         name: name.to_string(),
         full_name: name.to_string(),
         core: name.to_string(),

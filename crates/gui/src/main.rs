@@ -28,12 +28,16 @@ const SLOT_GAP: f32 = 22.0;
 const SLOT_TOP: f32 = 112.0;
 const INV_CELL: f32 = 15.0;
 const CARD_W: f32 = 124.0;
-const CARD_H: f32 = 124.0;
+const CARD_H: f32 = 146.0;
 const CARD_GAP: f32 = 10.0;
+/// How long an item jitters after it fires, and how far.
+const SHAKE_MS: u32 = 260;
+const SHAKE_PX: f32 = 3.4;
+
 /// Cell size for the gear boards shown during a fight. Bigger than the
 /// loadout screen's: the two boards stack vertically rather than sitting side
 /// by side, so width stops being the constraint.
-const MINI_CELL: f32 = 34.0;
+const MINI_CELL: f32 = 32.0;
 const MINI_GAP: f32 = 14.0;
 
 /// Playback rate a fight opens at, and the rates the speed button cycles.
@@ -192,7 +196,7 @@ impl Layout {
 
         let strip_y = SLOT_TOP + gh + 82.0;
         let width = (panel_x - 48.0).max(100.0);
-        let shop_h = CARD_H + 52.0;
+        let shop_h = CARD_H + 58.0;
         let shop = Rect::new(24.0, strip_y, width, shop_h);
         let inv_y = strip_y + shop_h + 14.0;
         let inv = Rect::new(24.0, inv_y, width, (LOGICAL_H - inv_y - 24.0).max(100.0));
@@ -353,9 +357,27 @@ fn draw_shape(shape: &Shape, ox: f32, oy: f32, cell: f32, color: Color, alpha: f
     }
 }
 
+/// Everything on screen is drawn through `text`/`text_width`, so this single
+/// constant controls how large the whole interface reads.
+const TEXT_SCALE: f32 = 1.34;
+
+/// Draw text at the interface's scale.
+fn ui_text(s: &str, x: f32, y: f32, size: f32, color: Color) {
+    draw_text(s, x, y, size * TEXT_SCALE, color);
+}
+
+/// Width of `s` once scaled — for centring and right-aligning.
+fn text_width(s: &str, size: f32) -> f32 {
+    measure_text(s, None, (size * TEXT_SCALE).round().max(1.0) as u16, 1.0).width
+}
+
+/// Height one line of `size` occupies, including its leading.
+fn line_h(size: f32) -> f32 {
+    (size * TEXT_SCALE * 1.32).round()
+}
+
 fn centered_text(s: &str, cx: f32, y: f32, size: f32, color: Color) {
-    let d = measure_text(s, None, size as u16, 1.0);
-    draw_text(s, cx - d.width / 2.0, y, size, color);
+    ui_text(s, cx - text_width(s, size) / 2.0, y, size, color);
 }
 
 fn button(rect: Rect, label: &str, enabled: bool, mx: f32, my: f32) -> bool {
@@ -696,9 +718,9 @@ fn render_slots(layout: &Layout, run: &Run, reports: &[SlotReport], drag: &Drag)
         let (ox, oy) = view.origin;
 
         // Header: slot name, then the recipe one item needs.
-        draw_text(view.kind.name(), ox, oy - 42.0, 21.0, WHITE);
-        for (i, line) in wrap(view.kind.recipe_text(), 26).into_iter().take(2).enumerate() {
-            draw_text(&line, ox, oy - 26.0 + i as f32 * 13.0, 12.0, col_dim());
+        ui_text(view.kind.name(), ox, oy - 54.0, 20.0, WHITE);
+        for (i, line) in wrap(view.kind.recipe_text(), 19).into_iter().take(3).enumerate() {
+            ui_text(&line, ox, oy - 36.0 + i as f32 * 15.0, 11.0, col_dim());
         }
 
         // Slot border lights up once at least one item has come together.
@@ -783,11 +805,11 @@ fn render_slots(layout: &Layout, run: &Run, reports: &[SlotReport], drag: &Drag)
         } else {
             col_bad()
         };
-        draw_text(&report.summary(), ox, oy + gh + 20.0, 14.0, color);
+        ui_text(&report.summary(), ox, oy + gh + 20.0, 14.0, color);
         let contrib = report.stats.summary();
         if !contrib.is_empty() {
             for (i, line) in wrap(&contrib, 24).into_iter().take(2).enumerate() {
-                draw_text(&line, ox, oy + gh + 38.0 + i as f32 * 14.0, 12.0, col_dim());
+                ui_text(&line, ox, oy + gh + 38.0 + i as f32 * 14.0, 12.0, col_dim());
             }
         }
     }
@@ -804,9 +826,9 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(28, 26, 22, 255));
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::from_rgba(96, 84, 52, 255));
 
-    draw_text("SHOP", r.x + 14.0, r.y + 26.0, 18.0, col_gold());
-    draw_text(&format!("{} gold", run.gold), r.x + 14.0, r.y + 50.0, 20.0, WHITE);
-    draw_text("click to buy", r.x + 14.0, r.y + 68.0, 12.0, col_dim());
+    ui_text("SHOP", r.x + 14.0, r.y + 26.0, 18.0, col_gold());
+    ui_text(&format!("{} gold", run.gold), r.x + 14.0, r.y + 50.0, 20.0, WHITE);
+    ui_text("click to buy", r.x + 14.0, r.y + 68.0, 12.0, col_dim());
     button(
         reroll_rect(r),
         &format!("REROLL {}g", REROLL_COST),
@@ -860,17 +882,17 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
         );
 
         let cx = card.rect.x + card.rect.w / 2.0;
-        let mut ty = card.rect.y + 80.0;
-        for line in wrap(def.name, 15).into_iter().take(2) {
+        let mut ty = card.rect.y + 84.0;
+        for line in wrap(def.name, 14).into_iter().take(2) {
             centered_text(&line, cx, ty, 12.0, if afford { WHITE } else { col_dim() });
-            ty += 12.0;
+            ty += 18.0;
         }
-        centered_text(def.kind.name(), cx, card.rect.y + 106.0, 11.0, col_dim());
+        centered_text(def.kind.name(), cx, card.rect.y + 124.0, 11.0, col_dim());
         centered_text(
             &format!("{} gold", def.price),
             cx,
-            card.rect.y + card.rect.h - 6.0,
-            14.0,
+            card.rect.y + card.rect.h - 8.0,
+            13.0,
             if afford { col_gold() } else { col_bad() },
         );
 
@@ -898,8 +920,8 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
         2.0,
         Color::from_rgba(60, 60, 82, 255),
     );
-    draw_text("INVENTORY", layout.inv.x + 14.0, layout.inv.y + 24.0, 18.0, WHITE);
-    draw_text(
+    ui_text("INVENTORY", layout.inv.x + 14.0, layout.inv.y + 24.0, 18.0, WHITE);
+    ui_text(
         "drag a component onto a slot  ·  right-click to rotate  ·  drag back here to remove",
         layout.inv.x + 128.0,
         layout.inv.y + 24.0,
@@ -950,12 +972,12 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
 
         // Name (wrapped) and role.
         let cx = card.rect.x + card.rect.w / 2.0;
-        let mut ty = card.rect.y + 98.0;
-        for line in wrap(def.name, 15).into_iter().take(2) {
+        let mut ty = card.rect.y + 100.0;
+        for line in wrap(def.name, 14).into_iter().take(2) {
             centered_text(&line, cx, ty, 12.0, Color::from_rgba(215, 218, 235, 255));
-            ty += 12.0;
+            ty += 18.0;
         }
-        centered_text(def.kind.name(), cx, card.rect.y + card.rect.h - 6.0, 11.0, col_dim());
+        centered_text(def.kind.name(), cx, card.rect.y + card.rect.h - 8.0, 11.0, col_dim());
 
         if def.adjacency.is_some() {
             draw_circle(card.rect.x + card.rect.w - 11.0, card.rect.y + 11.0, 4.0, col_gold());
@@ -1045,7 +1067,7 @@ fn render_def_tooltip_inner(
 
     let w = lines
         .iter()
-        .map(|(s, _)| measure_text(s, None, 14, 1.0).width)
+        .map(|(s, _)| text_width(s, 14.0))
         .fold(0.0_f32, f32::max)
         + 20.0;
     let h = lines.len() as f32 * 18.0 + 14.0;
@@ -1055,7 +1077,7 @@ fn render_def_tooltip_inner(
     draw_rectangle(x, y, w, h, Color::from_rgba(12, 12, 20, 244));
     draw_rectangle_lines(x, y, w, h, 1.5, Color::from_rgba(110, 110, 145, 255));
     for (i, (s, c)) in lines.iter().enumerate() {
-        draw_text(s, x + 10.0, y + 20.0 + i as f32 * 18.0, 14.0, *c);
+        ui_text(s, x + 10.0, y + 20.0 + i as f32 * 18.0, 14.0, *c);
     }
 }
 
@@ -1070,20 +1092,23 @@ fn hp_bar(x: f32, y: f32, w: f32, h: f32, hp: i32, max: i32, color: Color) {
 
 /// One item's cooldown bar: name, a filling track, and the interval it is
 /// actually running at. Flashes on the frame it fires.
+#[allow(clippy::too_many_arguments)]
 fn render_cooldown_row(
     x: f32,
     y: f32,
     w: f32,
     name: &str,
+    slot: Option<SlotKind>,
     cooldown_ms: u32,
     schedule: &[u32],
     now_ms: u32,
     tint: Color,
 ) {
-    let label_w = 168.0;
+    let icon = 19.0;
+    let label_w = 216.0;
     let track_x = x + label_w;
     let track_w = (w - label_w - 62.0).max(20.0);
-    let h = 12.0;
+    let h = 14.0;
 
     // A firing within the last fifth of a second lights the row up.
     let just_fired = schedule
@@ -1093,13 +1118,9 @@ fn render_cooldown_row(
         .map(|&t| now_ms.saturating_sub(t) < 180)
         .unwrap_or(false);
 
-    draw_text(
-        name,
-        x,
-        y + 10.0,
-        13.0,
-        if just_fired { WHITE } else { Color::from_rgba(178, 180, 200, 255) },
-    );
+    let fg = if just_fired { WHITE } else { Color::from_rgba(178, 180, 200, 255) };
+    draw_slot_icon(x, y - 1.0, icon, slot, if just_fired { WHITE } else { tint });
+    ui_text(name, x + icon + 8.0, y + 12.0, 13.0, fg);
 
     draw_rectangle(track_x, y, track_w, h, Color::from_rgba(26, 26, 38, 255));
     let p = bar_progress(schedule, cooldown_ms, now_ms).clamp(0.0, 1.0);
@@ -1118,10 +1139,10 @@ fn render_cooldown_row(
         }
     };
     let slowed = observed > cooldown_ms + 20;
-    draw_text(
+    ui_text(
         &format!("{:.1}s", observed as f32 / 1000.0),
         track_x + track_w + 8.0,
-        y + 10.0,
+        y + 12.0,
         12.0,
         if slowed { Color::from_rgba(150, 200, 255, 255) } else { col_dim() },
     );
@@ -1153,15 +1174,15 @@ fn battle_geom() -> BattleGeom {
     let gh = SLOT_H as f32 * MINI_CELL;
 
     let player_board_y = 46.0;
-    let player_bar_y = player_board_y + gh + 38.0;
-    let enemy_board_y = player_bar_y + 96.0;
-    let enemy_bar_y = enemy_board_y + gh + 38.0;
+    let player_bar_y = player_board_y + gh + 42.0;
+    let enemy_board_y = player_bar_y + 100.0;
+    let enemy_bar_y = enemy_board_y + gh + 42.0;
 
     let cd_x = board_x + board_w + 26.0;
     let cd_w = LOGICAL_W - 24.0 - cd_x;
 
-    let log_top = enemy_bar_y + 70.0;
-    let log = Rect::new(board_x, log_top, LOGICAL_W - 2.0 * board_x, 80.0);
+    let log_top = enemy_bar_y + 92.0;
+    let log = Rect::new(board_x, log_top, LOGICAL_W - 2.0 * board_x, 88.0);
 
     let w = 190.0;
     let gap = 12.0;
@@ -1187,9 +1208,82 @@ fn battle_geom() -> BattleGeom {
     }
 }
 
+/// A small glyph for each slot, drawn from primitives — the default font has
+/// no symbols to borrow. `None` means an innate attack: a creature's own teeth
+/// rather than equipment.
+fn draw_slot_icon(x: f32, y: f32, s: f32, slot: Option<SlotKind>, c: Color) {
+    let t = 1.8;
+    match slot {
+        // A sword: blade, crossguard, grip.
+        Some(SlotKind::Weapon) => {
+            draw_line(x + s * 0.5, y + s * 0.04, x + s * 0.5, y + s * 0.70, t, c);
+            draw_line(x + s * 0.20, y + s * 0.60, x + s * 0.80, y + s * 0.60, t, c);
+            draw_line(x + s * 0.5, y + s * 0.70, x + s * 0.5, y + s * 0.94, t, c);
+        }
+        // A helm: domed top, brow line.
+        Some(SlotKind::Helmet) => {
+            draw_line(x + s * 0.16, y + s * 0.76, x + s * 0.16, y + s * 0.38, t, c);
+            draw_line(x + s * 0.16, y + s * 0.38, x + s * 0.5, y + s * 0.12, t, c);
+            draw_line(x + s * 0.5, y + s * 0.12, x + s * 0.84, y + s * 0.38, t, c);
+            draw_line(x + s * 0.84, y + s * 0.38, x + s * 0.84, y + s * 0.76, t, c);
+            draw_line(x + s * 0.28, y + s * 0.56, x + s * 0.72, y + s * 0.56, t, c);
+        }
+        // A breastplate: torso with shoulder pieces.
+        Some(SlotKind::Chest) => {
+            draw_rectangle_lines(x + s * 0.26, y + s * 0.26, s * 0.48, s * 0.62, t, c);
+            draw_rectangle_lines(x + s * 0.06, y + s * 0.26, s * 0.16, s * 0.26, t, c);
+            draw_rectangle_lines(x + s * 0.78, y + s * 0.26, s * 0.16, s * 0.26, t, c);
+        }
+        // A gauntlet: palm, three fingers, a thumb.
+        Some(SlotKind::Gloves) => {
+            draw_rectangle_lines(x + s * 0.30, y + s * 0.44, s * 0.44, s * 0.46, t, c);
+            for i in 0..3 {
+                let fx = x + s * (0.36 + i as f32 * 0.14);
+                draw_line(fx, y + s * 0.44, fx, y + s * 0.16, t, c);
+            }
+            draw_line(x + s * 0.30, y + s * 0.56, x + s * 0.10, y + s * 0.40, t, c);
+        }
+        // A boot: shin above, foot below.
+        Some(SlotKind::Greaves) => {
+            draw_rectangle_lines(x + s * 0.32, y + s * 0.08, s * 0.30, s * 0.56, t, c);
+            draw_rectangle_lines(x + s * 0.32, y + s * 0.64, s * 0.54, s * 0.26, t, c);
+        }
+        // A fang.
+        None => {
+            draw_triangle(
+                Vec2::new(x + s * 0.24, y + s * 0.16),
+                Vec2::new(x + s * 0.76, y + s * 0.16),
+                Vec2::new(x + s * 0.5, y + s * 0.88),
+                c,
+            );
+        }
+    }
+}
+
+/// Slot order for the cooldown list: weapon first, then head to toe. Innate
+/// attacks sort with weapons, being the creature's own armament.
+fn slot_rank(slot: Option<SlotKind>) -> u8 {
+    match slot {
+        None => 0,
+        Some(SlotKind::Weapon) => 1,
+        Some(SlotKind::Helmet) => 2,
+        Some(SlotKind::Chest) => 3,
+        Some(SlotKind::Gloves) => 4,
+        Some(SlotKind::Greaves) => 5,
+    }
+}
+
+/// Item indices ordered for display, keeping the original index so schedules
+/// and hover summaries still line up.
+fn cooldown_order(items: &[gearmaster_engine::combat::RunningItem]) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..items.len()).collect();
+    order.sort_by_key(|&i| (slot_rank(items[i].slot), i));
+    order
+}
+
 /// The clickable/hoverable band of one cooldown row.
 fn cooldown_row_rect(g: &BattleGeom, top: f32, i: usize) -> Rect {
-    Rect::new(g.cd_x, top + 26.0 + i as f32 * 21.0 - 3.0, g.cd_w, 19.0)
+    Rect::new(g.cd_x, top + 30.0 + i as f32 * 28.0 - 5.0, g.cd_w, 26.0)
 }
 
 /// Total width of five grids side by side./// Total width of five shrunk grids side by side.
@@ -1200,6 +1294,34 @@ fn mini_board_width() -> f32 {
 /// Draw one combatant's whole gear board at reduced scale: five grids, the
 /// pieces in them, and a gold outline round each finished item. Takes a
 /// registry and loadout rather than a `Run`, so it can draw either side.
+/// Per-piece pixel offsets, so an item can be jolted when it activates.
+type Shakes = std::collections::HashMap<PieceId, (f32, f32)>;
+
+/// Offsets for every piece whose item fired in the last [`SHAKE_MS`].
+///
+/// Decays to nothing over that window, so the jolt reads as an impact rather
+/// than a wobble. Driven off the activation schedule, which means it stays in
+/// step with the cooldown bars for free.
+fn shake_offsets(profiles: &[ItemProfile], schedules: &[Vec<u32>], offset: usize, now_ms: u32) -> Shakes {
+    let mut out = Shakes::new();
+    for (i, profile) in profiles.iter().enumerate() {
+        let Some(times) = schedules.get(i + offset) else { continue };
+        let Some(&fired) = times.iter().rev().find(|&&t| t <= now_ms) else { continue };
+        let since = now_ms.saturating_sub(fired);
+        if since >= SHAKE_MS {
+            continue;
+        }
+        let decay = 1.0 - since as f32 / SHAKE_MS as f32;
+        let phase = since as f32 * 0.055;
+        let dx = (phase).sin() * SHAKE_PX * decay;
+        let dy = (phase * 1.7).cos() * SHAKE_PX * 0.55 * decay;
+        for &p in &profile.pieces {
+            out.insert(p, (dx, dy));
+        }
+    }
+    out
+}
+
 fn render_mini_board(
     x0: f32,
     y0: f32,
@@ -1207,6 +1329,7 @@ fn render_mini_board(
     loadout: &Loadout,
     reports: &[SlotReport],
     accent: Color,
+    shakes: &Shakes,
 ) {
     let gw = SLOT_W as f32 * MINI_CELL;
     let gh = SLOT_H as f32 * MINI_CELL;
@@ -1236,10 +1359,11 @@ fn render_mini_board(
             let Some((ax, ay)) = slot.anchor_of(id) else { continue };
             let def = reg.def(id);
             let shape = reg.shape(id);
+            let (dx, dy) = shakes.get(&id).copied().unwrap_or((0.0, 0.0));
             draw_shape(
                 &shape,
-                gx + ax as f32 * MINI_CELL,
-                y0 + ay as f32 * MINI_CELL,
+                gx + ax as f32 * MINI_CELL + dx,
+                y0 + ay as f32 * MINI_CELL + dy,
                 MINI_CELL,
                 piece_color(def),
                 1.0,
@@ -1254,8 +1378,16 @@ fn render_mini_board(
             }
             let cells: HashSet<(u8, u8)> =
                 item.pieces.iter().flat_map(|&p| slot.cells_of(p)).collect();
+            let (odx, ody) = item
+                .pieces
+                .first()
+                .and_then(|p| shakes.get(p).copied())
+                .unwrap_or((0.0, 0.0));
             for &(cx, cy) in &cells {
-                let (px, py) = (gx + cx as f32 * MINI_CELL, y0 + cy as f32 * MINI_CELL);
+                let (px, py) = (
+                    gx + cx as f32 * MINI_CELL + odx,
+                    y0 + cy as f32 * MINI_CELL + ody,
+                );
                 if cy == 0 || !cells.contains(&(cx, cy - 1)) {
                     draw_line(px, py, px + MINI_CELL, py, 2.0, col_gold());
                 }
@@ -1272,12 +1404,12 @@ fn render_mini_board(
         }
 
         let label = kind.name();
-        let d = measure_text(label, None, 11, 1.0);
-        draw_text(
+        let d_w = text_width(label, 12.0);
+        ui_text(
             label,
-            gx + (gw - d.width) / 2.0,
-            y0 + gh + 13.0,
-            11.0,
+            gx + (gw - d_w) / 2.0,
+            y0 + gh + 19.0,
+            12.0,
             if live { col_dim() } else { Color::from_rgba(80, 80, 96, 255) },
         );
     }
@@ -1293,13 +1425,15 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
     let reports = run.reports();
 
     // ---- your half ----
-    draw_text(
+    ui_text(
         "YOUR GEAR",
         g.board_x,
         g.player_board_y - 12.0,
         18.0,
         Color::from_rgba(120, 220, 150, 255),
     );
+    let player_shakes =
+        shake_offsets(&pb.player_profiles, &pb.player_schedule, 0, pb.now_ms);
     render_mini_board(
         g.board_x,
         g.player_board_y,
@@ -1307,6 +1441,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
         &run.loadout,
         &reports,
         Color::from_rgba(90, 150, 110, 255),
+        &player_shakes,
     );
     render_battle_side(
         g.board_x,
@@ -1324,7 +1459,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
 
     // ---- their half ----
     let enemy_label = format!("{}'s GEAR", log.enemy.name.to_uppercase());
-    draw_text(
+    ui_text(
         &enemy_label,
         g.board_x,
         g.enemy_board_y - 12.0,
@@ -1348,6 +1483,12 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
             col_dim(),
         );
     } else {
+        let enemy_shakes = shake_offsets(
+            &pb.enemy_profiles,
+            &pb.enemy_schedule,
+            pb.enemy_attack_count,
+            pb.now_ms,
+        );
         render_mini_board(
             g.board_x,
             g.enemy_board_y,
@@ -1355,6 +1496,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
             &pb.enemy_loadout,
             &pb.enemy_reports,
             Color::from_rgba(150, 90, 80, 255),
+            &enemy_shakes,
         );
     }
     render_battle_side(
@@ -1381,8 +1523,8 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
         col_gold(),
     );
     let rung = format!("rung {} of {}", run.rung.min(LADDER.len() - 1) + 1, LADDER.len());
-    let d = measure_text(&rung, None, 14, 1.0);
-    draw_text(&rung, g.cd_x + g.cd_w - d.width, g.player_board_y - 12.0, 14.0, col_dim());
+    let d_w = text_width(&rung, 14.0);
+    ui_text(&rung, g.cd_x + g.cd_w - d_w, g.player_board_y - 12.0, 14.0, col_dim());
 
     for (label, items, sched, top, tint) in [
         (
@@ -1400,22 +1542,24 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
             Color::from_rgba(210, 110, 90, 255),
         ),
     ] {
-        draw_text(label, g.cd_x, top + 12.0, 13.0, col_dim());
-        for (i, it) in items.iter().enumerate() {
-            if cooldown_row_rect(&g, top, i).contains(Vec2::new(mx, my)) {
+        ui_text(label, g.cd_x, top + 14.0, 13.0, col_dim());
+        for (row, &i) in cooldown_order(items).iter().enumerate() {
+            let it = &items[i];
+            if cooldown_row_rect(&g, top, row).contains(Vec2::new(mx, my)) {
                 draw_rectangle(
                     g.cd_x - 6.0,
-                    top + 23.0 + i as f32 * 21.0,
+                    top + 25.0 + row as f32 * 28.0,
                     g.cd_w + 12.0,
-                    19.0,
+                    26.0,
                     Color::from_rgba(255, 255, 255, 14),
                 );
             }
             render_cooldown_row(
                 g.cd_x,
-                top + 26.0 + i as f32 * 21.0,
+                top + 30.0 + row as f32 * 28.0,
                 g.cd_w,
                 &it.name,
+                it.slot,
                 it.cooldown_ms,
                 sched.get(i).map(|v| v.as_slice()).unwrap_or(&[]),
                 pb.now_ms,
@@ -1428,14 +1572,15 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
     let r = g.log;
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(20, 20, 30, 255));
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.5, Color::from_rgba(56, 56, 76, 255));
-    let visible = (((r.h - 18.0) / 18.0) as usize).max(1);
+    let lh = line_h(14.0);
+    let visible = (((r.h - 12.0) / lh) as usize).max(1);
     let start = pb.lines.len().saturating_sub(visible);
     for (i, line) in pb.lines[start..].iter().enumerate() {
         let is_last = start + i == pb.lines.len() - 1;
-        draw_text(
+        ui_text(
             line,
-            r.x + 12.0,
-            r.y + 20.0 + i as f32 * 18.0,
+            r.x + 14.0,
+            r.y + lh + i as f32 * lh,
             14.0,
             if is_last { WHITE } else { Color::from_rgba(128, 130, 150, 255) },
         );
@@ -1471,8 +1616,8 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
             (&log.player.items, g.player_board_y, &pb.player_profiles, 0usize),
             (&log.enemy.items, g.enemy_board_y, &pb.enemy_profiles, pb.enemy_attack_count),
         ] {
-            for i in 0..items.len() {
-                if !cooldown_row_rect(&g, top, i).contains(Vec2::new(mx, my)) {
+            for (row, &i) in cooldown_order(items).iter().enumerate() {
+                if !cooldown_row_rect(&g, top, row).contains(Vec2::new(mx, my)) {
                     continue;
                 }
                 match i.checked_sub(offset).and_then(|j| profiles.get(j)) {
@@ -1591,16 +1736,17 @@ fn render_innate_summary(it: &gearmaster_engine::combat::RunningItem, mx: f32, m
 fn draw_tooltip(lines: &[(String, Color)], mx: f32, my: f32) {
     let w = lines
         .iter()
-        .map(|(s, _)| measure_text(s, None, 14, 1.0).width)
+        .map(|(s, _)| text_width(s, 14.0))
         .fold(0.0_f32, f32::max)
-        + 22.0;
-    let h = lines.len() as f32 * 18.0 + 14.0;
-    let x = (mx + 16.0).min(LOGICAL_W - w - 6.0).max(4.0);
-    let y = (my + 16.0).min(LOGICAL_H - h - 6.0).max(4.0);
+        + 26.0;
+    let lh = line_h(14.0);
+    let h = lines.len() as f32 * lh + 18.0;
+    let x = (mx + 18.0).min(LOGICAL_W - w - 6.0).max(4.0);
+    let y = (my + 18.0).min(LOGICAL_H - h - 6.0).max(4.0);
     draw_rectangle(x, y, w, h, Color::from_rgba(12, 12, 20, 248));
     draw_rectangle_lines(x, y, w, h, 1.5, Color::from_rgba(120, 120, 155, 255));
     for (i, (s, c)) in lines.iter().enumerate() {
-        draw_text(s, x + 11.0, y + 20.0 + i as f32 * 18.0, 14.0, *c);
+        ui_text(s, x + 13.0, y + lh + i as f32 * lh, 14.0, *c);
     }
 }
 
@@ -1620,15 +1766,16 @@ fn render_log_overlay(pb: &Playback) {
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 215));
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::from_rgba(110, 110, 145, 255));
-    draw_text("COMBAT LOG", r.x + 16.0, r.y + 28.0, 18.0, col_gold());
+    ui_text("COMBAT LOG", r.x + 16.0, r.y + 28.0, 18.0, col_gold());
 
-    let visible = (((r.h - 52.0) / 18.0) as usize).max(1);
+    let lh = line_h(14.0);
+    let visible = (((r.h - 62.0) / lh) as usize).max(1);
     let start = pb.lines.len().saturating_sub(visible);
     for (i, line) in pb.lines[start..].iter().enumerate() {
-        draw_text(
+        ui_text(
             line,
             r.x + 16.0,
-            r.y + 52.0 + i as f32 * 18.0,
+            r.y + 62.0 + i as f32 * lh,
             14.0,
             Color::from_rgba(196, 198, 216, 255),
         );
@@ -1651,7 +1798,7 @@ fn render_battle_side(
     tint: Color,
 ) {
     let flashing = get_time() - flash < FLASH_SECS;
-    draw_text(
+    ui_text(
         name,
         x,
         y - 6.0,
@@ -1664,31 +1811,31 @@ fn render_battle_side(
             WHITE
         },
     );
-    hp_bar(x, y, w, 24.0, hp, max, tint);
+    hp_bar(x, y, w, 30.0, hp, max, tint);
 
-    draw_rectangle(x, y + 27.0, w, 12.0, Color::from_rgba(30, 30, 42, 255));
+    draw_rectangle(x, y + 34.0, w, 14.0, Color::from_rgba(30, 30, 42, 255));
     if armor > 0 {
         let frac = ((armor as f32) / (max.max(1) as f32)).clamp(0.0, 1.0);
-        draw_rectangle(x, y + 27.0, w * frac, 12.0, Color::from_rgba(150, 170, 210, 255));
+        draw_rectangle(x, y + 34.0, w * frac, 14.0, Color::from_rgba(150, 170, 210, 255));
     }
-    draw_rectangle_lines(x, y + 27.0, w, 12.0, 1.0, Color::from_rgba(80, 80, 105, 255));
+    draw_rectangle_lines(x, y + 34.0, w, 14.0, 1.0, Color::from_rgba(80, 80, 105, 255));
 
     let mut label = format!("armor {}", armor);
     if let Some(m) = mana {
         label.push_str(&format!("   mana {}", m));
     }
-    draw_text(&label, x, y + 54.0, 13.0, Color::from_rgba(160, 190, 225, 255));
+    ui_text(&label, x, y + 68.0, 13.0, Color::from_rgba(160, 190, 225, 255));
 
-    let mut cx = x + 150.0;
+    let mut cx = x + 210.0;
     for (kind, _) in curses {
         let text = format!("curse of {}", kind);
-        let d = measure_text(&text, None, 12, 1.0);
-        draw_rectangle(cx - 4.0, y + 42.0, d.width + 10.0, 16.0, Color::from_rgba(90, 40, 90, 230));
-        draw_text(&text, cx + 1.0, y + 54.0, 12.0, Color::from_rgba(240, 190, 240, 255));
-        cx += d.width + 14.0;
+        let d_w = text_width(&text, 12.0);
+        draw_rectangle(cx - 5.0, y + 52.0, d_w + 12.0, 22.0, Color::from_rgba(90, 40, 90, 230));
+        ui_text(&text, cx + 1.0, y + 68.0, 12.0, Color::from_rgba(240, 190, 240, 255));
+        cx += d_w + 18.0;
     }
     if hp <= 0 {
-        draw_text("DOWN", x + w - 52.0, y - 6.0, 18.0, col_bad());
+        ui_text("DOWN", x + w - 52.0, y - 6.0, 18.0, col_bad());
     }
 }
 
@@ -1718,11 +1865,11 @@ fn render_panel(
     draw_line(x, 0.0, x, LOGICAL_H, 2.0, Color::from_rgba(60, 60, 85, 255));
 
     let mut y = 38.0;
-    draw_text("GEAR MASTER", x + 20.0, y, 26.0, WHITE);
+    ui_text("GEAR MASTER", x + 20.0, y, 26.0, WHITE);
     y += 30.0;
 
     let stats = run.player_stats();
-    draw_text("YOUR CHARACTER", x + 20.0, y, 14.0, col_dim());
+    ui_text("YOUR CHARACTER", x + 20.0, y, 14.0, col_dim());
     y += 22.0;
     for (label, value, color) in [
         ("Health", format!("{}", stats.health), Color::from_rgba(120, 220, 150, 255)),
@@ -1734,9 +1881,9 @@ fn render_panel(
             col_gold(),
         ),
     ] {
-        draw_text(label, x + 20.0, y, 16.0, LIGHTGRAY);
-        let d = measure_text(&value, None, 16, 1.0);
-        draw_text(&value, x + PANEL_W - 20.0 - d.width, y, 16.0, color);
+        ui_text(label, x + 20.0, y, 16.0, LIGHTGRAY);
+        let d_w = text_width(&value, 16.0);
+        ui_text(&value, x + PANEL_W - 20.0 - d_w, y, 16.0, color);
         y += 21.0;
     }
     y += 4.0;
@@ -1747,13 +1894,13 @@ fn render_panel(
         .iter()
         .map(|i| i.dps_milli(stats.strength, stats.power))
         .sum();
-    draw_text("Damage / second", x + 20.0, y, 17.0, WHITE);
+    ui_text("Damage / second", x + 20.0, y, 17.0, WHITE);
     let label = format!("{}.{}", dps_milli / 1000, (dps_milli % 1000) / 100);
-    let d = measure_text(&label, None, 19, 1.0);
-    draw_text(&label, x + PANEL_W - 20.0 - d.width, y, 19.0, col_gold());
+    let d_w = text_width(&label, 19.0);
+    ui_text(&label, x + PANEL_W - 20.0 - d_w, y, 19.0, col_gold());
     y += 16.0;
     for it in items.iter().filter(|i| i.hit_for(stats.strength, stats.power) > 0).take(3) {
-        draw_text(
+        ui_text(
             &format!(
                 "  {} hits {} every {:.2}s",
                 it.name,
@@ -1770,18 +1917,18 @@ fn render_panel(
     y += 14.0;
 
     // Per-slot assembly readout.
-    draw_text("GEAR", x + 20.0, y, 14.0, col_dim());
+    ui_text("GEAR", x + 20.0, y, 14.0, col_dim());
     y += 20.0;
     for r in reports {
         let done = r.assembled_count();
         let (mark, color) = if done > 0 { ("+", col_ok()) } else { ("-", col_dim()) };
-        draw_text(mark, x + 20.0, y, 16.0, color);
-        draw_text(r.slot.name(), x + 36.0, y, 16.0, if done > 0 { WHITE } else { col_dim() });
+        ui_text(mark, x + 20.0, y, 16.0, color);
+        ui_text(r.slot.name(), x + 36.0, y, 16.0, if done > 0 { WHITE } else { col_dim() });
         let status = r.summary();
-        let d = measure_text(&status, None, 13, 1.0);
-        draw_text(
+        let d_w = text_width(&status, 13.0);
+        ui_text(
             &status,
-            x + PANEL_W - 20.0 - d.width,
+            x + PANEL_W - 20.0 - d_w,
             y,
             13.0,
             if done > 0 { col_ok() } else if r.is_empty() { col_dim() } else { col_bad() },
@@ -1796,36 +1943,36 @@ fn render_panel(
                 col_effect()
             };
             for line in wrap(&note, 44).into_iter().take(2) {
-                draw_text(&format!("  {}", line), x + 36.0, y, 12.0, c);
+                ui_text(&format!("  {}", line), x + 36.0, y, 12.0, c);
                 y += 14.0;
             }
         }
     }
     y += 12.0;
 
-    draw_text("RUN", x + 20.0, y, 14.0, col_dim());
+    ui_text("RUN", x + 20.0, y, 14.0, col_dim());
     y += 20.0;
     for (label, value, color) in [
         ("Gold", format!("{}", run.gold), col_gold()),
         ("Won", format!("{}", run.wins), col_ok()),
         ("Lost", format!("{}", run.losses), col_bad()),
     ] {
-        draw_text(label, x + 20.0, y, 15.0, LIGHTGRAY);
-        let d = measure_text(&value, None, 15, 1.0);
-        draw_text(&value, x + PANEL_W - 20.0 - d.width, y, 15.0, color);
+        ui_text(label, x + 20.0, y, 15.0, LIGHTGRAY);
+        let d_w = text_width(&value, 15.0);
+        ui_text(&value, x + PANEL_W - 20.0 - d_w, y, 15.0, color);
         y += 18.0;
     }
     y += 10.0;
 
     let m = run.monster();
-    draw_text("NEXT OPPONENT", x + 20.0, y, 14.0, col_dim());
+    ui_text("NEXT OPPONENT", x + 20.0, y, 14.0, col_dim());
     y += 20.0;
-    draw_text(m.name, x + 20.0, y, 17.0, Color::from_rgba(230, 140, 120, 255));
+    ui_text(m.name, x + 20.0, y, 17.0, Color::from_rgba(230, 140, 120, 255));
     let bounty = format!("{}g", m.bounty);
-    let d = measure_text(&bounty, None, 15, 1.0);
-    draw_text(&bounty, x + PANEL_W - 20.0 - d.width, y, 15.0, col_gold());
+    let d_w = text_width(&bounty, 15.0);
+    ui_text(&bounty, x + PANEL_W - 20.0 - d_w, y, 15.0, col_gold());
     y += 18.0;
-    draw_text(
+    ui_text(
         &format!("rung {} of {}  ·  {} hp", run.rung + 1, LADDER.len(), m.health),
         x + 20.0,
         y,
@@ -1847,7 +1994,7 @@ fn render_panel(
         if let Some(c) = a.curse {
             what.push_str(&format!("+{} ", c.name()));
         }
-        draw_text(
+        ui_text(
             &format!("  {} / {:.1}s  {}", a.name, a.cooldown_ms as f32 / 1000.0, what),
             x + 20.0,
             y,
@@ -1857,7 +2004,7 @@ fn render_panel(
         y += 14.0;
     }
     if m.mind_resist > 0 || m.curse_resist > 0 {
-        draw_text(
+        ui_text(
             &format!("  resists: {}% mind, {}% curse", m.mind_resist, m.curse_resist),
             x + 20.0,
             y,
@@ -1869,7 +2016,7 @@ fn render_panel(
     y += 12.0;
 
     for line in wrap(message, 40).into_iter().take(3) {
-        draw_text(&line, x + 20.0, y, 14.0, Color::from_rgba(225, 225, 240, 255));
+        ui_text(&line, x + 20.0, y, 14.0, Color::from_rgba(225, 225, 240, 255));
         y += 17.0;
     }
 
@@ -2384,6 +2531,82 @@ mod tests {
         // An item that never fired at all still shows sensible progress.
         assert!(bar_progress(&[], 1000, 500) > 0.0);
         assert!(bar_progress(&[], 1000, 99_999) <= 1.0);
+    }
+
+    fn profile_with(pieces: Vec<PieceId>) -> ItemProfile {
+        ItemProfile {
+            pieces,
+            adjacent_items: Vec::new(),
+            aligned_items: Vec::new(),
+            name: "T".into(),
+            full_name: "T".into(),
+            core: "T".into(),
+            slot: SlotKind::Weapon,
+            cooldown_ms: 1000,
+            stats: gearmaster_engine::stats::Stats::ZERO,
+            triggers: Vec::new(),
+            adjacent_assembled_same_slot: 0,
+        }
+    }
+
+    #[test]
+    fn an_item_shakes_when_it_fires_and_settles_again() {
+        let p = PieceId(7);
+        let profiles = vec![profile_with(vec![p])];
+        let schedules = vec![vec![1000u32, 3000]];
+
+        // Right after firing there is a visible offset...
+        let just = shake_offsets(&profiles, &schedules, 0, 1040);
+        let (dx, dy) = just[&p];
+        assert!(dx.abs() + dy.abs() > 0.3, "expected a jolt, got ({}, {})", dx, dy);
+
+        // ...and it has settled before the shake window closes.
+        let settled = shake_offsets(&profiles, &schedules, 0, 1000 + SHAKE_MS - 1);
+        let (lx, ly) = settled[&p];
+        assert!(lx.abs() + ly.abs() < dx.abs() + dy.abs(), "the shake must decay");
+
+        // Past the window there is no entry at all.
+        assert!(shake_offsets(&profiles, &schedules, 0, 1000 + SHAKE_MS).is_empty());
+        // And the second firing starts it again.
+        assert!(!shake_offsets(&profiles, &schedules, 0, 3020).is_empty());
+    }
+
+    #[test]
+    fn an_item_that_has_not_fired_yet_never_shakes() {
+        let p = PieceId(3);
+        let profiles = vec![profile_with(vec![p])];
+        let schedules = vec![vec![5000u32]];
+        assert!(shake_offsets(&profiles, &schedules, 0, 2000).is_empty());
+    }
+
+    #[test]
+    fn a_monsters_gear_shakes_past_its_innate_attacks() {
+        // A monster's item list puts innate attacks first, so its profiles are
+        // read at an offset. Getting this wrong shakes the wrong gear.
+        let p = PieceId(1);
+        let profiles = vec![profile_with(vec![p])];
+        // Index 0 is an innate bite; index 1 is the profile above.
+        let schedules = vec![vec![500u32], vec![1000u32]];
+        assert!(
+            shake_offsets(&profiles, &schedules, 1, 1030).contains_key(&p),
+            "the profile should follow schedule index 1"
+        );
+        assert!(
+            shake_offsets(&profiles, &schedules, 1, 530).is_empty(),
+            "the bite firing must not shake the gear"
+        );
+    }
+
+    #[test]
+    fn cooldown_rows_are_ordered_weapon_first() {
+        use gearmaster_engine::piece::SlotKind::*;
+        let ranks: Vec<u8> = [Weapon, Helmet, Chest, Gloves, Greaves]
+            .iter()
+            .map(|&s| slot_rank(Some(s)))
+            .collect();
+        assert_eq!(ranks, vec![1, 2, 3, 4, 5], "weapon leads, then head to toe");
+        assert!(slot_rank(None) < slot_rank(Some(Weapon)), "innate attacks lead");
+        assert!(ranks.windows(2).all(|w| w[0] < w[1]), "and the order is strict");
     }
 
     #[test]
