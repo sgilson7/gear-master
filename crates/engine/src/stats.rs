@@ -12,6 +12,20 @@ pub struct Stats {
     pub strength: i32,
     pub regen: i32,
     pub power: i32,
+    /// Flat damage an item deals each time it activates.
+    pub damage: i32,
+    /// Temporary hit points granted per activation. Armour starts every combat
+    /// at zero and soaks damage before health does.
+    pub armor: i32,
+    /// Mana granted per activation. Items spend it to trigger extra effects.
+    pub mana: i32,
+    /// Mind damage per activation: small numbers, but it eats *maximum*
+    /// health, so it can never be healed back.
+    pub mind: i32,
+    /// Percent reduction to incoming mind damage.
+    pub mind_resist: i32,
+    /// Percent reduction to the duration of curses landed on you.
+    pub curse_resist: i32,
 }
 
 /// A character with no gear at all. An unequipped run is a losing run — that
@@ -30,6 +44,12 @@ pub enum StatKind {
     Strength,
     Regen,
     Power,
+    Damage,
+    Armor,
+    Mana,
+    Mind,
+    MindResist,
+    CurseResist,
 }
 
 impl StatKind {
@@ -39,12 +59,29 @@ impl StatKind {
             StatKind::Strength => "strength",
             StatKind::Regen => "regen",
             StatKind::Power => "power",
+            StatKind::Damage => "damage",
+            StatKind::Armor => "armor",
+            StatKind::Mana => "mana",
+            StatKind::Mind => "mind damage",
+            StatKind::MindResist => "mind resist",
+            StatKind::CurseResist => "curse resist",
         }
     }
 }
 
 impl Stats {
-    pub const ZERO: Stats = Stats { health: 0, strength: 0, regen: 0, power: 0 };
+    pub const ZERO: Stats = Stats {
+        health: 0,
+        strength: 0,
+        regen: 0,
+        power: 0,
+        damage: 0,
+        armor: 0,
+        mana: 0,
+        mind: 0,
+        mind_resist: 0,
+        curse_resist: 0,
+    };
 
     pub fn get(&self, k: StatKind) -> i32 {
         match k {
@@ -52,6 +89,12 @@ impl Stats {
             StatKind::Strength => self.strength,
             StatKind::Regen => self.regen,
             StatKind::Power => self.power,
+            StatKind::Damage => self.damage,
+            StatKind::Armor => self.armor,
+            StatKind::Mana => self.mana,
+            StatKind::Mind => self.mind,
+            StatKind::MindResist => self.mind_resist,
+            StatKind::CurseResist => self.curse_resist,
         }
     }
 
@@ -61,6 +104,12 @@ impl Stats {
             StatKind::Strength => self.strength = v,
             StatKind::Regen => self.regen = v,
             StatKind::Power => self.power = v,
+            StatKind::Damage => self.damage = v,
+            StatKind::Armor => self.armor = v,
+            StatKind::Mana => self.mana = v,
+            StatKind::Mind => self.mind = v,
+            StatKind::MindResist => self.mind_resist = v,
+            StatKind::CurseResist => self.curse_resist = v,
         }
     }
 
@@ -69,8 +118,22 @@ impl Stats {
         self.set(k, cur + v);
     }
 
+    /// The four original stats; everything added later defaults to zero.
     pub const fn new(health: i32, strength: i32, regen: i32, power: i32) -> Self {
-        Stats { health, strength, regen, power }
+        Stats { health, strength, regen, power, ..Stats::ZERO }
+    }
+
+    pub const fn damage(damage: i32) -> Self {
+        Stats { damage, ..Stats::ZERO }
+    }
+    pub const fn armor(armor: i32) -> Self {
+        Stats { armor, ..Stats::ZERO }
+    }
+    pub const fn mana(mana: i32) -> Self {
+        Stats { mana, ..Stats::ZERO }
+    }
+    pub const fn mind(mind: i32) -> Self {
+        Stats { mind, ..Stats::ZERO }
     }
 
     pub const fn health(health: i32) -> Self {
@@ -112,6 +175,24 @@ impl Stats {
         if self.power != 0 {
             parts.push(format!("{:+}.{:02}x power", self.power / 100, (self.power % 100).abs()));
         }
+        if self.damage != 0 {
+            parts.push(format!("{:+} dmg", self.damage));
+        }
+        if self.armor != 0 {
+            parts.push(format!("{:+} armor", self.armor));
+        }
+        if self.mana != 0 {
+            parts.push(format!("{:+} mana", self.mana));
+        }
+        if self.mind != 0 {
+            parts.push(format!("{:+} mind", self.mind));
+        }
+        if self.mind_resist != 0 {
+            parts.push(format!("{:+}% mind res", self.mind_resist));
+        }
+        if self.curse_resist != 0 {
+            parts.push(format!("{:+}% curse res", self.curse_resist));
+        }
         parts.join(", ")
     }
 }
@@ -124,6 +205,12 @@ impl Add for Stats {
             strength: self.strength + o.strength,
             regen: self.regen + o.regen,
             power: self.power + o.power,
+            damage: self.damage + o.damage,
+            armor: self.armor + o.armor,
+            mana: self.mana + o.mana,
+            mind: self.mind + o.mind,
+            mind_resist: self.mind_resist + o.mind_resist,
+            curse_resist: self.curse_resist + o.curse_resist,
         }
     }
 }

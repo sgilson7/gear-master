@@ -12,6 +12,7 @@
 //!     (`combat::simulate`), producing a log the GUI replays.
 
 pub mod combat;
+pub mod curse;
 pub mod loadout;
 pub mod piece;
 pub mod run;

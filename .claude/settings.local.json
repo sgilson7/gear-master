@@ -41,7 +41,14 @@
       "Bash(curl -s -H 'Accept: application/vnd.github+json' https://api.github.com/users/sgilson7)",
       "Bash(python3 -c ' *)",
       "Bash(git init *)",
-      "Bash(cp dist/web/* docs/)"
+      "Bash(cp dist/web/* docs/)",
+      "Bash(gh auth *)",
+      "Bash(gh api *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(gh repo *)",
+      "Bash(awk '{s+=$1} END {print s\" engine tests pass\"}')"
     ]
   }
 }
