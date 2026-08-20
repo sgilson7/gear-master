@@ -50,10 +50,16 @@ After `make install` you can just type `gearmaster` from anywhere. Plain
    neighbours are worth. See below.
 6. Every finished item gets a **procedurally generated name** — hover a piece
    to see what it's part of.
-7. Press **BEGIN FIGHT**. The screen switches to a **battle view**: your gear
-   board on the left, the enemy's on the right, both shrunk to fit, with health,
-   armour, curses and cooldowns for each side. You can see exactly what you are
-   up against and which of its items is about to fire.
+7. Press **BEGIN FIGHT**. The screen switches to a full-window **battle view**:
+   your gear board above, the enemy's below, both at a larger scale than the
+   loadout screen, with health, armour, curses and a cooldown column beside
+   each. You can see exactly what you are up against and which of its items is
+   about to fire.
+   * **Hover any cooldown row** for a full summary of that item: what it adds
+     to you out of combat, and what it does each time it fires.
+   * **SPEED** cycles 1x / 0.5x / 0.25x / 2x, mid-fight.
+   * **FULL LOG** overlays the whole transcript; otherwise the log stays a
+     quiet three-line strip.
 8. Each assembled
    item gets its own **cooldown bar**, labelled with its generated name, so you
    can see which ones carry the fight — and watch a frosted item's bar visibly

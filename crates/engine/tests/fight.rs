@@ -4,7 +4,7 @@ mod common;
 
 use common::{build_full_loadout, equip, piece};
 use gearmaster_engine::combat::{
-    simulate, Event, MonsterAttack, MonsterSpec, Outcome, Side, RUST_GOLEM,
+    simulate, Event, MonsterAttack, MonsterSpec, Outcome, Side, BURN_REPORT_MS, RUST_GOLEM,
 };
 use gearmaster_engine::curse::CurseKind;
 use gearmaster_engine::loadout::ItemProfile;
@@ -295,7 +295,9 @@ fn searing_burns_the_enemy_over_time() {
     let burn_total: i32 = log
         .entries
         .iter()
-        .filter(|e| e.at_ms > applied_at.0 && e.at_ms <= applied_at.0 + applied_at.1)
+        .filter(|e| {
+            e.at_ms > applied_at.0 && e.at_ms <= applied_at.0 + applied_at.1 + BURN_REPORT_MS
+        })
         .filter_map(|e| match e.event {
             Event::Burn { side: Side::Enemy, damage, .. } => Some(damage),
             _ => None,
@@ -339,7 +341,7 @@ fn curse_resistance_shortens_the_burn() {
     let burn_total: i32 = log
         .entries
         .iter()
-        .filter(|e| e.at_ms > applied_at && e.at_ms <= applied_at + duration)
+        .filter(|e| e.at_ms > applied_at && e.at_ms <= applied_at + duration + BURN_REPORT_MS)
         .filter_map(|e| match e.event {
             Event::Burn { side: Side::Enemy, damage, .. } => Some(damage),
             _ => None,

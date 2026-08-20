@@ -6,7 +6,7 @@ mod common;
 use common::equip;
 use gearmaster_engine::combat::{simulate, Event, MonsterSpec, Side};
 use gearmaster_engine::loadout::ItemProfile;
-use gearmaster_engine::piece::{Action, SlotKind, Target, Trigger};
+use gearmaster_engine::piece::{Action, SlotKind, Trigger};
 use gearmaster_engine::run::Run;
 use gearmaster_engine::stats::Stats;
 

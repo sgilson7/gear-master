@@ -12,6 +12,9 @@ use crate::loadout::ItemProfile;
 use crate::piece::{Action, SlotKind, Target, Trigger};
 use crate::stats::Stats;
 
+/// How often damage-over-time is summarised into the log.
+pub const BURN_REPORT_MS: u32 = 1000;
+
 /// A fight this long is called a draw, so a build that cannot finish the job
 /// doesn't hang the simulation.
 pub const MAX_DURATION_MS: u32 = 60_000;
@@ -457,6 +460,11 @@ pub struct Combatant {
     /// loses nothing to rounding.
     dot_milli: i32,
     regen_milli: i32,
+    /// Burn damage already taken but not yet written to the log, and how long
+    /// since the last entry. Damage-over-time lands every tick; logging it
+    /// every tick buries everything else under a wall of "burns for 1".
+    burn_acc: i32,
+    burn_timer: u32,
 }
 
 impl Combatant {
@@ -476,6 +484,8 @@ impl Combatant {
             items: profiles.iter().map(RunningItem::from_profile).collect(),
             dot_milli: 0,
             regen_milli: 0,
+            burn_acc: 0,
+            burn_timer: 0,
         }
     }
 
@@ -500,6 +510,8 @@ impl Combatant {
             items,
             dot_milli: 0,
             regen_milli: 0,
+            burn_acc: 0,
+            burn_timer: 0,
         }
     }
 
@@ -663,9 +675,13 @@ impl CombatLog {
                 self.who(*on),
                 *duration_ms as f32 / 1000.0
             ),
-            Event::Burn { side, damage, health } => {
-                format!("{} {} burns for {} -> {} hp", t, self.who(*side), damage, (*health).max(0))
-            }
+            Event::Burn { side, damage, health } => format!(
+                "{} {} burns for {} -> {} hp",
+                t,
+                self.who(*side),
+                damage,
+                (*health).max(0)
+            ),
             Event::Regen { side, amount, health } => {
                 format!("{} {} regenerates {} -> {} hp", t, self.who(*side), amount, health)
             }
@@ -715,8 +731,16 @@ pub fn simulate(player_stats: Stats, profiles: &[ItemProfile], spec: &MonsterSpe
             if whole > 0 {
                 c.dot_milli %= 1000;
                 c.health -= whole;
-                let hp = c.health;
-                log.push(LogEntry { at_ms: t, event: Event::Burn { side, damage: whole, health: hp } });
+                c.burn_acc += whole;
+            }
+            // Report burn once a second, or immediately if it just killed
+            // them, rather than a line per tick.
+            c.burn_timer += TICK_MS;
+            if c.burn_acc > 0 && (c.burn_timer >= BURN_REPORT_MS || c.health <= 0) {
+                let (dmg, hp) = (c.burn_acc, c.health);
+                c.burn_acc = 0;
+                c.burn_timer = 0;
+                log.push(LogEntry { at_ms: t, event: Event::Burn { side, damage: dmg, health: hp } });
             }
             if c.regen > 0 && c.health < c.max_health {
                 c.regen_milli += c.regen * TICK_MS as i32;
