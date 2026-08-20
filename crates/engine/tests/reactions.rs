@@ -20,10 +20,12 @@ const DUMMY: MonsterSpec = MonsterSpec {
     attacks: &[],
     gear: &[],
     bounty: 0,
+    sprite: gearmaster_engine::combat::MonsterSprite::Rat,
 };
 
 fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfile {
     ItemProfile {
+        sigil_seed: 0,
         pieces: Vec::new(),
         name: name.to_string(),
         full_name: name.to_string(),
@@ -258,6 +260,7 @@ fn mana_shield_blunts_every_kind_of_damage() {
         attacks: &[gearmaster_engine::combat::MonsterAttack::hit("jab", 1000, 20)],
         gear: &[],
         bounty: 0,
+        sprite: gearmaster_engine::combat::MonsterSprite::Rat,
     };
 
     // A battery to bank mana, and a ward that turns it into a shield.

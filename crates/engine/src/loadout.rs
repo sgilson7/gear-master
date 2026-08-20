@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::curse::TICK_MS;
-use crate::naming::{name_item, ItemName};
+use crate::naming::{item_hash, name_item, ItemName};
 use crate::piece::{
     default_cooldown_ms, EffectKind, PieceId, PieceKind, PieceRegistry, SlotKind, Trigger,
 };
@@ -12,6 +12,9 @@ use crate::stats::{StatKind, Stats};
 /// what happens when it does.
 #[derive(Clone, Debug)]
 pub struct ItemProfile {
+    /// Fingerprint of this exact arrangement — the same number the name is
+    /// drawn from, so an item's emblem and its name vary together.
+    pub sigil_seed: u64,
     /// The components this item is built from, so the interface can find them
     /// on the board — used to shake an item when it fires.
     pub pieces: Vec<PieceId>,
@@ -404,6 +407,7 @@ impl Loadout {
                 .collect();
 
             out.push(ItemProfile {
+                sigil_seed: item_hash(self.name_seed, reg, slot, &item.pieces),
                 pieces: item.pieces.clone(),
                 adjacent_assembled_same_slot: adjacent.len(),
                 adjacent_items: adjacent,

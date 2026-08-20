@@ -356,3 +356,51 @@ fn rotating_a_piece_in_the_inventory_always_works() {
 
     assert_ne!(run.registry.shape(mold), before);
 }
+
+// ------------------------------------------------------------------ art
+
+// The GUI draws each finished item from `sigil_seed`, so the emblem is only
+// meaningful if the seed behaves the same way the generated name does: stable
+// for a given build, different for a different one.
+
+#[test]
+fn an_items_emblem_seed_is_stable_for_the_same_build() {
+    let mut a = Run::with_all_pieces();
+    equip(&mut a, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut a, "Iron Blade", SlotKind::Weapon, 1, 0);
+
+    let mut b = Run::with_all_pieces();
+    equip(&mut b, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut b, "Iron Blade", SlotKind::Weapon, 1, 0);
+
+    let (pa, pb) = (a.combat_items(), b.combat_items());
+    assert_eq!(pa.len(), 1);
+    assert_eq!(pa[0].sigil_seed, pb[0].sigil_seed);
+    assert_eq!(pa[0].name, pb[0].name, "and it agrees with the name");
+}
+
+#[test]
+fn moving_a_piece_redraws_the_emblem() {
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    let blade = piece(&run, "Iron Blade");
+    run.equip(blade, SlotKind::Weapon, 1, 0).unwrap();
+    let before = run.combat_items()[0].sigil_seed;
+
+    run.equip(blade, SlotKind::Weapon, 1, 1).unwrap();
+    let after = run.combat_items()[0].sigil_seed;
+
+    assert_ne!(before, after, "a different placement is a different item");
+}
+
+#[test]
+fn different_items_get_different_emblems() {
+    let mut run = Run::with_all_pieces();
+    build_full_loadout(&mut run);
+
+    let mut seeds = std::collections::HashSet::new();
+    for p in run.combat_items() {
+        assert!(seeds.insert(p.sigil_seed), "{} reused an emblem seed", p.name);
+    }
+    assert!(seeds.len() >= 5, "a full loadout should assemble several items");
+}

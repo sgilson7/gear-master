@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use gearmaster_engine::combat::{CombatLog, Event, Outcome, Side, LADDER};
+use gearmaster_engine::combat::{CombatLog, Event, MonsterSprite, Outcome, Side, LADDER};
 use gearmaster_engine::loadout::{ItemProfile, Loadout, SlotReport};
 use gearmaster_engine::piece::{
     default_cooldown_ms, PieceDef, PieceId, PieceKind, PieceRegistry, SlotKind,
@@ -278,6 +278,234 @@ impl Layout {
     }
 }
 
+// ============================================================= creatures
+
+/// A simple silhouette for each monster, drawn from primitives in a box of
+/// side `sz`. Deliberately crude: the point is that a Toad reads differently
+/// from a Wisp at a glance, not that either is a portrait.
+fn draw_monster(x: f32, y: f32, sz: f32, sprite: MonsterSprite, c: Color, dark: Color) {
+    let t = (sz * 0.05).max(1.5);
+    // Handy fractions of the box.
+    let fx = |f: f32| x + sz * f;
+    let fy = |f: f32| y + sz * f;
+
+    match sprite {
+        MonsterSprite::Rat => {
+            draw_ellipse(fx(0.46), fy(0.62), sz * 0.26, sz * 0.18, 0.0, c);
+            draw_circle(fx(0.72), fy(0.52), sz * 0.12, c);
+            draw_triangle(
+                Vec2::new(fx(0.80), fy(0.46)),
+                Vec2::new(fx(0.96), fy(0.54)),
+                Vec2::new(fx(0.80), fy(0.58)),
+                c,
+            ); // snout
+            draw_circle(fx(0.68), fy(0.40), sz * 0.06, c); // ear
+            draw_circle(fx(0.76), fy(0.50), sz * 0.02, dark); // eye
+            // Tail.
+            draw_line(fx(0.20), fy(0.62), fx(0.06), fy(0.42), t, c);
+            for i in 0..3 {
+                let lx = fx(0.34 + i as f32 * 0.16);
+                draw_line(lx, fy(0.76), lx, fy(0.90), t, c);
+            }
+        }
+        MonsterSprite::Toad => {
+            draw_ellipse(fx(0.5), fy(0.66), sz * 0.36, sz * 0.22, 0.0, c);
+            draw_circle(fx(0.34), fy(0.42), sz * 0.11, c);
+            draw_circle(fx(0.66), fy(0.42), sz * 0.11, c);
+            draw_circle(fx(0.34), fy(0.42), sz * 0.045, dark);
+            draw_circle(fx(0.66), fy(0.42), sz * 0.045, dark);
+            draw_line(fx(0.28), fy(0.70), fx(0.72), fy(0.70), t, dark); // mouth
+            draw_ellipse(fx(0.16), fy(0.82), sz * 0.10, sz * 0.06, 0.0, c);
+            draw_ellipse(fx(0.84), fy(0.82), sz * 0.10, sz * 0.06, 0.0, c);
+        }
+        MonsterSprite::Archer => {
+            draw_circle(fx(0.42), fy(0.28), sz * 0.13, c); // skull
+            draw_circle(fx(0.38), fy(0.28), sz * 0.035, dark);
+            draw_circle(fx(0.47), fy(0.28), sz * 0.035, dark);
+            draw_line(fx(0.42), fy(0.41), fx(0.42), fy(0.74), t, c); // spine
+            for i in 0..3 {
+                let ry = fy(0.48 + i as f32 * 0.10);
+                draw_line(fx(0.30), ry, fx(0.54), ry, t, c); // ribs
+            }
+            draw_line(fx(0.42), fy(0.74), fx(0.32), fy(0.92), t, c);
+            draw_line(fx(0.42), fy(0.74), fx(0.52), fy(0.92), t, c);
+            // Bow.
+            draw_poly_lines(fx(0.76), fy(0.52), 16, sz * 0.24, 0.0, t, c);
+            draw_line(fx(0.76), fy(0.28), fx(0.76), fy(0.76), t * 0.7, c);
+        }
+        MonsterSprite::Golem => {
+            draw_rectangle(fx(0.28), fy(0.30), sz * 0.44, sz * 0.44, c); // torso
+            draw_rectangle(fx(0.38), fy(0.12), sz * 0.24, sz * 0.18, c); // head
+            draw_rectangle(fx(0.44), fy(0.18), sz * 0.12, sz * 0.05, dark); // slit
+            draw_rectangle(fx(0.08), fy(0.34), sz * 0.18, sz * 0.36, c); // arms
+            draw_rectangle(fx(0.74), fy(0.34), sz * 0.18, sz * 0.36, c);
+            draw_rectangle(fx(0.30), fy(0.76), sz * 0.16, sz * 0.18, c); // legs
+            draw_rectangle(fx(0.54), fy(0.76), sz * 0.16, sz * 0.18, c);
+        }
+        MonsterSprite::Wisp => {
+            // A cold mote with radiating spines.
+            for i in 0..8 {
+                let a = i as f32 * std::f32::consts::TAU / 8.0;
+                draw_line(
+                    fx(0.5),
+                    fy(0.5),
+                    fx(0.5) + a.cos() * sz * 0.42,
+                    fy(0.5) + a.sin() * sz * 0.42,
+                    t,
+                    c,
+                );
+            }
+            draw_poly(fx(0.5), fy(0.5), 4, sz * 0.18, 45.0, c);
+            draw_poly(fx(0.5), fy(0.5), 4, sz * 0.08, 45.0, dark);
+        }
+        // Lean, head down, jaws open. Deliberately unlike the rat: raised
+        // hackles instead of a smooth back, a brush tail instead of a whip,
+        // and a head slung level with the shoulders rather than perched above.
+        MonsterSprite::Hound => {
+            draw_ellipse(fx(0.44), fy(0.52), sz * 0.28, sz * 0.13, 0.0, c);
+            // Hackles along the spine.
+            for i in 0..4 {
+                let hx = fx(0.26 + i as f32 * 0.13);
+                draw_triangle(
+                    Vec2::new(hx - sz * 0.05, fy(0.42)),
+                    Vec2::new(hx, fy(0.26)),
+                    Vec2::new(hx + sz * 0.05, fy(0.42)),
+                    c,
+                );
+            }
+            // Head, slung forward and low.
+            draw_circle(fx(0.72), fy(0.58), sz * 0.12, c);
+            draw_triangle(
+                Vec2::new(fx(0.68), fy(0.48)),
+                Vec2::new(fx(0.74), fy(0.34)),
+                Vec2::new(fx(0.79), fy(0.50)),
+                c,
+            ); // ear
+            // Open jaws: an upper and a lower snout with a bite between them.
+            draw_triangle(
+                Vec2::new(fx(0.78), fy(0.52)),
+                Vec2::new(fx(0.99), fy(0.54)),
+                Vec2::new(fx(0.78), fy(0.60)),
+                c,
+            );
+            draw_triangle(
+                Vec2::new(fx(0.78), fy(0.64)),
+                Vec2::new(fx(0.95), fy(0.72)),
+                Vec2::new(fx(0.78), fy(0.70)),
+                c,
+            );
+            draw_circle(fx(0.72), fy(0.53), sz * 0.025, dark);
+            // Brush tail.
+            draw_triangle(
+                Vec2::new(fx(0.20), fy(0.50)),
+                Vec2::new(fx(0.02), fy(0.28)),
+                Vec2::new(fx(0.16), fy(0.58)),
+                c,
+            );
+            for i in 0..4 {
+                let lx = fx(0.28 + i as f32 * 0.12);
+                draw_line(lx, fy(0.62), lx, fy(0.92), t, c);
+            }
+        }
+        MonsterSprite::Sentinel => {
+            draw_rectangle(fx(0.32), fy(0.22), sz * 0.36, sz * 0.56, c);
+            draw_rectangle(fx(0.38), fy(0.06), sz * 0.24, sz * 0.18, c);
+            draw_rectangle(fx(0.42), fy(0.13), sz * 0.16, sz * 0.04, dark);
+            // Tower shield.
+            draw_rectangle(fx(0.06), fy(0.26), sz * 0.22, sz * 0.48, c);
+            draw_rectangle_lines(fx(0.06), fy(0.26), sz * 0.22, sz * 0.48, t, dark);
+            draw_line(fx(0.17), fy(0.30), fx(0.17), fy(0.70), t, dark);
+            draw_rectangle(fx(0.74), fy(0.30), sz * 0.10, sz * 0.44, c); // haft
+            draw_rectangle(fx(0.34), fy(0.80), sz * 0.32, sz * 0.14, c);
+        }
+        MonsterSprite::Wraith => {
+            // Hood: a teardrop over a ragged hem.
+            draw_circle(fx(0.5), fy(0.34), sz * 0.20, c);
+            draw_triangle(
+                Vec2::new(fx(0.30), fy(0.36)),
+                Vec2::new(fx(0.70), fy(0.36)),
+                Vec2::new(fx(0.5), fy(0.80)),
+                c,
+            );
+            for i in 0..4 {
+                let hx = fx(0.32 + i as f32 * 0.12);
+                draw_triangle(
+                    Vec2::new(hx, fy(0.74)),
+                    Vec2::new(hx + sz * 0.06, fy(0.74)),
+                    Vec2::new(hx + sz * 0.03, fy(0.94)),
+                    c,
+                );
+            }
+            draw_circle(fx(0.44), fy(0.32), sz * 0.035, dark);
+            draw_circle(fx(0.56), fy(0.32), sz * 0.035, dark);
+        }
+        MonsterSprite::Idol => {
+            // Stacked stone with a carved face.
+            draw_rectangle(fx(0.30), fy(0.14), sz * 0.40, sz * 0.30, c);
+            draw_rectangle(fx(0.24), fy(0.46), sz * 0.52, sz * 0.24, c);
+            draw_rectangle(fx(0.18), fy(0.72), sz * 0.64, sz * 0.20, c);
+            draw_triangle(
+                Vec2::new(fx(0.38), fy(0.24)),
+                Vec2::new(fx(0.46), fy(0.24)),
+                Vec2::new(fx(0.42), fy(0.34)),
+                dark,
+            );
+            draw_triangle(
+                Vec2::new(fx(0.54), fy(0.24)),
+                Vec2::new(fx(0.62), fy(0.24)),
+                Vec2::new(fx(0.58), fy(0.34)),
+                dark,
+            );
+            draw_poly_lines(fx(0.5), fy(0.58), 12, sz * 0.09, 0.0, t, dark); // ward
+        }
+        MonsterSprite::Fiend => {
+            // A figure and its reflection: solid on the left of the glass,
+            // drawn in outline on the right.
+            draw_triangle(
+                Vec2::new(fx(0.5), fy(0.34)),
+                Vec2::new(fx(0.16), fy(0.92)),
+                Vec2::new(fx(0.5), fy(0.92)),
+                c,
+            );
+            draw_circle(fx(0.40), fy(0.26), sz * 0.11, c);
+            draw_circle(fx(0.43), fy(0.25), sz * 0.03, dark);
+
+            draw_line(fx(0.5), fy(0.04), fx(0.5), fy(0.96), t, c);
+
+            draw_line(fx(0.5), fy(0.34), fx(0.84), fy(0.92), t, c);
+            draw_line(fx(0.84), fy(0.92), fx(0.5), fy(0.92), t, c);
+            draw_circle_lines(fx(0.60), fy(0.26), sz * 0.11, t, c);
+        }
+        MonsterSprite::King => {
+            // Crown over a skull over a heavy mantle.
+            draw_triangle(
+                Vec2::new(fx(0.28), fy(0.24)),
+                Vec2::new(fx(0.72), fy(0.24)),
+                Vec2::new(fx(0.5), fy(0.34)),
+                c,
+            );
+            for i in 0..4 {
+                let px = fx(0.28 + i as f32 * 0.147);
+                draw_triangle(
+                    Vec2::new(px, fy(0.24)),
+                    Vec2::new(px + sz * 0.10, fy(0.24)),
+                    Vec2::new(px + sz * 0.05, fy(0.06)),
+                    c,
+                );
+            }
+            draw_circle(fx(0.5), fy(0.46), sz * 0.16, c);
+            draw_circle(fx(0.44), fy(0.44), sz * 0.04, dark);
+            draw_circle(fx(0.56), fy(0.44), sz * 0.04, dark);
+            draw_triangle(
+                Vec2::new(fx(0.20), fy(0.94)),
+                Vec2::new(fx(0.80), fy(0.94)),
+                Vec2::new(fx(0.5), fy(0.58)),
+                c,
+            );
+        }
+    }
+}
+
 // ============================================================= palette
 
 fn col_bg() -> Color {
@@ -374,7 +602,11 @@ const TEXT_SCALE: f32 = 1.34;
 
 /// Draw text at the interface's scale.
 fn ui_text(s: &str, x: f32, y: f32, size: f32, color: Color) {
-    draw_text(s, x, y, size * TEXT_SCALE, color);
+    // Snap to whole logical pixels. Glyph strokes are one pixel wide at these
+    // sizes, and drawing them at a fractional offset lets the letterbox
+    // rescale sample one away - a capital O loses its right side and reads as
+    // a C.
+    draw_text(s, x.round(), y.round(), (size * TEXT_SCALE).round(), color);
 }
 
 /// Width of `s` once scaled — for centring and right-aligning.
@@ -1124,12 +1356,13 @@ fn render_cooldown_row(
     w: f32,
     name: &str,
     slot: Option<SlotKind>,
+    sigil_seed: u64,
     cooldown_ms: u32,
     schedule: &[u32],
     now_ms: u32,
     tint: Color,
 ) {
-    let icon = 19.0;
+    let icon = 21.0;
     let label_w = 216.0;
     let track_x = x + label_w;
     let track_w = (w - label_w - 62.0).max(20.0);
@@ -1144,7 +1377,7 @@ fn render_cooldown_row(
         .unwrap_or(false);
 
     let fg = if just_fired { WHITE } else { Color::from_rgba(178, 180, 200, 255) };
-    draw_slot_icon(x, y - 1.0, icon, slot, if just_fired { WHITE } else { tint });
+    draw_item_sigil(x, y - 3.0, icon, slot, sigil_seed, if just_fired { WHITE } else { tint });
     ui_text(name, x + icon + 8.0, y + 12.0, 13.0, fg);
 
     draw_rectangle(track_x, y, track_w, h, Color::from_rgba(26, 26, 38, 255));
@@ -1233,54 +1466,141 @@ fn battle_geom() -> BattleGeom {
     }
 }
 
-/// A small glyph for each slot, drawn from primitives — the default font has
-/// no symbols to borrow. `None` means an innate attack: a creature's own teeth
-/// rather than equipment.
-fn draw_slot_icon(x: f32, y: f32, s: f32, slot: Option<SlotKind>, c: Color) {
-    let t = 1.8;
+/// A procedurally generated emblem for one assembled item.
+///
+/// The slot fixes the archetype — a weapon always reads as a blade — while the
+/// item's hash varies the proportions and ornament. That is the same number
+/// its name is drawn from, so an item that is renamed by moving a piece is
+/// redrawn to match.
+fn draw_item_sigil(x: f32, y: f32, sz: f32, slot: Option<SlotKind>, seed: u64, c: Color) {
+    // A handful of independent knobs off different slices of the hash.
+    let bit = |shift: u32, n: u64| ((seed >> shift) % n) as u32;
+    let frac = |shift: u32, lo: f32, hi: f32| {
+        lo + (((seed >> shift) % 1000) as f32 / 1000.0) * (hi - lo)
+    };
+    let t = (sz * 0.075).max(1.4);
+    let fx = |f: f32| x + sz * f;
+    let fy = |f: f32| y + sz * f;
+    let dark = Color::new(c.r * 0.45, c.g * 0.45, c.b * 0.45, c.a);
+
     match slot {
-        // A sword: blade, crossguard, grip.
-        Some(SlotKind::Weapon) => {
-            draw_line(x + s * 0.5, y + s * 0.04, x + s * 0.5, y + s * 0.70, t, c);
-            draw_line(x + s * 0.20, y + s * 0.60, x + s * 0.80, y + s * 0.60, t, c);
-            draw_line(x + s * 0.5, y + s * 0.70, x + s * 0.5, y + s * 0.94, t, c);
-        }
-        // A helm: domed top, brow line.
-        Some(SlotKind::Helmet) => {
-            draw_line(x + s * 0.16, y + s * 0.76, x + s * 0.16, y + s * 0.38, t, c);
-            draw_line(x + s * 0.16, y + s * 0.38, x + s * 0.5, y + s * 0.12, t, c);
-            draw_line(x + s * 0.5, y + s * 0.12, x + s * 0.84, y + s * 0.38, t, c);
-            draw_line(x + s * 0.84, y + s * 0.38, x + s * 0.84, y + s * 0.76, t, c);
-            draw_line(x + s * 0.28, y + s * 0.56, x + s * 0.72, y + s * 0.56, t, c);
-        }
-        // A breastplate: torso with shoulder pieces.
-        Some(SlotKind::Chest) => {
-            draw_rectangle_lines(x + s * 0.26, y + s * 0.26, s * 0.48, s * 0.62, t, c);
-            draw_rectangle_lines(x + s * 0.06, y + s * 0.26, s * 0.16, s * 0.26, t, c);
-            draw_rectangle_lines(x + s * 0.78, y + s * 0.26, s * 0.16, s * 0.26, t, c);
-        }
-        // A gauntlet: palm, three fingers, a thumb.
-        Some(SlotKind::Gloves) => {
-            draw_rectangle_lines(x + s * 0.30, y + s * 0.44, s * 0.44, s * 0.46, t, c);
-            for i in 0..3 {
-                let fx = x + s * (0.36 + i as f32 * 0.14);
-                draw_line(fx, y + s * 0.44, fx, y + s * 0.16, t, c);
-            }
-            draw_line(x + s * 0.30, y + s * 0.56, x + s * 0.10, y + s * 0.40, t, c);
-        }
-        // A boot: shin above, foot below.
-        Some(SlotKind::Greaves) => {
-            draw_rectangle_lines(x + s * 0.32, y + s * 0.08, s * 0.30, s * 0.56, t, c);
-            draw_rectangle_lines(x + s * 0.32, y + s * 0.64, s * 0.54, s * 0.26, t, c);
-        }
-        // A fang.
+        // A creature's own armament: a pair of fangs, so a bite never reads as
+        // a piece of equipment it does not have.
         None => {
+            for side in [-1.0f32, 1.0] {
+                let cx = 0.5 + side * frac(7, 0.11, 0.20);
+                draw_triangle(
+                    Vec2::new(fx(cx - 0.11), fy(0.14)),
+                    Vec2::new(fx(cx + 0.11), fy(0.14)),
+                    Vec2::new(fx(cx), fy(frac(23, 0.72, 0.92))),
+                    c,
+                );
+            }
+            draw_line(fx(0.14), fy(0.16), fx(0.86), fy(0.16), t, c);
+        }
+        Some(SlotKind::Weapon) => {
+            let len = frac(3, 0.52, 0.76);
+            let wide = frac(11, 0.06, 0.13);
+            // Blade: a tapered quad, sometimes leaf-shaped.
             draw_triangle(
-                Vec2::new(x + s * 0.24, y + s * 0.16),
-                Vec2::new(x + s * 0.76, y + s * 0.16),
-                Vec2::new(x + s * 0.5, y + s * 0.88),
+                Vec2::new(fx(0.5 - wide), fy(0.72 - len * 0.35)),
+                Vec2::new(fx(0.5 + wide), fy(0.72 - len * 0.35)),
+                Vec2::new(fx(0.5), fy(0.72 - len)),
                 c,
             );
+            draw_rectangle(fx(0.5 - wide), fy(0.72 - len * 0.35), sz * wide * 2.0, sz * len * 0.35, c);
+            // Guard.
+            match bit(19, 3) {
+                0 => draw_line(fx(0.22), fy(0.72), fx(0.78), fy(0.72), t, c),
+                1 => {
+                    draw_line(fx(0.24), fy(0.74), fx(0.76), fy(0.74), t, c);
+                    draw_line(fx(0.24), fy(0.74), fx(0.30), fy(0.64), t, c);
+                    draw_line(fx(0.76), fy(0.74), fx(0.70), fy(0.64), t, c);
+                }
+                _ => draw_poly_lines(fx(0.5), fy(0.72), 6, sz * 0.14, 0.0, t, c),
+            }
+            draw_line(fx(0.5), fy(0.74), fx(0.5), fy(0.92), t, c); // grip
+            match bit(27, 3) {
+                0 => draw_circle(fx(0.5), fy(0.94), sz * 0.06, c),
+                1 => draw_poly(fx(0.5), fy(0.94), 4, sz * 0.07, 45.0, c),
+                _ => {}
+            }
+            // Fuller.
+            if bit(31, 2) == 0 {
+                draw_line(fx(0.5), fy(0.70), fx(0.5), fy(0.76 - len), t * 0.6, dark);
+            }
+        }
+        Some(SlotKind::Helmet) => {
+            let brow = frac(5, 0.30, 0.42);
+            draw_line(fx(0.18), fy(0.80), fx(0.18), fy(brow), t, c);
+            draw_line(fx(0.18), fy(brow), fx(0.5), fy(0.12), t, c);
+            draw_line(fx(0.5), fy(0.12), fx(0.82), fy(brow), t, c);
+            draw_line(fx(0.82), fy(brow), fx(0.82), fy(0.80), t, c);
+            draw_line(fx(0.12), fy(0.80), fx(0.88), fy(0.80), t, c);
+            // Visor slits.
+            for i in 0..(1 + bit(13, 3)) {
+                let vy = fy(0.52 + i as f32 * 0.10);
+                draw_line(fx(0.28), vy, fx(0.72), vy, t * 0.8, c);
+            }
+            // Crest.
+            match bit(23, 4) {
+                0 => draw_line(fx(0.5), fy(0.12), fx(0.5), fy(-0.02), t, c),
+                1 => {
+                    draw_line(fx(0.28), fy(0.26), fx(0.14), fy(0.06), t, c);
+                    draw_line(fx(0.72), fy(0.26), fx(0.86), fy(0.06), t, c);
+                }
+                2 => draw_poly_lines(fx(0.5), fy(0.08), 3, sz * 0.10, 90.0, t, c),
+                _ => {}
+            }
+        }
+        Some(SlotKind::Chest) => {
+            let w = frac(7, 0.24, 0.32);
+            draw_line(fx(0.5 - w), fy(0.26), fx(0.5 + w), fy(0.26), t, c);
+            draw_line(fx(0.5 - w), fy(0.26), fx(0.5 - w * 0.7), fy(0.86), t, c);
+            draw_line(fx(0.5 + w), fy(0.26), fx(0.5 + w * 0.7), fy(0.86), t, c);
+            draw_line(fx(0.5 - w * 0.7), fy(0.86), fx(0.5 + w * 0.7), fy(0.86), t, c);
+            // Neckline.
+            draw_line(fx(0.5 - 0.10), fy(0.26), fx(0.5), fy(0.40), t, c);
+            draw_line(fx(0.5 + 0.10), fy(0.26), fx(0.5), fy(0.40), t, c);
+            // Panel divisions.
+            for i in 0..(1 + bit(17, 3)) {
+                let py = fy(0.50 + i as f32 * 0.13);
+                draw_line(fx(0.5 - w * 0.8), py, fx(0.5 + w * 0.8), py, t * 0.7, dark);
+            }
+            if bit(29, 2) == 0 {
+                draw_poly_lines(fx(0.5), fy(0.56), 6, sz * 0.09, 0.0, t * 0.7, dark);
+            }
+        }
+        Some(SlotKind::Gloves) => {
+            draw_rectangle_lines(fx(0.30), fy(0.46), sz * 0.42, sz * 0.42, t, c);
+            let fingers = 3 + bit(9, 2);
+            for i in 0..fingers {
+                let gx = fx(0.34 + i as f32 * (0.34 / fingers as f32));
+                draw_line(gx, fy(0.46), gx, fy(0.46 - frac(21 + i, 0.16, 0.30)), t, c);
+            }
+            draw_line(fx(0.30), fy(0.58), fx(0.10), fy(0.40), t, c); // thumb
+            for i in 0..bit(25, 3) {
+                draw_circle(fx(0.40 + i as f32 * 0.11), fy(0.66), sz * 0.035, dark);
+            }
+        }
+        Some(SlotKind::Greaves) => {
+            let shin = frac(15, 0.34, 0.52);
+            draw_rectangle_lines(fx(0.34), fy(0.86 - shin), sz * 0.28, sz * shin, t, c);
+            draw_rectangle_lines(fx(0.34), fy(0.86), sz * 0.46, sz * 0.14, t, c);
+            for i in 0..(1 + bit(33, 3)) {
+                let py = fy(0.86 - shin + 0.10 + i as f32 * 0.12);
+                if py < fy(0.84) {
+                    draw_line(fx(0.34), py, fx(0.62), py, t * 0.7, dark);
+                }
+            }
+            if bit(37, 2) == 0 {
+                draw_triangle(
+                    Vec2::new(fx(0.34), fy(0.86 - shin)),
+                    Vec2::new(fx(0.62), fy(0.86 - shin)),
+                    Vec2::new(fx(0.48), fy(0.86 - shin - 0.12)),
+                    c,
+                );
+            }
         }
     }
 }
@@ -1589,10 +1909,31 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
                 g.cd_w,
                 &it.name,
                 it.slot,
+                it.sigil_seed,
                 it.cooldown_ms,
                 sched.get(i).map(|v| v.as_slice()).unwrap_or(&[]),
                 pb.now_ms,
                 tint,
+            );
+        }
+    }
+
+    // The creature itself, in the clear space under its cooldown list. It
+    // takes whatever room is left between the last row and the log strip.
+    {
+        let below = g.enemy_board_y + 30.0 + log.enemy.items.len() as f32 * 28.0 + 14.0;
+        let room = (g.log.y - 16.0) - below;
+        // A very heavily geared monster leaves no gap; drop the portrait
+        // rather than draw it over the log.
+        if room >= 48.0 {
+            let sz = room.min(g.cd_w * 0.5).min(190.0);
+            draw_monster(
+                g.cd_x + (g.cd_w - sz) / 2.0,
+                below + (room - sz).max(0.0) / 2.0,
+                sz,
+                log.spec.sprite,
+                Color::from_rgba(214, 126, 106, 255),
+                Color::from_rgba(40, 22, 20, 255),
             );
         }
     }
@@ -1663,6 +2004,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
 /// Everything one assembled item is worth: what it adds to you all the time,
 /// and what it does each time its cooldown comes round.
 fn render_item_summary(p: &ItemProfile, run: &Run, mx: f32, my: f32) {
+    // Drawn after the frame, below.
     let total = run.player_stats();
     let st = p.stats;
     let mut lines: Vec<(String, Color)> = vec![
@@ -1733,7 +2075,7 @@ fn render_item_summary(p: &ItemProfile, run: &Run, mx: f32, my: f32) {
         lines.push(("  ticks over doing nothing".to_string(), col_dim()));
     }
 
-    draw_tooltip(&lines, mx, my);
+    draw_tooltip_with_sigil(&lines, Some((Some(p.slot), p.sigil_seed)), mx, my);
 }
 
 /// A monster's innate attack, which has no components behind it.
@@ -1762,6 +2104,33 @@ fn render_innate_summary(it: &gearmaster_engine::combat::RunningItem, mx: f32, m
 }
 
 /// Shared tooltip frame: sized to its content and kept on screen.
+fn draw_tooltip_with_sigil(
+    lines: &[(String, Color)],
+    sigil: Option<(Option<SlotKind>, u64)>,
+    mx: f32,
+    my: f32,
+) {
+    let art = if sigil.is_some() { 62.0 } else { 0.0 };
+    let lh = line_h(14.0);
+    let w = lines
+        .iter()
+        .map(|(s, _)| text_width(s, 14.0))
+        .fold(0.0_f32, f32::max)
+        + 26.0
+        + art;
+    let h = (lines.len() as f32 * lh + 18.0).max(art + 18.0);
+    let x = (mx + 18.0).min(LOGICAL_W - w - 6.0).max(4.0);
+    let y = (my + 18.0).min(LOGICAL_H - h - 6.0).max(4.0);
+    draw_rectangle(x, y, w, h, Color::from_rgba(12, 12, 20, 248));
+    draw_rectangle_lines(x, y, w, h, 1.5, Color::from_rgba(120, 120, 155, 255));
+    if let Some((slot, seed)) = sigil {
+        draw_item_sigil(x + 10.0, y + 10.0, 54.0, slot, seed, Color::from_rgba(228, 214, 170, 255));
+    }
+    for (i, (s, c)) in lines.iter().enumerate() {
+        ui_text(s, x + 13.0 + art, y + lh + i as f32 * lh, 14.0, *c);
+    }
+}
+
 fn draw_tooltip(lines: &[(String, Color)], mx: f32, my: f32) {
     let w = lines
         .iter()
@@ -2088,10 +2457,17 @@ fn render_panel(
     let m = run.monster();
     ui_text("NEXT OPPONENT", x + 20.0, y, 14.0, col_dim());
     y += 20.0;
+    draw_monster(
+        x + PANEL_W - 78.0,
+        y - 16.0,
+        62.0,
+        m.sprite,
+        Color::from_rgba(214, 126, 106, 255),
+        Color::from_rgba(40, 22, 20, 255),
+    );
     ui_text(m.name, x + 20.0, y, 17.0, Color::from_rgba(230, 140, 120, 255));
     let bounty = format!("{}g", m.bounty);
-    let d_w = text_width(&bounty, 15.0);
-    ui_text(&bounty, x + PANEL_W - 20.0 - d_w, y, 15.0, col_gold());
+    ui_text(&bounty, x + 20.0 + text_width(m.name, 17.0) + 14.0, y, 15.0, col_gold());
     y += 18.0;
     ui_text(
         &format!("rung {} of {}  ·  {} hp", run.rung + 1, LADDER.len(), m.health),
@@ -2702,6 +3078,7 @@ mod tests {
             stats: gearmaster_engine::stats::Stats::ZERO,
             triggers: Vec::new(),
             adjacent_assembled_same_slot: 0,
+            sigil_seed: 0,
         }
     }
 

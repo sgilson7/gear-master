@@ -75,6 +75,23 @@ impl MonsterAttack {
     }
 }
 
+/// Which silhouette to draw for a monster. Named rather than matched on the
+/// monster's name, so a rename can't silently change what it looks like.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum MonsterSprite {
+    Rat,
+    Toad,
+    Archer,
+    Golem,
+    Wisp,
+    Hound,
+    Sentinel,
+    Wraith,
+    Idol,
+    Fiend,
+    King,
+}
+
 /// One entry in a monster's loadout: `(component, slot, x, y, quarter turns)`.
 pub type GearPlacement = (&'static str, SlotKind, u8, u8, u8);
 
@@ -97,6 +114,7 @@ pub struct MonsterSpec {
     pub gear: &'static [GearPlacement],
     /// Gold awarded for beating it.
     pub bounty: i32,
+    pub sprite: MonsterSprite,
 }
 
 impl MonsterSpec {
@@ -186,6 +204,7 @@ pub const RUST_GOLEM: MonsterSpec = MonsterSpec {
         ("Ironbark Layer", SlotKind::Chest, 0, 3, 0),
     ],
     bounty: 10,
+    sprite: MonsterSprite::Golem,
 };
 
 /// The monster ladder, easiest first.
@@ -205,6 +224,7 @@ pub const LADDER: &[MonsterSpec] = &[
         attacks: &[MonsterAttack::hit("bite", 900, 4)],
         gear: &[],
         bounty: 6,
+    sprite: MonsterSprite::Rat,
     },
     MonsterSpec {
         name: "Bog Toad",
@@ -220,6 +240,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
         ],
         bounty: 8,
+    sprite: MonsterSprite::Toad,
     },
     MonsterSpec {
         name: "Bone Archer",
@@ -237,6 +258,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Featherweight Mold", SlotKind::Gloves, 2, 0, 0),
         ],
         bounty: 9,
+    sprite: MonsterSprite::Archer,
     },
     RUST_GOLEM,
     MonsterSpec {
@@ -255,6 +277,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Hexbolt", SlotKind::Weapon, 1, 0, 0),
         ],
         bounty: 12,
+    sprite: MonsterSprite::Wisp,
     },
     MonsterSpec {
         name: "Plague Hound",
@@ -272,6 +295,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
         ],
         bounty: 14,
+    sprite: MonsterSprite::Hound,
     },
     MonsterSpec {
         name: "Iron Sentinel",
@@ -290,6 +314,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Serrated Edge", SlotKind::Weapon, 1, 0, 0),
         ],
         bounty: 16,
+    sprite: MonsterSprite::Sentinel,
     },
     MonsterSpec {
         name: "Whisperling",
@@ -308,6 +333,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Scrying Lens", SlotKind::Helmet, 0, 2, 0),
         ],
         bounty: 18,
+    sprite: MonsterSprite::Wraith,
     },
     MonsterSpec {
         name: "Warded Idol",
@@ -326,6 +352,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Whetstone", SlotKind::Weapon, 2, 0, 0),
         ],
         bounty: 20,
+    sprite: MonsterSprite::Idol,
     },
     MonsterSpec {
         name: "Mirror Fiend",
@@ -345,6 +372,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
         ],
         bounty: 24,
+    sprite: MonsterSprite::Fiend,
     },
     MonsterSpec {
         name: "The Hollow King",
@@ -369,6 +397,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Grave-Iron Mold", SlotKind::Greaves, 0, 2, 0),
         ],
         bounty: 40,
+    sprite: MonsterSprite::King,
     },
 ];
 
@@ -392,6 +421,8 @@ pub struct RunningItem {
     pub aligned_items: Vec<usize>,
     /// Monster attacks can carry a curse; player items use triggers instead.
     pub curse: Option<CurseKind>,
+    /// Fingerprint used to draw this item's emblem.
+    pub sigil_seed: u64,
 }
 
 impl RunningItem {
@@ -410,6 +441,7 @@ impl RunningItem {
             adjacent_items: p.adjacent_items.clone(),
             aligned_items: p.aligned_items.clone(),
             curse: None,
+            sigil_seed: p.sigil_seed,
         }
     }
 
@@ -428,6 +460,10 @@ impl RunningItem {
             adjacent_items: Vec::new(),
             aligned_items: Vec::new(),
             curse: a.curse,
+            // Innate attacks have no gear behind them, so seed off the name.
+            sigil_seed: a.name.bytes().fold(0x1234_5678_u64, |h, b| {
+                h.rotate_left(5) ^ b as u64
+            }),
         }
     }
 

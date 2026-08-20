@@ -16,6 +16,7 @@ use gearmaster_engine::stats::Stats;
 /// loadout that happens to produce it.
 fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfile {
     ItemProfile {
+        sigil_seed: 0,
         pieces: Vec::new(),
         name: name.to_string(),
         full_name: name.to_string(),
@@ -41,6 +42,7 @@ const DUMMY: MonsterSpec = MonsterSpec {
     attacks: &[],
     gear: &[],
     bounty: 0,
+    sprite: gearmaster_engine::combat::MonsterSprite::Rat,
 };
 
 /// A monster that only hits, for testing defensive mechanics.
@@ -54,6 +56,7 @@ const PUNCHER: MonsterSpec = MonsterSpec {
     attacks: &[MonsterAttack::hit("jab", 1000, 10)],
     gear: &[],
     bounty: 0,
+    sprite: gearmaster_engine::combat::MonsterSprite::Rat,
 };
 
 fn activations_of(log: &gearmaster_engine::combat::CombatLog, name: &str) -> Vec<u32> {
@@ -325,6 +328,7 @@ fn curse_resistance_shortens_the_burn() {
         attacks: &[],
         gear: &[],
         bounty: 0,
+        sprite: gearmaster_engine::combat::MonsterSprite::Rat,
     };
     let log = simulate(Stats::new(1000, 0, 0, 100), &[brand], &TOUGH);
 
@@ -387,6 +391,7 @@ fn mind_damage_eats_maximum_health_and_cannot_be_healed_back() {
         attacks: &[MonsterAttack::mind("whisper", 1000, 4)],
         gear: &[],
         bounty: 0,
+        sprite: gearmaster_engine::combat::MonsterSprite::Rat,
     };
     // Plenty of regeneration: it still cannot undo a lowered ceiling.
     let log = simulate(Stats::new(100, 0, 50, 100), &[], &PSION);
@@ -416,6 +421,7 @@ fn mind_resistance_blunts_it() {
         attacks: &[MonsterAttack::mind("whisper", 1000, 10)],
         gear: &[],
         bounty: 0,
+        sprite: gearmaster_engine::combat::MonsterSprite::Rat,
     };
     let mut warded = Stats::new(100, 0, 0, 100);
     warded.mind_resist = 60;
