@@ -48,7 +48,8 @@
       "Bash(git commit *)",
       "Bash(git push *)",
       "Bash(gh repo *)",
-      "Bash(awk '{s+=$1} END {print s\" engine tests pass\"}')"
+      "Bash(awk '{s+=$1} END {print s\" engine tests pass\"}')",
+      "Bash(awk '{s+=$1} END {print s\" tests pass\"}')"
     ]
   }
 }

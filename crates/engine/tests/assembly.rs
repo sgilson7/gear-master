@@ -170,17 +170,57 @@ fn one_slot_can_hold_two_finished_items() {
 }
 
 #[test]
-fn letting_two_items_touch_merges_them_and_breaks_the_recipe() {
+fn two_items_may_sit_flush_against_each_other() {
     let mut run = Run::new();
     equip(&mut run, "Leather Material", SlotKind::Gloves, 0, 0); // (0..1, 0..1)
-    equip(&mut run, "Gripping Mold", SlotKind::Gloves, 2, 0);
-    // Butted straight up against the first glove instead of leaving a gap.
+    equip(&mut run, "Gripping Mold", SlotKind::Gloves, 2, 0); // touches the leather
+    // Butted straight up against the first glove, with no gap at all.
     equip(&mut run, "Steel Material", SlotKind::Gloves, 0, 2); // (0..1, 2..4)
 
     let r = run.report(SlotKind::Gloves);
-    assert_eq!(r.items.len(), 1, "everything is one connected lump");
-    assert_eq!(r.items[0].status, "too many material (max 1)");
-    assert_eq!(r.assembled_count(), 0);
+    // Two materials means two cores, so two items — even though every piece
+    // here is one connected lump.
+    assert_eq!(r.items.len(), 2, "each core anchors its own item");
+    assert_eq!(r.assembled_count(), 1, "leather + mold is a finished glove");
+    assert_eq!(r.loose_count(), 1, "the steel material still wants a mold");
+}
+
+#[test]
+fn a_loose_piece_joins_whichever_core_it_is_nearest() {
+    let mut run = Run::new();
+    // Two handles in a row with a single blade hanging off the second one.
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0); // (0, 0..2)
+    equip(&mut run, "Balanced Grip", SlotKind::Weapon, 1, 0); // (1, 0..3)
+    equip(&mut run, "Iron Blade", SlotKind::Weapon, 2, 0); // (2, 0..3), touches the grip
+
+    let r = run.report(SlotKind::Weapon);
+    assert_eq!(r.items.len(), 2, "two handles, two weapons");
+
+    let grip = piece(&run, "Balanced Grip");
+    let blade = piece(&run, "Iron Blade");
+    let with_grip = r.items.iter().find(|i| i.pieces.contains(&grip)).unwrap();
+    assert!(
+        with_grip.pieces.contains(&blade),
+        "the blade belongs to the handle it actually touches"
+    );
+    assert!(with_grip.assembled, "handle + blade is a weapon");
+
+    let oak = piece(&run, "Oak Handle");
+    let lonely = r.items.iter().find(|i| i.pieces.contains(&oak)).unwrap();
+    assert!(!lonely.assembled);
+    assert_eq!(lonely.status, "needs 1 more damaging");
+}
+
+#[test]
+fn a_blob_with_no_core_at_all_is_one_unfinished_item() {
+    let mut run = Run::new();
+    // Two layers touching, and not a base between them.
+    equip(&mut run, "Chain Layer", SlotKind::Chest, 0, 0);
+    equip(&mut run, "Plate Layer", SlotKind::Chest, 0, 1);
+
+    let r = run.report(SlotKind::Chest);
+    assert_eq!(r.items.len(), 1);
+    assert_eq!(r.items[0].status, "needs 1 more base");
 }
 
 #[test]

@@ -261,4 +261,74 @@ impl Slot {
         }
         counts
     }
+
+    /// The slot's pieces split into **items**, one per core piece.
+    ///
+    /// Every recipe names exactly one component it needs exactly one of — the
+    /// handle, frame, base or material. That piece is the item's core. Other
+    /// pieces join whichever core they are closest to through the touching
+    /// pieces, so two finished items can sit flush against each other and stay
+    /// separate. A connected blob with no core at all is one unfinished item.
+    ///
+    /// Deterministic: cores are seeded in row-major order and ties in the
+    /// multi-source search go to the earlier core.
+    pub fn items(&self, reg: &PieceRegistry) -> Vec<Vec<PieceId>> {
+        let mut out = Vec::new();
+
+        for group in self.groups() {
+            let cores: Vec<PieceId> = group
+                .iter()
+                .copied()
+                .filter(|&p| reg.def(p).kind.is_core())
+                .collect();
+
+            // No core, or exactly one: the blob is a single item either way.
+            if cores.len() <= 1 {
+                out.push(group);
+                continue;
+            }
+
+            // Several cores in one blob: hand each remaining piece to its
+            // nearest core, breadth-first through the piece adjacency graph.
+            let mut owner: HashMap<PieceId, PieceId> = HashMap::new();
+            let mut queue: VecDeque<PieceId> = VecDeque::new();
+            for &c in &cores {
+                owner.insert(c, c);
+                queue.push_back(c);
+            }
+            while let Some(p) = queue.pop_front() {
+                let holder = owner[&p];
+                for q in self.neighbors_of(p) {
+                    if !group.contains(&q) || owner.contains_key(&q) {
+                        continue;
+                    }
+                    owner.insert(q, holder);
+                    queue.push_back(q);
+                }
+            }
+
+            // Emit one item per core, keeping the group's original ordering.
+            for &c in &cores {
+                let members: Vec<PieceId> = group
+                    .iter()
+                    .copied()
+                    .filter(|p| owner.get(p) == Some(&c))
+                    .collect();
+                if !members.is_empty() {
+                    out.push(members);
+                }
+            }
+        }
+        out
+    }
+
+    /// Do these two sets of pieces touch? Used for item-to-item adjacency,
+    /// which is now possible because touching no longer merges items.
+    pub fn sets_touch(&self, a: &[PieceId], b: &[PieceId]) -> bool {
+        let b_cells: HashSet<(u8, u8)> =
+            b.iter().flat_map(|&p| self.cells_of(p)).collect();
+        a.iter()
+            .flat_map(|&p| self.cells_of(p))
+            .any(|(x, y)| Self::orthogonal(x, y).iter().any(|c| b_cells.contains(c)))
+    }
 }

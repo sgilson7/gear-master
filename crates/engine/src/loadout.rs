@@ -128,7 +128,7 @@ impl Loadout {
     ///   4. add the flat assembly bonuses of assembled groups
     pub fn report(&self, reg: &PieceRegistry, kind: SlotKind) -> SlotReport {
         let slot = self.slot(kind);
-        let groups = slot.groups();
+        let groups = slot.items(reg);
 
         // 2. Assembly verdicts, one per group.
         let verdicts: Vec<Result<(), String>> =

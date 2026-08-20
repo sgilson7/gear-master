@@ -74,6 +74,16 @@ pub enum PieceKind {
 }
 
 impl PieceKind {
+    /// The component each recipe needs exactly one of. A core anchors an item:
+    /// everything else in the slot joins the core it is nearest to, which is
+    /// what lets two finished items sit flush against each other.
+    pub fn is_core(self) -> bool {
+        matches!(
+            self,
+            PieceKind::Handle | PieceKind::Frame | PieceKind::Base | PieceKind::Material
+        )
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             PieceKind::Handle => "handle",
