@@ -102,7 +102,28 @@ Reapplying stacks *and* refreshes the timer. Curse resistance shortens the
 duration; at 100% the curse never lands. Frost stacking caps at 90% so gear can
 never freeze solid.
 
-**The enemy** — Rust Golem: 400 health, one slam every second for 10.
+## The run
+
+You start with a **ten-piece starter kit, 20 gold**, and six components on the
+shelf. Clicking one buys it. Beating a monster pays its **bounty** and moves
+you up the ladder; the **shop turns over after every battle**, win or lose, and
+never re-offers what it just had. Selling a piece back refunds half.
+
+Eleven monsters, each leaning on a different defence:
+
+| # | monster | hp | what it does | bounty |
+|---|---|---|---|---|
+| 1 | Cave Rat | 60 | bites every 0.8s | 6 |
+| 2 | Bog Toad | 120 | slow, regenerates | 8 |
+| 3 | Bone Archer | 140 | fast and weak — armour beats it, raw health doesn't | 9 |
+| 4 | Rust Golem | 400 | one heavy slam a second | 10 |
+| 5 | Frost Wisp | 170 | **frosts your gear**, so cheap fast items suffer least | 12 |
+| 6 | Plague Hound | 210 | stacks **searing** on you | 14 |
+| 7 | Iron Sentinel | 260 | **re-plates itself** — burst has to outpace the armour | 16 |
+| 8 | Whisperling | 180 | almost no damage; lowers your **health ceiling** | 18 |
+| 9 | Warded Idol | 320 | 75% curse resist — curse builds fall flat | 20 |
+| 10 | Mirror Fiend | 280 | 60% mind resist, and mind-damages back | 24 |
+| 11 | The Hollow King | 520 | all of it at once | 40 |
 
 **One adjacency bonus per slot:**
 

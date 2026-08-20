@@ -1289,7 +1289,7 @@ async fn main() {
         message = "Auto-built a complete loadout - every bonus is lit.".to_string();
     }
     if std::env::var("GEARMASTER_FIGHT").is_ok() {
-        pb = Some(Playback::new(run.begin_fight()));
+        pb = Some(Playback::new(run.fight_next()));
         message = "Fight in progress.".to_string();
     }
     // Screenshot capture is a desktop-only debugging aid: the browser build has

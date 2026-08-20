@@ -51,7 +51,8 @@
       "Bash(awk '{s+=$1} END {print s\" engine tests pass\"}')",
       "Bash(awk '{s+=$1} END {print s\" tests pass\"}')",
       "Bash(make publish *)",
-      "Bash(curl -sL -o /dev/null -w 'live site: HTTP %{http_code}  %{size_download} bytes\\\\n' https://sgilson7.github.io/gear-master/gearmaster.wasm)"
+      "Bash(curl -sL -o /dev/null -w 'live site: HTTP %{http_code}  %{size_download} bytes\\\\n' https://sgilson7.github.io/gear-master/gearmaster.wasm)",
+      "Bash(curl -sL -o /dev/null -w 'live: HTTP %{http_code}\\\\n' https://sgilson7.github.io/gear-master/)"
     ]
   }
 }
