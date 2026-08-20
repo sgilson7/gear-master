@@ -27,8 +27,8 @@ const SLOT_CELL: f32 = 26.0;
 const SLOT_GAP: f32 = 22.0;
 const SLOT_TOP: f32 = 112.0;
 const INV_CELL: f32 = 15.0;
-const CARD_W: f32 = 124.0;
-const CARD_H: f32 = 146.0;
+const CARD_W: f32 = 140.0;
+const CARD_H: f32 = 156.0;
 const CARD_GAP: f32 = 10.0;
 /// How long an item jitters after it fires, and how far.
 const SHAKE_MS: u32 = 260;
@@ -239,7 +239,7 @@ impl Layout {
                     slot_index: i,
                     def,
                     rect: Rect::new(
-                        shop.x + 130.0 + i as f32 * (CARD_W + CARD_GAP),
+                        shop_cards_x(shop) + i as f32 * (CARD_W + CARD_GAP),
                         shop.y + 34.0,
                         CARD_W,
                         CARD_H,
@@ -598,7 +598,7 @@ fn draw_shape(shape: &Shape, ox: f32, oy: f32, cell: f32, color: Color, alpha: f
 
 /// Everything on screen is drawn through `text`/`text_width`, so this single
 /// constant controls how large the whole interface reads.
-const TEXT_SCALE: f32 = 1.34;
+const TEXT_SCALE: f32 = 1.70;
 
 /// Draw text at the interface's scale.
 fn ui_text(s: &str, x: f32, y: f32, size: f32, color: Color) {
@@ -643,6 +643,78 @@ fn button(rect: Rect, label: &str, enabled: bool, mx: f32, my: f32) -> bool {
     hovered
 }
 
+/// Wrap to a pixel width rather than a character count. Text is scaled by
+/// `TEXT_SCALE`, so counting characters means re-tuning every call site
+/// whenever the scale moves; measuring does not.
+fn wrap_px(s: &str, max_w: f32, size: f32) -> Vec<String> {
+    wrap_measured(s, max_w, &|t| text_width(t, size))
+}
+
+/// The wrapping itself, over any width function. Split out so the line
+/// breaking can be tested without a graphics context to measure against.
+fn wrap_measured(s: &str, max_w: f32, measure: &dyn Fn(&str) -> f32) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    for word in s.split_whitespace() {
+        let candidate =
+            if cur.is_empty() { word.to_string() } else { format!("{} {}", cur, word) };
+        if !cur.is_empty() && measure(&candidate) > max_w {
+            out.push(std::mem::take(&mut cur));
+            cur = word.to_string();
+        } else {
+            cur = candidate;
+        }
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    out
+}
+
+/// The largest of `sizes` (given largest first) that renders `s` inside
+/// `max_w`, or the smallest if none of them do. Lets a label be as big as its
+/// column allows instead of being pinned to whatever happened to fit at the
+/// scale it was written at.
+fn fitting_size(s: &str, max_w: f32, sizes: &[f32]) -> f32 {
+    largest_fitting(sizes, max_w, &|sz| text_width(s, sz))
+}
+
+/// The choice itself, over any width function - see `wrap_measured`.
+fn largest_fitting(sizes: &[f32], max_w: f32, width_at: &dyn Fn(f32) -> f32) -> f32 {
+    sizes
+        .iter()
+        .copied()
+        .find(|&sz| width_at(sz) <= max_w)
+        .unwrap_or_else(|| *sizes.last().unwrap())
+}
+
+/// Draw `s` wrapped into at most `max_lines`, and say whether anything was cut.
+/// A caller that gets `true` back should offer the full text on hover.
+fn draw_capped(
+    s: &str,
+    x: f32,
+    y: f32,
+    max_w: f32,
+    size: f32,
+    color: Color,
+    max_lines: usize,
+) -> bool {
+    let lines = wrap_px(s, max_w, size);
+    let cut = lines.len() > max_lines;
+    let lh = line_h(size);
+    for (i, line) in lines.iter().take(max_lines).enumerate() {
+        let last = cut && i + 1 == max_lines;
+        ui_text(
+            &if last { format!("{} ...", line) } else { line.clone() },
+            x,
+            y + i as f32 * lh,
+            size,
+            color,
+        );
+    }
+    cut
+}
+
 fn wrap(s: &str, width: usize) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
@@ -661,6 +733,40 @@ fn wrap(s: &str, width: usize) -> Vec<String> {
         out.push(cur);
     }
     out
+}
+
+/// A tooltip some render pass asked for while drawing.
+///
+/// Tooltips have to be painted after everything else or the panel and the
+/// boards draw over them, but the thing that knows a tooltip is wanted is
+/// whatever is being hovered halfway through the frame. Render passes leave
+/// their request here and the frame drains it at the end. Later requests win,
+/// which is what you want: the panel is drawn over the boards, so if the
+/// cursor is in both, the panel's answer is the relevant one.
+#[derive(Default)]
+struct Hover {
+    lines: Option<Vec<(String, Color)>>,
+}
+
+impl Hover {
+    /// Register a tooltip if `region` is under the cursor. Returns whether it
+    /// was, so the caller can also light the region up.
+    fn over(
+        &mut self,
+        region: Rect,
+        mx: f32,
+        my: f32,
+        lines: impl FnOnce() -> Vec<(String, Color)>,
+    ) -> bool {
+        if !region.contains(Vec2::new(mx, my)) {
+            return false;
+        }
+        let lines = lines();
+        if !lines.is_empty() {
+            self.lines = Some(lines);
+        }
+        true
+    }
 }
 
 // ============================================================ drag state
@@ -965,7 +1071,15 @@ fn render_item_outlines(view: &SlotView, run: &Run, report: &SlotReport) {
     }
 }
 
-fn render_slots(layout: &Layout, run: &Run, reports: &[SlotReport], drag: &Drag) {
+fn render_slots(
+    layout: &Layout,
+    run: &Run,
+    reports: &[SlotReport],
+    drag: &Drag,
+    hover: &mut Hover,
+    mx: f32,
+    my: f32,
+) {
     let held = drag.held_id();
 
     for view in &layout.slots {
@@ -974,11 +1088,26 @@ fn render_slots(layout: &Layout, run: &Run, reports: &[SlotReport], drag: &Drag)
         let (gw, gh) = view.size();
         let (ox, oy) = view.origin;
 
-        // Header: slot name, then the recipe one item needs.
-        ui_text(view.kind.name(), ox, oy - 54.0, 20.0, WHITE);
-        for (i, line) in wrap(view.kind.recipe_text(), 19).into_iter().take(3).enumerate() {
-            ui_text(&line, ox, oy - 36.0 + i as f32 * 15.0, 11.0, col_dim());
-        }
+        // Header: the slot name, with the recipe behind a hover. Spelling the
+        // recipe out here cost three wrapped lines per slot and still ran into
+        // the board below it once the text got big enough to read.
+        let head = Rect::new(ox, oy - 52.0, gw, 40.0);
+        let head_hot = head.contains(Vec2::new(mx, my));
+        let name_size = fitting_size(view.kind.name(), gw - 30.0, &[22.0, 20.0, 18.0, 16.0]);
+        ui_text(view.kind.name(), ox, oy - 22.0, name_size, WHITE);
+        // The marker sits at the column's right edge, so a long slot name can
+        // never push it into the next column.
+        let mark_c = if head_hot { col_gold() } else { col_dim() };
+        draw_circle_lines(ox + gw - 10.0, oy - 29.0, 9.0, 1.5, mark_c);
+        centered_text("?", ox + gw - 10.0, oy - 24.0, 13.0, mark_c);
+        hover.over(head, mx, my, || {
+            let mut lines = vec![(view.kind.name().to_string(), WHITE)];
+            lines.push((String::from("needs:"), col_dim()));
+            for l in wrap_px(view.kind.recipe_text(), 380.0, 14.0) {
+                lines.push((format!("  {}", l), LIGHTGRAY));
+            }
+            lines
+        });
 
         // Slot border lights up once at least one item has come together.
         let border = if any_assembled {
@@ -1054,7 +1183,9 @@ fn render_slots(layout: &Layout, run: &Run, reports: &[SlotReport], drag: &Drag)
 
         render_item_outlines(view, run, report);
 
-        // Status line under the grid: how many items, and what they add up to.
+        // Status line under the grid: how many items, then as much of the
+        // stat total as fits the column. The rest is on hover - five columns
+        // of full stat lines used to run into each other sideways.
         let color = if any_assembled {
             col_ok()
         } else if report.is_empty() {
@@ -1062,19 +1193,55 @@ fn render_slots(layout: &Layout, run: &Run, reports: &[SlotReport], drag: &Drag)
         } else {
             col_bad()
         };
-        ui_text(&report.summary(), ox, oy + gh + 20.0, 14.0, color);
+        // Prefer the full sentence, but a shorter complete phrase beats
+        // "2 items ..." when the column cannot hold it.
+        let full = report.summary();
+        let sizes = [15.0, 14.0, 13.0, 12.0];
+        let summary = if text_width(&full, *sizes.last().unwrap()) <= gw {
+            full.clone()
+        } else {
+            short_summary(report)
+        };
+        let sum_size = fitting_size(&summary, gw, &sizes);
+        let mut cut = draw_capped(&summary, ox, oy + gh + 28.0, gw, sum_size, color, 1);
+        cut |= summary != full;
         let contrib = report.stats.summary();
         if !contrib.is_empty() {
-            for (i, line) in wrap(&contrib, 24).into_iter().take(2).enumerate() {
-                ui_text(&line, ox, oy + gh + 38.0 + i as f32 * 14.0, 12.0, col_dim());
-            }
+            cut |= draw_capped(&contrib, ox, oy + gh + 50.0, gw, 13.0, col_dim(), 2);
         }
+        let foot = Rect::new(ox, oy + gh + 8.0, gw, 56.0);
+        if foot.contains(Vec2::new(mx, my)) && cut {
+            draw_rectangle(foot.x, foot.y, foot.w, foot.h, Color::from_rgba(255, 255, 255, 12));
+        }
+        hover.over(foot, mx, my, || {
+            let mut lines = vec![(full.clone(), color)];
+            if !contrib.is_empty() {
+                lines.push((String::from("this slot gives you:"), col_dim()));
+                for l in wrap_px(&contrib, 380.0, 14.0) {
+                    lines.push((format!("  {}", l), LIGHTGRAY));
+                }
+            }
+            for note in report.notes() {
+                for l in wrap_px(&note, 380.0, 14.0) {
+                    lines.push((format!("  {}", l), col_gold()));
+                }
+            }
+            lines
+        });
     }
 }
 
-/// Where the reroll button sits inside the shop strip.
+/// Where the shop's first card starts: clear of the gold column and the
+/// reroll button beneath it, both of which grow with the text scale.
+fn shop_cards_x(shop: Rect) -> f32 {
+    reroll_rect(shop).right() + 18.0
+}
+
+/// Where the reroll button sits inside the shop strip. Sized to its label so
+/// the text cannot outgrow the box.
 fn reroll_rect(shop: Rect) -> Rect {
-    Rect::new(shop.x + 12.0, shop.y + 80.0, 104.0, 30.0)
+    let w = text_width(&format!("REROLL {}g", REROLL_COST), 18.0) + 26.0;
+    Rect::new(shop.x + 12.0, shop.y + 78.0, w, 34.0)
 }
 
 /// The shelf. Clicking a card buys it if you can afford it.
@@ -1139,17 +1306,17 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
         );
 
         let cx = card.rect.x + card.rect.w / 2.0;
-        let mut ty = card.rect.y + 84.0;
-        for line in wrap(def.name, 14).into_iter().take(2) {
-            centered_text(&line, cx, ty, 12.0, if afford { WHITE } else { col_dim() });
-            ty += 18.0;
+        let mut ty = card.rect.y + 80.0;
+        for line in wrap_px(def.name, card.rect.w - 12.0, 13.0).into_iter().take(2) {
+            centered_text(&line, cx, ty, 13.0, if afford { WHITE } else { col_dim() });
+            ty += line_h(13.0);
         }
-        centered_text(def.kind.name(), cx, card.rect.y + 124.0, 11.0, col_dim());
+        centered_text(def.kind.name(), cx, card.rect.bottom() - 28.0, 12.0, col_dim());
         centered_text(
             &format!("{} gold", def.price),
             cx,
-            card.rect.y + card.rect.h - 8.0,
-            13.0,
+            card.rect.bottom() - 9.0,
+            14.0,
             if afford { col_gold() } else { col_bad() },
         );
 
@@ -1178,13 +1345,12 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
         Color::from_rgba(60, 60, 82, 255),
     );
     ui_text("INVENTORY", layout.inv.x + 14.0, layout.inv.y + 24.0, 18.0, WHITE);
-    ui_text(
-        "drag a component onto a slot  ·  right-click to rotate  ·  drag back here to remove",
-        layout.inv.x + 128.0,
-        layout.inv.y + 24.0,
-        13.0,
-        col_dim(),
-    );
+    // The hint sits after the heading with whatever room is left, so it never
+    // grows back into the word "INVENTORY" as the text scale moves.
+    let hint_x = layout.inv.x + 30.0 + text_width("INVENTORY", 18.0);
+    let hint = "drag onto a slot  ·  right-click rotates  ·  drag back here to remove";
+    let hint_size = fitting_size(hint, layout.inv.w - (hint_x - layout.inv.x) - 16.0, &[14.0, 13.0, 12.0, 11.0]);
+    ui_text(hint, hint_x, layout.inv.y + 24.0, hint_size, col_dim());
 
     let held = drag.held_id();
     for card in &layout.cards {
@@ -1229,12 +1395,12 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
 
         // Name (wrapped) and role.
         let cx = card.rect.x + card.rect.w / 2.0;
-        let mut ty = card.rect.y + 100.0;
-        for line in wrap(def.name, 14).into_iter().take(2) {
-            centered_text(&line, cx, ty, 12.0, Color::from_rgba(215, 218, 235, 255));
-            ty += 18.0;
+        let mut ty = card.rect.y + 94.0;
+        for line in wrap_px(def.name, card.rect.w - 12.0, 13.0).into_iter().take(2) {
+            centered_text(&line, cx, ty, 13.0, Color::from_rgba(215, 218, 235, 255));
+            ty += line_h(13.0);
         }
-        centered_text(def.kind.name(), cx, card.rect.y + card.rect.h - 8.0, 11.0, col_dim());
+        centered_text(def.kind.name(), cx, card.rect.bottom() - 12.0, 12.0, col_dim());
 
         if def.adjacency.is_some() {
             draw_circle(card.rect.x + card.rect.w - 11.0, card.rect.y + 11.0, 4.0, col_gold());
@@ -1362,8 +1528,8 @@ fn render_cooldown_row(
     now_ms: u32,
     tint: Color,
 ) {
-    let icon = 21.0;
-    let label_w = 216.0;
+    let icon = 24.0;
+    let label_w = 232.0;
     let track_x = x + label_w;
     let track_w = (w - label_w - 62.0).max(20.0);
     let h = 14.0;
@@ -1377,8 +1543,12 @@ fn render_cooldown_row(
         .unwrap_or(false);
 
     let fg = if just_fired { WHITE } else { Color::from_rgba(178, 180, 200, 255) };
-    draw_item_sigil(x, y - 3.0, icon, slot, sigil_seed, if just_fired { WHITE } else { tint });
-    ui_text(name, x + icon + 8.0, y + 12.0, 13.0, fg);
+    draw_item_sigil(x, y - 5.0, icon, slot, sigil_seed, if just_fired { WHITE } else { tint });
+    // Names are procedurally generated, so their length is not something the
+    // layout can assume; shrink rather than run into the bar.
+    let name_x = x + icon + 8.0;
+    let size = fitting_size(name, track_x - name_x - 10.0, &[15.0, 14.0, 13.0, 12.0, 11.0]);
+    ui_text(name, name_x, y + 12.0, size, fg);
 
     draw_rectangle(track_x, y, track_w, h, Color::from_rgba(26, 26, 38, 255));
     let p = bar_progress(schedule, cooldown_ms, now_ms).clamp(0.0, 1.0);
@@ -1962,12 +2132,16 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
             Outcome::Defeat => ("DEFEAT", col_bad()),
             Outcome::Stalemate => ("STALEMATE", col_gold()),
         };
-        let (bw, bh) = (320.0, 78.0);
-        let bx = g.cd_x + (g.cd_w - bw) / 2.0;
-        let by = g.enemy_bar_y + 34.0;
+        // Over the loser's boards rather than the right column: that space is
+        // the opponent's portrait and cooldown list, and the banner used to
+        // sit right on top of it.
+        let bw = text_width(label, 40.0) + 72.0;
+        let bh = line_h(40.0) + 40.0;
+        let bx = g.board_x + (g.board_w - bw) / 2.0;
+        let by = g.enemy_board_y + (SLOT_H as f32 * MINI_CELL - bh) / 2.0;
         draw_rectangle(bx, by, bw, bh, Color::from_rgba(18, 18, 28, 250));
         draw_rectangle_lines(bx, by, bw, bh, 3.0, color);
-        centered_text(label, bx + bw / 2.0, by + 52.0, 36.0, color);
+        centered_text(label, bx + bw / 2.0, by + bh / 2.0 + line_h(40.0) * 0.34, 40.0, color);
     }
 
     let btn = g.buttons;
@@ -2230,27 +2404,59 @@ fn render_glossary(mx: f32, my: f32) -> Rect {
     let close = Rect::new(r.x + r.w - 140.0, r.y + 16.0, 120.0, 34.0);
     button(close, "CLOSE", true, mx, my);
 
-    let col_w = (r.w - 72.0) / 2.0;
-    let lh = line_h(13.0);
+    // Flow the entries into as many columns as it takes to fit the page. Two
+    // was hard-coded, and the glossary spilled off the bottom the moment
+    // either the text or the word list grew.
+    let top = r.y + 96.0;
+    let bottom = r.y + r.h - 16.0;
+    let gap = 24.0;
+    let (cols, size) = (2..=3)
+        .flat_map(|c| [14.0f32, 13.0, 12.0].map(move |s| (c, s)))
+        .find(|&(cols, size)| glossary_fits(r.w, cols, size, bottom - top))
+        .unwrap_or((3, 12.0));
+
+    let col_w = (r.w - 48.0 - (cols - 1) as f32 * gap) / cols as f32;
+    let lh = line_h(size);
     let mut col = 0usize;
-    let mut y = r.y + 96.0;
+    let mut y = top;
     for (term, meaning) in GLOSSARY {
-        let lines = wrap(meaning, 48);
+        let lines = wrap_px(meaning, col_w - 16.0, size);
         let needed = lh * (1.0 + lines.len() as f32) + 10.0;
-        if y + needed > r.y + r.h - 16.0 && col == 0 {
-            col = 1;
-            y = r.y + 96.0;
+        if y + needed > bottom && col + 1 < cols {
+            col += 1;
+            y = top;
         }
-        let x = r.x + 24.0 + col as f32 * (col_w + 24.0);
-        ui_text(term, x, y, 13.0, Color::from_rgba(150, 200, 240, 255));
+        let x = r.x + 24.0 + col as f32 * (col_w + gap);
+        ui_text(term, x, y, size, Color::from_rgba(150, 200, 240, 255));
         y += lh;
         for l in lines {
-            ui_text(&l, x + 14.0, y, 13.0, Color::from_rgba(198, 200, 218, 255));
+            ui_text(&l, x + 14.0, y, size, Color::from_rgba(198, 200, 218, 255));
             y += lh;
         }
         y += 10.0;
     }
     close
+}
+
+/// Would the whole glossary flow into `cols` columns of `height` at this text
+/// size? Runs the same packing as the renderer, without drawing.
+fn glossary_fits(page_w: f32, cols: usize, size: f32, height: f32) -> bool {
+    let col_w = (page_w - 48.0 - (cols - 1) as f32 * 24.0) / cols as f32;
+    let lh = line_h(size);
+    let mut col = 0usize;
+    let mut y = 0.0;
+    for (_, meaning) in GLOSSARY {
+        let needed = lh * (1.0 + wrap_px(meaning, col_w - 16.0, size).len() as f32) + 10.0;
+        if y + needed > height {
+            col += 1;
+            y = 0.0;
+            if col >= cols || needed > height {
+                return false;
+            }
+        }
+        y += needed;
+    }
+    true
 }
 
 /// Name, health, armour, mana and curses for one side of the battle screen.
@@ -2340,6 +2546,28 @@ fn button_rects(panel_x: f32) -> [Rect; 5] {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Assembly bonuses read gold, positional effects read blue.
+fn note_color(note: &str) -> Color {
+    if note.contains(':') && !note.contains(" from ") && !note.contains("doubled") {
+        col_gold()
+    } else {
+        col_effect()
+    }
+}
+
+/// "1 item assembled" is too wide for the panel row once the text is large.
+/// The full sentence is still under the board and in the row's tooltip.
+fn short_summary(r: &SlotReport) -> String {
+    let done = r.assembled_count();
+    if done > 0 {
+        format!("{} item{}", done, if done == 1 { "" } else { "s" })
+    } else if r.is_empty() {
+        String::from("empty")
+    } else {
+        String::from("unfinished")
+    }
+}
+
 fn render_panel(
     layout: &Layout,
     run: &Run,
@@ -2347,6 +2575,7 @@ fn render_panel(
     message: &str,
     pb: &Option<Playback>,
     speed: f32,
+    hover: &mut Hover,
     mx: f32,
     my: f32,
 ) {
@@ -2390,53 +2619,69 @@ fn render_panel(
     ui_text(&label, x + PANEL_W - 20.0 - d_w, y, 19.0, col_gold());
     y += 16.0;
     for it in items.iter().filter(|i| i.hit_for(stats.strength, stats.power) > 0).take(3) {
-        ui_text(
-            &format!(
-                "  {} hits {} every {:.2}s",
-                it.name,
-                it.hit_for(stats.strength, stats.power),
-                it.cooldown_ms as f32 / 1000.0
-            ),
-            x + 20.0,
-            y,
-            12.0,
-            col_dim(),
+        let detail = format!(
+            "{} hits {} every {:.2}s",
+            it.name,
+            it.hit_for(stats.strength, stats.power),
+            it.cooldown_ms as f32 / 1000.0
         );
-        y += 14.0;
+        let avail = PANEL_W - 52.0;
+        ui_text(&detail, x + 32.0, y, fitting_size(&detail, avail, &[13.0, 12.0, 11.0]), col_dim());
+        y += line_h(13.0);
     }
     y += 14.0;
 
-    // Per-slot assembly readout.
+    // Per-slot assembly readout. One row each; the bonus notes are what used
+    // to run off the edge of the panel, so they live on the row's hover now.
     ui_text("GEAR", x + 20.0, y, 14.0, col_dim());
-    y += 20.0;
+    y += 22.0;
     for r in reports {
         let done = r.assembled_count();
         let (mark, color) = if done > 0 { ("+", col_ok()) } else { ("-", col_dim()) };
+        let notes = r.notes();
+        let row = Rect::new(x + 14.0, y - 15.0, PANEL_W - 28.0, 21.0);
+        let hot = row.contains(Vec2::new(mx, my));
+        if hot && !notes.is_empty() {
+            draw_rectangle(row.x, row.y, row.w, row.h, Color::from_rgba(255, 255, 255, 16));
+        }
         ui_text(mark, x + 20.0, y, 16.0, color);
         ui_text(r.slot.name(), x + 36.0, y, 16.0, if done > 0 { WHITE } else { col_dim() });
-        let status = r.summary();
-        let d_w = text_width(&status, 13.0);
+        // A lit dot per bonus this slot is running, so the row still says at a
+        // glance that there is something to hover for.
+        let mut dot = x + 40.0 + text_width(r.slot.name(), 16.0) + 10.0;
+        for note in &notes {
+            draw_circle(dot, y - 5.0, 4.0, note_color(note));
+            dot += 12.0;
+        }
+        let status = short_summary(r);
+        let d_w = text_width(&status, 14.0);
         ui_text(
             &status,
             x + PANEL_W - 20.0 - d_w,
             y,
-            13.0,
+            14.0,
             if done > 0 { col_ok() } else if r.is_empty() { col_dim() } else { col_bad() },
         );
-        y += 18.0;
-        for note in r.notes() {
-            // Assembly bonuses read gold, positional effects read blue.
-            let c = if note.contains(':') && !note.contains(" from ") && !note.contains("doubled")
-            {
-                col_gold()
-            } else {
-                col_effect()
-            };
-            for line in wrap(&note, 44).into_iter().take(2) {
-                ui_text(&format!("  {}", line), x + 36.0, y, 12.0, c);
-                y += 14.0;
+        y += 21.0;
+        hover.over(row, mx, my, || {
+            let mut lines =
+                vec![(format!("{}  -  {}", r.slot.name(), r.summary()), WHITE)];
+            let contrib = r.stats.summary();
+            if !contrib.is_empty() {
+                for l in wrap_px(&contrib, 380.0, 14.0) {
+                    lines.push((l, LIGHTGRAY));
+                }
             }
-        }
+            for note in &notes {
+                for (i, l) in wrap_px(note, 380.0, 14.0).into_iter().enumerate() {
+                    lines.push((
+                        if i == 0 { l } else { format!("  {}", l) },
+                        note_color(note),
+                    ));
+                }
+            }
+            lines
+        });
     }
     y += 12.0;
 
@@ -2512,9 +2757,9 @@ fn render_panel(
     }
     y += 12.0;
 
-    for line in wrap(message, 40).into_iter().take(3) {
+    for line in wrap_px(message, PANEL_W - 40.0, 14.0).into_iter().take(3) {
         ui_text(&line, x + 20.0, y, 14.0, Color::from_rgba(225, 225, 240, 255));
-        y += 17.0;
+        y += line_h(14.0);
     }
 
     // Buttons
@@ -2607,12 +2852,14 @@ async fn main() {
         }
 
         // ---------------------------------------------------- render
+        // Tooltips requested while drawing; painted after everything else.
+        let mut hover = Hover::default();
         if run.phase == Phase::Fighting {
             if let Some(p) = pb.as_ref() {
                 render_battle(&run, p, log_expanded, mx, my);
             }
         } else {
-            render_slots(&layout, &run, &reports, &drag);
+            render_slots(&layout, &run, &reports, &drag, &mut hover, mx, my);
             render_shop(&layout, &run, mx, my);
             render_inventory(&layout, &run, &drag, mx, my);
         }
@@ -2643,11 +2890,25 @@ async fn main() {
         }
 
         if run.phase != Phase::Fighting {
-            render_panel(&layout, &run, &reports, &message, &pb, playback_speed, mx, my);
+            render_panel(
+                &layout,
+                &run,
+                &reports,
+                &message,
+                &pb,
+                playback_speed,
+                &mut hover,
+                mx,
+                my,
+            );
         }
 
         // Tooltip for whatever is under the cursor (never while dragging).
-        if matches!(drag, Drag::None) {
+        // A request left by a render pass wins: those regions are the panel
+        // and the strips around each board, which nothing else claims.
+        if let (Drag::None, Some(lines)) = (&drag, hover.lines.take()) {
+            draw_tooltip(&lines, mx, my);
+        } else if matches!(drag, Drag::None) {
             let hovered_item_name = layout.slot_hit(mx, my).and_then(|(k, x, y)| {
                 let id = run.loadout.slot(k).get(x, y)?;
                 run.report(k)
@@ -3158,5 +3419,44 @@ mod tests {
             assert!(l.len() <= 26, "line too long: {:?}", l);
         }
         assert_eq!(lines.join(" "), "1 handle + 1-2 damaging + up to 2 accessories");
+    }
+
+    // Measuring needs a graphics context, so these exercise the layout maths
+    // through a stand-in: every glyph is 10 wide at size 10.
+    fn fake_width(s: &str, size: f32) -> f32 {
+        s.chars().count() as f32 * size
+    }
+
+    #[test]
+    fn pixel_wrapping_breaks_on_the_measured_width() {
+        let text = "the quick brown fox";
+        let lines = wrap_measured(text, 100.0, &|s| fake_width(s, 10.0));
+
+        for l in &lines {
+            assert!(fake_width(l, 10.0) <= 100.0, "line too wide: {:?}", l);
+        }
+        assert_eq!(lines.join(" "), text, "and no word is lost");
+    }
+
+    #[test]
+    fn a_word_wider_than_the_line_still_gets_its_own_line() {
+        let lines = wrap_measured("a supercalifragilistic b", 40.0, &|s| fake_width(s, 10.0));
+        assert_eq!(lines, vec!["a", "supercalifragilistic", "b"]);
+    }
+
+    #[test]
+    fn a_label_takes_the_largest_size_that_fits() {
+        let sizes = [20.0f32, 16.0, 12.0];
+        // Eight characters: 160 wide at 20, 128 at 16, 96 at 12.
+        let width_at = |sz: f32| fake_width("eightchr", sz);
+
+        assert_eq!(largest_fitting(&sizes, 200.0, &width_at), 20.0);
+        assert_eq!(largest_fitting(&sizes, 130.0, &width_at), 16.0);
+        assert_eq!(largest_fitting(&sizes, 100.0, &width_at), 12.0);
+        assert_eq!(
+            largest_fitting(&sizes, 10.0, &width_at),
+            12.0,
+            "nothing fits, so it settles for the smallest rather than refusing to draw"
+        );
     }
 }

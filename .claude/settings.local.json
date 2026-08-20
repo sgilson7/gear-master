@@ -57,7 +57,8 @@
       "Bash(bc)",
       "Bash(awk '{s+=$4} END {print s\" tests pass\"}')",
       "Bash(awk 'NR>=1615 && NR<=1640' crates/gui/src/main.rs)",
-      "Bash(awk 'NR>=1444 && NR<=1560 && /=> \\\\{|match slot|Some\\\\\\(SlotKind|None =>|_ =>/' crates/gui/src/main.rs)"
+      "Bash(awk 'NR>=1444 && NR<=1560 && /=> \\\\{|match slot|Some\\\\\\(SlotKind|None =>|_ =>/' crates/gui/src/main.rs)",
+      "Bash(cd *)"
     ]
   }
 }
