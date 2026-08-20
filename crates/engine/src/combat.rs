@@ -360,7 +360,9 @@ impl Combatant {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
     /// An item finished its cooldown. Always precedes that item's effects.
-    Activate { side: Side, item: String },
+    /// `index` is the item's position in its owner's list, so two items with
+    /// the same name stay distinguishable.
+    Activate { side: Side, item: String, index: usize },
     Hit { by: Side, damage: i32, absorbed: i32, target_health: i32, target_armor: i32 },
     MindHit { by: Side, amount: i32, target_max_health: i32 },
     GainArmor { side: Side, amount: i32, total: i32 },
@@ -426,7 +428,9 @@ impl CombatLog {
     pub fn describe(&self, e: &LogEntry) -> String {
         let t = format!("{:>5.1}s", e.at_ms as f32 / 1000.0);
         match &e.event {
-            Event::Activate { side, item } => format!("{} {} activates {}", t, self.who(*side), item),
+            Event::Activate { side, item, .. } => {
+                format!("{} {} activates {}", t, self.who(*side), item)
+            }
             Event::Hit { by, damage, absorbed, target_health, target_armor } => {
                 let soak = if *absorbed > 0 {
                     format!(" ({} soaked, {} armor left)", absorbed, target_armor)
@@ -616,7 +620,10 @@ fn activate(
     log: &mut Vec<LogEntry>,
 ) {
     let item = pick(p, e, side).items[idx].clone();
-    log.push(LogEntry { at_ms: t, event: Event::Activate { side, item: item.name.clone() } });
+    log.push(LogEntry {
+        at_ms: t,
+        event: Event::Activate { side, item: item.name.clone(), index: idx },
+    });
 
     // Weapons swing; everything else just does its job. A monster's attacks
     // have no slot and always count as weapons.

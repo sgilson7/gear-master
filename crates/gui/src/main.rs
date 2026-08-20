@@ -153,6 +153,9 @@ struct Layout {
     shop_cards: Vec<ShopCard>,
     shop: Rect,
     inv: Rect,
+    /// Shop and tray combined. The shop is hidden during a fight, so combat
+    /// gets the whole strip rather than just the lower half.
+    fight: Rect,
     panel_x: f32,
 }
 
@@ -215,7 +218,8 @@ impl Layout {
             })
             .collect();
 
-        Layout { slots, cards, shop_cards, shop, inv, panel_x }
+        let fight = Rect::new(shop.x, shop.y, shop.w, (inv.y + inv.h) - shop.y);
+        Layout { slots, cards, shop_cards, shop, inv, fight, panel_x }
     }
 
     fn view(&self, kind: SlotKind) -> &SlotView {
@@ -426,6 +430,44 @@ struct Playback {
     flash_enemy: f64,
     now_ms: u32,
     done: bool,
+    /// When each item fired, indexed the same way as the combatant's item
+    /// list. Cooldown bars are drawn straight from these, which is why a
+    /// frost-slowed item's bar visibly crawls: the gap between two real
+    /// activations *is* the slowdown, so nothing here has to know what frost
+    /// does.
+    player_schedule: Vec<Vec<u32>>,
+    enemy_schedule: Vec<Vec<u32>>,
+}
+
+/// How full an item's bar is at `now_ms`, from the times it actually fired.
+fn bar_progress(schedule: &[u32], cooldown_ms: u32, now_ms: u32) -> f32 {
+    let last = schedule.iter().rev().find(|&&t| t <= now_ms).copied();
+    let next = schedule.iter().find(|&&t| t > now_ms).copied();
+    let cd = cooldown_ms.max(1) as f32;
+    match (last, next) {
+        // Between two real firings: fill proportionally across the gap.
+        (Some(l), Some(n)) if n > l => (now_ms - l) as f32 / (n - l) as f32,
+        // Before the first firing.
+        (None, Some(n)) if n > 0 => now_ms as f32 / n as f32,
+        // After the last one the fight ended, so fall back to nominal speed.
+        (Some(l), None) => ((now_ms - l) as f32 / cd).min(1.0),
+        _ => (now_ms as f32 / cd).min(1.0),
+    }
+}
+
+/// Collect every activation time per item index for one side.
+fn schedule_for(log: &CombatLog, want: Side, count: usize) -> Vec<Vec<u32>> {
+    let mut out = vec![Vec::new(); count];
+    for e in &log.entries {
+        if let Event::Activate { side, index, .. } = &e.event {
+            if *side == want {
+                if let Some(slot) = out.get_mut(*index) {
+                    slot.push(e.at_ms);
+                }
+            }
+        }
+    }
+    out
 }
 
 impl Playback {
@@ -447,6 +489,8 @@ impl Playback {
             flash_enemy: -10.0,
             now_ms: 0,
             done: false,
+            player_schedule: schedule_for(log, Side::Player, log.player.items.len()),
+            enemy_schedule: schedule_for(log, Side::Enemy, log.enemy.items.len()),
         }
     }
 
@@ -455,7 +499,7 @@ impl Playback {
         let now = get_time();
         self.now_ms = entry.at_ms;
         match &entry.event {
-            Event::Activate { .. } => return, // too chatty for the on-screen log
+            Event::Activate { .. } => return, // shown as a bar, not a log line
             Event::Hit { by, target_health, target_armor, .. } => match by {
                 Side::Player => {
                     self.enemy_hp = (*target_health).max(0);
@@ -951,9 +995,68 @@ fn hp_bar(x: f32, y: f32, w: f32, h: f32, hp: i32, max: i32, color: Color) {
     centered_text(&label, x + w / 2.0, y + h / 2.0 + 6.0, 17.0, WHITE);
 }
 
+/// One item's cooldown bar: name, a filling track, and the interval it is
+/// actually running at. Flashes on the frame it fires.
+fn render_cooldown_row(
+    x: f32,
+    y: f32,
+    w: f32,
+    name: &str,
+    cooldown_ms: u32,
+    schedule: &[u32],
+    now_ms: u32,
+    tint: Color,
+) {
+    let label_w = 132.0;
+    let track_x = x + label_w;
+    let track_w = (w - label_w - 62.0).max(20.0);
+    let h = 12.0;
+
+    // A firing within the last fifth of a second lights the row up.
+    let just_fired = schedule
+        .iter()
+        .rev()
+        .find(|&&t| t <= now_ms)
+        .map(|&t| now_ms.saturating_sub(t) < 180)
+        .unwrap_or(false);
+
+    draw_text(
+        name,
+        x,
+        y + 10.0,
+        13.0,
+        if just_fired { WHITE } else { Color::from_rgba(178, 180, 200, 255) },
+    );
+
+    draw_rectangle(track_x, y, track_w, h, Color::from_rgba(26, 26, 38, 255));
+    let p = bar_progress(schedule, cooldown_ms, now_ms).clamp(0.0, 1.0);
+    let fill = if just_fired { WHITE } else { tint };
+    draw_rectangle(track_x, y, track_w * p, h, fill);
+    draw_rectangle_lines(track_x, y, track_w, h, 1.0, Color::from_rgba(74, 74, 98, 255));
+
+    // The gap it is genuinely running at right now, which drifts from the
+    // nominal cooldown whenever the owner is slowed.
+    let observed = {
+        let last = schedule.iter().rev().find(|&&t| t <= now_ms).copied();
+        let next = schedule.iter().find(|&&t| t > now_ms).copied();
+        match (last, next) {
+            (Some(l), Some(n)) if n > l => n - l,
+            _ => cooldown_ms,
+        }
+    };
+    let slowed = observed > cooldown_ms + 20;
+    draw_text(
+        &format!("{:.1}s", observed as f32 / 1000.0),
+        track_x + track_w + 8.0,
+        y + 10.0,
+        12.0,
+        if slowed { Color::from_rgba(150, 200, 255, 255) } else { col_dim() },
+    );
+}
+
 fn render_fight(layout: &Layout, run: &Run, pb: &Playback) {
     let Some(log) = run.log.as_ref() else { return };
-    let area = layout.inv;
+    let area = layout.fight;
     draw_rectangle(area.x, area.y, area.w, area.h, col_tray());
     draw_rectangle_lines(area.x, area.y, area.w, area.h, 2.0, Color::from_rgba(60, 60, 82, 255));
 
@@ -1045,13 +1148,44 @@ fn render_fight(layout: &Layout, run: &Run, pb: &Playback) {
         Color::from_rgba(210, 110, 90, 255),
     );
 
+    // Cooldown bars, one row per item, under each fighter.
+    let bars_top = area.y + 182.0;
+    let rows = log.player.items.len().max(log.enemy.items.len());
+    for (i, it) in log.player.items.iter().enumerate() {
+        render_cooldown_row(
+            area.x + 20.0,
+            bars_top + i as f32 * 19.0,
+            half,
+            &it.name,
+            it.cooldown_ms,
+            pb.player_schedule.get(i).map(|v| v.as_slice()).unwrap_or(&[]),
+            pb.now_ms,
+            Color::from_rgba(90, 190, 120, 255),
+        );
+    }
+    for (i, it) in log.enemy.items.iter().enumerate() {
+        render_cooldown_row(
+            area.x + area.w / 2.0 + 10.0,
+            bars_top + i as f32 * 19.0,
+            half,
+            &it.name,
+            it.cooldown_ms,
+            pb.enemy_schedule.get(i).map(|v| v.as_slice()).unwrap_or(&[]),
+            pb.now_ms,
+            Color::from_rgba(210, 110, 90, 255),
+        );
+    }
+    if rows > 0 {
+        draw_text("COOLDOWNS", area.x + 20.0, bars_top - 10.0, 13.0, col_dim());
+    }
+
     // Clock plus the rolling log.
-    let log_top = area.y + 190.0;
+    let log_top = bars_top + rows as f32 * 19.0 + 26.0;
     draw_text("COMBAT LOG", area.x + 20.0, log_top, 16.0, WHITE);
     let clock = format!("{:.1}s", pb.now_ms as f32 / 1000.0);
     draw_text(&clock, area.x + 140.0, log_top, 16.0, col_gold());
 
-    let visible = (((area.h - 220.0) / 19.0) as usize).max(1);
+    let visible = ((((area.y + area.h) - log_top - 34.0) / 19.0) as usize).max(1);
     let start = pb.lines.len().saturating_sub(visible);
     for (i, line) in pb.lines[start..].iter().enumerate() {
         let is_last = start + i == pb.lines.len() - 1;
@@ -1072,7 +1206,7 @@ fn render_fight(layout: &Layout, run: &Run, pb: &Playback) {
         };
         let bw = 300.0;
         let bx = area.x + area.w - bw - 24.0;
-        let by = area.y + 196.0;
+        let by = (log_top + 6.0).min(area.y + area.h - 92.0);
         draw_rectangle(bx, by, bw, 76.0, Color::from_rgba(18, 18, 28, 240));
         draw_rectangle_lines(bx, by, bw, 76.0, 3.0, color);
         centered_text(label, bx + bw / 2.0, by + 48.0, 38.0, color);
@@ -1680,6 +1814,45 @@ mod tests {
             assert!(vp.x >= -0.01 && vp.y >= -0.01, "letterbox offsets go inward");
             assert!(LOGICAL_W * scale <= sw + 0.01 && LOGICAL_H * scale <= sh + 0.01);
         }
+    }
+
+    /// The bars are drawn from when items actually fired, so a slowed item has
+    /// to visibly crawl without the renderer knowing anything about frost.
+    #[test]
+    fn a_cooldown_bar_fills_across_the_real_gap_between_firings() {
+        let schedule = [1000u32, 2000, 3000];
+        assert!((bar_progress(&schedule, 1000, 1000) - 0.0).abs() < 0.001, "just fired");
+        assert!((bar_progress(&schedule, 1000, 1500) - 0.5).abs() < 0.001, "halfway");
+        assert!((bar_progress(&schedule, 1000, 1999) - 0.999).abs() < 0.01, "about to fire");
+    }
+
+    #[test]
+    fn a_slowed_item_fills_more_slowly_than_its_nominal_cooldown() {
+        // Nominal 1s, but frost stretched the second gap to 1.5s.
+        let slowed = [1000u32, 2500];
+        let normal = [1000u32, 2000];
+        // Half a second after firing, the slowed bar is behind the normal one.
+        let s = bar_progress(&slowed, 1000, 1500);
+        let n = bar_progress(&normal, 1000, 1500);
+        assert!(s < n, "slowed {} should trail normal {}", s, n);
+        assert!((s - 1.0 / 3.0).abs() < 0.01, "500ms into a 1500ms gap");
+    }
+
+    #[test]
+    fn the_bar_fills_toward_the_first_firing_from_empty() {
+        let schedule = [2000u32];
+        assert!((bar_progress(&schedule, 2000, 0) - 0.0).abs() < 0.001);
+        assert!((bar_progress(&schedule, 2000, 1000) - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn a_bar_with_no_firings_left_falls_back_to_the_nominal_rate_and_clamps() {
+        let schedule = [1000u32];
+        assert!((bar_progress(&schedule, 2000, 2000) - 0.5).abs() < 0.001);
+        assert!(bar_progress(&schedule, 2000, 9000) <= 1.0, "never overfills");
+        // An item that never fired at all still shows sensible progress.
+        assert!(bar_progress(&[], 1000, 500) > 0.0);
+        assert!(bar_progress(&[], 1000, 99_999) <= 1.0);
     }
 
     #[test]

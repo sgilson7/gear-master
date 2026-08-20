@@ -51,7 +51,7 @@ fn activations_of(log: &gearmaster_engine::combat::CombatLog, name: &str) -> Vec
     log.entries
         .iter()
         .filter_map(|e| match &e.event {
-            Event::Activate { side: Side::Player, item } if item == name => Some(e.at_ms),
+            Event::Activate { side: Side::Player, item, .. } if item == name => Some(e.at_ms),
             _ => None,
         })
         .collect()

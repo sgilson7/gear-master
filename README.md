@@ -48,7 +48,9 @@ After `make install` you can just type `gearmaster` from anywhere. Plain
    dormant, filled once live.
 5. Some pieces have **positional effects** (blue dot) that change what their
    neighbours are worth. See below.
-6. Press **BEGIN FIGHT** and watch the auto-battle play out.
+6. Press **BEGIN FIGHT** and watch the auto-battle play out. Each assembled
+   item gets its own **cooldown bar**, so you can see which ones carry the
+   fight — and watch a frosted item's bar visibly crawl.
 
 Controls: left-drag to move a piece, right-click to rotate (held or in place),
 drag back to the tray to remove, `Esc` to cancel a drag, `F12` to screenshot.
