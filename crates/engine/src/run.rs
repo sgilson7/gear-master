@@ -1,6 +1,8 @@
-use crate::combat::{simulate_at, CombatLog, Difficulty, MonsterSpec, Outcome, LADDER, RUST_GOLEM};
+use crate::combat::{
+    simulate_at, CombatLog, Difficulty, Event, MonsterSpec, Outcome, Side, LADDER, RUST_GOLEM,
+};
 use crate::loadout::{Loadout, SlotReport};
-use crate::piece::{all_def_indices, PieceId, PieceRegistry, SlotKind, CATALOG};
+use crate::piece::{all_def_indices, PieceId, PieceRegistry, QuestTrack, SlotKind, CATALOG};
 
 /// The one weapon a run is handed for free. Everything else is bought — this
 /// exists so the very first decision is *where to place* a weapon rather than
@@ -73,6 +75,13 @@ struct BoardSnapshot {
     label: String,
 }
 
+/// A quest that came good in the fight just watched.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QuestDone {
+    pub from: String,
+    pub into: &'static str,
+}
+
 /// What a settled fight did to the run, so the GUI can say so.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Settlement {
@@ -81,6 +90,8 @@ pub struct Settlement {
     pub reward: i32,
     /// Rungs given back by a Grinder loss.
     pub knocked_back: bool,
+    /// Quests that finished during the fight.
+    pub quests_done: Vec<QuestDone>,
     /// Lives left, in Rogue. `None` in Grinder.
     pub lives_left: Option<u32>,
     /// The Rogue run ran out of lives and has been wiped back to the start.
@@ -150,6 +161,9 @@ pub struct Run {
     rng: Rng,
     /// Board states to step back through, oldest first.
     undo_stack: Vec<BoardSnapshot>,
+    /// How far each piece's quest has come. Pieces without a quest never
+    /// appear; a piece that finishes one is transformed and its entry dropped.
+    quest_progress: std::collections::HashMap<PieceId, u32>,
 }
 
 impl Default for Run {
@@ -197,6 +211,7 @@ impl Run {
             settled: false,
             rng,
             undo_stack: Vec::new(),
+            quest_progress: std::collections::HashMap::new(),
         }
     }
 
@@ -300,6 +315,7 @@ impl Run {
             outcome,
             reward: bounty,
             knocked_back: false,
+            quests_done: self.award_quests(),
             lives_left: None,
             run_ended: false,
         };
@@ -364,6 +380,104 @@ impl Run {
         fresh.settled = true;
         *self = fresh;
         self.forget_undo();
+    }
+
+    // ------------------------------------------------------------ quests
+
+    /// How far along a piece's quest is.
+    pub fn quest_progress(&self, id: PieceId) -> u32 {
+        self.quest_progress.get(&id).copied().unwrap_or(0)
+    }
+
+    /// Tally every quest against the fight just watched, and transform any
+    /// piece that finished one.
+    ///
+    /// Read off the log afterwards rather than tracked during the fight: the
+    /// simulation stays a pure function of stats and gear, and quests become
+    /// something the run does with the record of what happened.
+    fn award_quests(&mut self) -> Vec<QuestDone> {
+        let Some(log) = self.log.as_ref() else { return Vec::new() };
+        let profiles = self.combat_items();
+
+        // Only what the player's own gear did counts.
+        let mut activations: Vec<usize> = Vec::new();
+        let mut curses_landed = 0u32;
+        for entry in &log.entries {
+            match &entry.event {
+                Event::Activate { side: Side::Player, index, .. } => activations.push(*index),
+                Event::Cursed { on: Side::Enemy, .. } => curses_landed += 1,
+                _ => {}
+            }
+        }
+
+        let mut earned: Vec<(PieceId, u32)> = Vec::new();
+        for (i, profile) in profiles.iter().enumerate() {
+            for &piece in &profile.pieces {
+                let Some(quest) = self.registry.def(piece).quest else { continue };
+                let count = match quest.track {
+                    // A piece is only on duty while its item is assembled, and
+                    // `combat_items` only ever returns assembled items - so
+                    // simply being in this loop is the check.
+                    QuestTrack::SelfActivations => {
+                        activations.iter().filter(|&&a| a == i).count() as u32
+                    }
+                    QuestTrack::AdjacentActivations => activations
+                        .iter()
+                        .filter(|&&a| profile.adjacent_items.contains(&a))
+                        .count() as u32,
+                    QuestTrack::AlignedActivations { word } => activations
+                        .iter()
+                        .filter(|&&a| profile.aligned_items.contains(&a))
+                        .filter(|&&a| self.item_uses_word(&profiles, a, word))
+                        .count() as u32,
+                    QuestTrack::CursesLanded => curses_landed,
+                };
+                if count > 0 {
+                    earned.push((piece, count));
+                }
+            }
+        }
+
+        let mut done = Vec::new();
+        for (piece, count) in earned {
+            let quest = match self.registry.def(piece).quest {
+                Some(q) => q,
+                None => continue,
+            };
+            let was = self.quest_progress(piece);
+            let now = was + count;
+            self.quest_progress.insert(piece, now);
+            if now >= quest.goal {
+                let from = self.registry.def(piece).name;
+                if let Some(target) = CATALOG.iter().position(|d| d.name == quest.becomes) {
+                    // The new component may not belong where the old one sat -
+                    // a helmet frame can finish as a weapon piece - so take it
+                    // off the board and hand it back to the inventory.
+                    self.loadout.remove_anywhere(piece);
+                    self.registry.transform(piece, target);
+                    self.quest_progress.remove(&piece);
+                    done.push(QuestDone { from: from.to_string(), into: quest.becomes });
+                }
+            }
+        }
+        // A transformation changes shapes on the board, so the history no
+        // longer describes anything that can be put back.
+        if !done.is_empty() {
+            self.forget_undo();
+        }
+        done
+    }
+
+    /// Is item `idx` built from a component whose name contains `word`?
+    fn item_uses_word(
+        &self,
+        profiles: &[crate::loadout::ItemProfile],
+        idx: usize,
+        word: &str,
+    ) -> bool {
+        profiles.get(idx).map(|p| {
+            p.pieces.iter().any(|&q| self.registry.def(q).name.contains(word))
+        }) == Some(true)
     }
 
     // ------------------------------------------------------------- undo

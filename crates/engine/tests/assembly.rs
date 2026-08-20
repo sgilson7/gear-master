@@ -594,3 +594,120 @@ fn an_orb_casts_a_different_spell_each_time() {
     }
     assert!(named.len() >= 2, "the orb should cycle its spells, saw {:?}", named);
 }
+
+// ---------------------------------------------------------------- quests
+
+/// Sit a Helm of Blades on rows a bladed weapon also occupies, and fight until
+/// its tally is met.
+fn blades_run() -> Run {
+    let mut run = Run::with_all_pieces();
+    // A weapon built with an Iron Blade, on rows 0-2.
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Iron Blade", SlotKind::Weapon, 1, 0);
+    // The helm, on the same rows in another slot: that is what "aligned" is.
+    equip(&mut run, "Helm of Blades", SlotKind::Helmet, 0, 0);
+    equip(&mut run, "Warding Plate", SlotKind::Helmet, 0, 2);
+    run
+}
+
+#[test]
+fn a_quest_only_counts_while_its_item_is_assembled() {
+    let mut run = blades_run();
+    let helm = piece(&run, "Helm of Blades");
+    assert_eq!(run.report(SlotKind::Helmet).assembled_count(), 1);
+
+    run.fight_next();
+    run.settle();
+    let progressed = run.quest_progress(helm);
+    assert!(progressed > 0, "an assembled helm should have counted something");
+
+    // Break the helm apart and the tally stops moving.
+    let mut loose = blades_run();
+    let loose_helm = piece(&loose, "Helm of Blades");
+    loose.unequip(piece(&loose, "Warding Plate")).unwrap();
+    assert_eq!(loose.report(SlotKind::Helmet).assembled_count(), 0);
+    loose.fight_next();
+    loose.settle();
+    assert_eq!(loose.quest_progress(loose_helm), 0, "a loose piece is inert, quests included");
+}
+
+#[test]
+fn the_helm_of_blades_becomes_the_blade_of_helms() {
+    let mut run = blades_run();
+    let helm = piece(&run, "Helm of Blades");
+    assert_eq!(run.registry.def(helm).name, "Helm of Blades");
+
+    // Fight until the tally is met. The rat is easy, so this loops.
+    for _ in 0..12 {
+        if run.registry.def(helm).name != "Helm of Blades" {
+            break;
+        }
+        run.rung = 0;
+        run.fight_next();
+        run.settle();
+        run.back_to_loadout();
+    }
+
+    let now = run.registry.def(helm);
+    assert_eq!(now.name, "Blade of Helms", "the quest should have come good");
+    assert_eq!(now.slot, SlotKind::Weapon, "and it is not a helmet any more");
+    assert_eq!(now.kind, gearmaster_engine::piece::PieceKind::Damaging);
+
+    // It could not stay on a helmet board, so it went back to the inventory.
+    assert!(!run.is_equipped(helm), "a transformed piece comes off the board");
+    assert!(run.inventory().contains(&helm));
+}
+
+#[test]
+fn a_finished_quest_is_reported_once() {
+    let mut run = blades_run();
+    let mut announced = 0;
+    for _ in 0..12 {
+        run.rung = 0;
+        run.fight_next();
+        run.settle();
+        announced += run.last_settlement.as_ref().unwrap().quests_done.len();
+        run.back_to_loadout();
+    }
+    assert_eq!(announced, 1, "the transformation is announced exactly once");
+}
+
+#[test]
+fn the_blade_of_helms_gives_armour_where_a_damaging_piece_gives_damage() {
+    use gearmaster_engine::piece::CATALOG;
+    let d = CATALOG.iter().find(|d| d.name == "Blade of Helms").expect("it exists");
+    assert_eq!(d.base.damage, 0, "it is a damaging piece that deals none");
+    assert!(
+        d.triggers.iter().any(|t| matches!(
+            t,
+            gearmaster_engine::piece::Trigger::OnActivate(
+                gearmaster_engine::piece::Action::GainArmor(_)
+            )
+        )),
+        "it should hand out armour instead"
+    );
+}
+
+#[test]
+fn every_quest_names_a_component_that_exists() {
+    use gearmaster_engine::piece::CATALOG;
+    let mut with_quests = 0;
+    for d in CATALOG {
+        if let Some(q) = d.quest {
+            with_quests += 1;
+            assert!(
+                CATALOG.iter().any(|t| t.name == q.becomes),
+                "{} finishes into {}, which is not a component",
+                d.name,
+                q.becomes
+            );
+            assert!(q.goal > 0, "{} has a quest with no goal", d.name);
+            assert!(
+                CATALOG.iter().find(|t| t.name == q.becomes).unwrap().quest.is_none(),
+                "{} finishes into something that is itself a quest, which would chain",
+                d.name
+            );
+        }
+    }
+    assert!(with_quests >= 5, "only {} components carry quests", with_quests);
+}

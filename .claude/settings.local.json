@@ -62,7 +62,8 @@
       "Bash(grep -n \"col_gold\\(\\)\\);$\\\\|col_effect\\(\\)\\);$\\\\|col_trigger\\(\\)\\);$\" crates/gui/src/main.rs)",
       "Bash(pkill -f \"packing\")",
       "Bash(pkill -f \"test packing\")",
-      "Bash(make web *)"
+      "Bash(make web *)",
+      "Bash(sed -n '/GLOSSARY/,$p')"
     ]
   }
 }

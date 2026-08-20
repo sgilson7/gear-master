@@ -1810,11 +1810,17 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
 /// on activation. A piece whose whole behaviour lives in triggers — the Cursed
 /// Blade, say — reads as blank without this.
 fn render_tooltip_titled(run: &Run, id: PieceId, item_name: Option<&str>, mx: f32, my: f32) {
-    render_def_tooltip_inner(run.registry.def(id), item_name, mx, my);
+    render_def_tooltip_inner(
+        run.registry.def(id),
+        item_name,
+        Some(run.quest_progress(id)),
+        mx,
+        my,
+    );
 }
 
 fn render_def_tooltip(def: &'static PieceDef, mx: f32, my: f32) {
-    render_def_tooltip_inner(def, None, mx, my);
+    render_def_tooltip_inner(def, None, None, mx, my);
 }
 
 /// `item_name` is the procedurally generated name of the assembled item this
@@ -1822,6 +1828,7 @@ fn render_def_tooltip(def: &'static PieceDef, mx: f32, my: f32) {
 fn render_def_tooltip_inner(
     def: &'static PieceDef,
     item_name: Option<&str>,
+    quest_progress: Option<u32>,
     mx: f32,
     my: f32,
 ) {
@@ -1874,6 +1881,18 @@ fn render_def_tooltip_inner(
         for l in wrap(&t.describe(), 46) {
             lines.push((l, col_trigger()));
         }
+    }
+    if let Some(q) = def.quest {
+        let done = quest_progress.unwrap_or(0).min(q.goal);
+        lines.push((
+            format!("QUEST  {} / {}", done, q.goal),
+            Color::from_rgba(150, 220, 190, 255),
+        ));
+        for l in wrap(&q.track.describe(q.goal), 46) {
+            lines.push((format!("  {}", l), Color::from_rgba(150, 220, 190, 255)));
+        }
+        lines.push((format!("  then it becomes {}", q.becomes), col_gold()));
+        lines.push(("  only counts while assembled".to_string(), col_dim()));
     }
     lines.push((format!("{} gold", shop_price(def)), col_gold()));
 
@@ -2794,6 +2813,20 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("ASSEMBLED", "An item whose components match its slot's recipe. Only assembled items act in combat - loose pieces still give passive stats, but never fire."),
     ("ADJACENT", "Two items in the same slot whose cells orthogonally touch."),
     ("ALIGNED", "Two items in different slots whose rows overlap."),
+    ("RECIPE", "What a slot will accept as a finished item. Most slots have one; the weapon slot has three, so the same grid builds either a weapon or a spell."),
+    ("SPELL", "A weapon built the arcane way: a book or a crystal ball, ink, and the spell itself. It fills the weapon slot like any other item."),
+    ("BOOK", "The core of a spell, the way a handle is the core of a weapon. It sets how often the spell casts, and binds exactly one spell."),
+    ("INK", "Multiplies the cast it is bound into, and only that one - ink never touches your own weapon power. Stronger inks want paying for."),
+    ("CRYSTAL BALL", "The other kind of spell core. It holds two or three spells and casts a different one each time it comes round, where a book casts its one every time."),
+    ("RATING", "How much an assembled item actually does per second, on a scale where the best possible item in its slot is 200. Scaled per slot, so a glove and a weapon can be compared."),
+    ("RARE / EPIC / LEGENDARY", "Rating tiers, worn as one, two or three marks beside an item's name. Better gear costs far more in the shop."),
+    ("QUEST", "A task carried by one component - so many activations, so many curses. It only counts while the component is part of an assembled item. Finishing it turns the component into something else, which may not belong in the slot it was sitting in."),
+    ("DIFFICULTY", "How many times as effective the opposition is: 1x, 3x, 9x or 27x. It splits evenly between staying alive and hitting back, so 27x is a monster about 5.2 times tougher and 5.2 times deadlier."),
+    ("PASSIVE", "A standing rule on a combatant, granted by the difficulty. Hardened regenerates, Warded resists mind and curse, Relentless runs every item faster."),
+    ("GRINDER", "A mode. Losing drops you to the rung you last cleared, so there is always something easier to farm."),
+    ("ROGUE", "A mode. Losing costs one of three lives; the third ends the run and takes everything with it."),
+    ("BOUNTY", "Paid whether you win or lose. Losing never moves you up the ladder, but it does pay - a run with no income cannot buy its way past whatever just beat it."),
+    ("UNDO", "Steps the board back one change. It covers placing, moving, turning and clearing, but never a purchase."),
 ];
 
 /// The key to a tile: which motif means which slot, which corner mark means
@@ -3147,8 +3180,12 @@ fn render_mode_select(
 
 
 /// The glossary, over the top of whatever is behind it. Returns the CLOSE
-/// button so the caller can hit-test it.
-fn render_glossary(mx: f32, my: f32) -> Rect {
+/// button and the NEXT PAGE button so the caller can hit-test them.
+///
+/// Paged rather than squeezed: the word list has outgrown one screenful, and
+/// shrinking the text until it all fits would undo the point of making it
+/// legible in the first place.
+fn render_glossary(page: usize, mx: f32, my: f32) -> (Rect, Rect, usize) {
     let pad = 56.0;
     let r = Rect::new(pad, pad, LOGICAL_W - 2.0 * pad, LOGICAL_H - 2.0 * pad);
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 228));
@@ -3160,62 +3197,97 @@ fn render_glossary(mx: f32, my: f32) -> Rect {
     let close = Rect::new(r.x + r.w - 140.0, r.y + 16.0, 120.0, 34.0);
     button(close, "CLOSE", true, mx, my);
 
-    let legend_h = draw_tile_legend(r.x + 24.0, r.y + 86.0, r.w - 48.0);
+    // The tile legend only belongs on the first page.
+    let legend_h = if page == 0 { draw_tile_legend(r.x + 24.0, r.y + 86.0, r.w - 48.0) } else { 0.0 };
 
-    // Flow the entries into as many columns as it takes to fit the page. Two
-    // was hard-coded, and the glossary spilled off the bottom the moment
-    // either the text or the word list grew.
     let top = r.y + 96.0 + legend_h;
-    let bottom = r.y + r.h - 16.0;
+    let bottom = r.y + r.h - 54.0;
     let gap = 24.0;
-    let (cols, size) = (2..=4)
-        .flat_map(|c| [15.0f32, 14.0, 13.0, 12.0, 11.0].map(move |s| (c, s)))
-        .find(|&(cols, size)| glossary_fits(r.w, cols, size, bottom - top))
-        .unwrap_or((4, 11.0));
-
+    let cols = 4usize;
+    let size = 14.0f32;
     let col_w = (r.w - 48.0 - (cols - 1) as f32 * gap) / cols as f32;
     let lh = line_h(size);
+
+    // Walk the whole list, laying it out page by page, and only draw the one
+    // asked for. Cheap enough at this size, and it means the page count and
+    // the layout can never disagree.
+    let mut at = 0usize;
+    let mut this_page = 0usize;
     let mut col = 0usize;
     let mut y = top;
-    for (term, meaning) in GLOSSARY {
+    let mut pages = 1usize;
+    let mut start_of_page = 0usize;
+    while at < GLOSSARY.len() {
+        let (term, meaning) = GLOSSARY[at];
         let lines = wrap_px(meaning, col_w - 16.0, size);
         let needed = lh * (1.0 + lines.len() as f32) + 10.0;
-        if y + needed > bottom && col + 1 < cols {
-            col += 1;
-            y = top;
-        }
-        let x = r.x + 24.0 + col as f32 * (col_w + gap);
-        ui_text(term, x, y, size, Color::from_rgba(150, 200, 240, 255));
-        y += lh;
-        for l in lines {
-            ui_text(&l, x + 14.0, y, size, Color::from_rgba(198, 200, 218, 255));
-            y += lh;
-        }
-        y += 10.0;
-    }
-    close
-}
-
-/// Would the whole glossary flow into `cols` columns of `height` at this text
-/// size? Runs the same packing as the renderer, without drawing.
-fn glossary_fits(page_w: f32, cols: usize, size: f32, height: f32) -> bool {
-    let col_w = (page_w - 48.0 - (cols - 1) as f32 * 24.0) / cols as f32;
-    let lh = line_h(size);
-    let mut col = 0usize;
-    let mut y = 0.0;
-    for (_, meaning) in GLOSSARY {
-        let needed = lh * (1.0 + wrap_px(meaning, col_w - 16.0, size).len() as f32) + 10.0;
-        if y + needed > height {
-            col += 1;
-            y = 0.0;
-            if col >= cols || needed > height {
-                return false;
+        if y + needed > bottom {
+            if col + 1 < cols {
+                col += 1;
+                y = top;
+            } else {
+                // Page full.
+                if this_page == page {
+                    break;
+                }
+                this_page += 1;
+                pages += 1;
+                col = 0;
+                y = top;
+                start_of_page = at;
+                continue;
             }
         }
-        y += needed;
+        if this_page == page {
+            let x = r.x + 24.0 + col as f32 * (col_w + gap);
+            ui_text(term, x, y, size, Color::from_rgba(150, 200, 240, 255));
+            y += lh;
+            for l in lines {
+                ui_text(&l, x + 14.0, y, size, Color::from_rgba(198, 200, 218, 255));
+                y += lh;
+            }
+            y += 10.0;
+        } else {
+            y += needed;
+        }
+        at += 1;
     }
-    true
+    // Finish counting pages even after the drawn one ends.
+    if at < GLOSSARY.len() {
+        let mut c = col;
+        let mut yy = y;
+        for i in at..GLOSSARY.len() {
+            let needed =
+                lh * (1.0 + wrap_px(GLOSSARY[i].1, col_w - 16.0, size).len() as f32) + 10.0;
+            if yy + needed > bottom {
+                if c + 1 < cols {
+                    c += 1;
+                    yy = top;
+                } else {
+                    pages += 1;
+                    c = 0;
+                    yy = top;
+                }
+            }
+            yy += needed;
+        }
+    }
+    let _ = start_of_page;
+
+    let next = Rect::new(r.x + r.w - 260.0, r.y + r.h - 46.0, 240.0, 34.0);
+    if pages > 1 {
+        ui_text(
+            &format!("page {} of {}", page + 1, pages),
+            r.x + 24.0,
+            r.y + r.h - 22.0,
+            14.0,
+            col_dim(),
+        );
+        button(next, if page + 1 < pages { "NEXT PAGE" } else { "BACK TO START" }, true, mx, my);
+    }
+    (close, next, pages)
 }
+
 
 /// Name, health, armour, mana and curses for one side of the battle screen.
 #[allow(clippy::too_many_arguments)]
@@ -3574,6 +3646,10 @@ async fn main() {
     // Kept between fights, and settable before one starts.
     let mut playback_speed = DEFAULT_SPEED;
     let mut glossary_open = std::env::var("GEARMASTER_GLOSSARY").is_ok();
+    let mut glossary_page: usize = std::env::var("GEARMASTER_GLOSSARY_PAGE")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
     // Where the game opens: the intro pages, then the mode picker, then play.
     // Any debug hook skips straight to the board.
     let skip_intro = std::env::var("GEARMASTER_PRESET").is_ok()
@@ -3671,6 +3747,16 @@ async fn main() {
                     },
                     _ => format!("{} still stands.", run.monster().name),
                 };
+                if let Some(st) = run.last_settlement.as_ref() {
+                    // A transformation is the more interesting news, so it
+                    // takes the line.
+                    if let Some(q) = st.quests_done.first() {
+                        message = format!(
+                            "{} finished its quest and is now {}. Find it in your inventory.",
+                            q.from, q.into
+                        );
+                    }
+                }
             }
         }
 
@@ -3822,12 +3908,17 @@ async fn main() {
         // The glossary sits over everything and eats input while open, so a
         // click meant for CLOSE never also lands on the board behind it.
         if glossary_open {
-            let close = render_glossary(mx, my);
-            if is_mouse_button_pressed(MouseButton::Left) && close.contains(Vec2::new(mx, my)) {
+            let (close, next, pages) = render_glossary(glossary_page, mx, my);
+            let click = is_mouse_button_pressed(MouseButton::Left);
+            if click && close.contains(Vec2::new(mx, my)) {
                 glossary_open = false;
+                glossary_page = 0;
+            } else if click && pages > 1 && next.contains(Vec2::new(mx, my)) {
+                glossary_page = (glossary_page + 1) % pages;
             }
             if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::G) {
                 glossary_open = false;
+                glossary_page = 0;
             }
             #[cfg(not(target_arch = "wasm32"))]
             {
