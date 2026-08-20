@@ -59,6 +59,20 @@ impl Mode {
 /// How many losses a Rogue run survives.
 pub const ROGUE_LIVES: u32 = 3;
 
+/// How many board changes can be taken back.
+pub const UNDO_DEPTH: usize = 40;
+
+/// The board as it stood before a change. Rotations live on the registry
+/// rather than the loadout, so both have to be kept or undoing a rotate would
+/// put a piece back at the wrong footprint.
+#[derive(Clone)]
+struct BoardSnapshot {
+    loadout: Loadout,
+    registry: PieceRegistry,
+    /// What the change was, so the interface can say what it undid.
+    label: String,
+}
+
 /// What a settled fight did to the run, so the GUI can say so.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Settlement {
@@ -133,6 +147,8 @@ pub struct Run {
     /// claimed twice by replaying the same log.
     settled: bool,
     rng: Rng,
+    /// Board states to step back through, oldest first.
+    undo_stack: Vec<BoardSnapshot>,
 }
 
 impl Default for Run {
@@ -178,6 +194,7 @@ impl Run {
             best_rung: 0,
             settled: false,
             rng,
+            undo_stack: Vec::new(),
         }
     }
 
@@ -334,6 +351,47 @@ impl Run {
         fresh.phase = self.phase;
         fresh.settled = true;
         *self = fresh;
+        self.forget_undo();
+    }
+
+    // ------------------------------------------------------------- undo
+
+    /// Remember the board before a change. Called by every method that moves
+    /// something, so `undo` can put it back.
+    ///
+    /// Only the board is kept. Gold and the shop deliberately are not: undo is
+    /// for "that was the wrong square", not for taking a purchase back.
+    fn remember(&mut self, what: impl Into<String>) {
+        self.undo_stack.push(BoardSnapshot {
+            loadout: self.loadout.clone(),
+            registry: self.registry.clone(),
+            label: what.into(),
+        });
+        if self.undo_stack.len() > UNDO_DEPTH {
+            self.undo_stack.remove(0);
+        }
+    }
+
+    /// Step the board back one change, returning what was undone.
+    pub fn undo(&mut self) -> Option<String> {
+        if self.phase != Phase::Loadout {
+            return None;
+        }
+        let snap = self.undo_stack.pop()?;
+        self.loadout = snap.loadout;
+        self.registry = snap.registry;
+        Some(snap.label)
+    }
+
+    /// What the next undo would take back, if anything.
+    pub fn undoable(&self) -> Option<&str> {
+        self.undo_stack.last().map(|s| s.label.as_str())
+    }
+
+    /// Drop the history. Used when the board stops being the one the history
+    /// describes - a fight ending, or a run being wiped.
+    pub fn forget_undo(&mut self) {
+        self.undo_stack.clear();
     }
 
     /// Losses this run may still take. `None` outside Rogue.
@@ -384,6 +442,12 @@ impl Run {
     ///   3. write it into the destination
     pub fn equip(&mut self, id: PieceId, kind: SlotKind, ax: u8, ay: u8) -> Result<(), RuleError> {
         self.can_equip(id, kind, ax, ay)?;
+        let moving = self.is_equipped(id);
+        self.remember(format!(
+            "{} {}",
+            if moving { "moving" } else { "placing" },
+            self.registry.def(id).name
+        ));
         self.loadout.remove_anywhere(id);
         self.loadout.slot_mut(kind).place(&self.registry, id, ax, ay);
         Ok(())
@@ -397,6 +461,7 @@ impl Run {
         if !self.is_equipped(id) {
             return Err(RuleError::NotEquipped);
         }
+        self.remember(format!("removing {}", self.registry.def(id).name));
         self.loadout.remove_anywhere(id);
         Ok(())
     }
@@ -409,6 +474,9 @@ impl Run {
             return Err(RuleError::LoadoutLocked);
         }
         let before = self.registry.rotation(id);
+        // Recorded before the turn is attempted and dropped again if it is
+        // refused, so a rotation that could not happen leaves no history.
+        self.remember(format!("turning {}", self.registry.def(id).name));
         self.registry.rotate_cw(id);
 
         if let Some(kind) = self.loadout.slot_holding(id) {
@@ -426,6 +494,8 @@ impl Run {
                 Err(e) => {
                     self.registry.set_rotation(id, before);
                     self.loadout.slot_mut(kind).place(&self.registry, id, anchor.0, anchor.1);
+                    // Nothing changed, so there is nothing to take back.
+                    self.undo_stack.pop();
                     return Err(e.into());
                 }
             }
@@ -507,6 +577,7 @@ impl Run {
 
     /// Strip every slot and reset rotations.
     pub fn clear_all(&mut self) {
+        self.remember("clearing every slot");
         for kind in SlotKind::ALL {
             self.loadout.slot_mut(kind).clear();
         }
@@ -519,6 +590,7 @@ impl Run {
         if self.phase != Phase::Loadout {
             return Err(RuleError::LoadoutLocked);
         }
+        self.remember(format!("clearing the {}", kind.name().to_lowercase()));
         self.loadout.slot_mut(kind).clear();
         Ok(())
     }
@@ -558,6 +630,7 @@ impl Run {
 
     /// Simulate against the original opponent, ladder position ignored.
     pub fn begin_fight(&mut self) -> &CombatLog {
+        self.forget_undo();
         self.fight(&RUST_GOLEM)
     }
 

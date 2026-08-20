@@ -3182,16 +3182,23 @@ fn render_battle_side(
     }
 }
 
-fn button_rects(panel_x: f32) -> [Rect; 5] {
+/// The panel's buttons, in a fixed order:
+///   0 BEGIN FIGHT   1 SPEED   2 UNDO   3 CLEAR ALL   4 GLOSSARY   5 SCREENSHOT
+///
+/// UNDO and CLEAR ALL share a row on purpose: taking a clear back is the main
+/// reason anyone reaches for undo.
+fn button_rects(panel_x: f32) -> [Rect; 6] {
     let w = PANEL_W - 40.0;
     let x = panel_x + 20.0;
-    let y = LOGICAL_H - 272.0;
+    let y = LOGICAL_H - 322.0;
+    let half = w / 2.0 - 5.0;
     [
         Rect::new(x, y, w, 46.0),
-        Rect::new(x, y + 56.0, w / 2.0 - 5.0, 40.0),
-        Rect::new(x + w / 2.0 + 5.0, y + 56.0, w / 2.0 - 5.0, 40.0),
-        Rect::new(x, y + 106.0, w, 40.0),
+        Rect::new(x, y + 56.0, w, 40.0),
+        Rect::new(x, y + 106.0, half, 40.0),
+        Rect::new(x + w / 2.0 + 5.0, y + 106.0, half, 40.0),
         Rect::new(x, y + 156.0, w, 40.0),
+        Rect::new(x, y + 206.0, w, 40.0),
     ]
 }
 
@@ -3228,7 +3235,6 @@ fn render_panel(
     run: &Run,
     reports: &[SlotReport],
     message: &str,
-    pb: &Option<Playback>,
     speed: f32,
     hover: &mut Hover,
     mx: f32,
@@ -3431,19 +3437,19 @@ fn render_panel(
 
     // Buttons
     let r = button_rects(layout.panel_x);
-    let fighting = run.phase == Phase::Fighting;
-    if fighting {
-        let done = pb.as_ref().map(|p| p.done).unwrap_or(false);
-        button(r[0], "BACK TO GEAR", true, mx, my);
-        button(r[1], "SKIP", !done, mx, my);
-        button(r[2], "REMATCH", true, mx, my);
-    } else {
-        button(r[0], "BEGIN FIGHT", true, mx, my);
-        button(r[1], &format!("SPEED {}x", speed_label(speed)), true, mx, my);
-        button(r[2], "CLEAR ALL", true, mx, my);
+    button(r[0], "BEGIN FIGHT", true, mx, my);
+    button(r[1], &format!("SPEED {}x", speed_label(speed)), true, mx, my);
+
+    let can_undo = run.undoable().is_some();
+    button(r[2], "UNDO", can_undo, mx, my);
+    if can_undo {
+        hover.over(r[2], mx, my, || {
+            vec![(format!("undo {}", run.undoable().unwrap_or("")), LIGHTGRAY)]
+        });
     }
-    button(r[3], "WHAT THE WORDS MEAN", true, mx, my);
-    button(r[4], "F12  save screenshot", true, mx, my);
+    button(r[3], "CLEAR ALL", true, mx, my);
+    button(r[4], "WHAT THE WORDS MEAN", true, mx, my);
+    button(r[5], "F12  save screenshot", true, mx, my);
 }
 
 // ================================================================= main
@@ -3643,7 +3649,6 @@ async fn main() {
                 &run,
                 &reports,
                 &message,
-                &pb,
                 playback_speed,
                 &mut hover,
                 mx,
@@ -3763,10 +3768,16 @@ async fn main() {
                 playback_speed = next_speed(playback_speed);
                 message = format!("Fights will replay at {}x.", speed_label(playback_speed));
             } else if clicked_button(2) {
+                drag = Drag::None;
+                message = match run.undo() {
+                    Some(what) => format!("Undid {}.", what),
+                    None => "Nothing to undo.".to_string(),
+                };
+            } else if clicked_button(3) {
                 run.clear_all();
                 drag = Drag::None;
-                message = "Cleared. Every slot is empty again.".to_string();
-            } else if clicked_button(3) {
+                message = "Cleared. Every slot is empty again. UNDO puts it back.".to_string();
+            } else if clicked_button(4) {
                 glossary_open = true;
             }
         }

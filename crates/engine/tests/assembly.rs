@@ -404,3 +404,99 @@ fn different_items_get_different_emblems() {
     }
     assert!(seeds.len() >= 5, "a full loadout should assemble several items");
 }
+
+// ----------------------------------------------------------------- undo
+
+#[test]
+fn undo_puts_a_piece_back_where_it_was() {
+    let mut run = Run::with_all_pieces();
+    let handle = piece(&run, "Oak Handle");
+    run.equip(handle, SlotKind::Weapon, 0, 0).unwrap();
+    run.equip(handle, SlotKind::Weapon, 3, 2).unwrap();
+
+    assert_eq!(run.loadout.slot(SlotKind::Weapon).anchor_of(handle), Some((3, 2)));
+    assert!(run.undo().is_some());
+    assert_eq!(
+        run.loadout.slot(SlotKind::Weapon).anchor_of(handle),
+        Some((0, 0)),
+        "back to where it was before the move"
+    );
+    assert!(run.undo().is_some());
+    assert!(!run.is_equipped(handle), "and back off the board entirely");
+    assert!(run.undo().is_none(), "nothing left to take back");
+}
+
+#[test]
+fn undo_restores_a_rotation() {
+    let mut run = Run::with_all_pieces();
+    let mold = piece(&run, "Gauntlet Mold");
+    let before = run.registry.shape(mold);
+
+    run.rotate(mold).unwrap();
+    assert_ne!(run.registry.shape(mold), before);
+
+    run.undo();
+    assert_eq!(run.registry.shape(mold), before, "rotations live on the registry too");
+}
+
+#[test]
+fn a_refused_rotation_leaves_nothing_to_undo() {
+    let mut run = Run::with_all_pieces();
+    let base = piece(&run, "Padded Base"); // 4 wide x 3 tall
+    run.equip(base, SlotKind::Chest, 2, 0).unwrap();
+    run.rotate(base).expect("3x4 still fits at x=2");
+    run.equip(base, SlotKind::Chest, 3, 4).expect("3x4 fits at (3, 4)");
+    // Now wedged: turning back to 4x3 would hang off the right edge.
+    let depth_before = run.undoable().map(|s| s.to_string());
+
+    assert!(run.rotate(base).is_err());
+
+    assert_eq!(
+        run.undoable().map(|s| s.to_string()),
+        depth_before,
+        "a rotation that could not happen must not push history"
+    );
+}
+
+#[test]
+fn undo_takes_back_a_clear_all() {
+    let mut run = Run::with_all_pieces();
+    build_full_loadout(&mut run);
+    let before: Vec<usize> =
+        SlotKind::ALL.iter().map(|&k| run.loadout.slot(k).pieces().len()).collect();
+    assert!(before.iter().sum::<usize>() > 0);
+
+    run.clear_all();
+    assert!(SlotKind::ALL.iter().all(|&k| run.loadout.slot(k).is_empty()));
+
+    run.undo();
+    let after: Vec<usize> =
+        SlotKind::ALL.iter().map(|&k| run.loadout.slot(k).pieces().len()).collect();
+    assert_eq!(after, before, "the whole board comes back");
+}
+
+#[test]
+fn undo_does_not_hand_gold_back() {
+    // Undo is for "wrong square", not for unwinding a purchase. A board step
+    // that also moved money would let you rebuild your purse by tapping it.
+    let mut run = Run::new();
+    let gold_before = run.gold;
+    let id = run.buy(0).expect("affordable");
+    let spent = gold_before - run.gold;
+    assert!(spent > 0);
+
+    run.equip(id, run.registry.def(id).slot, 0, 0).unwrap();
+    run.undo();
+
+    assert_eq!(run.gold, gold_before - spent, "the purchase stands");
+    assert!(run.owned.contains(&id));
+}
+
+#[test]
+fn starting_a_fight_drops_the_history() {
+    let mut run = Run::with_all_pieces();
+    run.apply_preset();
+    run.equip(piece(&run, "Oak Handle"), SlotKind::Weapon, 5, 7).ok();
+    run.begin_fight();
+    assert!(run.undoable().is_none(), "the board it described is gone");
+}
