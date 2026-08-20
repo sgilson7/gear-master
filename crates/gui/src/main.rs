@@ -482,6 +482,10 @@ struct Playback {
     flash_enemy: f64,
     now_ms: u32,
     done: bool,
+    player_empower: u32,
+    player_shield: u32,
+    enemy_empower: u32,
+    enemy_shield: u32,
     /// When each item fired, indexed the same way as the combatant's item
     /// list. Cooldown bars are drawn straight from these, which is why a
     /// frost-slowed item's bar visibly crawls: the gap between two real
@@ -556,6 +560,10 @@ impl Playback {
             flash_enemy: -10.0,
             now_ms: 0,
             done: false,
+            player_empower: 0,
+            player_shield: 0,
+            enemy_empower: 0,
+            enemy_shield: 0,
             player_schedule: schedule_for(log, Side::Player, log.player.items.len()),
             enemy_schedule: schedule_for(log, Side::Enemy, log.enemy.items.len()),
             enemy_reg: er,
@@ -626,6 +634,20 @@ impl Playback {
                     self.player_hp = *health;
                 }
                 return; // healing ticks would drown the log
+            }
+            Event::Empowered { side, total, .. } => {
+                if *side == Side::Player {
+                    self.player_empower = *total;
+                } else {
+                    self.enemy_empower = *total;
+                }
+            }
+            Event::Shielded { side, total, .. } => {
+                if *side == Side::Player {
+                    self.player_shield = *total;
+                } else {
+                    self.enemy_shield = *total;
+                }
             }
             Event::Hastened { .. } => {}
             Event::Fell { .. } => {}
@@ -1455,6 +1477,8 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
         pb.player_max,
         pb.player_armor,
         Some(pb.player_mana),
+        pb.player_empower,
+        pb.player_shield,
         &pb.player_curses,
         pb.flash_player,
         Color::from_rgba(90, 190, 120, 255),
@@ -1511,6 +1535,8 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
         pb.enemy_max,
         pb.enemy_armor,
         None,
+        pb.enemy_empower,
+        pb.enemy_shield,
         &pb.enemy_curses,
         pb.flash_enemy,
         Color::from_rgba(210, 110, 90, 255),
@@ -1802,6 +1828,18 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("  SEARING", "10 damage a second, for 10 seconds."),
     ("  FROST", "The target's gear runs 50% slower, for 1 second."),
     ("CURSE RESIST", "Shortens curses landed on you. At 100% they never land."),
+    (
+        "MANA EMPOWERMENT",
+        "Each stack adds 0.05x weapon power per point of mana you are STILL \
+         holding. Stacks cost mana, so spending your whole pool for one leaves \
+         it worth nothing - you need income above the cost.",
+    ),
+    (
+        "MANA SHIELD",
+        "Each stack cuts 1 off every incoming hit per point of mana you are still \
+         holding - damage of any kind, before armour. Same catch: it scales off \
+         what is left, not what you spent.",
+    ),
     ("COOLDOWN", "Seconds between one item's activations. Every item runs its own."),
     ("CORE", "The component a recipe needs exactly one of: handle, frame, base or material. It anchors an item, which is why two items can touch and still count separately."),
     ("ASSEMBLED", "An item whose components match its slot's recipe. Only assembled items act in combat - loose pieces still give passive stats, but never fire."),
@@ -1848,6 +1886,7 @@ fn render_glossary(mx: f32, my: f32) -> Rect {
 
 /// Name, health, armour, mana and curses for one side of the battle screen.
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 fn render_battle_side(
     x: f32,
     y: f32,
@@ -1857,6 +1896,8 @@ fn render_battle_side(
     max: i32,
     armor: i32,
     mana: Option<i32>,
+    empower: u32,
+    shield: u32,
     curses: &[(&'static str, u32)],
     flash: f64,
     tint: Color,
@@ -1887,6 +1928,19 @@ fn render_battle_side(
     let mut label = format!("armor {}", armor);
     if let Some(m) = mana {
         label.push_str(&format!("   mana {}", m));
+        // Both buffs multiply the mana you are still holding, so show the
+        // figure they currently work out to rather than just the stack count.
+        if empower > 0 {
+            label.push_str(&format!(
+                "   empower x{} (+{}.{:02}x)",
+                empower,
+                empower as i32 * 5 * m / 100,
+                (empower as i32 * 5 * m) % 100
+            ));
+        }
+        if shield > 0 {
+            label.push_str(&format!("   shield x{} (-{})", shield, shield as i32 * m));
+        }
     }
     ui_text(&label, x, y + 68.0, 13.0, Color::from_rgba(160, 190, 225, 255));
 

@@ -109,6 +109,12 @@ fn main() {
                 println!("Applied the full preset loadout.");
                 show_stats(&run);
             }
+            ["sandbox"] => {
+                // Every component, for trying combinations out without playing
+                // a run up to them.
+                run = Run::with_all_pieces();
+                println!("Sandbox: you now own all {} components.", run.owned.len());
+            }
             ["clear"] => {
                 run.clear_all();
                 println!("Cleared every slot.");
@@ -245,6 +251,7 @@ fn help() {
     println!("  unequip <name>           send a component back to the inventory");
     println!("  rotate <name>            quarter turn clockwise");
     println!("  preset | clear           fill or empty every slot");
+    println!("  sandbox                  grant every component (testing)");
     println!("  shop                     what is for sale");
     println!("  buy <n> | sell <name>    trade with the shop");
     println!("  ladder                   the monster ladder");

@@ -212,12 +212,110 @@ fn an_oversized_piece_pays_off_precisely_because_it_cannot_be_built() {
 
     let loose = run.report(SlotKind::Chest);
     assert_eq!(loose.assembled_count(), 0);
-    assert_eq!(loose.stats.health, 76, "6 base + 70 while unbound");
-    assert_eq!(loose.stats.armor, 12);
+    assert_eq!(loose.stats.health, 116, "6 base + 110 while unbound");
+    // Its unbound bonus is deliberately *not* armour: loose gear never
+    // activates, and armour only accrues on activation, so armour on a piece
+    // that can never be built would be worth nothing at all.
+    assert_eq!(loose.stats.armor, 0);
 
     // Finish the chestpiece around it and the bonus switches off.
     equip(&mut run, "Hide Base", SlotKind::Chest, 0, 4);
     let built = run.report(SlotKind::Chest);
     assert_eq!(built.assembled_count(), 1);
     assert_eq!(built.stats.health, 6 + 14, "the unbound bonus is gone");
+}
+
+// -------------------------------------------------- the two mana buffs
+
+#[test]
+fn mana_empowerment_scales_power_with_the_mana_you_still_hold() {
+    use gearmaster_engine::combat::Combatant;
+    let mut c = Combatant::player(Stats::new(100, 10, 0, 100), &[]);
+    c.mana = 20;
+    assert_eq!(c.effective_power(), 100, "no stacks, no bonus");
+
+    c.empowerment = 1;
+    assert_eq!(c.effective_power(), 200, "0.05x per point of 20 mana = +1.00x");
+    c.empowerment = 2;
+    assert_eq!(c.effective_power(), 300);
+
+    // Spending the mana that powers it cuts the bonus straight back down.
+    c.mana = 5;
+    assert_eq!(c.effective_power(), 150, "2 stacks against 5 mana");
+}
+
+#[test]
+fn mana_shield_blunts_every_kind_of_damage() {
+    let mut hitter = item("Hitter", SlotKind::Weapon, 1000, Stats::damage(30));
+    hitter.triggers = vec![];
+    const PUNCHER: MonsterSpec = MonsterSpec {
+        name: "Puncher",
+        health: 100_000,
+        strength: 0,
+        regen: 0,
+        mind_resist: 0,
+        curse_resist: 0,
+        attacks: &[gearmaster_engine::combat::MonsterAttack::hit("jab", 1000, 20)],
+        gear: &[],
+        bounty: 0,
+    };
+
+    // A battery to bank mana, and a ward that turns it into a shield.
+    let battery = item("Battery", SlotKind::Chest, 500, Stats::mana(4));
+    let mut ward = item("Ward", SlotKind::Helmet, 600, Stats::ZERO);
+    ward.triggers = vec![Trigger::SpendMana {
+        cost: 3,
+        on_success: Action::GainShield(1),
+        on_failure: Action::GainArmor(0),
+    }];
+
+    let log = simulate(Stats::new(2000, 0, 0, 100), &[battery, ward], &PUNCHER);
+    assert!(
+        log.entries.iter().any(|e| matches!(e.event, Event::Shielded { .. })),
+        "the ward should be converting mana into shield"
+    );
+
+    // Once shielded, the puncher's 20s stop getting through in full.
+    let late: Vec<i32> = log
+        .entries
+        .iter()
+        .filter(|e| e.at_ms > 20_000)
+        .filter_map(|e| match e.event {
+            Event::Hit { by: Side::Enemy, damage, .. } => Some(damage),
+            _ => None,
+        })
+        .collect();
+    assert!(!late.is_empty());
+    assert!(
+        late.iter().all(|&d| d == 20),
+        "the log reports the swing, mitigation happens on arrival"
+    );
+    // Health should be barely touched compared with 20 a second unmitigated.
+    let final_hp = log
+        .entries
+        .iter()
+        .rev()
+        .find_map(|e| match e.event {
+            Event::Hit { by: Side::Enemy, target_health, .. } => Some(target_health),
+            _ => None,
+        })
+        .unwrap();
+    assert!(final_hp > 1500, "shield should have absorbed most of it, hp {}", final_hp);
+}
+
+#[test]
+fn a_ward_that_cannot_pay_falls_back_instead_of_stacking() {
+    let mut ward = item("Ward", SlotKind::Helmet, 600, Stats::ZERO);
+    ward.triggers = vec![Trigger::SpendMana {
+        cost: 3,
+        on_success: Action::GainShield(1),
+        on_failure: Action::GainArmor(5),
+    }];
+    // No mana income at all.
+    let log = simulate(Stats::new(2000, 0, 0, 100), &[ward], &DUMMY);
+    assert!(
+        !log.entries.iter().any(|e| matches!(e.event, Event::Shielded { .. })),
+        "nothing to spend, so nothing to stack"
+    );
+    assert!(log.entries.iter().any(|e| matches!(e.event, Event::GainArmor { .. })));
 }

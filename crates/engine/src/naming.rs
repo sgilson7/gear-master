@@ -140,6 +140,8 @@ const PRIORITY: &[&str] = &[
     "Conducting",
     "Resonant",
     "Hollow",
+    "Empowered",
+    "Shielded",
     "Unbound",
     "Blessed",
     "Hastening",
@@ -167,6 +169,8 @@ fn action_word(a: &Action) -> Option<&'static str> {
         Action::GainArmor(_) => "Warded",
         Action::Damage { .. } => "Striking",
         Action::ReduceCooldown(_) => "Hastening",
+        Action::GainEmpowerment(_) => "Empowered",
+        Action::GainShield(_) => "Shielded",
     })
 }
 

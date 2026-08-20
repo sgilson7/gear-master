@@ -455,6 +455,11 @@ pub struct Combatant {
     pub mind_resist: i32,
     pub curse_resist: i32,
     pub curses: Curses,
+    /// Stacks of mana empowerment and mana shield. Both scale off *current*
+    /// mana, and both are bought with mana — so stacking them hard drains the
+    /// very pool they multiply. That tension is the point.
+    pub empowerment: u32,
+    pub shield: u32,
     pub items: Vec<RunningItem>,
     /// Sub-point accumulators, so 10 damage a second spread over 50ms ticks
     /// loses nothing to rounding.
@@ -481,6 +486,8 @@ impl Combatant {
             mind_resist: stats.mind_resist,
             curse_resist: stats.curse_resist,
             curses: Curses::new(),
+            empowerment: 0,
+            shield: 0,
             items: profiles.iter().map(RunningItem::from_profile).collect(),
             dot_milli: 0,
             regen_milli: 0,
@@ -507,6 +514,8 @@ impl Combatant {
             mind_resist: stats.mind_resist,
             curse_resist: stats.curse_resist,
             curses: Curses::new(),
+            empowerment: 0,
+            shield: 0,
             items,
             dot_milli: 0,
             regen_milli: 0,
@@ -519,8 +528,20 @@ impl Combatant {
         self.health <= 0 || self.max_health <= 0
     }
 
-    /// Armour first, then health. Returns (absorbed, through to health).
+    /// Weapon power after mana empowerment: 0.05x per stack per point of mana.
+    pub fn effective_power(&self) -> i32 {
+        self.power + self.empowerment as i32 * 5 * self.mana.max(0)
+    }
+
+    /// Flat reduction mana shield applies to any incoming damage.
+    pub fn damage_reduction(&self) -> i32 {
+        self.shield as i32 * self.mana.max(0)
+    }
+
+    /// Mana shield first, then armour, then health. Returns (absorbed by
+    /// armour, through to health).
     fn take_damage(&mut self, amount: i32) -> (i32, i32) {
+        let amount = (amount - self.damage_reduction()).max(0);
         if amount <= 0 {
             return (0, 0);
         }
@@ -533,6 +554,8 @@ impl Combatant {
 
     /// Mind damage eats maximum health, so it can never be healed back off.
     fn take_mind(&mut self, raw: i32) -> i32 {
+        // "whatever the damage type" — mana shield blunts mind damage too.
+        let raw = (raw - self.damage_reduction()).max(0);
         let dealt = mind_damage_after_resist(raw, self.mind_resist);
         if dealt <= 0 {
             return 0;
@@ -565,6 +588,9 @@ pub enum Event {
     Regen { side: Side, amount: i32, health: i32 },
     /// A reaction pushed an item's cooldown forward.
     Hastened { side: Side, item: String, by_ms: u32 },
+    /// A mana buff gained stacks. `total` is the new stack count.
+    Empowered { side: Side, total: u32, power_bonus: i32 },
+    Shielded { side: Side, total: u32, reduction: i32 },
     Fell { side: Side },
     End { outcome: Outcome },
 }
@@ -691,6 +717,21 @@ impl CombatLog {
                 self.who(*side),
                 item,
                 *by_ms as f32 / 1000.0
+            ),
+            Event::Empowered { side, total, power_bonus } => format!(
+                "{} {} empowered x{} (+{}.{:02}x power)",
+                t,
+                self.who(*side),
+                total,
+                power_bonus / 100,
+                power_bonus % 100
+            ),
+            Event::Shielded { side, total, reduction } => format!(
+                "{} {} mana shield x{} (-{} per hit)",
+                t,
+                self.who(*side),
+                total,
+                reduction
             ),
             Event::Fell { side } => format!("{} {} falls!", t, self.who(*side)),
             Event::End { outcome } => format!("-- {} --", outcome.label()),
@@ -852,7 +893,7 @@ fn activate(
     if is_weapon {
         let (strength, power) = {
             let me = pick(p, e, side);
-            (me.strength, me.power)
+            (me.strength, me.effective_power())
         };
         let raw = (item.damage + strength) as i64 * power as i64 / 100;
         let raw = raw.max(0) as i32;
@@ -1044,6 +1085,21 @@ fn apply(
             c.armor += n;
             let total = c.armor;
             log.push(LogEntry { at_ms: t, event: Event::GainArmor { side, amount: n, total } });
+        }
+        Action::GainEmpowerment(n) => {
+            let c = pick(p, e, side);
+            c.empowerment += n;
+            let (total, bonus) = (c.empowerment, c.effective_power() - c.power);
+            log.push(LogEntry {
+                at_ms: t,
+                event: Event::Empowered { side, total, power_bonus: bonus },
+            });
+        }
+        Action::GainShield(n) => {
+            let c = pick(p, e, side);
+            c.shield += n;
+            let (total, reduction) = (c.shield, c.damage_reduction());
+            log.push(LogEntry { at_ms: t, event: Event::Shielded { side, total, reduction } });
         }
         Action::ReduceCooldown(ms) => {
             let Some(idx) = owner else { return };
