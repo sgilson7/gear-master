@@ -167,7 +167,7 @@ fn main() {
                 );
                 for it in &items {
                     println!(
-                        "    {:<18} every {:.2}s   {}",
+                        "    {:<34} every {:.2}s   {}",
                         it.name,
                         it.cooldown_ms as f32 / 1000.0,
                         it.stats.summary()
@@ -203,9 +203,13 @@ fn main() {
                 println!("\n{} assembled item(s) will act in combat:", items.len());
                 for it in &items {
                     println!(
-                        "  {:<18} {:<10} every {:.2}s  {}",
-                        it.name,
+                        "  {}",
+                        it.full_name
+                    );
+                    println!(
+                        "      {:<10} {:<18} every {:.2}s  {}",
                         format!("{:?}", it.slot).to_lowercase(),
+                        format!("[{}]", it.core),
                         it.cooldown_ms as f32 / 1000.0,
                         it.stats.summary()
                     );
@@ -295,9 +299,10 @@ fn show_slot(run: &Run, kind: SlotKind) {
 
     for (i, item) in rep.items.iter().enumerate() {
         println!(
-            "  item {}: {:<28} [{}]",
+            "  item {}: {:<38} {:<22} [{}]",
             i + 1,
-            if item.assembled { "ASSEMBLED".to_string() } else { item.status.clone() },
+            if item.assembled { item.name.full.clone() } else { format!("(unfinished)") },
+            if item.assembled { String::new() } else { item.status.clone() },
             item.stats.summary()
         );
         for &id in &item.pieces {

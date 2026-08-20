@@ -328,6 +328,12 @@ impl PieceRegistry {
         &CATALOG[self.instance(id).def]
     }
 
+    /// Which catalog entry this instance is. Used by the name generator, so
+    /// two copies of the same component hash identically.
+    pub fn def_index(&self, id: PieceId) -> usize {
+        self.instance(id).def
+    }
+
     pub fn rotation(&self, id: PieceId) -> u8 {
         self.instance(id).rotation
     }

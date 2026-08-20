@@ -106,10 +106,12 @@ impl Run {
         }
         let mut rng = Rng::new(seed);
         let shop = Shop::new(&mut rng);
+        let mut loadout = Loadout::new();
+        loadout.name_seed = seed;
         Run {
             registry,
             owned,
-            loadout: Loadout::new(),
+            loadout,
             phase: Phase::Loadout,
             log: None,
             gold: STARTING_GOLD,

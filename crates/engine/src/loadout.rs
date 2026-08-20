@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::curse::TICK_MS;
+use crate::naming::{name_item, ItemName};
 use crate::piece::{
     default_cooldown_ms, EffectKind, PieceId, PieceKind, PieceRegistry, SlotKind, Trigger,
 };
@@ -11,7 +12,12 @@ use crate::stats::{StatKind, Stats};
 /// what happens when it does.
 #[derive(Clone, Debug)]
 pub struct ItemProfile {
+    /// The item's generated short name — what the cooldown bars show.
     pub name: String,
+    /// The same name with its "of the ..." tail.
+    pub full_name: String,
+    /// The core component it was built around, for reference.
+    pub core: String,
     pub slot: SlotKind,
     pub cooldown_ms: u32,
     pub stats: Stats,
@@ -37,6 +43,8 @@ fn core_name(reg: &PieceRegistry, pieces: &[PieceId]) -> String {
 #[derive(Clone, Debug)]
 pub struct GearItem {
     pub pieces: Vec<PieceId>,
+    /// Procedurally generated from the run seed and this exact arrangement.
+    pub name: ItemName,
     pub assembled: bool,
     /// "assembled" when it came together, otherwise what it is missing.
     pub status: String,
@@ -96,6 +104,9 @@ impl SlotReport {
 #[derive(Clone, Debug)]
 pub struct Loadout {
     pub slots: Vec<Slot>,
+    /// Seeds the item-name generator. Set from the run's seed so a given run
+    /// names a given arrangement consistently.
+    pub name_seed: u64,
 }
 
 impl Default for Loadout {
@@ -106,7 +117,10 @@ impl Default for Loadout {
 
 impl Loadout {
     pub fn new() -> Self {
-        Loadout { slots: SlotKind::ALL.iter().map(|&k| Slot::new(k)).collect() }
+        Loadout {
+            slots: SlotKind::ALL.iter().map(|&k| Slot::new(k)).collect(),
+            name_seed: 0,
+        }
     }
 
     pub fn slot(&self, kind: SlotKind) -> &Slot {
@@ -276,6 +290,7 @@ impl Loadout {
             }
             slot_total += item_stats;
             items.push(GearItem {
+                name: name_item(self.name_seed, reg, slot, group),
                 pieces: group.clone(),
                 assembled: assembled[gi],
                 status: match &verdicts[gi] {
@@ -337,7 +352,9 @@ impl Loadout {
                     .collect();
 
                 out.push(ItemProfile {
-                    name: core.map(|c| reg.def(c).name.to_string()).unwrap_or_default(),
+                    name: item.name.short.clone(),
+                    full_name: item.name.full.clone(),
+                    core: core.map(|c| reg.def(c).name.to_string()).unwrap_or_default(),
                     slot: kind,
                     cooldown_ms,
                     stats: item.stats,

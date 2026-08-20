@@ -916,15 +916,29 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
 /// speed it lends the item, its positional effect, and every trigger it fires
 /// on activation. A piece whose whole behaviour lives in triggers — the Cursed
 /// Blade, say — reads as blank without this.
-fn render_tooltip(run: &Run, id: PieceId, mx: f32, my: f32) {
-    render_def_tooltip(run.registry.def(id), mx, my);
+fn render_tooltip_titled(run: &Run, id: PieceId, item_name: Option<&str>, mx: f32, my: f32) {
+    render_def_tooltip_inner(run.registry.def(id), item_name, mx, my);
 }
 
 fn render_def_tooltip(def: &'static PieceDef, mx: f32, my: f32) {
-    let mut lines: Vec<(String, Color)> = vec![
-        (def.name.to_string(), WHITE),
-        (format!("{} · {}", def.slot.name(), def.kind.name()), col_dim()),
-    ];
+    render_def_tooltip_inner(def, None, mx, my);
+}
+
+/// `item_name` is the procedurally generated name of the assembled item this
+/// piece belongs to, shown above the component's own details.
+fn render_def_tooltip_inner(
+    def: &'static PieceDef,
+    item_name: Option<&str>,
+    mx: f32,
+    my: f32,
+) {
+    let mut lines: Vec<(String, Color)> = Vec::new();
+    if let Some(n) = item_name {
+        lines.push((n.to_string(), col_gold()));
+        lines.push(("— part of —".to_string(), col_dim()));
+    }
+    lines.push((def.name.to_string(), WHITE));
+    lines.push((format!("{} · {}", def.slot.name(), def.kind.name()), col_dim()));
 
     let base = def.base.summary();
     if !base.is_empty() {
@@ -1007,7 +1021,7 @@ fn render_cooldown_row(
     now_ms: u32,
     tint: Color,
 ) {
-    let label_w = 132.0;
+    let label_w = 168.0;
     let track_x = x + label_w;
     let track_w = (w - label_w - 62.0).max(20.0);
     let h = 12.0;
@@ -1502,6 +1516,14 @@ async fn main() {
 
         // Tooltip for whatever is under the cursor (never while dragging).
         if matches!(drag, Drag::None) {
+            let hovered_item_name = layout.slot_hit(mx, my).and_then(|(k, x, y)| {
+                let id = run.loadout.slot(k).get(x, y)?;
+                run.report(k)
+                    .items
+                    .into_iter()
+                    .find(|i| i.assembled && i.pieces.contains(&id))
+                    .map(|i| i.name.full)
+            });
             let hovered = layout
                 .slot_hit(mx, my)
                 .and_then(|(k, x, y)| run.loadout.slot(k).get(x, y))
@@ -1513,7 +1535,7 @@ async fn main() {
                     }
                 });
             if let Some(id) = hovered {
-                render_tooltip(&run, id, mx, my);
+                render_tooltip_titled(&run, id, hovered_item_name.as_deref(), mx, my);
             } else if run.phase == Phase::Loadout {
                 if let Some(i) = layout.shop_hit(mx, my) {
                     if let Some(def) = run.shop.def(i) {

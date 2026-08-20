@@ -48,9 +48,12 @@ After `make install` you can just type `gearmaster` from anywhere. Plain
    dormant, filled once live.
 5. Some pieces have **positional effects** (blue dot) that change what their
    neighbours are worth. See below.
-6. Press **BEGIN FIGHT** and watch the auto-battle play out. Each assembled
-   item gets its own **cooldown bar**, so you can see which ones carry the
-   fight — and watch a frosted item's bar visibly crawl.
+6. Every finished item gets a **procedurally generated name** — hover a piece
+   to see what it's part of.
+7. Press **BEGIN FIGHT** and watch the auto-battle play out. Each assembled
+   item gets its own **cooldown bar**, labelled with its generated name, so you
+   can see which ones carry the fight — and watch a frosted item's bar visibly
+   crawl.
 
 Controls: left-drag to move a piece, right-click to rotate (held or in place),
 drag back to the tray to remove, `Esc` to cancel a drag, `F12` to screenshot.
@@ -103,6 +106,23 @@ cursing you as the price of its power.
 Reapplying stacks *and* refreshes the timer. Curse resistance shortens the
 duration; at 100% the curse never lands. Frost stacking caps at 90% so gear can
 never freeze solid.
+
+## Item names
+
+Assembled gear is named procedurally, in two halves:
+
+* The **noun and the "of the ..." tail** come from a hash of the run seed plus
+  every piece in the item, where it sits, and which way round it is. Nudge one
+  piece a cell over and you get a different name — the name is a fingerprint of
+  the exact arrangement.
+* The **qualifier** comes from what the item actually *does*: its triggers
+  first, then its positional effects, then whichever stat it carries. A weapon
+  that lands searing curses is `Searing` on every seed; one that burns *you* is
+  `Martyr's`.
+
+So `Resonant Falchion of the Nine Coils` tells you it's a weapon with a
+doubling effect, and it will be called that every time you rebuild it exactly
+that way. Corpora run to ~32 nouns per slot, 44 tails and ~40 qualifiers.
 
 ## The run
 

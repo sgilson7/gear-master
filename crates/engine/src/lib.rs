@@ -14,6 +14,7 @@
 pub mod combat;
 pub mod curse;
 pub mod loadout;
+pub mod naming;
 pub mod piece;
 pub mod rng;
 pub mod run;
