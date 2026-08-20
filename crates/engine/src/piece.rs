@@ -149,6 +149,9 @@ pub enum EffectKind {
     /// This piece itself gains `per` of `stat` for every in-bounds empty cell
     /// orthogonally touching its own footprint.
     SelfPerEmptyCell { stat: StatKind, per: i32 },
+    /// Flat stats, gated by the effect's `when`. With `When::NotAssembled`
+    /// this is how a piece can be worth more left in bits than built up.
+    Flat { stats: Stats },
     /// Every OTHER assembled item touching this piece contributes double its
     /// `stat`. Cross-item, which is only expressible because items are anchored
     /// by their core and may therefore sit flush against one another.
@@ -194,6 +197,8 @@ pub enum Action {
     MindDamage { amount: i32, target: Target },
     GainMana(i32),
     GainArmor(i32),
+    /// Push this item's cooldown forward, so it fires sooner.
+    ReduceCooldown(u32),
 }
 
 impl Action {
@@ -208,6 +213,9 @@ impl Action {
             }
             Action::GainMana(n) => format!("gain {} mana", n),
             Action::GainArmor(n) => format!("gain {} armor", n),
+            Action::ReduceCooldown(ms) => {
+                format!("cut {:.1}s off its own cooldown", *ms as f32 / 1000.0)
+            }
         }
     }
 }
@@ -224,6 +232,13 @@ pub enum Trigger {
     /// Repeat `action` once per assembled item touching this one. With
     /// `same_slot_only`, only items in the same grid count.
     PerAdjacentItem { action: Action, same_slot_only: bool },
+    /// Fires whenever an assembled item **touching this one** activates —
+    /// reacting to a neighbour rather than to your own cooldown.
+    OnAdjacentActivate(Action),
+    /// Fires whenever an assembled item in a **different slot**, lying in the
+    /// same rows as this one, activates. Rewards lining gear up across the
+    /// five grids rather than only within one.
+    OnAlignedActivate(Action),
 }
 
 impl Trigger {
@@ -240,6 +255,13 @@ impl Trigger {
                 "on activation, per adjacent assembled {}, {}",
                 if *same_slot_only { "item in this slot" } else { "item" },
                 action.describe()
+            ),
+            Trigger::OnAdjacentActivate(a) => {
+                format!("when a touching item activates, {}", a.describe())
+            }
+            Trigger::OnAlignedActivate(a) => format!(
+                "when an item in another slot on the same rows activates, {}",
+                a.describe()
             ),
         }
     }
@@ -400,7 +422,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0, 0), (0, 1), (0, 2), (0, 3)],
-        base: Stats::new(0, 2, 0, 80),
+        base: Stats { damage: 8, ..Stats::new(0, 2, 0, 80) },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -413,7 +435,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(1, 0), (1, 1), (0, 1), (1, 2)],
-        base: Stats::new(0, 4, 0, 60),
+        base: Stats { damage: 6, ..Stats::new(0, 4, 0, 60) },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -686,7 +708,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Damaging,
         // A cross-ish blade, so it can touch accessories on several sides.
         cells: &[(0, 0), (0, 1), (0, 2), (1, 1)],
-        base: Stats::new(0, 1, 0, 45),
+        base: Stats { damage: 5, ..Stats::new(0, 1, 0, 45) },
         adjacency: None,
         effect: Some(Effect {
             label: "adjacent accessories give double strength",
@@ -805,6 +827,644 @@ pub static CATALOG: &[PieceDef] = &[
         triggers: &[],
         price: 5,
     },
+    // ================= MAGE LINE: makes and spends mana =================
+    PieceDef {
+        name: "Mage's Rod",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Handle,
+        cells: &[(0, 0), (0, 1), (0, 2), (0, 3)],
+        base: Stats { mana: 3, ..Stats::power(10) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 2500,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 8,
+    },
+    PieceDef {
+        name: "Arcane Splinter",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Damaging,
+        cells: &[(0, 0), (0, 1), (1, 1)],
+        base: Stats { damage: 3, ..Stats::new(0, 0, 0, 20) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Cheap to fire, brutal when the mana is there.
+        triggers: &[Trigger::SpendMana {
+            cost: 4,
+            on_success: Action::Damage { amount: 18, target: Target::Enemy },
+            on_failure: Action::GainMana(1),
+        }],
+        price: 9,
+    },
+    PieceDef {
+        name: "Mana Loom",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Base,
+        cells: &[(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1), (0, 2), (1, 2)],
+        base: Stats { mana: 6, armor: 2, ..Stats::health(18) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 4000,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 9,
+    },
+    PieceDef {
+        name: "Mage's Circlet",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0, 0), (1, 0), (2, 0), (0, 1), (2, 1)],
+        base: Stats { mana: 4, ..Stats::health(8) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3000,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 8,
+    },
+    PieceDef {
+        name: "Runed Lining",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        cells: &[(0, 0), (1, 0), (2, 0), (3, 0)],
+        base: Stats { mana: 3, ..Stats::health(6) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 6,
+    },
+    PieceDef {
+        name: "Mage's Wrapping",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Material,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats { mana: 3, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 2500,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 7,
+    },
+    PieceDef {
+        name: "Mage's Sandals",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Material,
+        cells: &[(0, 0), (1, 0), (0, 1)],
+        base: Stats { mana: 3, ..Stats::health(4) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3000,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 7,
+    },
+    PieceDef {
+        name: "Scrying Lens",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Plating,
+        cells: &[(0, 0), (1, 0), (2, 0)],
+        base: Stats { mind: 3, mind_resist: 10, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 7,
+    },
+    PieceDef {
+        name: "Overflow Vial",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        base: Stats { mana: 2, ..Stats::ZERO },
+        adjacency: Some(Adjacency {
+            label: "Overflowing: +2 mana",
+            stats: Stats { mana: 2, ..Stats::ZERO },
+        }),
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 6,
+    },
+
+    // ================ WITCH LINE: pays in curses ================
+    PieceDef {
+        name: "Witch's Crook",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Handle,
+        cells: &[(0, 0), (0, 1), (0, 2), (1, 0)],
+        base: Stats { curse_resist: 10, ..Stats::power(20) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3000,
+        speed_bonus: 0,
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
+            on_failure: Action::Curse { kind: CurseKind::Frost, target: Target::Yourself },
+        }],
+        price: 9,
+    },
+    PieceDef {
+        name: "Hexbolt",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Damaging,
+        cells: &[(0, 0), (0, 1), (0, 2)],
+        base: Stats { damage: 7, mind: 2, ..Stats::new(0, 0, 0, 40) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 9,
+    },
+    PieceDef {
+        name: "Witch's Hat",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(1, 0), (0, 1), (1, 1), (2, 1), (0, 2), (1, 2), (2, 2)],
+        base: Stats { curse_resist: 15, ..Stats::health(10) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3500,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Curse {
+            kind: CurseKind::Frost,
+            target: Target::Enemy,
+        })],
+        price: 10,
+    },
+    PieceDef {
+        name: "Hexweave Shroud",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Base,
+        cells: &[(0, 0), (1, 0), (2, 0), (0, 1), (2, 1), (0, 2), (1, 2), (2, 2)],
+        base: Stats { curse_resist: 20, armor: 2, ..Stats::health(16) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 4500,
+        speed_bonus: 0,
+        triggers: &[Trigger::SpendMana {
+            cost: 4,
+            on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
+            on_failure: Action::GainArmor(4),
+        }],
+        price: 10,
+    },
+    PieceDef {
+        name: "Witch's Claw",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Material,
+        cells: &[(0, 0), (1, 0), (0, 1), (0, 2)],
+        base: Stats { curse_resist: 5, ..Stats::strength(2) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3000,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Curse {
+            kind: CurseKind::Frost,
+            target: Target::Enemy,
+        })],
+        price: 9,
+    },
+    PieceDef {
+        name: "Hexer's Mold",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Mold,
+        cells: &[(0, 0), (1, 0), (1, 1)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
+            on_failure: Action::GainMana(1),
+        }],
+        price: 8,
+    },
+    PieceDef {
+        name: "Witch's Stilts",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Material,
+        cells: &[(0, 0), (0, 1), (0, 2), (1, 2)],
+        base: Stats { curse_resist: 15, ..Stats::health(8) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3500,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 8,
+    },
+    PieceDef {
+        name: "Bileglass Vial",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats { mind: 1, ..Stats::ZERO },
+        adjacency: Some(Adjacency {
+            label: "Bilious: +2 mind damage",
+            stats: Stats::mind(2),
+        }),
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 8,
+    },
+    PieceDef {
+        name: "Coven Crest",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0, 0), (0, 1)],
+        base: Stats { curse_resist: 10, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnAlignedActivate(Action::Curse {
+            kind: CurseKind::Searing,
+            target: Target::Enemy,
+        })],
+        price: 11,
+    },
+
+    // ============ REACTIVE: gear that answers other gear ============
+    PieceDef {
+        name: "Quickening Charm",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnAdjacentActivate(Action::ReduceCooldown(1000))],
+        price: 9,
+    },
+    PieceDef {
+        name: "Chain Coil",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0), (0, 1)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
+            amount: 5,
+            target: Target::Enemy,
+        })],
+        price: 9,
+    },
+    PieceDef {
+        name: "Channeling Mold",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Mold,
+        cells: &[(0, 0), (1, 0), (0, 1)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Line these gloves up with gear in another slot and every time that
+        // gear fires, you bank a point of mana.
+        triggers: &[Trigger::OnAlignedActivate(Action::GainMana(1))],
+        price: 8,
+    },
+    PieceDef {
+        name: "Striding Mold",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Mold,
+        cells: &[(0, 0), (1, 0), (1, 1)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnAlignedActivate(Action::ReduceCooldown(500))],
+        price: 8,
+    },
+    PieceDef {
+        name: "Thornmail Layer",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        cells: &[(0, 0), (1, 0), (2, 0)],
+        base: Stats { armor: 3, ..Stats::health(8) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
+            amount: 3,
+            target: Target::Enemy,
+        })],
+        price: 8,
+    },
+    PieceDef {
+        name: "Third Eye",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0, 0)],
+        base: Stats { mind: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnAdjacentActivate(Action::GainMana(1))],
+        price: 8,
+    },
+    PieceDef {
+        name: "Ember Crest",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnAlignedActivate(Action::Damage {
+            amount: 2,
+            target: Target::Enemy,
+        })],
+        price: 8,
+    },
+    PieceDef {
+        name: "Grave-Iron Mold",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Mold,
+        cells: &[(0, 0), (1, 0), (2, 0), (2, 1)],
+        base: Stats { armor: 4, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 7,
+    },
+    PieceDef {
+        name: "Featherweight Mold",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Mold,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 60,
+        triggers: &[],
+        price: 8,
+    },
+    PieceDef {
+        name: "Warding Plate",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Plating,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats { armor: 5, curse_resist: 10, ..Stats::health(8) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 7,
+    },
+    PieceDef {
+        name: "Mirrored Visor",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Plating,
+        cells: &[(0, 0), (1, 0), (2, 0), (1, 1)],
+        base: Stats { mind_resist: 25, ..Stats::health(6) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 8,
+    },
+    PieceDef {
+        name: "Ironbark Layer",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats { armor: 6, ..Stats::health(10) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 7,
+    },
+    PieceDef {
+        name: "Duelist's Grip",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Handle,
+        cells: &[(0, 0), (0, 1)],
+        base: Stats::power(15),
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 900,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 8,
+    },
+    PieceDef {
+        name: "Executioner's Haft",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Handle,
+        cells: &[(0, 0), (0, 1), (0, 2), (0, 3), (0, 4)],
+        base: Stats::power(90),
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 4500,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 11,
+    },
+    PieceDef {
+        name: "Bonesaw",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Damaging,
+        cells: &[(0, 0), (1, 0), (1, 1), (2, 1)],
+        base: Stats { damage: 9, ..Stats::new(0, 3, 0, 30) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 20,
+        triggers: &[],
+        price: 8,
+    },
+    PieceDef {
+        name: "Whetstone",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        base: Stats::strength(4),
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 6,
+    },
+    PieceDef {
+        name: "Pathfinder Material",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Material,
+        cells: &[(0, 0), (1, 0), (2, 0)],
+        base: Stats { armor: 2, ..Stats::regen(2) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 2500,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 7,
+    },
+    PieceDef {
+        name: "Bulwark Material",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Material,
+        cells: &[(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)],
+        base: Stats { armor: 5, ..Stats::strength(3) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3500,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 9,
+    },
+
+    // ====== OVERSIZED: hopeless to build, formidable left in bits ======
+    PieceDef {
+        name: "Vast Tapestry",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        // 5x4 solid: fills most of a chest grid, leaving nowhere for a base.
+        cells: &[
+            (0, 0), (1, 0), (2, 0), (3, 0), (4, 0),
+            (0, 1), (1, 1), (2, 1), (3, 1), (4, 1),
+            (0, 2), (1, 2), (2, 2), (3, 2), (4, 2),
+            (0, 3), (1, 3), (2, 3), (3, 3), (4, 3),
+        ],
+        base: Stats::health(6),
+        adjacency: None,
+        effect: Some(Effect {
+            label: "Unbound: +70 health and +12 armor while it stays loose",
+            when: When::NotAssembled,
+            kind: EffectKind::Flat {
+                stats: Stats { armor: 12, ..Stats::health(70) },
+            },
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 12,
+    },
+    PieceDef {
+        name: "Colossus Ring",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        // A hollow 5x5 ring. Nothing fits through the middle either.
+        cells: &[
+            (0, 0), (1, 0), (2, 0), (3, 0), (4, 0),
+            (0, 1), (4, 1),
+            (0, 2), (4, 2),
+            (0, 3), (4, 3),
+            (0, 4), (1, 4), (2, 4), (3, 4), (4, 4),
+        ],
+        base: Stats::health(8),
+        adjacency: None,
+        effect: Some(Effect {
+            label: "Unbound: +20 armor a tick and +8 strength while it stays loose",
+            when: When::NotAssembled,
+            kind: EffectKind::Flat {
+                stats: Stats { armor: 20, ..Stats::strength(8) },
+            },
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 12,
+    },
+    PieceDef {
+        name: "Sprawling Handwrap",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Material,
+        // A five-armed spider. Almost impossible to leave room for a mold.
+        cells: &[
+            (2, 0),
+            (0, 1), (1, 1), (2, 1), (3, 1), (4, 1),
+            (2, 2),
+            (1, 3), (3, 3),
+            (0, 4), (4, 4),
+        ],
+        base: Stats::strength(2),
+        adjacency: None,
+        effect: Some(Effect {
+            label: "Unbound: +14 strength while it stays loose",
+            when: When::NotAssembled,
+            kind: EffectKind::Flat { stats: Stats::strength(14) },
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 11,
+    },
+    PieceDef {
+        name: "Wandering Root",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Material,
+        // A staircase across the whole grid.
+        cells: &[
+            (0, 0), (0, 1), (1, 1), (1, 2), (2, 2), (2, 3),
+            (3, 3), (3, 4), (4, 4), (4, 5), (5, 5),
+        ],
+        base: Stats::regen(1),
+        adjacency: None,
+        effect: Some(Effect {
+            label: "Unbound: +6 regen and +30 health while it stays loose",
+            when: When::NotAssembled,
+            kind: EffectKind::Flat { stats: Stats { ..Stats::new(30, 0, 6, 0) } },
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 11,
+    },
+    PieceDef {
+        name: "Broken Crown",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Plating,
+        // Jagged and wide; a frame rarely fits beside it.
+        cells: &[
+            (0, 0), (2, 0), (4, 0),
+            (0, 1), (1, 1), (2, 1), (3, 1), (4, 1),
+            (0, 2), (4, 2),
+        ],
+        base: Stats::health(5),
+        adjacency: None,
+        effect: Some(Effect {
+            label: "Unbound: +40 health and +20% both resistances while loose",
+            when: When::NotAssembled,
+            kind: EffectKind::Flat {
+                stats: Stats { mind_resist: 20, curse_resist: 20, ..Stats::health(40) },
+            },
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        price: 11,
+    },
 ];
 
 /// Index of every definition in `CATALOG`, in catalog order.
@@ -817,13 +1477,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_slot_has_exactly_one_adjacency_bonus() {
+    fn every_slot_has_something_that_rewards_assembling_it() {
+        // Not "exactly one" any more — several pieces carry assembly bonuses
+        // now. What still has to hold is that no slot is left without a reason
+        // to finish its gear.
         for slot in SlotKind::ALL {
             let n = CATALOG
                 .iter()
                 .filter(|d| d.slot == slot && d.adjacency.is_some())
                 .count();
-            assert_eq!(n, 1, "{} should have exactly one bonus piece", slot.name());
+            assert!(n >= 1, "{} has no piece that pays off on assembly", slot.name());
+        }
+    }
+
+    #[test]
+    fn every_piece_is_priced_and_shaped() {
+        for d in CATALOG {
+            assert!(d.price > 0, "{} is free", d.name);
+            assert!(!d.cells.is_empty(), "{} has no shape", d.name);
+        }
+    }
+
+    #[test]
+    fn a_core_piece_always_names_a_cooldown_path() {
+        // Non-core pieces must not carry a cooldown: it would be silently
+        // ignored, since only the core's timing is used.
+        for d in CATALOG {
+            if !d.kind.is_core() {
+                assert_eq!(d.cooldown_ms, 0, "{} sets a cooldown it cannot use", d.name);
+            }
         }
     }
 

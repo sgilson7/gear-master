@@ -2,23 +2,10 @@ use crate::combat::{simulate, CombatLog, MonsterSpec, Outcome, LADDER, RUST_GOLE
 use crate::loadout::{Loadout, SlotReport};
 use crate::piece::{all_def_indices, PieceId, PieceRegistry, SlotKind, CATALOG};
 
-/// What a run opens with: enough to assemble one item in every slot, and
-/// nothing more. Everything else comes from the shop.
-pub const STARTER_KIT: &[&str] = &[
-    "Oak Handle",
-    "Iron Blade",
-    "Steel Frame",
-    "Iron Plating",
-    "Padded Base",
-    "Chain Layer",
-    "Leather Material",
-    "Gripping Mold",
-    "Boiled Leather",
-    "Greave Mold",
-];
+
 use crate::slot::PlaceError;
 use crate::rng::Rng;
-use crate::shop::{Shop, STARTING_GOLD};
+use crate::shop::{Shop, REROLL_COST, STARTING_GOLD};
 use crate::stats::Stats;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -90,20 +77,16 @@ impl Default for Run {
 }
 
 impl Run {
-    /// A fresh run: a small starter kit, 20 gold and a stocked shop.
+    /// A fresh run: **nothing owned**, some gold, and a stocked shop. Every
+    /// piece of gear you ever use has to be bought.
     pub fn new() -> Self {
         Self::seeded(0x5EED_1234_ABCD_0001)
     }
 
     /// Same, with the shop's rolls pinned so a test can predict them.
     pub fn seeded(seed: u64) -> Self {
-        let mut registry = PieceRegistry::new();
-        let mut owned = Vec::new();
-        for name in STARTER_KIT {
-            if let Some(d) = CATALOG.iter().position(|p| &p.name == name) {
-                owned.push(registry.alloc(d));
-            }
-        }
+        let registry = PieceRegistry::new();
+        let owned = Vec::new();
         let mut rng = Rng::new(seed);
         let shop = Shop::new(&mut rng);
         let mut loadout = Loadout::new();
@@ -158,6 +141,19 @@ impl Run {
         let id = self.registry.alloc(def);
         self.owned.push(id);
         Ok(id)
+    }
+
+    /// Reroll the shelves. Cheap, but it is gold you are not spending on gear.
+    pub fn reroll(&mut self) -> Result<(), RuleError> {
+        if self.phase != Phase::Loadout {
+            return Err(RuleError::LoadoutLocked);
+        }
+        if self.gold < REROLL_COST {
+            return Err(RuleError::NotEnoughGold { need: REROLL_COST, have: self.gold });
+        }
+        self.gold -= REROLL_COST;
+        self.shop.restock(&mut self.rng);
+        Ok(())
     }
 
     /// Sell a component back for half its price, rounded down. Equipped pieces

@@ -140,6 +140,11 @@ const PRIORITY: &[&str] = &[
     "Conducting",
     "Resonant",
     "Hollow",
+    "Unbound",
+    "Blessed",
+    "Hastening",
+    "Chained",
+    "Aligned",
     "Attuned",
     "Echoing",
     "Quickened",
@@ -161,6 +166,7 @@ fn action_word(a: &Action) -> Option<&'static str> {
         Action::GainMana(_) => "Welling",
         Action::GainArmor(_) => "Warded",
         Action::Damage { .. } => "Striking",
+        Action::ReduceCooldown(_) => "Hastening",
     })
 }
 
@@ -189,10 +195,21 @@ pub fn qualifiers(reg: &PieceRegistry, pieces: &[PieceId]) -> Vec<&'static str> 
                     note(Some("Echoing"));
                     note(action_word(action));
                 }
+                Trigger::OnAdjacentActivate(a) => {
+                    note(Some("Chained"));
+                    note(action_word(a));
+                }
+                Trigger::OnAlignedActivate(a) => {
+                    note(Some("Aligned"));
+                    note(action_word(a));
+                }
             }
         }
         if let Some(eff) = def.effect {
             note(Some(match eff.kind {
+                EffectKind::Flat { .. } => {
+                    if eff.when == crate::piece::When::NotAssembled { "Unbound" } else { "Blessed" }
+                }
                 EffectKind::DoubleNeighbor { .. } => "Resonant",
                 EffectKind::SelfPerEmptyCell { .. } => "Hollow",
                 EffectKind::DoubleAdjacentItemStat { .. } => "Conducting",

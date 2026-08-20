@@ -1,12 +1,15 @@
 //! The shop: a small rotating stock of components you spend gold on.
 
-use crate::piece::{PieceDef, CATALOG};
+use crate::piece::{PieceKind, PieceDef, SlotKind, CATALOG};
 use crate::rng::Rng;
 
 /// How many components are on offer at once.
 pub const SHOP_SIZE: usize = 6;
-/// What you start a run with.
-pub const STARTING_GOLD: i32 = 20;
+/// What you start a run with. You own nothing, so this has to cover a first
+/// weapon at minimum.
+pub const STARTING_GOLD: i32 = 28;
+/// What a reroll costs.
+pub const REROLL_COST: i32 = 1;
 
 #[derive(Clone, Debug)]
 pub struct Shop {
@@ -26,13 +29,50 @@ impl Shop {
 
     /// Draw a fresh stock. Nothing repeats within it, and nothing carries over
     /// from the stock it replaces.
+    ///
+    /// Two shelves are reserved: every stock offers at least one weapon handle
+    /// and one damaging piece. Since a run now starts owning nothing, without
+    /// that guarantee an unlucky roll could leave you unable to build any
+    /// weapon at all, and a player with no weapon cannot win a fight to earn
+    /// the gold to reroll out of it.
     pub fn restock(&mut self, rng: &mut Rng) {
         let outgoing = std::mem::take(&mut self.stock);
-        let mut pool: Vec<usize> =
-            (0..CATALOG.len()).filter(|i| !outgoing.contains(i)).collect();
+        let fresh = |i: &usize| !outgoing.contains(i);
+
+        let mut chosen: Vec<usize> = Vec::new();
+        for want in [PieceKind::Handle, PieceKind::Damaging] {
+            let mut candidates: Vec<usize> = (0..CATALOG.len())
+                .filter(|&i| CATALOG[i].slot == SlotKind::Weapon && CATALOG[i].kind == want)
+                .filter(|i| fresh(i) && !chosen.contains(i))
+                .collect();
+            // If everything of this kind was on the last shelf, allow a repeat
+            // rather than break the guarantee.
+            if candidates.is_empty() {
+                candidates = (0..CATALOG.len())
+                    .filter(|&i| CATALOG[i].slot == SlotKind::Weapon && CATALOG[i].kind == want)
+                    .filter(|i| !chosen.contains(i))
+                    .collect();
+            }
+            rng.shuffle(&mut candidates);
+            if let Some(&pick) = candidates.first() {
+                chosen.push(pick);
+            }
+        }
+
+        let mut pool: Vec<usize> = (0..CATALOG.len())
+            .filter(|i| fresh(i) && !chosen.contains(i))
+            .collect();
         rng.shuffle(&mut pool);
-        pool.truncate(SHOP_SIZE);
-        self.stock = pool;
+        for i in pool {
+            if chosen.len() >= SHOP_SIZE {
+                break;
+            }
+            chosen.push(i);
+        }
+        // Don't leave the guaranteed pair sitting in the same two shelves
+        // every single time.
+        rng.shuffle(&mut chosen);
+        self.stock = chosen;
         self.previous = outgoing;
     }
 
@@ -102,6 +142,24 @@ mod tests {
         assert_eq!(shop.stock.len(), SHOP_SIZE - 1);
         assert!(!shop.stock.contains(&first));
         assert_eq!(shop.take(99), None, "out of range is not a purchase");
+    }
+
+    #[test]
+    fn every_stock_can_build_a_weapon() {
+        let mut rng = Rng::new(31);
+        let mut shop = Shop::new(&mut rng);
+        for round in 0..40 {
+            let has_handle = shop
+                .stock
+                .iter()
+                .any(|&i| CATALOG[i].kind == PieceKind::Handle);
+            let has_damage = shop
+                .stock
+                .iter()
+                .any(|&i| CATALOG[i].kind == PieceKind::Damaging);
+            assert!(has_handle && has_damage, "round {} cannot build a weapon", round);
+            shop.restock(&mut rng);
+        }
     }
 
     #[test]

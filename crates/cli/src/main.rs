@@ -79,19 +79,27 @@ fn main() {
                 println!();
                 for (i, m) in LADDER.iter().enumerate() {
                     let here = if i == run.rung { "->" } else { "  " };
+                    let (stats, items) = m.outfit();
                     println!(
-                        "{} {:<16} {:>4} hp  {:>2} regen  mind res {:>2}%  curse res {:>2}%  {:>3}g",
-                        here, m.name, m.health, m.regen, m.mind_resist, m.curse_resist, m.bounty
+                        "{} {:<16} {:>4} hp  {:>2} str  {}.{:02}x  {:>2} regen  mind {:>2}%  curse {:>2}%  {:>3}g",
+                        here, m.name, stats.health, stats.strength,
+                        stats.power / 100, stats.power % 100,
+                        stats.regen, stats.mind_resist, stats.curse_resist, m.bounty
                     );
                     for a in m.attacks {
                         println!(
-                            "     {:<12} every {:.1}s  {}{}{}{}",
+                            "     (innate) {:<12} every {:.1}s  {}{}{}",
                             a.name,
                             a.cooldown_ms as f32 / 1000.0,
                             if a.damage > 0 { format!("{} dmg ", a.damage) } else { String::new() },
                             if a.mind > 0 { format!("{} mind ", a.mind) } else { String::new() },
-                            if a.armor > 0 { format!("{} armor ", a.armor) } else { String::new() },
                             a.curse.map(|c| format!("curse of {}", c.name())).unwrap_or_default()
+                        );
+                    }
+                    for it in &items {
+                        println!(
+                            "     {:<34} every {:.2}s  {}",
+                            it.name, it.cooldown_ms as f32 / 1000.0, it.stats.summary()
                         );
                     }
                 }
@@ -359,13 +367,18 @@ fn show_stats(run: &Run) {
     println!("  strength {}", s.strength);
     println!("  regen    {}/turn", s.regen);
     println!("  power    {}.{:02}x", s.power / 100, s.power % 100);
-    println!(
-        "  damage   {} per attack  ({} strength x {}.{:02})",
-        s.damage_per_attack(),
-        s.strength,
-        s.power / 100,
-        s.power % 100
-    );
+    let items = run.combat_items();
+    let dps: i64 = items.iter().map(|i| i.dps_milli(s.strength, s.power)).sum();
+    println!("  damage   {}.{} per second across every weapon", dps / 1000, (dps % 1000) / 100);
+    for it in &items {
+        let hit = it.hit_for(s.strength, s.power);
+        if hit > 0 {
+            println!(
+                "             {} hits {} every {:.2}s",
+                it.name, hit, it.cooldown_ms as f32 / 1000.0
+            );
+        }
+    }
     println!("Gear");
     for r in run.reports() {
         println!("  {:<11} {:<22} {}", r.slot.name(), r.summary(), r.stats.summary());

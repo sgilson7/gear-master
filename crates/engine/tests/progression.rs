@@ -3,46 +3,67 @@
 mod common;
 
 use gearmaster_engine::combat::{Outcome, LADDER};
-use gearmaster_engine::run::{Run, RuleError, STARTER_KIT};
+use gearmaster_engine::run::{Run, RuleError};
 use gearmaster_engine::shop::{SHOP_SIZE, STARTING_GOLD};
 
 #[test]
-fn a_run_opens_with_a_starter_kit_gold_and_a_stocked_shop() {
+fn a_run_opens_owning_nothing_at_all() {
     let run = Run::new();
     assert_eq!(run.gold, STARTING_GOLD);
-    assert_eq!(run.gold, 20);
-    assert_eq!(run.owned.len(), STARTER_KIT.len());
-    assert_eq!(run.inventory().len(), STARTER_KIT.len(), "and none of it is equipped");
+    assert!(run.owned.is_empty(), "every piece of gear has to be bought");
+    assert!(run.inventory().is_empty());
+    assert!(run.combat_items().is_empty(), "and nothing acts in combat yet");
     assert_eq!(run.shop.stock.len(), SHOP_SIZE);
     assert_eq!(run.rung, 0);
     assert_eq!(run.monster().name, "Cave Rat", "the ladder starts easy");
 }
 
 #[test]
-fn the_starter_kit_can_assemble_something_in_every_slot() {
-    use gearmaster_engine::piece::SlotKind;
-    let run = Run::new();
-    for slot in SlotKind::ALL {
-        let have: Vec<&str> = run
-            .owned
+fn an_empty_character_cannot_hurt_anything() {
+    let mut run = Run::new();
+    let log = run.fight_next().clone();
+    assert_eq!(
+        log.outcome,
+        gearmaster_engine::combat::Outcome::Defeat,
+        "with no weapon there is no damage, so even the rat wins"
+    );
+}
+
+#[test]
+fn the_opening_gold_buys_a_working_weapon() {
+    // The shelves guarantee a handle and a damaging piece; the starting purse
+    // has to cover the cheapest pair of them, or a run is dead on arrival.
+    use gearmaster_engine::piece::{PieceKind, CATALOG, SlotKind};
+    let cheapest = |kind: PieceKind| {
+        CATALOG
             .iter()
-            .map(|&id| run.registry.def(id).name)
-            .filter(|_| true)
-            .collect();
-        let for_slot: Vec<&str> = run
-            .owned
-            .iter()
-            .filter(|&&id| run.registry.def(id).slot == slot)
-            .map(|&id| run.registry.def(id).name)
-            .collect();
-        assert!(
-            for_slot.len() >= 2,
-            "{} has only {:?} to work with (of {:?})",
-            slot.name(),
-            for_slot,
-            have.len()
-        );
-    }
+            .filter(|d| d.slot == SlotKind::Weapon && d.kind == kind)
+            .map(|d| d.price)
+            .min()
+            .unwrap()
+    };
+    let floor = cheapest(PieceKind::Handle) + cheapest(PieceKind::Damaging);
+    assert!(
+        STARTING_GOLD >= floor,
+        "{} gold cannot buy the cheapest weapon ({})",
+        STARTING_GOLD,
+        floor
+    );
+}
+
+#[test]
+fn rerolling_costs_gold_and_changes_the_shelves() {
+    let mut run = Run::new();
+    let before = run.shop.stock.clone();
+    let gold = run.gold;
+
+    run.reroll().expect("affordable");
+
+    assert_eq!(run.gold, gold - gearmaster_engine::shop::REROLL_COST);
+    assert_ne!(run.shop.stock, before);
+
+    run.gold = 0;
+    assert!(run.reroll().is_err(), "and it is not free");
 }
 
 // ------------------------------------------------------------------ shop
@@ -90,7 +111,7 @@ fn buying_from_an_empty_shelf_is_refused() {
 #[test]
 fn selling_refunds_half_and_strips_the_piece_off() {
     use gearmaster_engine::piece::SlotKind;
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     let id = common::piece(&run, "Oak Handle");
     run.equip(id, SlotKind::Weapon, 0, 0).unwrap();
     let price = run.registry.def(id).price;
@@ -115,9 +136,13 @@ fn there_are_eleven_monsters_and_the_bounties_climb() {
         "bounties should not go down as the ladder gets harder: {:?}",
         bounties
     );
-    // Every one of them must actually be able to act.
+    // Every one of them must be able to act, whether by tooth or by gear.
     for m in LADDER {
-        assert!(!m.attacks.is_empty(), "{} does nothing at all", m.name);
+        assert!(
+            !m.attacks.is_empty() || !m.gear.is_empty(),
+            "{} has neither attacks nor gear",
+            m.name
+        );
         assert!(m.health > 0, "{} has no health", m.name);
         for a in m.attacks {
             assert!(a.cooldown_ms > 0, "{}'s {} never fires", m.name, a.name);
@@ -145,7 +170,7 @@ fn winning_pays_the_bounty_and_moves_you_up() {
 
 #[test]
 fn losing_pays_nothing_and_leaves_you_where_you_were() {
-    let mut run = Run::new(); // nothing equipped
+    let mut run = Run::new(); // owns nothing at all
     run.rung = 10; // the boss
     let gold_before = run.gold;
 
@@ -227,4 +252,30 @@ fn the_whole_ladder_can_be_walked() {
     assert!(!beaten.is_empty(), "the preset should beat at least the cave rat");
     assert_eq!(run.wins as usize, beaten.len());
     assert!(run.rung <= LADDER.len());
+}
+
+#[test]
+fn every_monster_actually_assembles_its_gear() {
+    // A typo in a monster's loadout would leave it silently harmless, which is
+    // exactly the kind of bug that hides as "the game got easier".
+    for m in LADDER {
+        let problems = m.unassembled();
+        assert!(problems.is_empty(), "{}'s loadout is broken: {:?}", m.name, problems);
+    }
+}
+
+#[test]
+fn every_monster_can_actually_hurt_you() {
+    use gearmaster_engine::combat::{simulate, Event, Side};
+    use gearmaster_engine::stats::Stats;
+    for m in LADDER {
+        // A punching bag with plenty of health and no offence of its own.
+        let log = simulate(Stats::new(100_000, 0, 0, 100), &[], m);
+        let hurt = log.entries.iter().any(|e| {
+            matches!(e.event, Event::Hit { by: Side::Enemy, .. })
+                || matches!(e.event, Event::MindHit { by: Side::Enemy, .. })
+                || matches!(e.event, Event::Burn { side: Side::Player, .. })
+        });
+        assert!(hurt, "{} never lands anything", m.name);
+    }
 }

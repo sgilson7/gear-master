@@ -126,8 +126,10 @@ that way. Corpora run to ~32 nouns per slot, 44 tails and ~40 qualifiers.
 
 ## The run
 
-You start with a **ten-piece starter kit, 20 gold**, and six components on the
-shelf. Clicking one buys it. Beating a monster pays its **bounty** and moves
+You start with **nothing but 28 gold** and six components on the shelf.
+Every piece of gear you ever use has to be bought — with no weapon you deal no
+damage at all, so the first purchase is the whole game. Every stock is
+guaranteed to contain a handle and a damaging piece, and a reroll costs 1 gold. Beating a monster pays its **bounty** and moves
 you up the ladder; the **shop turns over after every battle**, win or lose, and
 never re-offers what it just had. Selling a piece back refunds half.
 
@@ -135,17 +137,24 @@ Eleven monsters, each leaning on a different defence:
 
 | # | monster | hp | what it does | bounty |
 |---|---|---|---|---|
-| 1 | Cave Rat | 60 | bites every 0.8s | 6 |
-| 2 | Bog Toad | 120 | slow, regenerates | 8 |
-| 3 | Bone Archer | 140 | fast and weak — armour beats it, raw health doesn't | 9 |
-| 4 | Rust Golem | 400 | one heavy slam a second | 10 |
-| 5 | Frost Wisp | 170 | **frosts your gear**, so cheap fast items suffer least | 12 |
-| 6 | Plague Hound | 210 | stacks **searing** on you | 14 |
-| 7 | Iron Sentinel | 260 | **re-plates itself** — burst has to outpace the armour | 16 |
-| 8 | Whisperling | 180 | almost no damage; lowers your **health ceiling** | 18 |
-| 9 | Warded Idol | 320 | 75% curse resist — curse builds fall flat | 20 |
-| 10 | Mirror Fiend | 280 | 60% mind resist, and mind-damages back | 24 |
-| 11 | The Hollow King | 520 | all of it at once | 40 |
+| # | monster | what it wears | bounty |
+|---|---|---|---|
+| 1 | Cave Rat | nothing — it just has teeth | 6 |
+| 2 | Bog Toad | a crude club | 8 |
+| 3 | Bone Archer | duelling grip + featherweight gloves: fast, light hits | 9 |
+| 4 | Rust Golem | executioner's haft and heavy plate | 10 |
+| 5 | Frost Wisp | a witch's hat that **frosts your gear** | 12 |
+| 6 | Plague Hound | witch's claws and a mana engine to keep hexing | 14 |
+| 7 | Iron Sentinel | stacked plate — burst has to outpace the armour | 16 |
+| 8 | Whisperling | hexbolt and bileglass: lowers your **health ceiling** | 18 |
+| 9 | Warded Idol | hexweave, 55% curse resist — curse builds fall flat | 20 |
+| 10 | Mirror Fiend | mirrored visor, 45% mind resist, mind-damages back | 24 |
+| 11 | The Hollow King | a full five-slot loadout with a reactive charm | 40 |
+
+**Monsters are not hand-tuned numbers.** Each one carries a real loadout, drawn
+from the same catalogue and assembled by the same rules you play by. Making a
+monster harder means giving it better gear. A test checks every monster's
+loadout actually assembles, because a typo would silently leave one harmless.
 
 **One adjacency bonus per slot:**
 
@@ -156,6 +165,25 @@ Eleven monsters, each leaning on a different defence:
 | Gloves | Gauntlet Mold | +2 strength |
 | Greaves | Runed Material | +15 health |
 | Weapon | Balanced Grip | +0.50x weapon power |
+
+**Unassembled gear never acts.** Loose pieces still hand over their passive
+stats, but they take no part in a fight — no cooldown, no triggers. That is the
+price of leaving gear in bits. A few **oversized** components inverst this: the
+Vast Tapestry, Colossus Ring, Sprawling Handwrap, Wandering Root and Broken
+Crown are shaped so nothing else fits beside them, and pay handsomely precisely
+*because* they can't be built into anything.
+
+**Reactive triggers** let gear answer other gear:
+
+* `when a touching item activates, ...` — the Quickening Charm cuts a second
+  off its own cooldown; the Chain Coil throws 5 damage.
+* `when an item in another slot on the same rows activates, ...` — the
+  Channeling Mold banks a point of mana. Two items are "aligned" when their row
+  ranges overlap, so lining gear up *across* the five grids matters as much as
+  packing it within one.
+
+A reaction never counts as an activation itself, so two items that react to
+each other cannot loop.
 
 **Positional effects** — these read their surroundings rather than paying a
 flat bonus, and each carries a condition:
@@ -234,7 +262,7 @@ SmartScreen will warn on first launch for the same reason macOS does.
 crates/engine   all rules and all state. No graphics dependency, so the whole
                 rule set is testable with `cargo test` in under a second.
   shape.rs      polyominoes: normalize, rotate
-  piece.rs      component catalog (27 pieces) + the instance registry
+  piece.rs      component catalog (70 pieces) + the instance registry
   slot.rs       one 6x8 grid: fit checking, anchors, connected groups
   loadout.rs    five slots, per-item recipes, effect resolution, stat totals
   combat.rs     deterministic simulation -> a replayable CombatLog

@@ -322,6 +322,21 @@ impl Slot {
         out
     }
 
+    /// The topmost and bottommost rows a set of pieces occupies. Used for
+    /// cross-slot alignment, where "lined up" means sharing rows.
+    pub fn row_span(&self, pieces: &[PieceId]) -> Option<(u8, u8)> {
+        let mut span: Option<(u8, u8)> = None;
+        for &p in pieces {
+            for (_, y) in self.cells_of(p) {
+                span = Some(match span {
+                    None => (y, y),
+                    Some((lo, hi)) => (lo.min(y), hi.max(y)),
+                });
+            }
+        }
+        span
+    }
+
     /// Do these two sets of pieces touch? Used for item-to-item adjacency,
     /// which is now possible because touching no longer merges items.
     pub fn sets_touch(&self, a: &[PieceId], b: &[PieceId]) -> bool {

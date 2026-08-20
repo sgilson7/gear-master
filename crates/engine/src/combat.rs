@@ -72,132 +72,292 @@ impl MonsterAttack {
     }
 }
 
+/// One entry in a monster's loadout: `(component, slot, x, y, quarter turns)`.
+pub type GearPlacement = (&'static str, SlotKind, u8, u8, u8);
+
 #[derive(Copy, Clone, Debug)]
 pub struct MonsterSpec {
     pub name: &'static str,
+    /// Innate stats before gear: mostly just how much health it has.
     pub health: i32,
+    /// Innate strength, which its weapons then scale.
+    pub strength: i32,
     pub regen: i32,
     pub mind_resist: i32,
     pub curse_resist: i32,
+    /// Innate attacks — a rat's teeth, not equipment. Most of the ladder
+    /// leaves this empty and fights with gear instead.
     pub attacks: &'static [MonsterAttack],
+    /// Real components in real slots, assembled by the same rules the player
+    /// plays by. This is what actually sets a monster's difficulty: to make one
+    /// harder, give it better gear.
+    pub gear: &'static [GearPlacement],
     /// Gold awarded for beating it.
     pub bounty: i32,
+}
+
+impl MonsterSpec {
+    /// Build this monster's loadout and reduce it to stats plus activation
+    /// profiles — the exact pipeline the player's gear goes through.
+    pub fn outfit(&self) -> (Stats, Vec<ItemProfile>) {
+        let mut reg = crate::piece::PieceRegistry::new();
+        let mut loadout = crate::loadout::Loadout::new();
+        // Seed names off the monster's own name so its gear is named too, and
+        // named the same way every run.
+        loadout.name_seed = self.name.bytes().fold(0xA5A5_u64, |a, b| {
+            a.rotate_left(7) ^ b as u64
+        });
+
+        for &(name, slot, x, y, rot) in self.gear {
+            let Some(def) = crate::piece::CATALOG.iter().position(|d| d.name == name) else {
+                continue;
+            };
+            let id = reg.alloc(def);
+            reg.set_rotation(id, rot);
+            if loadout.can_place(&reg, id, slot, x, y).is_ok() {
+                loadout.slot_mut(slot).place(&reg, id, x, y);
+            }
+        }
+
+        let mut stats = loadout.total_stats(&reg);
+        // `total_stats` starts from the player's baseline; swap in the
+        // monster's own.
+        stats.health = stats.health - crate::stats::BASE_HEALTH + self.health;
+        // Swap the player's baseline strength for the monster's own.
+        stats.strength = stats.strength - crate::stats::BASE_STRENGTH + self.strength;
+        stats.regen += self.regen;
+        stats.mind_resist += self.mind_resist;
+        stats.curse_resist += self.curse_resist;
+        (stats, loadout.combat_items(&reg))
+    }
+
+    /// Which of its gear failed to assemble, if any. A monster whose loadout
+    /// silently falls apart is a monster that does nothing.
+    pub fn unassembled(&self) -> Vec<String> {
+        let mut reg = crate::piece::PieceRegistry::new();
+        let mut loadout = crate::loadout::Loadout::new();
+        let mut missing = Vec::new();
+        for &(name, slot, x, y, rot) in self.gear {
+            match crate::piece::CATALOG.iter().position(|d| d.name == name) {
+                None => missing.push(format!("{}: no such component", name)),
+                Some(def) => {
+                    let id = reg.alloc(def);
+                    reg.set_rotation(id, rot);
+                    match loadout.can_place(&reg, id, slot, x, y) {
+                        Ok(()) => loadout.slot_mut(slot).place(&reg, id, x, y),
+                        Err(e) => missing.push(format!("{} at ({}, {}): {}", name, x, y, e)),
+                    }
+                }
+            }
+        }
+        for kind in SlotKind::ALL {
+            for item in loadout.report(&reg, kind).items {
+                if !item.assembled {
+                    missing.push(format!("{} item: {}", kind.name(), item.status));
+                }
+            }
+        }
+        missing
+    }
 }
 
 /// The original opponent, named because several tests predate the ladder.
 pub const RUST_GOLEM: MonsterSpec = MonsterSpec {
     name: "Rust Golem",
-    health: 400,
+    health: 300,
+    strength: 13,
     regen: 0,
     mind_resist: 0,
     curse_resist: 0,
-    attacks: &[MonsterAttack::hit("slam", 1000, 10)],
+    attacks: &[],
+    gear: &[
+        ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+        ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+        ("Padded Base", SlotKind::Chest, 0, 0, 0),
+        ("Ironbark Layer", SlotKind::Chest, 0, 3, 0),
+    ],
     bounty: 10,
 };
 
-/// The monster ladder, easiest first. Beating one pays its bounty and moves
-/// you along; each teaches a different defensive stat.
+/// The monster ladder, easiest first.
+///
+/// Difficulty is set by what each one is *wearing*, not by hand-tuned numbers:
+/// they buy from the same catalogue and assemble by the same rules. Making a
+/// monster harder means giving it better gear.
 pub const LADDER: &[MonsterSpec] = &[
     MonsterSpec {
         name: "Cave Rat",
-        health: 60,
+        health: 55,
+        strength: 2,
         regen: 0,
         mind_resist: 0,
         curse_resist: 0,
-        attacks: &[MonsterAttack::hit("bite", 800, 4)],
+        // No gear at all — it just has teeth.
+        attacks: &[MonsterAttack::hit("bite", 900, 4)],
+        gear: &[],
         bounty: 6,
     },
     MonsterSpec {
         name: "Bog Toad",
-        health: 120,
+        health: 110,
+        strength: 5,
         regen: 1,
         mind_resist: 0,
         curse_resist: 0,
-        attacks: &[MonsterAttack::hit("tongue", 1200, 8)],
+        attacks: &[],
+        // A crude club and nothing else.
+        gear: &[
+            ("Oak Handle", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+        ],
         bounty: 8,
     },
     MonsterSpec {
         name: "Bone Archer",
-        health: 140,
+        health: 120,
+        strength: 5,
         regen: 0,
         mind_resist: 0,
         curse_resist: 0,
-        // Fast and weak: armour that regenerates beats it, raw health doesn't.
-        attacks: &[MonsterAttack::hit("arrow", 600, 5)],
+        attacks: &[],
+        // Fast, light hits: a duelling grip made faster still.
+        gear: &[
+            ("Duelist's Grip", SlotKind::Weapon, 0, 0, 0),
+            ("Bonesaw", SlotKind::Weapon, 1, 0, 0),
+            ("Leather Material", SlotKind::Gloves, 0, 0, 0),
+            ("Featherweight Mold", SlotKind::Gloves, 2, 0, 0),
+        ],
         bounty: 9,
     },
     RUST_GOLEM,
     MonsterSpec {
         name: "Frost Wisp",
-        health: 170,
+        health: 150,
+        strength: 6,
         regen: 0,
         mind_resist: 0,
         curse_resist: 25,
-        // Slows your gear, so fast cheap items suffer least.
-        attacks: &[MonsterAttack::cursing("chill", 1500, 4, CurseKind::Frost)],
+        attacks: &[],
+        // A witch's hat freezes your gear every few seconds.
+        gear: &[
+            ("Witch's Hat", SlotKind::Helmet, 0, 0, 0),
+            ("Iron Plating", SlotKind::Helmet, 0, 3, 0),
+            ("Oak Handle", SlotKind::Weapon, 0, 0, 0),
+            ("Hexbolt", SlotKind::Weapon, 1, 0, 0),
+        ],
         bounty: 12,
     },
     MonsterSpec {
         name: "Plague Hound",
-        health: 210,
+        health: 190,
+        strength: 8,
         regen: 0,
         mind_resist: 0,
         curse_resist: 0,
-        attacks: &[MonsterAttack::cursing("foul bite", 2500, 6, CurseKind::Searing)],
+        attacks: &[],
+        // Claws that chill, and a mana engine to keep hexing.
+        gear: &[
+            ("Witch's Claw", SlotKind::Gloves, 0, 0, 0),
+            ("Hexer's Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Mage's Rod", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+        ],
         bounty: 14,
     },
     MonsterSpec {
         name: "Iron Sentinel",
-        health: 260,
+        health: 240,
+        strength: 10,
         regen: 0,
         mind_resist: 0,
         curse_resist: 0,
-        // Shields itself, so burst has to out-pace the plating going back up.
-        attacks: &[
-            MonsterAttack::hit("hammer", 1500, 12),
-            MonsterAttack::shielding("re-plate", 2000, 14),
+        attacks: &[],
+        // Piles on armour faster than light hits can strip it.
+        gear: &[
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Ironbark Layer", SlotKind::Chest, 0, 3, 0),
+            ("Thornmail Layer", SlotKind::Chest, 0, 5, 0),
+            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+            ("Serrated Edge", SlotKind::Weapon, 1, 0, 0),
         ],
         bounty: 16,
     },
     MonsterSpec {
         name: "Whisperling",
-        health: 180,
+        health: 160,
+        strength: 7,
         regen: 0,
         mind_resist: 0,
         curse_resist: 0,
-        // Almost no direct damage: it lowers your ceiling until there is none.
-        attacks: &[MonsterAttack::mind("whisper", 1200, 3), MonsterAttack::hit("claw", 2000, 3)],
+        attacks: &[],
+        // Barely scratches you; lowers your ceiling until there is none.
+        gear: &[
+            ("Oak Handle", SlotKind::Weapon, 0, 0, 0),
+            ("Hexbolt", SlotKind::Weapon, 1, 0, 0),
+            ("Bileglass Vial", SlotKind::Weapon, 2, 0, 0),
+            ("Mage's Circlet", SlotKind::Helmet, 0, 0, 0),
+            ("Scrying Lens", SlotKind::Helmet, 0, 2, 0),
+        ],
         bounty: 18,
     },
     MonsterSpec {
         name: "Warded Idol",
-        health: 320,
+        health: 280,
+        strength: 12,
         regen: 2,
         mind_resist: 0,
-        curse_resist: 75,
-        // Curse builds fall flat here; bring something that just hits.
-        attacks: &[MonsterAttack::hit("smite", 1300, 11)],
+        curse_resist: 55,
+        attacks: &[],
+        // Shrugs off curses and just keeps hitting.
+        gear: &[
+            ("Hexweave Shroud", SlotKind::Chest, 0, 0, 0),
+            ("Runed Lining", SlotKind::Chest, 0, 3, 0),
+            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+            ("Whetstone", SlotKind::Weapon, 2, 0, 0),
+        ],
         bounty: 20,
     },
     MonsterSpec {
         name: "Mirror Fiend",
-        health: 280,
+        health: 250,
+        strength: 11,
         regen: 0,
-        mind_resist: 60,
-        curse_resist: 30,
-        attacks: &[MonsterAttack::mind("gaze", 1500, 5), MonsterAttack::hit("strike", 1000, 9)],
+        mind_resist: 45,
+        curse_resist: 20,
+        attacks: &[],
+        gear: &[
+            ("Mirrored Visor", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 0, 2, 0),
+            ("Duelist's Grip", SlotKind::Weapon, 0, 0, 0),
+            ("Hexbolt", SlotKind::Weapon, 1, 0, 0),
+            ("Bileglass Vial", SlotKind::Weapon, 2, 0, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+        ],
         bounty: 24,
     },
     MonsterSpec {
         name: "The Hollow King",
-        health: 520,
+        health: 400,
+        strength: 18,
         regen: 3,
-        mind_resist: 40,
-        curse_resist: 40,
-        attacks: &[
-            MonsterAttack::hit("greatsword", 1100, 14),
-            MonsterAttack::cursing("wail", 3000, 5, CurseKind::Searing),
-            MonsterAttack::mind("dread", 2500, 4),
+        mind_resist: 30,
+        curse_resist: 30,
+        attacks: &[],
+        // A full five-slot loadout with a reactive charm feeding the blade.
+        gear: &[
+            ("Cursed Handle", SlotKind::Weapon, 0, 0, 0),
+            ("Cursed Blade", SlotKind::Weapon, 1, 0, 0),
+            ("Quickening Charm", SlotKind::Weapon, 2, 0, 0),
+            ("Witch's Hat", SlotKind::Helmet, 0, 0, 0),
+            ("Warding Plate", SlotKind::Helmet, 0, 3, 0),
+            ("Mana Loom", SlotKind::Chest, 0, 0, 0),
+            ("Ironbark Layer", SlotKind::Chest, 0, 3, 0),
+            ("Bulwark Material", SlotKind::Gloves, 0, 0, 0),
+            ("Channeling Mold", SlotKind::Gloves, 0, 2, 0),
+            ("Boiled Leather", SlotKind::Greaves, 0, 0, 0),
+            ("Grave-Iron Mold", SlotKind::Greaves, 0, 2, 0),
         ],
         bounty: 40,
     },
@@ -218,6 +378,9 @@ pub struct RunningItem {
     pub mana: i32,
     pub triggers: Vec<Trigger>,
     pub adjacent_assembled_same_slot: usize,
+    /// Indices, in the owner's item list, of items this one reacts to.
+    pub adjacent_items: Vec<usize>,
+    pub aligned_items: Vec<usize>,
     /// Monster attacks can carry a curse; player items use triggers instead.
     pub curse: Option<CurseKind>,
 }
@@ -235,6 +398,8 @@ impl RunningItem {
             mana: p.stats.mana,
             triggers: p.triggers.clone(),
             adjacent_assembled_same_slot: p.adjacent_assembled_same_slot,
+            adjacent_items: p.adjacent_items.clone(),
+            aligned_items: p.aligned_items.clone(),
             curse: None,
         }
     }
@@ -251,6 +416,8 @@ impl RunningItem {
             mana: 0,
             triggers: Vec::new(),
             adjacent_assembled_same_slot: 0,
+            adjacent_items: Vec::new(),
+            aligned_items: Vec::new(),
             curse: a.curse,
         }
     }
@@ -307,19 +474,24 @@ impl Combatant {
     }
 
     pub fn monster(spec: &MonsterSpec) -> Self {
+        let (stats, profiles) = spec.outfit();
+        // Innate attacks first, then anything its gear assembles.
+        let mut items: Vec<RunningItem> =
+            spec.attacks.iter().map(RunningItem::from_attack).collect();
+        items.extend(profiles.iter().map(RunningItem::from_profile));
         Combatant {
             name: spec.name.to_string(),
-            max_health: spec.health,
-            health: spec.health,
+            max_health: stats.health,
+            health: stats.health,
             armor: 0,
             mana: 0,
-            strength: 0,
-            power: 100,
-            regen: spec.regen,
-            mind_resist: spec.mind_resist,
-            curse_resist: spec.curse_resist,
+            strength: stats.strength,
+            power: stats.power,
+            regen: stats.regen,
+            mind_resist: stats.mind_resist,
+            curse_resist: stats.curse_resist,
             curses: Curses::new(),
-            items: spec.attacks.iter().map(RunningItem::from_attack).collect(),
+            items,
             dot_milli: 0,
             regen_milli: 0,
         }
@@ -373,6 +545,8 @@ pub enum Event {
     /// Damage-over-time landing this tick.
     Burn { side: Side, damage: i32, health: i32 },
     Regen { side: Side, amount: i32, health: i32 },
+    /// A reaction pushed an item's cooldown forward.
+    Hastened { side: Side, item: String, by_ms: u32 },
     Fell { side: Side },
     End { outcome: Outcome },
 }
@@ -486,6 +660,13 @@ impl CombatLog {
             Event::Regen { side, amount, health } => {
                 format!("{} {} regenerates {} -> {} hp", t, self.who(*side), amount, health)
             }
+            Event::Hastened { side, item, by_ms } => format!(
+                "{} {}'s {} hastened by {:.1}s",
+                t,
+                self.who(*side),
+                item,
+                *by_ms as f32 / 1000.0
+            ),
             Event::Fell { side } => format!("{} {} falls!", t, self.who(*side)),
             Event::End { outcome } => format!("-- {} --", outcome.label()),
         }
@@ -653,7 +834,7 @@ fn activate(
     }
 
     if let Some(kind) = item.curse {
-        apply(p, e, side, Action::Curse { kind, target: Target::Enemy }, t, log);
+        apply(p, e, side, Action::Curse { kind, target: Target::Enemy }, t, log, Some(idx));
     }
 
     if item.mind > 0 {
@@ -687,7 +868,7 @@ fn activate(
 
     for trigger in &item.triggers {
         match *trigger {
-            Trigger::OnActivate(action) => apply(p, e, side, action, t, log),
+            Trigger::OnActivate(action) => apply(p, e, side, action, t, log, Some(idx)),
             Trigger::SpendMana { cost, on_success, on_failure } => {
                 let paid = {
                     let me = pick(p, e, side);
@@ -703,17 +884,62 @@ fn activate(
                     at_ms: t,
                     event: Event::ManaCheck { side, cost, paid, remaining },
                 });
-                apply(p, e, side, if paid { on_success } else { on_failure }, t, log);
+                apply(p, e, side, if paid { on_success } else { on_failure }, t, log, Some(idx));
             }
             Trigger::PerAdjacentItem { action, same_slot_only: _ } => {
                 for _ in 0..item.adjacent_assembled_same_slot {
-                    apply(p, e, side, action, t, log);
+                    apply(p, e, side, action, t, log, Some(idx));
                 }
+            }
+            // These wait for someone else to act.
+            Trigger::OnAdjacentActivate(_) | Trigger::OnAlignedActivate(_) => {}
+        }
+    }
+
+    // Finally, let the neighbours react. A reaction never emits an activation
+    // of its own, so two items that react to each other cannot loop.
+    notify_reactors(p, e, side, idx, t, log);
+}
+
+/// Run every reaction owed to `actor_idx` firing.
+fn notify_reactors(
+    p: &mut Combatant,
+    e: &mut Combatant,
+    side: Side,
+    actor_idx: usize,
+    t: u32,
+    log: &mut Vec<LogEntry>,
+) {
+    let count = pick(p, e, side).items.len();
+    for j in 0..count {
+        if j == actor_idx {
+            continue;
+        }
+        let (touches, lines_up, triggers) = {
+            let c = pick(p, e, side);
+            let it = &c.items[j];
+            (
+                it.adjacent_items.contains(&actor_idx),
+                it.aligned_items.contains(&actor_idx),
+                it.triggers.clone(),
+            )
+        };
+        for tr in &triggers {
+            match *tr {
+                Trigger::OnAdjacentActivate(a) if touches => {
+                    apply(p, e, side, a, t, log, Some(j))
+                }
+                Trigger::OnAlignedActivate(a) if lines_up => {
+                    apply(p, e, side, a, t, log, Some(j))
+                }
+                _ => {}
             }
         }
     }
 }
 
+/// `owner` is the item the action belongs to, needed by effects that act on
+/// the item itself rather than on a combatant.
 fn apply(
     p: &mut Combatant,
     e: &mut Combatant,
@@ -721,6 +947,7 @@ fn apply(
     action: Action,
     t: u32,
     log: &mut Vec<LogEntry>,
+    owner: Option<usize>,
 ) {
     // `Target::Yourself` means the side that owns the item, not the item's
     // victim — several strong items pay for themselves this way.
@@ -777,6 +1004,16 @@ fn apply(
             c.armor += n;
             let total = c.armor;
             log.push(LogEntry { at_ms: t, event: Event::GainArmor { side, amount: n, total } });
+        }
+        Action::ReduceCooldown(ms) => {
+            let Some(idx) = owner else { return };
+            let c = pick(p, e, side);
+            let Some(it) = c.items.get_mut(idx) else { return };
+            // Push the bar forward rather than shortening the cooldown, so the
+            // effect is "fires sooner once" and cannot stack into a free item.
+            it.progress_ms = (it.progress_ms + ms).min(it.cooldown_ms.saturating_sub(1));
+            let name = it.name.clone();
+            log.push(LogEntry { at_ms: t, event: Event::Hastened { side, item: name, by_ms: ms } });
         }
     }
 }

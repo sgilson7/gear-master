@@ -8,6 +8,7 @@ use gearmaster_engine::combat::{CombatLog, Event, Outcome, Side, LADDER};
 use gearmaster_engine::loadout::SlotReport;
 use gearmaster_engine::piece::{default_cooldown_ms, PieceDef, PieceId, PieceKind, SlotKind};
 use gearmaster_engine::run::{Phase, Run};
+use gearmaster_engine::shop::REROLL_COST;
 use gearmaster_engine::shape::Shape;
 use gearmaster_engine::slot::{SLOT_H, SLOT_W};
 use macroquad::prelude::*;
@@ -555,6 +556,7 @@ impl Playback {
                 }
                 return; // healing ticks would drown the log
             }
+            Event::Hastened { .. } => {}
             Event::Fell { .. } => {}
             Event::End { .. } => self.done = true,
         }
@@ -738,6 +740,11 @@ fn render_slots(layout: &Layout, run: &Run, reports: &[SlotReport], drag: &Drag)
     }
 }
 
+/// Where the reroll button sits inside the shop strip.
+fn reroll_rect(shop: Rect) -> Rect {
+    Rect::new(shop.x + 12.0, shop.y + 80.0, 104.0, 30.0)
+}
+
 /// The shelf. Clicking a card buys it if you can afford it.
 fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
     let r = layout.shop;
@@ -746,15 +753,14 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
 
     draw_text("SHOP", r.x + 14.0, r.y + 26.0, 18.0, col_gold());
     draw_text(&format!("{} gold", run.gold), r.x + 14.0, r.y + 50.0, 20.0, WHITE);
-    draw_text("click to buy", r.x + 14.0, r.y + 72.0, 12.0, col_dim());
-    draw_text(
-        "new stock after",
-        r.x + 14.0,
-        r.y + 92.0,
-        12.0,
-        col_dim(),
+    draw_text("click to buy", r.x + 14.0, r.y + 68.0, 12.0, col_dim());
+    button(
+        reroll_rect(r),
+        &format!("REROLL {}g", REROLL_COST),
+        run.gold >= REROLL_COST,
+        mx,
+        my,
     );
-    draw_text("every battle", r.x + 14.0, r.y + 106.0, 12.0, col_dim());
 
     for card in &layout.shop_cards {
         let def = card.def;
@@ -1277,25 +1283,34 @@ fn render_panel(
         y += 21.0;
     }
     y += 4.0;
-    // The formula the whole build is chasing, spelled out.
-    let dmg = stats.damage_per_attack();
-    draw_text("Damage / attack", x + 20.0, y, 17.0, WHITE);
-    let d = measure_text(&format!("{}", dmg), None, 19, 1.0);
-    draw_text(&format!("{}", dmg), x + PANEL_W - 20.0 - d.width, y, 19.0, col_gold());
-    y += 17.0;
-    draw_text(
-        &format!(
-            "{} strength x {}.{:02} power",
-            stats.strength,
-            stats.power / 100,
-            stats.power % 100
-        ),
-        x + 20.0,
-        y,
-        12.0,
-        col_dim(),
-    );
-    y += 26.0;
+    // Damage is per item now, so a single "damage per attack" figure would
+    // lie. Total damage a second across every weapon is the honest summary.
+    let items = run.combat_items();
+    let dps_milli: i64 = items
+        .iter()
+        .map(|i| i.dps_milli(stats.strength, stats.power))
+        .sum();
+    draw_text("Damage / second", x + 20.0, y, 17.0, WHITE);
+    let label = format!("{}.{}", dps_milli / 1000, (dps_milli % 1000) / 100);
+    let d = measure_text(&label, None, 19, 1.0);
+    draw_text(&label, x + PANEL_W - 20.0 - d.width, y, 19.0, col_gold());
+    y += 16.0;
+    for it in items.iter().filter(|i| i.hit_for(stats.strength, stats.power) > 0).take(3) {
+        draw_text(
+            &format!(
+                "  {} hits {} every {:.2}s",
+                it.name,
+                it.hit_for(stats.strength, stats.power),
+                it.cooldown_ms as f32 / 1000.0
+            ),
+            x + 20.0,
+            y,
+            12.0,
+            col_dim(),
+        );
+        y += 14.0;
+    }
+    y += 14.0;
 
     // Per-slot assembly readout.
     draw_text("GEAR", x + 20.0, y, 14.0, col_dim());
@@ -1584,7 +1599,13 @@ async fn main() {
         // picks a piece up.
         let mut bought_this_frame = false;
         if run.phase == Phase::Loadout && is_mouse_button_pressed(MouseButton::Left) {
-            if let Some(i) = layout.shop_hit(mx, my) {
+            if reroll_rect(layout.shop).contains(Vec2::new(mx, my)) {
+                bought_this_frame = true;
+                match run.reroll() {
+                    Ok(()) => message = format!("Rerolled. {} gold left.", run.gold),
+                    Err(e) => message = format!("{}", e),
+                }
+            } else if let Some(i) = layout.shop_hit(mx, my) {
                 bought_this_frame = true;
                 let name = run.shop.def(i).map(|d| d.name).unwrap_or("?");
                 match run.buy(i) {

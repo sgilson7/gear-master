@@ -12,6 +12,10 @@ use crate::stats::{StatKind, Stats};
 /// what happens when it does.
 #[derive(Clone, Debug)]
 pub struct ItemProfile {
+    /// Indices, within this same list, of assembled items touching this one.
+    pub adjacent_items: Vec<usize>,
+    /// Indices of assembled items in *other* slots lying on the same rows.
+    pub aligned_items: Vec<usize>,
     /// The item's generated short name — what the cooldown bars show.
     pub name: String,
     /// The same name with its "of the ..." tail.
@@ -24,6 +28,27 @@ pub struct ItemProfile {
     pub triggers: Vec<Trigger>,
     /// Assembled items in the same slot touching this one, counted once.
     pub adjacent_assembled_same_slot: usize,
+}
+
+impl ItemProfile {
+    /// What one swing of this item lands for, given the wearer's totals.
+    /// Only weapons deal damage; everything else activates for armour, mana
+    /// or curses.
+    pub fn hit_for(&self, strength: i32, power: i32) -> i32 {
+        if self.slot != SlotKind::Weapon {
+            return 0;
+        }
+        (((self.stats.damage + strength) as i64 * power as i64) / 100).max(0) as i32
+    }
+
+    /// Damage a second, in thousandths, so a slow heavy weapon and a fast
+    /// light one can be compared without floating point.
+    pub fn dps_milli(&self, strength: i32, power: i32) -> i64 {
+        if self.cooldown_ms == 0 {
+            return 0;
+        }
+        self.hit_for(strength, power) as i64 * 1000 * 1000 / self.cooldown_ms as i64
+    }
 }
 
 /// Name an item by its core piece, falling back to the first piece it has.
@@ -195,6 +220,12 @@ impl Loadout {
                 let mut contribution = def.base;
 
                 if let Some(eff) = def.effect {
+                    if let EffectKind::Flat { stats } = eff.kind {
+                        if eff.when.holds(assembled[gi]) {
+                            contribution += stats;
+                            item_notes.push(format!("{}: {}", def.name, eff.label));
+                        }
+                    }
                     if let EffectKind::SelfPerEmptyCell { stat, per } = eff.kind {
                         if eff.when.holds(assembled[gi]) {
                             let n = slot.empty_neighbor_cells(p) as i32;
@@ -307,61 +338,80 @@ impl Loadout {
 
     /// Activation profiles for every assembled item across every slot — what
     /// combat actually runs on.
+    ///
+    /// Unassembled groups are deliberately absent: loose pieces still hand over
+    /// their passive stats through `report`, but they never act. That is the
+    /// cost of leaving gear in bits.
     pub fn combat_items(&self, reg: &PieceRegistry) -> Vec<ItemProfile> {
-        let mut out = Vec::new();
+        // First pass: collect every finished item with the slot it came from.
+        let mut gathered: Vec<(SlotKind, GearItem)> = Vec::new();
         for kind in SlotKind::ALL {
-            let slot = self.slot(kind);
-            let report = self.report(reg, kind);
-            let groups: Vec<&Vec<PieceId>> = report.items.iter().map(|i| &i.pieces).collect();
+            for item in self.report(reg, kind).items {
+                if item.assembled {
+                    gathered.push((kind, item));
+                }
+            }
+        }
 
-            for (gi, item) in report.items.iter().enumerate() {
-                if !item.assembled {
+        // Second pass: who touches whom, and who lines up with whom. Both are
+        // global indices into the list being built, so combat can resolve a
+        // reaction without knowing anything about grids.
+        let spans: Vec<Option<(u8, u8)>> = gathered
+            .iter()
+            .map(|(kind, item)| self.slot(*kind).row_span(&item.pieces))
+            .collect();
+
+        let mut out = Vec::with_capacity(gathered.len());
+        for (i, (kind, item)) in gathered.iter().enumerate() {
+            let slot = self.slot(*kind);
+            let mut adjacent = Vec::new();
+            let mut aligned = Vec::new();
+            for (j, (other_kind, other)) in gathered.iter().enumerate() {
+                if i == j {
                     continue;
                 }
-                // How many other finished items touch this one.
-                let touching_same_slot = groups
-                    .iter()
-                    .enumerate()
-                    .filter(|(gj, other)| {
-                        *gj != gi && report.items[*gj].assembled && slot.sets_touch(item.pieces.as_slice(), other)
-                    })
-                    .count();
-
-                let core = item
-                    .pieces
-                    .iter()
-                    .copied()
-                    .find(|&p| reg.def(p).kind.is_core());
-
-                let base_cd = core
-                    .map(|c| {
-                        let d = reg.def(c).cooldown_ms;
-                        if d == 0 { default_cooldown_ms(kind) } else { d }
-                    })
-                    .unwrap_or_else(|| default_cooldown_ms(kind));
-
-                let speed: i32 =
-                    100 + item.pieces.iter().map(|&p| reg.def(p).speed_bonus).sum::<i32>();
-                let speed = speed.max(10);
-                let cooldown_ms = ((base_cd as i64 * 100 / speed as i64) as u32).max(TICK_MS);
-
-                let triggers: Vec<Trigger> = item
-                    .pieces
-                    .iter()
-                    .flat_map(|&p| reg.def(p).triggers.iter().copied())
-                    .collect();
-
-                out.push(ItemProfile {
-                    name: item.name.short.clone(),
-                    full_name: item.name.full.clone(),
-                    core: core.map(|c| reg.def(c).name.to_string()).unwrap_or_default(),
-                    slot: kind,
-                    cooldown_ms,
-                    stats: item.stats,
-                    triggers,
-                    adjacent_assembled_same_slot: touching_same_slot,
-                });
+                if other_kind == kind {
+                    if slot.sets_touch(&item.pieces, &other.pieces) {
+                        adjacent.push(j);
+                    }
+                } else if let (Some(a), Some(b)) = (spans[i], spans[j]) {
+                    // Different grids: "aligned" means their rows overlap.
+                    if a.0 <= b.1 && b.0 <= a.1 {
+                        aligned.push(j);
+                    }
+                }
             }
+
+            let core = item.pieces.iter().copied().find(|&p| reg.def(p).kind.is_core());
+            let base_cd = core
+                .map(|c| {
+                    let d = reg.def(c).cooldown_ms;
+                    if d == 0 { default_cooldown_ms(*kind) } else { d }
+                })
+                .unwrap_or_else(|| default_cooldown_ms(*kind));
+            let speed: i32 =
+                100 + item.pieces.iter().map(|&p| reg.def(p).speed_bonus).sum::<i32>();
+            let speed = speed.max(10);
+            let cooldown_ms = ((base_cd as i64 * 100 / speed as i64) as u32).max(TICK_MS);
+
+            let triggers: Vec<Trigger> = item
+                .pieces
+                .iter()
+                .flat_map(|&p| reg.def(p).triggers.iter().copied())
+                .collect();
+
+            out.push(ItemProfile {
+                adjacent_assembled_same_slot: adjacent.len(),
+                adjacent_items: adjacent,
+                aligned_items: aligned,
+                name: item.name.short.clone(),
+                full_name: item.name.full.clone(),
+                core: core.map(|c| reg.def(c).name.to_string()).unwrap_or_default(),
+                slot: *kind,
+                cooldown_ms,
+                stats: item.stats,
+                triggers,
+            });
         }
         out
     }
