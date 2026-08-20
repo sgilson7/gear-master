@@ -1,5 +1,9 @@
 # Gear Master — prototype
 
+### ▶ [Play it in your browser](https://sgilson7.github.io/gear-master/)
+
+No download, nothing to install. Works on any desktop browser.
+
 A Diablo-shaped take on Backpack Battles: instead of one shared backpack, the
 character has **five equipment slots, each its own 6x8 grid**, and gear is not
 bought whole — it is **assembled** out of component pieces you drag in.
@@ -113,10 +117,14 @@ macroquad compiles to WebAssembly, so the whole game runs in a browser — 244 K
 zipped. Host it and paste the link in Discord: no download, no security
 warnings, works on Windows and Linux and on a phone.
 
-* **itch.io** — New project, Kind: HTML, upload the zip, tick "This file will
-  be played in the browser", viewport 1600x980. Free, can be unlisted, and
-  your friends don't need an account.
-* **GitHub Pages** — commit `dist/web/` and enable Pages for that folder.
+This repo is already published that way: `docs/` holds the built page and
+GitHub Pages serves it at
+**https://sgilson7.github.io/gear-master/**. To ship a change:
+
+    make publish    # rebuilds docs/, commits, pushes; live in about a minute
+
+* **itch.io** — an alternative host. New project, Kind: HTML, upload the zip,
+  tick "This file will be played in the browser", viewport 1600x980.
 
 The interface is authored at a fixed 1600x980 and letterboxes itself into
 whatever window it gets, so it stays correct at any size.
