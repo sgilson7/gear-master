@@ -97,9 +97,9 @@ pub struct MonsterSpec {
 }
 
 impl MonsterSpec {
-    /// Build this monster's loadout and reduce it to stats plus activation
-    /// profiles — the exact pipeline the player's gear goes through.
-    pub fn outfit(&self) -> (Stats, Vec<ItemProfile>) {
+    /// Lay this monster's gear out in real slots. Returned so the interface can
+    /// draw an enemy's board exactly the way it draws yours.
+    pub fn loadout(&self) -> (crate::piece::PieceRegistry, crate::loadout::Loadout) {
         let mut reg = crate::piece::PieceRegistry::new();
         let mut loadout = crate::loadout::Loadout::new();
         // Seed names off the monster's own name so its gear is named too, and
@@ -118,7 +118,13 @@ impl MonsterSpec {
                 loadout.slot_mut(slot).place(&reg, id, x, y);
             }
         }
+        (reg, loadout)
+    }
 
+    /// Build this monster's loadout and reduce it to stats plus activation
+    /// profiles — the exact pipeline the player's gear goes through.
+    pub fn outfit(&self) -> (Stats, Vec<ItemProfile>) {
+        let (reg, loadout) = self.loadout();
         let mut stats = loadout.total_stats(&reg);
         // `total_stats` starts from the player's baseline; swap in the
         // monster's own.
@@ -578,6 +584,9 @@ impl Outcome {
 pub struct CombatLog {
     pub player: Combatant,
     pub enemy: Combatant,
+    /// The monster fought, so the interface can lay its gear out beside yours
+    /// without having to guess which rung the run has moved on to.
+    pub spec: MonsterSpec,
     pub entries: Vec<LogEntry>,
     pub outcome: Outcome,
     pub duration_ms: u32,
@@ -761,7 +770,14 @@ pub fn simulate(player_stats: Stats, profiles: &[ItemProfile], spec: &MonsterSpe
     }
 
     log.push(LogEntry { at_ms: t, event: Event::End { outcome } });
-    CombatLog { player: start_player, enemy: start_enemy, entries: log, outcome, duration_ms: t }
+    CombatLog {
+        player: start_player,
+        enemy: start_enemy,
+        spec: *spec,
+        entries: log,
+        outcome,
+        duration_ms: t,
+    }
 }
 
 fn pick<'a>(p: &'a mut Combatant, e: &'a mut Combatant, side: Side) -> &'a mut Combatant {

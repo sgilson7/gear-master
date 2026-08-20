@@ -2,6 +2,11 @@ use crate::combat::{simulate, CombatLog, MonsterSpec, Outcome, LADDER, RUST_GOLE
 use crate::loadout::{Loadout, SlotReport};
 use crate::piece::{all_def_indices, PieceId, PieceRegistry, SlotKind, CATALOG};
 
+/// The one weapon a run is handed for free. Everything else is bought — this
+/// exists so the very first decision is *where to place* a weapon rather than
+/// whether the shop happened to offer you one.
+pub const STARTER_KIT: &[&str] = &["Oak Handle", "Iron Blade"];
+
 
 use crate::slot::PlaceError;
 use crate::rng::Rng;
@@ -77,16 +82,21 @@ impl Default for Run {
 }
 
 impl Run {
-    /// A fresh run: **nothing owned**, some gold, and a stocked shop. Every
-    /// piece of gear you ever use has to be bought.
+    /// A fresh run: the basic weapon pair, some gold, and a stocked shop.
+    /// Everything beyond that has to be bought.
     pub fn new() -> Self {
         Self::seeded(0x5EED_1234_ABCD_0001)
     }
 
     /// Same, with the shop's rolls pinned so a test can predict them.
     pub fn seeded(seed: u64) -> Self {
-        let registry = PieceRegistry::new();
-        let owned = Vec::new();
+        let mut registry = PieceRegistry::new();
+        let mut owned = Vec::new();
+        for name in STARTER_KIT {
+            if let Some(d) = CATALOG.iter().position(|p| &p.name == name) {
+                owned.push(registry.alloc(d));
+            }
+        }
         let mut rng = Rng::new(seed);
         let shop = Shop::new(&mut rng);
         let mut loadout = Loadout::new();

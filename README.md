@@ -50,7 +50,11 @@ After `make install` you can just type `gearmaster` from anywhere. Plain
    neighbours are worth. See below.
 6. Every finished item gets a **procedurally generated name** — hover a piece
    to see what it's part of.
-7. Press **BEGIN FIGHT** and watch the auto-battle play out. Each assembled
+7. Press **BEGIN FIGHT**. The screen switches to a **battle view**: your gear
+   board on the left, the enemy's on the right, both shrunk to fit, with health,
+   armour, curses and cooldowns for each side. You can see exactly what you are
+   up against and which of its items is about to fire.
+8. Each assembled
    item gets its own **cooldown bar**, labelled with its generated name, so you
    can see which ones carry the fight — and watch a frosted item's bar visibly
    crawl.
@@ -126,9 +130,9 @@ that way. Corpora run to ~32 nouns per slot, 44 tails and ~40 qualifiers.
 
 ## The run
 
-You start with **nothing but 28 gold** and six components on the shelf.
-Every piece of gear you ever use has to be bought — with no weapon you deal no
-damage at all, so the first purchase is the whole game. Every stock is
+You start with an **Oak Handle, an Iron Blade and 28 gold** — enough for one
+basic weapon, if you place it. Everything beyond that has to be bought, and
+with no assembled weapon you deal no damage at all. Every stock is
 guaranteed to contain a handle and a damaging piece, and a reroll costs 1 gold. Beating a monster pays its **bounty** and moves
 you up the ladder; the **shop turns over after every battle**, win or lose, and
 never re-offers what it just had. Selling a piece back refunds half.

@@ -3,29 +3,55 @@
 mod common;
 
 use gearmaster_engine::combat::{Outcome, LADDER};
-use gearmaster_engine::run::{Run, RuleError};
+use gearmaster_engine::run::{Run, RuleError, STARTER_KIT};
 use gearmaster_engine::shop::{SHOP_SIZE, STARTING_GOLD};
 
 #[test]
-fn a_run_opens_owning_nothing_at_all() {
+fn a_run_opens_with_the_basic_weapon_and_nothing_else() {
     let run = Run::new();
     assert_eq!(run.gold, STARTING_GOLD);
-    assert!(run.owned.is_empty(), "every piece of gear has to be bought");
-    assert!(run.inventory().is_empty());
-    assert!(run.combat_items().is_empty(), "and nothing acts in combat yet");
+    assert_eq!(run.owned.len(), STARTER_KIT.len());
+    for name in STARTER_KIT {
+        assert!(
+            run.owned.iter().any(|&id| &run.registry.def(id).name == name),
+            "missing {} from the starter kit",
+            name
+        );
+    }
+    assert_eq!(run.inventory().len(), STARTER_KIT.len(), "and none of it is equipped");
+    assert!(
+        run.combat_items().is_empty(),
+        "nothing acts until you actually place it in the weapon slot"
+    );
     assert_eq!(run.shop.stock.len(), SHOP_SIZE);
     assert_eq!(run.rung, 0);
     assert_eq!(run.monster().name, "Cave Rat", "the ladder starts easy");
 }
 
 #[test]
-fn an_empty_character_cannot_hurt_anything() {
+fn the_starter_kit_assembles_into_a_working_weapon() {
+    use gearmaster_engine::piece::SlotKind;
     let mut run = Run::new();
-    let log = run.fight_next().clone();
+    common::equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    common::equip(&mut run, "Iron Blade", SlotKind::Weapon, 1, 0);
+
+    let report = run.report(SlotKind::Weapon);
+    assert_eq!(report.assembled_count(), 1, "{}", report.summary());
+    assert_eq!(run.combat_items().len(), 1);
+
+    // And it is enough to take the first rung.
+    assert_eq!(run.fight_next().outcome, gearmaster_engine::combat::Outcome::Victory);
+}
+
+#[test]
+fn leaving_the_starter_weapon_in_bits_loses_to_the_rat() {
+    // The pieces are handed over unequipped on purpose: placing them is the
+    // first thing the game asks you to do.
+    let mut run = Run::new();
     assert_eq!(
-        log.outcome,
+        run.fight_next().outcome,
         gearmaster_engine::combat::Outcome::Defeat,
-        "with no weapon there is no damage, so even the rat wins"
+        "an unplaced weapon deals nothing"
     );
 }
 
@@ -170,7 +196,7 @@ fn winning_pays_the_bounty_and_moves_you_up() {
 
 #[test]
 fn losing_pays_nothing_and_leaves_you_where_you_were() {
-    let mut run = Run::new(); // owns nothing at all
+    let mut run = Run::new(); // starter pieces, none of them placed
     run.rung = 10; // the boss
     let gold_before = run.gold;
 

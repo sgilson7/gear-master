@@ -5,8 +5,10 @@
 use std::collections::HashSet;
 
 use gearmaster_engine::combat::{CombatLog, Event, Outcome, Side, LADDER};
-use gearmaster_engine::loadout::SlotReport;
-use gearmaster_engine::piece::{default_cooldown_ms, PieceDef, PieceId, PieceKind, SlotKind};
+use gearmaster_engine::loadout::{Loadout, SlotReport};
+use gearmaster_engine::piece::{
+    default_cooldown_ms, PieceDef, PieceId, PieceKind, PieceRegistry, SlotKind,
+};
 use gearmaster_engine::run::{Phase, Run};
 use gearmaster_engine::shop::REROLL_COST;
 use gearmaster_engine::shape::Shape;
@@ -28,6 +30,10 @@ const INV_CELL: f32 = 15.0;
 const CARD_W: f32 = 124.0;
 const CARD_H: f32 = 124.0;
 const CARD_GAP: f32 = 10.0;
+/// Cell size for the shrunk gear boards shown during a fight.
+const MINI_CELL: f32 = 14.0;
+const MINI_GAP: f32 = 10.0;
+
 /// How much faster than real time the fight replays.
 const PLAYBACK_SPEED: f32 = 2.0;
 /// How long a struck fighter's panel stays tinted.
@@ -154,9 +160,6 @@ struct Layout {
     shop_cards: Vec<ShopCard>,
     shop: Rect,
     inv: Rect,
-    /// Shop and tray combined. The shop is hidden during a fight, so combat
-    /// gets the whole strip rather than just the lower half.
-    fight: Rect,
     panel_x: f32,
 }
 
@@ -219,8 +222,7 @@ impl Layout {
             })
             .collect();
 
-        let fight = Rect::new(shop.x, shop.y, shop.w, (inv.y + inv.h) - shop.y);
-        Layout { slots, cards, shop_cards, shop, inv, fight, panel_x }
+        Layout { slots, cards, shop_cards, shop, inv, panel_x }
     }
 
     fn view(&self, kind: SlotKind) -> &SlotView {
@@ -438,6 +440,10 @@ struct Playback {
     /// does.
     player_schedule: Vec<Vec<u32>>,
     enemy_schedule: Vec<Vec<u32>>,
+    /// The enemy's gear, laid out once when the fight starts.
+    enemy_reg: PieceRegistry,
+    enemy_loadout: Loadout,
+    enemy_reports: Vec<SlotReport>,
 }
 
 /// How full an item's bar is at `now_ms`, from the times it actually fired.
@@ -473,6 +479,8 @@ fn schedule_for(log: &CombatLog, want: Side, count: usize) -> Vec<Vec<u32>> {
 
 impl Playback {
     fn new(log: &CombatLog) -> Self {
+        let (er, eloadout) = log.spec.loadout();
+        let (er2, eloadout2) = (er.clone(), eloadout.clone());
         Playback {
             start: get_time(),
             cursor: 0,
@@ -492,6 +500,9 @@ impl Playback {
             done: false,
             player_schedule: schedule_for(log, Side::Player, log.player.items.len()),
             enemy_schedule: schedule_for(log, Side::Enemy, log.enemy.items.len()),
+            enemy_reg: er,
+            enemy_reports: eloadout.reports(&er2),
+            enemy_loadout: eloadout2,
         }
     }
 
@@ -941,7 +952,7 @@ fn render_def_tooltip_inner(
     let mut lines: Vec<(String, Color)> = Vec::new();
     if let Some(n) = item_name {
         lines.push((n.to_string(), col_gold()));
-        lines.push(("— part of —".to_string(), col_dim()));
+        lines.push(("part of".to_string(), col_dim()));
     }
     lines.push((def.name.to_string(), WHITE));
     lines.push((format!("{} · {}", def.slot.name(), def.kind.name()), col_dim()));
@@ -1074,79 +1085,181 @@ fn render_cooldown_row(
     );
 }
 
-fn render_fight(layout: &Layout, run: &Run, pb: &Playback) {
-    let Some(log) = run.log.as_ref() else { return };
-    let area = layout.fight;
-    draw_rectangle(area.x, area.y, area.w, area.h, col_tray());
-    draw_rectangle_lines(area.x, area.y, area.w, area.h, 2.0, Color::from_rgba(60, 60, 82, 255));
+/// Total width of five shrunk grids side by side.
+fn mini_board_width() -> f32 {
+    5.0 * (SLOT_W as f32 * MINI_CELL) + 4.0 * MINI_GAP
+}
 
-    let now = get_time();
-    let half = area.w / 2.0 - 30.0;
+/// Draw one combatant's whole gear board at reduced scale: five grids, the
+/// pieces in them, and a gold outline round each finished item. Takes a
+/// registry and loadout rather than a `Run`, so it can draw either side.
+fn render_mini_board(
+    x0: f32,
+    y0: f32,
+    reg: &PieceRegistry,
+    loadout: &Loadout,
+    reports: &[SlotReport],
+    accent: Color,
+) {
+    let gw = SLOT_W as f32 * MINI_CELL;
+    let gh = SLOT_H as f32 * MINI_CELL;
 
-    let fighter = |x: f32,
-                       name: &str,
-                       hp: i32,
-                       max: i32,
-                       armor: i32,
-                       mana: Option<i32>,
-                       curses: &[(&'static str, u32)],
-                       flash: f64,
-                       tint: Color| {
-        let flashing = now - flash < FLASH_SECS;
-        let bg = if flashing {
-            Color::from_rgba(80, 34, 34, 255)
-        } else {
-            Color::from_rgba(32, 32, 46, 255)
-        };
-        draw_rectangle(x, area.y + 18.0, half, 150.0, bg);
-        draw_rectangle_lines(
-            x,
-            area.y + 18.0,
-            half,
-            150.0,
-            2.0,
-            if hp <= 0 { col_bad() } else { Color::from_rgba(70, 70, 95, 255) },
+    for (i, &kind) in SlotKind::ALL.iter().enumerate() {
+        let gx = x0 + i as f32 * (gw + MINI_GAP);
+        let slot = loadout.slot(kind);
+        let report = &reports[kind.index()];
+        let live = report.assembled_count() > 0;
+
+        draw_rectangle(
+            gx - 2.0,
+            y0 - 2.0,
+            gw + 4.0,
+            gh + 4.0,
+            if live { accent } else { Color::from_rgba(58, 58, 76, 255) },
         );
-        draw_text(name, x + 16.0, area.y + 44.0, 22.0, if hp <= 0 { col_bad() } else { WHITE });
-        hp_bar(x + 16.0, area.y + 56.0, half - 32.0, 26.0, hp, max, tint);
-
-        // Armour rides above the health bar as its own strip, because it is
-        // spent first and refills during the fight.
-        let ax = x + 16.0;
-        let aw = half - 32.0;
-        draw_rectangle(ax, area.y + 88.0, aw, 14.0, Color::from_rgba(30, 30, 42, 255));
-        if armor > 0 {
-            let frac = ((armor as f32) / (max.max(1) as f32)).clamp(0.0, 1.0);
-            draw_rectangle(ax, area.y + 88.0, aw * frac, 14.0, Color::from_rgba(150, 170, 210, 255));
-        }
-        draw_rectangle_lines(ax, area.y + 88.0, aw, 14.0, 1.5, Color::from_rgba(80, 80, 105, 255));
-        draw_text(&format!("armor {}", armor), ax + 6.0, area.y + 100.0, 12.0, WHITE);
-
-        let mut label = String::new();
-        if let Some(m) = mana {
-            label.push_str(&format!("mana {}", m));
-        }
-        if !label.is_empty() {
-            draw_text(&label, ax, area.y + 122.0, 15.0, Color::from_rgba(150, 200, 240, 255));
+        for cy in 0..SLOT_H {
+            for cx in 0..SLOT_W {
+                let (px, py) = (gx + cx as f32 * MINI_CELL, y0 + cy as f32 * MINI_CELL);
+                let c = if (cx + cy) % 2 == 0 { col_cell_a() } else { col_cell_b() };
+                draw_rectangle(px, py, MINI_CELL, MINI_CELL, c);
+            }
         }
 
-        // Active curses.
-        let mut cx = ax + if label.is_empty() { 0.0 } else { 110.0 };
-        for (kind, _) in curses {
-            let text = format!("curse of {}", kind);
-            let d = measure_text(&text, None, 13, 1.0);
-            draw_rectangle(cx - 4.0, area.y + 110.0, d.width + 10.0, 18.0, Color::from_rgba(90, 40, 90, 230));
-            draw_text(&text, cx + 1.0, area.y + 123.0, 13.0, Color::from_rgba(240, 190, 240, 255));
-            cx += d.width + 16.0;
+        for id in slot.pieces() {
+            let Some((ax, ay)) = slot.anchor_of(id) else { continue };
+            let def = reg.def(id);
+            let shape = reg.shape(id);
+            draw_shape(
+                &shape,
+                gx + ax as f32 * MINI_CELL,
+                y0 + ay as f32 * MINI_CELL,
+                MINI_CELL,
+                piece_color(def),
+                1.0,
+            );
         }
 
-        if hp <= 0 {
-            draw_text("DOWN", x + half - 70.0, area.y + 44.0, 22.0, col_bad());
+        // Outline each finished item so the two boards read as gear, not
+        // confetti.
+        for item in &report.items {
+            if !item.assembled {
+                continue;
+            }
+            let cells: HashSet<(u8, u8)> =
+                item.pieces.iter().flat_map(|&p| slot.cells_of(p)).collect();
+            for &(cx, cy) in &cells {
+                let (px, py) = (gx + cx as f32 * MINI_CELL, y0 + cy as f32 * MINI_CELL);
+                if cy == 0 || !cells.contains(&(cx, cy - 1)) {
+                    draw_line(px, py, px + MINI_CELL, py, 2.0, col_gold());
+                }
+                if cy + 1 >= SLOT_H || !cells.contains(&(cx, cy + 1)) {
+                    draw_line(px, py + MINI_CELL, px + MINI_CELL, py + MINI_CELL, 2.0, col_gold());
+                }
+                if cx == 0 || !cells.contains(&(cx - 1, cy)) {
+                    draw_line(px, py, px, py + MINI_CELL, 2.0, col_gold());
+                }
+                if cx + 1 >= SLOT_W || !cells.contains(&(cx + 1, cy)) {
+                    draw_line(px + MINI_CELL, py, px + MINI_CELL, py + MINI_CELL, 2.0, col_gold());
+                }
+            }
         }
-    };
 
-    fighter(
-        area.x + 20.0,
+        let label = kind.name();
+        let d = measure_text(label, None, 11, 1.0);
+        draw_text(
+            label,
+            gx + (gw - d.width) / 2.0,
+            y0 + gh + 13.0,
+            11.0,
+            if live { col_dim() } else { Color::from_rgba(80, 80, 96, 255) },
+        );
+    }
+}
+
+/// The whole battle screen: your board on the left, theirs on the right, the
+/// scoreboard between them, then cooldowns and the log underneath.
+fn render_battle(layout: &Layout, run: &Run, pb: &Playback) {
+    let Some(log) = run.log.as_ref() else { return };
+    let panel_x = layout.panel_x;
+    let board_w = mini_board_width();
+    let left_x = 30.0;
+    let right_x = panel_x - 30.0 - board_w;
+    let board_y = 66.0;
+    let gh = SLOT_H as f32 * MINI_CELL;
+
+    let reports = run.reports();
+    draw_text("YOUR GEAR", left_x, board_y - 14.0, 16.0, Color::from_rgba(120, 220, 150, 255));
+    render_mini_board(
+        left_x,
+        board_y,
+        &run.registry,
+        &run.loadout,
+        &reports,
+        Color::from_rgba(90, 150, 110, 255),
+    );
+
+    let enemy_label = format!("{}'s GEAR", log.enemy.name.to_uppercase());
+    let d = measure_text(&enemy_label, None, 16, 1.0);
+    draw_text(
+        &enemy_label,
+        right_x + board_w - d.width,
+        board_y - 14.0,
+        16.0,
+        Color::from_rgba(230, 140, 120, 255),
+    );
+    if pb.enemy_loadout.slots.iter().all(|s| s.is_empty()) {
+        // Monsters like the Cave Rat wear nothing at all.
+        centered_text(
+            "no gear - it just has teeth",
+            right_x + board_w / 2.0,
+            board_y + gh / 2.0,
+            15.0,
+            col_dim(),
+        );
+        draw_rectangle_lines(
+            right_x,
+            board_y,
+            board_w,
+            gh,
+            2.0,
+            Color::from_rgba(70, 54, 54, 255),
+        );
+    } else {
+        render_mini_board(
+            right_x,
+            board_y,
+            &pb.enemy_reg,
+            &pb.enemy_loadout,
+            &pb.enemy_reports,
+            Color::from_rgba(150, 90, 80, 255),
+        );
+    }
+
+    // The scoreboard sits in the gap between the two boards.
+    let mid_x = left_x + board_w;
+    let mid_w = right_x - mid_x;
+    centered_text("VS", mid_x + mid_w / 2.0, board_y + 40.0, 30.0, col_dim());
+    centered_text(
+        &format!("{:.1}s", pb.now_ms as f32 / 1000.0),
+        mid_x + mid_w / 2.0,
+        board_y + 70.0,
+        20.0,
+        col_gold(),
+    );
+    centered_text(
+        &format!("rung {} of {}", run.rung.min(LADDER.len() - 1) + 1, LADDER.len()),
+        mid_x + mid_w / 2.0,
+        board_y + 92.0,
+        13.0,
+        col_dim(),
+    );
+
+    // Health, armour and curses under each board.
+    let bar_y = board_y + gh + 46.0;
+    render_battle_side(
+        left_x,
+        bar_y,
+        board_w,
         &log.player.name,
         pb.player_hp,
         pb.player_max,
@@ -1156,8 +1269,10 @@ fn render_fight(layout: &Layout, run: &Run, pb: &Playback) {
         pb.flash_player,
         Color::from_rgba(90, 190, 120, 255),
     );
-    fighter(
-        area.x + area.w / 2.0 + 10.0,
+    render_battle_side(
+        right_x,
+        bar_y,
+        board_w,
         &log.enemy.name,
         pb.enemy_hp,
         pb.enemy_max,
@@ -1168,14 +1283,14 @@ fn render_fight(layout: &Layout, run: &Run, pb: &Playback) {
         Color::from_rgba(210, 110, 90, 255),
     );
 
-    // Cooldown bars, one row per item, under each fighter.
-    let bars_top = area.y + 182.0;
-    let rows = log.player.items.len().max(log.enemy.items.len());
+    // Cooldown bars, each side under its own board.
+    let cd_y = bar_y + 92.0;
+    draw_text("COOLDOWNS", left_x, cd_y - 8.0, 13.0, col_dim());
     for (i, it) in log.player.items.iter().enumerate() {
         render_cooldown_row(
-            area.x + 20.0,
-            bars_top + i as f32 * 19.0,
-            half,
+            left_x,
+            cd_y + i as f32 * 19.0,
+            board_w,
             &it.name,
             it.cooldown_ms,
             pb.player_schedule.get(i).map(|v| v.as_slice()).unwrap_or(&[]),
@@ -1185,9 +1300,9 @@ fn render_fight(layout: &Layout, run: &Run, pb: &Playback) {
     }
     for (i, it) in log.enemy.items.iter().enumerate() {
         render_cooldown_row(
-            area.x + area.w / 2.0 + 10.0,
-            bars_top + i as f32 * 19.0,
-            half,
+            right_x,
+            cd_y + i as f32 * 19.0,
+            board_w,
             &it.name,
             it.cooldown_ms,
             pb.enemy_schedule.get(i).map(|v| v.as_slice()).unwrap_or(&[]),
@@ -1195,24 +1310,19 @@ fn render_fight(layout: &Layout, run: &Run, pb: &Playback) {
             Color::from_rgba(210, 110, 90, 255),
         );
     }
-    if rows > 0 {
-        draw_text("COOLDOWNS", area.x + 20.0, bars_top - 10.0, 13.0, col_dim());
-    }
 
-    // Clock plus the rolling log.
-    let log_top = bars_top + rows as f32 * 19.0 + 26.0;
-    draw_text("COMBAT LOG", area.x + 20.0, log_top, 16.0, WHITE);
-    let clock = format!("{:.1}s", pb.now_ms as f32 / 1000.0);
-    draw_text(&clock, area.x + 140.0, log_top, 16.0, col_gold());
-
-    let visible = ((((area.y + area.h) - log_top - 34.0) / 19.0) as usize).max(1);
+    // Log fills whatever is left.
+    let rows = log.player.items.len().max(log.enemy.items.len());
+    let log_top = cd_y + rows as f32 * 19.0 + 28.0;
+    draw_text("COMBAT LOG", left_x, log_top, 15.0, WHITE);
+    let visible = (((LOGICAL_H - log_top - 40.0) / 19.0) as usize).max(1);
     let start = pb.lines.len().saturating_sub(visible);
     for (i, line) in pb.lines[start..].iter().enumerate() {
         let is_last = start + i == pb.lines.len() - 1;
         draw_text(
             line,
-            area.x + 20.0,
-            log_top + 24.0 + i as f32 * 19.0,
+            left_x,
+            log_top + 22.0 + i as f32 * 19.0,
             15.0,
             if is_last { WHITE } else { Color::from_rgba(150, 152, 172, 255) },
         );
@@ -1224,17 +1334,72 @@ fn render_fight(layout: &Layout, run: &Run, pb: &Playback) {
             Outcome::Defeat => ("DEFEAT", col_bad()),
             Outcome::Stalemate => ("STALEMATE", col_gold()),
         };
-        let bw = 300.0;
-        let bx = area.x + area.w - bw - 24.0;
-        let by = (log_top + 6.0).min(area.y + area.h - 92.0);
-        draw_rectangle(bx, by, bw, 76.0, Color::from_rgba(18, 18, 28, 240));
+        let bw = 320.0;
+        let bx = mid_x + (mid_w - bw) / 2.0;
+        let by = log_top - 6.0;
+        draw_rectangle(bx, by, bw, 76.0, Color::from_rgba(18, 18, 28, 245));
         draw_rectangle_lines(bx, by, bw, 76.0, 3.0, color);
-        centered_text(label, bx + bw / 2.0, by + 48.0, 38.0, color);
+        centered_text(label, bx + bw / 2.0, by + 50.0, 36.0, color);
     }
 }
 
-/// Buttons live in the right-hand panel; the same rects are used to draw and
-/// to hit-test.
+/// Name, health, armour, mana and curses for one side of the battle screen.
+#[allow(clippy::too_many_arguments)]
+fn render_battle_side(
+    x: f32,
+    y: f32,
+    w: f32,
+    name: &str,
+    hp: i32,
+    max: i32,
+    armor: i32,
+    mana: Option<i32>,
+    curses: &[(&'static str, u32)],
+    flash: f64,
+    tint: Color,
+) {
+    let flashing = get_time() - flash < FLASH_SECS;
+    draw_text(
+        name,
+        x,
+        y - 6.0,
+        18.0,
+        if hp <= 0 {
+            col_bad()
+        } else if flashing {
+            Color::from_rgba(255, 190, 190, 255)
+        } else {
+            WHITE
+        },
+    );
+    hp_bar(x, y, w, 24.0, hp, max, tint);
+
+    draw_rectangle(x, y + 27.0, w, 12.0, Color::from_rgba(30, 30, 42, 255));
+    if armor > 0 {
+        let frac = ((armor as f32) / (max.max(1) as f32)).clamp(0.0, 1.0);
+        draw_rectangle(x, y + 27.0, w * frac, 12.0, Color::from_rgba(150, 170, 210, 255));
+    }
+    draw_rectangle_lines(x, y + 27.0, w, 12.0, 1.0, Color::from_rgba(80, 80, 105, 255));
+
+    let mut label = format!("armor {}", armor);
+    if let Some(m) = mana {
+        label.push_str(&format!("   mana {}", m));
+    }
+    draw_text(&label, x, y + 54.0, 13.0, Color::from_rgba(160, 190, 225, 255));
+
+    let mut cx = x + 150.0;
+    for (kind, _) in curses {
+        let text = format!("curse of {}", kind);
+        let d = measure_text(&text, None, 12, 1.0);
+        draw_rectangle(cx - 4.0, y + 42.0, d.width + 10.0, 16.0, Color::from_rgba(90, 40, 90, 230));
+        draw_text(&text, cx + 1.0, y + 54.0, 12.0, Color::from_rgba(240, 190, 240, 255));
+        cx += d.width + 14.0;
+    }
+    if hp <= 0 {
+        draw_text("DOWN", x + w - 52.0, y - 6.0, 18.0, col_bad());
+    }
+}
+
 fn button_rects(panel_x: f32) -> [Rect; 4] {
     let w = PANEL_W - 40.0;
     let x = panel_x + 20.0;
@@ -1451,6 +1616,11 @@ async fn main() {
         run.apply_preset();
         message = "Auto-built a complete loadout - every bonus is lit.".to_string();
     }
+    if let Ok(r) = std::env::var("GEARMASTER_RUNG") {
+        if let Ok(n) = r.parse::<usize>() {
+            run.rung = n;
+        }
+    }
     if std::env::var("GEARMASTER_FIGHT").is_ok() {
         pb = Some(Playback::new(run.fight_next()));
         message = "Fight in progress.".to_string();
@@ -1492,12 +1662,12 @@ async fn main() {
         }
 
         // ---------------------------------------------------- render
-        render_slots(&layout, &run, &reports, &drag);
         if run.phase == Phase::Fighting {
             if let Some(p) = pb.as_ref() {
-                render_fight(&layout, &run, p);
+                render_battle(&layout, &run, p);
             }
         } else {
+            render_slots(&layout, &run, &reports, &drag);
             render_shop(&layout, &run, mx, my);
             render_inventory(&layout, &run, &drag, mx, my);
         }
