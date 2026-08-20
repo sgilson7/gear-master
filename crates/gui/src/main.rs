@@ -40,8 +40,19 @@ const SHAKE_PX: f32 = 3.4;
 const MINI_CELL: f32 = 32.0;
 const MINI_GAP: f32 = 14.0;
 
-/// Playback rate a fight opens at, and the rates the speed button cycles.
+/// Playback rate a fight opens at.
 const DEFAULT_SPEED: f32 = 1.0;
+
+/// Step through the playback rates. Settable before a fight as well as during
+/// one, so you can line up a slow replay in advance.
+fn next_speed(speed: f32) -> f32 {
+    match speed {
+        s if s >= 2.0 => 1.0,
+        s if s >= 1.0 => 0.5,
+        s if s >= 0.5 => 0.25,
+        _ => 2.0,
+    }
+}
 /// How long a struck fighter's panel stays tinted.
 const FLASH_SECS: f64 = 0.22;
 
@@ -521,7 +532,7 @@ fn schedule_for(log: &CombatLog, want: Side, count: usize) -> Vec<Vec<u32>> {
 }
 
 impl Playback {
-    fn new(log: &CombatLog, player_profiles: &[ItemProfile]) -> Self {
+    fn new(log: &CombatLog, player_profiles: &[ItemProfile], speed: f32) -> Self {
         let (er, eloadout) = log.spec.loadout();
         let (er2, eloadout2) = (er.clone(), eloadout.clone());
         let eprof = eloadout.combat_items(&er);
@@ -529,7 +540,7 @@ impl Playback {
         Playback {
             last_wall: get_time(),
             sim_ms: 0,
-            speed: DEFAULT_SPEED,
+            speed,
             cursor: 0,
             player_hp: log.player.health,
             player_max: log.player.max_health,
@@ -641,15 +652,7 @@ impl Playback {
         self.enemy_curses.retain(|c| c.1 > self.now_ms);
     }
 
-    /// Step through the available speeds, slowest last so it is easy to reach.
-    fn cycle_speed(&mut self) {
-        self.speed = match self.speed {
-            s if s >= 2.0 => 1.0,
-            s if s >= 1.0 => 0.5,
-            s if s >= 0.5 => 0.25,
-            _ => 2.0,
-        };
-    }
+
 
     fn skip_to_end(&mut self, run: &Run) {
         let Some(log) = run.log.as_ref() else { return };
@@ -1782,6 +1785,67 @@ fn render_log_overlay(pb: &Playback) {
     }
 }
 
+/// Plain-English meanings for the words the interface throws around. Opened
+/// from the panel or with G, and available mid-fight too.
+const GLOSSARY: &[(&str, &str)] = &[
+    ("HEALTH", "How much damage you can take. At zero the fight is over."),
+    ("ARMOR", "Temporary hit points. Starts every fight at ZERO - gear builds it up as it activates - and soaks damage before health does."),
+    ("STRENGTH", "Added to every weapon hit, before power multiplies it."),
+    ("POWER", "A multiplier on weapon damage, shown like 2.45x."),
+    ("DAMAGE", "Flat damage a component lends the weapon it is built into."),
+    ("A HIT", "(the item's flat damage + your strength) x your power. Only assembled weapons swing."),
+    ("REGEN", "Health restored per second, never above your maximum."),
+    ("MANA", "Banked by some items, spent by others. A trigger that cannot pay runs its failure branch instead - often a curse on you."),
+    ("MIND DAMAGE", "Lowers your MAXIMUM health rather than your current, so regeneration can never win it back."),
+    ("MIND RESIST", "Percent cut to incoming mind damage."),
+    ("CURSE", "A timed effect landed on either fighter - yourself included."),
+    ("  SEARING", "10 damage a second, for 10 seconds."),
+    ("  FROST", "The target's gear runs 50% slower, for 1 second."),
+    ("CURSE RESIST", "Shortens curses landed on you. At 100% they never land."),
+    ("COOLDOWN", "Seconds between one item's activations. Every item runs its own."),
+    ("CORE", "The component a recipe needs exactly one of: handle, frame, base or material. It anchors an item, which is why two items can touch and still count separately."),
+    ("ASSEMBLED", "An item whose components match its slot's recipe. Only assembled items act in combat - loose pieces still give passive stats, but never fire."),
+    ("ADJACENT", "Two items in the same slot whose cells orthogonally touch."),
+    ("ALIGNED", "Two items in different slots whose rows overlap."),
+];
+
+/// The glossary, over the top of whatever is behind it. Returns the CLOSE
+/// button so the caller can hit-test it.
+fn render_glossary(mx: f32, my: f32) -> Rect {
+    let pad = 56.0;
+    let r = Rect::new(pad, pad, LOGICAL_W - 2.0 * pad, LOGICAL_H - 2.0 * pad);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 228));
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::from_rgba(120, 120, 155, 255));
+    ui_text("WHAT THE WORDS MEAN", r.x + 24.0, r.y + 38.0, 20.0, col_gold());
+    ui_text("G or Esc to close", r.x + 24.0, r.y + 62.0, 12.0, col_dim());
+
+    let close = Rect::new(r.x + r.w - 140.0, r.y + 16.0, 120.0, 34.0);
+    button(close, "CLOSE", true, mx, my);
+
+    let col_w = (r.w - 72.0) / 2.0;
+    let lh = line_h(13.0);
+    let mut col = 0usize;
+    let mut y = r.y + 96.0;
+    for (term, meaning) in GLOSSARY {
+        let lines = wrap(meaning, 48);
+        let needed = lh * (1.0 + lines.len() as f32) + 10.0;
+        if y + needed > r.y + r.h - 16.0 && col == 0 {
+            col = 1;
+            y = r.y + 96.0;
+        }
+        let x = r.x + 24.0 + col as f32 * (col_w + 24.0);
+        ui_text(term, x, y, 13.0, Color::from_rgba(150, 200, 240, 255));
+        y += lh;
+        for l in lines {
+            ui_text(&l, x + 14.0, y, 13.0, Color::from_rgba(198, 200, 218, 255));
+            y += lh;
+        }
+        y += 10.0;
+    }
+    close
+}
+
 /// Name, health, armour, mana and curses for one side of the battle screen.
 #[allow(clippy::too_many_arguments)]
 fn render_battle_side(
@@ -1839,24 +1903,27 @@ fn render_battle_side(
     }
 }
 
-fn button_rects(panel_x: f32) -> [Rect; 4] {
+fn button_rects(panel_x: f32) -> [Rect; 5] {
     let w = PANEL_W - 40.0;
     let x = panel_x + 20.0;
-    let y = LOGICAL_H - 232.0;
+    let y = LOGICAL_H - 272.0;
     [
         Rect::new(x, y, w, 46.0),
         Rect::new(x, y + 56.0, w / 2.0 - 5.0, 40.0),
         Rect::new(x + w / 2.0 + 5.0, y + 56.0, w / 2.0 - 5.0, 40.0),
         Rect::new(x, y + 106.0, w, 40.0),
+        Rect::new(x, y + 156.0, w, 40.0),
     ]
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_panel(
     layout: &Layout,
     run: &Run,
     reports: &[SlotReport],
     message: &str,
     pb: &Option<Playback>,
+    speed: f32,
     mx: f32,
     my: f32,
 ) {
@@ -2030,10 +2097,11 @@ fn render_panel(
         button(r[2], "REMATCH", true, mx, my);
     } else {
         button(r[0], "BEGIN FIGHT", true, mx, my);
-        button(r[1], "AUTO-BUILD", true, mx, my);
+        button(r[1], &format!("SPEED {}x", speed_label(speed)), true, mx, my);
         button(r[2], "CLEAR ALL", true, mx, my);
     }
-    button(r[3], "F12  save screenshot", true, mx, my);
+    button(r[3], "WHAT THE WORDS MEAN", true, mx, my);
+    button(r[4], "F12  save screenshot", true, mx, my);
 }
 
 // ================================================================= main
@@ -2047,6 +2115,9 @@ async fn main() {
     let mut settled = false;
     // The combat log is a quiet strip unless you ask to see all of it.
     let mut log_expanded = std::env::var("GEARMASTER_LOG").is_ok();
+    // Kept between fights, and settable before one starts.
+    let mut playback_speed = DEFAULT_SPEED;
+    let mut glossary_open = std::env::var("GEARMASTER_GLOSSARY").is_ok();
     let mut message =
         String::from("Drag components into a slot. Pieces must touch to become gear.");
 
@@ -2065,7 +2136,7 @@ async fn main() {
     if std::env::var("GEARMASTER_FIGHT").is_ok() {
         pb = Some({
                     let profiles = run.combat_items();
-                    Playback::new(run.fight_next(), &profiles)
+                    Playback::new(run.fight_next(), &profiles, playback_speed)
                 });
         message = "Fight in progress.".to_string();
     }
@@ -2142,7 +2213,7 @@ async fn main() {
         }
 
         if run.phase != Phase::Fighting {
-            render_panel(&layout, &run, &reports, &message, &pb, mx, my);
+            render_panel(&layout, &run, &reports, &message, &pb, playback_speed, mx, my);
         }
 
         // Tooltip for whatever is under the cursor (never while dragging).
@@ -2176,6 +2247,35 @@ async fn main() {
             }
         }
 
+        // The glossary sits over everything and eats input while open, so a
+        // click meant for CLOSE never also lands on the board behind it.
+        if glossary_open {
+            let close = render_glossary(mx, my);
+            if is_mouse_button_pressed(MouseButton::Left) && close.contains(Vec2::new(mx, my)) {
+                glossary_open = false;
+            }
+            if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::G) {
+                glossary_open = false;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
+        }
+        if is_key_pressed(KeyCode::G) {
+            glossary_open = true;
+        }
+
         // ----------------------------------------------------- input
         let rects = button_rects(layout.panel_x);
         let clicked_button = |i: usize| {
@@ -2200,33 +2300,35 @@ async fn main() {
             } else if hit(2) {
                 pb = Some({
                     let profiles = run.combat_items();
-                    Playback::new(run.fight_next(), &profiles)
+                    Playback::new(run.fight_next(), &profiles, playback_speed)
                 });
                 settled = false;
             } else if hit(3) {
                 log_expanded = !log_expanded;
             } else if hit(4) {
+                playback_speed = next_speed(playback_speed);
                 if let Some(p) = pb.as_mut() {
-                    p.cycle_speed();
-                    message = format!("Playback at {}x.", speed_label(p.speed));
+                    p.speed = playback_speed;
                 }
+                message = format!("Playback at {}x.", speed_label(playback_speed));
             }
         } else {
             if clicked_button(0) {
                 pb = Some({
                     let profiles = run.combat_items();
-                    Playback::new(run.fight_next(), &profiles)
+                    Playback::new(run.fight_next(), &profiles, playback_speed)
                 });
                 settled = false;
                 message = "Fight in progress.".to_string();
             } else if clicked_button(1) {
-                run.apply_preset();
-                drag = Drag::None;
-                message = "Auto-built a complete loadout - every bonus is lit.".to_string();
+                playback_speed = next_speed(playback_speed);
+                message = format!("Fights will replay at {}x.", speed_label(playback_speed));
             } else if clicked_button(2) {
                 run.clear_all();
                 drag = Drag::None;
                 message = "Cleared. Every slot is empty again.".to_string();
+            } else if clicked_button(3) {
+                glossary_open = true;
             }
         }
 

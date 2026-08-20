@@ -61,7 +61,8 @@ After `make install` you can just type `gearmaster` from anywhere. Plain
      filling to the gear that produced it.
    * **Hover any cooldown row** for a full summary of that item: what it adds
      to you out of combat, and what it does each time it fires.
-   * **SPEED** cycles 1x / 0.5x / 0.25x / 2x, mid-fight.
+   * **SPEED** cycles 1x / 0.5x / 0.25x / 2x, and can be set before the fight
+     starts as well as during it.
    * **FULL LOG** overlays the whole transcript; otherwise the log stays a
      quiet three-line strip.
 8. Each assembled
@@ -71,8 +72,11 @@ After `make install` you can just type `gearmaster` from anywhere. Plain
 
 Controls: left-drag to move a piece, right-click to rotate (held or in place),
 drag back to the tray to remove, `Esc` to cancel a drag, `F12` to screenshot.
-**AUTO-BUILD** fills every slot with a legal loadout if you want to see the
-end state immediately.
+**G** opens a glossary of every term the game uses — also reachable from the
+**WHAT THE WORDS MEAN** button, and available mid-fight.
+
+**SPEED** sets the replay rate (1x / 0.5x / 0.25x / 2x) and can be set *before*
+a fight as well as during one; the setting carries between fights.
 
 ## Rules as implemented
 
@@ -316,6 +320,11 @@ different:
 - **Two spare components** — Bone Frame and Hide Base — were added so the
   helmet and chest slots can host two items at once like the other three
   already could.
+
+There is no auto-build button: every loadout has to be bought and placed. The
+preset itself still exists for testing — `Run::apply_preset()` backs several
+tests, and `GEARMASTER_PRESET=1 cargo run -p gearmaster-gui` starts the game
+fully geared.
 
 ## Not built yet
 
