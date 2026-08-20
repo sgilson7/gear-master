@@ -81,7 +81,7 @@ impl Shop {
     }
 
     pub fn price(&self, slot: usize) -> Option<i32> {
-        self.def(slot).map(|d| d.price)
+        self.def(slot).map(crate::rating::shop_price)
     }
 
     /// Remove the component in `slot` from the shelf, returning its catalog

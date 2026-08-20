@@ -190,6 +190,96 @@ impl MonsterSpec {
     }
 }
 
+/// How much harder than a baseline run this is.
+///
+/// The scale is what the player picks - 1x, 3x, 9x, 27x - and it is the
+/// monster's total effectiveness that gets multiplied, not any one stat.
+/// Splitting it evenly between staying alive and hitting back means each side
+/// takes the square root, so their product is the factor you chose: Insane is
+/// a monster about 5.2 times tougher and 5.2 times deadlier, which is 27 times
+/// the fight.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Difficulty {
+    Easy,
+    Medium,
+    Hard,
+    Insane,
+}
+
+impl Difficulty {
+    pub const ALL: &'static [Difficulty] =
+        &[Difficulty::Easy, Difficulty::Medium, Difficulty::Hard, Difficulty::Insane];
+
+    /// The advertised multiple: how many times as effective the opposition is.
+    pub fn factor(self) -> f32 {
+        match self {
+            Difficulty::Easy => 1.0,
+            Difficulty::Medium => 3.0,
+            Difficulty::Hard => 9.0,
+            Difficulty::Insane => 27.0,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Difficulty::Easy => "EASY",
+            Difficulty::Medium => "MEDIUM",
+            Difficulty::Hard => "HARD",
+            Difficulty::Insane => "INSANE",
+        }
+    }
+
+    pub fn label(self) -> String {
+        format!("{}x", self.factor() as i32)
+    }
+
+    /// What each half of the fight is multiplied by.
+    pub fn each_way(self) -> f32 {
+        self.factor().sqrt()
+    }
+
+    /// Standing bonuses the opposition gets on top of the raw scaling. These
+    /// are the prototype for class passives: a named rule that edits a
+    /// combatant's stats once, at the start of the fight.
+    pub fn passives(self) -> &'static [Passive] {
+        match self {
+            Difficulty::Easy => &[],
+            Difficulty::Medium => &[Passive::Hardened],
+            Difficulty::Hard => &[Passive::Hardened, Passive::Warded],
+            Difficulty::Insane => &[Passive::Hardened, Passive::Warded, Passive::Relentless],
+        }
+    }
+}
+
+/// A standing rule that edits a combatant before the fight starts.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Passive {
+    /// Knits itself back together: regeneration every second.
+    Hardened,
+    /// Turns aside the mind and the curse alike.
+    Warded,
+    /// Never stops coming: everything it does lands sooner.
+    Relentless,
+}
+
+impl Passive {
+    pub fn name(self) -> &'static str {
+        match self {
+            Passive::Hardened => "Hardened",
+            Passive::Warded => "Warded",
+            Passive::Relentless => "Relentless",
+        }
+    }
+
+    pub fn describe(self) -> &'static str {
+        match self {
+            Passive::Hardened => "regenerates 4 health a second",
+            Passive::Warded => "40% mind and curse resistance",
+            Passive::Relentless => "every one of its items runs 25% faster",
+        }
+    }
+}
+
 /// The original opponent, named because several tests predate the ladder.
 pub const RUST_GOLEM: MonsterSpec = MonsterSpec {
     name: "Rust Golem",
@@ -496,6 +586,12 @@ pub struct RunningItem {
     pub curse: Option<CurseKind>,
     /// Fingerprint used to draw this item's emblem.
     pub sigil_seed: u64,
+    /// Weapon power that applies to this item alone - a spell's ink.
+    pub power_bonus: i32,
+    /// The payloads a spell cycles through. Empty for ordinary gear.
+    pub casts: Vec<crate::loadout::Cast>,
+    /// Which payload the next cast will use.
+    pub cast_index: usize,
 }
 
 impl RunningItem {
@@ -516,6 +612,9 @@ impl RunningItem {
             curse: None,
             sigil_seed: p.sigil_seed,
             rating: p.rating,
+            power_bonus: p.power_bonus,
+            casts: p.casts.clone(),
+            cast_index: 0,
         }
     }
 
@@ -536,6 +635,9 @@ impl RunningItem {
             curse: a.curse,
             // Innate attacks have no gear behind them, so seed off the name.
             rating: 0,
+            power_bonus: 0,
+            casts: Vec::new(),
+            cast_index: 0,
             sigil_seed: a.name.bytes().fold(0x1234_5678_u64, |h, b| {
                 h.rotate_left(5) ^ b as u64
             }),
@@ -608,11 +710,38 @@ impl Combatant {
     }
 
     pub fn monster(spec: &MonsterSpec) -> Self {
-        let (stats, profiles) = spec.outfit();
+        Combatant::monster_at(spec, Difficulty::Easy)
+    }
+
+    pub fn monster_at(spec: &MonsterSpec, difficulty: Difficulty) -> Self {
+        let (mut stats, profiles) = spec.outfit();
+
+        // Half the difficulty goes into staying alive and half into hitting
+        // back, so the two multiply out to the factor on the tin.
+        let each = difficulty.each_way();
+        stats.health = ((stats.health as f32) * each).round() as i32;
+        stats.strength = ((stats.strength as f32) * each).round() as i32;
+
+        let mut haste = 100;
+        for passive in difficulty.passives() {
+            match passive {
+                Passive::Hardened => stats.regen += 4,
+                Passive::Warded => {
+                    stats.mind_resist += 40;
+                    stats.curse_resist += 40;
+                }
+                Passive::Relentless => haste = 125,
+            }
+        }
         // Innate attacks first, then anything its gear assembles.
         let mut items: Vec<RunningItem> =
             spec.attacks.iter().map(RunningItem::from_attack).collect();
         items.extend(profiles.iter().map(RunningItem::from_profile));
+        if haste != 100 {
+            for it in &mut items {
+                it.cooldown_ms = ((it.cooldown_ms as i64 * 100 / haste as i64) as u32).max(TICK_MS);
+            }
+        }
         Combatant {
             name: spec.name.to_string(),
             max_health: stats.health,
@@ -864,8 +993,17 @@ impl CombatLog {
 ///
 /// Nothing here consults a random number generator.
 pub fn simulate(player_stats: Stats, profiles: &[ItemProfile], spec: &MonsterSpec) -> CombatLog {
+    simulate_at(player_stats, profiles, spec, Difficulty::Easy)
+}
+
+pub fn simulate_at(
+    player_stats: Stats,
+    profiles: &[ItemProfile],
+    spec: &MonsterSpec,
+    difficulty: Difficulty,
+) -> CombatLog {
     let start_player = Combatant::player(player_stats, profiles);
-    let start_enemy = Combatant::monster(spec);
+    let start_enemy = Combatant::monster_at(spec, difficulty);
     let mut p = start_player.clone();
     let mut e = start_enemy.clone();
     let mut log: Vec<LogEntry> = Vec::new();
@@ -992,10 +1130,38 @@ fn activate(
     t: u32,
     log: &mut Vec<LogEntry>,
 ) {
-    let item = pick(p, e, side).items[idx].clone();
+    let mut item = pick(p, e, side).items[idx].clone();
+
+    // A spell swaps in the payload whose turn it is. A book has bound one and
+    // casts it every time; a crystal ball cycles through the two or three it
+    // holds, so the same item does something different each time it comes
+    // round. The index lives on the combatant's copy, not this clone.
+    let mut cast_name = None;
+    if !item.casts.is_empty() {
+        let n = item.casts.len();
+        let which = item.cast_index % n;
+        let cast = item.casts[which].clone();
+        item.damage = cast.stats.damage;
+        item.mind = cast.stats.mind;
+        item.armor = cast.stats.armor;
+        item.mana = cast.stats.mana;
+        item.triggers = cast.triggers;
+        if n > 1 {
+            cast_name = Some(cast.name);
+        }
+        pick(p, e, side).items[idx].cast_index = (which + 1) % n;
+    }
+
     log.push(LogEntry {
         at_ms: t,
-        event: Event::Activate { side, item: item.name.clone(), index: idx },
+        event: Event::Activate {
+            side,
+            item: match cast_name {
+                Some(spell) => format!("{} ({})", item.name, spell),
+                None => item.name.clone(),
+            },
+            index: idx,
+        },
     });
 
     // Weapons swing; everything else just does its job. A monster's attacks
@@ -1006,7 +1172,8 @@ fn activate(
             let me = pick(p, e, side);
             (me.strength, me.effective_power())
         };
-        let raw = (item.damage + strength) as i64 * power as i64 / 100;
+        // The wearer's power, plus whatever ink is bound into this item alone.
+        let raw = (item.damage + strength) as i64 * (power + item.power_bonus) as i64 / 100;
         let raw = raw.max(0) as i32;
         if raw > 0 {
             let target = pick(p, e, side.other());

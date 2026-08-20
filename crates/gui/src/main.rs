@@ -9,7 +9,8 @@ use gearmaster_engine::loadout::{ItemProfile, Loadout, SlotReport};
 use gearmaster_engine::piece::{
     default_cooldown_ms, PieceDef, PieceId, PieceKind, PieceRegistry, SlotKind,
 };
-use gearmaster_engine::rating::Rarity;
+use gearmaster_engine::rating::{resale_price, shop_price, Rarity};
+use gearmaster_engine::combat::Difficulty;
 use gearmaster_engine::run::{Mode, ROGUE_LIVES};
 use gearmaster_engine::run::{Phase, Run};
 use gearmaster_engine::shop::REROLL_COST;
@@ -652,9 +653,21 @@ fn slot_sat(slot: SlotKind) -> f32 {
 /// yellow in particular flattens its top two steps into one.
 fn kind_luminance(kind: PieceKind) -> f32 {
     match kind {
-        PieceKind::Handle | PieceKind::Frame | PieceKind::Base | PieceKind::Material => 0.22,
-        PieceKind::Damaging | PieceKind::Plating | PieceKind::Layer | PieceKind::Mold => 0.45,
-        PieceKind::Accessory | PieceKind::Crest => 0.72,
+        // Cores darkest, the middle of a recipe next, the trim lightest. A
+        // book or an orb anchors a spell exactly as a handle anchors a weapon,
+        // so it reads at the same brightness.
+        PieceKind::Handle
+        | PieceKind::Frame
+        | PieceKind::Base
+        | PieceKind::Material
+        | PieceKind::Book
+        | PieceKind::Orb => 0.22,
+        PieceKind::Damaging
+        | PieceKind::Plating
+        | PieceKind::Layer
+        | PieceKind::Mold
+        | PieceKind::Ink => 0.45,
+        PieceKind::Accessory | PieceKind::Crest | PieceKind::Spell => 0.72,
     }
 }
 
@@ -1598,7 +1611,7 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
 
     for card in &layout.shop_cards {
         let def = card.def;
-        let afford = run.gold >= def.price;
+        let afford = run.gold >= shop_price(def);
         let hovered = card.rect.contains(Vec2::new(mx, my));
 
         draw_rectangle(
@@ -1648,7 +1661,7 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
         }
         centered_text(def.kind.name(), cx, card.rect.bottom() - 28.0, 12.0, col_dim());
         centered_text(
-            &format!("{} gold", def.price),
+            &format!("{} gold", shop_price(def)),
             cx,
             card.rect.bottom() - 9.0,
             14.0,
@@ -1768,7 +1781,7 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
             );
             draw_rectangle_lines(b.x, b.y, b.w, b.h, 1.5, if hot { col_gold() } else { col_dim() });
             centered_text(
-                &format!("SELL {}g", def.price / 2),
+                &format!("SELL {}g", resale_price(def)),
                 b.x + b.w / 2.0,
                 b.y + b.h - 7.0,
                 13.0,
@@ -1862,7 +1875,7 @@ fn render_def_tooltip_inner(
             lines.push((l, col_trigger()));
         }
     }
-    lines.push((format!("{} gold", def.price), col_gold()));
+    lines.push((format!("{} gold", shop_price(def)), col_gold()));
 
     let w = lines
         .iter()
@@ -2834,6 +2847,21 @@ fn draw_tile_legend(x: f32, y: f32, w: f32) -> f32 {
     ty - y + 10.0
 }
 
+/// A seed taken from the wall clock, so a fresh run stocks a different shop
+/// every time. `miniquad::date::now` is used rather than `SystemTime` because
+/// this has to work in the browser too, where `SystemTime::now` panics.
+fn clock_seed() -> u64 {
+    let t = macroquad::miniquad::date::now();
+    // Milliseconds since the epoch, then stirred so nearby starts diverge.
+    let ms = (t * 1000.0) as u64;
+    let mut h = ms ^ 0x9E37_79B9_7F4A_7C15;
+    h ^= h >> 30;
+    h = h.wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    h ^= h >> 27;
+    h = h.wrapping_mul(0x94D0_49BB_1331_11EB);
+    h ^ (h >> 31)
+}
+
 /// What the window is showing before the run proper starts.
 #[derive(Copy, Clone, PartialEq, Eq)]
 enum Opening {
@@ -2945,22 +2973,27 @@ fn render_intro(page: usize, mx: f32, my: f32) -> (Rect, Rect) {
     (back, next)
 }
 
-/// The mode picker, shown once the intro is done. Returns each mode's rect.
-fn render_mode_select(mx: f32, my: f32) -> [(Mode, Rect); 2] {
+/// The mode and difficulty picker, shown once the intro is done. Returns the
+/// rects for both rows so the caller can hit-test them.
+fn render_mode_select(
+    chosen: Difficulty,
+    mx: f32,
+    my: f32,
+) -> ([(Mode, Rect); 2], Vec<(Difficulty, Rect)>) {
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, col_bg());
-    centered_text("HOW DO YOU WANT TO PLAY?", LOGICAL_W / 2.0, 130.0, 30.0, col_gold());
+    centered_text("HOW DO YOU WANT TO PLAY?", LOGICAL_W / 2.0, 84.0, 28.0, col_gold());
     centered_text(
         "Either way a loss still pays the bounty, and never moves you up the ladder.",
         LOGICAL_W / 2.0,
-        176.0,
-        16.0,
+        122.0,
+        15.0,
         col_dim(),
     );
 
-    let (cw, ch) = (520.0, 420.0);
-    let gap = 60.0;
+    let (cw, ch) = (500.0, 330.0);
+    let gap = 56.0;
     let x0 = (LOGICAL_W - (2.0 * cw + gap)) / 2.0;
-    let y0 = 240.0;
+    let y0 = 158.0;
     let modes = [Mode::Grinder, Mode::Rogue];
     let mut out = [(Mode::Grinder, Rect::new(0.0, 0.0, 0.0, 0.0)); 2];
 
@@ -2982,61 +3015,136 @@ fn render_mode_select(mx: f32, my: f32) -> [(Mode, Rect); 2] {
             if hot { 3.0 } else { 1.5 },
             if hot { col_gold() } else { Color::from_rgba(80, 80, 105, 255) },
         );
-        centered_text(mode.name(), rect.x + rect.w / 2.0, rect.y + 62.0, 28.0, WHITE);
+        centered_text(mode.name(), rect.x + rect.w / 2.0, rect.y + 52.0, 26.0, WHITE);
 
-        let mut y = rect.y + 118.0;
-        for line in wrap_px(mode.blurb(), rect.w - 60.0, 16.0) {
-            centered_text(&line, rect.x + rect.w / 2.0, y, 16.0, LIGHTGRAY);
-            y += line_h(16.0);
+        let mut y = rect.y + 100.0;
+        for line in wrap_px(mode.blurb(), rect.w - 60.0, 15.0) {
+            centered_text(&line, rect.x + rect.w / 2.0, y, 15.0, LIGHTGRAY);
+            y += line_h(15.0);
         }
 
-        // A little diagram of what a loss costs.
-        y = rect.y + rect.h - 150.0;
+        y = rect.y + rect.h - 110.0;
         match mode {
             Mode::Grinder => {
-                centered_text("on a loss", rect.x + rect.w / 2.0, y, 14.0, col_dim());
                 for step in 0..5 {
                     let sx = rect.x + rect.w / 2.0 - 100.0 + step as f32 * 50.0;
-                    let lit = step <= 2;
                     draw_rectangle(
                         sx,
-                        y + 24.0,
+                        y,
                         36.0,
-                        22.0,
-                        if lit { col_you() } else { Color::from_rgba(48, 48, 64, 255) },
+                        20.0,
+                        if step <= 2 { col_you() } else { Color::from_rgba(48, 48, 64, 255) },
                     );
                 }
                 centered_text(
                     "you drop back a rung, and farm it",
                     rect.x + rect.w / 2.0,
-                    y + 78.0,
-                    15.0,
+                    y + 50.0,
+                    14.0,
                     col_you(),
                 );
             }
             Mode::Rogue => {
-                centered_text("on a loss", rect.x + rect.w / 2.0, y, 14.0, col_dim());
                 for life in 0..ROGUE_LIVES {
                     let sx = rect.x + rect.w / 2.0 - 60.0 + life as f32 * 60.0;
                     if life < ROGUE_LIVES - 1 {
-                        draw_circle(sx, y + 36.0, 14.0, col_foe());
+                        draw_circle(sx, y + 10.0, 13.0, col_foe());
                     } else {
-                        draw_circle_lines(sx, y + 36.0, 14.0, 2.0, col_dim());
+                        draw_circle_lines(sx, y + 10.0, 13.0, 2.0, col_dim());
                     }
                 }
                 centered_text(
                     "one of three lives, then it all goes",
                     rect.x + rect.w / 2.0,
-                    y + 78.0,
-                    15.0,
+                    y + 50.0,
+                    14.0,
                     col_foe(),
                 );
             }
         }
         out[i] = (mode, rect);
     }
-    out
+
+    // ---- difficulty ----
+    let dy = y0 + ch + 46.0;
+    centered_text("HOW HARD?", LOGICAL_W / 2.0, dy, 22.0, col_gold());
+    centered_text(
+        "The multiple is how much more effective the opposition is - split evenly between \
+         staying alive and hitting back.",
+        LOGICAL_W / 2.0,
+        dy + 30.0,
+        14.0,
+        col_dim(),
+    );
+
+    let n = Difficulty::ALL.len() as f32;
+    let dw = 250.0;
+    let dgap = 18.0;
+    let dx0 = (LOGICAL_W - (n * dw + (n - 1.0) * dgap)) / 2.0;
+    let mut picks = Vec::new();
+    for (i, &d) in Difficulty::ALL.iter().enumerate() {
+        let rect = Rect::new(dx0 + i as f32 * (dw + dgap), dy + 50.0, dw, 132.0);
+        let hot = rect.contains(Vec2::new(mx, my));
+        let picked = d == chosen;
+        draw_rectangle(
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            if picked {
+                Color::from_rgba(44, 40, 26, 255)
+            } else if hot {
+                Color::from_rgba(34, 34, 50, 255)
+            } else {
+                Color::from_rgba(22, 22, 34, 255)
+            },
+        );
+        draw_rectangle_lines(
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            if picked || hot { 3.0 } else { 1.5 },
+            if picked { col_gold() } else if hot { LIGHTGRAY } else { Color::from_rgba(80, 80, 105, 255) },
+        );
+        centered_text(d.name(), rect.x + rect.w / 2.0, rect.y + 34.0, 19.0, WHITE);
+        centered_text(
+            &d.label(),
+            rect.x + rect.w / 2.0,
+            rect.y + 66.0,
+            24.0,
+            if picked { col_gold() } else { col_dim() },
+        );
+        // What that actually buys the monster.
+        let each = d.each_way();
+        centered_text(
+            &format!("{:.1}x tougher, {:.1}x deadlier", each, each),
+            rect.x + rect.w / 2.0,
+            rect.y + 92.0,
+            12.0,
+            col_dim(),
+        );
+        let names: Vec<&str> = d.passives().iter().map(|p| p.name()).collect();
+        centered_text(
+            &if names.is_empty() { String::from("no passives") } else { names.join(", ") },
+            rect.x + rect.w / 2.0,
+            rect.y + 114.0,
+            12.0,
+            if names.is_empty() { col_dim() } else { col_foe() },
+        );
+        picks.push((d, rect));
+    }
+
+    centered_text(
+        "pick a difficulty, then a mode to begin",
+        LOGICAL_W / 2.0,
+        dy + 214.0,
+        15.0,
+        LIGHTGRAY,
+    );
+    (out, picks)
 }
+
 
 /// The glossary, over the top of whatever is behind it. Returns the CLOSE
 /// button so the caller can hit-test it.
@@ -3348,8 +3456,8 @@ fn render_panel(
 
     ui_text("RUN", x + 20.0, y, 14.0, col_dim());
     let mode_label = match run.lives_left() {
-        Some(n) => format!("{}  ·  {} lives", run.mode.name(), n),
-        None => run.mode.name().to_string(),
+        Some(n) => format!("{} {}  ·  {} lives", run.mode.name(), run.difficulty.label(), n),
+        None => format!("{} {}", run.mode.name(), run.difficulty.label()),
     };
     let m_w = text_width(&mode_label, 13.0);
     ui_text(
@@ -3472,6 +3580,15 @@ async fn main() {
         || std::env::var("GEARMASTER_FIGHT").is_ok()
         || std::env::var("GEARMASTER_SKIP_INTRO").is_ok();
     let mut opening = if skip_intro { Opening::Playing } else { Opening::Intro(0) };
+    let mut chosen_difficulty = Difficulty::Easy;
+    if let Ok(d) = std::env::var("GEARMASTER_DIFFICULTY") {
+        chosen_difficulty = Difficulty::ALL
+            .iter()
+            .copied()
+            .find(|x| x.name().eq_ignore_ascii_case(&d))
+            .unwrap_or(Difficulty::Easy);
+        run.difficulty = chosen_difficulty;
+    }
     // GEARMASTER_OPENING=mode|2|... opens on a given page, for screenshots.
     if let Ok(o) = std::env::var("GEARMASTER_OPENING") {
         opening = if o == "mode" {
@@ -3577,12 +3694,23 @@ async fn main() {
                     }
                 }
                 Opening::ModeSelect => {
-                    for (mode, rect) in render_mode_select(mx, my) {
+                    let (modes, difficulties) = render_mode_select(chosen_difficulty, mx, my);
+                    for (d, rect) in difficulties {
                         if clicked && rect.contains(Vec2::new(mx, my)) {
-                            run = Run::with_mode(mode);
+                            chosen_difficulty = d;
+                        }
+                    }
+                    for (mode, rect) in modes {
+                        if clicked && rect.contains(Vec2::new(mx, my)) {
+                            // The shop's rolls come from the clock, so two
+                            // runs started at different moments stock
+                            // differently. Tests still pin their own seeds.
+                            run = Run::start(clock_seed(), mode, chosen_difficulty);
                             message = format!(
-                                "{} run. Drag components into a slot - they must touch to become gear.",
-                                mode.name()
+                                "{} run, {} ({}). Drag components into a slot - they must touch to become gear.",
+                                mode.name(),
+                                chosen_difficulty.name(),
+                                chosen_difficulty.label()
                             );
                             opening = Opening::Playing;
                         }
@@ -4108,6 +4236,8 @@ mod tests {
             triggers: Vec::new(),
             adjacent_assembled_same_slot: 0,
         rating: 0,
+        power_bonus: 0,
+        casts: Vec::new(),
             sigil_seed: 0,
         }
     }

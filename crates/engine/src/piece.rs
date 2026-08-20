@@ -48,7 +48,10 @@ impl SlotKind {
             SlotKind::Chest => "1 base + 1-3 layers",
             SlotKind::Gloves => "1 material + 1 mold",
             SlotKind::Greaves => "1 material + 1 mold",
-            SlotKind::Weapon => "1 handle + 1-2 damaging + up to 2 accessories",
+            SlotKind::Weapon => {
+                "1 handle + 1-2 damaging + up to 2 accessories, OR 1 book + 1 ink + 1 spell, \
+                 OR 1 crystal ball + 1-2 ink + 2-3 spells"
+            }
         }
     }
 }
@@ -72,6 +75,12 @@ pub enum PieceKind {
     // Gloves + greaves
     Material,
     Mold,
+    // Weapon, the arcane way: a book or an orb sets the cadence, ink scales
+    // the payload, and the spell is the payload.
+    Book,
+    Ink,
+    Spell,
+    Orb,
 }
 
 impl PieceKind {
@@ -81,12 +90,21 @@ impl PieceKind {
     pub fn is_core(self) -> bool {
         matches!(
             self,
-            PieceKind::Handle | PieceKind::Frame | PieceKind::Base | PieceKind::Material
+            PieceKind::Handle
+                | PieceKind::Frame
+                | PieceKind::Base
+                | PieceKind::Material
+                | PieceKind::Book
+                | PieceKind::Orb
         )
     }
 
     pub fn name(self) -> &'static str {
         match self {
+            PieceKind::Book => "book",
+            PieceKind::Ink => "ink",
+            PieceKind::Spell => "spell",
+            PieceKind::Orb => "crystal ball",
             PieceKind::Handle => "handle",
             PieceKind::Damaging => "damaging",
             PieceKind::Accessory => "accessory",
@@ -291,6 +309,9 @@ pub struct PieceDef {
     /// Base cooldown in milliseconds. Only meaningful on a core piece — the
     /// item it anchors inherits it. `0` means "use the slot's default".
     pub cooldown_ms: u32,
+    /// Hundredths of weapon power added to THIS item only, never to the
+    /// wearer. What ink does: it scales the cast it is bound into.
+    pub power_bonus: i32,
     /// Percentage points added to the item's speed. `+100` doubles the rate,
     /// halving the cooldown. Summed across the item's pieces.
     pub speed_bonus: i32,
@@ -300,26 +321,50 @@ pub struct PieceDef {
     pub price: i32,
 }
 
-/// What a slot's recipe demands, as `(kind, min, max)` counts per item. The
-/// one place the recipes are written down: assembly checks them, and the
-/// rating works out what a slot can hold at best from the same table.
-pub fn recipe(kind: SlotKind) -> &'static [(PieceKind, usize, usize)] {
+/// What a slot's recipes demand, as `(kind, min, max)` counts per item. A slot
+/// can have more than one: an item counts as assembled if it satisfies any of
+/// them.
+///
+/// The weapon slot has three. The martial one is the original. The other two
+/// are spells - a book casts the one spell bound into it every time, while a
+/// crystal ball holds several and casts a different one each time it comes
+/// round, which is the whole difference between the two.
+pub fn recipes(kind: SlotKind) -> &'static [&'static [(PieceKind, usize, usize)]] {
     match kind {
         SlotKind::Weapon => &[
-            (PieceKind::Handle, 1, 1),
-            (PieceKind::Damaging, 1, 2),
-            (PieceKind::Accessory, 0, 2),
+            &[
+                (PieceKind::Handle, 1, 1),
+                (PieceKind::Damaging, 1, 2),
+                (PieceKind::Accessory, 0, 2),
+            ],
+            &[
+                (PieceKind::Book, 1, 1),
+                (PieceKind::Ink, 1, 1),
+                (PieceKind::Spell, 1, 1),
+                (PieceKind::Accessory, 0, 1),
+            ],
+            &[
+                (PieceKind::Orb, 1, 1),
+                (PieceKind::Ink, 1, 2),
+                (PieceKind::Spell, 2, 3),
+            ],
         ],
-        SlotKind::Helmet => &[
+        SlotKind::Helmet => &[&[
             (PieceKind::Frame, 1, 1),
             (PieceKind::Plating, 1, 2),
             (PieceKind::Crest, 0, 1),
-        ],
-        SlotKind::Chest => &[(PieceKind::Base, 1, 1), (PieceKind::Layer, 1, 3)],
+        ]],
+        SlotKind::Chest => &[&[(PieceKind::Base, 1, 1), (PieceKind::Layer, 1, 3)]],
         SlotKind::Gloves | SlotKind::Greaves => {
-            &[(PieceKind::Material, 1, 1), (PieceKind::Mold, 1, 1)]
+            &[&[(PieceKind::Material, 1, 1), (PieceKind::Mold, 1, 1)]]
         }
     }
+}
+
+/// The first recipe for a slot, which is the one the rating treats as its
+/// shape and the one the interface names.
+pub fn recipe(kind: SlotKind) -> &'static [(PieceKind, usize, usize)] {
+    recipes(kind)[0]
 }
 
 /// Cooldown used by a core piece that doesn't name its own, by slot. Weapons
@@ -416,6 +461,342 @@ impl PieceRegistry {
 // and exactly one piece per slot carries an adjacency bonus.
 
 pub static CATALOG: &[PieceDef] = &[
+    // ---- The deep end ----
+    //
+    // Gear meant for the harder difficulties. Prices come from the rating, so
+    // these are expensive by construction rather than by hand.
+    PieceDef {
+        name: "Godsteel Haft",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Handle,
+        cells: &[(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5)],
+        base: Stats::power(70),
+        adjacency: Some(Adjacency {
+            label: "Godsteel: +8 strength",
+            stats: Stats::strength(8),
+        }),
+        effect: None,
+        cooldown_ms: 3600,
+        speed_bonus: 0,
+        triggers: &[],
+        power_bonus: 0,
+        price: 40,
+    },
+    PieceDef {
+        name: "Sunderer",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Damaging,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1), (0, 2), (1, 2)],
+        base: Stats::damage(34),
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 15,
+        triggers: &[Trigger::OnActivate(Action::Curse {
+            kind: CurseKind::Searing,
+            target: Target::Enemy,
+        })],
+        power_bonus: 0,
+        price: 44,
+    },
+    PieceDef {
+        name: "Aegis Crown",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0, 0), (1, 0), (2, 0), (0, 1), (2, 1), (0, 2), (2, 2)],
+        base: Stats::health(60),
+        adjacency: Some(Adjacency {
+            label: "Aegis: 25% mind and curse resistance",
+            stats: Stats { mind_resist: 25, curse_resist: 25, ..Stats::ZERO },
+        }),
+        effect: None,
+        cooldown_ms: 2800,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::GainArmor(16))],
+        power_bonus: 0,
+        price: 38,
+    },
+    PieceDef {
+        name: "Adamant Carapace",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Base,
+        cells: &[(0, 0), (1, 0), (2, 0), (3, 0), (0, 1), (1, 1), (2, 1), (3, 1), (0, 2), (3, 2)],
+        base: Stats::health(90),
+        adjacency: Some(Adjacency {
+            label: "Adamant: +3 regen a second",
+            stats: Stats::regen(3),
+        }),
+        effect: None,
+        cooldown_ms: 3400,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::GainArmor(30))],
+        power_bonus: 0,
+        price: 46,
+    },
+    PieceDef {
+        name: "Titan's Grip",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Material,
+        cells: &[(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)],
+        base: Stats::strength(14),
+        adjacency: Some(Adjacency {
+            label: "Titan: +0.60x weapon power",
+            stats: Stats::power(60),
+        }),
+        effect: None,
+        cooldown_ms: 2400,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::GainMana(3))],
+        power_bonus: 0,
+        price: 42,
+    },
+    PieceDef {
+        name: "Sevenleague Boots",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Material,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1), (0, 2), (1, 2)],
+        base: Stats::regen(5),
+        adjacency: Some(Adjacency {
+            label: "Sevenleague: +45 health",
+            stats: Stats::health(45),
+        }),
+        effect: None,
+        cooldown_ms: 2200,
+        speed_bonus: 25,
+        triggers: &[Trigger::OnActivate(Action::GainArmor(12))],
+        power_bonus: 0,
+        price: 40,
+    },
+    // ---- Weapon, the arcane way: books, orbs, inks and spells ----
+    //
+    // A spell is built the same way a weapon is: one core that sets the
+    // cadence, something that scales the payload, and the payload itself. The
+    // difference is only which recipe it answers to.
+    PieceDef {
+        name: "Pocket Grimoire",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Book,
+        cells: &[(0, 0), (0, 1), (0, 2)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 1600,
+        speed_bonus: 0,
+        triggers: &[],
+        power_bonus: 0,
+        price: 5,
+    },
+    PieceDef {
+        name: "Leaden Tome",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Book,
+        cells: &[(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1), (0, 2), (1, 2), (2, 2)],
+        base: Stats::health(25),
+        // Slow, heavy, and worth it: the ink bound into it lands harder.
+        adjacency: Some(Adjacency {
+            label: "Leaden: +1.20x to this cast",
+            stats: Stats::ZERO,
+        }),
+        effect: None,
+        cooldown_ms: 5000,
+        speed_bonus: 0,
+        triggers: &[],
+        power_bonus: 120,
+        price: 14,
+    },
+    PieceDef {
+        name: "Chained Codex",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Book,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1), (0, 2), (1, 2)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3200,
+        speed_bonus: 0,
+        // Reads off its neighbours: a book in a busy slot casts far more often.
+        triggers: &[Trigger::OnAdjacentActivate(Action::ReduceCooldown(400))],
+        power_bonus: 0,
+        price: 12,
+    },
+    PieceDef {
+        name: "Scrying Orb",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Orb,
+        cells: &[(1, 0), (2, 0), (0, 1), (1, 1), (2, 1), (3, 1), (1, 2), (2, 2)],
+        base: Stats::mana(1),
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 2600,
+        speed_bonus: 0,
+        triggers: &[],
+        power_bonus: 0,
+        price: 13,
+    },
+    PieceDef {
+        name: "Hollow Sphere",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Orb,
+        cells: &[(1, 0), (0, 1), (2, 1), (1, 2)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 1900,
+        speed_bonus: 0,
+        triggers: &[],
+        power_bonus: 0,
+        price: 9,
+    },
+    PieceDef {
+        name: "Soot Ink",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Ink,
+        cells: &[(0, 0), (0, 1)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        power_bonus: 90,
+        price: 5,
+    },
+    PieceDef {
+        name: "Quicksilver Ink",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Ink,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Potent, but it wants paying for.
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::GainEmpowerment(1),
+            on_failure: Action::Curse { kind: CurseKind::Frost, target: Target::Yourself },
+        }],
+        power_bonus: 170,
+        price: 12,
+    },
+    PieceDef {
+        name: "Bloodletter's Ink",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Ink,
+        cells: &[(0, 0), (1, 0), (0, 1)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Paid in your own maximum health, which never comes back.
+        triggers: &[Trigger::OnActivate(Action::MindDamage {
+            amount: 2,
+            target: Target::Yourself,
+        })],
+        power_bonus: 240,
+        price: 16,
+    },
+    PieceDef {
+        name: "Emberburst",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Spell,
+        cells: &[(1, 0), (0, 1), (1, 1), (2, 1)],
+        base: Stats::damage(14),
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Curse {
+            kind: CurseKind::Searing,
+            target: Target::Enemy,
+        })],
+        power_bonus: 0,
+        price: 11,
+    },
+    PieceDef {
+        name: "Rime Nova",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Spell,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats::damage(7),
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Curse {
+            kind: CurseKind::Frost,
+            target: Target::Enemy,
+        })],
+        power_bonus: 0,
+        price: 9,
+    },
+    PieceDef {
+        name: "Siphon",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Spell,
+        cells: &[(0, 0), (0, 1), (0, 2)],
+        base: Stats::mind(4),
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Eats their maximum health and hands you the mana back.
+        triggers: &[Trigger::OnActivate(Action::GainMana(3))],
+        power_bonus: 0,
+        price: 12,
+    },
+    PieceDef {
+        name: "Warding Sigil",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Spell,
+        cells: &[(0, 0), (1, 0), (1, 1)],
+        base: Stats::armor(9),
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        power_bonus: 0,
+        price: 8,
+    },
+    PieceDef {
+        name: "Arc Lightning",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Spell,
+        cells: &[(0, 0), (1, 0), (1, 1), (2, 1)],
+        base: Stats::damage(9),
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Jumps: worth more the more finished gear it sits against.
+        triggers: &[Trigger::PerAdjacentItem {
+            action: Action::Damage { amount: 6, target: Target::Enemy },
+            same_slot_only: false,
+        }],
+        power_bonus: 0,
+        price: 14,
+    },
+    PieceDef {
+        name: "Mirrorcast",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Spell,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Does nothing on its own; it answers whatever fired beside it.
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
+            amount: 7,
+            target: Target::Enemy,
+        })],
+        power_bonus: 0,
+        price: 10,
+    },
     // ---- Weapon: handles, damaging pieces, accessories ----
     PieceDef {
         name: "Oak Handle",
@@ -428,6 +809,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 3,
     },
     PieceDef {
@@ -445,6 +827,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 6,
     },
     PieceDef {
@@ -458,6 +841,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 7,
     },
     PieceDef {
@@ -471,6 +855,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -484,6 +869,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 5,
     },
     PieceDef {
@@ -497,6 +883,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 4,
     },
     // ---- Helmet: frame, plating, crest ----
@@ -511,6 +898,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 5,
     },
     PieceDef {
@@ -524,6 +912,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 5,
     },
     PieceDef {
@@ -541,6 +930,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 7,
     },
     PieceDef {
@@ -554,6 +944,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 4,
     },
     // ---- Chest: one base, up to three layers ----
@@ -572,6 +963,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 6,
     },
     PieceDef {
@@ -585,6 +977,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 4,
     },
     PieceDef {
@@ -598,6 +991,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 5,
     },
     PieceDef {
@@ -615,6 +1009,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 6,
     },
     // ---- Gloves: material + mold ----
@@ -629,6 +1024,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 3,
     },
     PieceDef {
@@ -642,6 +1038,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 6,
     },
     PieceDef {
@@ -659,6 +1056,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 6,
     },
     PieceDef {
@@ -672,6 +1070,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 4,
     },
     // ---- Greaves: material + mold ----
@@ -690,6 +1089,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 7,
     },
     PieceDef {
@@ -703,6 +1103,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 4,
     },
     PieceDef {
@@ -716,6 +1117,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 3,
     },
     PieceDef {
@@ -729,6 +1131,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 4,
     },
     // ---- Components with positional effects ----
@@ -751,6 +1154,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 9,
     },
     PieceDef {
@@ -768,6 +1172,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 6,
     },
     PieceDef {
@@ -788,6 +1193,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 6,
     },
     // ---- Cursed line: powerful, but they bite back ----
@@ -811,6 +1217,7 @@ pub static CATALOG: &[PieceDef] = &[
             on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
             on_failure: Action::Curse { kind: CurseKind::Frost, target: Target::Yourself },
         }],
+        power_bonus: 0,
         price: 10,
     },
     PieceDef {
@@ -828,6 +1235,7 @@ pub static CATALOG: &[PieceDef] = &[
             action: Action::Curse { kind: CurseKind::Searing, target: Target::Yourself },
             same_slot_only: true,
         }],
+        power_bonus: 0,
         price: 12,
     },
     // ---- Spares, so every slot can host more than one finished item ----
@@ -842,6 +1250,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 4,
     },
     PieceDef {
@@ -855,6 +1264,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 5,
     },
     // ================= MAGE LINE: makes and spends mana =================
@@ -869,6 +1279,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 2500,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -887,6 +1298,7 @@ pub static CATALOG: &[PieceDef] = &[
             on_success: Action::Damage { amount: 18, target: Target::Enemy },
             on_failure: Action::GainMana(1),
         }],
+        power_bonus: 0,
         price: 9,
     },
     PieceDef {
@@ -900,6 +1312,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 4000,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 9,
     },
     PieceDef {
@@ -913,6 +1326,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 3000,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -926,6 +1340,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 6,
     },
     PieceDef {
@@ -939,6 +1354,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 2500,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 7,
     },
     PieceDef {
@@ -952,6 +1368,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 3000,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 7,
     },
     PieceDef {
@@ -965,6 +1382,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 7,
     },
     PieceDef {
@@ -981,6 +1399,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 6,
     },
 
@@ -1000,6 +1419,7 @@ pub static CATALOG: &[PieceDef] = &[
             on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
             on_failure: Action::Curse { kind: CurseKind::Frost, target: Target::Yourself },
         }],
+        power_bonus: 0,
         price: 9,
     },
     PieceDef {
@@ -1013,6 +1433,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 9,
     },
     PieceDef {
@@ -1029,6 +1450,7 @@ pub static CATALOG: &[PieceDef] = &[
             kind: CurseKind::Frost,
             target: Target::Enemy,
         })],
+        power_bonus: 0,
         price: 10,
     },
     PieceDef {
@@ -1046,6 +1468,7 @@ pub static CATALOG: &[PieceDef] = &[
             on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
             on_failure: Action::GainArmor(4),
         }],
+        power_bonus: 0,
         price: 10,
     },
     PieceDef {
@@ -1062,6 +1485,7 @@ pub static CATALOG: &[PieceDef] = &[
             kind: CurseKind::Frost,
             target: Target::Enemy,
         })],
+        power_bonus: 0,
         price: 9,
     },
     PieceDef {
@@ -1079,6 +1503,7 @@ pub static CATALOG: &[PieceDef] = &[
             on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
             on_failure: Action::GainMana(1),
         }],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -1092,6 +1517,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 3500,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -1108,6 +1534,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -1124,6 +1551,7 @@ pub static CATALOG: &[PieceDef] = &[
             kind: CurseKind::Searing,
             target: Target::Enemy,
         })],
+        power_bonus: 0,
         price: 11,
     },
 
@@ -1139,6 +1567,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[Trigger::OnAdjacentActivate(Action::ReduceCooldown(1000))],
+        power_bonus: 0,
         price: 9,
     },
     PieceDef {
@@ -1155,6 +1584,7 @@ pub static CATALOG: &[PieceDef] = &[
             amount: 5,
             target: Target::Enemy,
         })],
+        power_bonus: 0,
         price: 9,
     },
     PieceDef {
@@ -1170,6 +1600,7 @@ pub static CATALOG: &[PieceDef] = &[
         // Line these gloves up with gear in another slot and every time that
         // gear fires, you bank a point of mana.
         triggers: &[Trigger::OnAlignedActivate(Action::GainMana(1))],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -1183,6 +1614,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[Trigger::OnAlignedActivate(Action::ReduceCooldown(500))],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -1199,6 +1631,7 @@ pub static CATALOG: &[PieceDef] = &[
             amount: 3,
             target: Target::Enemy,
         })],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -1212,6 +1645,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[Trigger::OnAdjacentActivate(Action::GainMana(1))],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -1228,6 +1662,7 @@ pub static CATALOG: &[PieceDef] = &[
             amount: 2,
             target: Target::Enemy,
         })],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -1241,6 +1676,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 7,
     },
     PieceDef {
@@ -1254,6 +1690,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 60,
         triggers: &[],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -1267,6 +1704,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 7,
     },
     PieceDef {
@@ -1280,6 +1718,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -1293,6 +1732,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 7,
     },
     PieceDef {
@@ -1306,6 +1746,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 900,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -1319,6 +1760,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 4500,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 11,
     },
     PieceDef {
@@ -1332,6 +1774,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 20,
         triggers: &[],
+        power_bonus: 0,
         price: 8,
     },
     PieceDef {
@@ -1345,6 +1788,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 6,
     },
     PieceDef {
@@ -1358,6 +1802,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 2500,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 7,
     },
     PieceDef {
@@ -1371,6 +1816,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 3500,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 9,
     },
 
@@ -1396,6 +1842,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 12,
     },
     PieceDef {
@@ -1422,6 +1869,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 12,
     },
     PieceDef {
@@ -1446,6 +1894,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 11,
     },
     PieceDef {
@@ -1467,6 +1916,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 11,
     },
     PieceDef {
@@ -1491,6 +1941,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        power_bonus: 0,
         price: 11,
     },
     // ===== MANA BUFFS: pay mana for a stack that scales off the mana left =====
@@ -1509,6 +1960,7 @@ pub static CATALOG: &[PieceDef] = &[
             on_success: Action::GainEmpowerment(1),
             on_failure: Action::GainMana(2),
         }],
+        power_bonus: 0,
         price: 12,
     },
     PieceDef {
@@ -1526,6 +1978,7 @@ pub static CATALOG: &[PieceDef] = &[
             on_success: Action::GainEmpowerment(1),
             on_failure: Action::GainMana(2),
         }],
+        power_bonus: 0,
         price: 11,
     },
     PieceDef {
@@ -1543,6 +1996,7 @@ pub static CATALOG: &[PieceDef] = &[
             on_success: Action::GainShield(1),
             on_failure: Action::GainArmor(8),
         }],
+        power_bonus: 0,
         price: 12,
     },
     PieceDef {
@@ -1560,6 +2014,7 @@ pub static CATALOG: &[PieceDef] = &[
             on_success: Action::GainShield(1),
             on_failure: Action::GainArmor(12),
         }],
+        power_bonus: 0,
         price: 13,
     },
     PieceDef {
@@ -1577,6 +2032,7 @@ pub static CATALOG: &[PieceDef] = &[
             on_success: Action::GainShield(1),
             on_failure: Action::GainArmor(9),
         }],
+        power_bonus: 0,
         price: 12,
     },
 ];

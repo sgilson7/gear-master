@@ -303,6 +303,23 @@ pub fn item_rating(reg: &PieceRegistry, pieces: &[PieceId], cooldown_ms: u32) ->
         .round() as i32
 }
 
+/// What the shop charges for a component, from what it is actually worth.
+///
+/// Deliberately steeper than linear: a component twice as effective is worth
+/// far more than twice as much, because slots are scarce and the strong parts
+/// are what a build is actually short of. A component good enough to carry an
+/// item to legendary on its own costs a fortune.
+pub fn shop_price(def: &PieceDef) -> i32 {
+    let r = piece_rating(def).max(0) as f32;
+    // 3 gold at nothing, ~14 at a middling 40, ~120 at a slot-carrying 140.
+    (3.0 + (r / 9.0).powf(1.9)).round() as i32
+}
+
+/// Half of what it cost, rounded down - what selling one back pays.
+pub fn resale_price(def: &PieceDef) -> i32 {
+    shop_price(def) / 2
+}
+
 /// Every catalogue entry's rating, for calibration and for the tests.
 pub fn catalog_ratings() -> Vec<(&'static str, SlotKind, PieceKind, i32)> {
     CATALOG

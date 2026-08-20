@@ -8,6 +8,14 @@ use crate::piece::{
 use crate::slot::{PlaceError, Slot};
 use crate::stats::{StatKind, Stats};
 
+/// One spell's payload: what happens on the cast that fires it.
+#[derive(Clone, Debug, Default)]
+pub struct Cast {
+    pub name: String,
+    pub stats: Stats,
+    pub triggers: Vec<Trigger>,
+}
+
 /// One assembled item, reduced to what combat needs: how often it fires and
 /// what happens when it does.
 #[derive(Clone, Debug)]
@@ -34,6 +42,14 @@ pub struct ItemProfile {
     pub triggers: Vec<Trigger>,
     /// Assembled items in the same slot touching this one, counted once.
     pub adjacent_assembled_same_slot: usize,
+    /// Hundredths of weapon power that apply to THIS item alone - what the
+    /// ink in a spell is worth. Never reaches the wearer's own total.
+    pub power_bonus: i32,
+    /// For a spell, the payloads it cycles through. A book has one and casts
+    /// it every time; a crystal ball has two or three and casts a different
+    /// one each time it comes round. Empty for ordinary gear, which carries
+    /// its payload on the item itself.
+    pub casts: Vec<Cast>,
     /// How effective this arrangement is, on the shared scale in `rating`.
     /// Scored at the cadence the item actually runs at, so speed counts.
     pub rating: i32,
@@ -422,6 +438,26 @@ impl Loadout {
                 .flat_map(|&p| reg.def(p).triggers.iter().copied())
                 .collect();
 
+            // Ink scales the cast it is bound into rather than the wearer.
+            let power_bonus: i32 = item.pieces.iter().map(|&p| reg.def(p).power_bonus).sum();
+
+            // Every spell in the item is one payload. A book has bound one,
+            // an orb several; ordinary gear has none and keeps carrying its
+            // payload on the item.
+            let casts: Vec<Cast> = item
+                .pieces
+                .iter()
+                .filter(|&&p| reg.def(p).kind == PieceKind::Spell)
+                .map(|&p| {
+                    let d = reg.def(p);
+                    Cast {
+                        name: d.name.to_string(),
+                        stats: d.base,
+                        triggers: d.triggers.to_vec(),
+                    }
+                })
+                .collect();
+
             out.push(ItemProfile {
                 sigil_seed: item_hash(self.name_seed, reg, slot, &item.pieces),
                 pieces: item.pieces.clone(),
@@ -435,6 +471,8 @@ impl Loadout {
                 cooldown_ms,
                 stats: item.stats,
                 triggers,
+                power_bonus,
+                casts,
                 rating: crate::rating::item_rating(reg, &item.pieces, cooldown_ms),
             });
         }
@@ -458,14 +496,41 @@ fn check_recipe(kind: SlotKind, reg: &PieceRegistry, pieces: &[PieceId]) -> Resu
     let counts = Slot::kind_counts(reg, pieces);
     let n = |k: PieceKind| counts.get(&k).copied().unwrap_or(0);
 
-    for &(k, min, max) in crate::piece::recipe(kind) {
-        let have = n(k);
-        if have < min {
-            return Err(format!("needs {} more {}", min - have, k.name()));
+    // A slot can offer several recipes - the weapon slot builds either a
+    // martial weapon or a spell - and satisfying any one of them is enough.
+    let mut best: Option<(usize, String)> = None;
+    for recipe in crate::piece::recipes(kind) {
+        let mut problem = None;
+        // How much of this recipe the pieces already answer to, so the message
+        // on failure comes from whichever one they were closest to building.
+        let mut matched = 0usize;
+        for &(k, min, max) in *recipe {
+            let have = n(k);
+            matched += have.min(max);
+            if problem.is_none() {
+                if have < min {
+                    problem = Some(format!("needs {} more {}", min - have, k.name()));
+                } else if have > max {
+                    problem = Some(format!("too many {} (max {})", k.name(), max));
+                }
+            }
         }
-        if have > max {
-            return Err(format!("too many {} (max {})", k.name(), max));
+        // Anything not named by this recipe does not belong in it.
+        let named: usize = recipe
+            .iter()
+            .map(|&(k, _, max)| n(k).min(max))
+            .sum();
+        if problem.is_none() && named < pieces.len() {
+            problem = Some(String::from("has parts that do not belong together"));
+        }
+        match problem {
+            None => return Ok(()),
+            Some(msg) => {
+                if best.as_ref().map(|(m, _)| matched > *m).unwrap_or(true) {
+                    best = Some((matched, msg));
+                }
+            }
         }
     }
-    Ok(())
+    Err(best.map(|(_, m)| m).unwrap_or_else(|| String::from("nothing fits a recipe")))
 }

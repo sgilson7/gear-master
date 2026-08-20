@@ -480,6 +480,7 @@ fn undo_does_not_hand_gold_back() {
     // Undo is for "wrong square", not for unwinding a purchase. A board step
     // that also moved money would let you rebuild your purse by tapping it.
     let mut run = Run::new();
+    run.gold = 400; // the strong shelves are expensive now
     let gold_before = run.gold;
     let id = run.buy(0).expect("affordable");
     let spent = gold_before - run.gold;
@@ -499,4 +500,97 @@ fn starting_a_fight_drops_the_history() {
     run.equip(piece(&run, "Oak Handle"), SlotKind::Weapon, 5, 7).ok();
     run.begin_fight();
     assert!(run.undoable().is_none(), "the board it described is gone");
+}
+
+// ---------------------------------------------------------------- spells
+
+#[test]
+fn a_book_an_ink_and_a_spell_make_a_weapon() {
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Pocket Grimoire", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Soot Ink", SlotKind::Weapon, 1, 0);
+    equip(&mut run, "Emberburst", SlotKind::Weapon, 2, 0);
+
+    let report = run.report(SlotKind::Weapon);
+    assert_eq!(report.assembled_count(), 1, "{}", report.summary());
+}
+
+#[test]
+fn a_martial_weapon_still_assembles_alongside_the_new_recipes() {
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Iron Blade", SlotKind::Weapon, 1, 0);
+    assert_eq!(run.report(SlotKind::Weapon).assembled_count(), 1);
+}
+
+#[test]
+fn a_book_will_not_take_a_second_spell_but_an_orb_wants_one() {
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Pocket Grimoire", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Soot Ink", SlotKind::Weapon, 1, 0);
+    equip(&mut run, "Emberburst", SlotKind::Weapon, 2, 0);
+    equip(&mut run, "Rime Nova", SlotKind::Weapon, 2, 2);
+    assert_eq!(
+        run.report(SlotKind::Weapon).assembled_count(),
+        0,
+        "a book binds one spell, not two"
+    );
+
+    // The same parts around an orb are exactly what it asks for.
+    let mut orb = Run::with_all_pieces();
+    equip(&mut orb, "Scrying Orb", SlotKind::Weapon, 0, 0);
+    equip(&mut orb, "Soot Ink", SlotKind::Weapon, 0, 3);
+    equip(&mut orb, "Emberburst", SlotKind::Weapon, 1, 3);
+    equip(&mut orb, "Rime Nova", SlotKind::Weapon, 4, 0);
+    let report = orb.report(SlotKind::Weapon);
+    assert_eq!(report.assembled_count(), 1, "{}", report.summary());
+}
+
+#[test]
+fn ink_scales_its_own_cast_and_nobody_elses() {
+    use gearmaster_engine::stats::Stats;
+    let mut run = Run::with_all_pieces();
+    // A spell with strong ink, and a plain martial weapon beside it.
+    equip(&mut run, "Leaden Tome", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Bloodletter's Ink", SlotKind::Weapon, 3, 0);
+    equip(&mut run, "Emberburst", SlotKind::Weapon, 3, 1);
+    assert_eq!(run.report(SlotKind::Weapon).assembled_count(), 1);
+
+    let items = run.combat_items();
+    let spell = items.iter().find(|i| i.power_bonus > 0).expect("the spell is here");
+    assert!(spell.power_bonus >= 240, "ink and book both add to it: {}", spell.power_bonus);
+
+    // The wearer's own power is untouched by ink.
+    let base = Stats::base_character().power;
+    assert_eq!(run.player_stats().power, base, "ink never reaches the wearer");
+}
+
+#[test]
+fn an_orb_casts_a_different_spell_each_time() {
+    use gearmaster_engine::combat::{simulate, Event, Side, LADDER};
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Scrying Orb", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Soot Ink", SlotKind::Weapon, 0, 3);
+    equip(&mut run, "Emberburst", SlotKind::Weapon, 1, 3);
+    equip(&mut run, "Rime Nova", SlotKind::Weapon, 4, 0);
+    assert_eq!(run.report(SlotKind::Weapon).assembled_count(), 1);
+
+    let profiles = run.combat_items();
+    let orb = profiles.iter().find(|p| p.casts.len() > 1).expect("an orb holds several");
+    assert_eq!(orb.casts.len(), 2);
+
+    // Over a long fight the log should name both spells. The player is given
+    // enough health to survive one, since the point is the orb's rotation.
+    let mut stats = run.player_stats();
+    stats.health = 100_000;
+    let log = simulate(stats, &profiles, &LADDER[LADDER.len() - 1]);
+    let mut named: Vec<String> = Vec::new();
+    for entry in &log.entries {
+        if let Event::Activate { side: Side::Player, item, .. } = &entry.event {
+            if item.contains('(') && !named.contains(item) {
+                named.push(item.clone());
+            }
+        }
+    }
+    assert!(named.len() >= 2, "the orb should cycle its spells, saw {:?}", named);
 }

@@ -1,4 +1,4 @@
-use crate::combat::{simulate, CombatLog, MonsterSpec, Outcome, LADDER, RUST_GOLEM};
+use crate::combat::{simulate_at, CombatLog, Difficulty, MonsterSpec, Outcome, LADDER, RUST_GOLEM};
 use crate::loadout::{Loadout, SlotReport};
 use crate::piece::{all_def_indices, PieceId, PieceRegistry, SlotKind, CATALOG};
 
@@ -136,6 +136,7 @@ pub struct Run {
     pub wins: u32,
     pub losses: u32,
     pub mode: Mode,
+    pub difficulty: Difficulty,
     /// Losses left before a Rogue run is wiped. Ignored in Grinder.
     pub lives: u32,
     /// The last settled fight, kept so the GUI can report what it cost.
@@ -189,6 +190,7 @@ impl Run {
             wins: 0,
             losses: 0,
             mode: Mode::Grinder,
+            difficulty: Difficulty::Easy,
             lives: ROGUE_LIVES,
             last_settlement: None,
             best_rung: 0,
@@ -196,6 +198,15 @@ impl Run {
             rng,
             undo_stack: Vec::new(),
         }
+    }
+
+    /// Same, in a chosen mode and difficulty, from a chosen seed. The seed is
+    /// what makes two runs stock different shops.
+    pub fn start(seed: u64, mode: Mode, difficulty: Difficulty) -> Self {
+        let mut run = Self::seeded(seed);
+        run.mode = mode;
+        run.difficulty = difficulty;
+        run
     }
 
     /// Same, in a chosen mode.
@@ -260,7 +271,7 @@ impl Run {
         if self.phase != Phase::Loadout {
             return Err(RuleError::LoadoutLocked);
         }
-        let refund = self.registry.def(id).price / 2;
+        let refund = crate::rating::resale_price(self.registry.def(id));
         self.loadout.remove_anywhere(id);
         self.owned.retain(|&o| o != id);
         self.gold += refund;
@@ -344,6 +355,7 @@ impl Run {
         let seed = self.rng.next_u64();
         let mut fresh = Run::seeded(seed);
         fresh.mode = mode;
+        fresh.difficulty = self.difficulty;
         fresh.last_settlement = settlement;
         // The fight just watched stays on screen; the GUI is still replaying
         // it and needs somewhere to go back to.
@@ -615,7 +627,7 @@ impl Run {
 
     /// Simulate the whole fight against `spec` and enter the replay phase.
     pub fn fight(&mut self, spec: &MonsterSpec) -> &CombatLog {
-        let log = simulate(self.player_stats(), &self.combat_items(), spec);
+        let log = simulate_at(self.player_stats(), &self.combat_items(), spec, self.difficulty);
         self.phase = Phase::Fighting;
         self.settled = false;
         self.log = Some(log);

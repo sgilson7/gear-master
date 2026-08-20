@@ -97,6 +97,7 @@ fn rerolling_costs_gold_and_changes_the_shelves() {
 #[test]
 fn buying_costs_gold_and_hands_over_the_component() {
     let mut run = Run::new();
+    run.gold = 400; // strong shelves cost real money now
     let price = run.shop.price(0).unwrap();
     let name = run.shop.def(0).unwrap().name;
     let before_gold = run.gold;
@@ -140,7 +141,7 @@ fn selling_refunds_half_and_strips_the_piece_off() {
     let mut run = Run::with_all_pieces();
     let id = common::piece(&run, "Oak Handle");
     run.equip(id, SlotKind::Weapon, 0, 0).unwrap();
-    let price = run.registry.def(id).price;
+    let price = gearmaster_engine::rating::shop_price(run.registry.def(id));
     let before = run.gold;
 
     let refund = run.sell(id).unwrap();
@@ -356,4 +357,97 @@ fn every_monster_can_actually_hurt_you() {
         });
         assert!(hurt, "{} never lands anything", m.name);
     }
+}
+
+// ----------------------------------------------------------- difficulty
+
+#[test]
+fn the_difficulty_multiple_is_what_it_says_on_the_tin() {
+    use gearmaster_engine::combat::{Combatant, Difficulty};
+    // Half the factor goes into staying alive and half into hitting back, so
+    // the two multiply back out to the number the player picked.
+    let base = Combatant::monster_at(&LADDER[6], Difficulty::Easy);
+    for &d in Difficulty::ALL {
+        let scaled = Combatant::monster_at(&LADDER[6], d);
+        let tough = scaled.max_health as f32 / base.max_health as f32;
+        let deadly = scaled.strength as f32 / base.strength as f32;
+        let product = tough * deadly;
+        assert!(
+            (product - d.factor()).abs() < d.factor() * 0.06,
+            "{:?}: {:.2}x tougher and {:.2}x deadlier is {:.1}x, not {}x",
+            d,
+            tough,
+            deadly,
+            product,
+            d.factor()
+        );
+    }
+}
+
+#[test]
+fn a_harder_setting_is_actually_harder() {
+    use gearmaster_engine::combat::Difficulty;
+    let mut easy = Run::with_all_pieces();
+    easy.apply_preset();
+    assert_eq!(easy.fight_next().outcome, Outcome::Victory, "the preset clears rung 1 on easy");
+
+    let mut insane = Run::with_all_pieces();
+    insane.difficulty = Difficulty::Insane;
+    insane.apply_preset();
+    insane.rung = 6;
+    assert_ne!(
+        insane.fight_next().outcome,
+        Outcome::Victory,
+        "the same build should not walk through a mid-ladder monster at 27x"
+    );
+}
+
+#[test]
+fn higher_difficulties_hand_the_monster_passives() {
+    use gearmaster_engine::combat::Difficulty;
+    assert!(Difficulty::Easy.passives().is_empty());
+    for &d in &[Difficulty::Medium, Difficulty::Hard, Difficulty::Insane] {
+        assert!(!d.passives().is_empty(), "{:?} should carry passives", d);
+    }
+    assert!(
+        Difficulty::Insane.passives().len() > Difficulty::Medium.passives().len(),
+        "they should stack up with the setting"
+    );
+}
+
+// --------------------------------------------------------------- prices
+
+#[test]
+fn price_climbs_with_effectiveness_and_the_best_gear_is_dear() {
+    use gearmaster_engine::piece::CATALOG;
+    use gearmaster_engine::rating::{piece_rating, shop_price, Rarity, RARE_AT};
+
+    let mut priced: Vec<(i32, i32, &str)> =
+        CATALOG.iter().map(|d| (piece_rating(d), shop_price(d), d.name)).collect();
+    priced.sort_unstable();
+
+    // Monotonic: nothing better is ever cheaper.
+    for w in priced.windows(2) {
+        assert!(w[1].1 >= w[0].1, "{} out-rates {} but costs less", w[1].2, w[0].2);
+    }
+
+    // A component strong enough to carry an item to legendary on its own has
+    // to cost a fortune, or the tiers mean nothing in the shop.
+    let carriers: Vec<&(i32, i32, &str)> =
+        priced.iter().filter(|(r, _, _)| Rarity::of(*r) >= Rarity::Rare).collect();
+    assert!(!carriers.is_empty(), "some component should reach a tier on its own");
+    for (r, price, name) in carriers {
+        assert!(
+            *price >= 60,
+            "{} rates {} on its own but costs only {}",
+            name,
+            r,
+            price
+        );
+    }
+
+    // And the floor stays reachable, or a run is dead on arrival.
+    let cheapest = priced.first().unwrap().1;
+    assert!(cheapest <= 5, "the cheapest component costs {}", cheapest);
+    let _ = RARE_AT;
 }
