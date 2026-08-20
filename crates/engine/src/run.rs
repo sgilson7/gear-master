@@ -1,7 +1,24 @@
-use crate::combat::{simulate, CombatLog, MonsterSpec, RUST_GOLEM};
+use crate::combat::{simulate, CombatLog, MonsterSpec, Outcome, LADDER, RUST_GOLEM};
 use crate::loadout::{Loadout, SlotReport};
-use crate::piece::{all_def_indices, PieceId, PieceRegistry, SlotKind};
+use crate::piece::{all_def_indices, PieceId, PieceRegistry, SlotKind, CATALOG};
+
+/// What a run opens with: enough to assemble one item in every slot, and
+/// nothing more. Everything else comes from the shop.
+pub const STARTER_KIT: &[&str] = &[
+    "Oak Handle",
+    "Iron Blade",
+    "Steel Frame",
+    "Iron Plating",
+    "Padded Base",
+    "Chain Layer",
+    "Leather Material",
+    "Gripping Mold",
+    "Boiled Leather",
+    "Greave Mold",
+];
 use crate::slot::PlaceError;
+use crate::rng::Rng;
+use crate::shop::{Shop, STARTING_GOLD};
 use crate::stats::Stats;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -18,6 +35,10 @@ pub enum RuleError {
     /// Tried to change the loadout mid-fight.
     LoadoutLocked,
     NotEquipped,
+    /// Tried to buy something you can't afford.
+    NotEnoughGold { need: i32, have: i32 },
+    /// Tried to buy from an empty shelf.
+    NothingThere,
 }
 
 impl std::fmt::Display for RuleError {
@@ -26,6 +47,10 @@ impl std::fmt::Display for RuleError {
             RuleError::Place(e) => write!(f, "{}", e),
             RuleError::LoadoutLocked => write!(f, "can't change gear during a fight"),
             RuleError::NotEquipped => write!(f, "that piece isn't equipped"),
+            RuleError::NotEnoughGold { need, have } => {
+                write!(f, "costs {} gold, you have {}", need, have)
+            }
+            RuleError::NothingThere => write!(f, "nothing for sale there"),
         }
     }
 }
@@ -46,6 +71,16 @@ pub struct Run {
     pub phase: Phase,
     /// Set by `begin_fight`, cleared by `back_to_loadout`.
     pub log: Option<CombatLog>,
+    pub gold: i32,
+    pub shop: Shop,
+    /// How far up the monster ladder you are.
+    pub rung: usize,
+    pub wins: u32,
+    pub losses: u32,
+    /// Set once a fight's result has been banked, so the reward can't be
+    /// claimed twice by replaying the same log.
+    settled: bool,
+    rng: Rng,
 }
 
 impl Default for Run {
@@ -55,17 +90,112 @@ impl Default for Run {
 }
 
 impl Run {
-    /// A fresh run: one of every component in the catalog, nothing equipped.
+    /// A fresh run: a small starter kit, 20 gold and a stocked shop.
     pub fn new() -> Self {
+        Self::seeded(0x5EED_1234_ABCD_0001)
+    }
+
+    /// Same, with the shop's rolls pinned so a test can predict them.
+    pub fn seeded(seed: u64) -> Self {
         let mut registry = PieceRegistry::new();
-        let owned = all_def_indices().into_iter().map(|d| registry.alloc(d)).collect();
+        let mut owned = Vec::new();
+        for name in STARTER_KIT {
+            if let Some(d) = CATALOG.iter().position(|p| &p.name == name) {
+                owned.push(registry.alloc(d));
+            }
+        }
+        let mut rng = Rng::new(seed);
+        let shop = Shop::new(&mut rng);
         Run {
             registry,
             owned,
             loadout: Loadout::new(),
             phase: Phase::Loadout,
             log: None,
+            gold: STARTING_GOLD,
+            shop,
+            rung: 0,
+            wins: 0,
+            losses: 0,
+            settled: false,
+            rng,
         }
+    }
+
+    /// Every component in the catalog, for the preset, the tests, and the
+    /// AUTO-BUILD button. Bypasses the shop entirely.
+    pub fn with_all_pieces() -> Self {
+        let mut run = Self::new();
+        run.owned.clear();
+        run.registry = PieceRegistry::new();
+        run.owned = all_def_indices().into_iter().map(|d| run.registry.alloc(d)).collect();
+        run
+    }
+
+    /// The monster you are facing now.
+    pub fn monster(&self) -> &'static MonsterSpec {
+        &LADDER[self.rung.min(LADDER.len() - 1)]
+    }
+
+    /// True once the ladder has been cleared.
+    pub fn ladder_complete(&self) -> bool {
+        self.rung >= LADDER.len()
+    }
+
+    /// Buy the component on shelf `slot`.
+    pub fn buy(&mut self, slot: usize) -> Result<PieceId, RuleError> {
+        if self.phase != Phase::Loadout {
+            return Err(RuleError::LoadoutLocked);
+        }
+        let price = self.shop.price(slot).ok_or(RuleError::NothingThere)?;
+        if self.gold < price {
+            return Err(RuleError::NotEnoughGold { need: price, have: self.gold });
+        }
+        let def = self.shop.take(slot).ok_or(RuleError::NothingThere)?;
+        self.gold -= price;
+        let id = self.registry.alloc(def);
+        self.owned.push(id);
+        Ok(id)
+    }
+
+    /// Sell a component back for half its price, rounded down. Equipped pieces
+    /// come off first.
+    pub fn sell(&mut self, id: PieceId) -> Result<i32, RuleError> {
+        if self.phase != Phase::Loadout {
+            return Err(RuleError::LoadoutLocked);
+        }
+        let refund = self.registry.def(id).price / 2;
+        self.loadout.remove_anywhere(id);
+        self.owned.retain(|&o| o != id);
+        self.gold += refund;
+        Ok(refund)
+    }
+
+    /// Bank the result of the fight just watched: pay the bounty, advance the
+    /// ladder, and turn the shop over. Idempotent, so the GUI can call it when
+    /// playback finishes without worrying about repeats.
+    pub fn settle(&mut self) -> Option<i32> {
+        if self.settled {
+            return None;
+        }
+        let outcome = self.log.as_ref()?.outcome;
+        self.settled = true;
+        let reward = match outcome {
+            Outcome::Victory => {
+                let bounty = self.monster().bounty;
+                self.gold += bounty;
+                self.wins += 1;
+                self.rung += 1;
+                Some(bounty)
+            }
+            _ => {
+                self.losses += 1;
+                None
+            }
+        };
+        // New shelves after every battle, win or lose.
+        self.shop.restock(&mut self.rng);
+        reward
     }
 
     /// Components not currently in a slot, in stable order.
@@ -201,6 +331,16 @@ impl Run {
             ("Ruby Inlay", SlotKind::Weapon, 2, 0, 0),
             ("Balance Weight", SlotKind::Weapon, 2, 2, 0),
         ];
+        // The preset names specific components, so grant any the player has
+        // not bought. It is a demo button, not a way to dodge the shop.
+        for &(name, ..) in PRESET {
+            if self.find_by_name(name).is_none() {
+                if let Some(d) = CATALOG.iter().position(|p| p.name == name) {
+                    let id = self.registry.alloc(d);
+                    self.owned.push(id);
+                }
+            }
+        }
         for &(name, kind, ax, ay, rot) in PRESET {
             let Some(id) = self.find_by_name(name) else { continue };
             self.registry.set_rotation(id, rot);
@@ -259,11 +399,18 @@ impl Run {
     pub fn fight(&mut self, spec: &MonsterSpec) -> &CombatLog {
         let log = simulate(self.player_stats(), &self.combat_items(), spec);
         self.phase = Phase::Fighting;
+        self.settled = false;
         self.log = Some(log);
         self.log.as_ref().expect("just set")
     }
 
-    /// Simulate against the default opponent.
+    /// Fight whatever is next on the ladder.
+    pub fn fight_next(&mut self) -> &CombatLog {
+        let spec = *self.monster();
+        self.fight(&spec)
+    }
+
+    /// Simulate against the original opponent, ladder position ignored.
     pub fn begin_fight(&mut self) -> &CombatLog {
         self.fight(&RUST_GOLEM)
     }

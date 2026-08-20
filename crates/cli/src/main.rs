@@ -6,6 +6,7 @@
 use std::io::{self, BufRead, Write};
 
 use gearmaster_engine::piece::{PieceId, SlotKind};
+use gearmaster_engine::combat::LADDER;
 use gearmaster_engine::run::Run;
 use gearmaster_engine::slot::{SLOT_H, SLOT_W};
 
@@ -34,6 +35,67 @@ fn main() {
                 None => println!("error: unknown slot '{}'", slot),
             },
             ["stats"] => show_stats(&run),
+            ["shop"] => {
+                println!("\nGold: {}   |   next: {}", run.gold, run.monster().name);
+                for (i, &def) in run.shop.stock.iter().enumerate() {
+                    let d = &gearmaster_engine::piece::CATALOG[def];
+                    let afford = if run.gold >= d.price { " " } else { "!" };
+                    println!(
+                        "{} {}. {:<18} {:<8} {:<10} {:>3}g   {}",
+                        afford, i, d.name, d.slot.name().to_lowercase(), d.kind.name(), d.price,
+                        d.base.summary()
+                    );
+                    for t in d.triggers {
+                        println!("       {}", t.describe());
+                    }
+                    if let Some(e) = d.effect {
+                        println!("       {}", e.describe());
+                    }
+                }
+            }
+            ["buy", n] => match n.parse::<usize>() {
+                Ok(i) => match run.buy(i) {
+                    Ok(id) => println!(
+                        "Bought {} for {}g. {} gold left.",
+                        run.registry.def(id).name,
+                        run.registry.def(id).price,
+                        run.gold
+                    ),
+                    Err(e) => println!("error: {}", e),
+                },
+                Err(_) => println!("usage: buy <shop index>"),
+            },
+            ["sell", rest @ ..] if !rest.is_empty() => match find(&run, &rest.join(" ")) {
+                Some(id) => {
+                    let name = run.registry.def(id).name;
+                    match run.sell(id) {
+                        Ok(g) => println!("Sold {} for {}g. {} gold.", name, g, run.gold),
+                        Err(e) => println!("error: {}", e),
+                    }
+                }
+                None => println!("error: no piece matching '{}'", rest.join(" ")),
+            },
+            ["ladder"] => {
+                println!();
+                for (i, m) in LADDER.iter().enumerate() {
+                    let here = if i == run.rung { "->" } else { "  " };
+                    println!(
+                        "{} {:<16} {:>4} hp  {:>2} regen  mind res {:>2}%  curse res {:>2}%  {:>3}g",
+                        here, m.name, m.health, m.regen, m.mind_resist, m.curse_resist, m.bounty
+                    );
+                    for a in m.attacks {
+                        println!(
+                            "     {:<12} every {:.1}s  {}{}{}{}",
+                            a.name,
+                            a.cooldown_ms as f32 / 1000.0,
+                            if a.damage > 0 { format!("{} dmg ", a.damage) } else { String::new() },
+                            if a.mind > 0 { format!("{} mind ", a.mind) } else { String::new() },
+                            if a.armor > 0 { format!("{} armor ", a.armor) } else { String::new() },
+                            a.curse.map(|c| format!("curse of {}", c.name())).unwrap_or_default()
+                        );
+                    }
+                }
+            }
             ["preset"] => {
                 run.apply_preset();
                 println!("Applied the full preset loadout.");
@@ -93,7 +155,7 @@ fn main() {
             },
             ["fight"] => {
                 let items = run.combat_items();
-                let log = run.begin_fight().clone();
+                let log = run.fight_next().clone();
                 println!(
                     "\n{} - {} hp, {} str, {}.{:02}x power, {} regen/s",
                     log.player.name,
@@ -121,10 +183,19 @@ fn main() {
                 }
                 println!("{}", "-".repeat(64));
                 println!(
-                    "{} after {:.1}s\n",
+                    "{} after {:.1}s",
                     log.outcome.label(),
                     log.duration_ms as f32 / 1000.0
                 );
+                match run.settle() {
+                    Some(g) => println!(
+                        "+{} gold (now {}). Next up: {}\n",
+                        g,
+                        run.gold,
+                        run.monster().name
+                    ),
+                    None => println!("No reward. Still facing {}.\n", run.monster().name),
+                }
                 run.back_to_loadout();
             }
             ["items"] => {
@@ -162,6 +233,9 @@ fn help() {
     println!("  unequip <name>           send a component back to the inventory");
     println!("  rotate <name>            quarter turn clockwise");
     println!("  preset | clear           fill or empty every slot");
+    println!("  shop                     what is for sale");
+    println!("  buy <n> | sell <name>    trade with the shop");
+    println!("  ladder                   the monster ladder");
     println!("  items                    list the items that will act in combat");
     println!("  fight                    simulate and print the whole bout");
     println!("  slots: helmet chest gloves greaves weapon");

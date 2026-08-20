@@ -61,7 +61,7 @@ fn activations_of(log: &gearmaster_engine::combat::CombatLog, name: &str) -> Vec
 
 #[test]
 fn a_bare_character_starts_at_the_documented_baseline() {
-    let run = Run::new();
+    let run = Run::with_all_pieces();
     let s = run.player_stats();
     assert_eq!((s.health, s.strength, s.regen, s.power), (100, 5, 0, 100));
     assert!(run.combat_items().is_empty(), "nothing assembled, nothing acts");
@@ -69,7 +69,7 @@ fn a_bare_character_starts_at_the_documented_baseline() {
 
 #[test]
 fn an_ungeared_character_is_beaten_by_the_golem() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     let log = run.begin_fight().clone();
     assert_eq!(log.outcome, Outcome::Defeat);
     // 100 health against 10 damage a second, and nothing hitting back.
@@ -78,7 +78,7 @@ fn an_ungeared_character_is_beaten_by_the_golem() {
 
 #[test]
 fn a_full_loadout_beats_the_golem() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     build_full_loadout(&mut run);
     let log = run.begin_fight().clone();
     assert_eq!(log.outcome, Outcome::Victory);
@@ -87,7 +87,7 @@ fn a_full_loadout_beats_the_golem() {
 
 #[test]
 fn the_log_is_ordered_and_ends_with_the_outcome() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     build_full_loadout(&mut run);
     let log = run.begin_fight().clone();
 
@@ -131,7 +131,7 @@ fn activations_land_exactly_on_the_cooldown() {
 
 #[test]
 fn a_speed_bonus_halves_the_cooldown_of_the_weapon_it_joins() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     equip(&mut run, "Cursed Handle", SlotKind::Weapon, 0, 0);
     let alone = run.combat_items();
     assert_eq!(alone.len(), 0, "a handle on its own is not a weapon yet");
@@ -370,7 +370,7 @@ fn mind_damage_eats_maximum_health_and_cannot_be_healed_back() {
         regen: 0,
         mind_resist: 0,
         curse_resist: 0,
-        attacks: &[MonsterAttack { name: "whisper", cooldown_ms: 1000, damage: 0, mind: 4, armor: 0 }],
+        attacks: &[MonsterAttack::mind("whisper", 1000, 4)],
         bounty: 0,
     };
     // Plenty of regeneration: it still cannot undo a lowered ceiling.
@@ -397,7 +397,7 @@ fn mind_resistance_blunts_it() {
         regen: 0,
         mind_resist: 0,
         curse_resist: 0,
-        attacks: &[MonsterAttack { name: "whisper", cooldown_ms: 1000, damage: 0, mind: 10, armor: 0 }],
+        attacks: &[MonsterAttack::mind("whisper", 1000, 10)],
         bounty: 0,
     };
     let mut warded = Stats::new(100, 0, 0, 100);
@@ -419,7 +419,7 @@ fn mind_resistance_blunts_it() {
 
 #[test]
 fn the_cursed_handle_doubles_a_touching_items_strength() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     // A finished glove whose material carries strength...
     equip(&mut run, "Steel Material", SlotKind::Gloves, 0, 0);
     equip(&mut run, "Gauntlet Mold", SlotKind::Gloves, 2, 0);
@@ -430,7 +430,7 @@ fn the_cursed_handle_doubles_a_touching_items_strength() {
     assert_eq!(run.report(SlotKind::Gloves).stats.strength, before);
 
     // Within the weapon slot: two weapons flush against each other.
-    let mut w = Run::new();
+    let mut w = Run::with_all_pieces();
     equip(&mut w, "Cursed Handle", SlotKind::Weapon, 0, 0); // (0, 0..2)
     equip(&mut w, "Cursed Blade", SlotKind::Weapon, 1, 0); // touches it
     equip(&mut w, "Oak Handle", SlotKind::Weapon, 3, 0); // (3, 0..2)
@@ -446,7 +446,7 @@ fn the_cursed_handle_doubles_a_touching_items_strength() {
 
 #[test]
 fn gear_is_locked_while_a_fight_is_running() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     equip(&mut run, "Balanced Grip", SlotKind::Weapon, 0, 0);
     run.begin_fight();
     assert_eq!(run.phase, Phase::Fighting);
@@ -464,11 +464,11 @@ fn gear_is_locked_while_a_fight_is_running() {
 
 #[test]
 fn the_same_loadout_always_produces_the_same_fight() {
-    let mut a = Run::new();
+    let mut a = Run::with_all_pieces();
     build_full_loadout(&mut a);
     let first = a.begin_fight().clone();
 
-    let mut b = Run::new();
+    let mut b = Run::with_all_pieces();
     build_full_loadout(&mut b);
     let second = b.begin_fight().clone();
 

@@ -4,9 +4,9 @@
 
 use std::collections::HashSet;
 
-use gearmaster_engine::combat::{CombatLog, Event, Outcome, Side};
+use gearmaster_engine::combat::{CombatLog, Event, Outcome, Side, LADDER};
 use gearmaster_engine::loadout::SlotReport;
-use gearmaster_engine::piece::{PieceDef, PieceId, PieceKind, SlotKind};
+use gearmaster_engine::piece::{default_cooldown_ms, PieceDef, PieceId, PieceKind, SlotKind};
 use gearmaster_engine::run::{Phase, Run};
 use gearmaster_engine::shape::Shape;
 use gearmaster_engine::slot::{SLOT_H, SLOT_W};
@@ -137,11 +137,21 @@ struct Card {
     rect: Rect,
 }
 
+/// A shelf in the shop. Refers to a catalog entry, not an owned piece.
+#[derive(Clone, Copy)]
+struct ShopCard {
+    slot_index: usize,
+    def: &'static PieceDef,
+    rect: Rect,
+}
+
 /// Recomputed every frame from the engine state and the window size. Owns both
 /// coordinate directions so drawing and hit-testing cannot drift apart.
 struct Layout {
     slots: Vec<SlotView>,
     cards: Vec<Card>,
+    shop_cards: Vec<ShopCard>,
+    shop: Rect,
     inv: Rect,
     panel_x: f32,
 }
@@ -162,13 +172,12 @@ impl Layout {
             })
             .collect();
 
-        let inv_y = SLOT_TOP + gh + 82.0;
-        let inv = Rect::new(
-            24.0,
-            inv_y,
-            (panel_x - 48.0).max(100.0),
-            (LOGICAL_H - inv_y - 24.0).max(100.0),
-        );
+        let strip_y = SLOT_TOP + gh + 82.0;
+        let width = (panel_x - 48.0).max(100.0);
+        let shop_h = CARD_H + 52.0;
+        let shop = Rect::new(24.0, strip_y, width, shop_h);
+        let inv_y = strip_y + shop_h + 14.0;
+        let inv = Rect::new(24.0, inv_y, width, (LOGICAL_H - inv_y - 24.0).max(100.0));
 
         // Cards flow left to right, wrapping to fill the tray.
         let per_row = (((inv.w + CARD_GAP) / (CARD_W + CARD_GAP)) as usize).max(1);
@@ -187,7 +196,26 @@ impl Layout {
             })
             .collect();
 
-        Layout { slots, cards, inv, panel_x }
+        let shop_cards = run
+            .shop
+            .stock
+            .iter()
+            .enumerate()
+            .filter_map(|(i, _)| {
+                run.shop.def(i).map(|def| ShopCard {
+                    slot_index: i,
+                    def,
+                    rect: Rect::new(
+                        shop.x + 130.0 + i as f32 * (CARD_W + CARD_GAP),
+                        shop.y + 34.0,
+                        CARD_W,
+                        CARD_H,
+                    ),
+                })
+            })
+            .collect();
+
+        Layout { slots, cards, shop_cards, shop, inv, panel_x }
     }
 
     fn view(&self, kind: SlotKind) -> &SlotView {
@@ -200,6 +228,13 @@ impl Layout {
             .iter()
             .find(|v| v.contains(mx, my))
             .and_then(|v| v.hit(mx, my).map(|(x, y)| (v.kind, x, y)))
+    }
+
+    fn shop_hit(&self, mx: f32, my: f32) -> Option<usize> {
+        self.shop_cards
+            .iter()
+            .find(|c| c.rect.contains(Vec2::new(mx, my)))
+            .map(|c| c.slot_index)
     }
 
     fn card_hit(&self, mx: f32, my: f32) -> Option<PieceId> {
@@ -241,6 +276,9 @@ fn col_gold() -> Color {
 }
 fn col_effect() -> Color {
     Color::from_rgba(105, 205, 235, 255)
+}
+fn col_trigger() -> Color {
+    Color::from_rgba(225, 130, 225, 255)
 }
 
 /// Hue per slot, so a piece's colour says where it belongs at a glance.
@@ -624,6 +662,15 @@ fn render_slots(layout: &Layout, run: &Run, reports: &[SlotReport], drag: &Drag)
                         draw_circle_lines(cx, cy, 4.0, 1.5, col_dim());
                     }
                 }
+                if !def.triggers.is_empty() {
+                    let cx = px + dx as f32 * SLOT_CELL + 6.0;
+                    let cy = py + dy as f32 * SLOT_CELL + SLOT_CELL - 6.0;
+                    if live {
+                        draw_circle(cx, cy, 4.0, col_trigger());
+                    } else {
+                        draw_circle_lines(cx, cy, 4.0, 1.5, col_dim());
+                    }
+                }
             }
         }
 
@@ -643,6 +690,97 @@ fn render_slots(layout: &Layout, run: &Run, reports: &[SlotReport], drag: &Drag)
             for (i, line) in wrap(&contrib, 24).into_iter().take(2).enumerate() {
                 draw_text(&line, ox, oy + gh + 38.0 + i as f32 * 14.0, 12.0, col_dim());
             }
+        }
+    }
+}
+
+/// The shelf. Clicking a card buys it if you can afford it.
+fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
+    let r = layout.shop;
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(28, 26, 22, 255));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::from_rgba(96, 84, 52, 255));
+
+    draw_text("SHOP", r.x + 14.0, r.y + 26.0, 18.0, col_gold());
+    draw_text(&format!("{} gold", run.gold), r.x + 14.0, r.y + 50.0, 20.0, WHITE);
+    draw_text("click to buy", r.x + 14.0, r.y + 72.0, 12.0, col_dim());
+    draw_text(
+        "new stock after",
+        r.x + 14.0,
+        r.y + 92.0,
+        12.0,
+        col_dim(),
+    );
+    draw_text("every battle", r.x + 14.0, r.y + 106.0, 12.0, col_dim());
+
+    for card in &layout.shop_cards {
+        let def = card.def;
+        let afford = run.gold >= def.price;
+        let hovered = card.rect.contains(Vec2::new(mx, my));
+
+        draw_rectangle(
+            card.rect.x,
+            card.rect.y,
+            card.rect.w,
+            card.rect.h,
+            if hovered && afford {
+                Color::from_rgba(52, 48, 36, 255)
+            } else {
+                Color::from_rgba(34, 32, 28, 255)
+            },
+        );
+        draw_rectangle_lines(
+            card.rect.x,
+            card.rect.y,
+            card.rect.w,
+            card.rect.h,
+            1.5,
+            if !afford {
+                Color::from_rgba(80, 60, 60, 255)
+            } else if hovered {
+                col_gold()
+            } else {
+                Color::from_rgba(88, 78, 54, 255)
+            },
+        );
+
+        let shape = Shape::new(def.cells);
+        let sw = shape.width() as f32 * INV_CELL;
+        let sh = shape.height() as f32 * INV_CELL;
+        let alpha = if afford { 1.0 } else { 0.4 };
+        draw_shape(
+            &shape,
+            card.rect.x + (card.rect.w - sw) / 2.0,
+            card.rect.y + 10.0 + (60.0 - sh) / 2.0,
+            INV_CELL,
+            piece_color(def),
+            alpha,
+        );
+
+        let cx = card.rect.x + card.rect.w / 2.0;
+        let mut ty = card.rect.y + 80.0;
+        for line in wrap(def.name, 15).into_iter().take(2) {
+            centered_text(&line, cx, ty, 12.0, if afford { WHITE } else { col_dim() });
+            ty += 12.0;
+        }
+        centered_text(def.kind.name(), cx, card.rect.y + 106.0, 11.0, col_dim());
+        centered_text(
+            &format!("{} gold", def.price),
+            cx,
+            card.rect.y + card.rect.h - 6.0,
+            14.0,
+            if afford { col_gold() } else { col_bad() },
+        );
+
+        // Same markers as the inventory, so a triggered piece is obvious
+        // before you pay for it.
+        if def.adjacency.is_some() {
+            draw_circle(card.rect.x + card.rect.w - 11.0, card.rect.y + 11.0, 4.0, col_gold());
+        }
+        if def.effect.is_some() {
+            draw_circle(card.rect.x + 11.0, card.rect.y + 11.0, 4.0, col_effect());
+        }
+        if !def.triggers.is_empty() {
+            draw_circle(card.rect.x + 11.0, card.rect.y + 24.0, 4.0, col_trigger());
         }
     }
 }
@@ -722,29 +860,71 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
         if def.effect.is_some() {
             draw_circle(card.rect.x + 11.0, card.rect.y + 11.0, 4.0, col_effect());
         }
+        if !def.triggers.is_empty() {
+            draw_circle(card.rect.x + 11.0, card.rect.y + 24.0, 4.0, col_trigger());
+        }
     }
 }
 
 /// Detail card for whatever the cursor is over. Drawn last so it sits on top.
+///
+/// Shows everything a piece does, not just its flat stats: its cooldown, any
+/// speed it lends the item, its positional effect, and every trigger it fires
+/// on activation. A piece whose whole behaviour lives in triggers — the Cursed
+/// Blade, say — reads as blank without this.
 fn render_tooltip(run: &Run, id: PieceId, mx: f32, my: f32) {
-    let def = run.registry.def(id);
+    render_def_tooltip(run.registry.def(id), mx, my);
+}
+
+fn render_def_tooltip(def: &'static PieceDef, mx: f32, my: f32) {
     let mut lines: Vec<(String, Color)> = vec![
         (def.name.to_string(), WHITE),
-        (
-            format!("{} · {}", def.slot.name(), def.kind.name()),
-            col_dim(),
-        ),
+        (format!("{} · {}", def.slot.name(), def.kind.name()), col_dim()),
     ];
+
     let base = def.base.summary();
     if !base.is_empty() {
         lines.push((base, Color::from_rgba(190, 210, 245, 255)));
     }
+
+    // Timing: a core sets the item's cooldown, anything else can lend speed.
+    if def.kind.is_core() {
+        let cd = if def.cooldown_ms == 0 {
+            default_cooldown_ms(def.slot)
+        } else {
+            def.cooldown_ms
+        };
+        lines.push((
+            format!("fires every {:.2}s as an item's core", cd as f32 / 1000.0),
+            Color::from_rgba(200, 190, 150, 255),
+        ));
+    }
+    if def.speed_bonus != 0 {
+        lines.push((
+            format!("{:+}% speed to its item", def.speed_bonus),
+            Color::from_rgba(200, 190, 150, 255),
+        ));
+    }
+
     if let Some(adj) = def.adjacency {
-        lines.push((format!("when assembled: {}", adj.label), col_gold()));
+        for (i, l) in wrap(adj.label, 46).into_iter().enumerate() {
+            lines.push((
+                if i == 0 { format!("when assembled: {}", l) } else { format!("  {}", l) },
+                col_gold(),
+            ));
+        }
     }
     if let Some(eff) = def.effect {
-        lines.push((eff.describe(), col_effect()));
+        for l in wrap(&eff.describe(), 46) {
+            lines.push((l, col_effect()));
+        }
     }
+    for t in def.triggers {
+        for l in wrap(&t.describe(), 46) {
+            lines.push((l, col_trigger()));
+        }
+    }
+    lines.push((format!("{} gold", def.price), col_gold()));
 
     let w = lines
         .iter()
@@ -1003,12 +1183,70 @@ fn render_panel(
     }
     y += 12.0;
 
-    draw_text("OPPONENT", x + 20.0, y, 14.0, col_dim());
+    draw_text("RUN", x + 20.0, y, 14.0, col_dim());
     y += 20.0;
-    draw_text("Rust Golem", x + 20.0, y, 16.0, Color::from_rgba(230, 140, 120, 255));
+    for (label, value, color) in [
+        ("Gold", format!("{}", run.gold), col_gold()),
+        ("Won", format!("{}", run.wins), col_ok()),
+        ("Lost", format!("{}", run.losses), col_bad()),
+    ] {
+        draw_text(label, x + 20.0, y, 15.0, LIGHTGRAY);
+        let d = measure_text(&value, None, 15, 1.0);
+        draw_text(&value, x + PANEL_W - 20.0 - d.width, y, 15.0, color);
+        y += 18.0;
+    }
+    y += 10.0;
+
+    let m = run.monster();
+    draw_text("NEXT OPPONENT", x + 20.0, y, 14.0, col_dim());
+    y += 20.0;
+    draw_text(m.name, x + 20.0, y, 17.0, Color::from_rgba(230, 140, 120, 255));
+    let bounty = format!("{}g", m.bounty);
+    let d = measure_text(&bounty, None, 15, 1.0);
+    draw_text(&bounty, x + PANEL_W - 20.0 - d.width, y, 15.0, col_gold());
     y += 18.0;
-    draw_text("400 health  ·  10 damage / turn", x + 20.0, y, 13.0, col_dim());
-    y += 26.0;
+    draw_text(
+        &format!("rung {} of {}  ·  {} hp", run.rung + 1, LADDER.len(), m.health),
+        x + 20.0,
+        y,
+        13.0,
+        col_dim(),
+    );
+    y += 16.0;
+    for a in m.attacks {
+        let mut what = String::new();
+        if a.damage > 0 {
+            what.push_str(&format!("{} dmg ", a.damage));
+        }
+        if a.mind > 0 {
+            what.push_str(&format!("{} mind ", a.mind));
+        }
+        if a.armor > 0 {
+            what.push_str(&format!("{} armor ", a.armor));
+        }
+        if let Some(c) = a.curse {
+            what.push_str(&format!("+{} ", c.name()));
+        }
+        draw_text(
+            &format!("  {} / {:.1}s  {}", a.name, a.cooldown_ms as f32 / 1000.0, what),
+            x + 20.0,
+            y,
+            12.0,
+            col_dim(),
+        );
+        y += 14.0;
+    }
+    if m.mind_resist > 0 || m.curse_resist > 0 {
+        draw_text(
+            &format!("  resists: {}% mind, {}% curse", m.mind_resist, m.curse_resist),
+            x + 20.0,
+            y,
+            12.0,
+            Color::from_rgba(190, 160, 200, 255),
+        );
+        y += 14.0;
+    }
+    y += 12.0;
 
     for line in wrap(message, 40).into_iter().take(3) {
         draw_text(&line, x + 20.0, y, 14.0, Color::from_rgba(225, 225, 240, 255));
@@ -1038,6 +1276,8 @@ async fn main() {
     let mut run = Run::new();
     let mut drag = Drag::None;
     let mut pb: Option<Playback> = None;
+    // Whether the current fight's reward has been banked yet.
+    let mut settled = false;
     let mut message =
         String::from("Drag components into a slot. Pieces must touch to become gear.");
 
@@ -1079,6 +1319,13 @@ async fn main() {
 
         if let Some(p) = pb.as_mut() {
             p.advance(&run);
+            if p.done && !settled {
+                settled = true;
+                message = match run.settle() {
+                    Some(g) => format!("+{} gold. Next up: {}.", g, run.monster().name),
+                    None => format!("No reward. {} still stands.", run.monster().name),
+                };
+            }
         }
 
         // ---------------------------------------------------- render
@@ -1088,6 +1335,7 @@ async fn main() {
                 render_fight(&layout, &run, p);
             }
         } else {
+            render_shop(&layout, &run, mx, my);
             render_inventory(&layout, &run, &drag, mx, my);
         }
 
@@ -1132,6 +1380,12 @@ async fn main() {
                 });
             if let Some(id) = hovered {
                 render_tooltip(&run, id, mx, my);
+            } else if run.phase == Phase::Loadout {
+                if let Some(i) = layout.shop_hit(mx, my) {
+                    if let Some(def) = run.shop.def(i) {
+                        render_def_tooltip(def, mx, my);
+                    }
+                }
             }
         }
 
@@ -1151,11 +1405,13 @@ async fn main() {
                     p.skip_to_end(&run);
                 }
             } else if clicked_button(2) {
-                pb = Some(Playback::new(run.begin_fight()));
+                pb = Some(Playback::new(run.fight_next()));
+                settled = false;
             }
         } else {
             if clicked_button(0) {
-                pb = Some(Playback::new(run.begin_fight()));
+                pb = Some(Playback::new(run.fight_next()));
+                settled = false;
                 message = "Fight in progress.".to_string();
             } else if clicked_button(1) {
                 run.apply_preset();
@@ -1168,9 +1424,24 @@ async fn main() {
             }
         }
 
+        // Buying, checked before the drag handler so clicking a shelf never
+        // picks a piece up.
+        let mut bought_this_frame = false;
+        if run.phase == Phase::Loadout && is_mouse_button_pressed(MouseButton::Left) {
+            if let Some(i) = layout.shop_hit(mx, my) {
+                bought_this_frame = true;
+                let name = run.shop.def(i).map(|d| d.name).unwrap_or("?");
+                match run.buy(i) {
+                    Ok(_) => message = format!("Bought {}. {} gold left.", name, run.gold),
+                    Err(e) => message = format!("{}", e),
+                }
+            }
+        }
+
         // Drag and drop is only live while arranging gear.
         if run.phase == Phase::Loadout {
-            let over_button = rects.iter().any(|r| r.contains(Vec2::new(mx, my)));
+            let over_button =
+                bought_this_frame || rects.iter().any(|r| r.contains(Vec2::new(mx, my)));
 
             // --- pick up ---
             if is_mouse_button_pressed(MouseButton::Left)

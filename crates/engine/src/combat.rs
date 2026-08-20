@@ -48,15 +48,31 @@ pub struct MonsterAttack {
     pub damage: i32,
     pub mind: i32,
     pub armor: i32,
+    /// Landed on the player each time this attack resolves.
+    pub curse: Option<CurseKind>,
 }
 
 impl MonsterAttack {
     pub const fn hit(name: &'static str, cooldown_ms: u32, damage: i32) -> Self {
-        MonsterAttack { name, cooldown_ms, damage, mind: 0, armor: 0 }
+        MonsterAttack { name, cooldown_ms, damage, mind: 0, armor: 0, curse: None }
+    }
+    pub const fn cursing(
+        name: &'static str,
+        cooldown_ms: u32,
+        damage: i32,
+        curse: CurseKind,
+    ) -> Self {
+        MonsterAttack { name, cooldown_ms, damage, mind: 0, armor: 0, curse: Some(curse) }
+    }
+    pub const fn mind(name: &'static str, cooldown_ms: u32, mind: i32) -> Self {
+        MonsterAttack { name, cooldown_ms, damage: 0, mind, armor: 0, curse: None }
+    }
+    pub const fn shielding(name: &'static str, cooldown_ms: u32, armor: i32) -> Self {
+        MonsterAttack { name, cooldown_ms, damage: 0, mind: 0, armor, curse: None }
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct MonsterSpec {
     pub name: &'static str,
     pub health: i32,
@@ -68,8 +84,7 @@ pub struct MonsterSpec {
     pub bounty: i32,
 }
 
-/// The original opponent, now expressed as one attack on a one-second timer —
-/// still exactly 10 damage a second.
+/// The original opponent, named because several tests predate the ladder.
 pub const RUST_GOLEM: MonsterSpec = MonsterSpec {
     name: "Rust Golem",
     health: 400,
@@ -79,6 +94,114 @@ pub const RUST_GOLEM: MonsterSpec = MonsterSpec {
     attacks: &[MonsterAttack::hit("slam", 1000, 10)],
     bounty: 10,
 };
+
+/// The monster ladder, easiest first. Beating one pays its bounty and moves
+/// you along; each teaches a different defensive stat.
+pub const LADDER: &[MonsterSpec] = &[
+    MonsterSpec {
+        name: "Cave Rat",
+        health: 60,
+        regen: 0,
+        mind_resist: 0,
+        curse_resist: 0,
+        attacks: &[MonsterAttack::hit("bite", 800, 4)],
+        bounty: 6,
+    },
+    MonsterSpec {
+        name: "Bog Toad",
+        health: 120,
+        regen: 1,
+        mind_resist: 0,
+        curse_resist: 0,
+        attacks: &[MonsterAttack::hit("tongue", 1200, 8)],
+        bounty: 8,
+    },
+    MonsterSpec {
+        name: "Bone Archer",
+        health: 140,
+        regen: 0,
+        mind_resist: 0,
+        curse_resist: 0,
+        // Fast and weak: armour that regenerates beats it, raw health doesn't.
+        attacks: &[MonsterAttack::hit("arrow", 600, 5)],
+        bounty: 9,
+    },
+    RUST_GOLEM,
+    MonsterSpec {
+        name: "Frost Wisp",
+        health: 170,
+        regen: 0,
+        mind_resist: 0,
+        curse_resist: 25,
+        // Slows your gear, so fast cheap items suffer least.
+        attacks: &[MonsterAttack::cursing("chill", 1500, 4, CurseKind::Frost)],
+        bounty: 12,
+    },
+    MonsterSpec {
+        name: "Plague Hound",
+        health: 210,
+        regen: 0,
+        mind_resist: 0,
+        curse_resist: 0,
+        attacks: &[MonsterAttack::cursing("foul bite", 2500, 6, CurseKind::Searing)],
+        bounty: 14,
+    },
+    MonsterSpec {
+        name: "Iron Sentinel",
+        health: 260,
+        regen: 0,
+        mind_resist: 0,
+        curse_resist: 0,
+        // Shields itself, so burst has to out-pace the plating going back up.
+        attacks: &[
+            MonsterAttack::hit("hammer", 1500, 12),
+            MonsterAttack::shielding("re-plate", 2000, 14),
+        ],
+        bounty: 16,
+    },
+    MonsterSpec {
+        name: "Whisperling",
+        health: 180,
+        regen: 0,
+        mind_resist: 0,
+        curse_resist: 0,
+        // Almost no direct damage: it lowers your ceiling until there is none.
+        attacks: &[MonsterAttack::mind("whisper", 1200, 3), MonsterAttack::hit("claw", 2000, 3)],
+        bounty: 18,
+    },
+    MonsterSpec {
+        name: "Warded Idol",
+        health: 320,
+        regen: 2,
+        mind_resist: 0,
+        curse_resist: 75,
+        // Curse builds fall flat here; bring something that just hits.
+        attacks: &[MonsterAttack::hit("smite", 1300, 11)],
+        bounty: 20,
+    },
+    MonsterSpec {
+        name: "Mirror Fiend",
+        health: 280,
+        regen: 0,
+        mind_resist: 60,
+        curse_resist: 30,
+        attacks: &[MonsterAttack::mind("gaze", 1500, 5), MonsterAttack::hit("strike", 1000, 9)],
+        bounty: 24,
+    },
+    MonsterSpec {
+        name: "The Hollow King",
+        health: 520,
+        regen: 3,
+        mind_resist: 40,
+        curse_resist: 40,
+        attacks: &[
+            MonsterAttack::hit("greatsword", 1100, 14),
+            MonsterAttack::cursing("wail", 3000, 5, CurseKind::Searing),
+            MonsterAttack::mind("dread", 2500, 4),
+        ],
+        bounty: 40,
+    },
+];
 
 // ----------------------------------------------------------- combatants
 
@@ -95,6 +218,8 @@ pub struct RunningItem {
     pub mana: i32,
     pub triggers: Vec<Trigger>,
     pub adjacent_assembled_same_slot: usize,
+    /// Monster attacks can carry a curse; player items use triggers instead.
+    pub curse: Option<CurseKind>,
 }
 
 impl RunningItem {
@@ -110,6 +235,7 @@ impl RunningItem {
             mana: p.stats.mana,
             triggers: p.triggers.clone(),
             adjacent_assembled_same_slot: p.adjacent_assembled_same_slot,
+            curse: None,
         }
     }
 
@@ -125,6 +251,7 @@ impl RunningItem {
             mana: 0,
             triggers: Vec::new(),
             adjacent_assembled_same_slot: 0,
+            curse: a.curse,
         }
     }
 
@@ -516,6 +643,10 @@ fn activate(
                 },
             });
         }
+    }
+
+    if let Some(kind) = item.curse {
+        apply(p, e, side, Action::Curse { kind, target: Target::Enemy }, t, log);
     }
 
     if item.mind > 0 {

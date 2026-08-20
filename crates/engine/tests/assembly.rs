@@ -13,7 +13,7 @@ use gearmaster_engine::stats::Stats;
 
 #[test]
 fn a_piece_only_goes_in_its_own_slot() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     let blade = piece(&run, "Iron Blade");
 
     let err = run.equip(blade, SlotKind::Helmet, 0, 0).unwrap_err();
@@ -23,7 +23,7 @@ fn a_piece_only_goes_in_its_own_slot() {
 
 #[test]
 fn a_shape_may_not_hang_off_the_edge() {
-    let run = Run::new();
+    let run = Run::with_all_pieces();
     let base = piece(&run, "Padded Base"); // 4 wide, 3 tall, in a 6x8 slot
 
     assert!(run.can_equip(base, SlotKind::Chest, 2, 5).is_ok(), "fits at the far corner");
@@ -36,7 +36,7 @@ fn a_shape_may_not_hang_off_the_edge() {
 
 #[test]
 fn pieces_may_not_overlap() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     equip(&mut run, "Balanced Grip", SlotKind::Weapon, 0, 0); // occupies (0, 0..3)
     let blade = piece(&run, "Iron Blade");
 
@@ -49,7 +49,7 @@ fn pieces_may_not_overlap() {
 
 #[test]
 fn equipping_removes_a_piece_from_the_inventory() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     let before = run.inventory().len();
     equip(&mut run, "Balanced Grip", SlotKind::Weapon, 0, 0);
 
@@ -59,7 +59,7 @@ fn equipping_removes_a_piece_from_the_inventory() {
 
 #[test]
 fn unequipping_returns_a_piece_to_the_inventory() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     let grip = piece(&run, "Balanced Grip");
     equip(&mut run, "Balanced Grip", SlotKind::Weapon, 0, 0);
 
@@ -72,7 +72,7 @@ fn unequipping_returns_a_piece_to_the_inventory() {
 
 #[test]
 fn moving_a_piece_within_its_slot_does_not_collide_with_itself() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     let grip = piece(&run, "Balanced Grip");
     equip(&mut run, "Balanced Grip", SlotKind::Weapon, 0, 0); // (0, 0..3)
 
@@ -87,7 +87,7 @@ fn moving_a_piece_within_its_slot_does_not_collide_with_itself() {
 
 #[test]
 fn an_empty_slot_holds_no_items() {
-    let run = Run::new();
+    let run = Run::with_all_pieces();
     for slot in SlotKind::ALL {
         let r = run.report(slot);
         assert!(r.is_empty(), "{} should start empty", slot.name());
@@ -98,7 +98,7 @@ fn an_empty_slot_holds_no_items() {
 
 #[test]
 fn a_weapon_needs_a_damaging_piece_as_well_as_a_handle() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     equip(&mut run, "Balanced Grip", SlotKind::Weapon, 0, 0);
 
     let r = run.report(SlotKind::Weapon);
@@ -108,7 +108,7 @@ fn a_weapon_needs_a_damaging_piece_as_well_as_a_handle() {
 
 #[test]
 fn a_weapon_assembles_from_a_handle_and_a_blade() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     equip(&mut run, "Balanced Grip", SlotKind::Weapon, 0, 0);
     equip(&mut run, "Iron Blade", SlotKind::Weapon, 1, 0);
 
@@ -119,7 +119,7 @@ fn a_weapon_assembles_from_a_handle_and_a_blade() {
 
 #[test]
 fn components_that_do_not_touch_are_judged_as_separate_items() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     equip(&mut run, "Balanced Grip", SlotKind::Weapon, 0, 0); // column 0
     equip(&mut run, "Iron Blade", SlotKind::Weapon, 3, 0); // column 3 — a gap between
 
@@ -134,7 +134,7 @@ fn components_that_do_not_touch_are_judged_as_separate_items() {
 
 #[test]
 fn too_many_components_of_one_kind_in_a_single_item_is_rejected() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     // One base with four layers glued to it: one layer over the maximum.
     equip(&mut run, "Padded Base", SlotKind::Chest, 0, 0); // (0..3, 0..2)
     equip(&mut run, "Chain Layer", SlotKind::Chest, 0, 3);
@@ -154,7 +154,7 @@ fn too_many_components_of_one_kind_in_a_single_item_is_rejected() {
 
 #[test]
 fn one_slot_can_hold_two_finished_items() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     // Two complete gloves, kept apart by empty rows 2 and 3.
     equip(&mut run, "Leather Material", SlotKind::Gloves, 0, 0); // (0..1, 0..1)
     equip(&mut run, "Gripping Mold", SlotKind::Gloves, 2, 0); // (2..3, 0), (2, 1)
@@ -171,7 +171,7 @@ fn one_slot_can_hold_two_finished_items() {
 
 #[test]
 fn two_items_may_sit_flush_against_each_other() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     equip(&mut run, "Leather Material", SlotKind::Gloves, 0, 0); // (0..1, 0..1)
     equip(&mut run, "Gripping Mold", SlotKind::Gloves, 2, 0); // touches the leather
     // Butted straight up against the first glove, with no gap at all.
@@ -187,7 +187,7 @@ fn two_items_may_sit_flush_against_each_other() {
 
 #[test]
 fn a_loose_piece_joins_whichever_core_it_is_nearest() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     // Two handles in a row with a single blade hanging off the second one.
     equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0); // (0, 0..2)
     equip(&mut run, "Balanced Grip", SlotKind::Weapon, 1, 0); // (1, 0..3)
@@ -213,7 +213,7 @@ fn a_loose_piece_joins_whichever_core_it_is_nearest() {
 
 #[test]
 fn a_blob_with_no_core_at_all_is_one_unfinished_item() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     // Two layers touching, and not a base between them.
     equip(&mut run, "Chain Layer", SlotKind::Chest, 0, 0);
     equip(&mut run, "Plate Layer", SlotKind::Chest, 0, 1);
@@ -225,7 +225,7 @@ fn a_blob_with_no_core_at_all_is_one_unfinished_item() {
 
 #[test]
 fn a_slot_can_hold_a_finished_item_and_loose_pieces_at_once() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     equip(&mut run, "Leather Material", SlotKind::Gloves, 0, 0);
     equip(&mut run, "Gripping Mold", SlotKind::Gloves, 2, 0);
     equip(&mut run, "Steel Material", SlotKind::Gloves, 0, 4); // no mold to pair with
@@ -240,7 +240,7 @@ fn a_slot_can_hold_a_finished_item_and_loose_pieces_at_once() {
 
 #[test]
 fn every_slot_assembles_on_the_preset_loadout() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     build_full_loadout(&mut run);
 
     for slot in SlotKind::ALL {
@@ -263,7 +263,7 @@ fn every_slot_assembles_on_the_preset_loadout() {
 
 #[test]
 fn an_adjacency_bonus_stays_dormant_until_the_item_assembles() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     // Runed Material alone: base +5 health, and its +15 bonus must NOT fire.
     equip(&mut run, "Runed Material", SlotKind::Greaves, 0, 0);
 
@@ -283,7 +283,7 @@ fn an_adjacency_bonus_stays_dormant_until_the_item_assembles() {
 
 #[test]
 fn breaking_the_assembly_switches_the_bonus_back_off() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     equip(&mut run, "Runed Material", SlotKind::Greaves, 0, 0);
     equip(&mut run, "Greave Mold", SlotKind::Greaves, 2, 0);
     assert_eq!(run.report(SlotKind::Greaves).stats.health, 20);
@@ -300,7 +300,7 @@ fn breaking_the_assembly_switches_the_bonus_back_off() {
 
 #[test]
 fn each_slots_bonus_fires_exactly_once_on_the_preset() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     build_full_loadout(&mut run);
 
     let notes: Vec<String> = run.reports().iter().flat_map(|r| r.notes()).collect();
@@ -325,7 +325,7 @@ fn each_slots_bonus_fires_exactly_once_on_the_preset() {
 
 #[test]
 fn rotating_an_equipped_piece_that_no_longer_fits_changes_nothing() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     let base = piece(&run, "Padded Base"); // 4 wide x 3 tall
     equip(&mut run, "Padded Base", SlotKind::Chest, 2, 0); // occupies x 2..5
 
@@ -348,7 +348,7 @@ fn rotating_an_equipped_piece_that_no_longer_fits_changes_nothing() {
 
 #[test]
 fn rotating_a_piece_in_the_inventory_always_works() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     let mold = piece(&run, "Gauntlet Mold");
     let before = run.registry.shape(mold);
 

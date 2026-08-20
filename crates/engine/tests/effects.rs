@@ -20,7 +20,7 @@ fn slot_hp(run: &Run, kind: SlotKind) -> i32 {
 
 #[test]
 fn runed_edge_doubles_the_strength_of_an_adjacent_accessory() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     equip(&mut run, "Balanced Grip", SlotKind::Weapon, 0, 0); // (0, 0..3)
     equip(&mut run, "Runed Edge", SlotKind::Weapon, 1, 0); // (1, 0..2) + (2, 1)
     equip(&mut run, "Ruby Inlay", SlotKind::Weapon, 2, 0); // (2, 0), touches (1, 0)
@@ -39,7 +39,7 @@ fn runed_edge_doubles_the_strength_of_an_adjacent_accessory() {
 
 #[test]
 fn the_doubling_only_reaches_accessories_that_actually_touch_the_blade() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     equip(&mut run, "Balanced Grip", SlotKind::Weapon, 0, 0); // (0, 0..3)
     equip(&mut run, "Runed Edge", SlotKind::Weapon, 1, 0); // (1, 0..2) + (2, 1)
     // Hangs off the bottom of the grip, so it is in the same item but is not
@@ -53,7 +53,7 @@ fn the_doubling_only_reaches_accessories_that_actually_touch_the_blade() {
 
 #[test]
 fn the_blades_effect_is_dormant_until_the_weapon_is_finished() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     // No handle, so this never becomes a weapon.
     equip(&mut run, "Runed Edge", SlotKind::Weapon, 1, 0);
     equip(&mut run, "Ruby Inlay", SlotKind::Weapon, 2, 0);
@@ -72,7 +72,7 @@ fn the_blades_effect_is_dormant_until_the_weapon_is_finished() {
 
 #[test]
 fn hollow_weave_gains_strength_for_every_empty_cell_touching_it() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     // Alone in open space: 4 above, 4 below, 1 either side = 10.
     equip(&mut run, "Hollow Weave", SlotKind::Chest, 1, 3);
 
@@ -86,7 +86,7 @@ fn hollow_weave_gains_strength_for_every_empty_cell_touching_it() {
 
 #[test]
 fn boxing_the_weave_in_is_what_costs_it_strength() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     // Tucked under a base: its whole top edge is covered, and its left edge is
     // against the wall (out-of-bounds cells don't count).
     equip(&mut run, "Padded Base", SlotKind::Chest, 0, 0); // (0..3, 0..2)
@@ -100,7 +100,7 @@ fn boxing_the_weave_in_is_what_costs_it_strength() {
 
 #[test]
 fn the_weave_works_whether_or_not_its_chestpiece_came_together() {
-    let mut loose = Run::new();
+    let mut loose = Run::with_all_pieces();
     equip(&mut loose, "Hollow Weave", SlotKind::Chest, 1, 3);
     assert_eq!(loose.report(SlotKind::Chest).assembled_count(), 0);
     assert_eq!(slot_str(&loose, SlotKind::Chest), 10, "unconditional effect");
@@ -110,7 +110,7 @@ fn the_weave_works_whether_or_not_its_chestpiece_came_together() {
 
 #[test]
 fn unbound_core_doubles_neighbouring_layers_only_while_incomplete() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     equip(&mut run, "Unbound Core", SlotKind::Chest, 0, 0); // (0..1, 0..1)
     equip(&mut run, "Chain Layer", SlotKind::Chest, 0, 2); // (0..3, 2), touches it
 
@@ -123,7 +123,7 @@ fn unbound_core_doubles_neighbouring_layers_only_while_incomplete() {
 
 #[test]
 fn completing_the_chestpiece_switches_the_core_off_again() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     equip(&mut run, "Unbound Core", SlotKind::Chest, 0, 0);
     equip(&mut run, "Chain Layer", SlotKind::Chest, 0, 2);
     assert_eq!(slot_hp(&run, SlotKind::Chest), 32);
@@ -142,7 +142,7 @@ fn completing_the_chestpiece_switches_the_core_off_again() {
 
 #[test]
 fn effects_do_not_reach_across_a_gap_into_another_item() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     // A finished weapon in the top-left...
     equip(&mut run, "Balanced Grip", SlotKind::Weapon, 0, 0);
     equip(&mut run, "Runed Edge", SlotKind::Weapon, 1, 0);
@@ -156,7 +156,7 @@ fn effects_do_not_reach_across_a_gap_into_another_item() {
 
 #[test]
 fn a_piece_with_no_effect_is_unchanged_by_the_new_machinery() {
-    let mut run = Run::new();
+    let mut run = Run::with_all_pieces();
     equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
     equip(&mut run, "Iron Blade", SlotKind::Weapon, 1, 0);
 

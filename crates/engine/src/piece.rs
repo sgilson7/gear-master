@@ -266,6 +266,8 @@ pub struct PieceDef {
     pub speed_bonus: i32,
     /// Fires each time this piece's item activates.
     pub triggers: &'static [Trigger],
+    /// What the shop charges for it.
+    pub price: i32,
 }
 
 /// Cooldown used by a core piece that doesn't name its own, by slot. Weapons
@@ -368,6 +370,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 3,
     },
     PieceDef {
         name: "Balanced Grip",
@@ -384,6 +387,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 6,
     },
     PieceDef {
         name: "Iron Blade",
@@ -396,6 +400,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 7,
     },
     PieceDef {
         name: "Serrated Edge",
@@ -408,6 +413,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 8,
     },
     PieceDef {
         name: "Ruby Inlay",
@@ -420,6 +426,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 5,
     },
     PieceDef {
         name: "Balance Weight",
@@ -432,6 +439,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 4,
     },
     // ---- Helmet: frame, plating, crest ----
     PieceDef {
@@ -445,6 +453,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 5,
     },
     PieceDef {
         name: "Iron Plating",
@@ -457,6 +466,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 5,
     },
     PieceDef {
         name: "Visor of Focus",
@@ -473,6 +483,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 7,
     },
     PieceDef {
         name: "Crest of Vigor",
@@ -485,6 +496,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 4,
     },
     // ---- Chest: one base, up to three layers ----
     PieceDef {
@@ -502,6 +514,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 6,
     },
     PieceDef {
         name: "Chain Layer",
@@ -514,6 +527,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 4,
     },
     PieceDef {
         name: "Plate Layer",
@@ -526,6 +540,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 5,
     },
     PieceDef {
         name: "Woven Underlayer",
@@ -542,6 +557,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 6,
     },
     // ---- Gloves: material + mold ----
     PieceDef {
@@ -555,6 +571,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 3,
     },
     PieceDef {
         name: "Steel Material",
@@ -567,6 +584,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 6,
     },
     PieceDef {
         name: "Gauntlet Mold",
@@ -583,6 +601,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 6,
     },
     PieceDef {
         name: "Gripping Mold",
@@ -595,6 +614,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 4,
     },
     // ---- Greaves: material + mold ----
     PieceDef {
@@ -612,6 +632,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 7,
     },
     PieceDef {
         name: "Boiled Leather",
@@ -624,6 +645,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 4,
     },
     PieceDef {
         name: "Greave Mold",
@@ -636,6 +658,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 3,
     },
     PieceDef {
         name: "Runner's Mold",
@@ -648,6 +671,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 4,
     },
     // ---- Components with positional effects ----
     PieceDef {
@@ -669,6 +693,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 9,
     },
     PieceDef {
         name: "Hollow Weave",
@@ -685,6 +710,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 6,
     },
     PieceDef {
         name: "Unbound Core",
@@ -704,6 +730,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 6,
     },
     // ---- Cursed line: powerful, but they bite back ----
     PieceDef {
@@ -726,6 +753,7 @@ pub static CATALOG: &[PieceDef] = &[
             on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
             on_failure: Action::Curse { kind: CurseKind::Frost, target: Target::Yourself },
         }],
+        price: 10,
     },
     PieceDef {
         name: "Cursed Blade",
@@ -742,6 +770,7 @@ pub static CATALOG: &[PieceDef] = &[
             action: Action::Curse { kind: CurseKind::Searing, target: Target::Yourself },
             same_slot_only: true,
         }],
+        price: 12,
     },
     // ---- Spares, so every slot can host more than one finished item ----
     PieceDef {
@@ -755,6 +784,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 4,
     },
     PieceDef {
         name: "Hide Base",
@@ -767,6 +797,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
+        price: 5,
     },
 ];
 
