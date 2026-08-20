@@ -21,6 +21,23 @@
   }
   #loading .title { font-size: 26px; letter-spacing: 3px; color: #f0c85a; }
   #loading .sub { font-size: 13px; color: #6a6a80; }
+
+  /* The soundtrack. SoundCloud's own widget, streamed from SoundCloud - the
+     game itself has no audio engine and nothing is bundled. It sits over a
+     corner of the letterbox and can be folded away if it is in the way. */
+  #music {
+    position: fixed; right: 12px; bottom: 12px; z-index: 20;
+    width: 360px; border: 1px solid #3a3a52; border-radius: 6px;
+    background: #12121c; overflow: hidden;
+  }
+  #music.folded #sc { display: none; }
+  #music header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 10px; font-size: 12px; letter-spacing: 1px; color: #8a8aa4;
+    cursor: pointer; user-select: none;
+  }
+  #music header:hover { color: #f0c85a; }
+  #sc { display: block; width: 100%; height: 120px; border: 0; }
 </style>
 </head>
 <body>
@@ -29,6 +46,14 @@
     <div class="sub">loading…</div>
   </div>
   <canvas id="glcanvas" tabindex="1"></canvas>
+
+  <div id="music">
+    <header id="music-toggle"><span>SOUNDTRACK</span><span id="music-caret">fold</span></header>
+    <iframe id="sc" allow="autoplay" scrolling="no" frameborder="no"
+      src="https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fleefy5%2Fsets%2Fcountless-days-in-ableton&color=%23f0c85a&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false&visual=false"></iframe>
+  </div>
+
+  <script src="https://w.soundcloud.com/player/api.js"></script>
   <script src="mq_js_bundle.js"></script>
   <script>
     // The shim swaps to the canvas once the module is up; give it a beat, then
@@ -46,6 +71,45 @@
     // Right-click rotates pieces, so don't let the browser menu eat it.
     document.getElementById("glcanvas")
       .addEventListener("contextmenu", e => e.preventDefault());
+
+    // ---- soundtrack -------------------------------------------------
+    // Browsers refuse to start audio before the visitor has interacted with
+    // the page, so the playlist starts on the first click or keypress rather
+    // than on load. Once it is going, the end of the set seeks back to the
+    // first track, which is what makes it repeat.
+    (function () {
+      if (typeof SC === "undefined") return;
+      const widget = SC.Widget(document.getElementById("sc"));
+      let started = false;
+
+      widget.bind(SC.Widget.Events.READY, function () {
+        widget.setVolume(60);
+        widget.bind(SC.Widget.Events.FINISH, function () {
+          // FINISH fires at the end of the whole set; go back to the top.
+          widget.skip(0);
+          widget.play();
+        });
+      });
+
+      function start() {
+        if (started) return;
+        started = true;
+        widget.play();
+        window.removeEventListener("pointerdown", start, true);
+        window.removeEventListener("keydown", start, true);
+      }
+      // Capture phase: the canvas swallows its own events otherwise.
+      window.addEventListener("pointerdown", start, true);
+      window.addEventListener("keydown", start, true);
+
+      // Folding hides the player without stopping it.
+      const panel = document.getElementById("music");
+      document.getElementById("music-toggle").addEventListener("click", function () {
+        panel.classList.toggle("folded");
+        document.getElementById("music-caret").textContent =
+          panel.classList.contains("folded") ? "show" : "fold";
+      });
+    })();
   </script>
 </body>
 </html>
