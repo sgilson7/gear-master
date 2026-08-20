@@ -16,6 +16,7 @@ pub mod curse;
 pub mod loadout;
 pub mod naming;
 pub mod piece;
+pub mod rating;
 pub mod rng;
 pub mod run;
 pub mod shop;

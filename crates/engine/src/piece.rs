@@ -300,6 +300,28 @@ pub struct PieceDef {
     pub price: i32,
 }
 
+/// What a slot's recipe demands, as `(kind, min, max)` counts per item. The
+/// one place the recipes are written down: assembly checks them, and the
+/// rating works out what a slot can hold at best from the same table.
+pub fn recipe(kind: SlotKind) -> &'static [(PieceKind, usize, usize)] {
+    match kind {
+        SlotKind::Weapon => &[
+            (PieceKind::Handle, 1, 1),
+            (PieceKind::Damaging, 1, 2),
+            (PieceKind::Accessory, 0, 2),
+        ],
+        SlotKind::Helmet => &[
+            (PieceKind::Frame, 1, 1),
+            (PieceKind::Plating, 1, 2),
+            (PieceKind::Crest, 0, 1),
+        ],
+        SlotKind::Chest => &[(PieceKind::Base, 1, 1), (PieceKind::Layer, 1, 3)],
+        SlotKind::Gloves | SlotKind::Greaves => {
+            &[(PieceKind::Material, 1, 1), (PieceKind::Mold, 1, 1)]
+        }
+    }
+}
+
 /// Cooldown used by a core piece that doesn't name its own, by slot. Weapons
 /// swing quickly; armour ticks slowly.
 pub fn default_cooldown_ms(slot: SlotKind) -> u32 {

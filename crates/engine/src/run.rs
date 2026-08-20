@@ -21,6 +21,58 @@ pub enum Phase {
     Fighting,
 }
 
+/// What losing costs you. Either way a loss still pays the bounty - you need
+/// income to buy your way past whatever just beat you - and never advances the
+/// ladder, because you did not actually kill the thing.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Mode {
+    /// Losing knocks you back down to the rung you last cleared, so there is
+    /// always an easier fight to farm before trying again.
+    Grinder,
+    /// Losing costs a life. Three of them and the run is over.
+    Rogue,
+}
+
+impl Mode {
+    pub fn name(self) -> &'static str {
+        match self {
+            Mode::Grinder => "GRINDER",
+            Mode::Rogue => "ROGUE",
+        }
+    }
+
+    pub fn blurb(self) -> &'static str {
+        match self {
+            Mode::Grinder => {
+                "Lose and you drop back to the last rung you cleared. Take the \
+                 bounty either way and farm it until your gear is ready."
+            }
+            Mode::Rogue => {
+                "Three losses and the run is over - everything you own goes \
+                 with it. You still take the bounty, so a loss buys one more \
+                 attempt."
+            }
+        }
+    }
+}
+
+/// How many losses a Rogue run survives.
+pub const ROGUE_LIVES: u32 = 3;
+
+/// What a settled fight did to the run, so the GUI can say so.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Settlement {
+    pub outcome: Outcome,
+    /// Gold banked. Paid on a loss too.
+    pub reward: i32,
+    /// Rungs given back by a Grinder loss.
+    pub knocked_back: bool,
+    /// Lives left, in Rogue. `None` in Grinder.
+    pub lives_left: Option<u32>,
+    /// The Rogue run ran out of lives and has been wiped back to the start.
+    pub run_ended: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RuleError {
     Place(PlaceError),
@@ -69,6 +121,14 @@ pub struct Run {
     pub rung: usize,
     pub wins: u32,
     pub losses: u32,
+    pub mode: Mode,
+    /// Losses left before a Rogue run is wiped. Ignored in Grinder.
+    pub lives: u32,
+    /// The last settled fight, kept so the GUI can report what it cost.
+    pub last_settlement: Option<Settlement>,
+    /// The highest rung ever reached, which a Grinder knock-back does not
+    /// take away. Only here so a run can say how far it actually got.
+    pub best_rung: usize,
     /// Set once a fight's result has been banked, so the reward can't be
     /// claimed twice by replaying the same log.
     settled: bool,
@@ -112,9 +172,20 @@ impl Run {
             rung: 0,
             wins: 0,
             losses: 0,
+            mode: Mode::Grinder,
+            lives: ROGUE_LIVES,
+            last_settlement: None,
+            best_rung: 0,
             settled: false,
             rng,
         }
+    }
+
+    /// Same, in a chosen mode.
+    pub fn with_mode(mode: Mode) -> Self {
+        let mut run = Self::new();
+        run.mode = mode;
+        run
     }
 
     /// Every component in the catalog, for the preset, the tests, and the
@@ -179,31 +250,98 @@ impl Run {
         Ok(refund)
     }
 
-    /// Bank the result of the fight just watched: pay the bounty, advance the
+    /// Bank the result of the fight just watched: pay the bounty, move the
     /// ladder, and turn the shop over. Idempotent, so the GUI can call it when
     /// playback finishes without worrying about repeats.
+    ///
+    /// The bounty is paid whatever happened. Losing is meant to be a setback,
+    /// not a dead end: a run with no income cannot buy its way past whatever
+    /// just beat it, and would have nothing to do but replay a fight it
+    /// already knows it loses. What losing actually costs is set by the mode.
     pub fn settle(&mut self) -> Option<i32> {
         if self.settled {
             return None;
         }
         let outcome = self.log.as_ref()?.outcome;
         self.settled = true;
-        let reward = match outcome {
+
+        let bounty = self.monster().bounty;
+        self.gold += bounty;
+
+        let mut settlement = Settlement {
+            outcome,
+            reward: bounty,
+            knocked_back: false,
+            lives_left: None,
+            run_ended: false,
+        };
+
+        match outcome {
             Outcome::Victory => {
-                let bounty = self.monster().bounty;
-                self.gold += bounty;
                 self.wins += 1;
                 self.rung += 1;
-                Some(bounty)
+                self.best_rung = self.best_rung.max(self.rung);
             }
+            // A draw or a defeat both mean the thing is still standing, so
+            // neither advances the ladder.
             _ => {
                 self.losses += 1;
-                None
+                match self.mode {
+                    Mode::Grinder => {
+                        // Back to the rung you last cleared, so there is
+                        // always something easier to farm.
+                        if self.rung > 0 {
+                            self.rung -= 1;
+                            settlement.knocked_back = true;
+                        }
+                    }
+                    Mode::Rogue => {
+                        self.lives = self.lives.saturating_sub(1);
+                        settlement.lives_left = Some(self.lives);
+                        if self.lives == 0 {
+                            settlement.run_ended = true;
+                        }
+                    }
+                }
             }
-        };
+        }
+
         // New shelves after every battle, win or lose.
         self.shop.restock(&mut self.rng);
-        reward
+
+        let ended = settlement.run_ended;
+        self.last_settlement = Some(settlement);
+        if ended {
+            // Everything goes: gear, gold, ladder. The mode and the seed
+            // survive so the player lands straight into a fresh run.
+            self.wipe();
+        }
+        Some(bounty)
+    }
+
+    /// Throw the run away and start over, keeping only the mode. What a Rogue
+    /// run does when it runs out of lives.
+    pub fn wipe(&mut self) {
+        let mode = self.mode;
+        let settlement = self.last_settlement.take();
+        let seed = self.rng.next_u64();
+        let mut fresh = Run::seeded(seed);
+        fresh.mode = mode;
+        fresh.last_settlement = settlement;
+        // The fight just watched stays on screen; the GUI is still replaying
+        // it and needs somewhere to go back to.
+        fresh.log = self.log.take();
+        fresh.phase = self.phase;
+        fresh.settled = true;
+        *self = fresh;
+    }
+
+    /// Losses this run may still take. `None` outside Rogue.
+    pub fn lives_left(&self) -> Option<u32> {
+        match self.mode {
+            Mode::Grinder => None,
+            Mode::Rogue => Some(self.lives),
+        }
     }
 
     /// Components not currently in a slot, in stable order.

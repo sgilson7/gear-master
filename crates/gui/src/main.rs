@@ -9,6 +9,8 @@ use gearmaster_engine::loadout::{ItemProfile, Loadout, SlotReport};
 use gearmaster_engine::piece::{
     default_cooldown_ms, PieceDef, PieceId, PieceKind, PieceRegistry, SlotKind,
 };
+use gearmaster_engine::rating::Rarity;
+use gearmaster_engine::run::{Mode, ROGUE_LIVES};
 use gearmaster_engine::run::{Phase, Run};
 use gearmaster_engine::shop::REROLL_COST;
 use gearmaster_engine::shape::Shape;
@@ -407,6 +409,52 @@ fn draw_monster(x: f32, y: f32, sz: f32, sprite: MonsterSprite, c: Color, dark: 
                 draw_line(lx, fy(0.62), lx, fy(0.92), t, c);
             }
         }
+        // A slab of a figure, all chestplate: bands across a wide torso, tiny
+        // head, planted feet. Its whole point is armour.
+        MonsterSprite::Warden => {
+            draw_rectangle(fx(0.16), fy(0.24), sz * 0.68, sz * 0.50, c);
+            for i in 0..3 {
+                let by = fy(0.34 + i as f32 * 0.14);
+                draw_line(fx(0.20), by, fx(0.80), by, t * 1.2, dark);
+            }
+            draw_rectangle(fx(0.38), fy(0.06), sz * 0.24, sz * 0.18, c);
+            draw_rectangle(fx(0.43), fy(0.13), sz * 0.14, sz * 0.04, dark);
+            // Pauldrons and boots.
+            draw_rectangle(fx(0.04), fy(0.26), sz * 0.12, sz * 0.22, c);
+            draw_rectangle(fx(0.84), fy(0.26), sz * 0.12, sz * 0.22, c);
+            draw_rectangle(fx(0.22), fy(0.76), sz * 0.20, sz * 0.18, c);
+            draw_rectangle(fx(0.58), fy(0.76), sz * 0.20, sz * 0.18, c);
+        }
+        // Everything at once: a crowned figure ringed by cogs.
+        MonsterSprite::Gearwright => {
+            // Cog halo.
+            for i in 0..10 {
+                let a = i as f32 * std::f32::consts::TAU / 10.0;
+                let (sx, sy) = (fx(0.5) + a.cos() * sz * 0.42, fy(0.46) + a.sin() * sz * 0.42);
+                draw_rectangle(sx - sz * 0.055, sy - sz * 0.055, sz * 0.11, sz * 0.11, c);
+            }
+            draw_circle_lines(fx(0.5), fy(0.46), sz * 0.34, t * 1.6, c);
+            // Body and head.
+            draw_triangle(
+                Vec2::new(fx(0.26), fy(0.92)),
+                Vec2::new(fx(0.74), fy(0.92)),
+                Vec2::new(fx(0.5), fy(0.42)),
+                c,
+            );
+            draw_circle(fx(0.5), fy(0.38), sz * 0.15, c);
+            draw_circle(fx(0.44), fy(0.36), sz * 0.03, dark);
+            draw_circle(fx(0.56), fy(0.36), sz * 0.03, dark);
+            // Crown.
+            for i in 0..3 {
+                let px = fx(0.38 + i as f32 * 0.12);
+                draw_triangle(
+                    Vec2::new(px - sz * 0.045, fy(0.26)),
+                    Vec2::new(px + sz * 0.045, fy(0.26)),
+                    Vec2::new(px, fy(0.13)),
+                    c,
+                );
+            }
+        }
         MonsterSprite::Sentinel => {
             draw_rectangle(fx(0.32), fy(0.22), sz * 0.36, sz * 0.56, c);
             draw_rectangle(fx(0.38), fy(0.06), sz * 0.24, sz * 0.18, c);
@@ -707,6 +755,46 @@ fn draw_slot_motif(x: f32, y: f32, cell: f32, slot: SlotKind, ink: Color) {
             }
         }
     }
+}
+
+/// Colour of a rarity badge. Brightness climbs with the tier so the pips read
+/// as a rank without needing the colours told apart.
+fn rarity_color(r: Rarity) -> Color {
+    match r {
+        Rarity::Common => col_dim(),
+        Rarity::Rare => Color::from_rgba(120, 186, 240, 255),
+        Rarity::Epic => Color::from_rgba(196, 150, 244, 255),
+        Rarity::Legendary => Color::from_rgba(250, 206, 110, 255),
+    }
+}
+
+/// The badge an item wears: one pip for rare, two for epic, three for
+/// legendary. Diamonds rather than dots, so it does not read as one of the
+/// component markers. Returns the width it used.
+fn draw_rarity_pips(x: f32, y: f32, r: Rarity, scale: f32) -> f32 {
+    let n = r.marks();
+    if n == 0 {
+        return 0.0;
+    }
+    let c = rarity_color(r);
+    let rad = 4.0 * scale;
+    let step = rad * 2.4;
+    for i in 0..n {
+        let cx = x + rad + i as f32 * step;
+        draw_triangle(
+            Vec2::new(cx, y - rad),
+            Vec2::new(cx + rad, y),
+            Vec2::new(cx, y + rad),
+            c,
+        );
+        draw_triangle(
+            Vec2::new(cx, y - rad),
+            Vec2::new(cx, y + rad),
+            Vec2::new(cx - rad, y),
+            c,
+        );
+    }
+    n as f32 * step
 }
 
 /// The three things a component can carry. Each has its own corner of the
@@ -1280,6 +1368,17 @@ fn render_item_outlines(view: &SlotView, run: &Run, report: &SlotReport) {
         };
         let t = if item.assembled { 3.5 } else { 2.0 };
 
+        // The badge sits on the item's topmost-then-leftmost cell.
+        if item.assembled {
+            let rarity = Rarity::of(item.rating);
+            if rarity.marks() > 0 {
+                if let Some(&(bx, by)) = cells.iter().min_by_key(|(x, y)| (*y, *x)) {
+                    let (px, py) = view.cell_origin(bx, by);
+                    draw_rarity_pips(px + 3.0, py + 5.0, rarity, 0.8);
+                }
+            }
+        }
+
         for &(x, y) in &cells {
             let (px, py) = view.cell_origin(x, y);
             let up = y > 0 && cells.contains(&(x, y - 1));
@@ -1570,6 +1669,24 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
     }
 }
 
+/// Where the SELL badge sits on an inventory card. The same rect draws it and
+/// hit-tests it, so the two can never drift.
+fn sell_badge_rect(card: Rect) -> Rect {
+    Rect::new(card.x + 6.0, card.y + card.h - 30.0, card.w - 12.0, 24.0)
+}
+
+/// The inventory card under the cursor whose SELL badge is being pointed at.
+fn sell_hit(layout: &Layout, mx: f32, my: f32) -> Option<PieceId> {
+    layout
+        .cards
+        .iter()
+        .find(|c| {
+            c.rect.contains(Vec2::new(mx, my))
+                && sell_badge_rect(c.rect).contains(Vec2::new(mx, my))
+        })
+        .map(|c| c.id)
+}
+
 fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
     draw_rectangle(layout.inv.x, layout.inv.y, layout.inv.w, layout.inv.h, col_tray());
     draw_rectangle_lines(
@@ -1584,7 +1701,7 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
     // The hint sits after the heading with whatever room is left, so it never
     // grows back into the word "INVENTORY" as the text scale moves.
     let hint_x = layout.inv.x + 30.0 + text_width("INVENTORY", 18.0);
-    let hint = "drag onto a slot  ·  right-click rotates  ·  drag back here to remove";
+    let hint = "drag onto a slot  ·  right-click rotates  ·  click SELL to cash a piece in";
     let hint_size = fitting_size(hint, layout.inv.w - (hint_x - layout.inv.x) - 16.0, &[14.0, 13.0, 12.0, 11.0]);
     ui_text(hint, hint_x, layout.inv.y + 24.0, hint_size, col_dim());
 
@@ -1636,7 +1753,30 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
             centered_text(&line, cx, ty, 13.0, Color::from_rgba(215, 218, 235, 255));
             ty += line_h(13.0);
         }
-        centered_text(def.kind.name(), cx, card.rect.bottom() - 12.0, 12.0, col_dim());
+        if hovered {
+            // Selling is the card's only click action, so it only appears
+            // while you are pointing at one - the tray would be a wall of
+            // buttons otherwise.
+            let b = sell_badge_rect(card.rect);
+            let hot = b.contains(Vec2::new(mx, my));
+            draw_rectangle(
+                b.x,
+                b.y,
+                b.w,
+                b.h,
+                if hot { Color::from_rgba(96, 70, 24, 255) } else { Color::from_rgba(52, 48, 40, 255) },
+            );
+            draw_rectangle_lines(b.x, b.y, b.w, b.h, 1.5, if hot { col_gold() } else { col_dim() });
+            centered_text(
+                &format!("SELL {}g", def.price / 2),
+                b.x + b.w / 2.0,
+                b.y + b.h - 7.0,
+                13.0,
+                if hot { col_gold() } else { LIGHTGRAY },
+            );
+        } else {
+            centered_text(def.kind.name(), cx, card.rect.bottom() - 12.0, 12.0, col_dim());
+        }
 
         if def.adjacency.is_some() {
             draw_marker(card.rect.x + card.rect.w - 12.0, card.rect.y + 12.0, Marker::Bonus, true);
@@ -1763,6 +1903,7 @@ fn render_cooldown_row(
     schedule: &[u32],
     now_ms: u32,
     tint: Color,
+    rarity: Rarity,
 ) {
     let icon = 24.0;
     let label_w = 232.0;
@@ -1783,8 +1924,11 @@ fn render_cooldown_row(
     // Names are procedurally generated, so their length is not something the
     // layout can assume; shrink rather than run into the bar.
     let name_x = x + icon + 8.0;
-    let size = fitting_size(name, track_x - name_x - 10.0, &[15.0, 14.0, 13.0, 12.0, 11.0]);
+    // Leave room for the badge so a legendary's pips never sit on the name.
+    let pips_w = rarity.marks() as f32 * 10.0;
+    let size = fitting_size(name, track_x - name_x - pips_w - 12.0, &[15.0, 14.0, 13.0, 12.0, 11.0]);
     ui_text(name, name_x, y + 12.0, size, fg);
+    draw_rarity_pips(name_x + text_width(name, size) + 6.0, y + 7.0, rarity, 1.0);
 
     draw_rectangle(track_x, y, track_w, h, Color::from_rgba(26, 26, 38, 255));
     let p = bar_progress(schedule, cooldown_ms, now_ms).clamp(0.0, 1.0);
@@ -2321,6 +2465,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
                 sched.get(i).map(|v| v.as_slice()).unwrap_or(&[]),
                 pb.now_ms,
                 tint,
+                Rarity::of(it.rating),
             );
         }
     }
@@ -2424,6 +2569,17 @@ fn render_item_summary(p: &ItemProfile, run: &Run, mx: f32, my: f32) {
             format!("{} · built on a {}", p.slot.name(), p.core),
             col_dim(),
         ),
+        {
+            let r = p.rarity();
+            let tail = match r.next_at() {
+                Some(next) => format!("  ({} more for the next mark)", next - p.rating),
+                None => String::new(),
+            };
+            (
+                format!("{} · rating {}{}", r.name().to_uppercase(), p.rating, tail),
+                rarity_color(r),
+            )
+        },
     ];
 
     // Passive half: what it contributes whether or not a fight is happening.
@@ -2676,6 +2832,210 @@ fn draw_tile_legend(x: f32, y: f32, w: f32) -> f32 {
     ty += 30.0;
     draw_line(x, ty, x + w, ty, 1.0, Color::from_rgba(70, 70, 95, 255));
     ty - y + 10.0
+}
+
+/// What the window is showing before the run proper starts.
+#[derive(Copy, Clone, PartialEq, Eq)]
+enum Opening {
+    /// Reading page N of the introduction.
+    Intro(usize),
+    /// Picking Grinder or Rogue.
+    ModeSelect,
+    /// Done; the board is live.
+    Playing,
+}
+
+/// The pages a new run opens on: what the game is, then which way to play it.
+///
+/// Deliberately short. The glossary behind `G` is the reference; these are the
+/// four things you cannot work out by looking at the board.
+const INTRO: &[(&str, &[&str])] = &[
+    (
+        "GEAR IS BUILT, NOT BOUGHT",
+        &[
+            "You have five slots - helmet, chestpiece, gloves, greaves, weapon -",
+            "and each is an eight-by-six grid.",
+            "",
+            "The shop sells COMPONENTS, never finished gear. Drag them into a slot",
+            "and make them touch. Components that touch and match their slot's",
+            "recipe become an ASSEMBLED item, which is the only kind that fights.",
+            "",
+            "Loose pieces still give you their flat stats. They just never act.",
+        ],
+    ),
+    (
+        "EVERY ITEM KEEPS ITS OWN TIME",
+        &[
+            "There are no turns. Each assembled item has its own COOLDOWN and goes",
+            "off whenever it comes round - a fast dagger several times before a",
+            "heavy chestpiece once.",
+            "",
+            "When an item goes off it does everything it carries at once: damage,",
+            "ARMOR (temporary hit points, from zero every fight), MANA, curses.",
+            "",
+            "Anything hanging off that moment is a TRIGGER. Some spend mana and do",
+            "one thing if they can pay and something worse if they cannot.",
+        ],
+    ),
+    (
+        "WHERE YOU PUT THINGS MATTERS",
+        &[
+            "ADJACENT means two items in the same slot whose cells touch. ALIGNED",
+            "means two items in different slots lying on the same rows.",
+            "",
+            "Triggers read both. An item can fire off its neighbour's cooldown, or",
+            "off a glove three grids away that happens to share its rows.",
+            "",
+            "So the same components are worth different amounts depending on where",
+            "you set them down. That is the whole game.",
+        ],
+    ),
+    (
+        "WINNING, LOSING, AND MARKS",
+        &[
+            "Beat the monster and you climb a rung and take its bounty. Lose and",
+            "you still take the bounty - you will need it - but the thing is still",
+            "standing, so you do not advance.",
+            "",
+            "Finished items are scored on how much they actually do per second.",
+            "Past a threshold an item is marked RARE, then EPIC, then LEGENDARY.",
+            "",
+            "Press G at any time for what every word means.",
+        ],
+    ),
+];
+
+/// One intro page. Returns the BACK and NEXT rects for hit-testing.
+fn render_intro(page: usize, mx: f32, my: f32) -> (Rect, Rect) {
+    let (title, body) = INTRO[page.min(INTRO.len() - 1)];
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, col_bg());
+
+    let pad = 90.0;
+    let r = Rect::new(pad, 70.0, LOGICAL_W - 2.0 * pad, LOGICAL_H - 210.0);
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 255));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::from_rgba(110, 110, 145, 255));
+
+    ui_text("GEAR MASTER", r.x + 34.0, r.y + 46.0, 26.0, col_gold());
+    ui_text(title, r.x + 34.0, r.y + 92.0, 22.0, WHITE);
+
+    let lh = line_h(16.0);
+    for (i, line) in body.iter().enumerate() {
+        ui_text(line, r.x + 34.0, r.y + 136.0 + i as f32 * lh, 16.0, LIGHTGRAY);
+    }
+
+    // Which page you are on.
+    for i in 0..INTRO.len() {
+        let cx = r.x + r.w / 2.0 - (INTRO.len() as f32 - 1.0) * 11.0 + i as f32 * 22.0;
+        let cy = r.y + r.h - 30.0;
+        if i == page {
+            draw_circle(cx, cy, 6.0, col_gold());
+        } else {
+            draw_circle_lines(cx, cy, 6.0, 1.5, col_dim());
+        }
+    }
+
+    let bw = 220.0;
+    let by = r.y + r.h + 26.0;
+    let back = Rect::new(r.x, by, bw, 44.0);
+    let next = Rect::new(r.x + r.w - bw, by, bw, 44.0);
+    if page > 0 {
+        button(back, "BACK", true, mx, my);
+    }
+    button(next, if page + 1 == INTRO.len() { "CHOOSE A MODE" } else { "NEXT" }, true, mx, my);
+    (back, next)
+}
+
+/// The mode picker, shown once the intro is done. Returns each mode's rect.
+fn render_mode_select(mx: f32, my: f32) -> [(Mode, Rect); 2] {
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, col_bg());
+    centered_text("HOW DO YOU WANT TO PLAY?", LOGICAL_W / 2.0, 130.0, 30.0, col_gold());
+    centered_text(
+        "Either way a loss still pays the bounty, and never moves you up the ladder.",
+        LOGICAL_W / 2.0,
+        176.0,
+        16.0,
+        col_dim(),
+    );
+
+    let (cw, ch) = (520.0, 420.0);
+    let gap = 60.0;
+    let x0 = (LOGICAL_W - (2.0 * cw + gap)) / 2.0;
+    let y0 = 240.0;
+    let modes = [Mode::Grinder, Mode::Rogue];
+    let mut out = [(Mode::Grinder, Rect::new(0.0, 0.0, 0.0, 0.0)); 2];
+
+    for (i, &mode) in modes.iter().enumerate() {
+        let rect = Rect::new(x0 + i as f32 * (cw + gap), y0, cw, ch);
+        let hot = rect.contains(Vec2::new(mx, my));
+        draw_rectangle(
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            if hot { Color::from_rgba(34, 34, 50, 255) } else { Color::from_rgba(22, 22, 34, 255) },
+        );
+        draw_rectangle_lines(
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            if hot { 3.0 } else { 1.5 },
+            if hot { col_gold() } else { Color::from_rgba(80, 80, 105, 255) },
+        );
+        centered_text(mode.name(), rect.x + rect.w / 2.0, rect.y + 62.0, 28.0, WHITE);
+
+        let mut y = rect.y + 118.0;
+        for line in wrap_px(mode.blurb(), rect.w - 60.0, 16.0) {
+            centered_text(&line, rect.x + rect.w / 2.0, y, 16.0, LIGHTGRAY);
+            y += line_h(16.0);
+        }
+
+        // A little diagram of what a loss costs.
+        y = rect.y + rect.h - 150.0;
+        match mode {
+            Mode::Grinder => {
+                centered_text("on a loss", rect.x + rect.w / 2.0, y, 14.0, col_dim());
+                for step in 0..5 {
+                    let sx = rect.x + rect.w / 2.0 - 100.0 + step as f32 * 50.0;
+                    let lit = step <= 2;
+                    draw_rectangle(
+                        sx,
+                        y + 24.0,
+                        36.0,
+                        22.0,
+                        if lit { col_you() } else { Color::from_rgba(48, 48, 64, 255) },
+                    );
+                }
+                centered_text(
+                    "you drop back a rung, and farm it",
+                    rect.x + rect.w / 2.0,
+                    y + 78.0,
+                    15.0,
+                    col_you(),
+                );
+            }
+            Mode::Rogue => {
+                centered_text("on a loss", rect.x + rect.w / 2.0, y, 14.0, col_dim());
+                for life in 0..ROGUE_LIVES {
+                    let sx = rect.x + rect.w / 2.0 - 60.0 + life as f32 * 60.0;
+                    if life < ROGUE_LIVES - 1 {
+                        draw_circle(sx, y + 36.0, 14.0, col_foe());
+                    } else {
+                        draw_circle_lines(sx, y + 36.0, 14.0, 2.0, col_dim());
+                    }
+                }
+                centered_text(
+                    "one of three lives, then it all goes",
+                    rect.x + rect.w / 2.0,
+                    y + 78.0,
+                    15.0,
+                    col_foe(),
+                );
+            }
+        }
+        out[i] = (mode, rect);
+    }
+    out
 }
 
 /// The glossary, over the top of whatever is behind it. Returns the CLOSE
@@ -2981,6 +3341,18 @@ fn render_panel(
     y += 12.0;
 
     ui_text("RUN", x + 20.0, y, 14.0, col_dim());
+    let mode_label = match run.lives_left() {
+        Some(n) => format!("{}  ·  {} lives", run.mode.name(), n),
+        None => run.mode.name().to_string(),
+    };
+    let m_w = text_width(&mode_label, 13.0);
+    ui_text(
+        &mode_label,
+        x + PANEL_W - 20.0 - m_w,
+        y,
+        13.0,
+        if run.lives_left() == Some(1) { col_bad() } else { col_dim() },
+    );
     y += 20.0;
     for (label, value, color) in [
         ("Gold", format!("{}", run.gold), col_gold()),
@@ -3088,6 +3460,23 @@ async fn main() {
     // Kept between fights, and settable before one starts.
     let mut playback_speed = DEFAULT_SPEED;
     let mut glossary_open = std::env::var("GEARMASTER_GLOSSARY").is_ok();
+    // Where the game opens: the intro pages, then the mode picker, then play.
+    // Any debug hook skips straight to the board.
+    let skip_intro = std::env::var("GEARMASTER_PRESET").is_ok()
+        || std::env::var("GEARMASTER_FIGHT").is_ok()
+        || std::env::var("GEARMASTER_SKIP_INTRO").is_ok();
+    let mut opening = if skip_intro { Opening::Playing } else { Opening::Intro(0) };
+    // GEARMASTER_OPENING=mode|2|... opens on a given page, for screenshots.
+    if let Ok(o) = std::env::var("GEARMASTER_OPENING") {
+        opening = if o == "mode" {
+            Opening::ModeSelect
+        } else {
+            Opening::Intro(o.parse::<usize>().unwrap_or(0).min(INTRO.len() - 1))
+        };
+    }
+    if let Ok(m) = std::env::var("GEARMASTER_MODE") {
+        run.mode = if m.eq_ignore_ascii_case("rogue") { Mode::Rogue } else { Mode::Grinder };
+    }
     let mut message =
         String::from("Drag components into a slot. Pieces must touch to become gear.");
 
@@ -3139,11 +3528,75 @@ async fn main() {
             p.advance(&run);
             if p.done && !settled {
                 settled = true;
-                message = match run.settle() {
-                    Some(g) => format!("+{} gold. Next up: {}.", g, run.monster().name),
-                    None => format!("No reward. {} still stands.", run.monster().name),
+                let gold = run.settle();
+                message = match (gold, run.last_settlement.clone()) {
+                    (Some(g), Some(st)) if st.outcome == Outcome::Victory => {
+                        format!("+{} gold. Next up: {}.", g, run.monster().name)
+                    }
+                    (Some(g), Some(st)) if st.run_ended => format!(
+                        "+{} gold, but that was your last life. Everything is gone - starting over.",
+                        g
+                    ),
+                    (Some(g), Some(st)) if st.knocked_back => format!(
+                        "+{} gold, but it still stands. Knocked back to {}.",
+                        g,
+                        run.monster().name
+                    ),
+                    (Some(g), Some(st)) => match st.lives_left {
+                        Some(n) => format!("+{} gold. {} still stands - {} lives left.", g, run.monster().name, n),
+                        None => format!("+{} gold. {} still stands.", g, run.monster().name),
+                    },
+                    _ => format!("{} still stands.", run.monster().name),
                 };
             }
+        }
+
+        // The opening runs before the game proper and swallows the frame.
+        if opening != Opening::Playing {
+            let clicked = is_mouse_button_pressed(MouseButton::Left);
+            match opening {
+                Opening::Intro(page) => {
+                    let (back, next) = render_intro(page, mx, my);
+                    if clicked && page > 0 && back.contains(Vec2::new(mx, my)) {
+                        opening = Opening::Intro(page - 1);
+                    } else if clicked && next.contains(Vec2::new(mx, my)) {
+                        opening = if page + 1 == INTRO.len() {
+                            Opening::ModeSelect
+                        } else {
+                            Opening::Intro(page + 1)
+                        };
+                    }
+                    if is_key_pressed(KeyCode::Escape) {
+                        opening = Opening::ModeSelect;
+                    }
+                }
+                Opening::ModeSelect => {
+                    for (mode, rect) in render_mode_select(mx, my) {
+                        if clicked && rect.contains(Vec2::new(mx, my)) {
+                            run = Run::with_mode(mode);
+                            message = format!(
+                                "{} run. Drag components into a slot - they must touch to become gear.",
+                                mode.name()
+                            );
+                            opening = Opening::Playing;
+                        }
+                    }
+                }
+                Opening::Playing => {}
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+                if let Some(path) = &shot_path {
+                    if frame >= shot_after {
+                        get_screen_data().export_png(path);
+                        println!("screenshot: {}", path);
+                        return;
+                    }
+                }
+            }
+            next_frame().await;
+            continue;
         }
 
         // ---------------------------------------------------- render
@@ -3333,6 +3786,15 @@ async fn main() {
                 let name = run.shop.def(i).map(|d| d.name).unwrap_or("?");
                 match run.buy(i) {
                     Ok(_) => message = format!("Bought {}. {} gold left.", name, run.gold),
+                    Err(e) => message = format!("{}", e),
+                }
+            } else if let Some(id) = sell_hit(&layout, mx, my) {
+                bought_this_frame = true;
+                let name = run.registry.def(id).name;
+                match run.sell(id) {
+                    Ok(refund) => {
+                        message = format!("Sold {} for {} gold. {} in hand.", name, refund, run.gold)
+                    }
                     Err(e) => message = format!("{}", e),
                 }
             }
@@ -3634,6 +4096,7 @@ mod tests {
             stats: gearmaster_engine::stats::Stats::ZERO,
             triggers: Vec::new(),
             adjacent_assembled_same_slot: 0,
+        rating: 0,
             sigil_seed: 0,
         }
     }

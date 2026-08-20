@@ -80,6 +80,8 @@ impl MonsterAttack {
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum MonsterSprite {
     Rat,
+    Warden,
+    Gearwright,
     Toad,
     Archer,
     Golem,
@@ -298,6 +300,42 @@ pub const LADDER: &[MonsterSpec] = &[
     sprite: MonsterSprite::Hound,
     },
     MonsterSpec {
+        name: "The Iron Warden",
+        health: 340,
+        strength: 14,
+        regen: 2,
+        mind_resist: 20,
+        curse_resist: 20,
+        attacks: &[],
+        // Halfway up the ladder, and the first opponent whose armour is the
+        // point: every one of the 48 chest cells is covered, by three separate
+        // chestpieces, so it soaks far more than anything before it. The rest
+        // of its gear is deliberately ordinary - one weapon, one glove, one
+        // pair of greaves, and two helmets.
+        gear: &[
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Hide Base", SlotKind::Chest, 4, 0, 1),
+            ("Padded Base", SlotKind::Chest, 0, 3, 1),
+            ("Plate Layer", SlotKind::Chest, 3, 3, 1),
+            ("Aegis Weave", SlotKind::Chest, 4, 3, 1),
+            ("Ironbark Layer", SlotKind::Chest, 4, 6, 0),
+            ("Hollow Weave", SlotKind::Chest, 0, 7, 0),
+            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+            ("Whetstone", SlotKind::Weapon, 2, 0, 0),
+            ("Leather Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gripping Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Greave Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Bone Frame", SlotKind::Helmet, 0, 2, 0),
+            ("Warding Plate", SlotKind::Helmet, 4, 2, 0),
+        ],
+        bounty: 22,
+        sprite: MonsterSprite::Warden,
+    },
+    MonsterSpec {
         name: "Iron Sentinel",
         health: 240,
         strength: 10,
@@ -313,7 +351,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
             ("Serrated Edge", SlotKind::Weapon, 1, 0, 0),
         ],
-        bounty: 16,
+        bounty: 24,
     sprite: MonsterSprite::Sentinel,
     },
     MonsterSpec {
@@ -332,7 +370,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Mage's Circlet", SlotKind::Helmet, 0, 0, 0),
             ("Scrying Lens", SlotKind::Helmet, 0, 2, 0),
         ],
-        bounty: 18,
+        bounty: 26,
     sprite: MonsterSprite::Wraith,
     },
     MonsterSpec {
@@ -351,7 +389,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
             ("Whetstone", SlotKind::Weapon, 2, 0, 0),
         ],
-        bounty: 20,
+        bounty: 30,
     sprite: MonsterSprite::Idol,
     },
     MonsterSpec {
@@ -371,7 +409,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Steel Material", SlotKind::Gloves, 0, 0, 0),
             ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
         ],
-        bounty: 24,
+        bounty: 34,
     sprite: MonsterSprite::Fiend,
     },
     MonsterSpec {
@@ -396,8 +434,41 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Boiled Leather", SlotKind::Greaves, 0, 0, 0),
             ("Grave-Iron Mold", SlotKind::Greaves, 0, 2, 0),
         ],
-        bounty: 40,
+        bounty: 44,
     sprite: MonsterSprite::King,
+    },
+    MonsterSpec {
+        name: "The Gearwright",
+        health: 720,
+        strength: 26,
+        regen: 4,
+        mind_resist: 40,
+        curse_resist: 40,
+        attacks: &[],
+        // The end of the ladder: every slot filled with the best-rated legal
+        // item the catalogue allows, found by the packing search in
+        // tests/packing.rs rather than by hand. All five are legendary.
+        gear: &[
+            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 2, 0, 0),
+            ("Bileglass Vial", SlotKind::Weapon, 3, 0, 0),
+            ("Bileglass Vial", SlotKind::Weapon, 3, 1, 0),
+            ("Witch's Hat", SlotKind::Helmet, 0, 0, 0),
+            ("Mirrored Visor", SlotKind::Helmet, 2, 0, 0),
+            ("Mirrored Visor", SlotKind::Helmet, 3, 2, 0),
+            ("Coven Crest", SlotKind::Helmet, 5, 0, 0),
+            ("Colossus Ring", SlotKind::Chest, 0, 0, 0),
+            ("Hexweave Shroud", SlotKind::Chest, 1, 1, 0),
+            ("Hollow Weave", SlotKind::Chest, 0, 5, 0),
+            ("Hollow Weave", SlotKind::Chest, 0, 6, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Wandering Root", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+        ],
+        bounty: 75,
+        sprite: MonsterSprite::Gearwright,
     },
 ];
 
@@ -407,6 +478,8 @@ pub const LADDER: &[MonsterSpec] = &[
 #[derive(Clone, Debug)]
 pub struct RunningItem {
     pub name: String,
+    /// Effectiveness on the shared scale, so the interface can badge it.
+    pub rating: i32,
     pub slot: Option<SlotKind>,
     pub cooldown_ms: u32,
     pub progress_ms: u32,
@@ -442,6 +515,7 @@ impl RunningItem {
             aligned_items: p.aligned_items.clone(),
             curse: None,
             sigil_seed: p.sigil_seed,
+            rating: p.rating,
         }
     }
 
@@ -461,6 +535,7 @@ impl RunningItem {
             aligned_items: Vec::new(),
             curse: a.curse,
             // Innate attacks have no gear behind them, so seed off the name.
+            rating: 0,
             sigil_seed: a.name.bytes().fold(0x1234_5678_u64, |h, b| {
                 h.rotate_left(5) ^ b as u64
             }),

@@ -34,9 +34,17 @@ pub struct ItemProfile {
     pub triggers: Vec<Trigger>,
     /// Assembled items in the same slot touching this one, counted once.
     pub adjacent_assembled_same_slot: usize,
+    /// How effective this arrangement is, on the shared scale in `rating`.
+    /// Scored at the cadence the item actually runs at, so speed counts.
+    pub rating: i32,
 }
 
 impl ItemProfile {
+    /// The badge this item has earned.
+    pub fn rarity(&self) -> crate::rating::Rarity {
+        crate::rating::Rarity::of(self.rating)
+    }
+
     /// What one swing of this item lands for, given the wearer's totals.
     /// Only weapons deal damage; everything else activates for armour, mana
     /// or curses.
@@ -83,6 +91,9 @@ pub struct GearItem {
     pub stats: Stats,
     /// Human-readable notes on every bonus and effect that actually fired.
     pub notes: Vec<String>,
+    /// Effectiveness on the shared scale in `rating`. Scored at the slot's
+    /// default cadence: a report is about the arrangement, not the fight.
+    pub rating: i32,
 }
 
 /// The verdict on one slot: the items in it, and what they add up to.
@@ -336,6 +347,11 @@ impl Loadout {
                 },
                 stats: item_stats,
                 notes: item_notes,
+                rating: if assembled[gi] {
+                    crate::rating::item_rating(reg, group, 0)
+                } else {
+                    0
+                },
             });
         }
 
@@ -419,6 +435,7 @@ impl Loadout {
                 cooldown_ms,
                 stats: item.stats,
                 triggers,
+                rating: crate::rating::item_rating(reg, &item.pieces, cooldown_ms),
             });
         }
         out
@@ -441,24 +458,7 @@ fn check_recipe(kind: SlotKind, reg: &PieceRegistry, pieces: &[PieceId]) -> Resu
     let counts = Slot::kind_counts(reg, pieces);
     let n = |k: PieceKind| counts.get(&k).copied().unwrap_or(0);
 
-    let reqs: &[(PieceKind, usize, usize)] = match kind {
-        SlotKind::Weapon => &[
-            (PieceKind::Handle, 1, 1),
-            (PieceKind::Damaging, 1, 2),
-            (PieceKind::Accessory, 0, 2),
-        ],
-        SlotKind::Helmet => &[
-            (PieceKind::Frame, 1, 1),
-            (PieceKind::Plating, 1, 2),
-            (PieceKind::Crest, 0, 1),
-        ],
-        SlotKind::Chest => &[(PieceKind::Base, 1, 1), (PieceKind::Layer, 1, 3)],
-        SlotKind::Gloves | SlotKind::Greaves => {
-            &[(PieceKind::Material, 1, 1), (PieceKind::Mold, 1, 1)]
-        }
-    };
-
-    for &(k, min, max) in reqs {
+    for &(k, min, max) in crate::piece::recipe(kind) {
         let have = n(k);
         if have < min {
             return Err(format!("needs {} more {}", min - have, k.name()));

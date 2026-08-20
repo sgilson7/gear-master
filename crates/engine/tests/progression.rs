@@ -154,8 +154,8 @@ fn selling_refunds_half_and_strips_the_piece_off() {
 // ------------------------------------------------------------- the ladder
 
 #[test]
-fn there_are_eleven_monsters_and_the_bounties_climb() {
-    assert_eq!(LADDER.len(), 11, "the golem plus ten more");
+fn there_are_thirteen_monsters_and_the_bounties_climb() {
+    assert_eq!(LADDER.len(), 13, "eleven monsters plus the two bosses");
     let bounties: Vec<i32> = LADDER.iter().map(|m| m.bounty).collect();
     assert!(
         bounties.windows(2).all(|w| w[0] <= w[1]),
@@ -195,18 +195,70 @@ fn winning_pays_the_bounty_and_moves_you_up() {
 }
 
 #[test]
-fn losing_pays_nothing_and_leaves_you_where_you_were() {
+fn losing_still_pays_the_bounty_but_never_advances_you() {
+    // A run with no income cannot buy its way past whatever just beat it, so
+    // a loss pays out. It does not move you up: the thing is still standing.
     let mut run = Run::new(); // starter pieces, none of them placed
-    run.rung = 10; // the boss
+    run.rung = 5;
     let gold_before = run.gold;
+    let bounty = run.monster().bounty;
 
     assert_eq!(run.fight_next().outcome, Outcome::Defeat);
     let reward = run.settle();
 
-    assert_eq!(reward, None);
-    assert_eq!(run.gold, gold_before);
+    assert_eq!(reward, Some(bounty));
+    assert_eq!(run.gold, gold_before + bounty);
     assert_eq!(run.losses, 1);
-    assert_eq!(run.rung, 10, "you stay on the same rung");
+    assert_eq!(run.wins, 0, "a loss is not a win");
+}
+
+#[test]
+fn a_grinder_loss_drops_you_to_the_rung_you_last_cleared() {
+    use gearmaster_engine::run::Mode;
+    let mut run = Run::with_mode(Mode::Grinder);
+    run.rung = 4;
+
+    run.fight_next();
+    run.settle();
+
+    assert_eq!(run.rung, 3, "knocked back so there is something easier to farm");
+    assert!(run.last_settlement.as_ref().unwrap().knocked_back);
+
+    // And it cannot push you below the bottom of the ladder.
+    run.rung = 0;
+    run.back_to_loadout();
+    run.fight_next();
+    run.settle();
+    assert_eq!(run.rung, 0);
+}
+
+#[test]
+fn a_rogue_run_dies_after_three_losses() {
+    use gearmaster_engine::run::{Mode, ROGUE_LIVES};
+    let mut run = Run::with_mode(Mode::Rogue);
+    run.rung = 4;
+    run.gold = 500;
+
+    for expected in (0..ROGUE_LIVES).rev() {
+        run.back_to_loadout();
+        run.fight_next();
+        run.settle();
+        let s = run.last_settlement.clone().unwrap();
+        assert_eq!(s.lives_left, Some(expected));
+        if expected > 0 {
+            assert_eq!(run.rung, 4, "a rogue loss stays put");
+            assert!(!s.run_ended);
+        } else {
+            assert!(s.run_ended, "the third loss ends it");
+        }
+    }
+
+    // Everything is gone: gear, gold and ladder are back to a fresh run.
+    assert_eq!(run.rung, 0);
+    assert_eq!(run.gold, gearmaster_engine::shop::STARTING_GOLD);
+    assert_eq!(run.lives, ROGUE_LIVES);
+    assert_eq!(run.mode, Mode::Rogue, "the mode survives the wipe");
+    assert_eq!(run.owned.len(), STARTER_KIT.len());
 }
 
 #[test]
