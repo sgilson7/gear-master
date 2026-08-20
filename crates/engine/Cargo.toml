@@ -1,0 +1,9 @@
+[package]
+name = "gearmaster-engine"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+# This crate must never depend on macroquad or any rendering library. Keeping
+# it graphics-free is what makes the rules testable without a window.
+[dependencies]

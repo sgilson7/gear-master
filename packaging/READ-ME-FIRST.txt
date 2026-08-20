@@ -1,0 +1,77 @@
+GEAR MASTER
+===========
+
+Build gear out of parts, then watch your character fight.
+
+  1. Unzip GearMaster-macOS.zip
+  2. Drag pieces from the tray at the bottom into the five slots up top
+  3. Press BEGIN FIGHT
+
+Controls
+  left-drag ......... move a piece
+  right-click ....... rotate it
+  drag to the tray .. take a piece back off
+  Esc ............... cancel a drag
+  AUTO-BUILD ........ fill every slot instantly, if you'd rather just watch
+
+Pieces have to TOUCH to become a finished item. A gold outline means it came
+together; a red one means it's still missing something. You can fit more than
+one finished item in a slot, as long as they don't touch each other.
+
+
+-------------------------------------------------------------------------
+FIRST LAUNCH: macOS WILL BLOCK IT. Here's how to get past that.
+-------------------------------------------------------------------------
+
+This is a hobby app that hasn't been through Apple's $99/year notarisation,
+so macOS refuses to open it the first time. That's expected. It happens to
+every app that isn't from the App Store or a paying developer.
+
+  macOS 15 Sequoia and newer (including macOS 26)
+  -----------------------------------------------
+  1. Double-click GearMaster. You'll get "Apple could not verify..." — click
+     Done. (Not "Move to Trash".)
+  2. Open System Settings > Privacy & Security
+  3. Scroll to the bottom. There's a line about GearMaster being blocked,
+     with an "Open Anyway" button. Click it.
+  4. Confirm with Touch ID or your password.
+  5. It opens. You only have to do this once.
+
+  macOS 11 through 14
+  -------------------
+  1. RIGHT-CLICK (or Control-click) GearMaster, choose Open
+  2. Click Open in the dialog
+  Once only.
+
+  Terminal shortcut, any version
+  ------------------------------
+  If you'd rather do it in one command, run this and then open it normally:
+
+      xattr -dr com.apple.quarantine /path/to/GearMaster.app
+
+  (Drag the app onto the Terminal window to fill in the path.)
+
+
+-------------------------------------------------------------------------
+WHY IS IT DOING THAT?
+
+macOS flags anything downloaded from the internet and refuses to run apps it
+can't trace to a paying Apple developer. The warning is about the absence of
+a signature, not about anything found in the app. Only take this route for
+software from someone you actually trust.
+
+The app is a single self-contained file. It doesn't install anything, doesn't
+need the network, and doesn't write anywhere outside itself. To uninstall,
+drag it to the Trash.
+
+
+-------------------------------------------------------------------------
+"IT SAYS IT'S DAMAGED / WON'T OPEN AT ALL"
+
+Some browsers and chat clients strip the executable bit. Fix with:
+
+    chmod +x /path/to/GearMaster.app/Contents/MacOS/GearMaster
+
+If it still won't start, you may be on an Intel Mac and this build may be
+Apple Silicon only — ask whoever sent it to rebuild with the Intel slice
+included.

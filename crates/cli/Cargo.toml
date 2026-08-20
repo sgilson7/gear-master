@@ -1,0 +1,12 @@
+[package]
+name = "gearmaster-cli"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "gearmaster-cli"
+path = "src/main.rs"
+
+[dependencies]
+gearmaster-engine = { path = "../engine" }

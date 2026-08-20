@@ -1,0 +1,55 @@
+GEAR MASTER
+===========
+
+Build gear out of parts, then watch your character fight.
+
+  1. Unzip the folder somewhere (Downloads is fine)
+  2. Run GearMaster.exe
+  3. Drag pieces from the tray at the bottom into the five slots up top
+  4. Press BEGIN FIGHT
+
+Controls
+  left-drag ......... move a piece
+  right-click ....... rotate it
+  drag to the tray .. take a piece back off
+  Esc ............... cancel a drag
+  AUTO-BUILD ........ fill every slot instantly, if you'd rather just watch
+
+Pieces have to TOUCH to become a finished item. A gold outline means it came
+together; a red one means it's still missing something. You can fit more than
+one finished item in a slot, as long as they don't touch each other.
+
+
+-------------------------------------------------------------------------
+FIRST LAUNCH: WINDOWS WILL WARN YOU. Here's how to get past it.
+-------------------------------------------------------------------------
+
+You'll see a blue box: "Windows protected your PC".
+
+  1. Click "More info" (the small link, easy to miss)
+  2. Click "Run anyway"
+
+That's it — once only.
+
+WHY: SmartScreen warns about any program it hasn't seen many people run
+before. Getting rid of the warning means buying a code-signing certificate,
+which costs a few hundred dollars a year. The warning is about the absence of
+that certificate, not about anything found in the program. Only click through
+it for software from someone you actually trust.
+
+If your antivirus quarantines it instead, that's the same story — small
+unsigned indie builds trip heuristics constantly. You may need to allow it
+explicitly.
+
+
+-------------------------------------------------------------------------
+NOTES
+
+Needs 64-bit Windows 10 or 11.
+
+It's a single self-contained .exe. It doesn't install anything, doesn't need
+the network, and doesn't write outside its own folder. To uninstall, delete
+it.
+
+If it opens and closes instantly, your graphics drivers may be too old — the
+game needs OpenGL 3.3.
