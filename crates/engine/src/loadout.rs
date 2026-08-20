@@ -1,8 +1,35 @@
 use std::collections::HashSet;
 
-use crate::piece::{EffectKind, PieceId, PieceKind, PieceRegistry, SlotKind};
+use crate::curse::TICK_MS;
+use crate::piece::{
+    default_cooldown_ms, EffectKind, PieceId, PieceKind, PieceRegistry, SlotKind, Trigger,
+};
 use crate::slot::{PlaceError, Slot};
 use crate::stats::{StatKind, Stats};
+
+/// One assembled item, reduced to what combat needs: how often it fires and
+/// what happens when it does.
+#[derive(Clone, Debug)]
+pub struct ItemProfile {
+    pub name: String,
+    pub slot: SlotKind,
+    pub cooldown_ms: u32,
+    pub stats: Stats,
+    pub triggers: Vec<Trigger>,
+    /// Assembled items in the same slot touching this one, counted once.
+    pub adjacent_assembled_same_slot: usize,
+}
+
+/// Name an item by its core piece, falling back to the first piece it has.
+fn core_name(reg: &PieceRegistry, pieces: &[PieceId]) -> String {
+    pieces
+        .iter()
+        .copied()
+        .find(|&p| reg.def(p).kind.is_core())
+        .or_else(|| pieces.first().copied())
+        .map(|p| reg.def(p).name.to_string())
+        .unwrap_or_default()
+}
 
 /// One orthogonally-connected group of components inside a slot — a candidate
 /// piece of gear. A slot can hold as many of these as the player can fit
@@ -120,57 +147,46 @@ impl Loadout {
     /// Evaluate one slot.
     ///
     /// Ordering matters, because effects can be conditional on assembly:
-    ///   1. split the slot into connected groups
-    ///   2. decide which groups satisfy the recipe (nothing has contributed
+    ///   1. split the slot into items (one per core piece)
+    ///   2. decide which items satisfy the recipe (nothing has contributed
     ///      stats yet, so this can't depend on effect results)
-    ///   3. total each group's stats, applying effects against the assembly
-    ///      answers from step 2
-    ///   4. add the flat assembly bonuses of assembled groups
+    ///   3. total each item's stats, applying within-item effects
+    ///   4. apply cross-item effects, which need every item's step-3 total
+    ///   5. add the flat assembly bonuses of assembled items
     pub fn report(&self, reg: &PieceRegistry, kind: SlotKind) -> SlotReport {
         let slot = self.slot(kind);
         let groups = slot.items(reg);
 
-        // 2. Assembly verdicts, one per group.
+        // 2.
         let verdicts: Vec<Result<(), String>> =
             groups.iter().map(|g| check_recipe(kind, reg, g)).collect();
+        let assembled: Vec<bool> = verdicts.iter().map(|v| v.is_ok()).collect();
 
-        // Which group each piece belongs to, so an effect can be checked
-        // against its own group's verdict.
-        let mut group_of: Vec<(PieceId, usize)> = Vec::new();
-        for (gi, g) in groups.iter().enumerate() {
-            for &p in g {
-                group_of.push((p, gi));
-            }
-        }
-        let assembled_of = |id: PieceId| -> bool {
-            group_of
-                .iter()
-                .find(|(p, _)| *p == id)
-                .map(|&(_, gi)| verdicts[gi].is_ok())
-                .unwrap_or(false)
+        let group_index_of = |id: PieceId| -> Option<usize> {
+            groups.iter().position(|g| g.contains(&id))
         };
+        let assembled_of =
+            |id: PieceId| -> bool { group_index_of(id).map(|i| assembled[i]).unwrap_or(false) };
 
-        let mut items = Vec::new();
-        let mut slot_total = Stats::ZERO;
+        // 3.
+        let mut stats: Vec<Stats> = Vec::with_capacity(groups.len());
+        let mut notes: Vec<Vec<String>> = Vec::with_capacity(groups.len());
 
         for (gi, group) in groups.iter().enumerate() {
-            let assembled = verdicts[gi].is_ok();
             let mut item_stats = Stats::ZERO;
-            let mut notes: Vec<String> = Vec::new();
+            let mut item_notes: Vec<String> = Vec::new();
 
-            // 3. Per-piece contribution: base, then self effects, then any
-            //    doubling coming from neighbours.
             for &p in group {
                 let def = reg.def(p);
                 let mut contribution = def.base;
 
                 if let Some(eff) = def.effect {
                     if let EffectKind::SelfPerEmptyCell { stat, per } = eff.kind {
-                        if eff.when.holds(assembled) {
+                        if eff.when.holds(assembled[gi]) {
                             let n = slot.empty_neighbor_cells(p) as i32;
                             if n > 0 {
                                 contribution.add(stat, per * n);
-                                notes.push(format!(
+                                item_notes.push(format!(
                                     "{}: +{} {} from {} empty cells",
                                     def.name,
                                     per * n,
@@ -182,8 +198,6 @@ impl Loadout {
                     }
                 }
 
-                // A neighbour is by definition in the same group, but check
-                // each source's own condition anyway so the rule stays local.
                 let mut doubled: HashSet<StatKind> = HashSet::new();
                 for q in slot.neighbors_of(p) {
                     let Some(eff) = reg.def(q).effect else { continue };
@@ -198,7 +212,7 @@ impl Loadout {
                     let before = contribution.get(stat);
                     if before != 0 {
                         contribution.set(stat, before * 2);
-                        notes.push(format!(
+                        item_notes.push(format!(
                             "{}: {} doubled to {}",
                             def.name,
                             stat.name(),
@@ -209,31 +223,130 @@ impl Loadout {
 
                 item_stats += contribution;
             }
+            stats.push(item_stats);
+            notes.push(item_notes);
+        }
 
-            // 4. Flat assembly bonuses, only for a finished item.
-            if assembled {
-                for &p in group {
-                    if let Some(adj) = reg.def(p).adjacency {
-                        item_stats += adj.stats;
-                        notes.push(adj.label.to_string());
+        // 4. Cross-item: a piece can double a stat on every OTHER assembled
+        //    item touching it. Reads the step-3 totals and writes new ones, so
+        //    two such pieces can never feed each other in a loop.
+        let snapshot = stats.clone();
+        for (gi, group) in groups.iter().enumerate() {
+            for &p in group {
+                let Some(eff) = reg.def(p).effect else { continue };
+                let EffectKind::DoubleAdjacentItemStat { stat } = eff.kind else { continue };
+                if !eff.when.holds(assembled[gi]) {
+                    continue;
+                }
+                for (gj, other) in groups.iter().enumerate() {
+                    if gj == gi || !assembled[gj] {
+                        continue;
+                    }
+                    if !slot.sets_touch(&[p], other) {
+                        continue;
+                    }
+                    let before = snapshot[gj].get(stat);
+                    if before != 0 {
+                        stats[gj].add(stat, before);
+                        notes[gj].push(format!(
+                            "{}: {} doubled to {} by {}",
+                            core_name(reg, other),
+                            stat.name(),
+                            before * 2,
+                            reg.def(p).name
+                        ));
                     }
                 }
             }
+        }
 
+        // 5.
+        let mut items = Vec::new();
+        let mut slot_total = Stats::ZERO;
+        for (gi, group) in groups.iter().enumerate() {
+            let mut item_stats = stats[gi];
+            let mut item_notes = std::mem::take(&mut notes[gi]);
+            if assembled[gi] {
+                for &p in group {
+                    if let Some(adj) = reg.def(p).adjacency {
+                        item_stats += adj.stats;
+                        item_notes.push(adj.label.to_string());
+                    }
+                }
+            }
             slot_total += item_stats;
             items.push(GearItem {
                 pieces: group.clone(),
-                assembled,
+                assembled: assembled[gi],
                 status: match &verdicts[gi] {
                     Ok(()) => "assembled".to_string(),
                     Err(reason) => reason.clone(),
                 },
                 stats: item_stats,
-                notes,
+                notes: item_notes,
             });
         }
 
         SlotReport { slot: kind, items, stats: slot_total }
+    }
+
+    /// Activation profiles for every assembled item across every slot — what
+    /// combat actually runs on.
+    pub fn combat_items(&self, reg: &PieceRegistry) -> Vec<ItemProfile> {
+        let mut out = Vec::new();
+        for kind in SlotKind::ALL {
+            let slot = self.slot(kind);
+            let report = self.report(reg, kind);
+            let groups: Vec<&Vec<PieceId>> = report.items.iter().map(|i| &i.pieces).collect();
+
+            for (gi, item) in report.items.iter().enumerate() {
+                if !item.assembled {
+                    continue;
+                }
+                // How many other finished items touch this one.
+                let touching_same_slot = groups
+                    .iter()
+                    .enumerate()
+                    .filter(|(gj, other)| {
+                        *gj != gi && report.items[*gj].assembled && slot.sets_touch(item.pieces.as_slice(), other)
+                    })
+                    .count();
+
+                let core = item
+                    .pieces
+                    .iter()
+                    .copied()
+                    .find(|&p| reg.def(p).kind.is_core());
+
+                let base_cd = core
+                    .map(|c| {
+                        let d = reg.def(c).cooldown_ms;
+                        if d == 0 { default_cooldown_ms(kind) } else { d }
+                    })
+                    .unwrap_or_else(|| default_cooldown_ms(kind));
+
+                let speed: i32 =
+                    100 + item.pieces.iter().map(|&p| reg.def(p).speed_bonus).sum::<i32>();
+                let speed = speed.max(10);
+                let cooldown_ms = ((base_cd as i64 * 100 / speed as i64) as u32).max(TICK_MS);
+
+                let triggers: Vec<Trigger> = item
+                    .pieces
+                    .iter()
+                    .flat_map(|&p| reg.def(p).triggers.iter().copied())
+                    .collect();
+
+                out.push(ItemProfile {
+                    name: core.map(|c| reg.def(c).name.to_string()).unwrap_or_default(),
+                    slot: kind,
+                    cooldown_ms,
+                    stats: item.stats,
+                    triggers,
+                    adjacent_assembled_same_slot: touching_same_slot,
+                });
+            }
+        }
+        out
     }
 
     /// Base character stats plus every slot's contribution.

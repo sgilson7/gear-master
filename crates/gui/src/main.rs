@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use gearmaster_engine::combat::{Event, Outcome, Side};
+use gearmaster_engine::combat::{CombatLog, Event, Outcome, Side};
 use gearmaster_engine::loadout::SlotReport;
 use gearmaster_engine::piece::{PieceDef, PieceId, PieceKind, SlotKind};
 use gearmaster_engine::run::{Phase, Run};
@@ -27,8 +27,8 @@ const INV_CELL: f32 = 15.0;
 const CARD_W: f32 = 124.0;
 const CARD_H: f32 = 124.0;
 const CARD_GAP: f32 = 10.0;
-/// Seconds each combat-log beat is held on screen during playback.
-const EVENT_SECS: f64 = 0.55;
+/// How much faster than real time the fight replays.
+const PLAYBACK_SPEED: f32 = 2.0;
 /// How long a struck fighter's panel stays tinted.
 const FLASH_SECS: f64 = 0.22;
 
@@ -367,52 +367,112 @@ impl Drag {
 
 // ============================================================== playback
 
-/// Replays a finished `CombatLog` against wall-clock time. The fight is
-/// already decided in the engine — this only decides what is on screen.
+/// Replays a finished `CombatLog` against wall-clock time. The fight is already
+/// decided in the engine — this only decides what is on screen, so it can be
+/// sped up or skipped without changing the result.
 struct Playback {
     start: f64,
     cursor: usize,
     player_hp: i32,
+    player_max: i32,
+    player_armor: i32,
+    player_mana: i32,
     enemy_hp: i32,
+    enemy_max: i32,
+    enemy_armor: i32,
+    /// Curses on each side, as (name, when it runs out in sim-ms).
+    player_curses: Vec<(&'static str, u32)>,
+    enemy_curses: Vec<(&'static str, u32)>,
     lines: Vec<String>,
     flash_player: f64,
     flash_enemy: f64,
+    now_ms: u32,
     done: bool,
 }
 
 impl Playback {
-    fn new(player_hp: i32, enemy_hp: i32) -> Self {
+    fn new(log: &CombatLog) -> Self {
         Playback {
             start: get_time(),
             cursor: 0,
-            player_hp,
-            enemy_hp,
+            player_hp: log.player.health,
+            player_max: log.player.max_health,
+            player_armor: 0,
+            player_mana: 0,
+            enemy_hp: log.enemy.health,
+            enemy_max: log.enemy.max_health,
+            enemy_armor: 0,
+            player_curses: Vec::new(),
+            enemy_curses: Vec::new(),
             lines: Vec::new(),
             flash_player: -10.0,
             flash_enemy: -10.0,
+            now_ms: 0,
             done: false,
         }
     }
 
-    fn apply(&mut self, run: &Run, index: usize) {
-        let Some(log) = run.log.as_ref() else { return };
+    fn apply(&mut self, log: &CombatLog, index: usize) {
         let entry = &log.entries[index];
         let now = get_time();
-        match entry.event {
-            Event::Attack { by, target_health, .. } => match by {
+        self.now_ms = entry.at_ms;
+        match &entry.event {
+            Event::Activate { .. } => return, // too chatty for the on-screen log
+            Event::Hit { by, target_health, target_armor, .. } => match by {
                 Side::Player => {
-                    self.enemy_hp = target_health.max(0);
+                    self.enemy_hp = (*target_health).max(0);
+                    self.enemy_armor = *target_armor;
                     self.flash_enemy = now;
                 }
                 Side::Enemy => {
-                    self.player_hp = target_health.max(0);
+                    self.player_hp = (*target_health).max(0);
+                    self.player_armor = *target_armor;
                     self.flash_player = now;
                 }
             },
-            Event::Regen { side, health, .. } => match side {
-                Side::Player => self.player_hp = health,
-                Side::Enemy => self.enemy_hp = health,
+            Event::MindHit { by, target_max_health, .. } => match by {
+                Side::Player => self.enemy_max = *target_max_health,
+                Side::Enemy => {
+                    self.player_max = *target_max_health;
+                    self.player_hp = self.player_hp.min(self.player_max);
+                    self.flash_player = now;
+                }
             },
+            Event::GainArmor { side, total, .. } => match side {
+                Side::Player => self.player_armor = *total,
+                Side::Enemy => self.enemy_armor = *total,
+            },
+            Event::GainMana { side, total, .. } => {
+                if *side == Side::Player {
+                    self.player_mana = *total;
+                }
+            }
+            Event::ManaCheck { side, remaining, .. } => {
+                if *side == Side::Player {
+                    self.player_mana = *remaining;
+                }
+            }
+            Event::Cursed { on, kind, duration_ms } => {
+                let entry_pair = (kind.name(), self.now_ms + duration_ms);
+                let list = match on {
+                    Side::Player => &mut self.player_curses,
+                    Side::Enemy => &mut self.enemy_curses,
+                };
+                match list.iter_mut().find(|c| c.0 == entry_pair.0) {
+                    Some(existing) => existing.1 = existing.1.max(entry_pair.1),
+                    None => list.push(entry_pair),
+                }
+            }
+            Event::Burn { side, health, .. } => match side {
+                Side::Player => self.player_hp = (*health).max(0),
+                Side::Enemy => self.enemy_hp = (*health).max(0),
+            },
+            Event::Regen { side, health, .. } => {
+                if *side == Side::Player {
+                    self.player_hp = *health;
+                }
+                return; // healing ticks would drown the log
+            }
             Event::Fell { .. } => {}
             Event::End { .. } => self.done = true,
         }
@@ -422,23 +482,27 @@ impl Playback {
     /// Advance to whatever beat wall-clock time has reached.
     fn advance(&mut self, run: &Run) {
         let Some(log) = run.log.as_ref() else { return };
-        let elapsed = get_time() - self.start;
-        while self.cursor < log.entries.len()
-            && (self.cursor as f64 + 1.0) * EVENT_SECS <= elapsed
-        {
+        let elapsed_ms = ((get_time() - self.start) * 1000.0 * PLAYBACK_SPEED as f64) as u32;
+        while self.cursor < log.entries.len() && log.entries[self.cursor].at_ms <= elapsed_ms {
             let i = self.cursor;
-            self.apply(run, i);
+            self.apply(log, i);
             self.cursor += 1;
         }
+        self.now_ms = self.now_ms.max(elapsed_ms.min(log.duration_ms));
+        self.player_curses.retain(|c| c.1 > self.now_ms);
+        self.enemy_curses.retain(|c| c.1 > self.now_ms);
     }
 
     fn skip_to_end(&mut self, run: &Run) {
         let Some(log) = run.log.as_ref() else { return };
         while self.cursor < log.entries.len() {
             let i = self.cursor;
-            self.apply(run, i);
+            self.apply(log, i);
             self.cursor += 1;
         }
+        self.now_ms = log.duration_ms;
+        self.player_curses.clear();
+        self.enemy_curses.clear();
     }
 }
 
@@ -716,33 +780,65 @@ fn render_fight(layout: &Layout, run: &Run, pb: &Playback) {
     let now = get_time();
     let half = area.w / 2.0 - 30.0;
 
-    let fighter = |x: f32, name: &str, hp: i32, max: i32, dmg: i32, regen: i32, flash: f64, tint: Color| {
+    let fighter = |x: f32,
+                       name: &str,
+                       hp: i32,
+                       max: i32,
+                       armor: i32,
+                       mana: Option<i32>,
+                       curses: &[(&'static str, u32)],
+                       flash: f64,
+                       tint: Color| {
         let flashing = now - flash < FLASH_SECS;
         let bg = if flashing {
             Color::from_rgba(80, 34, 34, 255)
         } else {
             Color::from_rgba(32, 32, 46, 255)
         };
-        draw_rectangle(x, area.y + 18.0, half, 132.0, bg);
+        draw_rectangle(x, area.y + 18.0, half, 150.0, bg);
         draw_rectangle_lines(
             x,
             area.y + 18.0,
             half,
-            132.0,
+            150.0,
             2.0,
             if hp <= 0 { col_bad() } else { Color::from_rgba(70, 70, 95, 255) },
         );
-        draw_text(name, x + 16.0, area.y + 46.0, 22.0, if hp <= 0 { col_bad() } else { WHITE });
-        hp_bar(x + 16.0, area.y + 60.0, half - 32.0, 30.0, hp, max, tint);
-        draw_text(
-            &format!("{} damage per attack   ·   {} regen per turn", dmg, regen),
-            x + 16.0,
-            area.y + 116.0,
-            15.0,
-            col_dim(),
-        );
+        draw_text(name, x + 16.0, area.y + 44.0, 22.0, if hp <= 0 { col_bad() } else { WHITE });
+        hp_bar(x + 16.0, area.y + 56.0, half - 32.0, 26.0, hp, max, tint);
+
+        // Armour rides above the health bar as its own strip, because it is
+        // spent first and refills during the fight.
+        let ax = x + 16.0;
+        let aw = half - 32.0;
+        draw_rectangle(ax, area.y + 88.0, aw, 14.0, Color::from_rgba(30, 30, 42, 255));
+        if armor > 0 {
+            let frac = ((armor as f32) / (max.max(1) as f32)).clamp(0.0, 1.0);
+            draw_rectangle(ax, area.y + 88.0, aw * frac, 14.0, Color::from_rgba(150, 170, 210, 255));
+        }
+        draw_rectangle_lines(ax, area.y + 88.0, aw, 14.0, 1.5, Color::from_rgba(80, 80, 105, 255));
+        draw_text(&format!("armor {}", armor), ax + 6.0, area.y + 100.0, 12.0, WHITE);
+
+        let mut label = String::new();
+        if let Some(m) = mana {
+            label.push_str(&format!("mana {}", m));
+        }
+        if !label.is_empty() {
+            draw_text(&label, ax, area.y + 122.0, 15.0, Color::from_rgba(150, 200, 240, 255));
+        }
+
+        // Active curses.
+        let mut cx = ax + if label.is_empty() { 0.0 } else { 110.0 };
+        for (kind, _) in curses {
+            let text = format!("curse of {}", kind);
+            let d = measure_text(&text, None, 13, 1.0);
+            draw_rectangle(cx - 4.0, area.y + 110.0, d.width + 10.0, 18.0, Color::from_rgba(90, 40, 90, 230));
+            draw_text(&text, cx + 1.0, area.y + 123.0, 13.0, Color::from_rgba(240, 190, 240, 255));
+            cx += d.width + 16.0;
+        }
+
         if hp <= 0 {
-            draw_text("DOWN", x + half - 70.0, area.y + 46.0, 22.0, col_bad());
+            draw_text("DOWN", x + half - 70.0, area.y + 44.0, 22.0, col_bad());
         }
     };
 
@@ -750,9 +846,10 @@ fn render_fight(layout: &Layout, run: &Run, pb: &Playback) {
         area.x + 20.0,
         &log.player.name,
         pb.player_hp,
-        log.player.max_health,
-        log.player.damage(),
-        log.player.regen,
+        pb.player_max,
+        pb.player_armor,
+        Some(pb.player_mana),
+        &pb.player_curses,
         pb.flash_player,
         Color::from_rgba(90, 190, 120, 255),
     );
@@ -760,17 +857,21 @@ fn render_fight(layout: &Layout, run: &Run, pb: &Playback) {
         area.x + area.w / 2.0 + 10.0,
         &log.enemy.name,
         pb.enemy_hp,
-        log.enemy.max_health,
-        log.enemy.damage(),
-        log.enemy.regen,
+        pb.enemy_max,
+        pb.enemy_armor,
+        None,
+        &pb.enemy_curses,
         pb.flash_enemy,
         Color::from_rgba(210, 110, 90, 255),
     );
 
-    // Rolling combat log — newest at the bottom.
-    let log_top = area.y + 168.0;
+    // Clock plus the rolling log.
+    let log_top = area.y + 190.0;
     draw_text("COMBAT LOG", area.x + 20.0, log_top, 16.0, WHITE);
-    let visible = (((area.h - 200.0) / 19.0) as usize).max(1);
+    let clock = format!("{:.1}s", pb.now_ms as f32 / 1000.0);
+    draw_text(&clock, area.x + 140.0, log_top, 16.0, col_gold());
+
+    let visible = (((area.h - 220.0) / 19.0) as usize).max(1);
     let start = pb.lines.len().saturating_sub(visible);
     for (i, line) in pb.lines[start..].iter().enumerate() {
         let is_last = start + i == pb.lines.len() - 1;
@@ -791,7 +892,7 @@ fn render_fight(layout: &Layout, run: &Run, pb: &Playback) {
         };
         let bw = 300.0;
         let bx = area.x + area.w - bw - 24.0;
-        let by = area.y + 176.0;
+        let by = area.y + 196.0;
         draw_rectangle(bx, by, bw, 76.0, Color::from_rgba(18, 18, 28, 240));
         draw_rectangle_lines(bx, by, bw, 76.0, 3.0, color);
         centered_text(label, bx + bw / 2.0, by + 48.0, 38.0, color);
@@ -948,11 +1049,7 @@ async fn main() {
         message = "Auto-built a complete loadout - every bonus is lit.".to_string();
     }
     if std::env::var("GEARMASTER_FIGHT").is_ok() {
-        let (php, ehp) = {
-            let log = run.begin_fight();
-            (log.player.max_health, log.enemy.max_health)
-        };
-        pb = Some(Playback::new(php, ehp));
+        pb = Some(Playback::new(run.begin_fight()));
         message = "Fight in progress.".to_string();
     }
     // Screenshot capture is a desktop-only debugging aid: the browser build has
@@ -1054,19 +1151,11 @@ async fn main() {
                     p.skip_to_end(&run);
                 }
             } else if clicked_button(2) {
-                let (php, ehp) = {
-                    let log = run.begin_fight();
-                    (log.player.max_health, log.enemy.max_health)
-                };
-                pb = Some(Playback::new(php, ehp));
+                pb = Some(Playback::new(run.begin_fight()));
             }
         } else {
             if clicked_button(0) {
-                let (php, ehp) = {
-                    let log = run.begin_fight();
-                    (log.player.max_health, log.enemy.max_health)
-                };
-                pb = Some(Playback::new(php, ehp));
+                pb = Some(Playback::new(run.begin_fight()));
                 message = "Fight in progress.".to_string();
             } else if clicked_button(1) {
                 run.apply_preset();

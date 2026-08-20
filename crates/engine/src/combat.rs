@@ -1,16 +1,20 @@
+//! Combat: a fixed-timestep simulation where every assembled item runs its own
+//! cooldown.
+//!
+//! There are no turns. The fight is stepped in [`TICK_MS`] slices and each item
+//! fills its own bar independently, so a fast weapon really does swing more
+//! often than a slow one. Nothing is random — the same loadout against the same
+//! monster always produces the same log, which is what lets the tests assert on
+//! exact numbers and lets the GUI replay a fight it did not simulate.
+
+use crate::curse::{mind_damage_after_resist, CurseKind, Curses, TICK_MS};
+use crate::loadout::ItemProfile;
+use crate::piece::{Action, SlotKind, Target, Trigger};
 use crate::stats::Stats;
 
-/// Enemy definition for the prototype. Deals a flat 10 damage a turn, as
-/// specified: strength 10 at a bare-handed 1.00x multiplier.
-pub const ENEMY_NAME: &str = "Rust Golem";
-pub const ENEMY_HEALTH: i32 = 400;
-pub const ENEMY_STRENGTH: i32 = 10;
-pub const ENEMY_POWER: i32 = 100;
-pub const ENEMY_REGEN: i32 = 0;
-
-/// A fight that reaches this many turns is called a stalemate, so a build that
-/// can't out-damage the enemy's regen can't hang forever.
-pub const MAX_TURNS: u32 = 60;
+/// A fight this long is called a draw, so a build that cannot finish the job
+/// doesn't hang the simulation.
+pub const MAX_DURATION_MS: u32 = 60_000;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Side {
@@ -25,45 +29,229 @@ impl Side {
             Side::Enemy => Side::Player,
         }
     }
+    pub fn name(self) -> &'static str {
+        match self {
+            Side::Player => "You",
+            Side::Enemy => "Enemy",
+        }
+    }
+}
+
+// ------------------------------------------------------------- monsters
+
+/// One repeating attack belonging to a monster. Monsters use the same cooldown
+/// machinery as the player's gear rather than a special case.
+#[derive(Copy, Clone, Debug)]
+pub struct MonsterAttack {
+    pub name: &'static str,
+    pub cooldown_ms: u32,
+    pub damage: i32,
+    pub mind: i32,
+    pub armor: i32,
+}
+
+impl MonsterAttack {
+    pub const fn hit(name: &'static str, cooldown_ms: u32, damage: i32) -> Self {
+        MonsterAttack { name, cooldown_ms, damage, mind: 0, armor: 0 }
+    }
 }
 
 #[derive(Clone, Debug)]
-pub struct Fighter {
-    pub name: String,
-    pub max_health: i32,
+pub struct MonsterSpec {
+    pub name: &'static str,
     pub health: i32,
-    pub strength: i32,
     pub regen: i32,
-    pub power: i32,
+    pub mind_resist: i32,
+    pub curse_resist: i32,
+    pub attacks: &'static [MonsterAttack],
+    /// Gold awarded for beating it.
+    pub bounty: i32,
 }
 
-impl Fighter {
-    pub fn from_stats(name: &str, s: Stats) -> Self {
-        Fighter {
-            name: name.to_string(),
-            max_health: s.health,
-            health: s.health,
-            strength: s.strength,
-            regen: s.regen,
-            power: s.power,
+/// The original opponent, now expressed as one attack on a one-second timer —
+/// still exactly 10 damage a second.
+pub const RUST_GOLEM: MonsterSpec = MonsterSpec {
+    name: "Rust Golem",
+    health: 400,
+    regen: 0,
+    mind_resist: 0,
+    curse_resist: 0,
+    attacks: &[MonsterAttack::hit("slam", 1000, 10)],
+    bounty: 10,
+};
+
+// ----------------------------------------------------------- combatants
+
+/// An item mid-fight: its profile plus how far its cooldown has filled.
+#[derive(Clone, Debug)]
+pub struct RunningItem {
+    pub name: String,
+    pub slot: Option<SlotKind>,
+    pub cooldown_ms: u32,
+    pub progress_ms: u32,
+    pub damage: i32,
+    pub mind: i32,
+    pub armor: i32,
+    pub mana: i32,
+    pub triggers: Vec<Trigger>,
+    pub adjacent_assembled_same_slot: usize,
+}
+
+impl RunningItem {
+    fn from_profile(p: &ItemProfile) -> Self {
+        RunningItem {
+            name: p.name.clone(),
+            slot: Some(p.slot),
+            cooldown_ms: p.cooldown_ms,
+            progress_ms: 0,
+            damage: p.stats.damage,
+            mind: p.stats.mind,
+            armor: p.stats.armor,
+            mana: p.stats.mana,
+            triggers: p.triggers.clone(),
+            adjacent_assembled_same_slot: p.adjacent_assembled_same_slot,
         }
     }
 
-    pub fn enemy() -> Self {
-        Fighter::from_stats(
-            ENEMY_NAME,
-            Stats::new(ENEMY_HEALTH, ENEMY_STRENGTH, ENEMY_REGEN, ENEMY_POWER),
-        )
+    fn from_attack(a: &MonsterAttack) -> Self {
+        RunningItem {
+            name: a.name.to_string(),
+            slot: None,
+            cooldown_ms: a.cooldown_ms.max(TICK_MS),
+            progress_ms: 0,
+            damage: a.damage,
+            mind: a.mind,
+            armor: a.armor,
+            mana: 0,
+            triggers: Vec::new(),
+            adjacent_assembled_same_slot: 0,
+        }
     }
 
-    /// Damage dealt per attack: strength times the weapon multiplier.
-    pub fn damage(&self) -> i32 {
-        Stats::new(0, self.strength, 0, self.power).damage_per_attack()
+    /// Fraction of the way to the next activation, for cooldown bars.
+    pub fn progress(&self) -> f32 {
+        if self.cooldown_ms == 0 {
+            return 0.0;
+        }
+        (self.progress_ms as f32 / self.cooldown_ms as f32).clamp(0.0, 1.0)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Combatant {
+    pub name: String,
+    pub max_health: i32,
+    pub health: i32,
+    /// Temporary hit points. Always starts a fight at zero — gear has to build
+    /// it up — and soaks damage before health does.
+    pub armor: i32,
+    pub mana: i32,
+    pub strength: i32,
+    pub power: i32,
+    pub regen: i32,
+    pub mind_resist: i32,
+    pub curse_resist: i32,
+    pub curses: Curses,
+    pub items: Vec<RunningItem>,
+    /// Sub-point accumulators, so 10 damage a second spread over 50ms ticks
+    /// loses nothing to rounding.
+    dot_milli: i32,
+    regen_milli: i32,
+}
+
+impl Combatant {
+    pub fn player(stats: Stats, profiles: &[ItemProfile]) -> Self {
+        Combatant {
+            name: "You".to_string(),
+            max_health: stats.health,
+            health: stats.health,
+            armor: 0,
+            mana: 0,
+            strength: stats.strength,
+            power: stats.power,
+            regen: stats.regen,
+            mind_resist: stats.mind_resist,
+            curse_resist: stats.curse_resist,
+            curses: Curses::new(),
+            items: profiles.iter().map(RunningItem::from_profile).collect(),
+            dot_milli: 0,
+            regen_milli: 0,
+        }
+    }
+
+    pub fn monster(spec: &MonsterSpec) -> Self {
+        Combatant {
+            name: spec.name.to_string(),
+            max_health: spec.health,
+            health: spec.health,
+            armor: 0,
+            mana: 0,
+            strength: 0,
+            power: 100,
+            regen: spec.regen,
+            mind_resist: spec.mind_resist,
+            curse_resist: spec.curse_resist,
+            curses: Curses::new(),
+            items: spec.attacks.iter().map(RunningItem::from_attack).collect(),
+            dot_milli: 0,
+            regen_milli: 0,
+        }
     }
 
     pub fn is_down(&self) -> bool {
-        self.health <= 0
+        self.health <= 0 || self.max_health <= 0
     }
+
+    /// Armour first, then health. Returns (absorbed, through to health).
+    fn take_damage(&mut self, amount: i32) -> (i32, i32) {
+        if amount <= 0 {
+            return (0, 0);
+        }
+        let absorbed = amount.min(self.armor.max(0));
+        self.armor -= absorbed;
+        let through = amount - absorbed;
+        self.health -= through;
+        (absorbed, through)
+    }
+
+    /// Mind damage eats maximum health, so it can never be healed back off.
+    fn take_mind(&mut self, raw: i32) -> i32 {
+        let dealt = mind_damage_after_resist(raw, self.mind_resist);
+        if dealt <= 0 {
+            return 0;
+        }
+        self.max_health = (self.max_health - dealt).max(0);
+        if self.health > self.max_health {
+            self.health = self.max_health;
+        }
+        dealt
+    }
+}
+
+// ----------------------------------------------------------------- log
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Event {
+    /// An item finished its cooldown. Always precedes that item's effects.
+    Activate { side: Side, item: String },
+    Hit { by: Side, damage: i32, absorbed: i32, target_health: i32, target_armor: i32 },
+    MindHit { by: Side, amount: i32, target_max_health: i32 },
+    GainArmor { side: Side, amount: i32, total: i32 },
+    GainMana { side: Side, amount: i32, total: i32 },
+    /// `paid` says which branch of a mana trigger ran.
+    ManaCheck { side: Side, cost: i32, paid: bool, remaining: i32 },
+    Cursed { on: Side, kind: CurseKind, duration_ms: u32 },
+    /// Damage-over-time landing this tick.
+    Burn { side: Side, damage: i32, health: i32 },
+    Regen { side: Side, amount: i32, health: i32 },
+    Fell { side: Side },
+    End { outcome: Outcome },
+}
+
+#[derive(Clone, Debug)]
+pub struct LogEntry {
+    pub at_ms: u32,
+    pub event: Event,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -83,189 +271,374 @@ impl Outcome {
     }
 }
 
-/// One visible beat of the fight. The GUI replays these against wall-clock
-/// time; each carries the resulting health so playback never has to re-derive
-/// the simulation.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Event {
-    Attack { by: Side, damage: i32, target_health: i32 },
-    Regen { side: Side, amount: i32, health: i32 },
-    Fell { side: Side },
-    End { outcome: Outcome },
-}
-
-#[derive(Clone, Debug)]
-pub struct LogEntry {
-    pub turn: u32,
-    pub event: Event,
-}
-
 #[derive(Clone, Debug)]
 pub struct CombatLog {
-    /// Both fighters as they stood at the opening bell.
-    pub player: Fighter,
-    pub enemy: Fighter,
+    pub player: Combatant,
+    pub enemy: Combatant,
     pub entries: Vec<LogEntry>,
     pub outcome: Outcome,
-    pub turns: u32,
+    pub duration_ms: u32,
 }
 
 impl CombatLog {
     pub fn len(&self) -> usize {
         self.entries.len()
     }
-
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
-    /// Plain-text rendering of one entry, for the CLI and the on-screen log.
-    pub fn describe(&self, entry: &LogEntry) -> String {
-        match &entry.event {
-            Event::Attack { by, damage, target_health } => {
-                let (attacker, target) = match by {
-                    Side::Player => (&self.player.name, &self.enemy.name),
-                    Side::Enemy => (&self.enemy.name, &self.player.name),
+    fn who(&self, s: Side) -> &str {
+        match s {
+            Side::Player => &self.player.name,
+            Side::Enemy => &self.enemy.name,
+        }
+    }
+
+    /// One line of plain text, for the CLI and the on-screen log.
+    pub fn describe(&self, e: &LogEntry) -> String {
+        let t = format!("{:>5.1}s", e.at_ms as f32 / 1000.0);
+        match &e.event {
+            Event::Activate { side, item } => format!("{} {} activates {}", t, self.who(*side), item),
+            Event::Hit { by, damage, absorbed, target_health, target_armor } => {
+                let soak = if *absorbed > 0 {
+                    format!(" ({} soaked, {} armor left)", absorbed, target_armor)
+                } else {
+                    String::new()
                 };
                 format!(
-                    "T{}: {} hits {} for {} ({} hp left)",
-                    entry.turn,
-                    attacker,
-                    target,
+                    "{} {} hits {} for {}{} -> {} hp",
+                    t,
+                    self.who(*by),
+                    self.who(by.other()),
                     damage,
+                    soak,
                     (*target_health).max(0)
                 )
             }
+            Event::MindHit { by, amount, target_max_health } => format!(
+                "{} {} deals {} MIND damage -> max hp now {}",
+                t,
+                self.who(*by),
+                amount,
+                target_max_health
+            ),
+            Event::GainArmor { side, amount, total } => {
+                format!("{} {} gains {} armor ({})", t, self.who(*side), amount, total)
+            }
+            Event::GainMana { side, amount, total } => {
+                format!("{} {} gains {} mana ({})", t, self.who(*side), amount, total)
+            }
+            Event::ManaCheck { side, cost, paid, remaining } => {
+                if *paid {
+                    format!("{} {} spends {} mana ({} left)", t, self.who(*side), cost, remaining)
+                } else {
+                    format!(
+                        "{} {} cannot pay {} mana (has {})",
+                        t,
+                        self.who(*side),
+                        cost,
+                        remaining
+                    )
+                }
+            }
+            Event::Cursed { on, kind, duration_ms } => format!(
+                "{} curse of {} on {} for {:.1}s",
+                t,
+                kind.name(),
+                self.who(*on),
+                *duration_ms as f32 / 1000.0
+            ),
+            Event::Burn { side, damage, health } => {
+                format!("{} {} burns for {} -> {} hp", t, self.who(*side), damage, (*health).max(0))
+            }
             Event::Regen { side, amount, health } => {
-                let who = match side {
-                    Side::Player => &self.player.name,
-                    Side::Enemy => &self.enemy.name,
-                };
-                format!("T{}: {} regenerates {} ({} hp)", entry.turn, who, amount, health)
+                format!("{} {} regenerates {} -> {} hp", t, self.who(*side), amount, health)
             }
-            Event::Fell { side } => {
-                let who = match side {
-                    Side::Player => &self.player.name,
-                    Side::Enemy => &self.enemy.name,
-                };
-                format!("T{}: {} falls!", entry.turn, who)
-            }
+            Event::Fell { side } => format!("{} {} falls!", t, self.who(*side)),
             Event::End { outcome } => format!("-- {} --", outcome.label()),
         }
     }
 }
 
-/// Run the whole fight to completion, deterministically. No RNG: the same
-/// loadout always produces the same log, which is what makes the outcome
-/// assertable in tests.
+// ------------------------------------------------------------ simulate
+
+/// Run the whole fight to completion.
 ///
-/// Each turn, in strict order:
-///   1. the player attacks
-///   2. if the enemy is down, the fight ends in victory
-///   3. the enemy attacks
-///   4. if the player is down, the fight ends in defeat
-///   5. both sides regenerate, capped at their maximum health
-pub fn simulate(player_stats: Stats, enemy: Fighter) -> CombatLog {
-    let player = Fighter::from_stats("You", player_stats);
-    let mut p = player.clone();
-    let mut e = enemy.clone();
-    let mut entries = Vec::new();
+/// Each [`TICK_MS`] slice, in strict order:
+///   1. curses burn, then regeneration heals, on both sides
+///   2. curse timers advance and expired curses drop
+///   3. every item advances its cooldown — slowed if its owner is frosted —
+///      and activates if full. The player's items resolve before the enemy's,
+///      and within a side they resolve in loadout order.
+///   4. deaths are checked
+///
+/// Nothing here consults a random number generator.
+pub fn simulate(player_stats: Stats, profiles: &[ItemProfile], spec: &MonsterSpec) -> CombatLog {
+    let start_player = Combatant::player(player_stats, profiles);
+    let start_enemy = Combatant::monster(spec);
+    let mut p = start_player.clone();
+    let mut e = start_enemy.clone();
+    let mut log: Vec<LogEntry> = Vec::new();
     let mut outcome = Outcome::Stalemate;
-    let mut turn = 0;
+    let mut t: u32 = 0;
 
-    while turn < MAX_TURNS {
-        turn += 1;
+    'fight: while t < MAX_DURATION_MS {
+        t += TICK_MS;
 
-        // 1. player attacks
-        let dmg = p.damage();
-        e.health -= dmg;
-        entries.push(LogEntry {
-            turn,
-            event: Event::Attack { by: Side::Player, damage: dmg, target_health: e.health },
-        });
-        // 2. enemy down?
-        if e.is_down() {
-            entries.push(LogEntry { turn, event: Event::Fell { side: Side::Enemy } });
-            outcome = Outcome::Victory;
-            break;
+        // 1. Damage over time, then healing.
+        for side in [Side::Player, Side::Enemy] {
+            let c = pick(&mut p, &mut e, side);
+            c.dot_milli += c.curses.dot_millidamage_per_tick();
+            let whole = c.dot_milli / 1000;
+            if whole > 0 {
+                c.dot_milli %= 1000;
+                c.health -= whole;
+                let hp = c.health;
+                log.push(LogEntry { at_ms: t, event: Event::Burn { side, damage: whole, health: hp } });
+            }
+            if c.regen > 0 && c.health < c.max_health {
+                c.regen_milli += c.regen * TICK_MS as i32;
+                let heal = (c.regen_milli / 1000).min(c.max_health - c.health);
+                if heal > 0 {
+                    c.regen_milli %= 1000;
+                    c.health += heal;
+                    let hp = c.health;
+                    log.push(LogEntry {
+                        at_ms: t,
+                        event: Event::Regen { side, amount: heal, health: hp },
+                    });
+                }
+            }
+        }
+        if check_down(&p, &e, t, &mut log, &mut outcome) {
+            break 'fight;
         }
 
-        // 3. enemy attacks
-        let edmg = e.damage();
-        p.health -= edmg;
-        entries.push(LogEntry {
-            turn,
-            event: Event::Attack { by: Side::Enemy, damage: edmg, target_health: p.health },
-        });
-        // 4. player down?
-        if p.is_down() {
-            entries.push(LogEntry { turn, event: Event::Fell { side: Side::Player } });
-            outcome = Outcome::Defeat;
-            break;
-        }
+        // 2. Curse timers.
+        p.curses.tick();
+        e.curses.tick();
 
-        // 5. regeneration, capped
-        for (side, f) in [(Side::Player, &mut p), (Side::Enemy, &mut e)] {
-            if f.regen > 0 && f.health < f.max_health {
-                let healed = f.regen.min(f.max_health - f.health);
-                f.health += healed;
-                entries.push(LogEntry {
-                    turn,
-                    event: Event::Regen { side, amount: healed, health: f.health },
+        // 3. Cooldowns and activations.
+        for side in [Side::Player, Side::Enemy] {
+            let count = pick(&mut p, &mut e, side).items.len();
+            for idx in 0..count {
+                let ready = {
+                    let c = pick(&mut p, &mut e, side);
+                    // Frost stretches the cooldown by slowing how fast the bar
+                    // fills, rather than by rewriting the cooldown itself.
+                    let slow = c.curses.slow_pct();
+                    let step = (TICK_MS as i32 * (100 - slow) / 100).max(1) as u32;
+                    let item = &mut c.items[idx];
+                    item.progress_ms += step;
+                    if item.progress_ms >= item.cooldown_ms {
+                        item.progress_ms -= item.cooldown_ms;
+                        true
+                    } else {
+                        false
+                    }
+                };
+                if ready {
+                    activate(&mut p, &mut e, side, idx, t, &mut log);
+                    if check_down(&p, &e, t, &mut log, &mut outcome) {
+                        break 'fight;
+                    }
+                }
+            }
+        }
+    }
+
+    log.push(LogEntry { at_ms: t, event: Event::End { outcome } });
+    CombatLog { player: start_player, enemy: start_enemy, entries: log, outcome, duration_ms: t }
+}
+
+fn pick<'a>(p: &'a mut Combatant, e: &'a mut Combatant, side: Side) -> &'a mut Combatant {
+    match side {
+        Side::Player => p,
+        Side::Enemy => e,
+    }
+}
+
+fn check_down(
+    p: &Combatant,
+    e: &Combatant,
+    t: u32,
+    log: &mut Vec<LogEntry>,
+    outcome: &mut Outcome,
+) -> bool {
+    if e.is_down() {
+        log.push(LogEntry { at_ms: t, event: Event::Fell { side: Side::Enemy } });
+        *outcome = Outcome::Victory;
+        return true;
+    }
+    if p.is_down() {
+        log.push(LogEntry { at_ms: t, event: Event::Fell { side: Side::Player } });
+        *outcome = Outcome::Defeat;
+        return true;
+    }
+    false
+}
+
+/// Resolve one item firing: its flat effects, then its triggers in order.
+fn activate(
+    p: &mut Combatant,
+    e: &mut Combatant,
+    side: Side,
+    idx: usize,
+    t: u32,
+    log: &mut Vec<LogEntry>,
+) {
+    let item = pick(p, e, side).items[idx].clone();
+    log.push(LogEntry { at_ms: t, event: Event::Activate { side, item: item.name.clone() } });
+
+    // Weapons swing; everything else just does its job. A monster's attacks
+    // have no slot and always count as weapons.
+    let is_weapon = item.slot.map(|s| s == SlotKind::Weapon).unwrap_or(true);
+    if is_weapon {
+        let (strength, power) = {
+            let me = pick(p, e, side);
+            (me.strength, me.power)
+        };
+        let raw = (item.damage + strength) as i64 * power as i64 / 100;
+        let raw = raw.max(0) as i32;
+        if raw > 0 {
+            let target = pick(p, e, side.other());
+            let (absorbed, _) = target.take_damage(raw);
+            let (hp, ar) = (target.health, target.armor);
+            log.push(LogEntry {
+                at_ms: t,
+                event: Event::Hit {
+                    by: side,
+                    damage: raw,
+                    absorbed,
+                    target_health: hp,
+                    target_armor: ar,
+                },
+            });
+        }
+    }
+
+    if item.mind > 0 {
+        let target = pick(p, e, side.other());
+        let dealt = target.take_mind(item.mind);
+        let mh = target.max_health;
+        if dealt > 0 {
+            log.push(LogEntry {
+                at_ms: t,
+                event: Event::MindHit { by: side, amount: dealt, target_max_health: mh },
+            });
+        }
+    }
+
+    if item.armor > 0 {
+        let me = pick(p, e, side);
+        me.armor += item.armor;
+        let total = me.armor;
+        log.push(LogEntry {
+            at_ms: t,
+            event: Event::GainArmor { side, amount: item.armor, total },
+        });
+    }
+
+    if item.mana > 0 {
+        let me = pick(p, e, side);
+        me.mana += item.mana;
+        let total = me.mana;
+        log.push(LogEntry { at_ms: t, event: Event::GainMana { side, amount: item.mana, total } });
+    }
+
+    for trigger in &item.triggers {
+        match *trigger {
+            Trigger::OnActivate(action) => apply(p, e, side, action, t, log),
+            Trigger::SpendMana { cost, on_success, on_failure } => {
+                let paid = {
+                    let me = pick(p, e, side);
+                    if me.mana >= cost {
+                        me.mana -= cost;
+                        true
+                    } else {
+                        false
+                    }
+                };
+                let remaining = pick(p, e, side).mana;
+                log.push(LogEntry {
+                    at_ms: t,
+                    event: Event::ManaCheck { side, cost, paid, remaining },
+                });
+                apply(p, e, side, if paid { on_success } else { on_failure }, t, log);
+            }
+            Trigger::PerAdjacentItem { action, same_slot_only: _ } => {
+                for _ in 0..item.adjacent_assembled_same_slot {
+                    apply(p, e, side, action, t, log);
+                }
+            }
+        }
+    }
+}
+
+fn apply(
+    p: &mut Combatant,
+    e: &mut Combatant,
+    side: Side,
+    action: Action,
+    t: u32,
+    log: &mut Vec<LogEntry>,
+) {
+    // `Target::Yourself` means the side that owns the item, not the item's
+    // victim — several strong items pay for themselves this way.
+    let resolve = |target: Target| match target {
+        Target::Enemy => side.other(),
+        Target::Yourself => side,
+    };
+
+    match action {
+        Action::Curse { kind, target } => {
+            let on = resolve(target);
+            let c = pick(p, e, on);
+            let duration = c.curses.apply(kind, c.curse_resist);
+            if duration > 0 {
+                log.push(LogEntry { at_ms: t, event: Event::Cursed { on, kind, duration_ms: duration } });
+            }
+        }
+        Action::Damage { amount, target } => {
+            let on = resolve(target);
+            let c = pick(p, e, on);
+            let (absorbed, _) = c.take_damage(amount);
+            let (hp, ar) = (c.health, c.armor);
+            log.push(LogEntry {
+                at_ms: t,
+                event: Event::Hit {
+                    by: on.other(),
+                    damage: amount,
+                    absorbed,
+                    target_health: hp,
+                    target_armor: ar,
+                },
+            });
+        }
+        Action::MindDamage { amount, target } => {
+            let on = resolve(target);
+            let c = pick(p, e, on);
+            let dealt = c.take_mind(amount);
+            let mh = c.max_health;
+            if dealt > 0 {
+                log.push(LogEntry {
+                    at_ms: t,
+                    event: Event::MindHit { by: on.other(), amount: dealt, target_max_health: mh },
                 });
             }
         }
-    }
-
-    entries.push(LogEntry { turn, event: Event::End { outcome } });
-
-    CombatLog { player, enemy, entries, outcome, turns: turn }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn an_unarmed_character_loses_to_the_golem() {
-        let log = simulate(Stats::base_character(), Fighter::enemy());
-        assert_eq!(log.outcome, Outcome::Defeat);
-        // 100 hp against 10 damage a turn.
-        assert_eq!(log.turns, 10);
-    }
-
-    #[test]
-    fn enough_damage_wins_and_the_log_ends_with_the_outcome() {
-        // 100 strength at 1.00x = 100 damage; the golem's 400 hp lasts 4 turns.
-        let log = simulate(Stats::new(200, 100, 0, 100), Fighter::enemy());
-        assert_eq!(log.outcome, Outcome::Victory);
-        assert_eq!(log.turns, 4);
-        assert!(matches!(
-            log.entries.last().map(|e| &e.event),
-            Some(Event::End { outcome: Outcome::Victory })
-        ));
-    }
-
-    #[test]
-    fn regeneration_is_capped_at_maximum_health() {
-        let log = simulate(Stats::new(100, 20, 50, 100), Fighter::enemy());
-        for entry in &log.entries {
-            if let Event::Regen { side: Side::Player, health, .. } = entry.event {
-                assert!(health <= 100, "healed past max: {}", health);
-            }
+        Action::GainMana(n) => {
+            let c = pick(p, e, side);
+            c.mana += n;
+            let total = c.mana;
+            log.push(LogEntry { at_ms: t, event: Event::GainMana { side, amount: n, total } });
         }
-    }
-
-    #[test]
-    fn a_harmless_build_stalemates_rather_than_looping_forever() {
-        // No damage at all, but regen outpaces the golem's 10 a turn.
-        let log = simulate(Stats::new(500, 0, 20, 100), Fighter::enemy());
-        assert_eq!(log.outcome, Outcome::Stalemate);
-        assert_eq!(log.turns, MAX_TURNS);
-    }
-
-    #[test]
-    fn the_golem_deals_ten_damage_a_turn() {
-        assert_eq!(Fighter::enemy().damage(), 10);
+        Action::GainArmor(n) => {
+            let c = pick(p, e, side);
+            c.armor += n;
+            let total = c.armor;
+            log.push(LogEntry { at_ms: t, event: Event::GainArmor { side, amount: n, total } });
+        }
     }
 }

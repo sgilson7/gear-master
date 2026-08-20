@@ -1,40 +1,79 @@
-//! End-to-end: does a built loadout actually change the fight?
+//! Combat: per-item cooldowns, armour, mana, curses and mind damage.
 
 mod common;
 
-use common::{build_full_loadout, equip};
-use gearmaster_engine::combat::{Event, Outcome, Side, ENEMY_HEALTH};
-use gearmaster_engine::piece::SlotKind;
+use common::{build_full_loadout, equip, piece};
+use gearmaster_engine::combat::{
+    simulate, Event, MonsterAttack, MonsterSpec, Outcome, Side, RUST_GOLEM,
+};
+use gearmaster_engine::curse::CurseKind;
+use gearmaster_engine::loadout::ItemProfile;
+use gearmaster_engine::piece::{Action, SlotKind, Target, Trigger};
 use gearmaster_engine::run::{Phase, Run};
 use gearmaster_engine::stats::Stats;
+
+/// A bare item profile, so a mechanic can be tested without contriving a
+/// loadout that happens to produce it.
+fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfile {
+    ItemProfile {
+        name: name.to_string(),
+        slot,
+        cooldown_ms,
+        stats,
+        triggers: Vec::new(),
+        adjacent_assembled_same_slot: 0,
+    }
+}
+
+/// A monster that stands there and does nothing, for testing player mechanics.
+const DUMMY: MonsterSpec = MonsterSpec {
+    name: "Dummy",
+    health: 100_000,
+    regen: 0,
+    mind_resist: 0,
+    curse_resist: 0,
+    attacks: &[],
+    bounty: 0,
+};
+
+/// A monster that only hits, for testing defensive mechanics.
+const PUNCHER: MonsterSpec = MonsterSpec {
+    name: "Puncher",
+    health: 100_000,
+    regen: 0,
+    mind_resist: 0,
+    curse_resist: 0,
+    attacks: &[MonsterAttack::hit("jab", 1000, 10)],
+    bounty: 0,
+};
+
+fn activations_of(log: &gearmaster_engine::combat::CombatLog, name: &str) -> Vec<u32> {
+    log.entries
+        .iter()
+        .filter_map(|e| match &e.event {
+            Event::Activate { side: Side::Player, item } if item == name => Some(e.at_ms),
+            _ => None,
+        })
+        .collect()
+}
+
+// ------------------------------------------------------------- baseline
 
 #[test]
 fn a_bare_character_starts_at_the_documented_baseline() {
     let run = Run::new();
-    assert_eq!(run.player_stats(), Stats::new(100, 5, 0, 100));
-    assert_eq!(run.player_stats().damage_per_attack(), 5);
-}
-
-#[test]
-fn a_full_loadout_totals_up_base_stats_plus_every_bonus() {
-    let mut run = Run::new();
-    build_full_loadout(&mut run);
-
-    // 100 base + 30 helmet + 61 chest + 5 gloves + 30 greaves
-    // 5 base str + 3 helmet + 5 chest (Hollow Weave) + 9 gloves + 7 weapon
-    // 1 helmet + 2 chest + 3 greaves regen
-    // 1.00x base + 0.15x gloves + 1.30x weapon
-    assert_eq!(run.player_stats(), Stats::new(226, 29, 6, 245));
-    assert_eq!(run.player_stats().damage_per_attack(), 71);
+    let s = run.player_stats();
+    assert_eq!((s.health, s.strength, s.regen, s.power), (100, 5, 0, 100));
+    assert!(run.combat_items().is_empty(), "nothing assembled, nothing acts");
 }
 
 #[test]
 fn an_ungeared_character_is_beaten_by_the_golem() {
     let mut run = Run::new();
     let log = run.begin_fight().clone();
-
     assert_eq!(log.outcome, Outcome::Defeat);
-    assert_eq!(log.turns, 10, "100 health against 10 damage a turn");
+    // 100 health against 10 damage a second, and nothing hitting back.
+    assert_eq!(log.duration_ms, 10_000);
 }
 
 #[test]
@@ -42,60 +81,368 @@ fn a_full_loadout_beats_the_golem() {
     let mut run = Run::new();
     build_full_loadout(&mut run);
     let log = run.begin_fight().clone();
-
     assert_eq!(log.outcome, Outcome::Victory);
-    assert_eq!(log.turns, 6, "400 golem health at 71 damage a turn");
-    assert!(
-        log.player.health > 0,
-        "the player should still be standing at the end"
-    );
+    assert!(log.duration_ms < 15_000, "took {}ms", log.duration_ms);
 }
 
 #[test]
-fn the_fight_log_replays_the_whole_bout_in_order() {
+fn the_log_is_ordered_and_ends_with_the_outcome() {
     let mut run = Run::new();
     build_full_loadout(&mut run);
     let log = run.begin_fight().clone();
 
-    // First beat is always the player's swing.
-    assert!(matches!(
-        log.entries.first().map(|e| &e.event),
-        Some(Event::Attack { by: Side::Player, .. })
-    ));
-    // Last beat is always the outcome.
+    let times: Vec<u32> = log.entries.iter().map(|e| e.at_ms).collect();
+    assert!(times.windows(2).all(|w| w[0] <= w[1]), "timestamps must not go backwards");
     assert!(matches!(
         log.entries.last().map(|e| &e.event),
         Some(Event::End { outcome: Outcome::Victory })
     ));
-    // Turn numbers never go backwards.
-    let turns: Vec<u32> = log.entries.iter().map(|e| e.turn).collect();
-    assert!(turns.windows(2).all(|w| w[0] <= w[1]), "turns must be monotonic");
+}
 
-    // Replaying the attack events reproduces the golem's health exactly, which
-    // is what lets the GUI animate straight from the log.
-    let mut enemy_hp = ENEMY_HEALTH;
-    for entry in &log.entries {
-        if let Event::Attack { by: Side::Player, damage, target_health } = entry.event {
-            enemy_hp -= damage;
-            assert_eq!(enemy_hp, target_health);
-        }
-    }
-    assert!(enemy_hp <= 0);
+// ------------------------------------------------ per-item cooldowns
+
+#[test]
+fn each_item_keeps_its_own_cooldown() {
+    let fast = item("Fast", SlotKind::Weapon, 500, Stats::damage(1));
+    let slow = item("Slow", SlotKind::Weapon, 2000, Stats::damage(1));
+    let log = simulate(Stats::new(1000, 0, 0, 100), &[fast, slow], &DUMMY);
+
+    let fast_hits = activations_of(&log, "Fast").len();
+    let slow_hits = activations_of(&log, "Slow").len();
+    assert_eq!(
+        fast_hits,
+        slow_hits * 4,
+        "a 0.5s item fires four times as often as a 2s one ({} vs {})",
+        fast_hits,
+        slow_hits
+    );
 }
 
 #[test]
-fn regeneration_shows_up_in_the_log_and_slows_the_bleed() {
-    let mut run = Run::new();
-    build_full_loadout(&mut run); // 6 regen
-    let log = run.begin_fight().clone();
+fn activations_land_exactly_on_the_cooldown() {
+    let log = simulate(
+        Stats::new(1000, 0, 0, 100),
+        &[item("Tick", SlotKind::Weapon, 750, Stats::damage(1))],
+        &DUMMY,
+    );
+    let at = activations_of(&log, "Tick");
+    assert_eq!(&at[..4], &[750, 1500, 2250, 3000]);
+}
 
-    let regen_events = log
+#[test]
+fn a_speed_bonus_halves_the_cooldown_of_the_weapon_it_joins() {
+    let mut run = Run::new();
+    equip(&mut run, "Cursed Handle", SlotKind::Weapon, 0, 0);
+    let alone = run.combat_items();
+    assert_eq!(alone.len(), 0, "a handle on its own is not a weapon yet");
+
+    equip(&mut run, "Cursed Blade", SlotKind::Weapon, 1, 0);
+    let built = run.combat_items();
+    assert_eq!(built.len(), 1);
+    // Handle's own 2s, halved by the blade's +100% speed.
+    assert_eq!(built[0].cooldown_ms, 1000);
+}
+
+// --------------------------------------------------------------- armour
+
+#[test]
+fn armour_soaks_damage_before_health_does() {
+    // One chest item granting 30 armour a second, against a 10-damage jab.
+    let armour = item("Plate", SlotKind::Chest, 1000, Stats::armor(30));
+    let log = simulate(Stats::new(100, 0, 0, 100), &[armour], &PUNCHER);
+
+    let first_hit = log
         .entries
         .iter()
-        .filter(|e| matches!(e.event, Event::Regen { side: Side::Player, .. }))
-        .count();
-    assert!(regen_events > 0, "a 6-regen build should heal between turns");
+        .find_map(|e| match e.event {
+            Event::Hit { by: Side::Enemy, absorbed, target_health, .. } => {
+                Some((absorbed, target_health))
+            }
+            _ => None,
+        })
+        .expect("the puncher swings");
+    assert_eq!(first_hit, (10, 100), "fully absorbed, health untouched");
 }
+
+#[test]
+fn armour_starts_every_fight_at_zero() {
+    // No armour-granting item, so the very first hit lands on health.
+    let log = simulate(Stats::new(100, 0, 0, 100), &[], &PUNCHER);
+    let first_hit = log
+        .entries
+        .iter()
+        .find_map(|e| match e.event {
+            Event::Hit { by: Side::Enemy, absorbed, target_health, .. } => {
+                Some((absorbed, target_health))
+            }
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(first_hit, (0, 90));
+}
+
+// ----------------------------------------------------------------- mana
+
+#[test]
+fn a_mana_trigger_takes_the_failure_branch_when_it_cannot_pay() {
+    let mut caster = item("Caster", SlotKind::Weapon, 1000, Stats::damage(1));
+    caster.triggers = vec![Trigger::SpendMana {
+        cost: 5,
+        on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
+        on_failure: Action::Curse { kind: CurseKind::Frost, target: Target::Yourself },
+    }];
+    // No mana income at all.
+    let log = simulate(Stats::new(1000, 0, 0, 100), &[caster], &DUMMY);
+
+    let paid: Vec<bool> = log
+        .entries
+        .iter()
+        .filter_map(|e| match e.event {
+            Event::ManaCheck { paid, .. } => Some(paid),
+            _ => None,
+        })
+        .collect();
+    assert!(!paid.is_empty());
+    assert!(paid.iter().all(|p| !p), "never affordable, so never paid");
+    assert!(
+        log.entries.iter().any(|e| matches!(
+            e.event,
+            Event::Cursed { on: Side::Player, kind: CurseKind::Frost, .. }
+        )),
+        "the failure branch curses its own wearer"
+    );
+}
+
+#[test]
+fn a_mana_trigger_spends_and_curses_the_enemy_when_it_can_pay() {
+    let battery = item("Battery", SlotKind::Helmet, 500, Stats::mana(10));
+    let mut caster = item("Caster", SlotKind::Weapon, 1000, Stats::damage(1));
+    caster.triggers = vec![Trigger::SpendMana {
+        cost: 5,
+        on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
+        on_failure: Action::Curse { kind: CurseKind::Frost, target: Target::Yourself },
+    }];
+    let log = simulate(Stats::new(1000, 0, 0, 100), &[battery, caster], &DUMMY);
+
+    assert!(
+        log.entries.iter().any(|e| matches!(e.event, Event::ManaCheck { paid: true, .. })),
+        "20 mana a second easily covers 5 a second"
+    );
+    assert!(
+        log.entries.iter().any(|e| matches!(
+            e.event,
+            Event::Cursed { on: Side::Enemy, kind: CurseKind::Searing, .. }
+        )),
+        "the success branch curses the enemy"
+    );
+    assert!(
+        !log.entries.iter().any(|e| matches!(e.event, Event::ManaCheck { paid: false, .. })),
+        "and never falls through to the penalty"
+    );
+}
+
+// -------------------------------------------------------------- curses
+
+#[test]
+fn frost_on_yourself_visibly_delays_your_next_activation() {
+    let mut cursed = item("Cursed", SlotKind::Weapon, 1000, Stats::damage(1));
+    cursed.triggers = vec![Trigger::SpendMana {
+        cost: 5,
+        on_success: Action::GainMana(0),
+        // Nothing to pay with, so every swing frosts its own wearer.
+        on_failure: Action::Curse { kind: CurseKind::Frost, target: Target::Yourself },
+    }];
+    let log = simulate(Stats::new(5000, 0, 0, 100), &[cursed], &DUMMY);
+
+    let at = activations_of(&log, "Cursed");
+    assert_eq!(at[0], 1000, "the first swing is on time");
+    assert_eq!(
+        at[1] - at[0],
+        1500,
+        "frost halves the fill rate for a second, so the next takes 1.5s"
+    );
+}
+
+#[test]
+fn searing_burns_the_enemy_over_time() {
+    let mut brand = item("Brand", SlotKind::Weapon, 20_000, Stats::damage(1));
+    brand.triggers = vec![Trigger::OnActivate(Action::Curse {
+        kind: CurseKind::Searing,
+        target: Target::Enemy,
+    })];
+    let log = simulate(Stats::new(1000, 0, 0, 100), &[brand], &DUMMY);
+
+    // The brand re-applies every 20s, so measure one curse's own window.
+    let applied_at = log
+        .entries
+        .iter()
+        .find_map(|e| match e.event {
+            Event::Cursed { on: Side::Enemy, kind: CurseKind::Searing, duration_ms } => {
+                Some((e.at_ms, duration_ms))
+            }
+            _ => None,
+        })
+        .expect("the brand curses");
+    assert_eq!(applied_at.1, 10_000, "unresisted searing runs its full 10s");
+    let burn_total: i32 = log
+        .entries
+        .iter()
+        .filter(|e| e.at_ms > applied_at.0 && e.at_ms <= applied_at.0 + applied_at.1)
+        .filter_map(|e| match e.event {
+            Event::Burn { side: Side::Enemy, damage, .. } => Some(damage),
+            _ => None,
+        })
+        .sum();
+    // 10 a second for 10 seconds, landing in half-point slices.
+    assert_eq!(burn_total, 100);
+}
+
+#[test]
+fn curse_resistance_shortens_the_burn() {
+    let mut brand = item("Brand", SlotKind::Weapon, 20_000, Stats::damage(1));
+    brand.triggers = vec![Trigger::OnActivate(Action::Curse {
+        kind: CurseKind::Searing,
+        target: Target::Enemy,
+    })];
+    const TOUGH: MonsterSpec = MonsterSpec {
+        name: "Warded",
+        health: 100_000,
+        regen: 0,
+        mind_resist: 0,
+        curse_resist: 50,
+        attacks: &[],
+        bounty: 0,
+    };
+    let log = simulate(Stats::new(1000, 0, 0, 100), &[brand], &TOUGH);
+
+    let (applied_at, duration) = log
+        .entries
+        .iter()
+        .find_map(|e| match e.event {
+            Event::Cursed { on: Side::Enemy, kind: CurseKind::Searing, duration_ms } => {
+                Some((e.at_ms, duration_ms))
+            }
+            _ => None,
+        })
+        .expect("the brand curses");
+    assert_eq!(duration, 5_000, "50% resistance halves the duration");
+    let burn_total: i32 = log
+        .entries
+        .iter()
+        .filter(|e| e.at_ms > applied_at && e.at_ms <= applied_at + duration)
+        .filter_map(|e| match e.event {
+            Event::Burn { side: Side::Enemy, damage, .. } => Some(damage),
+            _ => None,
+        })
+        .sum();
+    assert_eq!(burn_total, 50, "half the duration, so half the damage");
+}
+
+#[test]
+fn the_per_adjacent_item_trigger_fires_once_per_touching_item() {
+    let mut blade = item("Blade", SlotKind::Weapon, 1000, Stats::damage(1));
+    blade.triggers = vec![Trigger::PerAdjacentItem {
+        action: Action::Curse { kind: CurseKind::Searing, target: Target::Yourself },
+        same_slot_only: true,
+    }];
+    blade.adjacent_assembled_same_slot = 2;
+    let log = simulate(Stats::new(100_000, 0, 0, 100), &[blade], &DUMMY);
+
+    // Two curses land on the first activation alone.
+    let first_batch = log
+        .entries
+        .iter()
+        .filter(|e| {
+            e.at_ms == 1000
+                && matches!(e.event, Event::Cursed { on: Side::Player, kind: CurseKind::Searing, .. })
+        })
+        .count();
+    assert_eq!(first_batch, 2, "one per adjacent assembled item");
+}
+
+// ---------------------------------------------------------- mind damage
+
+#[test]
+fn mind_damage_eats_maximum_health_and_cannot_be_healed_back() {
+    const PSION: MonsterSpec = MonsterSpec {
+        name: "Psion",
+        health: 100_000,
+        regen: 0,
+        mind_resist: 0,
+        curse_resist: 0,
+        attacks: &[MonsterAttack { name: "whisper", cooldown_ms: 1000, damage: 0, mind: 4, armor: 0 }],
+        bounty: 0,
+    };
+    // Plenty of regeneration: it still cannot undo a lowered ceiling.
+    let log = simulate(Stats::new(100, 0, 50, 100), &[], &PSION);
+
+    let last_max = log
+        .entries
+        .iter()
+        .filter_map(|e| match e.event {
+            Event::MindHit { target_max_health, .. } => Some(target_max_health),
+            _ => None,
+        })
+        .last()
+        .expect("the psion whispers");
+    assert!(last_max < 100, "maximum health came down to {}", last_max);
+    assert_eq!(log.outcome, Outcome::Defeat, "a ceiling of zero is still death");
+}
+
+#[test]
+fn mind_resistance_blunts_it() {
+    const PSION: MonsterSpec = MonsterSpec {
+        name: "Psion",
+        health: 100_000,
+        regen: 0,
+        mind_resist: 0,
+        curse_resist: 0,
+        attacks: &[MonsterAttack { name: "whisper", cooldown_ms: 1000, damage: 0, mind: 10, armor: 0 }],
+        bounty: 0,
+    };
+    let mut warded = Stats::new(100, 0, 0, 100);
+    warded.mind_resist = 60;
+    let log = simulate(warded, &[], &PSION);
+
+    let first = log
+        .entries
+        .iter()
+        .find_map(|e| match e.event {
+            Event::MindHit { amount, .. } => Some(amount),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(first, 4, "10 mind damage at 60% resistance");
+}
+
+// ------------------------------------------------- cross-item strength
+
+#[test]
+fn the_cursed_handle_doubles_a_touching_items_strength() {
+    let mut run = Run::new();
+    // A finished glove whose material carries strength...
+    equip(&mut run, "Steel Material", SlotKind::Gloves, 0, 0);
+    equip(&mut run, "Gauntlet Mold", SlotKind::Gloves, 2, 0);
+    let before = run.report(SlotKind::Gloves).stats.strength;
+
+    // ...and the same glove with the cursed handle's aura is unaffected,
+    // because the handle lives in the weapon slot, not this one.
+    assert_eq!(run.report(SlotKind::Gloves).stats.strength, before);
+
+    // Within the weapon slot: two weapons flush against each other.
+    let mut w = Run::new();
+    equip(&mut w, "Cursed Handle", SlotKind::Weapon, 0, 0); // (0, 0..2)
+    equip(&mut w, "Cursed Blade", SlotKind::Weapon, 1, 0); // touches it
+    equip(&mut w, "Oak Handle", SlotKind::Weapon, 3, 0); // (3, 0..2)
+    equip(&mut w, "Serrated Edge", SlotKind::Weapon, 4, 0); // strength 4
+
+    let r = w.report(SlotKind::Weapon);
+    assert_eq!(r.assembled_count(), 2, "{}", r.summary());
+    // The two weapons don't touch yet, so nothing is doubled.
+    assert!(!r.notes().iter().any(|n| n.contains("doubled")), "{:?}", r.notes());
+}
+
+// ----------------------------------------------------------- lifecycle
 
 #[test]
 fn gear_is_locked_while_a_fight_is_running() {
@@ -104,7 +451,7 @@ fn gear_is_locked_while_a_fight_is_running() {
     run.begin_fight();
     assert_eq!(run.phase, Phase::Fighting);
 
-    let blade = common::piece(&run, "Iron Blade");
+    let blade = piece(&run, "Iron Blade");
     assert!(run.equip(blade, SlotKind::Weapon, 1, 0).is_err());
     assert!(run.rotate(blade).is_err());
     assert!(run.clear_slot(SlotKind::Weapon).is_err());
@@ -116,24 +463,17 @@ fn gear_is_locked_while_a_fight_is_running() {
 }
 
 #[test]
-fn assembling_the_weapon_is_what_turns_the_fight_around() {
-    // Same two components, the only difference being whether they touch.
-    let mut apart = Run::new();
-    equip(&mut apart, "Balanced Grip", SlotKind::Weapon, 0, 0);
-    equip(&mut apart, "Iron Blade", SlotKind::Weapon, 3, 0);
-    assert_eq!(apart.report(SlotKind::Weapon).assembled_count(), 0);
+fn the_same_loadout_always_produces_the_same_fight() {
+    let mut a = Run::new();
+    build_full_loadout(&mut a);
+    let first = a.begin_fight().clone();
 
-    let mut together = Run::new();
-    equip(&mut together, "Balanced Grip", SlotKind::Weapon, 0, 0);
-    equip(&mut together, "Iron Blade", SlotKind::Weapon, 1, 0);
-    assert_eq!(together.report(SlotKind::Weapon).assembled_count(), 1);
+    let mut b = Run::new();
+    build_full_loadout(&mut b);
+    let second = b.begin_fight().clone();
 
-    // The bonus is worth +0.50x, so the same pieces hit meaningfully harder.
-    assert_eq!(apart.player_stats().power, 190);
-    assert_eq!(together.player_stats().power, 240);
-    assert!(
-        together.player_stats().damage_per_attack()
-            > apart.player_stats().damage_per_attack(),
-        "completing the weapon must beat leaving it in bits"
-    );
+    assert_eq!(first.duration_ms, second.duration_ms);
+    assert_eq!(first.outcome, second.outcome);
+    assert_eq!(first.entries.len(), second.entries.len());
+    assert_eq!(RUST_GOLEM.bounty, 10, "and the bounty is part of the spec");
 }

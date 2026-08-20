@@ -92,24 +92,62 @@ fn main() {
                 None => println!("error: no piece matching '{}'", rest.join(" ")),
             },
             ["fight"] => {
+                let items = run.combat_items();
                 let log = run.begin_fight().clone();
                 println!(
-                    "\n{} ({} hp, {} dmg/attack, {} regen)  vs  {} ({} hp, {} dmg/turn)",
+                    "\n{} - {} hp, {} str, {}.{:02}x power, {} regen/s",
                     log.player.name,
                     log.player.max_health,
-                    log.player.damage(),
-                    log.player.regen,
-                    log.enemy.name,
-                    log.enemy.max_health,
-                    log.enemy.damage()
+                    log.player.strength,
+                    log.player.power / 100,
+                    log.player.power % 100,
+                    log.player.regen
                 );
-                println!("{}", "-".repeat(58));
+                for it in &items {
+                    println!(
+                        "    {:<18} every {:.2}s   {}",
+                        it.name,
+                        it.cooldown_ms as f32 / 1000.0,
+                        it.stats.summary()
+                    );
+                }
+                println!(
+                    "vs {} - {} hp",
+                    log.enemy.name, log.enemy.max_health
+                );
+                println!("{}", "-".repeat(64));
                 for entry in &log.entries {
                     println!("{}", log.describe(entry));
                 }
-                println!("{}", "-".repeat(58));
-                println!("{} after {} turns\n", log.outcome.label(), log.turns);
+                println!("{}", "-".repeat(64));
+                println!(
+                    "{} after {:.1}s\n",
+                    log.outcome.label(),
+                    log.duration_ms as f32 / 1000.0
+                );
                 run.back_to_loadout();
+            }
+            ["items"] => {
+                let items = run.combat_items();
+                println!("\n{} assembled item(s) will act in combat:", items.len());
+                for it in &items {
+                    println!(
+                        "  {:<18} {:<10} every {:.2}s  {}",
+                        it.name,
+                        format!("{:?}", it.slot).to_lowercase(),
+                        it.cooldown_ms as f32 / 1000.0,
+                        it.stats.summary()
+                    );
+                    if it.adjacent_assembled_same_slot > 0 {
+                        println!(
+                            "      touching {} other assembled item(s) in its slot",
+                            it.adjacent_assembled_same_slot
+                        );
+                    }
+                    for t in &it.triggers {
+                        println!("      {}", t.describe());
+                    }
+                }
             }
             _ => println!("unknown command; try `help`"),
         }
@@ -124,6 +162,7 @@ fn help() {
     println!("  unequip <name>           send a component back to the inventory");
     println!("  rotate <name>            quarter turn clockwise");
     println!("  preset | clear           fill or empty every slot");
+    println!("  items                    list the items that will act in combat");
     println!("  fight                    simulate and print the whole bout");
     println!("  slots: helmet chest gloves greaves weapon");
 }

@@ -1,3 +1,4 @@
+use crate::curse::CurseKind;
 use crate::shape::Shape;
 use crate::stats::{StatKind, Stats};
 
@@ -148,6 +149,10 @@ pub enum EffectKind {
     /// This piece itself gains `per` of `stat` for every in-bounds empty cell
     /// orthogonally touching its own footprint.
     SelfPerEmptyCell { stat: StatKind, per: i32 },
+    /// Every OTHER assembled item touching this piece contributes double its
+    /// `stat`. Cross-item, which is only expressible because items are anchored
+    /// by their core and may therefore sit flush against one another.
+    DoubleAdjacentItemStat { stat: StatKind },
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -164,6 +169,82 @@ impl Effect {
     }
 }
 
+/// Who an effect lands on. Items can curse their own wearer — several of the
+/// stronger ones do exactly that as their cost.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Target {
+    Enemy,
+    Yourself,
+}
+
+impl Target {
+    pub fn name(self) -> &'static str {
+        match self {
+            Target::Enemy => "the enemy",
+            Target::Yourself => "yourself",
+        }
+    }
+}
+
+/// Something an item does at the moment it activates, beyond its flat stats.
+#[derive(Copy, Clone, Debug)]
+pub enum Action {
+    Curse { kind: CurseKind, target: Target },
+    Damage { amount: i32, target: Target },
+    MindDamage { amount: i32, target: Target },
+    GainMana(i32),
+    GainArmor(i32),
+}
+
+impl Action {
+    pub fn describe(&self) -> String {
+        match self {
+            Action::Curse { kind, target } => {
+                format!("apply curse of {} to {}", kind.name(), target.name())
+            }
+            Action::Damage { amount, target } => format!("deal {} damage to {}", amount, target.name()),
+            Action::MindDamage { amount, target } => {
+                format!("deal {} mind damage to {}", amount, target.name())
+            }
+            Action::GainMana(n) => format!("gain {} mana", n),
+            Action::GainArmor(n) => format!("gain {} armor", n),
+        }
+    }
+}
+
+/// Fires every time the item this piece belongs to activates.
+#[derive(Copy, Clone, Debug)]
+pub enum Trigger {
+    /// Unconditional.
+    OnActivate(Action),
+    /// Try to spend `cost` mana. Which branch runs is the whole point: the
+    /// failure case is usually a penalty, so mana income becomes a real
+    /// constraint rather than a nice-to-have.
+    SpendMana { cost: i32, on_success: Action, on_failure: Action },
+    /// Repeat `action` once per assembled item touching this one. With
+    /// `same_slot_only`, only items in the same grid count.
+    PerAdjacentItem { action: Action, same_slot_only: bool },
+}
+
+impl Trigger {
+    pub fn describe(&self) -> String {
+        match self {
+            Trigger::OnActivate(a) => format!("on activation, {}", a.describe()),
+            Trigger::SpendMana { cost, on_success, on_failure } => format!(
+                "on activation, spend {} mana: if it works, {}; if not, {}",
+                cost,
+                on_success.describe(),
+                on_failure.describe()
+            ),
+            Trigger::PerAdjacentItem { action, same_slot_only } => format!(
+                "on activation, per adjacent assembled {}, {}",
+                if *same_slot_only { "item in this slot" } else { "item" },
+                action.describe()
+            ),
+        }
+    }
+}
+
 /// Static definition of a component. Instances refer to these by index.
 #[derive(Clone, Debug)]
 pub struct PieceDef {
@@ -177,6 +258,26 @@ pub struct PieceDef {
     pub adjacency: Option<Adjacency>,
     /// Positional effect on (or from) neighbouring cells.
     pub effect: Option<Effect>,
+    /// Base cooldown in milliseconds. Only meaningful on a core piece — the
+    /// item it anchors inherits it. `0` means "use the slot's default".
+    pub cooldown_ms: u32,
+    /// Percentage points added to the item's speed. `+100` doubles the rate,
+    /// halving the cooldown. Summed across the item's pieces.
+    pub speed_bonus: i32,
+    /// Fires each time this piece's item activates.
+    pub triggers: &'static [Trigger],
+}
+
+/// Cooldown used by a core piece that doesn't name its own, by slot. Weapons
+/// swing quickly; armour ticks slowly.
+pub fn default_cooldown_ms(slot: SlotKind) -> u32 {
+    match slot {
+        SlotKind::Weapon => 1500,
+        SlotKind::Gloves => 3000,
+        SlotKind::Greaves => 3500,
+        SlotKind::Helmet => 4000,
+        SlotKind::Chest => 5000,
+    }
 }
 
 /// Handle to one physical component the player owns. Grids store these, never
@@ -264,6 +365,9 @@ pub static CATALOG: &[PieceDef] = &[
         base: Stats::power(20),
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Balanced Grip",
@@ -277,6 +381,9 @@ pub static CATALOG: &[PieceDef] = &[
             stats: Stats::power(50),
         }),
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Iron Blade",
@@ -286,6 +393,9 @@ pub static CATALOG: &[PieceDef] = &[
         base: Stats::new(0, 2, 0, 80),
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Serrated Edge",
@@ -295,6 +405,9 @@ pub static CATALOG: &[PieceDef] = &[
         base: Stats::new(0, 4, 0, 60),
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Ruby Inlay",
@@ -304,6 +417,9 @@ pub static CATALOG: &[PieceDef] = &[
         base: Stats::strength(3),
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Balance Weight",
@@ -313,6 +429,9 @@ pub static CATALOG: &[PieceDef] = &[
         base: Stats::power(25),
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     // ---- Helmet: frame, plating, crest ----
     PieceDef {
@@ -320,18 +439,24 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Helmet,
         kind: PieceKind::Frame,
         cells: &[(0, 0), (1, 0), (2, 0), (0, 1), (2, 1)],
-        base: Stats::health(10),
+        base: Stats { armor: 3, ..Stats::health(10) },
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Iron Plating",
         slot: SlotKind::Helmet,
         kind: PieceKind::Plating,
         cells: &[(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)],
-        base: Stats::health(15),
+        base: Stats { armor: 3, ..Stats::health(15) },
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Visor of Focus",
@@ -345,15 +470,21 @@ pub static CATALOG: &[PieceDef] = &[
             stats: Stats::strength(3),
         }),
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Crest of Vigor",
         slot: SlotKind::Helmet,
         kind: PieceKind::Crest,
         cells: &[(0, 0), (0, 1)],
-        base: Stats::regen(1),
+        base: Stats { mana: 2, ..Stats::regen(1) },
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     // ---- Chest: one base, up to three layers ----
     PieceDef {
@@ -365,27 +496,36 @@ pub static CATALOG: &[PieceDef] = &[
             (0, 1), (1, 1), (2, 1), (3, 1),
             (0, 2), (1, 2), (2, 2), (3, 2),
         ],
-        base: Stats::health(25),
+        base: Stats { armor: 5, ..Stats::health(25) },
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Chain Layer",
         slot: SlotKind::Chest,
         kind: PieceKind::Layer,
         cells: &[(0, 0), (1, 0), (2, 0), (3, 0)],
-        base: Stats::health(12),
+        base: Stats { armor: 2, ..Stats::health(12) },
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Plate Layer",
         slot: SlotKind::Chest,
         kind: PieceKind::Layer,
         cells: &[(0, 0), (1, 0), (2, 0), (3, 0)],
-        base: Stats::health(18),
+        base: Stats { armor: 3, ..Stats::health(18) },
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Woven Underlayer",
@@ -399,6 +539,9 @@ pub static CATALOG: &[PieceDef] = &[
             stats: Stats::regen(2),
         }),
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     // ---- Gloves: material + mold ----
     PieceDef {
@@ -406,18 +549,24 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Material,
         cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
-        base: Stats::strength(2),
+        base: Stats { armor: 1, ..Stats::strength(2) },
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Steel Material",
         slot: SlotKind::Gloves,
         kind: PieceKind::Material,
         cells: &[(0, 0), (1, 0), (0, 1), (1, 1), (0, 2), (1, 2)],
-        base: Stats::new(5, 4, 0, 0),
+        base: Stats { armor: 2, ..Stats::new(5, 4, 0, 0) },
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Gauntlet Mold",
@@ -431,15 +580,21 @@ pub static CATALOG: &[PieceDef] = &[
             stats: Stats::strength(2),
         }),
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Gripping Mold",
         slot: SlotKind::Gloves,
         kind: PieceKind::Mold,
         cells: &[(0, 0), (1, 0), (0, 1)],
-        base: Stats::power(15),
+        base: Stats { mana: 2, ..Stats::power(15) },
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     // ---- Greaves: material + mold ----
     PieceDef {
@@ -447,22 +602,28 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Greaves,
         kind: PieceKind::Material,
         cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
-        base: Stats::health(5),
+        base: Stats { armor: 2, ..Stats::health(5) },
         // >>> the Greaves slot's adjacency bonus <<<
         adjacency: Some(Adjacency {
             label: "Runed: +15 health",
             stats: Stats::health(15),
         }),
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Boiled Leather",
         slot: SlotKind::Greaves,
         kind: PieceKind::Material,
         cells: &[(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)],
-        base: Stats::health(10),
+        base: Stats { armor: 3, ..Stats::health(10) },
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Greave Mold",
@@ -472,15 +633,21 @@ pub static CATALOG: &[PieceDef] = &[
         base: Stats::regen(1),
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Runner's Mold",
         slot: SlotKind::Greaves,
         kind: PieceKind::Mold,
         cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
-        base: Stats::regen(2),
+        base: Stats { mana: 2, ..Stats::regen(2) },
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     // ---- Components with positional effects ----
     PieceDef {
@@ -499,6 +666,9 @@ pub static CATALOG: &[PieceDef] = &[
                 stat: StatKind::Strength,
             },
         }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Hollow Weave",
@@ -512,6 +682,9 @@ pub static CATALOG: &[PieceDef] = &[
             when: When::Always,
             kind: EffectKind::SelfPerEmptyCell { stat: StatKind::Strength, per: 1 },
         }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Unbound Core",
@@ -528,6 +701,47 @@ pub static CATALOG: &[PieceDef] = &[
                 stat: StatKind::Health,
             },
         }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+    },
+    // ---- Cursed line: powerful, but they bite back ----
+    PieceDef {
+        name: "Cursed Handle",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Handle,
+        cells: &[(0, 0), (0, 1), (0, 2)],
+        base: Stats::power(30),
+        adjacency: None,
+        effect: Some(Effect {
+            label: "other assembled items touching it give double strength",
+            when: When::Assembled,
+            kind: EffectKind::DoubleAdjacentItemStat { stat: StatKind::Strength },
+        }),
+        // 0.5 attacks a second.
+        cooldown_ms: 2000,
+        speed_bonus: 0,
+        triggers: &[Trigger::SpendMana {
+            cost: 5,
+            on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
+            on_failure: Action::Curse { kind: CurseKind::Frost, target: Target::Yourself },
+        }],
+    },
+    PieceDef {
+        name: "Cursed Blade",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Damaging,
+        cells: &[(0, 0), (0, 1), (1, 1), (0, 2)],
+        base: Stats::damage(10),
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        // Doubles the rate of whatever weapon it is built into.
+        speed_bonus: 100,
+        triggers: &[Trigger::PerAdjacentItem {
+            action: Action::Curse { kind: CurseKind::Searing, target: Target::Yourself },
+            same_slot_only: true,
+        }],
     },
     // ---- Spares, so every slot can host more than one finished item ----
     PieceDef {
@@ -535,18 +749,24 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Helmet,
         kind: PieceKind::Frame,
         cells: &[(0, 0), (1, 0), (2, 0), (0, 1)],
-        base: Stats::new(6, 0, 1, 0),
+        base: Stats { armor: 2, mana: 1, ..Stats::new(6, 0, 1, 0) },
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
     PieceDef {
         name: "Hide Base",
         slot: SlotKind::Chest,
         kind: PieceKind::Base,
         cells: &[(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)],
-        base: Stats::health(14),
+        base: Stats { armor: 3, ..Stats::health(14) },
         adjacency: None,
         effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
     },
 ];
 

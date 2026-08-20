@@ -166,7 +166,7 @@ fn one_slot_can_hold_two_finished_items() {
     assert_eq!(r.assembled_count(), 2, "{}", r.summary());
     assert_eq!(r.summary(), "2 items assembled");
     // Both items' stats count: 2 + 15x power, then 5 hp + 4 + 1 str + 2 bonus.
-    assert_eq!(r.stats, Stats::new(5, 9, 0, 15));
+    assert_eq!((r.stats.health, r.stats.strength, r.stats.power), (5, 9, 15));
 }
 
 #[test]
@@ -235,7 +235,7 @@ fn a_slot_can_hold_a_finished_item_and_loose_pieces_at_once() {
     assert_eq!(r.loose_count(), 1);
     assert_eq!(r.summary(), "1 assembled, 1 loose");
     // The loose material still contributes its base stats.
-    assert_eq!(r.stats, Stats::new(5, 6, 0, 15));
+    assert_eq!((r.stats.health, r.stats.strength, r.stats.power), (5, 6, 15));
 }
 
 #[test]
@@ -269,7 +269,7 @@ fn an_adjacency_bonus_stays_dormant_until_the_item_assembles() {
 
     let r = run.report(SlotKind::Greaves);
     assert_eq!(r.assembled_count(), 0);
-    assert_eq!(r.stats, Stats::health(5), "only the base contribution");
+    assert_eq!(r.stats.health, 5, "only the base contribution");
     assert!(r.notes().is_empty());
 
     // Add the mold next to it and the greaves come together.
@@ -277,7 +277,7 @@ fn an_adjacency_bonus_stays_dormant_until_the_item_assembles() {
 
     let r = run.report(SlotKind::Greaves);
     assert_eq!(r.assembled_count(), 1, "{}", r.summary());
-    assert_eq!(r.stats, Stats::new(20, 0, 1, 0), "base 5 + bonus 15 health, +1 regen");
+    assert_eq!((r.stats.health, r.stats.regen), (20, 1), "base 5 + bonus 15 health, +1 regen");
     assert_eq!(r.notes(), vec!["Runed: +15 health"]);
 }
 

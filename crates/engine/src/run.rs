@@ -1,4 +1,4 @@
-use crate::combat::{simulate, CombatLog, Fighter};
+use crate::combat::{simulate, CombatLog, MonsterSpec, RUST_GOLEM};
 use crate::loadout::{Loadout, SlotReport};
 use crate::piece::{all_def_indices, PieceId, PieceRegistry, SlotKind};
 use crate::slot::PlaceError;
@@ -250,12 +250,22 @@ impl Run {
         self.loadout.total_stats(&self.registry)
     }
 
-    /// Simulate the whole fight and enter the replay phase.
-    pub fn begin_fight(&mut self) -> &CombatLog {
-        let log = simulate(self.player_stats(), Fighter::enemy());
+    /// Activation profiles for every assembled item — what combat runs on.
+    pub fn combat_items(&self) -> Vec<crate::loadout::ItemProfile> {
+        self.loadout.combat_items(&self.registry)
+    }
+
+    /// Simulate the whole fight against `spec` and enter the replay phase.
+    pub fn fight(&mut self, spec: &MonsterSpec) -> &CombatLog {
+        let log = simulate(self.player_stats(), &self.combat_items(), spec);
         self.phase = Phase::Fighting;
         self.log = Some(log);
         self.log.as_ref().expect("just set")
+    }
+
+    /// Simulate against the default opponent.
+    pub fn begin_fight(&mut self) -> &CombatLog {
+        self.fight(&RUST_GOLEM)
     }
 
     /// Return to gear-arranging and discard the fight.
