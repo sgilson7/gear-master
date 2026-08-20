@@ -542,28 +542,102 @@ fn col_trigger() -> Color {
     Color::from_rgba(225, 130, 225, 255)
 }
 
-/// Hue per slot, so a piece's colour says where it belongs at a glance.
+// You against them, in a pair that survives colour blindness. Green versus
+// red is the distinction red-green colour blindness is named for: simulated,
+// the two health bars came out the same shade of khaki, and the same grey in
+// full monochromacy. Blue against orange stays apart under all three
+// dichromacies, and these two are set far enough apart in brightness to stay
+// apart with no colour at all.
+fn col_you() -> Color {
+    Color::from_rgba(116, 184, 246, 255)
+}
+fn col_you_dim() -> Color {
+    Color::from_rgba(74, 118, 160, 255)
+}
+fn col_foe() -> Color {
+    Color::from_rgba(198, 108, 30, 255)
+}
+fn col_foe_dim() -> Color {
+    Color::from_rgba(132, 74, 26, 255)
+}
+
+// A piece's tile has to answer two questions - which slot does this belong
+// to, and which part of the recipe is it - and it has to answer both without
+// relying on colour, because some players see none of it.
+//
+//   slot -> a motif stamped on every cell   (see `slot_motif`)
+//   role -> the tile's lightness            (see `kind_lightness`)
+//
+// Both survive being reduced to greyscale. Hue then repeats the slot on top,
+// for players who do see colour, which is why the hues below are the
+// Color Universal Design set rather than an even spread around the wheel:
+// evenly spaced hues collapse into pairs under red-green colour blindness.
+
+/// Hue per slot, from the Okabe-Ito colour-blind-safe palette: vermillion,
+/// sky blue, bluish green, reddish purple and yellow.
 fn slot_hue(slot: SlotKind) -> f32 {
     match slot {
-        SlotKind::Helmet => 0.58,
-        SlotKind::Chest => 0.34,
-        SlotKind::Gloves => 0.79,
-        SlotKind::Greaves => 0.47,
-        SlotKind::Weapon => 0.03,
+        SlotKind::Weapon => 0.073,
+        SlotKind::Helmet => 0.552,
+        SlotKind::Chest => 0.443,
+        SlotKind::Gloves => 0.912,
+        SlotKind::Greaves => 0.156,
     }
 }
 
-/// Lightness per role, so the primary component of a recipe reads darkest.
-fn kind_lightness(kind: PieceKind) -> f32 {
+/// Saturation per slot. Okabe-Ito's colours are not equally saturated, and
+/// evening them out is what pushes the blue pair and the warm pair together.
+fn slot_sat(slot: SlotKind) -> f32 {
+    match slot {
+        SlotKind::Weapon => 0.80,
+        SlotKind::Helmet => 0.68,
+        SlotKind::Chest => 0.72,
+        SlotKind::Gloves => 0.44,
+        SlotKind::Greaves => 0.74,
+    }
+}
+
+/// Brightness per role, so the piece a recipe is built around reads darkest.
+/// This is the channel that carries the role once colour is gone, so the three
+/// steps are stated as brightness rather than as HSL lightness: the same
+/// lightness lands at wildly different brightness depending on the hue, and
+/// yellow in particular flattens its top two steps into one.
+fn kind_luminance(kind: PieceKind) -> f32 {
     match kind {
-        PieceKind::Handle | PieceKind::Frame | PieceKind::Base | PieceKind::Material => 0.42,
-        PieceKind::Damaging | PieceKind::Plating | PieceKind::Layer | PieceKind::Mold => 0.55,
-        PieceKind::Accessory | PieceKind::Crest => 0.68,
+        PieceKind::Handle | PieceKind::Frame | PieceKind::Base | PieceKind::Material => 0.22,
+        PieceKind::Damaging | PieceKind::Plating | PieceKind::Layer | PieceKind::Mold => 0.45,
+        PieceKind::Accessory | PieceKind::Crest => 0.72,
     }
 }
 
 fn piece_color(def: &PieceDef) -> Color {
-    macroquad::color::hsl_to_rgb(slot_hue(def.slot), 0.52, kind_lightness(def.kind))
+    slot_color(def.slot, kind_luminance(def.kind))
+}
+
+/// A slot's hue at a given brightness. Luminance rises monotonically with HSL
+/// lightness, so a short bisection lands on the lightness that hits the target
+/// whatever the hue happens to be worth.
+fn slot_color(slot: SlotKind, target: f32) -> Color {
+    let (hue, sat) = (slot_hue(slot), slot_sat(slot));
+    let (mut lo, mut hi) = (0.0f32, 1.0f32);
+    let mut out = macroquad::color::hsl_to_rgb(hue, sat, 0.5);
+    for _ in 0..16 {
+        let mid = 0.5 * (lo + hi);
+        out = macroquad::color::hsl_to_rgb(hue, sat, mid);
+        if luminance(out) < target {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    out
+}
+
+/// Perceived brightness, 0..1. Used to pick an ink that will actually show up
+/// on a tile whatever colour it is - and to check, in the tests, that the
+/// roles stay apart once colour is taken away.
+fn luminance(c: Color) -> f32 {
+    0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
 }
 
 fn with_alpha(c: Color, a: f32) -> Color {
@@ -580,11 +654,165 @@ fn abbrev(name: &str) -> String {
         .to_uppercase()
 }
 
-fn draw_shape(shape: &Shape, ox: f32, oy: f32, cell: f32, color: Color, alpha: f32) {
+/// The shape stamped on every cell of a piece. This is the channel that says
+/// which slot a tile belongs to when colour says nothing at all, so the five
+/// have to stay distinct from each other - which is what the tests check.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+enum Motif {
+    /// A blade's edge.
+    Diagonal,
+    /// A helm's dome.
+    Dome,
+    /// The bands of a cuirass.
+    Bands,
+    /// A gauntlet's weave.
+    Weave,
+    /// The straps of a greave.
+    Straps,
+}
+
+fn slot_motif(slot: SlotKind) -> Motif {
+    match slot {
+        SlotKind::Weapon => Motif::Diagonal,
+        SlotKind::Helmet => Motif::Dome,
+        SlotKind::Chest => Motif::Bands,
+        SlotKind::Gloves => Motif::Weave,
+        SlotKind::Greaves => Motif::Straps,
+    }
+}
+
+/// Stamp a slot's motif into one cell. Sized to still read at the 15px cells
+/// the shop cards use.
+fn draw_slot_motif(x: f32, y: f32, cell: f32, slot: SlotKind, ink: Color) {
+    let t = (cell * 0.11).max(1.5);
+    match slot_motif(slot) {
+        Motif::Diagonal => {
+            draw_line(x + cell * 0.24, y + cell * 0.76, x + cell * 0.76, y + cell * 0.24, t, ink);
+        }
+        Motif::Dome => {
+            draw_circle(x + cell * 0.5, y + cell * 0.52, cell * 0.20, ink);
+        }
+        Motif::Bands => {
+            for row in [0.34f32, 0.64] {
+                draw_line(x + cell * 0.22, y + cell * row, x + cell * 0.78, y + cell * row, t, ink);
+            }
+        }
+        Motif::Weave => {
+            draw_line(x + cell * 0.5, y + cell * 0.22, x + cell * 0.5, y + cell * 0.78, t, ink);
+            draw_line(x + cell * 0.22, y + cell * 0.5, x + cell * 0.78, y + cell * 0.5, t, ink);
+        }
+        Motif::Straps => {
+            for col in [0.34f32, 0.64] {
+                draw_line(x + cell * col, y + cell * 0.22, x + cell * col, y + cell * 0.78, t, ink);
+            }
+        }
+    }
+}
+
+/// The three things a component can carry. Each has its own corner of the
+/// tile, its own shape and its own colour, so no one of the three is doing the
+/// work alone.
+#[derive(Copy, Clone, PartialEq, Eq)]
+enum Marker {
+    /// An assembly bonus: fires when the item comes together. Top-right.
+    Bonus,
+    /// A positional effect: worth something depending on where it sits.
+    /// Bottom-right.
+    Effect,
+    /// A combat trigger. Bottom-left.
+    Trigger,
+}
+
+impl Marker {
+    fn color(self) -> Color {
+        match self {
+            Marker::Bonus => col_gold(),
+            Marker::Effect => col_effect(),
+            Marker::Trigger => col_trigger(),
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Marker::Bonus => "assembly bonus",
+            Marker::Effect => "positional effect",
+            Marker::Trigger => "combat trigger",
+        }
+    }
+}
+
+/// Draw one marker at `(cx, cy)`. `lit` means its condition currently holds:
+/// lit markers are solid, unlit ones are the same shape in outline, so the
+/// difference is fill and not hue.
+fn draw_marker(cx: f32, cy: f32, marker: Marker, lit: bool) {
+    draw_marker_sized(cx, cy, 4.6, marker, lit)
+}
+
+fn draw_marker_sized(cx: f32, cy: f32, r: f32, marker: Marker, lit: bool) {
+    let c = if lit { marker.color() } else { col_dim() };
+    match marker {
+        // A disc.
+        Marker::Bonus => {
+            if lit {
+                draw_circle(cx, cy, r, c);
+            } else {
+                draw_circle_lines(cx, cy, r, 1.5, c);
+            }
+        }
+        // A diamond.
+        Marker::Effect => {
+            let pts = [
+                Vec2::new(cx, cy - r),
+                Vec2::new(cx + r, cy),
+                Vec2::new(cx, cy + r),
+                Vec2::new(cx - r, cy),
+            ];
+            if lit {
+                draw_triangle(pts[0], pts[1], pts[2], c);
+                draw_triangle(pts[0], pts[2], pts[3], c);
+            } else {
+                for i in 0..4 {
+                    draw_line(pts[i].x, pts[i].y, pts[(i + 1) % 4].x, pts[(i + 1) % 4].y, 1.5, c);
+                }
+            }
+        }
+        // A triangle, point up.
+        Marker::Trigger => {
+            let (a, b, t) = (
+                Vec2::new(cx, cy - r),
+                Vec2::new(cx + r, cy + r * 0.8),
+                Vec2::new(cx - r, cy + r * 0.8),
+            );
+            if lit {
+                draw_triangle(a, b, t, c);
+            } else {
+                draw_line(a.x, a.y, b.x, b.y, 1.5, c);
+                draw_line(b.x, b.y, t.x, t.y, 1.5, c);
+                draw_line(t.x, t.y, a.x, a.y, 1.5, c);
+            }
+        }
+    }
+}
+
+/// An ink that will show up on `fill`: dark on a light tile, light on a dark
+/// one. Fixing a single ink colour would hide the motif on one end of the
+/// role lightness range or the other.
+fn motif_ink(fill: Color, alpha: f32) -> Color {
+    if luminance(fill) > 0.46 {
+        Color::new(0.0, 0.0, 0.0, 0.42 * alpha)
+    } else {
+        Color::new(1.0, 1.0, 1.0, 0.40 * alpha)
+    }
+}
+
+fn draw_shape(shape: &Shape, ox: f32, oy: f32, cell: f32, def: &PieceDef, alpha: f32) {
+    let color = piece_color(def);
+    let ink = motif_ink(color, alpha);
     for &(dx, dy) in shape.cells() {
         let x = ox + dx as f32 * cell;
         let y = oy + dy as f32 * cell;
         draw_rectangle(x + 1.0, y + 1.0, cell - 2.0, cell - 2.0, with_alpha(color, alpha));
+        draw_slot_motif(x + 1.0, y + 1.0, cell - 2.0, def.slot, ink);
         draw_rectangle_lines(
             x + 1.0,
             y + 1.0,
@@ -1041,13 +1269,16 @@ fn render_item_outlines(view: &SlotView, run: &Run, report: &SlotReport) {
             .iter()
             .flat_map(|&p| slot.cells_of(p))
             .collect();
+        // Assembled or not is brightness and weight, not gold against red.
+        // A gold-versus-red pair is the one distinction red-green colour
+        // blindness is worst at, and the gold read as the greaves besides.
         let color = if item.assembled {
             let p = ((get_time() * 3.0).sin() * 0.5 + 0.5) as f32;
-            Color::from_rgba(215 + (40.0 * p) as u8, 180 + (30.0 * p) as u8, 80, 255)
+            Color::new(1.0, 1.0, 1.0, 0.72 + 0.28 * p)
         } else {
-            Color::from_rgba(150, 70, 70, 210)
+            Color::from_rgba(24, 22, 30, 235)
         };
-        let t = if item.assembled { 3.0 } else { 2.0 };
+        let t = if item.assembled { 3.5 } else { 2.0 };
 
         for &(x, y) in &cells {
             let (px, py) = view.cell_origin(x, y);
@@ -1110,9 +1341,12 @@ fn render_slots(
         });
 
         // Slot border lights up once at least one item has come together.
+        // Brightness carries this, not hue - gold against grey would have put
+        // the greaves board's border the same colour as its tiles.
         let border = if any_assembled {
             let p = ((get_time() * 3.0).sin() * 0.5 + 0.5) as f32;
-            Color::from_rgba(200 + (55.0 * p) as u8, 170 + (40.0 * p) as u8, 70, 255)
+            let v = 0.80 + 0.20 * p;
+            Color::new(v, v, v, 1.0)
         } else {
             Color::from_rgba(70, 70, 92, 255)
         };
@@ -1140,43 +1374,45 @@ fn render_slots(
             let def = run.registry.def(id);
             let shape = run.registry.shape(id);
             let (px, py) = view.cell_origin(ax, ay);
-            draw_shape(&shape, px, py, SLOT_CELL, piece_color(def), 1.0);
+            draw_shape(&shape, px, py, SLOT_CELL, def, 1.0);
 
             if let Some(&(dx, dy)) = shape.cells().first() {
                 let tx = px + dx as f32 * SLOT_CELL + SLOT_CELL / 2.0;
                 let ty = py + dy as f32 * SLOT_CELL + SLOT_CELL / 2.0 + 4.0;
-                centered_text(&abbrev(def.name), tx, ty, 13.0, Color::from_rgba(15, 15, 20, 230));
+                // A plate behind the initials: they sit on a cell that now
+                // carries a motif, and two overlapping marks read as neither.
+                // Sized to the cell, since a three-word name abbreviates to
+                // three letters and those do not fit at the nominal size.
+                let label = abbrev(def.name);
+                let size = fitting_size(&label, SLOT_CELL - 7.0, &[13.0, 12.0, 11.0, 10.0, 9.0]);
+                let lw = text_width(&label, size).min(SLOT_CELL - 5.0);
+                draw_rectangle(
+                    tx - lw / 2.0 - 2.0,
+                    ty - 11.0,
+                    lw + 4.0,
+                    14.0,
+                    Color::from_rgba(238, 238, 244, 205),
+                );
+                centered_text(&label, tx, ty, size, Color::from_rgba(15, 15, 20, 255));
 
                 let live = assembled_piece(id);
                 // Top-right: assembly bonus. Filled once its item is finished.
                 if def.adjacency.is_some() {
                     let cx = px + dx as f32 * SLOT_CELL + SLOT_CELL - 6.0;
                     let cy = py + dy as f32 * SLOT_CELL + 6.0;
-                    if live {
-                        draw_circle(cx, cy, 4.0, col_gold());
-                    } else {
-                        draw_circle_lines(cx, cy, 4.0, 1.5, col_dim());
-                    }
+                    draw_marker(cx, cy, Marker::Bonus, live);
                 }
                 // Bottom-right: positional effect. Filled while its condition
                 // currently holds.
                 if let Some(eff) = def.effect {
                     let cx = px + dx as f32 * SLOT_CELL + SLOT_CELL - 6.0;
                     let cy = py + dy as f32 * SLOT_CELL + SLOT_CELL - 6.0;
-                    if eff.when.holds(live) {
-                        draw_circle(cx, cy, 4.0, col_effect());
-                    } else {
-                        draw_circle_lines(cx, cy, 4.0, 1.5, col_dim());
-                    }
+                    draw_marker(cx, cy, Marker::Effect, eff.when.holds(live));
                 }
                 if !def.triggers.is_empty() {
                     let cx = px + dx as f32 * SLOT_CELL + 6.0;
                     let cy = py + dy as f32 * SLOT_CELL + SLOT_CELL - 6.0;
-                    if live {
-                        draw_circle(cx, cy, 4.0, col_trigger());
-                    } else {
-                        draw_circle_lines(cx, cy, 4.0, 1.5, col_dim());
-                    }
+                    draw_marker(cx, cy, Marker::Trigger, live);
                 }
             }
         }
@@ -1301,7 +1537,7 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
             card.rect.x + (card.rect.w - sw) / 2.0,
             card.rect.y + 10.0 + (60.0 - sh) / 2.0,
             INV_CELL,
-            piece_color(def),
+            def,
             alpha,
         );
 
@@ -1323,13 +1559,13 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
         // Same markers as the inventory, so a triggered piece is obvious
         // before you pay for it.
         if def.adjacency.is_some() {
-            draw_circle(card.rect.x + card.rect.w - 11.0, card.rect.y + 11.0, 4.0, col_gold());
+            draw_marker(card.rect.x + card.rect.w - 12.0, card.rect.y + 12.0, Marker::Bonus, true);
         }
         if def.effect.is_some() {
-            draw_circle(card.rect.x + 11.0, card.rect.y + 11.0, 4.0, col_effect());
+            draw_marker(card.rect.x + 12.0, card.rect.y + 12.0, Marker::Effect, true);
         }
         if !def.triggers.is_empty() {
-            draw_circle(card.rect.x + 11.0, card.rect.y + 24.0, 4.0, col_trigger());
+            draw_marker(card.rect.x + 12.0, card.rect.y + 27.0, Marker::Trigger, true);
         }
     }
 }
@@ -1389,7 +1625,7 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
             card.rect.x + (card.rect.w - sw) / 2.0,
             card.rect.y + 12.0 + (72.0 - sh) / 2.0,
             INV_CELL,
-            piece_color(def),
+            def,
             1.0,
         );
 
@@ -1403,13 +1639,13 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
         centered_text(def.kind.name(), cx, card.rect.bottom() - 12.0, 12.0, col_dim());
 
         if def.adjacency.is_some() {
-            draw_circle(card.rect.x + card.rect.w - 11.0, card.rect.y + 11.0, 4.0, col_gold());
+            draw_marker(card.rect.x + card.rect.w - 12.0, card.rect.y + 12.0, Marker::Bonus, true);
         }
         if def.effect.is_some() {
-            draw_circle(card.rect.x + 11.0, card.rect.y + 11.0, 4.0, col_effect());
+            draw_marker(card.rect.x + 12.0, card.rect.y + 12.0, Marker::Effect, true);
         }
         if !def.triggers.is_empty() {
-            draw_circle(card.rect.x + 11.0, card.rect.y + 24.0, 4.0, col_trigger());
+            draw_marker(card.rect.x + 12.0, card.rect.y + 27.0, Marker::Trigger, true);
         }
     }
 }
@@ -1880,13 +2116,14 @@ fn render_mini_board(
                 gx + ax as f32 * MINI_CELL + dx,
                 y0 + ay as f32 * MINI_CELL + dy,
                 MINI_CELL,
-                piece_color(def),
+                def,
                 1.0,
             );
         }
 
         // Outline each finished item so the two boards read as gear, not
-        // confetti.
+        // confetti. White rather than gold: gold is a slot colour now.
+        let outline = Color::new(1.0, 1.0, 1.0, 0.88);
         for item in &report.items {
             if !item.assembled {
                 continue;
@@ -1904,16 +2141,16 @@ fn render_mini_board(
                     y0 + cy as f32 * MINI_CELL + ody,
                 );
                 if cy == 0 || !cells.contains(&(cx, cy - 1)) {
-                    draw_line(px, py, px + MINI_CELL, py, 2.0, col_gold());
+                    draw_line(px, py, px + MINI_CELL, py, 2.0, outline);
                 }
                 if cy + 1 >= SLOT_H || !cells.contains(&(cx, cy + 1)) {
-                    draw_line(px, py + MINI_CELL, px + MINI_CELL, py + MINI_CELL, 2.0, col_gold());
+                    draw_line(px, py + MINI_CELL, px + MINI_CELL, py + MINI_CELL, 2.0, outline);
                 }
                 if cx == 0 || !cells.contains(&(cx - 1, cy)) {
-                    draw_line(px, py, px, py + MINI_CELL, 2.0, col_gold());
+                    draw_line(px, py, px, py + MINI_CELL, 2.0, outline);
                 }
                 if cx + 1 >= SLOT_W || !cells.contains(&(cx + 1, cy)) {
-                    draw_line(px + MINI_CELL, py, px + MINI_CELL, py + MINI_CELL, 2.0, col_gold());
+                    draw_line(px + MINI_CELL, py, px + MINI_CELL, py + MINI_CELL, 2.0, outline);
                 }
             }
         }
@@ -1945,7 +2182,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
         g.board_x,
         g.player_board_y - 12.0,
         18.0,
-        Color::from_rgba(120, 220, 150, 255),
+        col_you(),
     );
     let player_shakes =
         shake_offsets(&pb.player_profiles, &pb.player_schedule, 0, pb.now_ms);
@@ -1955,7 +2192,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
         &run.registry,
         &run.loadout,
         &reports,
-        Color::from_rgba(90, 150, 110, 255),
+        col_you_dim(),
         &player_shakes,
     );
     render_battle_side(
@@ -1971,7 +2208,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
         pb.player_shield,
         &pb.player_curses,
         pb.flash_player,
-        Color::from_rgba(90, 190, 120, 255),
+        col_you(),
     );
 
     // ---- their half ----
@@ -1981,7 +2218,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
         g.board_x,
         g.enemy_board_y - 12.0,
         18.0,
-        Color::from_rgba(230, 140, 120, 255),
+        col_foe(),
     );
     if pb.enemy_loadout.slots.iter().all(|s| s.is_empty()) {
         draw_rectangle_lines(
@@ -2012,7 +2249,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
             &pb.enemy_reg,
             &pb.enemy_loadout,
             &pb.enemy_reports,
-            Color::from_rgba(150, 90, 80, 255),
+            col_foe_dim(),
             &enemy_shakes,
         );
     }
@@ -2029,7 +2266,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
         pb.enemy_shield,
         &pb.enemy_curses,
         pb.flash_enemy,
-        Color::from_rgba(210, 110, 90, 255),
+        col_foe(),
     );
 
     // ---- right column: clock, then each side's cooldowns beside its board ----
@@ -2051,14 +2288,14 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
             &log.player.items,
             &pb.player_schedule,
             g.player_board_y,
-            Color::from_rgba(90, 190, 120, 255),
+            col_you(),
         ),
         (
             "THEIR COOLDOWNS",
             &log.enemy.items,
             &pb.enemy_schedule,
             g.enemy_board_y,
-            Color::from_rgba(210, 110, 90, 255),
+            col_foe(),
         ),
     ] {
         ui_text(label, g.cd_x, top + 14.0, 13.0, col_dim());
@@ -2102,7 +2339,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
                 below + (room - sz).max(0.0) / 2.0,
                 sz,
                 log.spec.sprite,
-                Color::from_rgba(214, 126, 106, 255),
+                col_foe(),
                 Color::from_rgba(40, 22, 20, 255),
             );
         }
@@ -2390,6 +2627,57 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("ALIGNED", "Two items in different slots whose rows overlap."),
 ];
 
+/// The key to a tile: which motif means which slot, which corner mark means
+/// what, and what the lightness of a tile is telling you. Returns its height
+/// so the glossary below can start clear of it.
+///
+/// Without this the motifs are only learnable by association, which is fine
+/// on the loadout boards - each is under a labelled column - but not on a
+/// shop card, where a shape appears with no slot named anywhere near it.
+fn draw_tile_legend(x: f32, y: f32, w: f32) -> f32 {
+    let sample = 30.0;
+    let row_h = 44.0;
+
+    ui_text("READING A TILE", x, y, 14.0, col_gold());
+    let mut ty = y + 26.0;
+
+    // Slot motifs, laid out across the width.
+    let per = SlotKind::ALL.len() as f32;
+    let step = (w / per).min(240.0);
+    for (i, &slot) in SlotKind::ALL.iter().enumerate() {
+        let sx = x + i as f32 * step;
+        let fill = slot_color(slot, 0.45);
+        draw_rectangle(sx, ty, sample, sample, fill);
+        draw_slot_motif(sx, ty, sample, slot, motif_ink(fill, 1.0));
+        draw_rectangle_lines(sx, ty, sample, sample, 1.0, Color::from_rgba(0, 0, 0, 110));
+        ui_text(slot.name(), sx + sample + 8.0, ty + 20.0, 13.0, LIGHTGRAY);
+    }
+    ty += row_h;
+
+    // Corner marks, then what lightness means.
+    let marks = [Marker::Bonus, Marker::Effect, Marker::Trigger];
+    for (i, &m) in marks.iter().enumerate() {
+        let sx = x + i as f32 * step;
+        draw_marker_sized(sx + 11.0, ty + 9.0, 9.0, m, true);
+        ui_text(m.label(), sx + 28.0, ty + 15.0, 13.0, LIGHTGRAY);
+    }
+    // The remaining width explains the lightness ramp in place: darker tiles
+    // are the piece a recipe is built around, lighter ones are its trim.
+    let ramp_x = x + 3.0 * step;
+    ui_text("lighter = further out from the core:", ramp_x, ty + 15.0, 12.0, col_dim());
+    let bar_x = ramp_x + text_width("lighter = further out from the core:", 12.0) + 12.0;
+    for (i, l) in [0.22f32, 0.45, 0.72].iter().enumerate() {
+        let sx = bar_x + i as f32 * 26.0;
+        let fill = slot_color(SlotKind::Chest, *l);
+        draw_rectangle(sx, ty - 2.0, 24.0, 22.0, fill);
+        draw_rectangle_lines(sx, ty - 2.0, 24.0, 22.0, 1.0, Color::from_rgba(0, 0, 0, 110));
+    }
+
+    ty += 30.0;
+    draw_line(x, ty, x + w, ty, 1.0, Color::from_rgba(70, 70, 95, 255));
+    ty - y + 10.0
+}
+
 /// The glossary, over the top of whatever is behind it. Returns the CLOSE
 /// button so the caller can hit-test it.
 fn render_glossary(mx: f32, my: f32) -> Rect {
@@ -2404,16 +2692,18 @@ fn render_glossary(mx: f32, my: f32) -> Rect {
     let close = Rect::new(r.x + r.w - 140.0, r.y + 16.0, 120.0, 34.0);
     button(close, "CLOSE", true, mx, my);
 
+    let legend_h = draw_tile_legend(r.x + 24.0, r.y + 86.0, r.w - 48.0);
+
     // Flow the entries into as many columns as it takes to fit the page. Two
     // was hard-coded, and the glossary spilled off the bottom the moment
     // either the text or the word list grew.
-    let top = r.y + 96.0;
+    let top = r.y + 96.0 + legend_h;
     let bottom = r.y + r.h - 16.0;
     let gap = 24.0;
-    let (cols, size) = (2..=3)
-        .flat_map(|c| [14.0f32, 13.0, 12.0].map(move |s| (c, s)))
+    let (cols, size) = (2..=4)
+        .flat_map(|c| [15.0f32, 14.0, 13.0, 12.0, 11.0].map(move |s| (c, s)))
         .find(|&(cols, size)| glossary_fits(r.w, cols, size, bottom - top))
-        .unwrap_or((3, 12.0));
+        .unwrap_or((4, 11.0));
 
     let col_w = (r.w - 48.0 - (cols - 1) as f32 * gap) / cols as f32;
     let lh = line_h(size);
@@ -2546,13 +2836,18 @@ fn button_rects(panel_x: f32) -> [Rect; 5] {
 }
 
 #[allow(clippy::too_many_arguments)]
-/// Assembly bonuses read gold, positional effects read blue.
-fn note_color(note: &str) -> Color {
+/// Which of a tile's marks a summary line is describing, so the panel can
+/// show the same disc or diamond the piece itself is wearing.
+fn note_marker(note: &str) -> Marker {
     if note.contains(':') && !note.contains(" from ") && !note.contains("doubled") {
-        col_gold()
+        Marker::Bonus
     } else {
-        col_effect()
+        Marker::Effect
     }
+}
+
+fn note_color(note: &str) -> Color {
+    note_marker(note).color()
 }
 
 /// "1 item assembled" is too wide for the panel row once the text is large.
@@ -2650,8 +2945,8 @@ fn render_panel(
         // glance that there is something to hover for.
         let mut dot = x + 40.0 + text_width(r.slot.name(), 16.0) + 10.0;
         for note in &notes {
-            draw_circle(dot, y - 5.0, 4.0, note_color(note));
-            dot += 12.0;
+            draw_marker(dot, y - 5.0, note_marker(note), true);
+            dot += 14.0;
         }
         let status = short_summary(r);
         let d_w = text_width(&status, 14.0);
@@ -2707,7 +3002,7 @@ fn render_panel(
         y - 16.0,
         62.0,
         m.sprite,
-        Color::from_rgba(214, 126, 106, 255),
+        col_foe(),
         Color::from_rgba(40, 22, 20, 255),
     );
     ui_text(m.name, x + 20.0, y, 17.0, Color::from_rgba(230, 140, 120, 255));
@@ -2886,7 +3181,7 @@ async fn main() {
                     }
                 }
             }
-            draw_shape(&shape, gx, gy, SLOT_CELL, piece_color(def), 0.92);
+            draw_shape(&shape, gx, gy, SLOT_CELL, def, 0.92);
         }
 
         if run.phase != Phase::Fighting {
@@ -3458,5 +3753,70 @@ mod tests {
             12.0,
             "nothing fits, so it settles for the smallest rather than refusing to draw"
         );
+    }
+
+    // ------------------------------------------------------- accessibility
+    //
+    // A tile says two things - which slot, and which part of the recipe - and
+    // has to say both to a player who sees no colour. Slot rides on the motif,
+    // role rides on lightness. These pin down that neither collapses.
+
+    #[test]
+    fn every_slot_has_its_own_motif() {
+        let motifs: Vec<Motif> = SlotKind::ALL.iter().map(|&s| slot_motif(s)).collect();
+        for (i, a) in motifs.iter().enumerate() {
+            for b in &motifs[i + 1..] {
+                assert_ne!(a, b, "two slots share the motif {:?}", a);
+            }
+        }
+        assert_eq!(motifs.len(), 5);
+    }
+
+    #[test]
+    fn the_three_roles_stay_apart_in_greyscale() {
+        // The role is only legible without colour if the lightness steps
+        // survive being flattened to brightness, in every slot's hue.
+        let roles = [PieceKind::Handle, PieceKind::Damaging, PieceKind::Accessory];
+        for slot in SlotKind::ALL {
+            let lums: Vec<f32> = roles
+                .iter()
+                .map(|&k| luminance(slot_color(slot, kind_luminance(k))))
+                .collect();
+            for w in lums.windows(2) {
+                assert!(
+                    w[1] - w[0] > 0.08,
+                    "{:?}: roles only {:.3} apart in brightness ({:?})",
+                    slot,
+                    w[1] - w[0],
+                    lums
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_motif_ink_contrasts_with_every_tile_it_lands_on() {
+        for slot in SlotKind::ALL {
+            for &kind in &[PieceKind::Handle, PieceKind::Damaging, PieceKind::Accessory] {
+                let fill = slot_color(slot, kind_luminance(kind));
+                let ink = motif_ink(fill, 1.0);
+                // The ink is drawn over the fill, so what reaches the eye is
+                // the two composited by the ink's alpha.
+                let mixed = Color::new(
+                    fill.r + (ink.r - fill.r) * ink.a,
+                    fill.g + (ink.g - fill.g) * ink.a,
+                    fill.b + (ink.b - fill.b) * ink.a,
+                    1.0,
+                );
+                let gap = (luminance(mixed) - luminance(fill)).abs();
+                assert!(
+                    gap > 0.06,
+                    "{:?}/{:?}: motif only {:.3} from its tile",
+                    slot,
+                    kind,
+                    gap
+                );
+            }
+        }
     }
 }

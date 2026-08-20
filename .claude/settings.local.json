@@ -58,7 +58,8 @@
       "Bash(awk '{s+=$4} END {print s\" tests pass\"}')",
       "Bash(awk 'NR>=1615 && NR<=1640' crates/gui/src/main.rs)",
       "Bash(awk 'NR>=1444 && NR<=1560 && /=> \\\\{|match slot|Some\\\\\\(SlotKind|None =>|_ =>/' crates/gui/src/main.rs)",
-      "Bash(cd *)"
+      "Bash(cd *)",
+      "Bash(grep -n \"col_gold\\(\\)\\);$\\\\|col_effect\\(\\)\\);$\\\\|col_trigger\\(\\)\\);$\" crates/gui/src/main.rs)"
     ]
   }
 }
