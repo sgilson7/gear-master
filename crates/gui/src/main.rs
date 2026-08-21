@@ -3965,6 +3965,109 @@ const GLOSSARY: &[(&str, &str)] = &[
     (SKIP_TERM, "The road up the mountain, which most of us have walked more times than we care to count. Those who know it well are not made to walk it again: click these words and choose where to pick it up. Every rung on the way pays its bounty in full, as though each had been fought and won. It only runs upward. It keeps no quests. It asks no questions."),
 ];
 
+/// What the fountain will hand over, as cards you choose between.
+///
+/// Returns the class chosen, if one was.
+fn render_fountain(run: &Run, mx: f32, my: f32) -> Option<&'static gearmaster_engine::class::ClassDef> {
+    let offer = run.fountain_offer();
+    // Sized to what is in a card rather than to the viewport: four cards with
+    // three quarters of their height empty read as though something failed to
+    // load.
+    let pad = 70.0;
+    let h = 520.0;
+    let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, LOGICAL_W - 2.0 * pad, h);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
+    ui_text("THE FOUNTAIN", r.x + 28.0, r.y + 42.0, 24.0, col_gold());
+    ui_text(
+        "It has read your gear. Take what it saw, or one of the two you came closest to, \
+         or whatever is at the bottom of the water.",
+        r.x + 28.0,
+        r.y + 68.0,
+        13.0,
+        col_dim(),
+    );
+
+    let n = offer.len().max(1);
+    let gap = 18.0;
+    let cw = (r.w - 56.0 - (n - 1) as f32 * gap) / n as f32;
+    let top = r.y + 96.0;
+    let ch = r.h - 96.0 - 40.0;
+    let mut chosen = None;
+
+    for (i, c) in offer.iter().enumerate() {
+        let cell = Rect::new(r.x + 28.0 + i as f32 * (cw + gap), top, cw, ch);
+        let hot = cell.contains(Vec2::new(mx, my));
+        // The last card is the wildcard. It is marked, because being handed
+        // something your build was not pointing at should be a decision rather
+        // than a surprise.
+        let wild = i + 1 == offer.len() && offer.len() > 1;
+        draw_rectangle(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { Color::from_rgba(46, 42, 30, 255) } else { Color::from_rgba(26, 26, 38, 255) },
+        );
+        draw_rectangle_lines(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { 2.5 } else { 1.5 },
+            if hot { col_gold() } else { Color::from_rgba(64, 64, 88, 255) },
+        );
+
+        let mut y = cell.y + 30.0;
+        let tag = match (i, wild) {
+            (_, true) => "OUT OF THE WATER",
+            (0, _) => "WHAT IT SAW IN YOU",
+            _ => "WHAT YOU CAME NEAR",
+        };
+        ui_text(tag, cell.x + 14.0, y, 11.0, col_dim());
+        y += 24.0;
+        let size = fitting_size(c.name, cell.w - 28.0, &[22.0, 20.0, 18.0, 16.0]);
+        ui_text(c.name, cell.x + 14.0, y, size, col_gold());
+        y += 24.0;
+        for l in wrap_px(c.blurb, cell.w - 28.0, 13.0) {
+            ui_text(&l, cell.x + 14.0, y, 13.0, Color::from_rgba(198, 200, 218, 255));
+            y += 16.0;
+        }
+        y += 10.0;
+        // What it asks for, and whether you have it. A wildcard is offered
+        // whether or not you qualify, so this is the only place that says so.
+        let fp = run.fingerprint();
+        for &(axis, need) in c.requires {
+            let have = fp.get(axis);
+            ui_text(
+                &format!("{} {}/{}", axis.name(), have, need),
+                cell.x + 14.0,
+                y,
+                12.0,
+                if have >= need { col_ok() } else { col_bad() },
+            );
+            y += 15.0;
+        }
+        if c.requires.is_empty() {
+            ui_text("asks for nothing", cell.x + 14.0, y, 12.0, col_dim());
+            y += 15.0;
+        }
+        y += 10.0;
+        for l in wrap_px(&c.power.describe(), cell.w - 28.0, 12.0) {
+            ui_text(&l, cell.x + 14.0, y, 12.0, col_ok());
+            y += 15.0;
+        }
+
+        let take = Rect::new(cell.x + 14.0, cell.y + cell.h - 46.0, cell.w - 28.0, 34.0);
+        button(take, "DRINK", true, mx, my);
+        if is_mouse_button_pressed(MouseButton::Left) && take.contains(Vec2::new(mx, my)) {
+            chosen = Some(*c);
+        }
+    }
+    chosen
+}
+
 /// The ladder, as a list you can click. Opened from the glossary's one entry
 /// that is also a control.
 ///
@@ -5565,6 +5668,7 @@ async fn main() {
     // Kept between fights, and settable before one starts.
     let mut playback_speed = DEFAULT_SPEED;
     let mut glossary_open = std::env::var("GEARMASTER_GLOSSARY").is_ok();
+    let mut fountain_open = std::env::var("GEARMASTER_FOUNTAIN").is_ok();
     let mut picker_open = std::env::var("GEARMASTER_PICKER").is_ok();
     let mut picker_page: usize = 0;
     let mut glossary_tab: usize = std::env::var("GEARMASTER_GLOSSARY_TAB")
@@ -5924,6 +6028,30 @@ async fn main() {
             }
         }
 
+        // The fountain sits over everything while it is being answered.
+        if fountain_open {
+            if let Some(c) = render_fountain(&run, mx, my) {
+                if let Some(taken) = run.drink_choosing(c) {
+                    fountain_open = false;
+                    message = format!("You drink, and it names you {}.", taken.name);
+                }
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
+        }
+
         // The ladder picker sits over everything and eats input, the same way
         // the glossary does.
         if picker_open {
@@ -6054,13 +6182,9 @@ async fn main() {
             }
         } else {
             if clicked_button(0) && run.at_fountain() {
-                // Not a fight: the fountain reads the build and imbues you.
-                let class = run.drink();
-                message = format!(
-                    "The fountain names you {}: {}.",
-                    class.name,
-                    class.power.describe()
-                );
+                // Not a fight, and not automatic: the fountain offers, and the
+                // choosing is yours.
+                fountain_open = true;
             } else if clicked_button(0) {
                 pb = Some({
                     let profiles = run.combat_items();

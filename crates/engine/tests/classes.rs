@@ -302,3 +302,77 @@ fn the_short_form_fits_where_the_long_one_does_not() {
         );
     }
 }
+
+// --------------------------------------------------------- the choosing
+
+/// The fountain offers rather than decides: what your gear earned, the two you
+/// came nearest to, and one out of the water.
+#[test]
+fn the_fountain_offers_four_ways_to_go() {
+    let mut run = Run::with_all_pieces();
+    run.apply_preset();
+    let offer = run.fountain_offer();
+    assert_eq!(offer.len(), 4, "three read off the build and one wildcard");
+
+    // The first is what the build actually earns - the same answer the panel
+    // has been showing all along, so the offer is never a surprise.
+    assert_eq!(offer[0].name, classify(&run.fingerprint()).name);
+
+    let names: Vec<&str> = offer.iter().map(|c| c.name).collect();
+    let mut sorted = names.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(sorted.len(), names.len(), "no class offered twice: {:?}", names);
+}
+
+/// A fountain never offers what you already hold, so the second one is always
+/// worth stopping for.
+#[test]
+fn the_fountain_never_offers_what_you_already_have() {
+    let mut run = Run::with_all_pieces();
+    run.apply_preset();
+    run.rung = Run::FOUNTAINS[0];
+    let first = run.drink().name;
+
+    run.rung = Run::FOUNTAINS[1];
+    let offer = run.fountain_offer();
+    assert!(
+        !offer.iter().any(|c| c.name == first),
+        "the second fountain offered {} again",
+        first
+    );
+}
+
+/// You may only take what is on the table. Otherwise the offer is decoration.
+#[test]
+fn the_fountain_refuses_a_class_it_did_not_offer() {
+    let mut run = Run::with_all_pieces();
+    run.apply_preset();
+    run.rung = Run::FOUNTAINS[0];
+    let offer = run.fountain_offer();
+    let not_offered = CLASSES
+        .iter()
+        .find(|c| !offer.iter().any(|o| o.name == c.name))
+        .expect("seventeen classes, four offered");
+
+    assert!(run.drink_choosing(not_offered).is_none(), "took something off the menu");
+    assert!(run.classes.is_empty(), "and it should have changed nothing");
+
+    let wanted = offer[1];
+    assert_eq!(run.drink_choosing(wanted).map(|c| c.name), Some(wanted.name));
+    assert_eq!(run.classes.len(), 1);
+}
+
+/// The wildcard is fixed to the fountain, not rerolled on every redraw - a
+/// choice that changes while you are looking at it is not a choice.
+#[test]
+fn the_wildcard_is_the_same_every_time_you_look() {
+    let mut run = Run::with_all_pieces();
+    run.apply_preset();
+    run.rung = Run::FOUNTAINS[0];
+    let first: Vec<&str> = run.fountain_offer().iter().map(|c| c.name).collect();
+    for _ in 0..5 {
+        let again: Vec<&str> = run.fountain_offer().iter().map(|c| c.name).collect();
+        assert_eq!(first, again, "the offer moved while it was being read");
+    }
+}

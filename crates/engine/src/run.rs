@@ -687,6 +687,56 @@ impl Run {
     }
 
     /// Take the imbuement. Returns the class given.
+    /// What the fountain is willing to hand over: the class your build earns,
+    /// the two it comes nearest to, and one drawn out of the water.
+    ///
+    /// Never something you already hold - a second fountain that read you the
+    /// same way as the first would be a rung of nothing.
+    pub fn fountain_offer(&self) -> Vec<&'static crate::class::ClassDef> {
+        let held: Vec<&str> = self.classes.iter().map(|c| c.name).collect();
+        let ranked = crate::class::rank(&self.fingerprint());
+        let mut out: Vec<&'static crate::class::ClassDef> = ranked
+            .iter()
+            .filter(|m| !held.contains(&m.class.name))
+            .take(3)
+            .map(|m| m.class)
+            .collect();
+
+        // And a wildcard, which is the only way to end up somewhere your gear
+        // was not already pointing. Drawn from the run's own stream so it is
+        // the same offer every time you look at this fountain.
+        let pool: Vec<&'static crate::class::ClassDef> = crate::class::CLASSES
+            .iter()
+            .filter(|c| !held.contains(&c.name))
+            .filter(|c| !out.iter().any(|o| o.name == c.name))
+            .collect();
+        if !pool.is_empty() {
+            let mut rng = Rng::new(self.wildcard_seed());
+            out.push(pool[(rng.next_u64() % pool.len() as u64) as usize]);
+        }
+        out
+    }
+
+    /// A seed fixed to this fountain, so the wildcard does not reshuffle every
+    /// time the panel redraws.
+    fn wildcard_seed(&self) -> u64 {
+        0x9E37_79B9_7F4A_7C15 ^ (self.rung as u64) << 17 ^ (self.classes.len() as u64) << 3
+    }
+
+    /// Take a named class from the fountain. Refuses anything it is not
+    /// offering, so the choice cannot be widened by asking differently.
+    pub fn drink_choosing(
+        &mut self,
+        choice: &'static crate::class::ClassDef,
+    ) -> Option<&'static crate::class::ClassDef> {
+        if !self.fountain_offer().iter().any(|c| c.name == choice.name) {
+            return None;
+        }
+        self.classes.push(choice);
+        self.shop.restock(&mut self.rng);
+        Some(choice)
+    }
+
     pub fn drink(&mut self) -> &'static crate::class::ClassDef {
         // Never the same twice: a second fountain that read you the same way
         // as the first would be a rung of nothing.
