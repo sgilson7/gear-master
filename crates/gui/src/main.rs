@@ -4983,10 +4983,37 @@ async fn main() {
             let over_button =
                 bought_this_frame || rects.iter().any(|r| r.contains(Vec2::new(mx, my)));
 
+            // --- lock (shift-click) ---
+            // Ahead of the pick-up, and it swallows the click: otherwise the
+            // drag handler takes the piece on the same press and the item ends
+            // up stuck to the cursor instead of locked.
+            let shift =
+                is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
+            if shift && is_mouse_button_pressed(MouseButton::Left) && !over_button {
+                if let Some(id) =
+                    layout.slot_hit(mx, my).and_then(|(k, x, y)| run.loadout.slot(k).get(x, y))
+                {
+                    let was_locked = run.is_locked_item(id);
+                    if run.toggle_lock_item(id) {
+                        message = "Locked. It turns and travels as one piece now.".to_string();
+                    } else if was_locked {
+                        message = "Released. Its pieces can be rearranged again.".to_string();
+                    } else {
+                        // Nothing happened, and silence is what "it does not
+                        // work" looks like from the other side of the screen.
+                        message = format!(
+                            "{} is not part of a finished item yet - only assembled gear locks.",
+                            run.registry.def(id).name
+                        );
+                    }
+                }
+            }
+
             // --- pick up ---
             if is_mouse_button_pressed(MouseButton::Left)
                 && matches!(drag, Drag::None)
                 && !over_button
+                && !shift
             {
                 if let Some((kind, gx, gy)) = layout.slot_hit(mx, my) {
                     if let Some(id) = run.loadout.slot(kind).get(gx, gy) {
@@ -5021,23 +5048,6 @@ async fn main() {
             }
 
             // --- rotate (right-click, held or in place) ---
-            // Shift-click fixes an assembled item in place, or releases one.
-            if is_mouse_button_pressed(MouseButton::Left)
-                && (is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift))
-            {
-                if let Some(id) =
-                    layout.slot_hit(mx, my).and_then(|(k, x, y)| run.loadout.slot(k).get(x, y))
-                {
-                    message = if run.toggle_lock_item(id) {
-                        "Locked. It turns and travels as one piece now.".to_string()
-                    } else {
-                        "Released. Its pieces can be rearranged again.".to_string()
-                    };
-                    next_frame().await;
-                    continue;
-                }
-            }
-
             if is_mouse_button_pressed(MouseButton::Right) {
                 if let Some(i) = layout.shop_hit(mx, my) {
                     let name = run.shop.def(i).map(|d| d.name).unwrap_or("that");

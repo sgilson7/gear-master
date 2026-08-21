@@ -70,7 +70,8 @@
       "Bash(bash -n packaging/package-web.sh)",
       "Bash(grep -n \"Event::GainResource { side, .. } => {\" -A 6 crates/gui/src/main.rs)",
       "Bash(grep -vE \"^\\\\s*$\")",
-      "Bash(grep -vE \"^\\\\s*$|Compiling|Finished|Running|running 1|^test \")"
+      "Bash(grep -vE \"^\\\\s*$|Compiling|Finished|Running|running 1|^test \")",
+      "Bash(grep -vE \"^\\\\s*$|Compiling|Finished|Running|running 1|^test |warning|^\\\\s+\\\\||^\\\\s+=|-->\")"
     ]
   }
 }

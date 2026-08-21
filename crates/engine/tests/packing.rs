@@ -715,6 +715,15 @@ enum Profile {
     Grinder,
     /// Optimises. Takes the best-rated thing that fits.
     Optimiser,
+    /// Fills every grid until nothing else will go in, taking the best-rated
+    /// item that still fits at each step.
+    Packer,
+    /// The same, but choosing by worth per cell rather than worth outright -
+    /// which is what packing tightly actually rewards.
+    ValuePacker,
+    /// Fills every grid choosing by cadence, on the evidence that a fast build
+    /// out-damages a well-rated one.
+    SpeedPacker,
 }
 
 impl Profile {
@@ -723,6 +732,9 @@ impl Profile {
         Profile::NonAssembler,
         Profile::Grinder,
         Profile::Optimiser,
+        Profile::Packer,
+        Profile::ValuePacker,
+        Profile::SpeedPacker,
     ];
 
     fn name(self) -> &'static str {
@@ -731,8 +743,108 @@ impl Profile {
             Profile::NonAssembler => "non-assembler",
             Profile::Grinder => "grinder (fast)",
             Profile::Optimiser => "optimiser (best)",
+            Profile::Packer => "packer (dense)",
+            Profile::ValuePacker => "packer (per cell)",
+            Profile::SpeedPacker => "packer (fast)",
         }
     }
+}
+
+/// Fill a grid until nothing else will go in.
+///
+/// The other profiles hand the packer a fixed shopping list and take whatever
+/// layout it finds, which caps a slot at one or two items however much room is
+/// left over. A player does not build that way - they keep dropping things in
+/// until the grid is full. This adds items one at a time, keeping whatever
+/// still lets every item in the slot assemble, and stops when nothing fits.
+fn pack_dense(slot: SlotKind, rank: impl Fn(&PieceDefRef) -> i32) -> Vec<(&'static str, u8, u8, u8)> {
+    let mut ranked: Vec<(i32, Vec<&'static str>)> = candidates(slot)
+        .into_iter()
+        .filter(|(_, names)| {
+            // A run owns one of each, so a layout wanting two of something
+            // cannot be worn.
+            let mut seen: Vec<&str> = Vec::new();
+            names.iter().all(|n| if seen.contains(n) { false } else { seen.push(n); true })
+        })
+        .map(|(r, names)| {
+            let cells: i32 = names
+                .iter()
+                .map(|n| CATALOG.iter().find(|c| c.name == *n).unwrap().cells.len() as i32)
+                .sum();
+            (rank(&PieceDefRef { rating: r, cells }), names)
+        })
+        .collect();
+    ranked.sort_by_key(|(r, _)| std::cmp::Reverse(*r));
+    ranked.truncate(90);
+
+    let mut reg = PieceRegistry::new();
+    let mut loadout = Loadout::new();
+    let mut placed: Vec<(&'static str, u8, u8, u8)> = Vec::new();
+    let mut used: Vec<&'static str> = Vec::new();
+
+    // Keep going until a whole pass adds nothing.
+    loop {
+        let mut added = false;
+        'candidate: for (_, names) in &ranked {
+            if names.iter().any(|n| used.contains(n)) {
+                continue;
+            }
+            // Try to seat this whole item somewhere in what is left.
+            let ids: Vec<PieceId> = names
+                .iter()
+                .map(|n| reg.alloc(CATALOG.iter().position(|c| c.name == *n).unwrap()))
+                .collect();
+            if let Some(spots) = seat(&mut reg, &mut loadout, slot, &ids, 0) {
+                // Only keep it if everything in the slot still assembles.
+                if loadout.report(&reg, slot).items.iter().all(|i| i.assembled) {
+                    for (i, &(x, y, rot)) in spots.iter().enumerate() {
+                        placed.push((names[i], x, y, rot));
+                    }
+                    used.extend(names.iter().copied());
+                    added = true;
+                    break 'candidate;
+                }
+                for &id in &ids {
+                    loadout.slot_mut(slot).remove(id);
+                }
+            }
+        }
+        if !added {
+            break;
+        }
+    }
+    placed
+}
+
+/// Seat every id somewhere, each touching what is already down if anything is.
+fn seat(
+    reg: &mut PieceRegistry,
+    loadout: &mut Loadout,
+    slot: SlotKind,
+    ids: &[PieceId],
+    i: usize,
+) -> Option<Vec<(u8, u8, u8)>> {
+    if i == ids.len() {
+        return Some(Vec::new());
+    }
+    let id = ids[i];
+    for rot in 0..4u8 {
+        reg.set_rotation(id, rot);
+        for y in 0..SLOT_H {
+            for x in 0..SLOT_W {
+                if loadout.can_place(reg, id, slot, x, y).is_err() {
+                    continue;
+                }
+                loadout.slot_mut(slot).place(reg, id, x, y);
+                if let Some(mut rest) = seat(reg, loadout, slot, ids, i + 1) {
+                    rest.insert(0, (x, y, rot));
+                    return Some(rest);
+                }
+                loadout.slot_mut(slot).remove(id);
+            }
+        }
+    }
+    None
 }
 
 /// Pick a loadout for one slot the way this profile would.
@@ -752,12 +864,22 @@ fn cached_candidates(slot: SlotKind) -> &'static [(i32, Vec<&'static str>)] {
 
 fn choose(profile: Profile, slot: SlotKind, seed: u64) -> Option<Vec<(&'static str, u8, u8, u8)>> {
     use gearmaster_engine::rating::piece_rating;
+    match profile {
+        Profile::Packer => return Some(pack_dense(slot, |d| d.rating)),
+        // Worth per cell, scaled up so the division still ranks usefully.
+        Profile::ValuePacker => {
+            return Some(pack_dense(slot, |d| d.rating * 100 / d.cells.max(1)))
+        }
+        Profile::SpeedPacker => return Some(pack_dense(slot, |d| d.rating * 60 / d.cells.max(1))),
+        _ => {}
+    }
     let mut cands: Vec<(i32, Vec<&'static str>)> = cached_candidates(slot).to_vec();
     if cands.is_empty() {
         return None;
     }
     match profile {
-        Profile::Optimiser => {}
+        // The dense profiles never reach here; they returned above.
+        Profile::Optimiser | Profile::Packer | Profile::ValuePacker | Profile::SpeedPacker => {}
         Profile::Grinder => {
             // Fast and cheap: sort by how often it would go off, not by worth.
             cands.sort_by_key(|(_, names)| {
@@ -946,5 +1068,33 @@ fn show_gear_by_difficulty() {
             let written: Vec<&str> = spec.gear.iter().map(|g| g.0).collect();
             println!("  {:<8} {}", "written", written.join(", "));
         }
+    }
+}
+
+/// What `pack_dense` ranks a candidate on.
+pub struct PieceDefRef {
+    pub rating: i32,
+    pub cells: i32,
+}
+
+#[test]
+#[ignore]
+fn how_dense_is_dense() {
+    for slot in SlotKind::ALL {
+        let by_worth = pack_dense(slot, |d| d.rating);
+        let by_cell = pack_dense(slot, |d| d.rating * 100 / d.cells.max(1));
+        let cells = |p: &[(&'static str, u8, u8, u8)]| -> usize {
+            p.iter()
+                .map(|(n, ..)| CATALOG.iter().find(|c| c.name == *n).unwrap().cells.len())
+                .sum()
+        };
+        println!(
+            "{:<11} by worth: {:>2} pieces {:>2}/48 cells   per cell: {:>2} pieces {:>2}/48 cells",
+            slot.name(),
+            by_worth.len(),
+            cells(&by_worth),
+            by_cell.len(),
+            cells(&by_cell)
+        );
     }
 }
