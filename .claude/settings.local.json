@@ -64,7 +64,8 @@
       "Bash(pkill -f \"test packing\")",
       "Bash(make web *)",
       "Bash(sed -n '/GLOSSARY/,$p')",
-      "Bash(awk '{s+=$4} END {print s\" tests\"}')"
+      "Bash(awk '{s+=$4} END {print s\" tests\"}')",
+      "Bash(grep -n \"Action::Curse { kind, target } =>\" -A 14 crates/engine/src/combat.rs)"
     ]
   }
 }

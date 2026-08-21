@@ -155,8 +155,8 @@ fn selling_refunds_half_and_strips_the_piece_off() {
 // ------------------------------------------------------------- the ladder
 
 #[test]
-fn there_are_thirteen_monsters_and_the_bounties_climb() {
-    assert_eq!(LADDER.len(), 13, "eleven monsters plus the two bosses");
+fn the_ladder_climbs_all_the_way_up() {
+    assert_eq!(LADDER.len(), 33, "eleven monsters, two bosses, and twenty beyond");
     let bounties: Vec<i32> = LADDER.iter().map(|m| m.bounty).collect();
     assert!(
         bounties.windows(2).all(|w| w[0] <= w[1]),
@@ -498,18 +498,47 @@ fn a_class_that_is_out_of_reach_says_how_far() {
 
 #[test]
 fn a_standing_class_power_reaches_the_players_stats() {
-    use gearmaster_engine::class::{ClassPower, CLASSES};
+    // No shipped class is a plain stat bundle any more - they all carry a
+    // rule - so this tests the mechanism with a class of its own rather than
+    // pinning whichever class happens to use it.
+    use gearmaster_engine::class::{ClassDef, ClassPower};
+    use gearmaster_engine::stats::Stats;
+
+    static STONE: ClassDef = ClassDef {
+        name: "Test Stone",
+        blurb: "",
+        requires: &[],
+        power: ClassPower::Standing(Stats { health: 90, physical_harden: 30, ..Stats::ZERO }),
+    };
+
     let mut run = Run::with_all_pieces();
     let before = run.player_stats();
-    let bulwark = CLASSES.iter().find(|c| c.name == "Bulwark").unwrap();
-    run.class = Some(bulwark);
+    run.class = Some(&STONE);
     let after = run.player_stats();
-    match bulwark.power {
-        ClassPower::Standing(s) => {
-            assert_eq!(after.health, before.health + s.health);
-            assert_eq!(after.physical_harden, before.physical_harden + s.physical_harden);
-        }
-        _ => panic!("Bulwark should be a standing power"),
+
+    assert_eq!(after.health, before.health + 90);
+    assert_eq!(after.physical_harden, before.physical_harden + 30);
+}
+
+#[test]
+fn every_class_carries_a_rule_and_not_just_numbers() {
+    use gearmaster_engine::class::{ClassPower, CLASSES};
+    let bundles = CLASSES
+        .iter()
+        .filter(|c| matches!(c.power, ClassPower::Standing(_)))
+        .map(|c| c.name)
+        .collect::<Vec<_>>();
+    assert!(
+        bundles.is_empty(),
+        "these classes are only a stat bundle: {:?}",
+        bundles
+    );
+    // And no two classes share a power, or they would play the same.
+    let mut seen: Vec<String> = Vec::new();
+    for c in CLASSES {
+        let key = format!("{:?}", c.power);
+        assert!(!seen.contains(&key), "{} duplicates another class's power", c.name);
+        seen.push(key);
     }
 }
 

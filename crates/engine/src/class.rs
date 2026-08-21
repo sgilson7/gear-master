@@ -226,15 +226,36 @@ fn trigger_lands_a_curse(t: &crate::piece::Trigger) -> bool {
 /// class is untouched.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ClassPower {
-    /// A standing bonus, applied once before the fight.
+    /// A standing bonus, applied once before the fight. Kept for the floor
+    /// class, which is meant to be unremarkable.
     Standing(Stats),
     /// Damage arrives spread over five seconds instead of all at once, which
     /// gives regeneration and armour time to answer it.
     SlowTime,
     /// A share of the damage you deal comes back as health, in percent.
     Leeching(i32),
-    /// Every point of a resource you are holding is worth more.
+    /// Every point of a resource you are holding is worth double.
     Overflowing,
+    /// Every `n`th activation fires its payload twice.
+    Echo(u32),
+    /// A share of what your armour absorbs is handed straight back as armour,
+    /// so a wall keeps rebuilding itself under fire.
+    Bastion(i32),
+    /// Landing a curse lands the other kind alongside it.
+    Contagion,
+    /// Taking a hit banks faith, so being ground down is itself a resource.
+    Reprisal(i32),
+    /// Every enemy activation pushes all of your cooldowns forward by `ms`.
+    Riposte(u32),
+    /// Strength climbs by `per_sec` for every second the fight lasts.
+    Momentum(i32),
+    /// Reactions - the triggers that answer a neighbour or an aligned item -
+    /// fire twice.
+    Resonance,
+    /// A share of your physical damage lands again as magic, in percent.
+    Transmute(i32),
+    /// Every activation banks one of each of the four pools.
+    Adaptable,
 }
 
 impl ClassPower {
@@ -246,6 +267,24 @@ impl ClassPower {
             }
             ClassPower::Leeching(pct) => format!("{}% of the damage you deal heals you", pct),
             ClassPower::Overflowing => "everything you are holding is worth double".into(),
+            ClassPower::Echo(n) => format!("every {}th activation fires twice", n),
+            ClassPower::Bastion(pct) => {
+                format!("{}% of what your armour soaks is handed back as armour", pct)
+            }
+            ClassPower::Contagion => "every curse you land brings the other kind with it".into(),
+            ClassPower::Reprisal(n) => format!("taking a hit banks {} faith", n),
+            ClassPower::Riposte(ms) => format!(
+                "every enemy activation pushes your cooldowns forward {:.1}s",
+                ms as f32 / 1000.0
+            ),
+            ClassPower::Momentum(n) => {
+                format!("+{} strength for every second the fight has lasted", n)
+            }
+            ClassPower::Resonance => "reactions to neighbours and aligned gear fire twice".into(),
+            ClassPower::Transmute(pct) => {
+                format!("{}% of your physical damage lands again as magic", pct)
+            }
+            ClassPower::Adaptable => "every activation banks one of all four pools".into(),
         }
     }
 }
@@ -275,11 +314,7 @@ pub static CLASSES: &[ClassDef] = &[
         name: "Archmage",
         blurb: "Magic damage, cast often, from books.",
         requires: &[(Axis::Arcana, 50), (Axis::Sorcery, 50)],
-        power: ClassPower::Standing(Stats {
-            magic_damage: 12,
-            magic_pierce: 30,
-            ..Stats::ZERO
-        }),
+        power: ClassPower::Echo(3),
     },
     ClassDef {
         name: "Berserker",
@@ -291,22 +326,13 @@ pub static CLASSES: &[ClassDef] = &[
         name: "Bulwark",
         blurb: "Resistance, hardening, and armour by the ton.",
         requires: &[(Axis::Ward, 45), (Axis::Bulwark, 40)],
-        power: ClassPower::Standing(Stats {
-            physical_harden: 40,
-            magic_harden: 40,
-            health: 60,
-            ..Stats::ZERO
-        }),
+        power: ClassPower::Bastion(35),
     },
     ClassDef {
         name: "Hexweaver",
         blurb: "Curses, and the mana to keep landing them.",
         requires: &[(Axis::Malice, 45), (Axis::Attunement, 30)],
-        power: ClassPower::Standing(Stats {
-            curse_resist: 50,
-            magic_damage: 8,
-            ..Stats::ZERO
-        }),
+        power: ClassPower::Contagion,
     },
     ClassDef {
         name: "Druid",
@@ -318,53 +344,31 @@ pub static CLASSES: &[ClassDef] = &[
         name: "Templar",
         blurb: "Faith held, iron worn, and no hurry about any of it.",
         requires: &[(Axis::Devotion, 40), (Axis::PhysicalIn(SlotKind::Chest), 30)],
-        power: ClassPower::Standing(Stats {
-            physical_resist: 25,
-            magic_resist: 25,
-            regen: 6,
-            ..Stats::ZERO
-        }),
+        power: ClassPower::Reprisal(2),
     },
     ClassDef {
         name: "Duelist",
         blurb: "Many small items, all of them fast.",
         requires: &[(Axis::Cadence, 55), (Axis::Brutality, 25)],
-        power: ClassPower::Standing(Stats {
-            physical_pierce: 45,
-            strength: 8,
-            ..Stats::ZERO
-        }),
+        power: ClassPower::Riposte(250),
     },
     ClassDef {
         name: "Juggernaut",
         blurb: "Every cell filled, and nothing wasted.",
         requires: &[(Axis::Mass, 60), (Axis::Ward, 20)],
-        power: ClassPower::Standing(Stats {
-            health: 140,
-            physical_resist: 20,
-            ..Stats::ZERO
-        }),
+        power: ClassPower::Momentum(2),
     },
     ClassDef {
         name: "Geomancer",
         blurb: "Gear that talks to its neighbours, across every grid.",
         requires: &[(Axis::Weave, 55)],
-        power: ClassPower::Standing(Stats {
-            power: 60,
-            magic_damage: 6,
-            ..Stats::ZERO
-        }),
+        power: ClassPower::Resonance,
     },
     ClassDef {
         name: "Spellblade",
         blurb: "Half sword, half spellbook, and unwilling to choose.",
         requires: &[(Axis::Arcana, 30), (Axis::Brutality, 30), (Axis::Sorcery, 25)],
-        power: ClassPower::Standing(Stats {
-            magic_pierce: 25,
-            physical_pierce: 25,
-            strength: 6,
-            ..Stats::ZERO
-        }),
+        power: ClassPower::Transmute(50),
     },
     ClassDef {
         name: "Wanderer",
@@ -372,13 +376,7 @@ pub static CLASSES: &[ClassDef] = &[
         // The floor: something you can always reach, so a fountain is never
         // wasted on a build that matched nothing.
         requires: &[],
-        power: ClassPower::Standing(Stats {
-            health: 50,
-            strength: 4,
-            regen: 2,
-            power: 20,
-            ..Stats::ZERO
-        }),
+        power: ClassPower::Adaptable,
     },
 ];
 

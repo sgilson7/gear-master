@@ -583,6 +583,481 @@ pub const LADDER: &[MonsterSpec] = &[
         bounty: 75,
         sprite: MonsterSprite::Gearwright,
     },
+    // ---- past the Gearwright ----
+    //
+    // Twenty more, climbing steadily. Each wears a loadout built from layouts
+    // already verified to assemble, so the ladder can grow without every new
+    // rung needing the packing search run over it again.
+    MonsterSpec {
+        name: "Rust Colossus",
+        health: 800,
+        strength: 28,
+        regen: 2,
+        mind_resist: 20,
+        curse_resist: 20,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+        ],
+        bounty: 80,
+        sprite: MonsterSprite::Golem,
+    },
+    MonsterSpec {
+        name: "Ashen Marshal",
+        health: 930,
+        strength: 31,
+        regen: 2,
+        mind_resist: 23,
+        curse_resist: 23,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Pocket Grimoire", SlotKind::Weapon, 0, 0, 0),
+            ("Soot Ink", SlotKind::Weapon, 1, 0, 0),
+            ("Emberburst", SlotKind::Weapon, 2, 0, 0),
+        ],
+        bounty: 89,
+        sprite: MonsterSprite::Sentinel,
+    },
+    MonsterSpec {
+        name: "Grave Chorus",
+        health: 1060,
+        strength: 34,
+        regen: 2,
+        mind_resist: 26,
+        curse_resist: 26,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+        ],
+        bounty: 98,
+        sprite: MonsterSprite::Wraith,
+    },
+    MonsterSpec {
+        name: "Salt Idol",
+        health: 1190,
+        strength: 37,
+        regen: 3,
+        mind_resist: 29,
+        curse_resist: 29,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Pocket Grimoire", SlotKind::Weapon, 0, 0, 0),
+            ("Soot Ink", SlotKind::Weapon, 1, 0, 0),
+            ("Emberburst", SlotKind::Weapon, 2, 0, 0),
+        ],
+        bounty: 107,
+        sprite: MonsterSprite::Idol,
+    },
+    MonsterSpec {
+        name: "Pale Twin",
+        health: 1320,
+        strength: 40,
+        regen: 3,
+        mind_resist: 32,
+        curse_resist: 32,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+        ],
+        bounty: 116,
+        sprite: MonsterSprite::Fiend,
+    },
+    MonsterSpec {
+        name: "Ruin Hound",
+        health: 1450,
+        strength: 43,
+        regen: 3,
+        mind_resist: 35,
+        curse_resist: 35,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Pocket Grimoire", SlotKind::Weapon, 0, 0, 0),
+            ("Soot Ink", SlotKind::Weapon, 1, 0, 0),
+            ("Emberburst", SlotKind::Weapon, 2, 0, 0),
+        ],
+        bounty: 125,
+        sprite: MonsterSprite::Hound,
+    },
+    MonsterSpec {
+        name: "Bone Cantor",
+        health: 1580,
+        strength: 46,
+        regen: 4,
+        mind_resist: 38,
+        curse_resist: 38,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+        ],
+        bounty: 134,
+        sprite: MonsterSprite::Archer,
+    },
+    MonsterSpec {
+        name: "Ember Wisp",
+        health: 1710,
+        strength: 49,
+        regen: 4,
+        mind_resist: 41,
+        curse_resist: 41,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Pocket Grimoire", SlotKind::Weapon, 0, 0, 0),
+            ("Soot Ink", SlotKind::Weapon, 1, 0, 0),
+            ("Emberburst", SlotKind::Weapon, 2, 0, 0),
+        ],
+        bounty: 143,
+        sprite: MonsterSprite::Wisp,
+    },
+    MonsterSpec {
+        name: "Slag Warden",
+        health: 1840,
+        strength: 52,
+        regen: 4,
+        mind_resist: 44,
+        curse_resist: 44,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+        ],
+        bounty: 152,
+        sprite: MonsterSprite::Warden,
+    },
+    MonsterSpec {
+        name: "Crowned Hollow",
+        health: 1970,
+        strength: 55,
+        regen: 5,
+        mind_resist: 47,
+        curse_resist: 47,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Pocket Grimoire", SlotKind::Weapon, 0, 0, 0),
+            ("Soot Ink", SlotKind::Weapon, 1, 0, 0),
+            ("Emberburst", SlotKind::Weapon, 2, 0, 0),
+        ],
+        bounty: 161,
+        sprite: MonsterSprite::King,
+    },
+    MonsterSpec {
+        name: "Cog Priest",
+        health: 2100,
+        strength: 58,
+        regen: 5,
+        mind_resist: 50,
+        curse_resist: 50,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+        ],
+        bounty: 170,
+        sprite: MonsterSprite::Gearwright,
+    },
+    MonsterSpec {
+        name: "Mire Behemoth",
+        health: 2230,
+        strength: 61,
+        regen: 5,
+        mind_resist: 53,
+        curse_resist: 53,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Pocket Grimoire", SlotKind::Weapon, 0, 0, 0),
+            ("Soot Ink", SlotKind::Weapon, 1, 0, 0),
+            ("Emberburst", SlotKind::Weapon, 2, 0, 0),
+        ],
+        bounty: 179,
+        sprite: MonsterSprite::Toad,
+    },
+    MonsterSpec {
+        name: "Vermin Sovereign",
+        health: 2360,
+        strength: 64,
+        regen: 6,
+        mind_resist: 56,
+        curse_resist: 56,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+        ],
+        bounty: 188,
+        sprite: MonsterSprite::Rat,
+    },
+    MonsterSpec {
+        name: "Obsidian Colossus",
+        health: 2490,
+        strength: 67,
+        regen: 6,
+        mind_resist: 59,
+        curse_resist: 59,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Pocket Grimoire", SlotKind::Weapon, 0, 0, 0),
+            ("Soot Ink", SlotKind::Weapon, 1, 0, 0),
+            ("Emberburst", SlotKind::Weapon, 2, 0, 0),
+        ],
+        bounty: 197,
+        sprite: MonsterSprite::Golem,
+    },
+    MonsterSpec {
+        name: "Null Sentinel",
+        health: 2620,
+        strength: 70,
+        regen: 6,
+        mind_resist: 62,
+        curse_resist: 62,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+        ],
+        bounty: 206,
+        sprite: MonsterSprite::Sentinel,
+    },
+    MonsterSpec {
+        name: "Silence",
+        health: 2750,
+        strength: 73,
+        regen: 7,
+        mind_resist: 65,
+        curse_resist: 65,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Pocket Grimoire", SlotKind::Weapon, 0, 0, 0),
+            ("Soot Ink", SlotKind::Weapon, 1, 0, 0),
+            ("Emberburst", SlotKind::Weapon, 2, 0, 0),
+        ],
+        bounty: 215,
+        sprite: MonsterSprite::Wraith,
+    },
+    MonsterSpec {
+        name: "Weeping Idol",
+        health: 2880,
+        strength: 76,
+        regen: 7,
+        mind_resist: 68,
+        curse_resist: 68,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+        ],
+        bounty: 224,
+        sprite: MonsterSprite::Idol,
+    },
+    MonsterSpec {
+        name: "The Long Mirror",
+        health: 3010,
+        strength: 79,
+        regen: 7,
+        mind_resist: 70,
+        curse_resist: 70,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Pocket Grimoire", SlotKind::Weapon, 0, 0, 0),
+            ("Soot Ink", SlotKind::Weapon, 1, 0, 0),
+            ("Emberburst", SlotKind::Weapon, 2, 0, 0),
+        ],
+        bounty: 233,
+        sprite: MonsterSprite::Fiend,
+    },
+    MonsterSpec {
+        name: "Iron Abbot",
+        health: 3140,
+        strength: 82,
+        regen: 8,
+        mind_resist: 70,
+        curse_resist: 70,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
+            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+        ],
+        bounty: 242,
+        sprite: MonsterSprite::Warden,
+    },
+    MonsterSpec {
+        name: "The Last Gearwright",
+        health: 3270,
+        strength: 85,
+        regen: 8,
+        mind_resist: 70,
+        curse_resist: 70,
+        attacks: &[],
+        gear: &[
+            ("Iron Plating", SlotKind::Helmet, 0, 0, 0),
+            ("Steel Frame", SlotKind::Helmet, 3, 0, 0),
+            ("Padded Base", SlotKind::Chest, 0, 0, 0),
+            ("Plate Layer", SlotKind::Chest, 0, 3, 0),
+            ("Steel Material", SlotKind::Gloves, 0, 0, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
+            ("Pocket Grimoire", SlotKind::Weapon, 0, 0, 0),
+            ("Soot Ink", SlotKind::Weapon, 1, 0, 0),
+            ("Emberburst", SlotKind::Weapon, 2, 0, 0),
+        ],
+        bounty: 251,
+        sprite: MonsterSprite::Gearwright,
+    },
 ];
 
 // ----------------------------------------------------------- combatants
@@ -735,6 +1210,26 @@ pub struct Combatant {
     pub overflowing: bool,
     /// Percent of damage dealt that comes back as health.
     pub leech: i32,
+    /// Every nth activation fires twice. Zero means never.
+    pub echo_every: u32,
+    /// Percent of absorbed damage handed back as armour.
+    pub bastion: i32,
+    /// Curses landed bring the other kind with them.
+    pub contagion: bool,
+    /// Faith banked whenever a hit lands on you.
+    pub reprisal: i32,
+    /// Milliseconds every enemy activation gives back to your cooldowns.
+    pub riposte: u32,
+    /// Strength gained per second the fight has run.
+    pub momentum: i32,
+    /// Reactions fire twice.
+    pub resonance: bool,
+    /// Percent of physical damage that lands again as magic.
+    pub transmute: i32,
+    /// Every activation banks one of each pool.
+    pub adaptable: bool,
+    /// How many times this side has activated anything, for `echo_every`.
+    activations: u32,
     dot_milli: i32,
     regen_milli: i32,
     /// Burn damage already taken but not yet written to the log, and how long
@@ -769,6 +1264,16 @@ impl Combatant {
             slow_time: false,
             overflowing: false,
             leech: 0,
+            echo_every: 0,
+            bastion: 0,
+            contagion: false,
+            reprisal: 0,
+            riposte: 0,
+            momentum: 0,
+            resonance: false,
+            transmute: 0,
+            adaptable: false,
+            activations: 0,
             curse_resist: stats.curse_resist,
             curses: Curses::new(),
             empowerment: 0,
@@ -837,6 +1342,16 @@ impl Combatant {
             slow_time: false,
             overflowing: false,
             leech: 0,
+            echo_every: 0,
+            bastion: 0,
+            contagion: false,
+            reprisal: 0,
+            riposte: 0,
+            momentum: 0,
+            resonance: false,
+            transmute: 0,
+            adaptable: false,
+            activations: 0,
             curse_resist: stats.curse_resist,
             curses: Curses::new(),
             empowerment: 0,
@@ -941,6 +1456,14 @@ impl Combatant {
         self.armor -= absorbed;
         let through = amount - absorbed;
         self.health -= through;
+        // A wall that rebuilds itself under fire.
+        if self.bastion > 0 && absorbed > 0 {
+            self.armor += absorbed * self.bastion / 100;
+        }
+        // Being ground down is itself a resource.
+        if self.reprisal > 0 {
+            self.faith += self.reprisal;
+        }
         (absorbed, through)
     }
 
@@ -1190,6 +1713,15 @@ pub fn simulate_with_class(
             crate::class::ClassPower::Overflowing => start_player.overflowing = true,
             crate::class::ClassPower::Leeching(pct) => start_player.leech = pct,
             crate::class::ClassPower::Standing(_) => {}
+            crate::class::ClassPower::Echo(n) => start_player.echo_every = n,
+            crate::class::ClassPower::Bastion(pct) => start_player.bastion = pct,
+            crate::class::ClassPower::Contagion => start_player.contagion = true,
+            crate::class::ClassPower::Reprisal(n) => start_player.reprisal = n,
+            crate::class::ClassPower::Riposte(ms) => start_player.riposte = ms,
+            crate::class::ClassPower::Momentum(n) => start_player.momentum = n,
+            crate::class::ClassPower::Resonance => start_player.resonance = true,
+            crate::class::ClassPower::Transmute(pct) => start_player.transmute = pct,
+            crate::class::ClassPower::Adaptable => start_player.adaptable = true,
         }
     }
     let start_player = start_player;
@@ -1352,6 +1884,12 @@ fn activate(
     // casts it every time; a crystal ball cycles through the two or three it
     // holds, so the same item does something different each time it comes
     // round. The index lives on the combatant's copy, not this clone.
+    // Echo: every nth activation runs its payload a second time.
+    let echoes = {
+        let me = pick(p, e, side);
+        me.activations += 1;
+        me.echo_every > 0 && me.activations % me.echo_every == 0
+    };
     let mut cast_name = None;
     if !item.casts.is_empty() {
         let n = item.casts.len();
@@ -1404,24 +1942,39 @@ fn activate(
         };
         let untyped = mult(item.damage + strength);
         let physical = mult(item.physical_damage + rage);
-        let magic = mult(item.magic_damage);
+        // Transmute: part of the iron lands again as magic.
+        let transmute = pick(p, e, side).transmute;
+        let magic = mult(item.magic_damage) + physical * transmute / 100;
+        // Momentum: the longer the fight runs, the harder you swing.
+        let momentum = pick(p, e, side).momentum * (t / 1000) as i32;
+        let untyped = untyped + mult(momentum);
+        let reps = if echoes { 2 } else { 1 };
 
         // The log reports the swing, not what survived the defences: a hit
         // that is turned aside completely still has to show up, or a player
         // stacking resistance sees nothing happening at all.
         let swing = untyped + physical + magic;
         let mut absorbed_total = 0;
-        for (amount, kind, pierce) in [
-            (untyped, DamageType::Untyped, 0),
-            (physical, DamageType::Physical, phys_pierce),
-            (magic, DamageType::Magic, magic_pierce),
-        ] {
-            if amount <= 0 {
-                continue;
+        for _ in 0..reps {
+            for (amount, kind, pierce) in [
+                (untyped, DamageType::Untyped, 0),
+                (physical, DamageType::Physical, phys_pierce),
+                (magic, DamageType::Magic, magic_pierce),
+            ] {
+                if amount <= 0 {
+                    continue;
+                }
+                let target = pick(p, e, side.other());
+                let (absorbed, _) = target.take_typed(amount, kind, pierce);
+                absorbed_total += absorbed;
             }
-            let target = pick(p, e, side.other());
-            let (absorbed, _) = target.take_typed(amount, kind, pierce);
-            absorbed_total += absorbed;
+        }
+        // Leeching: a share of what you dealt comes back.
+        let leech = pick(p, e, side).leech;
+        if leech > 0 && swing > 0 {
+            let me = pick(p, e, side);
+            let back = (swing * reps) * leech / 100;
+            me.health = (me.health + back).min(me.max_health);
         }
         if swing > 0 {
             let target = pick(p, e, side.other());
@@ -1470,6 +2023,23 @@ fn activate(
         me.mana += item.mana;
         let total = me.mana;
         log.push(LogEntry { at_ms: t, event: Event::GainMana { side, amount: item.mana, total } });
+    }
+
+    if pick(p, e, side).adaptable {
+        let me = pick(p, e, side);
+        me.mana += 1;
+        me.rage += 1;
+        me.faith += 1;
+        me.nature += 1;
+    }
+    // Riposte: watching them act gives your own gear a nudge.
+    {
+        let ms = pick(p, e, side.other()).riposte;
+        if ms > 0 {
+            for it in &mut pick(p, e, side.other()).items {
+                it.progress_ms += ms;
+            }
+        }
     }
 
     for (amount, label) in [(item.rage, "rage"), (item.faith, "faith"), (item.nature, "nature")] {
@@ -1568,15 +2138,21 @@ fn notify_reactors(
                 it.triggers.clone(),
             )
         };
+        // Resonance doubles the answer, not the question: a reaction still
+        // never emits an activation, so two items answering each other cannot
+        // loop however loud it gets.
+        let times = if pick(p, e, side).resonance { 2 } else { 1 };
         for tr in &triggers {
-            match *tr {
-                Trigger::OnAdjacentActivate(a) if touches => {
-                    apply(p, e, side, a, t, log, Some(j))
+            for _ in 0..times {
+                match *tr {
+                    Trigger::OnAdjacentActivate(a) if touches => {
+                        apply(p, e, side, a, t, log, Some(j))
+                    }
+                    Trigger::OnAlignedActivate(a) if lines_up => {
+                        apply(p, e, side, a, t, log, Some(j))
+                    }
+                    _ => {}
                 }
-                Trigger::OnAlignedActivate(a) if lines_up => {
-                    apply(p, e, side, a, t, log, Some(j))
-                }
-                _ => {}
             }
         }
     }
@@ -1602,6 +2178,22 @@ fn apply(
 
     match action {
         Action::Curse { kind, target } => {
+            // Contagion: landing one brings the other along.
+            if matches!(target, Target::Enemy) && pick(p, e, side).contagion {
+                let other = match kind {
+                    CurseKind::Searing => CurseKind::Frost,
+                    CurseKind::Frost => CurseKind::Searing,
+                };
+                let victim = pick(p, e, side.other());
+                let resist = victim.curse_resist;
+                let ms = victim.curses.apply(other, resist);
+                if ms > 0 {
+                    log.push(LogEntry {
+                        at_ms: t,
+                        event: Event::Cursed { on: side.other(), kind: other, duration_ms: ms },
+                    });
+                }
+            }
             let on = resolve(target);
             let c = pick(p, e, on);
             let duration = c.curses.apply(kind, c.curse_resist);
