@@ -906,22 +906,47 @@ fn motif_ink(fill: Color, alpha: f32) -> Color {
     }
 }
 
+/// Draw one component as a single shape rather than as a row of tiles.
+///
+/// The cells of a piece are filled edge to edge with no line between them, and
+/// the outline is drawn only where the piece actually ends. That way a
+/// four-cell blade reads as one blade, and the lines you *do* see inside an
+/// assembled item are the seams between its components - which is the thing
+/// worth being able to see at a glance.
 fn draw_shape(shape: &Shape, ox: f32, oy: f32, cell: f32, def: &PieceDef, alpha: f32) {
     let color = piece_color(def);
     let ink = motif_ink(color, alpha);
-    for &(dx, dy) in shape.cells() {
+    let cells = shape.cells();
+
+    // Fill and motif first, with no inset, so neighbouring cells of the same
+    // piece meet without a gap.
+    for &(dx, dy) in cells {
         let x = ox + dx as f32 * cell;
         let y = oy + dy as f32 * cell;
-        draw_rectangle(x + 1.0, y + 1.0, cell - 2.0, cell - 2.0, with_alpha(color, alpha));
-        draw_slot_motif(x + 1.0, y + 1.0, cell - 2.0, def.slot, ink);
-        draw_rectangle_lines(
-            x + 1.0,
-            y + 1.0,
-            cell - 2.0,
-            cell - 2.0,
-            1.0,
-            with_alpha(Color::from_rgba(0, 0, 0, 110), alpha),
-        );
+        draw_rectangle(x, y, cell, cell, with_alpha(color, alpha));
+        draw_slot_motif(x, y, cell, def.slot, ink);
+    }
+
+    // Then trace the outside edge only. An edge is outside when the cell
+    // across it belongs to some other piece, or to nothing.
+    let edge = with_alpha(Color::from_rgba(0, 0, 0, 190), alpha);
+    let t = (cell * 0.09).clamp(1.5, 3.0);
+    let here = |dx: i8, dy: i8| cells.contains(&(dx, dy));
+    for &(dx, dy) in cells {
+        let x = ox + dx as f32 * cell;
+        let y = oy + dy as f32 * cell;
+        if !here(dx, dy - 1) {
+            draw_line(x, y, x + cell, y, t, edge);
+        }
+        if !here(dx, dy + 1) {
+            draw_line(x, y + cell, x + cell, y + cell, t, edge);
+        }
+        if !here(dx - 1, dy) {
+            draw_line(x, y, x, y + cell, t, edge);
+        }
+        if !here(dx + 1, dy) {
+            draw_line(x + cell, y, x + cell, y + cell, t, edge);
+        }
     }
 }
 
