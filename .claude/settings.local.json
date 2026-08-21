@@ -78,7 +78,8 @@
       "Bash(pkill -f \"packing.*balance_report\")",
       "Bash(GEARMASTER_SHOT=/Users/samgilson/.claude/jobs/a7e69fbf/tmp/shop.png GEARMASTER_SHOT_FRAME=12 GEARMASTER_SKIP_INTRO=1 timeout 90 cargo run -p gearmaster-gui)",
       "Bash(GEARMASTER_SHOT=/Users/samgilson/.claude/jobs/a7e69fbf/tmp/shop.png GEARMASTER_SHOT_FRAME=12 GEARMASTER_SKIP_INTRO=1 cargo run -p gearmaster-gui)",
-      "Bash(grep -vE \"Compiling|Finished|Running|^warning|^test |^$\")"
+      "Bash(grep -vE \"Compiling|Finished|Running|^warning|^test |^$\")",
+      "Bash(awk '{s+=$4} END {print \"total:\",s}')"
     ]
   }
 }

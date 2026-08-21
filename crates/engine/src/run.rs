@@ -1,7 +1,7 @@
 use crate::combat::{
     CombatLog, Difficulty, Event, MonsterSpec, Outcome, Side, LADDER, RUST_GOLEM,
 };
-use crate::loadout::{Loadout, SlotReport};
+use crate::loadout::{Loadout, LockedItem, SlotReport};
 use crate::piece::{all_def_indices, PieceId, PieceRegistry, QuestTrack, SlotKind, CATALOG};
 
 /// The one weapon a run is handed for free. Everything else is bought — this
@@ -10,7 +10,7 @@ use crate::piece::{all_def_indices, PieceId, PieceRegistry, QuestTrack, SlotKind
 pub const STARTER_KIT: &[&str] = &["Oak Handle", "Iron Blade"];
 
 
-use crate::slot::PlaceError;
+use crate::slot::{PlaceError, SLOT_H, SLOT_W};
 use crate::rng::Rng;
 use crate::shop::{Shop, REROLL_COST, STARTING_GOLD};
 use crate::stats::Stats;
@@ -291,6 +291,10 @@ impl Run {
         let refund = crate::rating::resale_price(self.registry.def(id));
         self.loadout.remove_anywhere(id);
         self.owned.retain(|&o| o != id);
+        // Selling a piece out of a locked item ends the lock: what is left is
+        // not that item any more, and a lock holding a sold piece would keep
+        // reporting an item that no longer exists.
+        self.loadout.locks.retain(|l| !l.pieces.contains(&id));
         self.gold += refund;
         Ok(refund)
     }
@@ -394,7 +398,7 @@ impl Run {
     /// it and it cannot lose a piece. From then on it behaves like a single
     /// large component - it turns as one, and it comes off the board as one.
     pub fn toggle_lock_item(&mut self, piece: PieceId) -> bool {
-        if let Some(at) = self.loadout.locks.iter().position(|l| l.contains(&piece)) {
+        if let Some(at) = self.loadout.locks.iter().position(|l| l.pieces.contains(&piece)) {
             self.remember("releasing an item");
             self.loadout.locks.remove(at);
             return false;
@@ -409,12 +413,73 @@ impl Run {
             return false;
         };
         self.remember("locking an item");
-        self.loadout.locks.push(item.pieces);
+        let offsets = self.shape_of(kind, &item.pieces);
+        self.loadout.locks.push(LockedItem { pieces: item.pieces, offsets });
         true
     }
 
+    /// Where each of `pieces` sits relative to the group's top-left corner.
+    fn shape_of(&self, kind: SlotKind, pieces: &[PieceId]) -> Vec<(u8, u8)> {
+        let slot = self.loadout.slot(kind);
+        let anchors: Vec<(u8, u8)> =
+            pieces.iter().map(|&p| slot.anchor_of(p).unwrap_or((0, 0))).collect();
+        let minx = anchors.iter().map(|(x, _)| *x).min().unwrap_or(0);
+        let miny = anchors.iter().map(|(_, y)| *y).min().unwrap_or(0);
+        anchors.iter().map(|&(x, y)| (x - minx, y - miny)).collect()
+    }
+
     pub fn locked_set(&self, piece: PieceId) -> Option<&[PieceId]> {
-        self.loadout.locks.iter().find(|l| l.contains(&piece)).map(|l| l.as_slice())
+        self.loadout
+            .locks
+            .iter()
+            .find(|l| l.pieces.contains(&piece))
+            .map(|l| l.pieces.as_slice())
+    }
+
+    /// The pieces of a locked item and where each sits relative to the item's
+    /// own top-left, so it can be carried and put back down as one shape.
+    pub fn locked_shape(&self, piece: PieceId) -> Option<Vec<(PieceId, u8, u8)>> {
+        let l = self.loadout.locks.iter().find(|l| l.pieces.contains(&piece))?;
+        Some(
+            l.pieces
+                .iter()
+                .zip(l.offsets.iter())
+                .map(|(&p, &(dx, dy))| (p, dx, dy))
+                .collect(),
+        )
+    }
+
+    /// Put a locked item back on the board with its top-left at `(ax, ay)`.
+    ///
+    /// All of it or none of it: a locked item that lands half on the grid is
+    /// not a locked item any more.
+    pub fn equip_locked_at(
+        &mut self,
+        piece: PieceId,
+        kind: SlotKind,
+        ax: u8,
+        ay: u8,
+    ) -> Result<(), RuleError> {
+        if self.phase != Phase::Loadout {
+            return Err(RuleError::LoadoutLocked);
+        }
+        let Some(shape) = self.locked_shape(piece) else {
+            return Err(RuleError::NotEquipped);
+        };
+        // Every piece has to fit before any of them is placed, or a rejected
+        // drop would leave the item scattered across the grid.
+        for &(p, dx, dy) in &shape {
+            let (x, y) = (ax as u32 + dx as u32, ay as u32 + dy as u32);
+            if x >= SLOT_W as u32 || y >= SLOT_H as u32 {
+                return Err(RuleError::Place(PlaceError::OutOfBounds));
+            }
+            self.loadout.can_place(&self.registry, p, kind, x as u8, y as u8)?;
+        }
+        self.remember("placing a locked item");
+        for &(p, dx, dy) in &shape {
+            self.loadout.slot_mut(kind).place(&self.registry, p, ax + dx, ay + dy);
+        }
+        Ok(())
     }
 
     pub fn is_locked_item(&self, piece: PieceId) -> bool {
@@ -487,6 +552,12 @@ impl Run {
             }
             self.undo_stack.pop();
             return Err(RuleError::Place(PlaceError::OutOfBounds));
+        }
+        // The item has a new shape now, and the stored one is what puts it back
+        // down if it is lifted into the inventory.
+        let offsets = self.shape_of(kind, &set);
+        if let Some(l) = self.loadout.locks.iter_mut().find(|l| l.pieces.contains(&piece)) {
+            l.offsets = offsets;
         }
         Ok(())
     }

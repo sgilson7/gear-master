@@ -217,9 +217,12 @@ impl Layout {
 
         // Cards flow left to right, wrapping to fill the tray.
         let per_row = (((inv.w + CARD_GAP) / (CARD_W + CARD_GAP)) as usize).max(1);
+        // Groups, not pieces: a locked item is carried around as one thing, so
+        // it gets one card. Its first piece stands for it.
         let cards = run
-            .inventory()
+            .inventory_groups()
             .into_iter()
+            .filter_map(|g| g.first().copied())
             .enumerate()
             .map(|(i, id)| Card {
                 id,
@@ -1393,6 +1396,18 @@ fn wrap(s: &str, width: usize) -> Vec<String> {
     out
 }
 
+/// The bounding size, in cells, of a group of pieces laid out at the given
+/// offsets. Used to centre a dragged group on the cursor and to size its card.
+fn group_cells(run: &Run, pieces: &[(PieceId, u8, u8)]) -> (u8, u8) {
+    let (mut w, mut h) = (0u8, 0u8);
+    for &(p, dx, dy) in pieces {
+        let s = run.registry.shape(p);
+        w = w.max(dx + s.width() as u8);
+        h = h.max(dy + s.height() as u8);
+    }
+    (w.max(1), h.max(1))
+}
+
 /// A tooltip's content: lines, plus line ranges to draw a panel behind.
 ///
 /// The panels are what let a slot that can be built several ways put each way
@@ -1455,8 +1470,15 @@ impl Hover {
 enum Drag {
     None,
     Held {
-        id: PieceId,
-        /// Cursor offset from the piece's top-left, so it doesn't snap its
+        /// What is on the cursor, and where each piece sits relative to the
+        /// group's top-left corner in cells.
+        ///
+        /// One entry for an ordinary piece. A locked item puts all of its
+        /// pieces here and travels as one thing - which is the whole point of
+        /// locking it, and the reason its pieces cannot be pulled out
+        /// individually.
+        pieces: Vec<(PieceId, u8, u8)>,
+        /// Cursor offset from the group's top-left, so it doesn't snap its
         /// corner to the mouse.
         grab: (f32, f32),
         /// Where it came from, so an invalid drop can put it back.
@@ -1465,10 +1487,21 @@ enum Drag {
 }
 
 impl Drag {
+    /// The piece a single-piece drag is carrying, and the anchor piece of a
+    /// locked item's drag. `None` when nothing is held.
     fn held_id(&self) -> Option<PieceId> {
         match self {
-            Drag::Held { id, .. } => Some(*id),
+            Drag::Held { pieces, .. } => pieces.first().map(|&(p, ..)| p),
             Drag::None => None,
+        }
+    }
+
+    /// Is this piece on the cursor? A locked item hides all of its pieces, not
+    /// just the one that was clicked.
+    fn holds(&self, id: PieceId) -> bool {
+        match self {
+            Drag::Held { pieces, .. } => pieces.iter().any(|&(p, ..)| p == id),
+            Drag::None => false,
         }
     }
 }
@@ -1793,7 +1826,6 @@ fn render_slots(
     mx: f32,
     my: f32,
 ) {
-    let held = drag.held_id();
 
     // What the item under the cursor is watching. Triggers that read a
     // neighbour or an aligned item are the hardest part of a build to see,
@@ -1871,7 +1903,7 @@ fn render_slots(
         };
 
         for id in run.loadout.slot(view.kind).pieces() {
-            if Some(id) == held {
+            if drag.holds(id) {
                 continue; // it's on the cursor instead
             }
             let Some((ax, ay)) = run.loadout.slot(view.kind).anchor_of(id) else { continue };
@@ -1929,7 +1961,7 @@ fn render_slots(
         for set in &run.loadout.locks {
             let slot = run.loadout.slot(view.kind);
             let cells: HashSet<(u8, u8)> =
-                set.iter().flat_map(|&p| slot.cells_of(p)).collect();
+                set.pieces.iter().flat_map(|&p| slot.cells_of(p)).collect();
             if cells.is_empty() {
                 continue;
             }
@@ -2209,9 +2241,8 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
     let hint_size = fitting_size(hint, layout.inv.w - (hint_x - layout.inv.x) - 16.0, &[14.0, 13.0, 12.0, 11.0]);
     ui_text(hint, hint_x, layout.inv.y + 24.0, hint_size, col_dim());
 
-    let held = drag.held_id();
     for card in &layout.cards {
-        if Some(card.id) == held {
+        if drag.holds(card.id) {
             continue;
         }
         let def = run.registry.def(card.id);
@@ -2229,32 +2260,80 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
                 Color::from_rgba(33, 33, 46, 255)
             },
         );
+        // A stowed locked item keeps the gold edge it wore on the board, so it
+        // is recognisable as the thing you decided to keep together.
+        let group = run.locked_shape(card.id);
         draw_rectangle_lines(
             card.rect.x,
             card.rect.y,
             card.rect.w,
             card.rect.h,
-            1.5,
-            if hovered { col_gold() } else { Color::from_rgba(58, 58, 78, 255) },
+            if group.is_some() { 2.0 } else { 1.5 },
+            match (&group, hovered) {
+                (_, true) => col_gold(),
+                (Some(_), false) => Color::from_rgba(150, 122, 52, 255),
+                (None, false) => Color::from_rgba(58, 58, 78, 255),
+            },
         );
 
-        // Shape preview, centred in the upper part of the card.
-        let sw = shape.width() as f32 * INV_CELL;
-        let sh = shape.height() as f32 * INV_CELL;
-        draw_shape(
-            &shape,
-            card.rect.x + (card.rect.w - sw) / 2.0,
-            card.rect.y + 12.0 + (72.0 - sh) / 2.0,
-            INV_CELL,
-            def,
-            None,
-            1.0,
-        );
+        // Shape preview, centred in the upper part of the card. A locked item
+        // is drawn whole - it is one thing now, and a card showing only its
+        // handle would say the opposite.
+        match &group {
+            Some(pieces) => {
+                let (gw, gh) = group_cells(run, pieces);
+                // Its footprint can be far larger than a single piece, so the
+                // preview is scaled down to fit rather than overflowing.
+                let cell = INV_CELL.min(72.0 / gh as f32).min((card.rect.w - 16.0) / gw as f32);
+                let (sw, sh) = (gw as f32 * cell, gh as f32 * cell);
+                let (bx, by) = (
+                    card.rect.x + (card.rect.w - sw) / 2.0,
+                    card.rect.y + 12.0 + (72.0 - sh) / 2.0,
+                );
+                for &(p, dx, dy) in pieces {
+                    draw_shape(
+                        &run.registry.shape(p),
+                        bx + dx as f32 * cell,
+                        by + dy as f32 * cell,
+                        cell,
+                        run.registry.def(p),
+                        None,
+                        1.0,
+                    );
+                }
+            }
+            None => {
+                let sw = shape.width() as f32 * INV_CELL;
+                let sh = shape.height() as f32 * INV_CELL;
+                draw_shape(
+                    &shape,
+                    card.rect.x + (card.rect.w - sw) / 2.0,
+                    card.rect.y + 12.0 + (72.0 - sh) / 2.0,
+                    INV_CELL,
+                    def,
+                    None,
+                    1.0,
+                );
+            }
+        }
 
         // Name (wrapped) and role.
         let cx = card.rect.x + card.rect.w / 2.0;
         let mut ty = card.rect.y + 94.0;
-        for line in wrap_px(def.name, card.rect.w - 12.0, 13.0).into_iter().take(2) {
+        let label = match &group {
+            // Named for the piece it is built around, the way the board names
+            // it, with the rest of the item accounted for.
+            Some(pieces) => {
+                let core = pieces
+                    .iter()
+                    .map(|&(p, ..)| run.registry.def(p))
+                    .find(|d| d.kind.is_core())
+                    .unwrap_or(def);
+                format!("{} +{}", core.name, pieces.len() - 1)
+            }
+            None => def.name.to_string(),
+        };
+        for line in wrap_px(&label, card.rect.w - 12.0, 13.0).into_iter().take(2) {
             centered_text(&line, cx, ty, 13.0, Color::from_rgba(215, 218, 235, 255));
             ty += line_h(13.0);
         }
@@ -4756,12 +4835,22 @@ async fn main() {
     }
     // GEARMASTER_LOCK=1 locks the first assembled item it finds, so the
     // locked state can be inspected.
-    if std::env::var("GEARMASTER_LOCK").is_ok() {
+    // GEARMASTER_LOCK=stow also lifts it into the tray, so the stowed card can
+    // be inspected.
+    if let Ok(v) = std::env::var("GEARMASTER_LOCK") {
         let first = SlotKind::ALL.iter().find_map(|&k| {
             run.report(k).items.into_iter().find(|i| i.assembled).and_then(|i| i.pieces.first().copied())
         });
         if let Some(p) = first {
             run.toggle_lock_item(p);
+            if v == "stow" {
+                let _ = run.unequip_locked(p);
+                // Nothing else in the tray, so the stowed card is the one you
+                // are looking at rather than the hundredth one down.
+                if let Some(set) = run.locked_set(p).map(|s| s.to_vec()) {
+                    run.owned.retain(|o| set.contains(o));
+                }
+            }
         }
     }
     if let Ok(c) = std::env::var("GEARMASTER_CLASS") {
@@ -4929,35 +5018,51 @@ async fn main() {
         }
 
         // Drag ghost + placement preview.
-        if let Drag::Held { id, grab, .. } = &drag {
-            let def = run.registry.def(*id);
-            let shape = run.registry.shape(*id);
+        if let Drag::Held { pieces, grab, .. } = &drag {
             let gx = mx - grab.0;
             let gy = my - grab.1;
+            let hit = layout.slot_hit(gx + SLOT_CELL * 0.5, gy + SLOT_CELL * 0.5);
 
-            if let Some((kind, ax, ay)) =
-                layout.slot_hit(gx + SLOT_CELL * 0.5, gy + SLOT_CELL * 0.5)
-            {
-                let ok = run.can_equip(*id, kind, ax, ay).is_ok();
+            if let Some((kind, ax, ay)) = hit {
+                // A locked item lands whole or not at all, so the preview is
+                // green only when every one of its pieces has somewhere to go.
+                let ok = pieces.iter().all(|&(p, dx, dy)| {
+                    let (x, y) = (ax as u32 + dx as u32, ay as u32 + dy as u32);
+                    x < SLOT_W as u32
+                        && y < SLOT_H as u32
+                        && run.can_equip(p, kind, x as u8, y as u8).is_ok()
+                });
                 let view = layout.view(kind);
                 let tint = if ok { col_ok() } else { col_bad() };
                 // Show the footprint the drop would claim, clipped to the grid.
-                for &(dx, dy) in shape.cells() {
-                    let (cx, cy) = (ax as i32 + dx as i32, ay as i32 + dy as i32);
-                    if (0..SLOT_W as i32).contains(&cx) && (0..SLOT_H as i32).contains(&cy) {
-                        let (px, py) = view.cell_origin(cx as u8, cy as u8);
-                        draw_rectangle(px, py, SLOT_CELL, SLOT_CELL, with_alpha(tint, 0.38));
+                for &(p, ox, oy) in pieces {
+                    for &(dx, dy) in run.registry.shape(p).cells() {
+                        let cx = ax as i32 + ox as i32 + dx as i32;
+                        let cy = ay as i32 + oy as i32 + dy as i32;
+                        if (0..SLOT_W as i32).contains(&cx) && (0..SLOT_H as i32).contains(&cy) {
+                            let (px, py) = view.cell_origin(cx as u8, cy as u8);
+                            draw_rectangle(px, py, SLOT_CELL, SLOT_CELL, with_alpha(tint, 0.38));
+                        }
                     }
                 }
             }
-            // A shared piece on the cursor is grey until it is over a grid that
-            // will take it, and takes that grid's colour and mark as it crosses
-            // in - which shows the rule without anywhere having to state it.
-            let over = layout
-                .slot_hit(gx + SLOT_CELL * 0.5, gy + SLOT_CELL * 0.5)
-                .map(|(k, _, _)| k)
-                .filter(|k| def.fits(*k));
-            draw_shape(&shape, gx, gy, SLOT_CELL, def, over, 0.92);
+            for &(p, ox, oy) in pieces {
+                let def = run.registry.def(p);
+                // A shared piece on the cursor is grey until it is over a grid
+                // that will take it, and takes that grid's colour and mark as
+                // it crosses in - which shows the rule without anywhere having
+                // to state it.
+                let over = hit.map(|(k, _, _)| k).filter(|k| def.fits(*k));
+                draw_shape(
+                    &run.registry.shape(p),
+                    gx + ox as f32 * SLOT_CELL,
+                    gy + oy as f32 * SLOT_CELL,
+                    SLOT_CELL,
+                    def,
+                    over,
+                    0.92,
+                );
+            }
         }
 
         if run.phase != Phase::Fighting {
@@ -5180,31 +5285,66 @@ async fn main() {
             {
                 if let Some((kind, gx, gy)) = layout.slot_hit(mx, my) {
                     if let Some(id) = run.loadout.slot(kind).get(gx, gy) {
-                        let anchor = run
-                            .loadout
-                            .slot(kind)
-                            .anchor_of(id)
-                            .expect("a placed piece has an anchor");
+                        // A locked item comes up whole. Taking one piece out of
+                        // it is exactly what locking is meant to prevent, and
+                        // lifting it all at once is what lets it be carried to
+                        // the inventory in one go.
+                        let set = run.locked_set(id).map(|s| s.to_vec());
+                        let (pieces, anchor) = match &set {
+                            Some(set) => {
+                                let slot = run.loadout.slot(kind);
+                                let anchors: Vec<(PieceId, u8, u8)> = set
+                                    .iter()
+                                    .map(|&p| {
+                                        let a = slot.anchor_of(p).unwrap_or((0, 0));
+                                        (p, a.0, a.1)
+                                    })
+                                    .collect();
+                                let minx = anchors.iter().map(|(_, x, _)| *x).min().unwrap_or(0);
+                                let miny = anchors.iter().map(|(_, _, y)| *y).min().unwrap_or(0);
+                                (
+                                    anchors
+                                        .iter()
+                                        .map(|&(p, x, y)| (p, x - minx, y - miny))
+                                        .collect::<Vec<_>>(),
+                                    (minx, miny),
+                                )
+                            }
+                            None => {
+                                let a = run
+                                    .loadout
+                                    .slot(kind)
+                                    .anchor_of(id)
+                                    .expect("a placed piece has an anchor");
+                                (vec![(id, 0, 0)], a)
+                            }
+                        };
                         let (ox, oy) = layout.view(kind).cell_origin(anchor.0, anchor.1);
                         // Lift it out now, so the piece can't collide with its
                         // own old footprint and a rotation mid-drag is free.
-                        let _ = run.unequip(id);
+                        if set.is_some() {
+                            let _ = run.unequip_locked(id);
+                        } else {
+                            let _ = run.unequip(id);
+                        }
                         drag = Drag::Held {
-                            id,
+                            pieces,
                             grab: (mx - ox, my - oy),
                             restore: Some((kind, anchor.0, anchor.1)),
                         };
                     }
                 } else if let Some(id) = layout.card_hit(mx, my) {
-                    let shape = run.registry.shape(id);
+                    // A locked item in the tray is one card and comes back out
+                    // in the shape it went in with.
+                    let pieces = run
+                        .locked_shape(id)
+                        .unwrap_or_else(|| vec![(id, 0, 0)]);
+                    let (w, h) = group_cells(&run, &pieces);
                     drag = Drag::Held {
-                        id,
-                        // Centre an inventory piece on the cursor: it was drawn
-                        // at a smaller scale, so there is no grab point to keep.
-                        grab: (
-                            shape.width() as f32 * SLOT_CELL / 2.0,
-                            shape.height() as f32 * SLOT_CELL / 2.0,
-                        ),
+                        pieces,
+                        // Centre it on the cursor: it was drawn at a smaller
+                        // scale, so there is no grab point to keep.
+                        grab: (w as f32 * SLOT_CELL / 2.0, h as f32 * SLOT_CELL / 2.0),
                         restore: None,
                     };
                 }
@@ -5250,27 +5390,39 @@ async fn main() {
 
             // --- drop ---
             if is_mouse_button_released(MouseButton::Left) {
-                if let Drag::Held { id, grab, restore } = drag {
+                if let Drag::Held { pieces, grab, restore } = drag {
                     let gx = mx - grab.0 + SLOT_CELL * 0.5;
                     let gy = my - grab.1 + SLOT_CELL * 0.5;
+                    let id = pieces[0].0;
+                    let locked = pieces.len() > 1;
 
                     let placed = match layout.slot_hit(gx, gy) {
-                        Some((kind, ax, ay)) => match run.equip(id, kind, ax, ay) {
-                            Ok(()) => {
-                                let r = run.report(kind);
-                                message = format!(
-                                    "{}: {}  {}",
-                                    kind.name(),
-                                    r.summary(),
-                                    r.stats.summary()
-                                );
-                                true
+                        Some((kind, ax, ay)) => {
+                            // A locked item goes down all at once, so a drop
+                            // that will not fit leaves the board untouched
+                            // rather than scattering it.
+                            let r = if locked {
+                                run.equip_locked_at(id, kind, ax, ay)
+                            } else {
+                                run.equip(id, kind, ax, ay)
+                            };
+                            match r {
+                                Ok(()) => {
+                                    let r = run.report(kind);
+                                    message = format!(
+                                        "{}: {}  {}",
+                                        kind.name(),
+                                        r.summary(),
+                                        r.stats.summary()
+                                    );
+                                    true
+                                }
+                                Err(e) => {
+                                    message = format!("{}", e);
+                                    false
+                                }
                             }
-                            Err(e) => {
-                                message = format!("{}", e);
-                                false
-                            }
-                        },
+                        }
                         None => false,
                     };
 
@@ -5279,9 +5431,18 @@ async fn main() {
                         // the intent. Anywhere else, put it back where it was.
                         let on_tray = layout.inv.contains(Vec2::new(mx, my));
                         if on_tray {
-                            message = format!("{} returned to inventory.", run.registry.def(id).name);
+                            message = if locked {
+                                "Item stowed. It stays locked, and goes back down as one piece."
+                                    .to_string()
+                            } else {
+                                format!("{} returned to inventory.", run.registry.def(id).name)
+                            };
                         } else if let Some((kind, ax, ay)) = restore {
-                            let _ = run.equip(id, kind, ax, ay);
+                            let _ = if locked {
+                                run.equip_locked_at(id, kind, ax, ay)
+                            } else {
+                                run.equip(id, kind, ax, ay)
+                            };
                         }
                     }
                     drag = Drag::None;
@@ -5290,9 +5451,13 @@ async fn main() {
         }
 
         if is_key_pressed(KeyCode::Escape) {
-            if let Drag::Held { id, restore, .. } = drag {
+            if let Drag::Held { pieces, restore, .. } = drag {
                 if let Some((kind, ax, ay)) = restore {
-                    let _ = run.equip(id, kind, ax, ay);
+                    let _ = if pieces.len() > 1 {
+                        run.equip_locked_at(pieces[0].0, kind, ax, ay)
+                    } else {
+                        run.equip(pieces[0].0, kind, ax, ay)
+                    };
                 }
                 drag = Drag::None;
                 message = "Cancelled.".to_string();

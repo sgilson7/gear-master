@@ -158,14 +158,29 @@ impl SlotReport {
     }
 }
 
+/// An item the player has fixed in place: the exact set of pieces it is made
+/// of, and the shape they make.
+///
+/// The shape has to be carried here rather than read off the board, because a
+/// locked item travels as one thing. Once it is lifted into the inventory the
+/// board no longer knows how its pieces sat, and without that there is nothing
+/// to put back down.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct LockedItem {
+    pub pieces: Vec<PieceId>,
+    /// Anchor of `pieces[i]` relative to the item's own top-left corner.
+    /// Kept in step with the board: set when the item locks, and refreshed
+    /// whenever it turns.
+    pub offsets: Vec<(u8, u8)>,
+}
+
 /// The character's five equipment grids.
 #[derive(Clone, Debug)]
 pub struct Loadout {
     pub slots: Vec<Slot>,
-    /// Items the player has fixed in place. Each is the exact set of pieces
-    /// that item is made of; nothing else may join it and it may not lose a
-    /// piece to a neighbour.
-    pub locks: Vec<Vec<PieceId>>,
+    /// Items the player has fixed in place. Nothing else may join one and it
+    /// may not lose a piece to a neighbour.
+    pub locks: Vec<LockedItem>,
     /// Seeds the item-name generator. Set from the run's seed so a given run
     /// names a given arrangement consistently.
     pub name_seed: u64,
@@ -532,9 +547,9 @@ fn repair_split(
     reg: &PieceRegistry,
     kind: SlotKind,
     mut groups: Vec<Vec<PieceId>>,
-    locks: &[Vec<PieceId>],
+    locks: &[LockedItem],
 ) -> Vec<Vec<PieceId>> {
-    let is_locked = |g: &Vec<PieceId>| locks.iter().any(|l| l == g);
+    let is_locked = |g: &Vec<PieceId>| locks.iter().any(|l| l.pieces == *g);
     // A handful of passes is plenty: each one either fixes an item or changes
     // nothing, and a slot never holds many items.
     for _ in 0..4 {

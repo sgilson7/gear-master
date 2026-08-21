@@ -288,11 +288,12 @@ impl Slot {
     pub fn items_with_locks(
         &self,
         reg: &PieceRegistry,
-        locked: &[Vec<PieceId>],
+        locked: &[crate::loadout::LockedItem],
     ) -> Vec<Vec<PieceId>> {
         let mut out = Vec::new();
         let mut spoken_for: Vec<PieceId> = Vec::new();
         for set in locked {
+            let set = &set.pieces;
             let here: Vec<PieceId> =
                 set.iter().copied().filter(|&p| self.contains(p)).collect();
             if here.len() == set.len() && !here.is_empty() {

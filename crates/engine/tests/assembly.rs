@@ -1037,3 +1037,115 @@ fn recipe_counts_are_pluralised() {
     assert!(all.iter().any(|s| s == "2 accessories"), "{:?}", all);
     assert!(!all.iter().any(|s| s.contains("accessorys")), "{:?}", all);
 }
+
+/// The bug: a locked item's pieces could still be dragged out one at a time,
+/// which is exactly what locking is supposed to prevent. The interface now
+/// lifts the whole set, and the shape it needs to do that lives on the lock.
+#[test]
+fn a_locked_item_knows_its_own_shape() {
+    let mut run = packed_pair();
+    let handle = piece(&run, "Oak Handle");
+    let blade = piece(&run, "Iron Blade");
+    run.toggle_lock_item(handle);
+
+    let shape = run.locked_shape(handle).expect("a locked item carries its shape");
+    assert_eq!(shape.len(), 2, "both pieces are in it");
+    // Oak Handle at (0,0) and Iron Blade at (1,0): offsets relative to the
+    // item's own corner, so they survive being put down somewhere else.
+    let at = |id| shape.iter().find(|&&(p, ..)| p == id).map(|&(_, x, y)| (x, y));
+    assert_eq!(at(handle), Some((0, 0)));
+    assert_eq!(at(blade), Some((1, 0)));
+
+    // Any piece of it answers with the same shape - you can grab it anywhere.
+    assert_eq!(run.locked_shape(blade), run.locked_shape(handle));
+}
+
+/// The other bug: a whole assembled item could not be moved to the inventory
+/// and back. It comes off as one thing and goes down as one thing.
+#[test]
+fn a_locked_item_travels_to_the_inventory_and_back_whole() {
+    let mut run = packed_pair();
+    let handle = piece(&run, "Oak Handle");
+    let blade = piece(&run, "Iron Blade");
+    run.toggle_lock_item(handle);
+
+    run.unequip_locked(handle).expect("it comes off as one piece");
+    assert!(run.loadout.slot(SlotKind::Weapon).anchor_of(handle).is_none());
+    assert!(run.loadout.slot(SlotKind::Weapon).anchor_of(blade).is_none());
+    assert!(run.is_locked_item(handle), "stowing it does not release it");
+
+    // The inventory carries it as one entry, not two.
+    let groups = run.inventory_groups();
+    let together = groups.iter().find(|g| g.contains(&handle)).expect("it is in the tray");
+    assert_eq!(together.len(), 2, "carried as one thing");
+
+    // And it goes back down somewhere else with its shape intact.
+    run.equip_locked_at(handle, SlotKind::Weapon, 2, 3).expect("it fits there");
+    assert_eq!(run.loadout.slot(SlotKind::Weapon).anchor_of(handle), Some((2, 3)));
+    assert_eq!(run.loadout.slot(SlotKind::Weapon).anchor_of(blade), Some((3, 3)));
+    assert!(run.report(SlotKind::Weapon).items.iter().any(|i| i.assembled));
+}
+
+/// A drop that will not fit must leave the board alone rather than strewing
+/// half an item across it.
+#[test]
+fn a_locked_item_that_does_not_fit_is_refused_whole() {
+    let mut run = packed_pair();
+    let handle = piece(&run, "Oak Handle");
+    let blade = piece(&run, "Iron Blade");
+    run.toggle_lock_item(handle);
+    run.unequip_locked(handle).unwrap();
+
+    // Hard against the right edge: the handle would fit, the blade would not.
+    let w = gearmaster_engine::slot::SLOT_W - 1;
+    assert!(run.equip_locked_at(handle, SlotKind::Weapon, w, 0).is_err());
+    assert!(
+        run.loadout.slot(SlotKind::Weapon).anchor_of(handle).is_none(),
+        "a refused drop places nothing at all"
+    );
+    assert!(run.loadout.slot(SlotKind::Weapon).anchor_of(blade).is_none());
+}
+
+/// Turning a locked item changes its shape, and the stored shape has to follow
+/// or it would go back down in its old arrangement.
+#[test]
+fn turning_a_locked_item_updates_the_shape_it_travels_with() {
+    // Not `packed_pair`: the spell there sits flush against the weapon, so
+    // there is genuinely nowhere for it to turn into.
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Iron Blade", SlotKind::Weapon, 1, 0);
+    let handle = piece(&run, "Oak Handle");
+    run.toggle_lock_item(handle);
+
+    let before = run.locked_shape(handle).unwrap();
+    run.rotate_locked(handle).expect("there is room to turn");
+    let after = run.locked_shape(handle).unwrap();
+    assert_ne!(before, after, "the stored shape turned with the item");
+
+    // And it still goes back down as the shape it is now.
+    run.unequip_locked(handle).unwrap();
+    run.equip_locked_at(handle, SlotKind::Weapon, 0, 0).expect("it fits");
+    let slot = run.loadout.slot(SlotKind::Weapon);
+    for &(p, dx, dy) in &after {
+        assert_eq!(slot.anchor_of(p), Some((dx, dy)), "piece landed where the shape says");
+    }
+}
+
+/// Selling a piece out of a locked item ends the lock - otherwise the lock
+/// keeps naming a piece that no longer exists.
+#[test]
+fn selling_a_piece_of_a_locked_item_releases_it() {
+    let mut run = packed_pair();
+    let handle = piece(&run, "Oak Handle");
+    let blade = piece(&run, "Iron Blade");
+    run.toggle_lock_item(handle);
+    assert!(run.is_locked_item(handle));
+
+    run.sell(blade).expect("it can be sold");
+    assert!(!run.is_locked_item(handle), "the lock went with it");
+    assert!(
+        run.loadout.locks.iter().all(|l| !l.pieces.contains(&blade)),
+        "no lock still names the sold piece"
+    );
+}
