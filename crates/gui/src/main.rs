@@ -4,6 +4,7 @@
 
 use std::collections::HashSet;
 
+use gearmaster_engine::class::Axis;
 use gearmaster_engine::combat::{CombatLog, Event, MonsterSprite, Outcome, Side, LADDER};
 use gearmaster_engine::loadout::{ItemProfile, Loadout, SlotReport};
 use gearmaster_engine::piece::{
@@ -1458,6 +1459,9 @@ impl Tip {
 #[derive(Default)]
 struct Hover {
     tip: Option<Tip>,
+    /// Set when the cursor is over the class block. Drawn after everything
+    /// else, like a tooltip, but it is a chart rather than lines of text.
+    class_card: bool,
 }
 
 impl Hover {
@@ -4564,6 +4568,181 @@ fn short_summary(r: &SlotReport) -> String {
     }
 }
 
+/// The eight axes the class card charts, and what to call them in the corner
+/// of a chart that has to stay readable at 40 pixels.
+///
+/// Fixed, not "this build's strongest eight": the point of the shape is that
+/// two builds can be compared by it, which stops being true if the axes move.
+/// The pools get one corner between them, since a build almost always leans on
+/// one of the four; the individual figures are printed under the chart.
+const RADAR: &[(Axis, &str)] = &[
+    (Axis::Arcana, "ARC"),
+    (Axis::Brutality, "IRON"),
+    (Axis::Cadence, "SPD"),
+    (Axis::Bulwark, "ARM"),
+    (Axis::Ward, "WARD"),
+    (Axis::Mass, "MASS"),
+    (Axis::Weave, "WEAVE"),
+    (Axis::Malice, "MAL"),
+];
+
+/// The build, drawn as a shape, with the class it earns and what it is nearest
+/// to otherwise.
+fn render_class_card(run: &Run, mx: f32, my: f32) {
+    let fp = run.fingerprint();
+    let ranked = run.class_outlook();
+
+    let (w, h) = (400.0, 452.0);
+    let x = (mx - w - 18.0).max(4.0);
+    let y = (my - 40.0).min(LOGICAL_H - h - 6.0).max(4.0);
+    draw_rectangle(x, y, w, h, Color::from_rgba(12, 12, 20, 250));
+    draw_rectangle_lines(x, y, w, h, 1.5, Color::from_rgba(120, 120, 155, 255));
+
+    ui_text("WHAT YOU ARE CARRYING", x + 16.0, y + 26.0, 14.0, col_gold());
+
+    // ---- the chart -------------------------------------------------------
+    let (cx, cy) = (x + w / 2.0, y + 150.0);
+    let rad = 82.0;
+    let n = RADAR.len();
+    let point = |i: usize, frac: f32| -> Vec2 {
+        // First corner at the top, then clockwise - the way these are read.
+        let a = -std::f32::consts::FRAC_PI_2
+            + i as f32 * std::f32::consts::TAU / n as f32;
+        Vec2::new(cx + a.cos() * rad * frac, cy + a.sin() * rad * frac)
+    };
+
+    // Rings, so a corner can be read off as a rough number without a scale.
+    for ring in [0.25f32, 0.5, 0.75, 1.0] {
+        for i in 0..n {
+            let a = point(i, ring);
+            let b = point((i + 1) % n, ring);
+            let c = if ring == 1.0 {
+                Color::from_rgba(96, 96, 130, 255)
+            } else {
+                Color::from_rgba(52, 52, 72, 255)
+            };
+            draw_line(a.x, a.y, b.x, b.y, 1.0, c);
+        }
+    }
+    for i in 0..n {
+        let e = point(i, 1.0);
+        draw_line(cx, cy, e.x, e.y, 1.0, Color::from_rgba(52, 52, 72, 255));
+    }
+
+    // The build itself: filled as a fan of triangles from the centre, so a
+    // concave shape - which is most of them - still reads as solid.
+    let vals: Vec<f32> =
+        RADAR.iter().map(|&(a, _)| fp.get(a).clamp(0, 100) as f32 / 100.0).collect();
+    let fill = Color::new(col_gold().r, col_gold().g, col_gold().b, 0.28);
+    for i in 0..n {
+        let a = point(i, vals[i].max(0.01));
+        let b = point((i + 1) % n, vals[(i + 1) % n].max(0.01));
+        draw_triangle(Vec2::new(cx, cy), a, b, fill);
+    }
+    for i in 0..n {
+        let a = point(i, vals[i].max(0.01));
+        let b = point((i + 1) % n, vals[(i + 1) % n].max(0.01));
+        draw_line(a.x, a.y, b.x, b.y, 2.0, col_gold());
+    }
+
+    // Corner labels, pushed out past the outer ring and nudged so the ones on
+    // the left do not overhang the panel edge.
+    for (i, &(axis, tag)) in RADAR.iter().enumerate() {
+        let p = point(i, 1.0);
+        let dx = p.x - cx;
+        let label = format!("{} {}", tag, fp.get(axis));
+        let tw = text_width(&label, 12.0);
+        let lx = if dx.abs() < 6.0 {
+            p.x - tw / 2.0
+        } else if dx < 0.0 {
+            p.x - tw - 8.0
+        } else {
+            p.x + 8.0
+        };
+        // Clear of the outer ring in every direction: a label sitting on the
+        // polygon is unreadable against the fill.
+        let ly = p.y
+            + if (p.y - cy).abs() < 6.0 {
+                4.0
+            } else if p.y < cy {
+                -9.0
+            } else {
+                18.0
+            };
+        ui_text(&label, lx, ly, 12.0, LIGHTGRAY);
+    }
+
+    // ---- everything the chart has no corner for --------------------------
+    let mut ty = y + 272.0;
+    let pools = [
+        (Axis::Attunement, "mana"),
+        (Axis::Wrath, "rage"),
+        (Axis::Devotion, "faith"),
+        (Axis::Growth, "nature"),
+    ];
+    let line: Vec<String> =
+        pools.iter().map(|&(a, n)| format!("{} {}", n, fp.get(a))).collect();
+    ui_text(&line.join("   "), x + 16.0, ty, 12.0, col_dim());
+    ty += 16.0;
+    let more = format!(
+        "sorcery {}   orbits {}   answering {}   pierce {}",
+        fp.get(Axis::Sorcery),
+        fp.get(Axis::Orbits),
+        fp.get(Axis::Answering),
+        fp.get(Axis::Puncture)
+    );
+    ui_text(&more, x + 16.0, ty, 12.0, col_dim());
+    ty += 26.0;
+
+    // ---- the class this earns, and the next two -------------------------
+    let head = if run.class.is_some() { "YOUR CLASS" } else { "YOU WOULD BE GIVEN" };
+    ui_text(head, x + 16.0, ty, 12.0, col_dim());
+    ty += 20.0;
+    let given = run.class.or_else(|| ranked.iter().find(|m| m.eligible).map(|m| m.class));
+    if let Some(c) = given {
+        ui_text(c.name, x + 16.0, ty, 17.0, col_gold());
+        ty += 18.0;
+        let d = c.power.describe();
+        for l in wrap_px(&d, w - 40.0, 12.0).into_iter().take(2) {
+            ui_text(&l, x + 22.0, ty, 12.0, LIGHTGRAY);
+            ty += 14.0;
+        }
+    }
+    ty += 10.0;
+
+    // The two it is nearest to otherwise - what to build toward next. Skips
+    // whatever is already being worn or offered above.
+    ui_text("NEAREST OTHERS", x + 16.0, ty, 12.0, col_dim());
+    ty += 18.0;
+    // Not the Wanderer: it has no requirements, always qualifies, and saying
+    // so tells nobody anything about their build.
+    for m in ranked
+        .iter()
+        .filter(|m| Some(m.class.name) != given.map(|g| g.name))
+        .filter(|m| !m.class.requires.is_empty())
+        .take(2)
+    {
+        let short: Vec<String> = m
+            .detail
+            .iter()
+            .filter(|(_, need, have)| have < need)
+            .map(|(a, need, have)| format!("{} {}/{}", a.name(), have, need))
+            .collect();
+        let (tag, colour) = if m.eligible {
+            ("also qualifies".to_string(), col_ok())
+        } else {
+            (short.join(", "), Color::from_rgba(150, 200, 240, 255))
+        };
+        ui_text(m.class.name, x + 22.0, ty, 13.0, WHITE);
+        ty += 15.0;
+        for l in wrap_px(&tag, w - 52.0, 11.0).into_iter().take(2) {
+            ui_text(&l, x + 30.0, ty, 11.0, colour);
+            ty += 13.0;
+        }
+        ty += 4.0;
+    }
+}
+
 fn render_panel(
     layout: &Layout,
     run: &Run,
@@ -4791,6 +4970,13 @@ fn render_panel(
     // outcome is something you build toward rather than find out about.
     let outlook = run.class_outlook();
     y = class_top;
+    // The whole class block is one hover target: it is a chart, so it is drawn
+    // after everything else rather than being squeezed into the panel.
+    if Rect::new(x, class_top - 18.0, PANEL_W, opp_top - class_top)
+        .contains(Vec2::new(mx, my))
+    {
+        hover.class_card = true;
+    }
     if let Some(c) = run.class {
         ui_text("YOUR CLASS", x + 20.0, y, 14.0, col_dim());
         y += 22.0;
@@ -5260,7 +5446,9 @@ async fn main() {
         // Tooltip for whatever is under the cursor (never while dragging).
         // A request left by a render pass wins: those regions are the panel
         // and the strips around each board, which nothing else claims.
-        if let (Drag::None, Some(tip)) = (&drag, hover.tip.take()) {
+        if matches!(drag, Drag::None) && hover.class_card {
+            render_class_card(&run, mx, my);
+        } else if let (Drag::None, Some(tip)) = (&drag, hover.tip.take()) {
             draw_tip(&tip, mx, my);
         } else if matches!(drag, Drag::None) {
             let hovered_item_name = layout.slot_hit(mx, my).and_then(|(k, x, y)| {
@@ -6128,6 +6316,33 @@ mod tests {
                     gap
                 );
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod radar_tests {
+    use super::*;
+
+    /// The chart's corners are fixed and distinct. Fixed is the point: two
+    /// builds are meant to be comparable by their shape, which stops being
+    /// true the moment the axes depend on the build.
+    #[test]
+    fn the_chart_has_eight_distinct_corners() {
+        assert_eq!(RADAR.len(), 8);
+        for (i, (a, tag)) in RADAR.iter().enumerate() {
+            for (b, other) in RADAR.iter().skip(i + 1) {
+                assert_ne!(a, b, "{} and {} are the same axis", tag, other);
+                assert_ne!(tag, other, "two corners both labelled {}", tag);
+            }
+        }
+    }
+
+    /// Every corner label has to fit the space beside the chart at 12px.
+    #[test]
+    fn every_corner_label_is_short_enough_to_read() {
+        for (axis, tag) in RADAR {
+            assert!(tag.len() <= 5, "{} is too long a tag for {}", tag, axis.name());
         }
     }
 }
