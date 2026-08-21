@@ -623,6 +623,7 @@ fn which_class_dominates() {
         SlotKind::ALL.iter().map(|&s| ladder_for(s, 12)).collect();
 
     let mut tally: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    let mut weaves: Vec<i32> = Vec::new();
     let mut n = 0;
     for a in 0..12 {
         for shift in 0..12 {
@@ -635,7 +636,9 @@ fn which_class_dominates() {
                 let pick = (a + si * shift) % l.len();
                 wear(&mut run, slot, &l[pick].1);
             }
-            *tally.entry(classify(&run.fingerprint()).name).or_insert(0) += 1;
+            let fp = run.fingerprint();
+            weaves.push(fp.get(Axis::Weave));
+            *tally.entry(classify(&fp).name).or_insert(0) += 1;
             n += 1;
         }
     }
@@ -644,5 +647,11 @@ fn which_class_dominates() {
     for (name, count) in &rows {
         println!("{:<14} {:>4}  ({:.0}%)", name, count, *count as f32 * 100.0 / n as f32);
     }
+    weaves.sort_unstable();
+    let pc = |p: f32| weaves[((weaves.len() - 1) as f32 * p) as usize];
+    println!(
+        "weave spread: min {} p25 {} p50 {} p75 {} p90 {} max {}",
+        weaves[0], pc(0.25), pc(0.5), pc(0.75), pc(0.9), weaves[weaves.len() - 1]
+    );
     println!("{} builds sampled", n);
 }

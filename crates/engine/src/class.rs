@@ -129,7 +129,7 @@ impl Fingerprint {
         let mut curses = 0.0f32;
         let mut sorcery = 0i32;
         let mut orbits = 0i32;
-        let mut weave = 0i32;
+        let mut weave = 0.0f32;
         let mut magic_in = [0.0f32; 5];
         let mut physical_in = [0.0f32; 5];
 
@@ -170,7 +170,13 @@ impl Fingerprint {
                     curses += rate;
                 }
             }
-            weave += p.adjacent_items.len() as i32 + p.aligned_items.len() as i32;
+            // Adjacency only. Alignment was measured here too, and it turned
+            // out to carry no information: across five grids nearly all gear
+            // sits on the top rows, so almost every item lines up with almost
+            // every other and the axis read the same for every build. Packing
+            // two finished items against each other inside one grid is a real
+            // choice, and it is the one worth measuring.
+            weave += p.adjacent_items.len() as f32 + p.aligned_items.len() as f32 * 0.5;
         }
 
         // Reference values: roughly what a strong, focused build reaches. A
@@ -189,7 +195,13 @@ impl Fingerprint {
             (Axis::Growth, n(nature, 3.0)),
             (Axis::Cadence, n(rate_total, 4.0)),
             (Axis::Mass, n(filled_cells as f32, 130.0)),
-            (Axis::Weave, n(weave as f32, 14.0)),
+            // Per item, not in total: otherwise simply owning more gear maxes
+            // it, and "how interconnected is this build" becomes "how much of
+            // it is there", which `Mass` already measures.
+            (
+                Axis::Weave,
+                n(weave / (profiles.len().max(1) as f32), 2.6),
+            ),
             (Axis::Malice, n(curses, 2.0)),
             (Axis::Bulwark, n(armor, 14.0)),
             (Axis::Sorcery, n(sorcery as f32, 3.0)),
@@ -357,8 +369,11 @@ pub static CLASSES: &[ClassDef] = &[
     },
     ClassDef {
         name: "Geomancer",
-        blurb: "Gear that talks to its neighbours, across every grid.",
-        requires: &[(Axis::Weave, 55)],
+        blurb: "Gear packed so tightly it talks to its neighbours, in every grid at once.",
+        // Weave alone made this the default: it reads much the same for any
+        // full build, so a single threshold on it caught everything. Paired
+        // with mass it means what it says - a lot of gear, densely laid out.
+        requires: &[(Axis::Weave, 70), (Axis::Mass, 55)],
         power: ClassPower::Resonance,
     },
     ClassDef {
