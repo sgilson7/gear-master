@@ -239,14 +239,22 @@ fn candidates_for(
         out
     }
 
+    // The pool for each kind is capped to its strongest few. Without this the
+    // weapon slot alone enumerates hundreds of thousands of combinations -
+    // handles times damaging-with-repetition times accessories-with-repetition
+    // - and every one of them costs a linear scan of the catalogue to rate.
+    // The best of each kind is what any of this is looking for anyway.
+    const POOL_CAP: usize = 6;
     let mut per_kind: Vec<Vec<Vec<usize>>> = Vec::new();
     for &(kind, min, max) in recipe {
-        let pool: Vec<usize> = (0..CATALOG.len())
+        let mut pool: Vec<usize> = (0..CATALOG.len())
             .filter(|&i| CATALOG[i].slot == slot && CATALOG[i].kind == kind)
             // A disconnected shape can never be part of an assembled item:
             // its islands flood-fill into groups of their own.
             .filter(|&i| connected(CATALOG[i].cells))
             .collect();
+        pool.sort_by_key(|&i| std::cmp::Reverse(piece_rating(&CATALOG[i])));
+        pool.truncate(POOL_CAP);
         let mut choices = Vec::new();
         for n in min..=max {
             choices.extend(combos(&pool, n));
@@ -786,7 +794,7 @@ fn choose(profile: Profile, slot: SlotKind, seed: u64) -> Option<Vec<(&'static s
             cands.swap(0, pick);
         }
     }
-    for (_, names) in cands.into_iter().take(40) {
+    for (_, names) in cands.into_iter().take(12) {
         if let Some(p) = pack(slot, &names) {
             // The non-assembler turns things. Most of it stops fitting its
             // recipe, which is the point of the profile.
@@ -805,31 +813,54 @@ fn choose(profile: Profile, slot: SlotKind, seed: u64) -> Option<Vec<(&'static s
 }
 
 /// Rungs to test at, rather than walking all 33. A full walk meant thousands
-/// of simulations and never finished; five spot checks answer the same
-/// question - how deep does this kind of player get - in seconds.
+/// of simulations; five spot checks answer the same question - how deep does
+/// this kind of player get - in a fraction of the time.
 const BREAKPOINTS: [usize; 5] = [0, 8, 16, 24, 32];
 
-/// Build once the way `profile` would, then see which breakpoints it can beat.
-fn play(profile: Profile, difficulty: Difficulty, seed: u64) -> Vec<bool> {
+/// One profile's board, packed once.
+type Layout = Vec<(SlotKind, Vec<(&'static str, u8, u8, u8)>)>;
+
+/// Packing a 6x8 grid with backtracking is the expensive part, and a profile's
+/// board does not change with the difficulty it is thrown at - only the fights
+/// do. So every board is built once here and then reused across every setting.
+fn all_layouts(seeds: &[u64]) -> Vec<Vec<Layout>> {
+    Profile::ALL
+        .iter()
+        .map(|&profile| {
+            seeds
+                .iter()
+                .map(|&seed| {
+                    SlotKind::ALL
+                        .iter()
+                        .filter_map(|&slot| {
+                            choose(profile, slot, seed + slot.index() as u64).map(|p| (slot, p))
+                        })
+                        .collect()
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// Wear a prepared board and see which breakpoints it can beat.
+fn play_layout(layout: &Layout, difficulty: Difficulty) -> Vec<bool> {
     use gearmaster_engine::combat::Outcome;
     use gearmaster_engine::run::{Mode, Run};
     let mut run = Run::with_all_pieces();
     run.difficulty = difficulty;
     run.mode = Mode::Grinder;
-    for (si, &slot) in SlotKind::ALL.iter().enumerate() {
-        if let Some(p) = choose(profile, slot, seed + si as u64) {
-            for (name, x, y, rot) in p {
-                if let Some(id) = run
-                    .owned
-                    .iter()
-                    .copied()
-                    .find(|&i| run.registry.def(i).name == name && !run.is_equipped(i))
-                {
-                    run.registry.set_rotation(id, rot);
-                    // A turned piece may no longer fit. That is the
-                    // non-assembler profile working, not a failure.
-                    let _ = run.equip(id, slot, x, y);
-                }
+    for (slot, placed) in layout {
+        for (name, x, y, rot) in placed {
+            if let Some(id) = run
+                .owned
+                .iter()
+                .copied()
+                .find(|&i| run.registry.def(i).name == *name && !run.is_equipped(i))
+            {
+                run.registry.set_rotation(id, *rot);
+                // A turned piece may no longer fit. That is the non-assembler
+                // profile working, not a failure.
+                let _ = run.equip(id, *slot, *x, *y);
             }
         }
     }
@@ -844,28 +875,68 @@ fn play(profile: Profile, difficulty: Difficulty, seed: u64) -> Vec<bool> {
         .collect()
 }
 
+/// What a prepared board is worth, so the report can say *why* a profile
+/// stalls rather than only that it did.
+fn layout_summary(layout: &Layout) -> (usize, i32) {
+    use gearmaster_engine::run::Run;
+    let mut run = Run::with_all_pieces();
+    for (slot, placed) in layout {
+        for (name, x, y, rot) in placed {
+            if let Some(id) = run
+                .owned
+                .iter()
+                .copied()
+                .find(|&i| run.registry.def(i).name == *name && !run.is_equipped(i))
+            {
+                run.registry.set_rotation(id, *rot);
+                let _ = run.equip(id, *slot, *x, *y);
+            }
+        }
+    }
+    let items = run.combat_items();
+    let stats = run.player_stats();
+    let dps: i64 = items.iter().map(|i| i.dps_milli(stats.strength, stats.power)).sum();
+    (items.len(), (dps / 1000) as i32)
+}
+
 
 #[test]
 #[ignore]
 fn balance_report() {
     use gearmaster_engine::combat::Difficulty;
+    let seeds = [1u64, 29];
+    let layouts = all_layouts(&seeds);
+
     println!("\n=== which rungs each kind of player can beat ===");
-    println!("medium is the intended fight, so a profile should clear the early");
+    println!("medium is the intended fight. a profile should clear the early");
     println!("breakpoints there and start failing somewhere in the middle.\n");
-    print!("{:<18}{:<10}", "profile", "setting");
+    print!("{:<18}{:<12}{:>7}{:>7}", "profile", "setting", "items", "dps");
     for r in BREAKPOINTS {
-        print!("{:>8}", format!("r{}", r + 1));
+        print!("{:>7}", format!("r{}", r + 1));
     }
     println!();
-    for &profile in Profile::ALL {
+    for (pi, &profile) in Profile::ALL.iter().enumerate() {
         for &d in Difficulty::ALL {
-            // Two builds a profile, so one lucky shop does not decide it.
-            let a = play(profile, d, 1);
-            let b = play(profile, d, 29);
-            print!("{:<18}{:<10}", profile.name(), format!("{} {}", d.name(), d.label()));
-            for i in 0..BREAKPOINTS.len() {
-                let n = a[i] as u8 + b[i] as u8;
-                print!("{:>8}", match n {
+            let mut wins = vec![0u8; BREAKPOINTS.len()];
+            let (mut items, mut dps) = (0usize, 0i32);
+            for (si, _) in seeds.iter().enumerate() {
+                let l = &layouts[pi][si];
+                let (n, p) = layout_summary(l);
+                items += n;
+                dps += p;
+                for (i, w) in play_layout(l, d).into_iter().enumerate() {
+                    wins[i] += w as u8;
+                }
+            }
+            print!(
+                "{:<18}{:<12}{:>7}{:>7}",
+                profile.name(),
+                format!("{} {}", d.name(), d.label()),
+                items / seeds.len(),
+                dps / seeds.len() as i32
+            );
+            for n in &wins {
+                print!("{:>7}", match n {
                     2 => "win",
                     1 => "split",
                     _ => "-",
