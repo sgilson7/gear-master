@@ -84,10 +84,20 @@
 
       widget.bind(SC.Widget.Events.READY, function () {
         widget.setVolume(60);
-        widget.bind(SC.Widget.Events.FINISH, function () {
-          // FINISH fires at the end of the whole set; go back to the top.
-          widget.skip(0);
-          widget.play();
+        widget.getSounds(function (sounds) {
+          var last = sounds.length - 1;
+          widget.bind(SC.Widget.Events.FINISH, function () {
+            // FINISH fires at the end of EVERY track, not of the whole set.
+            // Seeking to the top on each one is why the first song played on
+            // a loop forever. Only the last track wraps; the widget advances
+            // the rest by itself.
+            widget.getCurrentSoundIndex(function (i) {
+              if (i >= last) {
+                widget.skip(0);
+                widget.play();
+              }
+            });
+          });
         });
       });
 
