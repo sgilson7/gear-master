@@ -26,6 +26,40 @@ pub struct Stats {
     pub mind_resist: i32,
     /// Percent reduction to the duration of curses landed on you.
     pub curse_resist: i32,
+
+    // ---- typed damage ----------------------------------------------------
+    //
+    // Damage carries a type, and each type has a matching triangle of
+    // defences: resistance cuts it, piercing ignores resistance, hardening
+    // blunts piercing. All in whole percent.
+    //
+    //   effective piercing  = piercing  x (1 - hardening / 100)
+    //   effective resistance= resistance x (1 - effective piercing / 100)
+    //   damage taken        = raw        x (1 - effective resistance / 100)
+    //
+    // So stacking resistance alone loses to a pierced attacker, and stacking
+    // piercing alone loses to a hardened one.
+    /// Flat physical damage added to what an item lands.
+    pub physical_damage: i32,
+    pub physical_resist: i32,
+    pub physical_pierce: i32,
+    pub physical_harden: i32,
+    /// Flat magic damage added to what an item lands.
+    pub magic_damage: i32,
+    pub magic_resist: i32,
+    pub magic_pierce: i32,
+    pub magic_harden: i32,
+
+    // ---- stacking resources ---------------------------------------------
+    //
+    // Banked between activations and spent by triggers, exactly like mana.
+    // Each also does something merely by being held.
+    /// Fury. Every point adds to physical damage while you hold it.
+    pub rage: i32,
+    /// Conviction. Every point adds resistance of both types while held.
+    pub faith: i32,
+    /// Growth. Every point adds regeneration while held.
+    pub nature: i32,
 }
 
 /// A character with no gear at all. An unequipped run is a losing run — that
@@ -50,6 +84,17 @@ pub enum StatKind {
     Mind,
     MindResist,
     CurseResist,
+    PhysicalDamage,
+    PhysicalResist,
+    PhysicalPierce,
+    PhysicalHarden,
+    MagicDamage,
+    MagicResist,
+    MagicPierce,
+    MagicHarden,
+    Rage,
+    Faith,
+    Nature,
 }
 
 impl StatKind {
@@ -65,6 +110,17 @@ impl StatKind {
             StatKind::Mind => "mind damage",
             StatKind::MindResist => "mind resist",
             StatKind::CurseResist => "curse resist",
+            StatKind::PhysicalDamage => "physical damage",
+            StatKind::PhysicalResist => "physical resist",
+            StatKind::PhysicalPierce => "physical piercing",
+            StatKind::PhysicalHarden => "physical hardening",
+            StatKind::MagicDamage => "magic damage",
+            StatKind::MagicResist => "magic resist",
+            StatKind::MagicPierce => "magic piercing",
+            StatKind::MagicHarden => "magic hardening",
+            StatKind::Rage => "rage",
+            StatKind::Faith => "faith",
+            StatKind::Nature => "nature",
         }
     }
 }
@@ -81,6 +137,17 @@ impl Stats {
         mind: 0,
         mind_resist: 0,
         curse_resist: 0,
+        physical_damage: 0,
+        physical_resist: 0,
+        physical_pierce: 0,
+        physical_harden: 0,
+        magic_damage: 0,
+        magic_resist: 0,
+        magic_pierce: 0,
+        magic_harden: 0,
+        rage: 0,
+        faith: 0,
+        nature: 0,
     };
 
     pub fn get(&self, k: StatKind) -> i32 {
@@ -95,6 +162,17 @@ impl Stats {
             StatKind::Mind => self.mind,
             StatKind::MindResist => self.mind_resist,
             StatKind::CurseResist => self.curse_resist,
+            StatKind::PhysicalDamage => self.physical_damage,
+            StatKind::PhysicalResist => self.physical_resist,
+            StatKind::PhysicalPierce => self.physical_pierce,
+            StatKind::PhysicalHarden => self.physical_harden,
+            StatKind::MagicDamage => self.magic_damage,
+            StatKind::MagicResist => self.magic_resist,
+            StatKind::MagicPierce => self.magic_pierce,
+            StatKind::MagicHarden => self.magic_harden,
+            StatKind::Rage => self.rage,
+            StatKind::Faith => self.faith,
+            StatKind::Nature => self.nature,
         }
     }
 
@@ -110,6 +188,17 @@ impl Stats {
             StatKind::Mind => self.mind = v,
             StatKind::MindResist => self.mind_resist = v,
             StatKind::CurseResist => self.curse_resist = v,
+            StatKind::PhysicalDamage => self.physical_damage = v,
+            StatKind::PhysicalResist => self.physical_resist = v,
+            StatKind::PhysicalPierce => self.physical_pierce = v,
+            StatKind::PhysicalHarden => self.physical_harden = v,
+            StatKind::MagicDamage => self.magic_damage = v,
+            StatKind::MagicResist => self.magic_resist = v,
+            StatKind::MagicPierce => self.magic_pierce = v,
+            StatKind::MagicHarden => self.magic_harden = v,
+            StatKind::Rage => self.rage = v,
+            StatKind::Faith => self.faith = v,
+            StatKind::Nature => self.nature = v,
         }
     }
 
@@ -193,8 +282,47 @@ impl Stats {
         if self.curse_resist != 0 {
             parts.push(format!("{:+}% curse res", self.curse_resist));
         }
+        for (v, label) in [
+            (self.physical_damage, "phys dmg"),
+            (self.magic_damage, "magic dmg"),
+            (self.rage, "rage"),
+            (self.faith, "faith"),
+            (self.nature, "nature"),
+        ] {
+            if v != 0 {
+                parts.push(format!("{:+} {}", v, label));
+            }
+        }
+        for (v, label) in [
+            (self.physical_resist, "phys res"),
+            (self.physical_pierce, "phys pierce"),
+            (self.physical_harden, "phys harden"),
+            (self.magic_resist, "magic res"),
+            (self.magic_pierce, "magic pierce"),
+            (self.magic_harden, "magic harden"),
+        ] {
+            if v != 0 {
+                parts.push(format!("{:+}% {}", v, label));
+            }
+        }
         parts.join(", ")
     }
+}
+
+/// What is left of `raw` after the defender's resistance, the attacker's
+/// piercing and the defender's hardening have had their say. See the note on
+/// `Stats` for the shape of it.
+pub fn after_defences(raw: i32, resist: i32, pierce: i32, harden: i32) -> i32 {
+    if raw <= 0 {
+        return 0;
+    }
+    let harden = harden.clamp(0, 100);
+    let pierce = pierce.max(0);
+    let effective_pierce = (pierce * (100 - harden) / 100).clamp(0, 100);
+    let resist = resist.clamp(0, 95);
+    let effective_resist = resist * (100 - effective_pierce) / 100;
+    let kept = 100 - effective_resist;
+    ((raw as i64 * kept as i64) / 100).max(0) as i32
 }
 
 impl Add for Stats {
@@ -211,6 +339,17 @@ impl Add for Stats {
             mind: self.mind + o.mind,
             mind_resist: self.mind_resist + o.mind_resist,
             curse_resist: self.curse_resist + o.curse_resist,
+            physical_damage: self.physical_damage + o.physical_damage,
+            physical_resist: self.physical_resist + o.physical_resist,
+            physical_pierce: self.physical_pierce + o.physical_pierce,
+            physical_harden: self.physical_harden + o.physical_harden,
+            magic_damage: self.magic_damage + o.magic_damage,
+            magic_resist: self.magic_resist + o.magic_resist,
+            magic_pierce: self.magic_pierce + o.magic_pierce,
+            magic_harden: self.magic_harden + o.magic_harden,
+            rage: self.rage + o.rage,
+            faith: self.faith + o.faith,
+            nature: self.nature + o.nature,
         }
     }
 }

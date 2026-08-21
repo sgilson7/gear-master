@@ -148,6 +148,8 @@ pub struct Run {
     pub losses: u32,
     pub mode: Mode,
     pub difficulty: Difficulty,
+    /// The class the fountain gave you, once you have reached it.
+    pub class: Option<&'static crate::class::ClassDef>,
     /// Losses left before a Rogue run is wiped. Ignored in Grinder.
     pub lives: u32,
     /// The last settled fight, kept so the GUI can report what it cost.
@@ -205,6 +207,7 @@ impl Run {
             losses: 0,
             mode: Mode::Grinder,
             difficulty: Difficulty::Easy,
+            class: None,
             lives: ROGUE_LIVES,
             last_settlement: None,
             best_rung: 0,
@@ -372,6 +375,7 @@ impl Run {
         let mut fresh = Run::seeded(seed);
         fresh.mode = mode;
         fresh.difficulty = self.difficulty;
+        fresh.class = None;
         fresh.last_settlement = settlement;
         // The fight just watched stays on screen; the GUI is still replaying
         // it and needs somewhere to go back to.
@@ -380,6 +384,47 @@ impl Run {
         fresh.settled = true;
         *self = fresh;
         self.forget_undo();
+    }
+
+    // ----------------------------------------------------------- classes
+
+    /// Which rung is the fairy fountain rather than a monster. You meet it
+    /// after the fourth battle.
+    pub const FOUNTAIN_RUNG: usize = 4;
+
+    /// Is the next thing on the ladder the fountain?
+    pub fn at_fountain(&self) -> bool {
+        self.rung == Self::FOUNTAIN_RUNG && self.class.is_none()
+    }
+
+    /// Measure the build as it stands. What the fountain will read, and what
+    /// the interface shows you beforehand so the outcome is never a surprise.
+    pub fn fingerprint(&self) -> crate::class::Fingerprint {
+        let filled: usize = SlotKind::ALL
+            .iter()
+            .map(|&k| {
+                let slot = self.loadout.slot(k);
+                slot.pieces().iter().map(|&p| slot.cells_of(p).len()).sum::<usize>()
+            })
+            .sum();
+        crate::class::Fingerprint::of(&self.registry, &self.combat_items(), filled)
+    }
+
+    /// Every class ranked against the build right now, eligible ones first.
+    pub fn class_outlook(&self) -> Vec<crate::class::Match> {
+        crate::class::rank(&self.fingerprint())
+    }
+
+    /// Take the imbuement. Returns the class given.
+    pub fn drink(&mut self) -> &'static crate::class::ClassDef {
+        let class = crate::class::classify(&self.fingerprint());
+        self.class = Some(class);
+        // The fountain is not a fight, so nothing is settled - just move past
+        // it and turn the shelves over.
+        self.rung += 1;
+        self.best_rung = self.best_rung.max(self.rung);
+        self.shop.restock(&mut self.rng);
+        class
     }
 
     // ------------------------------------------------------------ quests
@@ -731,6 +776,16 @@ impl Run {
 
     /// Base character stats plus every slot's contribution.
     pub fn player_stats(&self) -> Stats {
+        let mut base = self.raw_player_stats();
+        if let Some(c) = self.class {
+            if let crate::class::ClassPower::Standing(bonus) = c.power {
+                base += bonus;
+            }
+        }
+        base
+    }
+
+    fn raw_player_stats(&self) -> Stats {
         self.loadout.total_stats(&self.registry)
     }
 
@@ -741,7 +796,13 @@ impl Run {
 
     /// Simulate the whole fight against `spec` and enter the replay phase.
     pub fn fight(&mut self, spec: &MonsterSpec) -> &CombatLog {
-        let log = simulate_at(self.player_stats(), &self.combat_items(), spec, self.difficulty);
+        let log = crate::combat::simulate_with_class(
+            self.player_stats(),
+            &self.combat_items(),
+            spec,
+            self.difficulty,
+            self.class,
+        );
         self.phase = Phase::Fighting;
         self.settled = false;
         self.log = Some(log);

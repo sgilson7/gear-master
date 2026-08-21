@@ -1247,6 +1247,11 @@ impl Playback {
         let now = get_time();
         match &entry.event {
             Event::Activate { .. } => return, // shown as a bar, not a log line
+            Event::GainResource { side, .. } => {
+                // Banked resources are read off the combatant, so the entry
+                // only needs to reach the log strip.
+                let _ = side;
+            }
             Event::Hit { by, target_health, target_armor, .. } => match by {
                 Side::Player => {
                     self.enemy_hp = (*target_health).max(0);

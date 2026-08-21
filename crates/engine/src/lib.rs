@@ -11,6 +11,7 @@
 //!   * Combat is fully deterministic and simulated to completion up front
 //!     (`combat::simulate`), producing a log the GUI replays.
 
+pub mod class;
 pub mod combat;
 pub mod curse;
 pub mod loadout;

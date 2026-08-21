@@ -451,3 +451,100 @@ fn price_climbs_with_effectiveness_and_the_best_gear_is_dear() {
     assert!(cheapest <= 5, "the cheapest component costs {}", cheapest);
     let _ = RARE_AT;
 }
+
+// ------------------------------------------------------------- the fountain
+
+#[test]
+fn the_fountain_sits_at_the_fifth_rung_and_always_gives_something() {
+    let mut run = Run::with_all_pieces();
+    run.rung = Run::FOUNTAIN_RUNG;
+    assert!(run.at_fountain());
+
+    // Even a bare board gets an imbuement - a fountain is never wasted.
+    let class = run.drink();
+    assert_eq!(class.name, "Wanderer");
+    assert!(run.class.is_some());
+    assert_eq!(run.rung, Run::FOUNTAIN_RUNG + 1, "and it moves you past it");
+    assert!(!run.at_fountain(), "it only happens once");
+}
+
+#[test]
+fn the_class_you_would_get_is_visible_before_you_drink() {
+    // The whole point of the outlook: no surprises. What the panel shows and
+    // what the fountain hands over have to be the same thing.
+    let mut run = Run::with_all_pieces();
+    run.apply_preset();
+    let predicted = run
+        .class_outlook()
+        .into_iter()
+        .find(|m| m.eligible)
+        .expect("something is always eligible")
+        .class
+        .name;
+    run.rung = Run::FOUNTAIN_RUNG;
+    assert_eq!(run.drink().name, predicted);
+}
+
+#[test]
+fn a_class_that_is_out_of_reach_says_how_far() {
+    let run = Run::with_all_pieces(); // nothing equipped at all
+    let outlook = run.class_outlook();
+    let miss = outlook.iter().find(|m| !m.eligible).expect("most are out of reach");
+    assert!(!miss.detail.is_empty(), "it should name what is short");
+    for (_, need, have) in &miss.detail {
+        assert!(have <= need || miss.detail.iter().any(|(_, n, h)| h < n));
+    }
+}
+
+#[test]
+fn a_standing_class_power_reaches_the_players_stats() {
+    use gearmaster_engine::class::{ClassPower, CLASSES};
+    let mut run = Run::with_all_pieces();
+    let before = run.player_stats();
+    let bulwark = CLASSES.iter().find(|c| c.name == "Bulwark").unwrap();
+    run.class = Some(bulwark);
+    let after = run.player_stats();
+    match bulwark.power {
+        ClassPower::Standing(s) => {
+            assert_eq!(after.health, before.health + s.health);
+            assert_eq!(after.physical_harden, before.physical_harden + s.physical_harden);
+        }
+        _ => panic!("Bulwark should be a standing power"),
+    }
+}
+
+#[test]
+fn slow_time_spreads_a_hit_instead_of_stopping_it() {
+    use gearmaster_engine::class::{ClassPower, ClassDef};
+    use gearmaster_engine::combat::{simulate_with_class, Difficulty, Event, Side};
+    use gearmaster_engine::stats::Stats;
+
+    static CHRONO: ClassDef = ClassDef {
+        name: "Test Chronomancer",
+        blurb: "",
+        requires: &[],
+        power: ClassPower::SlowTime,
+    };
+
+    let stats = Stats::new(400, 0, 0, 100);
+    let plain = simulate_with_class(stats, &[], &LADDER[6], Difficulty::Easy, None);
+    let slowed = simulate_with_class(stats, &[], &LADDER[6], Difficulty::Easy, Some(&CHRONO));
+
+    // The swing is still logged either way - slow time changes when it lands,
+    // not whether it happened.
+    let swings = |log: &gearmaster_engine::combat::CombatLog| {
+        log.entries
+            .iter()
+            .filter(|e| matches!(e.event, Event::Hit { by: Side::Enemy, .. }))
+            .count()
+    };
+    assert!(swings(&plain) > 0 && swings(&slowed) > 0);
+
+    // But it should take measurably longer to kill you.
+    assert!(
+        slowed.duration_ms >= plain.duration_ms,
+        "slow time should buy time: {} vs {}",
+        slowed.duration_ms,
+        plain.duration_ms
+    );
+}

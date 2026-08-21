@@ -17,6 +17,9 @@ pub const BURN_REPORT_MS: u32 = 1000;
 
 /// A fight this long is called a draw, so a build that cannot finish the job
 /// doesn't hang the simulation.
+/// How long slow time spreads a hit over.
+pub const SLOW_TIME_MS: u32 = 5000;
+
 pub const MAX_DURATION_MS: u32 = 60_000;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -247,6 +250,26 @@ impl Difficulty {
             Difficulty::Medium => &[Passive::Hardened],
             Difficulty::Hard => &[Passive::Hardened, Passive::Warded],
             Difficulty::Insane => &[Passive::Hardened, Passive::Warded, Passive::Relentless],
+        }
+    }
+}
+
+/// What kind of harm an attack is, so the matching defences apply. Untyped
+/// answers to no resistance at all - a curse's burn, a creature's plain bite.
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
+pub enum DamageType {
+    #[default]
+    Untyped,
+    Physical,
+    Magic,
+}
+
+impl DamageType {
+    pub fn name(self) -> &'static str {
+        match self {
+            DamageType::Untyped => "damage",
+            DamageType::Physical => "physical damage",
+            DamageType::Magic => "magic damage",
         }
     }
 }
@@ -574,9 +597,14 @@ pub struct RunningItem {
     pub cooldown_ms: u32,
     pub progress_ms: u32,
     pub damage: i32,
+    pub physical_damage: i32,
+    pub magic_damage: i32,
     pub mind: i32,
     pub armor: i32,
     pub mana: i32,
+    pub rage: i32,
+    pub faith: i32,
+    pub nature: i32,
     pub triggers: Vec<Trigger>,
     pub adjacent_assembled_same_slot: usize,
     /// Indices, in the owner's item list, of items this one reacts to.
@@ -602,6 +630,11 @@ impl RunningItem {
             cooldown_ms: p.cooldown_ms,
             progress_ms: 0,
             damage: p.stats.damage,
+            physical_damage: p.stats.physical_damage,
+            magic_damage: p.stats.magic_damage,
+            rage: p.stats.rage,
+            faith: p.stats.faith,
+            nature: p.stats.nature,
             mind: p.stats.mind,
             armor: p.stats.armor,
             mana: p.stats.mana,
@@ -625,6 +658,11 @@ impl RunningItem {
             cooldown_ms: a.cooldown_ms.max(TICK_MS),
             progress_ms: 0,
             damage: a.damage,
+            physical_damage: 0,
+            magic_damage: 0,
+            rage: 0,
+            faith: 0,
+            nature: 0,
             mind: a.mind,
             armor: a.armor,
             mana: 0,
@@ -667,6 +705,18 @@ pub struct Combatant {
     pub regen: i32,
     pub mind_resist: i32,
     pub curse_resist: i32,
+    // The defence triangle, per damage type. See `stats::after_defences`.
+    pub physical_resist: i32,
+    pub physical_pierce: i32,
+    pub physical_harden: i32,
+    pub magic_resist: i32,
+    pub magic_pierce: i32,
+    pub magic_harden: i32,
+    /// Banked resources. Each is spent by triggers and worth something merely
+    /// by being held - see `held_bonus`.
+    pub rage: i32,
+    pub faith: i32,
+    pub nature: i32,
     pub curses: Curses,
     /// Stacks of mana empowerment and mana shield. Both scale off *current*
     /// mana, and both are bought with mana — so stacking them hard drains the
@@ -676,6 +726,15 @@ pub struct Combatant {
     pub items: Vec<RunningItem>,
     /// Sub-point accumulators, so 10 damage a second spread over 50ms ticks
     /// loses nothing to rounding.
+    /// Chronomancer's slow time: damage waiting to arrive, and how long each
+    /// portion has left. Empty for everyone else.
+    pending: Vec<(i32, u32)>,
+    /// Whether incoming damage is queued rather than taken at once.
+    pub slow_time: bool,
+    /// Held resources count double.
+    pub overflowing: bool,
+    /// Percent of damage dealt that comes back as health.
+    pub leech: i32,
     dot_milli: i32,
     regen_milli: i32,
     /// Burn damage already taken but not yet written to the log, and how long
@@ -697,6 +756,19 @@ impl Combatant {
             power: stats.power,
             regen: stats.regen,
             mind_resist: stats.mind_resist,
+            physical_resist: stats.physical_resist,
+            physical_pierce: stats.physical_pierce,
+            physical_harden: stats.physical_harden,
+            magic_resist: stats.magic_resist,
+            magic_pierce: stats.magic_pierce,
+            magic_harden: stats.magic_harden,
+            rage: 0,
+            faith: 0,
+            nature: 0,
+            pending: Vec::new(),
+            slow_time: false,
+            overflowing: false,
+            leech: 0,
             curse_resist: stats.curse_resist,
             curses: Curses::new(),
             empowerment: 0,
@@ -752,6 +824,19 @@ impl Combatant {
             power: stats.power,
             regen: stats.regen,
             mind_resist: stats.mind_resist,
+            physical_resist: stats.physical_resist,
+            physical_pierce: stats.physical_pierce,
+            physical_harden: stats.physical_harden,
+            magic_resist: stats.magic_resist,
+            magic_pierce: stats.magic_pierce,
+            magic_harden: stats.magic_harden,
+            rage: 0,
+            faith: 0,
+            nature: 0,
+            pending: Vec::new(),
+            slow_time: false,
+            overflowing: false,
+            leech: 0,
             curse_resist: stats.curse_resist,
             curses: Curses::new(),
             empowerment: 0,
@@ -769,6 +854,24 @@ impl Combatant {
     }
 
     /// Weapon power after mana empowerment: 0.05x per stack per point of mana.
+    /// What the resources you are holding are worth right now. Spending them
+    /// gives it up, which is the whole tension: a hoarded pool is a standing
+    /// bonus, and a spent one is a burst.
+    pub fn held_bonus(&self) -> Stats {
+        let m = if self.overflowing { 2 } else { 1 };
+        let (rage, faith, nature) = (self.rage * m, self.faith * m, self.nature * m);
+        Stats {
+            // Fury sharpens the blade.
+            physical_damage: rage,
+            // Conviction turns aside both kinds of harm.
+            physical_resist: (faith * 2).min(40),
+            magic_resist: (faith * 2).min(40),
+            // Growth knits you back together.
+            regen: nature,
+            ..Stats::ZERO
+        }
+    }
+
     pub fn effective_power(&self) -> i32 {
         self.power + self.empowerment as i32 * 5 * self.mana.max(0)
     }
@@ -781,8 +884,36 @@ impl Combatant {
     /// Mana shield first, then armour, then health. Returns (absorbed by
     /// armour, through to health).
     fn take_damage(&mut self, amount: i32) -> (i32, i32) {
+        self.take_typed(amount, DamageType::Untyped, 0)
+    }
+
+    /// Take `amount` of `kind`, from an attacker with `pierce` percent
+    /// piercing of that type. Untyped damage answers to no resistance at all,
+    /// which is what a curse's burn and a monster's plain bite deal.
+    fn take_typed(&mut self, amount: i32, kind: DamageType, pierce: i32) -> (i32, i32) {
+        let amount = match kind {
+            DamageType::Untyped => amount,
+            DamageType::Physical => crate::stats::after_defences(
+                amount,
+                self.physical_resist,
+                pierce,
+                self.physical_harden,
+            ),
+            DamageType::Magic => crate::stats::after_defences(
+                amount,
+                self.magic_resist,
+                pierce,
+                self.magic_harden,
+            ),
+        };
         let amount = (amount - self.damage_reduction()).max(0);
         if amount <= 0 {
+            return (0, 0);
+        }
+        if self.slow_time {
+            // Nothing lands now. It arrives in slices over the next five
+            // seconds, which is time for armour and regeneration to answer.
+            self.pending.push((amount, SLOW_TIME_MS));
             return (0, 0);
         }
         let absorbed = amount.min(self.armor.max(0));
@@ -816,6 +947,8 @@ pub enum Event {
     /// `index` is the item's position in its owner's list, so two items with
     /// the same name stay distinguishable.
     Activate { side: Side, item: String, index: usize },
+    /// Rage, faith or nature banked.
+    GainResource { side: Side, what: &'static str, amount: i32, total: i32 },
     Hit { by: Side, damage: i32, absorbed: i32, target_health: i32, target_armor: i32 },
     MindHit { by: Side, amount: i32, target_max_health: i32 },
     GainArmor { side: Side, amount: i32, total: i32 },
@@ -891,6 +1024,9 @@ impl CombatLog {
         match &e.event {
             Event::Activate { side, item, .. } => {
                 format!("{} {} activates {}", t, self.who(*side), item)
+            }
+            Event::GainResource { side, what, amount, total } => {
+                format!("{} {} gains {} {} ({})", t, self.who(*side), amount, what, total)
             }
             Event::Hit { by, damage, absorbed, target_health, target_armor } => {
                 let soak = if *absorbed > 0 {
@@ -1002,7 +1138,29 @@ pub fn simulate_at(
     spec: &MonsterSpec,
     difficulty: Difficulty,
 ) -> CombatLog {
-    let start_player = Combatant::player(player_stats, profiles);
+    simulate_with_class(player_stats, profiles, spec, difficulty, None)
+}
+
+/// The same, with the player's class applied. `Standing` powers are already
+/// folded into `player_stats` by the run; the rest are rules the fight has to
+/// know about.
+pub fn simulate_with_class(
+    player_stats: Stats,
+    profiles: &[ItemProfile],
+    spec: &MonsterSpec,
+    difficulty: Difficulty,
+    class: Option<&'static crate::class::ClassDef>,
+) -> CombatLog {
+    let mut start_player = Combatant::player(player_stats, profiles);
+    if let Some(c) = class {
+        match c.power {
+            crate::class::ClassPower::SlowTime => start_player.slow_time = true,
+            crate::class::ClassPower::Overflowing => start_player.overflowing = true,
+            crate::class::ClassPower::Leeching(pct) => start_player.leech = pct,
+            crate::class::ClassPower::Standing(_) => {}
+        }
+    }
+    let start_player = start_player;
     let start_enemy = Combatant::monster_at(spec, difficulty);
     let mut p = start_player.clone();
     let mut e = start_enemy.clone();
@@ -1012,6 +1170,32 @@ pub fn simulate_at(
 
     'fight: while t < MAX_DURATION_MS {
         t += TICK_MS;
+
+        // 0. Slow time: whatever was queued arrives a slice at a time.
+        for c in [&mut p, &mut e] {
+            if c.pending.is_empty() {
+                continue;
+            }
+            let mut still = Vec::new();
+            let mut arriving = 0;
+            for (amount, left) in std::mem::take(&mut c.pending) {
+                let slice = (amount * TICK_MS as i32 / SLOW_TIME_MS as i32).max(1).min(amount);
+                arriving += slice;
+                let rest = amount - slice;
+                let left = left.saturating_sub(TICK_MS);
+                if rest > 0 && left > 0 {
+                    still.push((rest, left));
+                } else if rest > 0 {
+                    arriving += rest;
+                }
+            }
+            c.pending = still;
+            if arriving > 0 {
+                let absorbed = arriving.min(c.armor.max(0));
+                c.armor -= absorbed;
+                c.health -= arriving - absorbed;
+            }
+        }
 
         // 1. Damage over time, then healing.
         for side in [Side::Player, Side::Enemy] {
@@ -1142,6 +1326,11 @@ fn activate(
         let which = item.cast_index % n;
         let cast = item.casts[which].clone();
         item.damage = cast.stats.damage;
+        item.physical_damage = cast.stats.physical_damage;
+        item.magic_damage = cast.stats.magic_damage;
+        item.rage = cast.stats.rage;
+        item.faith = cast.stats.faith;
+        item.nature = cast.stats.nature;
         item.mind = cast.stats.mind;
         item.armor = cast.stats.armor;
         item.mana = cast.stats.mana;
@@ -1173,18 +1362,44 @@ fn activate(
             (me.strength, me.effective_power())
         };
         // The wearer's power, plus whatever ink is bound into this item alone.
-        let raw = (item.damage + strength) as i64 * (power + item.power_bonus) as i64 / 100;
-        let raw = raw.max(0) as i32;
-        if raw > 0 {
+        // Rage held sharpens the physical half.
+        let (rage, phys_pierce, magic_pierce) = {
+            let me = pick(p, e, side);
+            (me.held_bonus().physical_damage, me.physical_pierce, me.magic_pierce)
+        };
+        let mult = |flat: i32| -> i32 {
+            ((flat as i64) * (power + item.power_bonus) as i64 / 100).max(0) as i32
+        };
+        let untyped = mult(item.damage + strength);
+        let physical = mult(item.physical_damage + rage);
+        let magic = mult(item.magic_damage);
+
+        // The log reports the swing, not what survived the defences: a hit
+        // that is turned aside completely still has to show up, or a player
+        // stacking resistance sees nothing happening at all.
+        let swing = untyped + physical + magic;
+        let mut absorbed_total = 0;
+        for (amount, kind, pierce) in [
+            (untyped, DamageType::Untyped, 0),
+            (physical, DamageType::Physical, phys_pierce),
+            (magic, DamageType::Magic, magic_pierce),
+        ] {
+            if amount <= 0 {
+                continue;
+            }
             let target = pick(p, e, side.other());
-            let (absorbed, _) = target.take_damage(raw);
+            let (absorbed, _) = target.take_typed(amount, kind, pierce);
+            absorbed_total += absorbed;
+        }
+        if swing > 0 {
+            let target = pick(p, e, side.other());
             let (hp, ar) = (target.health, target.armor);
             log.push(LogEntry {
                 at_ms: t,
                 event: Event::Hit {
                     by: side,
-                    damage: raw,
-                    absorbed,
+                    damage: swing,
+                    absorbed: absorbed_total,
                     target_health: hp,
                     target_armor: ar,
                 },
@@ -1223,6 +1438,26 @@ fn activate(
         me.mana += item.mana;
         let total = me.mana;
         log.push(LogEntry { at_ms: t, event: Event::GainMana { side, amount: item.mana, total } });
+    }
+
+    for (amount, label) in [(item.rage, "rage"), (item.faith, "faith"), (item.nature, "nature")] {
+        if amount > 0 {
+            let me = pick(p, e, side);
+            match label {
+                "rage" => me.rage += amount,
+                "faith" => me.faith += amount,
+                _ => me.nature += amount,
+            }
+            let total = match label {
+                "rage" => me.rage,
+                "faith" => me.faith,
+                _ => me.nature,
+            };
+            log.push(LogEntry {
+                at_ms: t,
+                event: Event::GainResource { side, what: label, amount, total },
+            });
+        }
     }
 
     for trigger in &item.triggers {
