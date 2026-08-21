@@ -117,8 +117,8 @@ fn unbound_core_doubles_neighbouring_layers_only_while_incomplete() {
     let report = run.report(SlotKind::Chest);
     assert_eq!(report.assembled_count(), 0, "two layers and no base");
     assert_eq!(report.items[0].status, "needs 1 more base");
-    // Core 8 + Chain Layer 12 doubled to 24.
-    assert_eq!(slot_hp(&run, SlotKind::Chest), 32);
+    // Core 40 + Chain Layer 60 doubled to 120.
+    assert_eq!(slot_hp(&run, SlotKind::Chest), 160);
 }
 
 #[test]
@@ -126,7 +126,7 @@ fn completing_the_chestpiece_switches_the_core_off_again() {
     let mut run = Run::with_all_pieces();
     equip(&mut run, "Unbound Core", SlotKind::Chest, 0, 0);
     equip(&mut run, "Chain Layer", SlotKind::Chest, 0, 2);
-    assert_eq!(slot_hp(&run, SlotKind::Chest), 32);
+    assert_eq!(slot_hp(&run, SlotKind::Chest), 160);
 
     // A base finishes the item — and the Core's whole point is that this
     // turns its own effect off.
@@ -134,8 +134,8 @@ fn completing_the_chestpiece_switches_the_core_off_again() {
 
     let report = run.report(SlotKind::Chest);
     assert_eq!(report.assembled_count(), 1);
-    // Core 8 + Chain 12 undoubled + Base 25.
-    assert_eq!(slot_hp(&run, SlotKind::Chest), 45);
+    // Core 40 + Chain 60 undoubled + Base 125.
+    assert_eq!(slot_hp(&run, SlotKind::Chest), 225);
 }
 
 // ------------------------------------------------------ general behaviour

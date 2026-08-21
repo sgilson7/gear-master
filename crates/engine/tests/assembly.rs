@@ -264,12 +264,12 @@ fn every_slot_assembles_on_the_preset_loadout() {
 #[test]
 fn an_adjacency_bonus_stays_dormant_until_the_item_assembles() {
     let mut run = Run::with_all_pieces();
-    // Runed Material alone: base +5 health, and its +15 bonus must NOT fire.
+    // Runed Material alone: base +25 health, and its +75 bonus must NOT fire.
     equip(&mut run, "Runed Material", SlotKind::Greaves, 0, 0);
 
     let r = run.report(SlotKind::Greaves);
     assert_eq!(r.assembled_count(), 0);
-    assert_eq!(r.stats.health, 5, "only the base contribution");
+    assert_eq!(r.stats.health, 25, "only the base contribution");
     assert!(r.notes().is_empty());
 
     // Add the mold next to it and the greaves come together.
@@ -277,8 +277,8 @@ fn an_adjacency_bonus_stays_dormant_until_the_item_assembles() {
 
     let r = run.report(SlotKind::Greaves);
     assert_eq!(r.assembled_count(), 1, "{}", r.summary());
-    assert_eq!((r.stats.health, r.stats.regen), (20, 1), "base 5 + bonus 15 health, +1 regen");
-    assert_eq!(r.notes(), vec!["Runed: +15 health"]);
+    assert_eq!((r.stats.health, r.stats.regen), (100, 1), "base 25 + bonus 75 health, +1 regen");
+    assert_eq!(r.notes(), vec!["Runed: +75 health"]);
 }
 
 #[test]
@@ -286,7 +286,7 @@ fn breaking_the_assembly_switches_the_bonus_back_off() {
     let mut run = Run::with_all_pieces();
     equip(&mut run, "Runed Material", SlotKind::Greaves, 0, 0);
     equip(&mut run, "Greave Mold", SlotKind::Greaves, 2, 0);
-    assert_eq!(run.report(SlotKind::Greaves).stats.health, 20);
+    assert_eq!(run.report(SlotKind::Greaves).stats.health, 100);
 
     // Slide the mold away so nothing touches any more.
     let mold = piece(&run, "Greave Mold");
@@ -294,7 +294,7 @@ fn breaking_the_assembly_switches_the_bonus_back_off() {
 
     let r = run.report(SlotKind::Greaves);
     assert_eq!(r.assembled_count(), 0);
-    assert_eq!(r.stats.health, 5, "the +15 bonus is withdrawn");
+    assert_eq!(r.stats.health, 25, "the +75 bonus is withdrawn");
     assert!(r.notes().is_empty());
 }
 
@@ -308,7 +308,7 @@ fn each_slots_bonus_fires_exactly_once_on_the_preset() {
         "Focused: +3 strength",
         "Woven: +2 regen",
         "Gauntleted: +2 strength",
-        "Runed: +15 health",
+        "Runed: +75 health",
         "Balanced: +0.50x weapon power",
     ] {
         assert_eq!(

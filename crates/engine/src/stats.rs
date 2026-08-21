@@ -64,6 +64,10 @@ pub struct Stats {
 
 /// A character with no gear at all. An unequipped run is a losing run — that
 /// is deliberate, it is what makes assembling gear matter.
+/// Deliberately NOT scaled with the gear. Gear health went up fivefold because
+/// a late build had too little of it; the bare character did not, because a
+/// character who cannot be killed by the first creature on the ladder has no
+/// early game at all. What you are wearing is what keeps you alive now.
 pub const BASE_HEALTH: i32 = 100;
 pub const BASE_STRENGTH: i32 = 5;
 pub const BASE_REGEN: i32 = 0;
@@ -375,7 +379,7 @@ mod tests {
     fn stats_add_componentwise() {
         let mut s = Stats::base_character();
         s += Stats::health(20) + Stats::strength(3);
-        assert_eq!(s.health, 120);
+        assert_eq!(s.health, BASE_HEALTH + 20);
         assert_eq!(s.strength, 8);
         assert_eq!(s.power, 100, "power untouched by a health/strength bonus");
     }

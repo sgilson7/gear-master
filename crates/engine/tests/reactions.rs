@@ -219,7 +219,7 @@ fn an_oversized_piece_pays_off_precisely_because_it_cannot_be_built() {
 
     let loose = run.report(SlotKind::Chest);
     assert_eq!(loose.assembled_count(), 0);
-    assert_eq!(loose.stats.health, 116, "6 base + 110 while unbound");
+    assert_eq!(loose.stats.health, 580, "30 base + 550 while unbound");
     // Its unbound bonus is deliberately *not* armour: loose gear never
     // activates, and armour only accrues on activation, so armour on a piece
     // that can never be built would be worth nothing at all.
@@ -229,7 +229,7 @@ fn an_oversized_piece_pays_off_precisely_because_it_cannot_be_built() {
     equip(&mut run, "Hide Base", SlotKind::Chest, 0, 4);
     let built = run.report(SlotKind::Chest);
     assert_eq!(built.assembled_count(), 1);
-    assert_eq!(built.stats.health, 6 + 14, "the unbound bonus is gone");
+    assert_eq!(built.stats.health, 30 + 70, "the unbound bonus is gone");
 }
 
 // -------------------------------------------------- the two mana buffs

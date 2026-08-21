@@ -82,7 +82,7 @@ fn activations_of(log: &gearmaster_engine::combat::CombatLog, name: &str) -> Vec
 fn a_bare_character_starts_at_the_documented_baseline() {
     let run = Run::with_all_pieces();
     let s = run.player_stats();
-    assert_eq!((s.health, s.strength, s.regen, s.power), (100, 5, 0, 100));
+    assert_eq!((s.health, s.strength, s.regen, s.power), (gearmaster_engine::stats::BASE_HEALTH, 5, 0, 100));
     assert!(run.combat_items().is_empty(), "nothing assembled, nothing acts");
 }
 
