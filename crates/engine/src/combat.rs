@@ -110,6 +110,11 @@ pub struct MonsterSpec {
     pub regen: i32,
     pub mind_resist: i32,
     pub curse_resist: i32,
+    /// The two resistances most attacks answer to. Without these on the
+    /// ladder, piercing and hardening would be inert: you would always be
+    /// piercing nothing.
+    pub physical_resist: i32,
+    pub magic_resist: i32,
     /// Innate attacks — a rat's teeth, not equipment. Most of the ladder
     /// leaves this empty and fights with gear instead.
     pub attacks: &'static [MonsterAttack],
@@ -160,6 +165,8 @@ impl MonsterSpec {
         stats.regen += self.regen;
         stats.mind_resist += self.mind_resist;
         stats.curse_resist += self.curse_resist;
+        stats.physical_resist += self.physical_resist;
+        stats.magic_resist += self.magic_resist;
         (stats, loadout.combat_items(&reg))
     }
 
@@ -297,7 +304,7 @@ impl Passive {
     pub fn describe(self) -> &'static str {
         match self {
             Passive::Hardened => "regenerates 4 health a second",
-            Passive::Warded => "40% mind and curse resistance",
+            Passive::Warded => "40% mind and curse, 20% physical and magic resistance",
             Passive::Relentless => "every one of its items runs 25% faster",
         }
     }
@@ -310,7 +317,9 @@ pub const RUST_GOLEM: MonsterSpec = MonsterSpec {
     strength: 13,
     regen: 0,
     mind_resist: 0,
-    curse_resist: 0,
+    physical_resist: 7,
+        magic_resist: 7,
+        curse_resist: 0,
     attacks: &[],
     gear: &[
         ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
@@ -334,6 +343,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 2,
         regen: 0,
         mind_resist: 0,
+        physical_resist: 1,
+        magic_resist: 1,
         curse_resist: 0,
         // No gear at all — it just has teeth.
         attacks: &[MonsterAttack::hit("bite", 900, 4)],
@@ -347,6 +358,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 5,
         regen: 1,
         mind_resist: 0,
+        physical_resist: 2,
+        magic_resist: 2,
         curse_resist: 0,
         attacks: &[],
         // A crude club and nothing else.
@@ -363,6 +376,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 5,
         regen: 0,
         mind_resist: 0,
+        physical_resist: 3,
+        magic_resist: 3,
         curse_resist: 0,
         attacks: &[],
         // Fast, light hits: a duelling grip made faster still.
@@ -382,6 +397,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 6,
         regen: 0,
         mind_resist: 0,
+        physical_resist: 3,
+        magic_resist: 3,
         curse_resist: 25,
         attacks: &[],
         // A witch's hat freezes your gear every few seconds.
@@ -400,6 +417,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 8,
         regen: 0,
         mind_resist: 0,
+        physical_resist: 4,
+        magic_resist: 4,
         curse_resist: 0,
         attacks: &[],
         // Claws that chill, and a mana engine to keep hexing.
@@ -418,6 +437,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 14,
         regen: 2,
         mind_resist: 20,
+        physical_resist: 8,
+        magic_resist: 8,
         curse_resist: 20,
         attacks: &[],
         // Halfway up the ladder, and the first opponent whose armour is the
@@ -454,6 +475,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 10,
         regen: 0,
         mind_resist: 0,
+        physical_resist: 6,
+        magic_resist: 6,
         curse_resist: 0,
         attacks: &[],
         // Piles on armour faster than light hits can strip it.
@@ -473,6 +496,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 7,
         regen: 0,
         mind_resist: 0,
+        physical_resist: 4,
+        magic_resist: 4,
         curse_resist: 0,
         attacks: &[],
         // Barely scratches you; lowers your ceiling until there is none.
@@ -492,6 +517,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 12,
         regen: 2,
         mind_resist: 0,
+        physical_resist: 7,
+        magic_resist: 7,
         curse_resist: 55,
         attacks: &[],
         // Shrugs off curses and just keeps hitting.
@@ -511,6 +538,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 11,
         regen: 0,
         mind_resist: 45,
+        physical_resist: 6,
+        magic_resist: 6,
         curse_resist: 20,
         attacks: &[],
         gear: &[
@@ -531,6 +560,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 18,
         regen: 3,
         mind_resist: 30,
+        physical_resist: 10,
+        magic_resist: 5,
         curse_resist: 30,
         attacks: &[],
         // A full five-slot loadout with a reactive charm feeding the blade.
@@ -556,6 +587,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 26,
         regen: 4,
         mind_resist: 40,
+        physical_resist: 18,
+        magic_resist: 13,
         curse_resist: 40,
         attacks: &[],
         // The end of the ladder: every slot filled with the best-rated legal
@@ -595,6 +628,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 28,
         regen: 2,
         mind_resist: 20,
+        physical_resist: 20,
+        magic_resist: 15,
         curse_resist: 20,
         attacks: &[],
         gear: &[
@@ -619,6 +654,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 31,
         regen: 2,
         mind_resist: 23,
+        physical_resist: 23,
+        magic_resist: 18,
         curse_resist: 23,
         attacks: &[],
         gear: &[
@@ -646,6 +683,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 34,
         regen: 2,
         mind_resist: 26,
+        physical_resist: 26,
+        magic_resist: 21,
         curse_resist: 26,
         attacks: &[],
         gear: &[
@@ -672,6 +711,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 37,
         regen: 3,
         mind_resist: 29,
+        physical_resist: 29,
+        magic_resist: 24,
         curse_resist: 29,
         attacks: &[],
         gear: &[
@@ -698,6 +739,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 40,
         regen: 3,
         mind_resist: 32,
+        physical_resist: 33,
+        magic_resist: 28,
         curse_resist: 32,
         attacks: &[],
         gear: &[
@@ -724,6 +767,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 43,
         regen: 3,
         mind_resist: 35,
+        physical_resist: 36,
+        magic_resist: 31,
         curse_resist: 35,
         attacks: &[],
         gear: &[
@@ -751,6 +796,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 46,
         regen: 4,
         mind_resist: 38,
+        physical_resist: 39,
+        magic_resist: 34,
         curse_resist: 38,
         attacks: &[],
         gear: &[
@@ -778,6 +825,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 49,
         regen: 4,
         mind_resist: 41,
+        physical_resist: 42,
+        magic_resist: 37,
         curse_resist: 41,
         attacks: &[],
         gear: &[
@@ -808,6 +857,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 52,
         regen: 4,
         mind_resist: 44,
+        physical_resist: 45,
+        magic_resist: 40,
         curse_resist: 44,
         attacks: &[],
         gear: &[
@@ -838,6 +889,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 55,
         regen: 5,
         mind_resist: 47,
+        physical_resist: 45,
+        magic_resist: 40,
         curse_resist: 47,
         attacks: &[],
         gear: &[
@@ -869,6 +922,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 58,
         regen: 5,
         mind_resist: 50,
+        physical_resist: 45,
+        magic_resist: 40,
         curse_resist: 50,
         attacks: &[],
         gear: &[
@@ -898,6 +953,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 61,
         regen: 5,
         mind_resist: 53,
+        physical_resist: 45,
+        magic_resist: 40,
         curse_resist: 53,
         attacks: &[],
         gear: &[
@@ -928,6 +985,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 64,
         regen: 6,
         mind_resist: 56,
+        physical_resist: 45,
+        magic_resist: 40,
         curse_resist: 56,
         attacks: &[],
         gear: &[
@@ -957,6 +1016,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 67,
         regen: 6,
         mind_resist: 59,
+        physical_resist: 45,
+        magic_resist: 40,
         curse_resist: 59,
         attacks: &[],
         gear: &[
@@ -987,6 +1048,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 70,
         regen: 6,
         mind_resist: 62,
+        physical_resist: 45,
+        magic_resist: 40,
         curse_resist: 62,
         attacks: &[],
         gear: &[
@@ -1016,6 +1079,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 73,
         regen: 7,
         mind_resist: 65,
+        physical_resist: 45,
+        magic_resist: 40,
         curse_resist: 65,
         attacks: &[],
         gear: &[
@@ -1046,6 +1111,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 76,
         regen: 7,
         mind_resist: 68,
+        physical_resist: 45,
+        magic_resist: 40,
         curse_resist: 68,
         attacks: &[],
         gear: &[
@@ -1077,6 +1144,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 79,
         regen: 7,
         mind_resist: 70,
+        physical_resist: 45,
+        magic_resist: 40,
         curse_resist: 70,
         attacks: &[],
         gear: &[
@@ -1107,6 +1176,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 82,
         regen: 8,
         mind_resist: 70,
+        physical_resist: 45,
+        magic_resist: 40,
         curse_resist: 70,
         attacks: &[],
         gear: &[
@@ -1138,6 +1209,8 @@ pub const LADDER: &[MonsterSpec] = &[
         strength: 85,
         regen: 8,
         mind_resist: 70,
+        physical_resist: 45,
+        magic_resist: 40,
         curse_resist: 70,
         attacks: &[],
         gear: &[
@@ -1410,6 +1483,8 @@ impl Combatant {
                 Passive::Warded => {
                     stats.mind_resist += 40;
                     stats.curse_resist += 40;
+                    stats.physical_resist += 20;
+                    stats.magic_resist += 20;
                 }
                 Passive::Relentless => haste = 125,
             }

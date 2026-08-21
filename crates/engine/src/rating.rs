@@ -36,11 +36,22 @@ mod weight {
     pub const POWER: f32 = 0.45;
     pub const MIND_RESIST: f32 = 0.7;
     pub const CURSE_RESIST: f32 = 0.7;
+    /// Resistance answers the two damage types most attacks are made of, so a
+    /// point of it is worth more than a point of the niche resistances.
+    pub const RESIST: f32 = 1.0;
+    /// Piercing is only worth what the other side is resisting, and hardening
+    /// only worth what they are piercing - both are situational, so both are
+    /// discounted against flat resistance.
+    pub const PIERCE: f32 = 0.5;
+    pub const HARDEN: f32 = 0.55;
 
     /// Points per point-per-second of each activated stat.
     pub const DAMAGE_PS: f32 = 2.6;
     pub const ARMOR_PS: f32 = 1.5;
     pub const MANA_PS: f32 = 4.0;
+    /// Rage, faith and nature are banked the same way mana is and, like mana,
+    /// pay out while merely held. Worth the same per point.
+    pub const RESOURCE_PS: f32 = 4.0;
     /// Mind damage eats maximum health, which regen can never win back.
     pub const MIND_PS: f32 = 7.0;
 
@@ -161,13 +172,17 @@ fn standing_points(s: &Stats) -> f32 {
         + s.power as f32 * weight::POWER
         + s.mind_resist as f32 * weight::MIND_RESIST
         + s.curse_resist as f32 * weight::CURSE_RESIST
+        + (s.physical_resist + s.magic_resist) as f32 * weight::RESIST
+        + (s.physical_pierce + s.magic_pierce) as f32 * weight::PIERCE
+        + (s.physical_harden + s.magic_harden) as f32 * weight::HARDEN
 }
 
 /// Stats granted once per activation, scored at `rate` activations a second.
 fn activated_points(s: &Stats, rate: f32) -> f32 {
-    (s.damage as f32 * weight::DAMAGE_PS
+    ((s.damage + s.physical_damage + s.magic_damage) as f32 * weight::DAMAGE_PS
         + s.armor as f32 * weight::ARMOR_PS
         + s.mana as f32 * weight::MANA_PS
+        + (s.rage + s.faith + s.nature) as f32 * weight::RESOURCE_PS
         + s.mind as f32 * weight::MIND_PS)
         * rate
 }
@@ -202,7 +217,7 @@ fn action_points(a: &Action) -> f32 {
         Action::GainMana(n) => *n as f32 * weight::MANA_PS,
         // The other pools are each worth roughly what mana is: all four are
         // banked the same way and all four pay out while merely held.
-        Action::Gain { amount, .. } => *amount as f32 * weight::MANA_PS,
+        Action::Gain { amount, .. } => *amount as f32 * weight::RESOURCE_PS,
         Action::GainArmor(n) => *n as f32 * weight::ARMOR_PS,
         Action::ReduceCooldown(ms) => *ms as f32 / 1000.0 * weight::HASTE_PS,
         Action::GainEmpowerment(n) => *n as f32 * weight::STACK_PS,

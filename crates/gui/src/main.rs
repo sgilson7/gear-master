@@ -2900,6 +2900,15 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("ROGUE", "A mode. Losing costs one of three lives; the third ends the run and takes everything with it."),
     ("BOUNTY", "Paid whether you win or lose. Losing never moves you up the ladder, but it does pay - a run with no income cannot buy its way past whatever just beat it."),
     ("UNDO", "Steps the board back one change. It covers placing, moving, turning and clearing, but never a purchase."),
+    ("PHYSICAL / MAGIC", "The two damage types. Most gear deals one or the other, and each has its own set of defences. Untyped damage - a curse's burn, a creature's bite - answers to none of them."),
+    ("RESISTANCE", "Cuts incoming damage of its type, in percent."),
+    ("PIERCING", "Ignores that much of the target's resistance of that type. Stacking resistance alone loses to a pierced attacker."),
+    ("HARDENING", "Blunts that much of an attacker's piercing. Stacking piercing alone loses to a hardened defender."),
+    ("RAGE", "Banked by some gear. Every point adds physical damage while you hold it, and some triggers spend it for a burst."),
+    ("FAITH", "Banked slowly. Every point adds resistance of both types while held, up to 40%."),
+    ("NATURE", "Banked by growing things. Every point adds regeneration while held."),
+    ("CLASS", "Given once, by the fountain on the fifth rung. Which one you get is read off your build, and the panel shows what you would be given before you drink."),
+    ("THE FOUNTAIN", "Not a fight. It measures your gear along a set of axes - how much magic, how much iron, how fast, how woven together - and names you accordingly."),
 ];
 
 /// The key to a tile: which motif means which slot, which corner mark means
@@ -3657,6 +3666,28 @@ fn render_panel(
         || {
             let mut lines = vec![("PER SECOND".to_string(), col_gold())];
             lines.extend(cells.iter().cloned());
+            // The defence triangle has no room in the panel proper, and a
+            // player who has stacked 40% resist should be able to find out.
+            let mut def: Vec<(String, Color)> = Vec::new();
+            for (v, label) in [
+                (stats.physical_resist, "physical resist"),
+                (stats.physical_pierce, "physical piercing"),
+                (stats.physical_harden, "physical hardening"),
+                (stats.magic_resist, "magic resist"),
+                (stats.magic_pierce, "magic piercing"),
+                (stats.magic_harden, "magic hardening"),
+                (stats.mind_resist, "mind resist"),
+                (stats.curse_resist, "curse resist"),
+            ] {
+                if v != 0 {
+                    def.push((format!("{}% {}", v, label), LIGHTGRAY));
+                }
+            }
+            if !def.is_empty() {
+                lines.push((String::new(), col_dim()));
+                lines.push(("DEFENCES".to_string(), col_gold()));
+                lines.extend(def);
+            }
             lines
         },
     );
