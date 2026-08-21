@@ -721,8 +721,9 @@ enum Profile {
     /// The same, but choosing by worth per cell rather than worth outright -
     /// which is what packing tightly actually rewards.
     ValuePacker,
-    /// Fills every grid choosing by cadence, on the evidence that a fast build
-    /// out-damages a well-rated one.
+    /// Fills every grid choosing by worth per second - the time axis, where
+    /// `ValuePacker` is the space one. Tests whether a build of many fast
+    /// small triggers beats a build of few strong slow ones.
     SpeedPacker,
 }
 
@@ -745,7 +746,7 @@ impl Profile {
             Profile::Optimiser => "optimiser (best)",
             Profile::Packer => "packer (dense)",
             Profile::ValuePacker => "packer (per cell)",
-            Profile::SpeedPacker => "packer (fast)",
+            Profile::SpeedPacker => "packer (per sec)",
         }
     }
 }
@@ -771,7 +772,8 @@ fn pack_dense(slot: SlotKind, rank: impl Fn(&PieceDefRef) -> i32) -> Vec<(&'stat
                 .iter()
                 .map(|n| CATALOG.iter().find(|c| c.name == *n).unwrap().cells.len() as i32)
                 .sum();
-            (rank(&PieceDefRef { rating: r, cells }), names)
+            let cooldown_ms = candidate_cooldown(slot, &names);
+            (rank(&PieceDefRef { rating: r, cells, cooldown_ms }), names)
         })
         .collect();
     ranked.sort_by_key(|(r, _)| std::cmp::Reverse(*r));
@@ -870,7 +872,12 @@ fn choose(profile: Profile, slot: SlotKind, seed: u64) -> Option<Vec<(&'static s
         Profile::ValuePacker => {
             return Some(pack_dense(slot, |d| d.rating * 100 / d.cells.max(1)))
         }
-        Profile::SpeedPacker => return Some(pack_dense(slot, |d| d.rating * 60 / d.cells.max(1))),
+        // Worth per second, not per cell. These two were once the same
+        // function with a different scale factor on it, so they sorted
+        // identically and the run learned nothing from having both.
+        Profile::SpeedPacker => {
+            return Some(pack_dense(slot, |d| d.rating * 1000 / d.cooldown_ms.max(1)))
+        }
         _ => {}
     }
     let mut cands: Vec<(i32, Vec<&'static str>)> = cached_candidates(slot).to_vec();
@@ -1075,6 +1082,28 @@ fn show_gear_by_difficulty() {
 pub struct PieceDefRef {
     pub rating: i32,
     pub cells: i32,
+    /// How often the assembled item fires, in ms between triggers. Computed the
+    /// same way `Loadout::report` does it: the core piece's cooldown, or its
+    /// kind's default, divided by the speed the whole set adds up to.
+    pub cooldown_ms: i32,
+}
+
+/// The cadence a candidate would assemble at.
+///
+/// Mirrors the cooldown arithmetic in `Loadout::report`. It has to be
+/// recomputed here rather than read off a built item because ranking happens
+/// before anything is placed.
+fn candidate_cooldown(slot: SlotKind, names: &[&'static str]) -> i32 {
+    use gearmaster_engine::curse::TICK_MS;
+    use gearmaster_engine::piece::default_cooldown_ms;
+
+    let defs = || names.iter().filter_map(|n| CATALOG.iter().find(|c| c.name == *n));
+    let base = defs()
+        .find(|d| d.kind.is_core())
+        .map(|d| if d.cooldown_ms == 0 { default_cooldown_ms(slot) } else { d.cooldown_ms })
+        .unwrap_or_else(|| default_cooldown_ms(slot)) as i32;
+    let speed = (100 + defs().map(|d| d.speed_bonus).sum::<i32>()).max(10);
+    (base * 100 / speed).max(TICK_MS as i32)
 }
 
 #[test]
@@ -1083,18 +1112,28 @@ fn how_dense_is_dense() {
     for slot in SlotKind::ALL {
         let by_worth = pack_dense(slot, |d| d.rating);
         let by_cell = pack_dense(slot, |d| d.rating * 100 / d.cells.max(1));
+        let by_sec = pack_dense(slot, |d| d.rating * 1000 / d.cooldown_ms.max(1));
         let cells = |p: &[(&'static str, u8, u8, u8)]| -> usize {
             p.iter()
                 .map(|(n, ..)| CATALOG.iter().find(|c| c.name == *n).unwrap().cells.len())
                 .sum()
         };
+        let names = |p: &[(&'static str, u8, u8, u8)]| -> Vec<&str> {
+            let mut v: Vec<&str> = p.iter().map(|(n, ..)| *n).collect();
+            v.sort();
+            v
+        };
         println!(
-            "{:<11} by worth: {:>2} pieces {:>2}/48 cells   per cell: {:>2} pieces {:>2}/48 cells",
+            "{:<11} worth {:>2}p/{:>2}c   per cell {:>2}p/{:>2}c   per sec {:>2}p/{:>2}c   \
+             cell==sec: {}",
             slot.name(),
             by_worth.len(),
             cells(&by_worth),
             by_cell.len(),
-            cells(&by_cell)
+            cells(&by_cell),
+            by_sec.len(),
+            cells(&by_sec),
+            names(&by_cell) == names(&by_sec)
         );
     }
 }

@@ -129,6 +129,11 @@ pub struct MonsterSpec {
     /// This is the dial for a monster that is out of step with its rung -
     /// preferable to rewriting its loadout, because the harder settings still
     /// climb from wherever it is put.
+    ///
+    /// Every monster sits at 0. Eight mid-ladder ones were once stepped down
+    /// to soften a wall at rung 9, but the wall turned out to be the balance
+    /// harness packing its builds too loosely, not the monsters. Move one off
+    /// zero only with evidence from a densely packed profile.
     pub gear_offset: i32,
     /// Gold awarded for beating it.
     pub bounty: i32,
@@ -622,7 +627,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
             ("Whetstone", SlotKind::Weapon, 2, 0, 0),
         ],
-        gear_offset: -1,
+        gear_offset: 0,
         bounty: 30,
     sprite: MonsterSprite::Idol,
     },
@@ -645,7 +650,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Steel Material", SlotKind::Gloves, 0, 0, 0),
             ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 0),
         ],
-        gear_offset: -1,
+        gear_offset: 0,
         bounty: 34,
     sprite: MonsterSprite::Fiend,
     },
@@ -673,7 +678,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Boiled Leather", SlotKind::Greaves, 0, 0, 0),
             ("Grave-Iron Mold", SlotKind::Greaves, 0, 2, 0),
         ],
-        gear_offset: -1,
+        gear_offset: 0,
         bounty: 44,
     sprite: MonsterSprite::King,
     },
@@ -709,7 +714,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Wandering Root", SlotKind::Greaves, 0, 0, 0),
             ("Runner's Mold", SlotKind::Greaves, 2, 0, 0),
         ],
-        gear_offset: -1,
+        gear_offset: 0,
         bounty: 75,
         sprite: MonsterSprite::Gearwright,
     },
@@ -742,7 +747,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Bloodletter's Ink", SlotKind::Weapon, 2, 0, 0),
             ("Warding Sigil", SlotKind::Weapon, 4, 0, 0),
         ],
-        gear_offset: -1,
+        gear_offset: 0,
         bounty: 80,
         sprite: MonsterSprite::Golem,
     },
@@ -772,7 +777,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Warding Sigil", SlotKind::Weapon, 2, 0, 0),
             ("Prismatic Ink", SlotKind::Weapon, 4, 0, 0),
         ],
-        gear_offset: -1,
+        gear_offset: 0,
         bounty: 89,
         sprite: MonsterSprite::Sentinel,
     },
@@ -801,7 +806,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Cursed Blade", SlotKind::Weapon, 1, 0, 0),
             ("Fury Sigil", SlotKind::Weapon, 2, 0, 0),
         ],
-        gear_offset: -1,
+        gear_offset: 0,
         bounty: 98,
         sprite: MonsterSprite::Wraith,
     },
@@ -831,7 +836,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Whetstone", SlotKind::Weapon, 2, 0, 0),
             ("Fury Sigil", SlotKind::Weapon, 3, 0, 0),
         ],
-        gear_offset: -1,
+        gear_offset: 0,
         bounty: 107,
         sprite: MonsterSprite::Idol,
     },
