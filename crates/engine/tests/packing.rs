@@ -935,11 +935,16 @@ fn balance_report() {
 #[ignore]
 fn show_gear_by_difficulty() {
     use gearmaster_engine::combat::{Difficulty, LADDER};
-    for spec in LADDER.iter().filter(|m| !m.gear.is_empty()).take(4) {
+    let wall = ["Warded Idol", "Mirror Fiend", "The Hollow King"];
+    for spec in LADDER.iter().filter(|m| wall.contains(&m.name)) {
         println!("\n{}", spec.name);
         for &d in Difficulty::ALL {
             let names: Vec<&str> = spec.gear_at(d).iter().map(|g| g.0).collect();
             println!("  {:<8} {}", d.name(), names.join(", "));
+        }
+        {
+            let written: Vec<&str> = spec.gear.iter().map(|g| g.0).collect();
+            println!("  {:<8} {}", "written", written.join(", "));
         }
     }
 }

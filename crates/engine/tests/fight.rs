@@ -45,6 +45,7 @@ const DUMMY: MonsterSpec = MonsterSpec {
     curse_resist: 0,
     attacks: &[],
     gear: &[],
+    gear_offset: 0,
     bounty: 0,
     sprite: gearmaster_engine::combat::MonsterSprite::Rat,
 };
@@ -60,6 +61,7 @@ const PUNCHER: MonsterSpec = MonsterSpec {
     curse_resist: 0,
     attacks: &[MonsterAttack::hit("jab", 1000, 10)],
     gear: &[],
+    gear_offset: 0,
     bounty: 0,
     sprite: gearmaster_engine::combat::MonsterSprite::Rat,
 };
@@ -333,6 +335,7 @@ fn curse_resistance_shortens_the_burn() {
         curse_resist: 50,
         attacks: &[],
         gear: &[],
+        gear_offset: 0,
         bounty: 0,
         sprite: gearmaster_engine::combat::MonsterSprite::Rat,
     };
@@ -397,6 +400,7 @@ fn mind_damage_eats_maximum_health_and_cannot_be_healed_back() {
     curse_resist: 0,
         attacks: &[MonsterAttack::mind("whisper", 1000, 4)],
         gear: &[],
+        gear_offset: 0,
         bounty: 0,
         sprite: gearmaster_engine::combat::MonsterSprite::Rat,
     };
@@ -428,6 +432,7 @@ fn mind_resistance_blunts_it() {
     curse_resist: 0,
         attacks: &[MonsterAttack::mind("whisper", 1000, 10)],
         gear: &[],
+        gear_offset: 0,
         bounty: 0,
         sprite: gearmaster_engine::combat::MonsterSprite::Rat,
     };

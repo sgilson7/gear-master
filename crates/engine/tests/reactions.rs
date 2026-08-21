@@ -20,6 +20,7 @@ const DUMMY: MonsterSpec = MonsterSpec {
     curse_resist: 0,
     attacks: &[],
     gear: &[],
+    gear_offset: 0,
     bounty: 0,
     sprite: gearmaster_engine::combat::MonsterSprite::Rat,
 };
@@ -264,6 +265,7 @@ fn mana_shield_blunts_every_kind_of_damage() {
     curse_resist: 0,
         attacks: &[gearmaster_engine::combat::MonsterAttack::hit("jab", 1000, 20)],
         gear: &[],
+        gear_offset: 0,
         bounty: 0,
         sprite: gearmaster_engine::combat::MonsterSprite::Rat,
     };
