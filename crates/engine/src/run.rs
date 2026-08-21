@@ -1,5 +1,5 @@
 use crate::combat::{
-    simulate_at, CombatLog, Difficulty, Event, MonsterSpec, Outcome, Side, LADDER, RUST_GOLEM,
+    CombatLog, Difficulty, Event, MonsterSpec, Outcome, Side, LADDER, RUST_GOLEM,
 };
 use crate::loadout::{Loadout, SlotReport};
 use crate::piece::{all_def_indices, PieceId, PieceRegistry, QuestTrack, SlotKind, CATALOG};
