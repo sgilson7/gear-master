@@ -95,6 +95,44 @@ pub enum MonsterSprite {
     Idol,
     Fiend,
     King,
+    // Added when the ladder grew to forty-nine and thirteen silhouettes were
+    // being shared five ways. A creature you cannot tell from the last one is
+    // a creature you have not really met.
+    Francis,
+    Marshal,
+    Null,
+    Lantern,
+    Choir,
+    Silence,
+    Hourglass,
+    Tallow,
+    Weeping,
+    Wedding,
+    Twin,
+    Mirror,
+    Sootmother,
+    Ashes,
+    Crown,
+    Drowned,
+    Anvil,
+    Parliament,
+    Abbot,
+    Gilt,
+    Vermin,
+    Behemoth,
+    Cantor,
+    Ember,
+    Rimefather,
+    Slag,
+    Obsidian,
+    Gallows,
+    CogPriest,
+    RuinHound,
+    Salt,
+    Verdigris,
+    March,
+    Bells,
+    Colossus,
 }
 
 /// One entry in a monster's loadout: `(component, slot, x, y, quarter turns)`.
@@ -693,7 +731,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 44,
-        sprite: MonsterSprite::Golem,
+        sprite: MonsterSprite::Colossus,
     },
     MonsterSpec {
         name: "Ashen Marshal",
@@ -723,7 +761,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 75,
-        sprite: MonsterSprite::Sentinel,
+        sprite: MonsterSprite::Marshal,
     },
     MonsterSpec {
         name: "Grave Chorus",
@@ -752,7 +790,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 80,
-        sprite: MonsterSprite::Wraith,
+        sprite: MonsterSprite::Choir,
     },
     MonsterSpec {
         name: "The Hollow King",
@@ -810,7 +848,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 98,
-        sprite: MonsterSprite::Idol,
+        sprite: MonsterSprite::Salt,
     },
     MonsterSpec {
         name: "Pale Twin",
@@ -840,7 +878,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 107,
-        sprite: MonsterSprite::Fiend,
+        sprite: MonsterSprite::Twin,
     },
     MonsterSpec {
         name: "Ruin Hound",
@@ -872,7 +910,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 116,
-        sprite: MonsterSprite::Hound,
+        sprite: MonsterSprite::RuinHound,
     },
     MonsterSpec {
         name: "Bone Cantor",
@@ -904,7 +942,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 125,
-        sprite: MonsterSprite::Archer,
+        sprite: MonsterSprite::Cantor,
     },
     MonsterSpec {
         name: "Ember Wisp",
@@ -937,7 +975,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 134,
-        sprite: MonsterSprite::Wisp,
+        sprite: MonsterSprite::Ember,
     },
     MonsterSpec {
         name: "Slag Warden",
@@ -968,7 +1006,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 143,
-        sprite: MonsterSprite::Warden,
+        sprite: MonsterSprite::Slag,
     },
     MonsterSpec {
         name: "The Gearwright",
@@ -1042,7 +1080,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 161,
-        sprite: MonsterSprite::King,
+        sprite: MonsterSprite::Crown,
     },
     MonsterSpec {
         name: "Cog Priest",
@@ -1075,7 +1113,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 170,
-        sprite: MonsterSprite::Gearwright,
+        sprite: MonsterSprite::CogPriest,
     },
     MonsterSpec {
         name: "Mire Behemoth",
@@ -1108,7 +1146,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 179,
-        sprite: MonsterSprite::Toad,
+        sprite: MonsterSprite::Behemoth,
     },
     MonsterSpec {
         name: "Vermin Sovereign",
@@ -1142,7 +1180,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 188,
-        sprite: MonsterSprite::Rat,
+        sprite: MonsterSprite::Vermin,
     },
     MonsterSpec {
         name: "Obsidian Colossus",
@@ -1176,7 +1214,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 197,
-        sprite: MonsterSprite::Golem,
+        sprite: MonsterSprite::Obsidian,
     },
     MonsterSpec {
         name: "Null Sentinel",
@@ -1209,7 +1247,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 206,
-        sprite: MonsterSprite::Sentinel,
+        sprite: MonsterSprite::Null,
     },
     MonsterSpec {
         name: "Silence",
@@ -1243,7 +1281,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 215,
-        sprite: MonsterSprite::Wraith,
+        sprite: MonsterSprite::Silence,
     },
     MonsterSpec {
         name: "Weeping Idol",
@@ -1277,7 +1315,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 224,
-        sprite: MonsterSprite::Idol,
+        sprite: MonsterSprite::Weeping,
     },
     MonsterSpec {
         name: "The Long Mirror",
@@ -1311,7 +1349,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 233,
-        sprite: MonsterSprite::Fiend,
+        sprite: MonsterSprite::Mirror,
     },
     MonsterSpec {
         name: "Iron Abbot",
@@ -1345,7 +1383,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 242,
-        sprite: MonsterSprite::Warden,
+        sprite: MonsterSprite::Abbot,
     },
     MonsterSpec {
         name: "The Last Gearwright",
@@ -1413,7 +1451,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 262,
-        sprite: MonsterSprite::Wisp,
+        sprite: MonsterSprite::Rimefather,
     },
     MonsterSpec {
         name: "The Tallow Saint",
@@ -1449,7 +1487,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 273,
-        sprite: MonsterSprite::Idol,
+        sprite: MonsterSprite::Tallow,
     },
     MonsterSpec {
         name: "Hollowmarch",
@@ -1485,7 +1523,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 284,
-        sprite: MonsterSprite::King,
+        sprite: MonsterSprite::March,
     },
     MonsterSpec {
         name: "The Iron Choir",
@@ -1520,7 +1558,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 295,
-        sprite: MonsterSprite::Wraith,
+        sprite: MonsterSprite::Bells,
     },
     MonsterSpec {
         name: "Gallowglass",
@@ -1556,7 +1594,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 306,
-        sprite: MonsterSprite::Warden,
+        sprite: MonsterSprite::Gallows,
     },
     MonsterSpec {
         name: "The Rust Parliament",
@@ -1591,7 +1629,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 317,
-        sprite: MonsterSprite::Golem,
+        sprite: MonsterSprite::Parliament,
     },
     MonsterSpec {
         name: "Sootmother",
@@ -1626,7 +1664,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 328,
-        sprite: MonsterSprite::Fiend,
+        sprite: MonsterSprite::Sootmother,
     },
     MonsterSpec {
         name: "The Quiet Hour",
@@ -1662,7 +1700,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 339,
-        sprite: MonsterSprite::Wraith,
+        sprite: MonsterSprite::Hourglass,
     },
     MonsterSpec {
         name: "Verdigris",
@@ -1698,7 +1736,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 350,
-        sprite: MonsterSprite::Sentinel,
+        sprite: MonsterSprite::Verdigris,
     },
     MonsterSpec {
         name: "The Drowned Court",
@@ -1734,7 +1772,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 361,
-        sprite: MonsterSprite::King,
+        sprite: MonsterSprite::Drowned,
     },
     MonsterSpec {
         name: "Anvilheart",
@@ -1770,7 +1808,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 372,
-        sprite: MonsterSprite::Golem,
+        sprite: MonsterSprite::Anvil,
     },
     MonsterSpec {
         name: "The Salt Wedding",
@@ -1806,7 +1844,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 383,
-        sprite: MonsterSprite::Idol,
+        sprite: MonsterSprite::Wedding,
     },
     MonsterSpec {
         name: "Nine of Ashes",
@@ -1842,7 +1880,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 394,
-        sprite: MonsterSprite::Fiend,
+        sprite: MonsterSprite::Ashes,
     },
     MonsterSpec {
         name: "The Last Light",
@@ -1878,7 +1916,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 405,
-        sprite: MonsterSprite::Sentinel,
+        sprite: MonsterSprite::Lantern,
     },
     MonsterSpec {
         name: "Gilt",
@@ -1914,7 +1952,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 416,
-        sprite: MonsterSprite::Gearwright,
+        sprite: MonsterSprite::Gilt,
     },
     // The top of the ladder. Everything above the Gearwright wears the best
     // the shop can sell; Francis wears something it never could.
@@ -1949,7 +1987,7 @@ pub const LADDER: &[MonsterSpec] = &[
         ],
         gear_offset: 0,
         bounty: 500,
-        sprite: MonsterSprite::King,
+        sprite: MonsterSprite::Francis,
     },
 ];
 

@@ -790,3 +790,39 @@ fn the_worn_path_stops_at_francis() {
     assert!(run.skip_to(LADDER.len() - 1).is_some(), "but Francis himself is reachable");
     assert_eq!(run.rung, LADDER.len() - 1);
 }
+
+/// A creature you cannot tell from the last one is a creature you have not
+/// really met. The ladder ran forty-eight monsters through thirteen
+/// silhouettes at one point, five of them sharing a single drawing.
+#[test]
+fn almost_every_monster_has_a_silhouette_of_its_own() {
+    use std::collections::HashMap;
+    let mut by: HashMap<String, Vec<&str>> = HashMap::new();
+    for m in LADDER {
+        by.entry(format!("{:?}", m.sprite)).or_default().push(m.name);
+    }
+    for (sprite, wearers) in &by {
+        assert!(
+            wearers.len() <= 2,
+            "{} is doing the work of {}: {:?}",
+            sprite,
+            wearers.len(),
+            wearers
+        );
+    }
+    // And sharing at all should be rare and deliberate - the two Gearwrights
+    // are the same character at two points on the climb.
+    let shared: Vec<&String> = by.iter().filter(|(_, w)| w.len() > 1).map(|(s, _)| s).collect();
+    assert!(shared.len() <= 1, "too many creatures doubling up: {:?}", shared);
+}
+
+/// The boss at the top of the ladder does not borrow anybody's face.
+#[test]
+fn francis_has_a_face_of_his_own() {
+    let francis = LADDER.last().expect("a ladder has a top");
+    let others = LADDER[..LADDER.len() - 1]
+        .iter()
+        .filter(|m| format!("{:?}", m.sprite) == format!("{:?}", francis.sprite))
+        .count();
+    assert_eq!(others, 0, "Francis is wearing somebody else's silhouette");
+}

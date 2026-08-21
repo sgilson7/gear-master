@@ -573,6 +573,597 @@ fn draw_monster(x: f32, y: f32, sz: f32, sprite: MonsterSprite, c: Color, dark: 
                 c,
             );
         }
+
+        // ---- added when thirteen silhouettes were serving forty-eight
+        // creatures. Each of these has to read differently in a 60px box at a
+        // glance, so they are built around distinct outlines rather than
+        // distinct details: a tall thing, a wide thing, a many-thing.
+
+        // Francis. A crowned figure so laden with coin it has no edges left.
+        MonsterSprite::Francis => {
+            draw_ellipse(fx(0.5), fy(0.66), sz * 0.34, sz * 0.26, 0.0, c);
+            draw_circle(fx(0.5), fy(0.34), sz * 0.15, c);
+            // A heavy crown, five points.
+            for i in 0..5 {
+                let f = 0.30 + i as f32 * 0.10;
+                draw_triangle(
+                    Vec2::new(fx(f - 0.04), fy(0.22)),
+                    Vec2::new(fx(f), fy(0.08)),
+                    Vec2::new(fx(f + 0.04), fy(0.22)),
+                    c,
+                );
+            }
+            draw_rectangle(fx(0.26), fy(0.20), sz * 0.48, sz * 0.05, c);
+            // Coins spilling down the front.
+            for (a, b) in [(0.36, 0.56), (0.5, 0.62), (0.64, 0.56), (0.43, 0.72), (0.57, 0.72)] {
+                draw_circle(fx(a), fy(b), sz * 0.055, dark);
+            }
+            draw_circle(fx(0.44), fy(0.33), sz * 0.025, dark);
+            draw_circle(fx(0.56), fy(0.33), sz * 0.025, dark);
+        }
+        // A standard-bearer: one long pole, one hanging banner.
+        MonsterSprite::Marshal => {
+            draw_line(fx(0.34), fy(0.10), fx(0.34), fy(0.92), t * 1.4, c);
+            draw_triangle(
+                Vec2::new(fx(0.34), fy(0.12)),
+                Vec2::new(fx(0.84), fy(0.24)),
+                Vec2::new(fx(0.34), fy(0.46)),
+                c,
+            );
+            draw_line(fx(0.42), fy(0.22), fx(0.68), fy(0.28), t, dark);
+            draw_circle(fx(0.34), fy(0.60), sz * 0.11, c);
+            draw_ellipse(fx(0.34), fy(0.80), sz * 0.16, sz * 0.12, 0.0, c);
+        }
+        // Nothing at all, with an edge around it.
+        MonsterSprite::Null => {
+            draw_circle_lines(fx(0.5), fy(0.5), sz * 0.36, t * 1.6, c);
+            draw_circle_lines(fx(0.5), fy(0.5), sz * 0.22, t, dark);
+            for i in 0..4 {
+                let a = i as f32 * std::f32::consts::TAU / 4.0 + 0.4;
+                draw_line(
+                    fx(0.5) + a.cos() * sz * 0.36,
+                    fy(0.5) + a.sin() * sz * 0.36,
+                    fx(0.5) + a.cos() * sz * 0.48,
+                    fy(0.5) + a.sin() * sz * 0.48,
+                    t,
+                    c,
+                );
+            }
+        }
+        // A lamp on a hook, with the last of the light in it.
+        MonsterSprite::Lantern => {
+            draw_line(fx(0.5), fy(0.06), fx(0.5), fy(0.22), t, c);
+            draw_rectangle(fx(0.32), fy(0.22), sz * 0.36, sz * 0.06, c);
+            draw_rectangle_lines(fx(0.30), fy(0.28), sz * 0.40, sz * 0.44, t * 1.4, c);
+            draw_circle(fx(0.5), fy(0.50), sz * 0.11, c);
+            draw_circle(fx(0.5), fy(0.50), sz * 0.05, dark);
+            draw_rectangle(fx(0.32), fy(0.72), sz * 0.36, sz * 0.06, c);
+            for f in [0.38f32, 0.62] {
+                draw_line(fx(f), fy(0.78), fx(f), fy(0.92), t, c);
+            }
+        }
+        // Three throats, one note.
+        MonsterSprite::Choir => {
+            for (i, f) in [0.22f32, 0.5, 0.78].iter().enumerate() {
+                let top = 0.30 + (i as f32 - 1.0).abs() * 0.08;
+                draw_circle(fx(*f), fy(top), sz * 0.11, c);
+                draw_ellipse(fx(*f), fy(top + 0.30), sz * 0.13, sz * 0.22, 0.0, c);
+                // Open mouths.
+                draw_ellipse(fx(*f), fy(top + 0.05), sz * 0.03, sz * 0.05, 0.0, dark);
+            }
+        }
+        // A mouth held shut, and nothing coming out of it.
+        MonsterSprite::Silence => {
+            draw_ellipse(fx(0.5), fy(0.46), sz * 0.28, sz * 0.36, 0.0, c);
+            draw_line(fx(0.30), fy(0.52), fx(0.70), fy(0.52), t * 2.2, dark);
+            draw_line(fx(0.36), fy(0.38), fx(0.46), fy(0.38), t, dark);
+            draw_line(fx(0.54), fy(0.38), fx(0.64), fy(0.38), t, dark);
+            // A hand across it.
+            draw_line(fx(0.18), fy(0.62), fx(0.82), fy(0.58), t * 1.6, c);
+            draw_ellipse(fx(0.5), fy(0.86), sz * 0.22, sz * 0.10, 0.0, c);
+        }
+        // Time, running out.
+        MonsterSprite::Hourglass => {
+            draw_rectangle(fx(0.24), fy(0.10), sz * 0.52, sz * 0.06, c);
+            draw_rectangle(fx(0.24), fy(0.84), sz * 0.52, sz * 0.06, c);
+            draw_triangle(
+                Vec2::new(fx(0.28), fy(0.16)),
+                Vec2::new(fx(0.72), fy(0.16)),
+                Vec2::new(fx(0.5), fy(0.50)),
+                c,
+            );
+            draw_triangle(
+                Vec2::new(fx(0.28), fy(0.84)),
+                Vec2::new(fx(0.72), fy(0.84)),
+                Vec2::new(fx(0.5), fy(0.50)),
+                c,
+            );
+            draw_triangle(
+                Vec2::new(fx(0.36), fy(0.78)),
+                Vec2::new(fx(0.64), fy(0.78)),
+                Vec2::new(fx(0.5), fy(0.60)),
+                dark,
+            );
+        }
+        // A candle burnt most of the way down.
+        MonsterSprite::Tallow => {
+            draw_ellipse(fx(0.5), fy(0.24), sz * 0.07, sz * 0.14, 0.0, c);
+            draw_circle(fx(0.5), fy(0.30), sz * 0.04, dark);
+            draw_rectangle(fx(0.38), fy(0.40), sz * 0.24, sz * 0.42, c);
+            // Wax running down one side.
+            for (a, b) in [(0.36, 0.52), (0.36, 0.64), (0.64, 0.58)] {
+                draw_circle(fx(a), fy(b), sz * 0.045, c);
+            }
+            draw_ellipse(fx(0.5), fy(0.86), sz * 0.30, sz * 0.08, 0.0, c);
+        }
+        // A face that has been crying long enough to wear a channel.
+        MonsterSprite::Weeping => {
+            draw_rectangle(fx(0.30), fy(0.18), sz * 0.40, sz * 0.56, c);
+            draw_triangle(
+                Vec2::new(fx(0.30), fy(0.18)),
+                Vec2::new(fx(0.70), fy(0.18)),
+                Vec2::new(fx(0.5), fy(0.04)),
+                c,
+            );
+            draw_circle(fx(0.41), fy(0.36), sz * 0.05, dark);
+            draw_circle(fx(0.59), fy(0.36), sz * 0.05, dark);
+            for f in [0.41f32, 0.59] {
+                for k in 0..3 {
+                    draw_circle(fx(f), fy(0.46 + k as f32 * 0.10), sz * 0.03, dark);
+                }
+            }
+            draw_ellipse(fx(0.5), fy(0.80), sz * 0.32, sz * 0.09, 0.0, c);
+        }
+        // Two figures bound at the wrist.
+        MonsterSprite::Wedding => {
+            for f in [0.32f32, 0.68] {
+                draw_circle(fx(f), fy(0.28), sz * 0.11, c);
+                draw_ellipse(fx(f), fy(0.60), sz * 0.14, sz * 0.24, 0.0, c);
+            }
+            draw_line(fx(0.32), fy(0.54), fx(0.68), fy(0.54), t * 1.4, c);
+            draw_circle(fx(0.5), fy(0.54), sz * 0.07, dark);
+            draw_circle_lines(fx(0.5), fy(0.54), sz * 0.07, t, c);
+            // A veil over both.
+            draw_triangle(
+                Vec2::new(fx(0.18), fy(0.20)),
+                Vec2::new(fx(0.82), fy(0.20)),
+                Vec2::new(fx(0.5), fy(0.02)),
+                c,
+            );
+        }
+        // The same figure twice, one of them not quite right.
+        MonsterSprite::Twin => {
+            draw_circle(fx(0.36), fy(0.32), sz * 0.13, c);
+            draw_ellipse(fx(0.36), fy(0.68), sz * 0.17, sz * 0.24, 0.0, c);
+            draw_circle(fx(0.36), fy(0.30), sz * 0.03, dark);
+            // The other, offset and hollow.
+            draw_circle_lines(fx(0.64), fy(0.36), sz * 0.13, t, c);
+            draw_ellipse(fx(0.64), fy(0.72), sz * 0.17, sz * 0.22, 0.0, dark);
+            draw_circle(fx(0.64), fy(0.34), sz * 0.03, c);
+        }
+        // Tall, narrow, and giving nothing back.
+        MonsterSprite::Mirror => {
+            draw_rectangle_lines(fx(0.30), fy(0.06), sz * 0.40, sz * 0.86, t * 1.8, c);
+            draw_rectangle(fx(0.34), fy(0.10), sz * 0.32, sz * 0.78, dark);
+            // A long diagonal glint.
+            draw_line(fx(0.36), fy(0.72), fx(0.64), fy(0.16), t * 1.2, c);
+            draw_line(fx(0.36), fy(0.84), fx(0.50), fy(0.56), t * 0.8, c);
+        }
+        // A heavy body carrying a great many small ones.
+        MonsterSprite::Sootmother => {
+            draw_ellipse(fx(0.5), fy(0.60), sz * 0.36, sz * 0.30, 0.0, c);
+            draw_circle(fx(0.5), fy(0.28), sz * 0.13, c);
+            draw_circle(fx(0.45), fy(0.26), sz * 0.03, dark);
+            draw_circle(fx(0.55), fy(0.26), sz * 0.03, dark);
+            for (a, b) in [
+                (0.24f32, 0.46f32), (0.34, 0.72), (0.5, 0.80), (0.66, 0.72), (0.76, 0.46),
+            ] {
+                draw_circle(fx(a), fy(b), sz * 0.07, dark);
+                draw_circle(fx(a), fy(b), sz * 0.03, c);
+            }
+        }
+        // Nine motes and nothing holding them together.
+        MonsterSprite::Ashes => {
+            for i in 0..9 {
+                let a = i as f32 * std::f32::consts::TAU / 9.0;
+                let r = if i % 2 == 0 { 0.34 } else { 0.20 };
+                draw_circle(
+                    fx(0.5) + a.cos() * sz * r,
+                    fy(0.5) + a.sin() * sz * r,
+                    sz * 0.06,
+                    c,
+                );
+            }
+            draw_circle(fx(0.5), fy(0.5), sz * 0.05, dark);
+        }
+        // A crown with nobody left under it.
+        MonsterSprite::Crown => {
+            for i in 0..5 {
+                let f = 0.24 + i as f32 * 0.13;
+                draw_triangle(
+                    Vec2::new(fx(f - 0.05), fy(0.50)),
+                    Vec2::new(fx(f), fy(0.22)),
+                    Vec2::new(fx(f + 0.05), fy(0.50)),
+                    c,
+                );
+            }
+            draw_rectangle(fx(0.18), fy(0.48), sz * 0.64, sz * 0.10, c);
+            draw_circle(fx(0.5), fy(0.53), sz * 0.04, dark);
+            // The shape of a head, in outline only.
+            draw_circle_lines(fx(0.5), fy(0.72), sz * 0.16, t, dark);
+        }
+        // A court, seen from under the water.
+        MonsterSprite::Drowned => {
+            for (f, top) in [(0.24f32, 0.44f32), (0.5, 0.36), (0.76, 0.46)] {
+                draw_circle(fx(f), fy(top), sz * 0.10, c);
+                draw_ellipse(fx(f), fy(top + 0.26), sz * 0.12, sz * 0.20, 0.0, c);
+            }
+            // The surface, above all of them: a solid band, because three thin
+            // zigzags vanished at this size and left three floating blobs.
+            draw_rectangle(fx(0.0), fy(0.06), sz, sz * 0.10, c);
+            for i in 0..5 {
+                let a = i as f32 * 0.20;
+                draw_triangle(
+                    Vec2::new(fx(a), fy(0.16)),
+                    Vec2::new(fx(a + 0.20), fy(0.16)),
+                    Vec2::new(fx(a + 0.10), fy(0.24)),
+                    c,
+                );
+            }
+            draw_line(fx(0.0), fy(0.06), fx(1.0), fy(0.06), t, dark);
+        }
+        // An anvil, with something beating inside it.
+        MonsterSprite::Anvil => {
+            draw_rectangle(fx(0.16), fy(0.32), sz * 0.68, sz * 0.20, c);
+            draw_triangle(
+                Vec2::new(fx(0.84), fy(0.32)),
+                Vec2::new(fx(0.98), fy(0.40)),
+                Vec2::new(fx(0.84), fy(0.52)),
+                c,
+            );
+            draw_rectangle(fx(0.36), fy(0.52), sz * 0.28, sz * 0.20, c);
+            draw_rectangle(fx(0.22), fy(0.72), sz * 0.56, sz * 0.16, c);
+            // The heart of it.
+            draw_circle(fx(0.42), fy(0.42), sz * 0.06, dark);
+            draw_circle(fx(0.54), fy(0.42), sz * 0.06, dark);
+            draw_triangle(
+                Vec2::new(fx(0.36), fy(0.44)),
+                Vec2::new(fx(0.60), fy(0.44)),
+                Vec2::new(fx(0.48), fy(0.60)),
+                dark,
+            );
+        }
+        // A great many small figures, none of them in charge.
+        MonsterSprite::Parliament => {
+            for row in 0..3 {
+                let n = 4 - row.min(1);
+                for i in 0..n {
+                    let f = 0.5 + (i as f32 - (n - 1) as f32 / 2.0) * 0.22;
+                    let y = 0.30 + row as f32 * 0.22;
+                    draw_circle(fx(f), fy(y), sz * 0.06, c);
+                    draw_ellipse(fx(f), fy(y + 0.11), sz * 0.07, sz * 0.08, 0.0, c);
+                }
+            }
+            draw_line(fx(0.08), fy(0.24), fx(0.92), fy(0.24), t, dark);
+        }
+        // Hooded, with a bell where a face should be.
+        MonsterSprite::Abbot => {
+            draw_triangle(
+                Vec2::new(fx(0.20), fy(0.86)),
+                Vec2::new(fx(0.80), fy(0.86)),
+                Vec2::new(fx(0.5), fy(0.10)),
+                c,
+            );
+            // The hood, hollow where a face would be.
+            draw_ellipse(fx(0.5), fy(0.34), sz * 0.16, sz * 0.19, 0.0, dark);
+            // The bell hangs in it. Cut out of the hood rather than laid over
+            // it: drawn in the body colour it was invisible against its own
+            // shoulders.
+            draw_circle(fx(0.5), fy(0.30), sz * 0.09, c);
+            draw_triangle(
+                Vec2::new(fx(0.39), fy(0.44)),
+                Vec2::new(fx(0.61), fy(0.44)),
+                Vec2::new(fx(0.5), fy(0.24)),
+                c,
+            );
+            draw_rectangle(fx(0.37), fy(0.44), sz * 0.26, sz * 0.05, dark);
+            draw_circle(fx(0.5), fy(0.50), sz * 0.045, dark);
+        }
+        // A gearwright that has been gilded until it can barely turn.
+        MonsterSprite::Gilt => {
+            draw_poly(fx(0.5), fy(0.44), 8, sz * 0.30, 22.0, c);
+            draw_circle(fx(0.5), fy(0.44), sz * 0.14, dark);
+            draw_circle(fx(0.5), fy(0.44), sz * 0.06, c);
+            for i in 0..8 {
+                let a = i as f32 * std::f32::consts::TAU / 8.0;
+                draw_circle(
+                    fx(0.5) + a.cos() * sz * 0.30,
+                    fy(0.44) + a.sin() * sz * 0.30,
+                    sz * 0.05,
+                    c,
+                );
+            }
+            // A heap of coin it is standing in.
+            draw_ellipse(fx(0.5), fy(0.84), sz * 0.36, sz * 0.10, 0.0, c);
+            for (a, b) in [(0.34f32, 0.80f32), (0.5, 0.86), (0.66, 0.80)] {
+                draw_circle(fx(a), fy(b), sz * 0.05, dark);
+            }
+        }
+        // A rat that has been given a crown and taken it seriously.
+        MonsterSprite::Vermin => {
+            draw_ellipse(fx(0.44), fy(0.66), sz * 0.28, sz * 0.19, 0.0, c);
+            draw_circle(fx(0.72), fy(0.54), sz * 0.13, c);
+            draw_triangle(
+                Vec2::new(fx(0.82), fy(0.48)),
+                Vec2::new(fx(0.99), fy(0.56)),
+                Vec2::new(fx(0.82), fy(0.62)),
+                c,
+            );
+            draw_circle(fx(0.77), fy(0.52), sz * 0.02, dark);
+            for i in 0..3 {
+                let f = 0.60 + i as f32 * 0.10;
+                draw_triangle(
+                    Vec2::new(fx(f - 0.04), fy(0.42)),
+                    Vec2::new(fx(f), fy(0.26)),
+                    Vec2::new(fx(f + 0.04), fy(0.42)),
+                    c,
+                );
+            }
+            draw_rectangle(fx(0.54), fy(0.40), sz * 0.30, sz * 0.05, c);
+            draw_line(fx(0.18), fy(0.68), fx(0.04), fy(0.46), t, c);
+        }
+        // A toad that kept going.
+        MonsterSprite::Behemoth => {
+            draw_ellipse(fx(0.5), fy(0.62), sz * 0.44, sz * 0.30, 0.0, c);
+            draw_ellipse(fx(0.5), fy(0.36), sz * 0.28, sz * 0.16, 0.0, c);
+            draw_circle(fx(0.36), fy(0.30), sz * 0.08, c);
+            draw_circle(fx(0.64), fy(0.30), sz * 0.08, c);
+            draw_circle(fx(0.36), fy(0.30), sz * 0.035, dark);
+            draw_circle(fx(0.64), fy(0.30), sz * 0.035, dark);
+            draw_line(fx(0.32), fy(0.44), fx(0.68), fy(0.44), t * 1.4, dark);
+            // Squat legs, wide apart.
+            for f in [0.16f32, 0.84] {
+                draw_ellipse(fx(f), fy(0.80), sz * 0.12, sz * 0.09, 0.0, c);
+            }
+        }
+        // A skeleton mid-note.
+        MonsterSprite::Cantor => {
+            draw_circle(fx(0.5), fy(0.26), sz * 0.14, c);
+            draw_ellipse(fx(0.5), fy(0.33), sz * 0.05, sz * 0.07, 0.0, dark);
+            draw_circle(fx(0.44), fy(0.22), sz * 0.035, dark);
+            draw_circle(fx(0.56), fy(0.22), sz * 0.035, dark);
+            draw_line(fx(0.5), fy(0.40), fx(0.5), fy(0.78), t * 1.6, c);
+            for i in 0..4 {
+                let y = 0.46 + i as f32 * 0.09;
+                draw_line(fx(0.34), fy(y), fx(0.66), fy(y), t, c);
+            }
+            // The note going up.
+            draw_circle(fx(0.82), fy(0.24), sz * 0.05, c);
+            draw_line(fx(0.86), fy(0.24), fx(0.86), fy(0.08), t, c);
+        }
+        // A warm mote. Same family as the frost wisp, opposite temperament:
+        // curling arms rather than straight spines.
+        MonsterSprite::Ember => {
+            for i in 0..6 {
+                let a = i as f32 * std::f32::consts::TAU / 6.0;
+                let mx0 = fx(0.5) + a.cos() * sz * 0.22;
+                let my0 = fy(0.5) + a.sin() * sz * 0.22;
+                let a2 = a + 0.9;
+                draw_line(
+                    mx0,
+                    my0,
+                    fx(0.5) + a2.cos() * sz * 0.44,
+                    fy(0.5) + a2.sin() * sz * 0.44,
+                    t,
+                    c,
+                );
+            }
+            draw_circle(fx(0.5), fy(0.5), sz * 0.16, c);
+            draw_circle(fx(0.5), fy(0.5), sz * 0.07, dark);
+        }
+        // The wisp's elder: a broad frost figure rather than a mote.
+        MonsterSprite::Rimefather => {
+            draw_ellipse(fx(0.5), fy(0.64), sz * 0.34, sz * 0.28, 0.0, c);
+            draw_circle(fx(0.5), fy(0.30), sz * 0.16, c);
+            draw_circle(fx(0.44), fy(0.28), sz * 0.03, dark);
+            draw_circle(fx(0.56), fy(0.28), sz * 0.03, dark);
+            // A beard of icicles.
+            for i in 0..5 {
+                let f = 0.32 + i as f32 * 0.09;
+                draw_triangle(
+                    Vec2::new(fx(f - 0.03), fy(0.42)),
+                    Vec2::new(fx(f + 0.03), fy(0.42)),
+                    Vec2::new(fx(f), fy(0.42 + 0.16 + (i as f32 % 2.0) * 0.10)),
+                    c,
+                );
+            }
+            for (a, b) in [(0.14f32, 0.36f32), (0.86, 0.36)] {
+                draw_line(fx(a), fy(b), fx(a), fy(b + 0.24), t, c);
+            }
+        }
+        // A warden running molten.
+        MonsterSprite::Slag => {
+            draw_rectangle(fx(0.30), fy(0.24), sz * 0.40, sz * 0.52, c);
+            draw_triangle(
+                Vec2::new(fx(0.30), fy(0.24)),
+                Vec2::new(fx(0.70), fy(0.24)),
+                Vec2::new(fx(0.5), fy(0.06)),
+                c,
+            );
+            draw_rectangle(fx(0.38), fy(0.34), sz * 0.24, sz * 0.06, dark);
+            // Running off the bottom edge.
+            for (i, f) in [0.34f32, 0.48, 0.62].iter().enumerate() {
+                let d = 0.76 + i as f32 * 0.04;
+                draw_line(fx(*f), fy(0.76), fx(*f), fy(d + 0.14), t * 1.4, c);
+                draw_circle(fx(*f), fy(d + 0.14), sz * 0.045, c);
+            }
+        }
+        // All angles and no curves.
+        MonsterSprite::Obsidian => {
+            draw_triangle(
+                Vec2::new(fx(0.5), fy(0.04)),
+                Vec2::new(fx(0.90), fy(0.56)),
+                Vec2::new(fx(0.10), fy(0.56)),
+                c,
+            );
+            draw_triangle(
+                Vec2::new(fx(0.10), fy(0.56)),
+                Vec2::new(fx(0.90), fy(0.56)),
+                Vec2::new(fx(0.5), fy(0.94)),
+                c,
+            );
+            draw_line(fx(0.5), fy(0.04), fx(0.5), fy(0.94), t, dark);
+            draw_line(fx(0.10), fy(0.56), fx(0.90), fy(0.56), t, dark);
+            draw_circle(fx(0.38), fy(0.42), sz * 0.04, dark);
+            draw_circle(fx(0.62), fy(0.42), sz * 0.04, dark);
+        }
+        // A frame, and something hanging in it.
+        MonsterSprite::Gallows => {
+            draw_line(fx(0.16), fy(0.08), fx(0.16), fy(0.92), t * 1.6, c);
+            draw_line(fx(0.16), fy(0.08), fx(0.76), fy(0.08), t * 1.6, c);
+            draw_line(fx(0.16), fy(0.20), fx(0.30), fy(0.08), t, c);
+            draw_line(fx(0.70), fy(0.08), fx(0.70), fy(0.30), t, c);
+            draw_circle(fx(0.70), fy(0.42), sz * 0.12, c);
+            draw_ellipse(fx(0.70), fy(0.68), sz * 0.14, sz * 0.18, 0.0, c);
+            draw_circle(fx(0.66), fy(0.40), sz * 0.025, dark);
+            draw_circle(fx(0.74), fy(0.40), sz * 0.025, dark);
+            draw_ellipse(fx(0.5), fy(0.92), sz * 0.42, sz * 0.05, 0.0, c);
+        }
+        // A gearwright that took orders.
+        MonsterSprite::CogPriest => {
+            draw_triangle(
+                Vec2::new(fx(0.22), fy(0.88)),
+                Vec2::new(fx(0.78), fy(0.88)),
+                Vec2::new(fx(0.5), fy(0.16)),
+                c,
+            );
+            draw_poly(fx(0.5), fy(0.36), 6, sz * 0.13, 0.0, dark);
+            draw_circle(fx(0.5), fy(0.36), sz * 0.05, c);
+            // A smaller cog turning off it.
+            draw_poly(fx(0.72), fy(0.56), 6, sz * 0.08, 20.0, c);
+            draw_poly(fx(0.28), fy(0.60), 6, sz * 0.07, 12.0, c);
+            draw_line(fx(0.5), fy(0.16), fx(0.5), fy(0.04), t, c);
+            draw_line(fx(0.42), fy(0.08), fx(0.58), fy(0.08), t, c);
+        }
+        // The hound, gone to pieces and still coming.
+        MonsterSprite::RuinHound => {
+            draw_ellipse(fx(0.46), fy(0.54), sz * 0.28, sz * 0.13, 0.0, c);
+            // Ribs showing through.
+            for i in 0..4 {
+                let f = 0.30 + i as f32 * 0.11;
+                draw_line(fx(f), fy(0.46), fx(f), fy(0.62), t, dark);
+            }
+            draw_circle(fx(0.76), fy(0.48), sz * 0.11, c);
+            draw_triangle(
+                Vec2::new(fx(0.84), fy(0.46)),
+                Vec2::new(fx(0.99), fy(0.52)),
+                Vec2::new(fx(0.84), fy(0.58)),
+                c,
+            );
+            draw_circle(fx(0.80), fy(0.45), sz * 0.02, dark);
+            // Three legs, and a gap where a fourth was.
+            for f in [0.28f32, 0.48, 0.66] {
+                draw_line(fx(f), fy(0.64), fx(f), fy(0.86), t, c);
+            }
+            draw_line(fx(0.18), fy(0.50), fx(0.04), fy(0.38), t, c);
+        }
+
+        // A pillar of salt, cracked through.
+        MonsterSprite::Salt => {
+            draw_triangle(
+                Vec2::new(fx(0.30), fy(0.92)),
+                Vec2::new(fx(0.70), fy(0.92)),
+                Vec2::new(fx(0.5), fy(0.08)),
+                c,
+            );
+            for (a, b, d, e) in [
+                (0.44f32, 0.30f32, 0.56f32, 0.44f32),
+                (0.56, 0.50, 0.40, 0.64),
+                (0.40, 0.70, 0.60, 0.82),
+            ] {
+                draw_line(fx(a), fy(b), fx(d), fy(e), t, dark);
+            }
+            // Grains coming off it.
+            for (a, b) in [(0.20f32, 0.60f32), (0.82, 0.52), (0.16, 0.80), (0.86, 0.76)] {
+                draw_circle(fx(a), fy(b), sz * 0.03, c);
+            }
+        }
+        // Metal that has gone green and kept its shape anyway.
+        MonsterSprite::Verdigris => {
+            draw_rectangle(fx(0.28), fy(0.26), sz * 0.44, sz * 0.56, c);
+            draw_triangle(
+                Vec2::new(fx(0.28), fy(0.26)),
+                Vec2::new(fx(0.72), fy(0.26)),
+                Vec2::new(fx(0.5), fy(0.08)),
+                c,
+            );
+            // Bloom eating into the edges.
+            for (a, b, r) in [
+                (0.28f32, 0.40f32, 0.07f32),
+                (0.72, 0.34, 0.06),
+                (0.30, 0.66, 0.08),
+                (0.70, 0.72, 0.07),
+                (0.50, 0.82, 0.06),
+            ] {
+                draw_circle(fx(a), fy(b), sz * r, dark);
+            }
+            draw_rectangle(fx(0.38), fy(0.36), sz * 0.24, sz * 0.05, dark);
+        }
+        // A column on the move, seen end-on.
+        MonsterSprite::March => {
+            for i in 0..4 {
+                let f = 0.20 + i as f32 * 0.20;
+                let y = 0.34 + (i as f32 % 2.0) * 0.06;
+                draw_circle(fx(f), fy(y), sz * 0.08, c);
+                draw_ellipse(fx(f), fy(y + 0.20), sz * 0.09, sz * 0.15, 0.0, c);
+                // Spears, all at the same angle.
+                draw_line(fx(f + 0.06), fy(y + 0.30), fx(f + 0.12), fy(y - 0.22), t, c);
+            }
+            draw_ellipse(fx(0.5), fy(0.90), sz * 0.44, sz * 0.05, 0.0, dark);
+        }
+        // Bells where a body should be.
+        MonsterSprite::Bells => {
+            // Hung from a beam, so the silhouette is a row under a line rather
+            // than a heap of triangles - which is what it read as before.
+            draw_line(fx(0.06), fy(0.14), fx(0.94), fy(0.14), t * 1.6, c);
+            for (f, drop, r) in [(0.24f32, 0.30f32, 0.13f32), (0.52, 0.24, 0.17), (0.80, 0.34, 0.11)] {
+                let top = 0.14 + drop * 0.35;
+                draw_line(fx(f), fy(0.14), fx(f), fy(top), t, c);
+                // A rounded shoulder and a flared mouth: a bell, not a cone.
+                draw_circle(fx(f), fy(top + r * 0.5), sz * r * 0.7, c);
+                draw_triangle(
+                    Vec2::new(fx(f - r), fy(top + r * 1.4)),
+                    Vec2::new(fx(f + r), fy(top + r * 1.4)),
+                    Vec2::new(fx(f), fy(top)),
+                    c,
+                );
+                draw_rectangle(
+                    fx(f - r) ,
+                    fy(top + r * 1.4),
+                    sz * r * 2.0,
+                    sz * 0.045,
+                    c,
+                );
+                // The clapper, showing under the mouth.
+                draw_circle(fx(f), fy(top + r * 1.4 + 0.05), sz * 0.035, c);
+            }
+        }
+
+        // Bigger than the golem it grew out of, and put together worse: a
+        // stacked, top-heavy thing rather than a squat one.
+        MonsterSprite::Colossus => {
+            draw_rectangle(fx(0.18), fy(0.10), sz * 0.64, sz * 0.30, c);
+            draw_rectangle(fx(0.28), fy(0.42), sz * 0.44, sz * 0.24, c);
+            draw_rectangle(fx(0.34), fy(0.68), sz * 0.32, sz * 0.24, c);
+            // Seams where the courses meet.
+            draw_line(fx(0.18), fy(0.40), fx(0.82), fy(0.40), t, dark);
+            draw_line(fx(0.28), fy(0.66), fx(0.72), fy(0.66), t, dark);
+            draw_circle(fx(0.36), fy(0.24), sz * 0.05, dark);
+            draw_circle(fx(0.64), fy(0.24), sz * 0.05, dark);
+            // Arms hanging off the widest course.
+            draw_rectangle(fx(0.06), fy(0.16), sz * 0.10, sz * 0.34, c);
+            draw_rectangle(fx(0.84), fy(0.16), sz * 0.10, sz * 0.34, c);
+        }
     }
 }
 
@@ -6026,6 +6617,38 @@ async fn main() {
                     }
                 }
             }
+        }
+
+        // GEARMASTER_SPRITES=1 lays every creature out in a grid. Sprites are
+        // the one thing in here that cannot be checked by a test - "does a
+        // Toad read differently from a Wisp" is a question about eyes - so
+        // there has to be a way to put them all on one screen and look.
+        if std::env::var("GEARMASTER_SPRITES").is_ok() {
+            draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(14, 14, 22, 255));
+            let per_row = 10usize;
+            let cell = 148.0;
+            for (i, m) in LADDER.iter().enumerate() {
+                let cx = 20.0 + (i % per_row) as f32 * cell;
+                let cy = 24.0 + (i / per_row) as f32 * (cell + 10.0);
+                draw_monster(cx, cy, cell * 0.62, m.sprite, col_foe(), Color::from_rgba(14, 14, 22, 255));
+                let label = m.name;
+                let size = fitting_size(label, cell - 8.0, &[12.0, 11.0, 10.0, 9.0]);
+                draw_capped(label, cx, cy + cell * 0.72, cell - 8.0, size, LIGHTGRAY, 1);
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
         }
 
         // The fountain sits over everything while it is being answered.
