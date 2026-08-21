@@ -28,6 +28,15 @@ const LOGICAL_H: f32 = 980.0;
 const PANEL_W: f32 = 366.0;
 const SLOT_CELL: f32 = 26.0;
 const SLOT_GAP: f32 = 22.0;
+/// The finished-item strip under the boards: where it starts below the grids,
+/// how big a card is, and how far it is allowed to grow before it starts
+/// counting the rest instead of drawing them.
+const STRIP_TOP: f32 = 44.0;
+const STRIP_CARD_H: f32 = 38.0;
+const STRIP_GAP: f32 = 8.0;
+const STRIP_PER_ROW: usize = 5;
+const STRIP_ROWS: usize = 2;
+
 const SLOT_TOP: f32 = 112.0;
 const INV_CELL: f32 = 15.0;
 const CARD_W: f32 = 140.0;
@@ -193,7 +202,10 @@ struct Layout {
 }
 
 impl Layout {
-    fn build(run: &Run) -> Self {
+    /// `worn` is how many finished items the strip below the boards has to
+    /// show. The band grows a row at a time rather than always reserving room
+    /// for a full loadout, which would be dead space for most of a run.
+    fn build(run: &Run, worn: usize) -> Self {
         let panel_x = LOGICAL_W - PANEL_W;
         let (gw, gh) = (SLOT_W as f32 * SLOT_CELL, SLOT_H as f32 * SLOT_CELL);
         let total = 5.0 * gw + 4.0 * SLOT_GAP;
@@ -208,7 +220,11 @@ impl Layout {
             })
             .collect();
 
-        let strip_y = SLOT_TOP + gh + 82.0;
+        // Room under the boards for the finished-item strip: a line of
+        // problems, then however many rows of cards are needed.
+        let rows = worn.div_ceil(STRIP_PER_ROW).clamp(1, STRIP_ROWS) as f32;
+        let strip_y =
+            SLOT_TOP + gh + STRIP_TOP + 10.0 + rows * (STRIP_CARD_H + STRIP_GAP) + 8.0;
         let width = (panel_x - 48.0).max(100.0);
         let shop_h = CARD_H + 58.0;
         let shop = Rect::new(24.0, strip_y, width, shop_h);
@@ -2023,51 +2039,121 @@ fn render_slots(
             }
         }
 
-        // Status line under the grid: how many items, then as much of the
-        // stat total as fits the column. The rest is on hover - five columns
-        // of full stat lines used to run into each other sideways.
-        let color = if any_assembled {
-            col_ok()
-        } else if report.is_empty() {
-            col_dim()
-        } else {
-            col_bad()
-        };
-        // Prefer the full sentence, but a shorter complete phrase beats
-        // "2 items ..." when the column cannot hold it.
+        // Only problems get a line under the grid. What a finished item does
+        // is on its own card in the strip below, where there is room to say
+        // it properly - five columns of stat totals used to run into each
+        // other sideways and none of them said very much.
         let full = report.summary();
-        let sizes = [15.0, 14.0, 13.0, 12.0];
-        let summary = if text_width(&full, *sizes.last().unwrap()) <= gw {
-            full.clone()
-        } else {
-            short_summary(report)
-        };
-        let sum_size = fitting_size(&summary, gw, &sizes);
-        let mut cut = draw_capped(&summary, ox, oy + gh + 28.0, gw, sum_size, color, 1);
-        cut |= summary != full;
-        let contrib = report.stats.summary();
-        if !contrib.is_empty() {
-            cut |= draw_capped(&contrib, ox, oy + gh + 50.0, gw, 13.0, col_dim(), 2);
-        }
-        let foot = Rect::new(ox, oy + gh + 8.0, gw, 56.0);
-        if foot.contains(Vec2::new(mx, my)) && cut {
-            draw_rectangle(foot.x, foot.y, foot.w, foot.h, Color::from_rgba(255, 255, 255, 12));
-        }
-        hover.over(foot, mx, my, || {
-            let mut lines = vec![(full.clone(), color)];
-            if !contrib.is_empty() {
-                lines.push((String::from("this slot gives you:"), col_dim()));
-                for l in wrap_px(&contrib, 380.0, 14.0) {
-                    lines.push((format!("  {}", l), LIGHTGRAY));
-                }
+        if report.loose_count() > 0 {
+            let short = short_summary(report);
+            let size = fitting_size(&short, gw, &[15.0, 14.0, 13.0, 12.0]);
+            let cut = draw_capped(&short, ox, oy + gh + 28.0, gw, size, col_bad(), 1);
+            let foot = Rect::new(ox, oy + gh + 8.0, gw, 34.0);
+            if foot.contains(Vec2::new(mx, my)) && cut {
+                draw_rectangle(foot.x, foot.y, foot.w, foot.h, Color::from_rgba(255, 255, 255, 12));
             }
-            for note in report.notes() {
-                for l in wrap_px(&note, 380.0, 14.0) {
-                    lines.push((format!("  {}", l), col_gold()));
+            hover.over(foot, mx, my, || {
+                let mut lines = vec![(full.clone(), col_bad())];
+                for item in report.items.iter().filter(|i| !i.assembled) {
+                    lines.push((format!("  {}: {}", item.name.short, item.status), LIGHTGRAY));
                 }
-            }
-            lines
-        });
+                lines
+            });
+        }
+    }
+}
+
+/// Every finished item you are wearing, as a row of cards under the boards.
+///
+/// The battle screen lets you hover an item and read exactly what it does; up
+/// to now the loadout screen - the one where you are actually deciding - only
+/// had a squashed stat total per slot. This is the same card, in the place the
+/// decisions get made.
+fn render_assembled_strip(
+    layout: &Layout,
+    run: &Run,
+    profiles: &[ItemProfile],
+    hover: &mut Hover,
+    mx: f32,
+    my: f32,
+) {
+    let Some(view) = layout.slots.first() else { return };
+    let (_, gh) = view.size();
+    let top = view.origin.1 + gh + STRIP_TOP;
+    let left = view.origin.0;
+    let right = layout
+        .slots
+        .last()
+        .map(|v| v.origin.0 + v.size().0)
+        .unwrap_or(left + 600.0);
+
+    ui_text("YOUR ITEMS", left, top, 14.0, col_gold());
+    if profiles.is_empty() {
+        ui_text(
+            "nothing finished yet - a slot's pieces have to make a whole item",
+            left + text_width("YOUR ITEMS", 14.0) + 16.0,
+            top,
+            13.0,
+            col_dim(),
+        );
+        return;
+    }
+
+    // Cards wrap rather than shrinking without limit: eight of them squeezed
+    // onto one row left no space for a name, which is the one thing a card has
+    // to carry.
+    let y0 = top + 10.0;
+    let h = STRIP_CARD_H;
+    let gap = STRIP_GAP;
+    let avail = right - left;
+    let cw = ((avail + gap) / STRIP_PER_ROW as f32) - gap;
+    let cap = STRIP_PER_ROW * STRIP_ROWS;
+
+    for (i, p) in profiles.iter().enumerate() {
+        if i == cap && profiles.len() > cap {
+            // Out of room. Say how many are not shown rather than drawing off
+            // the end of the boards.
+            let x = left + (i % STRIP_PER_ROW) as f32 * (cw + gap);
+            let y = y0 + (i / STRIP_PER_ROW) as f32 * (h + gap);
+            ui_text(&format!("+{} more", profiles.len() - i), x, y + 22.0, 13.0, col_dim());
+            break;
+        }
+        let x = left + (i % STRIP_PER_ROW) as f32 * (cw + gap);
+        let y = y0 + (i / STRIP_PER_ROW) as f32 * (h + gap);
+        let r = Rect::new(x, y, cw, h);
+        let hot = r.contains(Vec2::new(mx, my));
+        draw_rectangle(
+            r.x,
+            r.y,
+            r.w,
+            r.h,
+            if hot { Color::from_rgba(46, 46, 64, 255) } else { Color::from_rgba(30, 30, 42, 255) },
+        );
+        draw_rectangle_lines(
+            r.x,
+            r.y,
+            r.w,
+            r.h,
+            1.5,
+            if hot { col_gold() } else { Color::from_rgba(58, 58, 78, 255) },
+        );
+        draw_item_sigil(r.x + 17.0, r.y + h / 2.0, 20.0, Some(p.slot), p.sigil_seed, LIGHTGRAY);
+
+        let tx = r.x + 32.0;
+        let tw = r.w - 38.0;
+        let size = fitting_size(&p.name, tw, &[14.0, 13.0, 12.0, 11.0]);
+        draw_capped(&p.name, tx, r.y + 15.0, tw, size, WHITE, 1);
+        let sub = format!("{} · {:.1}s", p.slot.name(), p.cooldown_ms as f32 / 1000.0);
+        let sub_size = fitting_size(&sub, tw - 30.0, &[12.0, 11.0, 10.0]);
+        ui_text(&sub, tx, r.y + 29.0, sub_size, col_dim());
+        draw_rarity_pips(tx + text_width(&sub, sub_size) + 8.0, r.y + 25.0, p.rarity(), 0.75);
+
+        // The same card the battle screen shows, so what an item does reads
+        // identically in both places.
+        if hot {
+            let p = p.clone();
+            hover.over_tip(r, mx, my, || Tip::plain(item_summary_lines(&p, run)));
+        }
     }
 }
 
@@ -3260,7 +3346,13 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
 /// Everything one assembled item is worth: what it adds to you all the time,
 /// and what it does each time its cooldown comes round.
 fn render_item_summary(p: &ItemProfile, run: &Run, mx: f32, my: f32) {
-    // Drawn after the frame, below.
+    let lines = item_summary_lines(p, run);
+    draw_tooltip_with_sigil(&lines, Some((Some(p.slot), p.sigil_seed)), mx, my);
+}
+
+/// The body of that card, so the loadout screen can show the same thing in a
+/// hover of its own rather than keeping a second, worse description in sync.
+fn item_summary_lines(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> {
     let total = run.player_stats();
     let st = p.stats;
     let mut lines: Vec<(String, Color)> = vec![
@@ -3341,8 +3433,7 @@ fn render_item_summary(p: &ItemProfile, run: &Run, mx: f32, my: f32) {
     if hit == 0 && st.mind == 0 && st.armor == 0 && st.mana == 0 && p.triggers.is_empty() {
         lines.push(("  ticks over doing nothing".to_string(), col_dim()));
     }
-
-    draw_tooltip_with_sigil(&lines, Some((Some(p.slot), p.sigil_seed)), mx, my);
+    lines
 }
 
 /// A monster's innate attack, which has no components behind it.
@@ -4986,8 +5077,14 @@ async fn main() {
         clear_background(col_bg());
 
         let (mx, my) = viewport.mouse();
-        let layout = Layout::build(&run);
         let reports = run.reports();
+        let worn_count: usize = reports.iter().map(|r| r.assembled_count()).sum();
+        let layout = Layout::build(&run, worn_count);
+        // What is actually finished and worn, for the strip under the boards.
+        // Only needed out of combat; during a fight the battle screen has its
+        // own copy from the log.
+        let worn: Vec<ItemProfile> =
+            if run.phase == Phase::Loadout { run.combat_items() } else { Vec::new() };
 
         if let Some(p) = pb.as_mut() {
             p.advance(&run);
@@ -5094,6 +5191,7 @@ async fn main() {
             }
         } else {
             render_slots(&layout, &run, &reports, &drag, &mut hover, mx, my);
+            render_assembled_strip(&layout, &run, &worn, &mut hover, mx, my);
             render_shop(&layout, &run, mx, my);
             render_inventory(&layout, &run, &drag, mx, my);
         }
