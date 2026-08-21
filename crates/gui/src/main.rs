@@ -4237,7 +4237,7 @@ fn render_mode_select(
 /// legible in the first place.
 /// Returns the close button, the next-page button, the page count, and the
 /// region of the one entry that is also a control - see `SKIP_TERM`.
-fn render_glossary(page: usize, mx: f32, my: f32) -> (Rect, Rect, usize, Option<Rect>) {
+fn render_glossary(tab: usize, page: usize, mx: f32, my: f32) -> GlossaryHit {
     let pad = 56.0;
     let r = Rect::new(pad, pad, LOGICAL_W - 2.0 * pad, LOGICAL_H - 2.0 * pad);
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 228));
@@ -4248,6 +4248,59 @@ fn render_glossary(page: usize, mx: f32, my: f32) -> (Rect, Rect, usize, Option<
 
     let close = Rect::new(r.x + r.w - 140.0, r.y + 16.0, 120.0, 34.0);
     button(close, "CLOSE", true, mx, my);
+
+    // Two shelves: the words, and the classes. Classes want a paragraph each
+    // and a list of what they ask for, which does not fit the four-column
+    // layout the definitions use.
+    let tw = 150.0;
+    let tabs = [
+        Rect::new(r.x + 320.0, r.y + 20.0, tw, 30.0),
+        Rect::new(r.x + 320.0 + tw + 10.0, r.y + 20.0, tw, 30.0),
+    ];
+    for (i, (rect, name)) in tabs.iter().zip(["WORDS", "CLASSES"]).enumerate() {
+        let on = i == tab;
+        draw_rectangle(
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            if on { Color::from_rgba(52, 46, 30, 255) } else { Color::from_rgba(28, 28, 40, 255) },
+        );
+        draw_rectangle_lines(
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            1.5,
+            if on || rect.contains(Vec2::new(mx, my)) {
+                col_gold()
+            } else {
+                Color::from_rgba(70, 70, 95, 255)
+            },
+        );
+        centered_text(
+            name,
+            rect.x + rect.w / 2.0,
+            rect.y + 20.0,
+            14.0,
+            if on { col_gold() } else { col_dim() },
+        );
+    }
+    if tab == 1 {
+        let pages = render_class_pages(r, page, mx, my);
+        let next = Rect::new(r.x + r.w - 260.0, r.y + r.h - 46.0, 240.0, 34.0);
+        if pages > 1 {
+            ui_text(
+                &format!("page {} of {}", page + 1, pages),
+                r.x + 24.0,
+                r.y + r.h - 22.0,
+                14.0,
+                col_dim(),
+            );
+            button(next, if page + 1 < pages { "NEXT PAGE" } else { "BACK TO START" }, true, mx, my);
+        }
+        return GlossaryHit { close, next, pages, skip: None, tabs };
+    }
 
     // The tile legend only belongs on the first page.
     let legend_h = if page == 0 { draw_tile_legend(r.x + 24.0, r.y + 86.0, r.w - 48.0) } else { 0.0 };
@@ -4359,7 +4412,113 @@ fn render_glossary(page: usize, mx: f32, my: f32) -> (Rect, Rect, usize, Option<
         );
         button(next, if page + 1 < pages { "NEXT PAGE" } else { "BACK TO START" }, true, mx, my);
     }
-    (close, next, pages, skip_hot)
+    GlossaryHit { close, next, pages, skip: skip_hot, tabs }
+}
+
+/// What the glossary put on screen, so the frame can decide what a click did.
+struct GlossaryHit {
+    close: Rect,
+    next: Rect,
+    pages: usize,
+    /// The one entry that is also a control - see `SKIP_TERM`.
+    skip: Option<Rect>,
+    tabs: [Rect; 2],
+}
+
+/// Every class, in full: what it asks for, how close you are to it, and what
+/// it does for you. Returns the page count.
+fn render_class_pages(r: Rect, page: usize, _mx: f32, _my: f32) -> usize {
+    use gearmaster_engine::class::CLASSES;
+    let top = r.y + 96.0;
+    let bottom = r.y + r.h - 54.0;
+    let gap = 26.0;
+    let cols = 3usize;
+    let col_w = (r.w - 48.0 - (cols - 1) as f32 * gap) / cols as f32;
+
+    // Height of one entry, so the page break can be decided before drawing.
+    let block_h = |c: &gearmaster_engine::class::ClassDef| -> f32 {
+        let blurb = wrap_px(c.blurb, col_w - 12.0, 12.0).len() as f32;
+        let power = wrap_px(&c.power.describe(), col_w - 12.0, 12.0).len() as f32;
+        22.0 + blurb * 15.0 + 6.0 + c.requires.len().max(1) as f32 * 15.0 + 4.0 + power * 15.0 + 14.0
+    };
+
+    let mut at = 0usize;
+    let mut this_page = 0usize;
+    let mut col = 0usize;
+    let mut y = top;
+    let mut pages = 1usize;
+    while at < CLASSES.len() {
+        let c = &CLASSES[at];
+        let needed = block_h(c);
+        if y + needed > bottom {
+            if col + 1 < cols {
+                col += 1;
+                y = top;
+            } else {
+                if this_page == page {
+                    break;
+                }
+                this_page += 1;
+                pages += 1;
+                col = 0;
+                y = top;
+                continue;
+            }
+        }
+        if this_page == page {
+            let x = r.x + 24.0 + col as f32 * (col_w + gap);
+            ui_text(c.name, x, y, 16.0, col_gold());
+            y += 20.0;
+            for l in wrap_px(c.blurb, col_w - 12.0, 12.0) {
+                ui_text(&l, x + 8.0, y, 12.0, Color::from_rgba(198, 200, 218, 255));
+                y += 15.0;
+            }
+            y += 6.0;
+            if c.requires.is_empty() {
+                ui_text("asks for nothing", x + 8.0, y, 12.0, col_dim());
+                y += 15.0;
+            } else {
+                for &(axis, need) in c.requires {
+                    ui_text(
+                        &format!("{} {}+", axis.name(), need),
+                        x + 8.0,
+                        y,
+                        12.0,
+                        Color::from_rgba(150, 200, 240, 255),
+                    );
+                    y += 15.0;
+                }
+            }
+            y += 4.0;
+            for l in wrap_px(&c.power.describe(), col_w - 12.0, 12.0) {
+                ui_text(&l, x + 8.0, y, 12.0, col_ok());
+                y += 15.0;
+            }
+            y += 14.0;
+        } else {
+            y += needed;
+        }
+        at += 1;
+    }
+    // Finish counting pages past the drawn one.
+    if at < CLASSES.len() {
+        let (mut c2, mut yy) = (col, y);
+        for c in &CLASSES[at..] {
+            let needed = block_h(c);
+            if yy + needed > bottom {
+                if c2 + 1 < cols {
+                    c2 += 1;
+                    yy = top;
+                } else {
+                    pages += 1;
+                    c2 = 0;
+                    yy = top;
+                }
+            }
+            yy += needed;
+        }
+    }
+    pages
 }
 
 
@@ -4468,15 +4627,20 @@ fn render_battle_side(
 fn button_rects(panel_x: f32) -> [Rect; 6] {
     let w = PANEL_W - 40.0;
     let x = panel_x + 20.0;
-    let y = LOGICAL_H - 322.0;
+    // Fifty pixels shorter than it was: taking a screenshot had a row to
+    // itself, the same width as BEGIN FIGHT, for something almost nobody
+    // presses twice. It shares the glossary's row now and the panel above
+    // keeps the difference - which it needs, with two classes to show.
+    let y = LOGICAL_H - 272.0;
     let half = w / 2.0 - 5.0;
+    let shot = 54.0;
     [
         Rect::new(x, y, w, 46.0),
         Rect::new(x, y + 56.0, w, 40.0),
         Rect::new(x, y + 106.0, half, 40.0),
         Rect::new(x + w / 2.0 + 5.0, y + 106.0, half, 40.0),
-        Rect::new(x, y + 156.0, w, 40.0),
-        Rect::new(x, y + 206.0, w, 40.0),
+        Rect::new(x, y + 156.0, w - shot - 8.0, 40.0),
+        Rect::new(x + w - shot, y + 156.0, shot, 40.0),
     ]
 }
 
@@ -4771,8 +4935,10 @@ fn render_panel(
     // else however long a class description runs.
     let opp_top = msg_top - 98.0;
     // The class band is pinned as well, so the only thing that flows is the
-    // character read-out above it - and that gets clipped at this line.
-    let class_top = opp_top - 90.0;
+    // character read-out above it - and that gets clipped at this line. It has
+    // to hold two classes and a line about the next fountain, which is what
+    // the space freed by shrinking the screenshot button pays for.
+    let class_top = opp_top - 132.0;
     // And the run line above that. Bottom-up, every section below the gear
     // list has a fixed home, so nothing can be pushed into anything else.
     let run_top = class_top - 44.0;
@@ -5136,7 +5302,7 @@ fn render_panel(
     }
     button(r[3], "CLEAR ALL", true, mx, my);
     button(r[4], "WHAT THE WORDS MEAN", true, mx, my);
-    button(r[5], "F12  save screenshot", true, mx, my);
+    button(r[5], "F12", true, mx, my);
 }
 
 // ================================================================= main
@@ -5153,6 +5319,10 @@ async fn main() {
     // Kept between fights, and settable before one starts.
     let mut playback_speed = DEFAULT_SPEED;
     let mut glossary_open = std::env::var("GEARMASTER_GLOSSARY").is_ok();
+    let mut glossary_tab: usize = std::env::var("GEARMASTER_GLOSSARY_TAB")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
     let mut glossary_page: usize = std::env::var("GEARMASTER_GLOSSARY_PAGE")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -5509,14 +5679,20 @@ async fn main() {
         // The glossary sits over everything and eats input while open, so a
         // click meant for CLOSE never also lands on the board behind it.
         if glossary_open {
-            let (close, next, pages, skip_hot) = render_glossary(glossary_page, mx, my);
+            let g = render_glossary(glossary_tab, glossary_page, mx, my);
             let click = is_mouse_button_pressed(MouseButton::Left);
-            if click && close.contains(Vec2::new(mx, my)) {
+            let tab_hit = g.tabs.iter().position(|t| t.contains(Vec2::new(mx, my)));
+            if click && g.close.contains(Vec2::new(mx, my)) {
                 glossary_open = false;
                 glossary_page = 0;
-            } else if click && pages > 1 && next.contains(Vec2::new(mx, my)) {
-                glossary_page = (glossary_page + 1) % pages;
-            } else if click && skip_hot.map_or(false, |r| r.contains(Vec2::new(mx, my))) {
+            } else if click && tab_hit.is_some() && tab_hit != Some(glossary_tab) {
+                // Each shelf keeps its own place, so switching back and forth
+                // does not lose where you were.
+                glossary_tab = tab_hit.unwrap();
+                glossary_page = 0;
+            } else if click && g.pages > 1 && g.next.contains(Vec2::new(mx, my)) {
+                glossary_page = (glossary_page + 1) % g.pages;
+            } else if click && g.skip.map_or(false, |r| r.contains(Vec2::new(mx, my))) {
                 // The one entry that does something. Closes the book, since
                 // the thing it changes is behind it.
                 let name = run.monster().name;
