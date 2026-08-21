@@ -1393,6 +1393,24 @@ fn wrap(s: &str, width: usize) -> Vec<String> {
     out
 }
 
+/// A tooltip's content: lines, plus line ranges to draw a panel behind.
+///
+/// The panels are what let a slot that can be built several ways put each way
+/// in a box of its own, instead of running them together into one list where
+/// it is not clear which requirement belongs to which.
+#[derive(Default)]
+struct Tip {
+    lines: Vec<(String, Color)>,
+    /// Half-open `[start, end)` line ranges, each drawn inside its own frame.
+    boxes: Vec<(usize, usize)>,
+}
+
+impl Tip {
+    fn plain(lines: Vec<(String, Color)>) -> Tip {
+        Tip { lines, boxes: Vec::new() }
+    }
+}
+
 /// A tooltip some render pass asked for while drawing.
 ///
 /// Tooltips have to be painted after everything else or the panel and the
@@ -1403,7 +1421,7 @@ fn wrap(s: &str, width: usize) -> Vec<String> {
 /// cursor is in both, the panel's answer is the relevant one.
 #[derive(Default)]
 struct Hover {
-    lines: Option<Vec<(String, Color)>>,
+    tip: Option<Tip>,
 }
 
 impl Hover {
@@ -1416,12 +1434,17 @@ impl Hover {
         my: f32,
         lines: impl FnOnce() -> Vec<(String, Color)>,
     ) -> bool {
+        self.over_tip(region, mx, my, || Tip::plain(lines()))
+    }
+
+    /// The same, for a tooltip that wants framed groups.
+    fn over_tip(&mut self, region: Rect, mx: f32, my: f32, tip: impl FnOnce() -> Tip) -> bool {
         if !region.contains(Vec2::new(mx, my)) {
             return false;
         }
-        let lines = lines();
-        if !lines.is_empty() {
-            self.lines = Some(lines);
+        let tip = tip();
+        if !tip.lines.is_empty() {
+            self.tip = Some(tip);
         }
         true
     }
@@ -1819,14 +1842,7 @@ fn render_slots(
         let mark_c = if head_hot { col_gold() } else { col_dim() };
         draw_circle_lines(ox + gw - 10.0, oy - 29.0, 9.0, 1.5, mark_c);
         centered_text("?", ox + gw - 10.0, oy - 24.0, 13.0, mark_c);
-        hover.over(head, mx, my, || {
-            let mut lines = vec![(view.kind.name().to_string(), WHITE)];
-            lines.push((String::from("needs:"), col_dim()));
-            for l in wrap_px(view.kind.recipe_text(), 380.0, 14.0) {
-                lines.push((format!("  {}", l), LIGHTGRAY));
-            }
-            lines
-        });
+        hover.over_tip(head, mx, my, || recipe_tip(view.kind));
 
         // Slot border lights up once at least one item has come together.
         // Brightness carries this, not hue - gold against grey would have put
@@ -2107,7 +2123,7 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
             centered_text(&line, cx, ty, 13.0, if afford { WHITE } else { col_dim() });
             ty += line_h(13.0);
         }
-        centered_text(def.kind.name(), cx, card.rect.bottom() - 28.0, 12.0, col_dim());
+        centered_text(&def.kind.name_in(def.slot), cx, card.rect.bottom() - 28.0, 12.0, col_dim());
         centered_text(
             &format!("{} gold", shop_price(def)),
             cx,
@@ -2264,7 +2280,7 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
                 if hot { col_gold() } else { LIGHTGRAY },
             );
         } else {
-            centered_text(def.kind.name(), cx, card.rect.bottom() - 12.0, 12.0, col_dim());
+            centered_text(&def.kind.name_in(def.slot), cx, card.rect.bottom() - 12.0, 12.0, col_dim());
         }
 
         if def.adjacency.is_some() {
@@ -2314,7 +2330,15 @@ fn render_def_tooltip_inner(
         lines.push(("part of".to_string(), col_dim()));
     }
     lines.push((def.name.to_string(), WHITE));
-    lines.push((format!("{} · {}", def.slot.name(), def.kind.name()), col_dim()));
+    // A shared piece names every grid it fits, not just the one it is filed
+    // under - naming one would be the same lie the old colouring told.
+    let where_it_goes = def
+        .slots()
+        .iter()
+        .map(|s| s.name())
+        .collect::<Vec<_>>()
+        .join(" or ");
+    lines.push((format!("{} · {}", where_it_goes, def.kind.name_in(def.slot)), col_dim()));
 
     let base = def.base.summary();
     if !base.is_empty() {
@@ -3252,19 +3276,88 @@ fn draw_tooltip_with_sigil(
 }
 
 fn draw_tooltip(lines: &[(String, Color)], mx: f32, my: f32) {
-    let w = lines
-        .iter()
-        .map(|(s, _)| text_width(s, 14.0))
-        .fold(0.0_f32, f32::max)
-        + 26.0;
+    draw_tip(&Tip::plain(lines.to_vec()), mx, my);
+}
+
+/// What a slot needs, as a tooltip.
+///
+/// The split that matters is between what makes an item work at all and what
+/// merely makes it better, so those get a row each and the optional row is
+/// indented under the one it adds to. A slot that can be built more than one
+/// way puts each way in its own frame, because the requirements of one have
+/// nothing to do with the requirements of another.
+fn recipe_tip(slot: SlotKind) -> Tip {
+    let parts = gearmaster_engine::piece::recipe_parts(slot);
+    let many = parts.len() > 1;
+    let mut lines = vec![(slot.name().to_string(), WHITE)];
+    if many {
+        lines.push((String::from("any one of these:"), col_dim()));
+    }
+    let mut boxes = Vec::new();
+
+    for p in &parts {
+        let start = lines.len();
+        if many && !p.title.is_empty() {
+            lines.push((p.title.to_string(), col_gold()));
+        }
+        lines.push((format!("needs {}", p.required.join(" + ")), LIGHTGRAY));
+        if p.optional.is_empty() {
+            lines.push((String::from("    nothing else can be added"), col_dim()));
+        } else {
+            // Indented, and worded so it is clear these are improvements to
+            // gear that already counts rather than more requirements.
+            lines.push((format!("    may add {}", p.optional.join(" and ")), col_dim()));
+        }
+        if many {
+            boxes.push((start, lines.len()));
+        }
+    }
+    Tip { lines, boxes }
+}
+
+fn draw_tip(tip: &Tip, mx: f32, my: f32) {
+    let lines = &tip.lines;
+    // Boxed lines are inset, so they need the extra room reserved up front or
+    // the frame would run through the text.
+    let pad = if tip.boxes.is_empty() { 0.0 } else { 16.0 };
+    let w = lines.iter().map(|(s, _)| text_width(s, 14.0)).fold(0.0_f32, f32::max) + 26.0 + pad;
     let lh = line_h(14.0);
-    let h = lines.len() as f32 * lh + 18.0;
+    // A gap above each frame, so consecutive boxes do not share an edge and
+    // read as one banded list instead of as separate cards.
+    let gap = 13.0;
+    let h = lines.len() as f32 * lh + 18.0 + tip.boxes.len() as f32 * gap;
     let x = (mx + 18.0).min(LOGICAL_W - w - 6.0).max(4.0);
     let y = (my + 18.0).min(LOGICAL_H - h - 6.0).max(4.0);
     draw_rectangle(x, y, w, h, Color::from_rgba(12, 12, 20, 248));
     draw_rectangle_lines(x, y, w, h, 1.5, Color::from_rgba(120, 120, 155, 255));
+
+    // Baseline of each line, shifted down by the frames opened above it.
+    let top_of = |i: usize| -> f32 {
+        let opened = tip.boxes.iter().filter(|(s, _)| *s <= i).count() as f32;
+        y + lh + i as f32 * lh + opened * gap
+    };
+    for &(s, e) in &tip.boxes {
+        if s >= lines.len() {
+            continue;
+        }
+        let e = e.min(lines.len());
+        let top = top_of(s) - lh + 3.0;
+        let bot = top_of(e.saturating_sub(1)) + 7.0;
+        // Filled as well as framed: against a near-black tooltip a thin line
+        // alone reads as a rule between rows rather than as a card around one.
+        draw_rectangle(x + 7.0, top, w - 14.0, bot - top, Color::from_rgba(30, 30, 44, 255));
+        draw_rectangle_lines(
+            x + 7.0,
+            top,
+            w - 14.0,
+            bot - top,
+            1.5,
+            Color::from_rgba(132, 132, 172, 255),
+        );
+    }
     for (i, (s, c)) in lines.iter().enumerate() {
-        ui_text(s, x + 13.0, y + lh + i as f32 * lh, 14.0, *c);
+        let inset = if tip.boxes.iter().any(|&(a, b)| i >= a && i < b) { 8.0 } else { 0.0 };
+        ui_text(s, x + 13.0 + inset, top_of(i), 14.0, *c);
     }
 }
 
@@ -3483,11 +3576,16 @@ const GLOSSARY: &[(&str, &str)] = &[
          what is left, not what you spent.",
     ),
     ("COOLDOWN", "Seconds between one item's activations. Every item runs its own."),
-    ("CORE", "The component a recipe needs exactly one of: handle, frame, base or material. It anchors an item, which is why two items can touch and still count separately."),
+    ("CORE", "The component a recipe needs exactly one of: handle, frame, base, material, book or crystal ball. It anchors an item, which is why two items can touch and still count separately."),
     ("ASSEMBLED", "An item whose components match its slot's recipe. Only assembled items act in combat - loose pieces still give passive stats, but never fire."),
     ("ADJACENT", "Two items in the same slot whose cells orthogonally touch."),
     ("ALIGNED", "Two items in different slots whose rows overlap."),
-    ("RECIPE", "What a slot will accept as a finished item. Most slots have one; the weapon slot has three, so the same grid builds either a weapon or a spell."),
+    ("RECIPE", "What a slot will accept as a finished item. Most slots have one; the weapon slot has three, so the same grid builds either a weapon or a spell. Hover the ? beside a slot to read them."),
+    ("REQUIRED / OPTIONAL", "Every recipe has a minimum that makes an item work at all, and room for more on top. A helmet is finished with a frame and one plating; the second plating and the crest only make it better. The slot's ? shows the two apart, with the optional part indented."),
+    ("SHARED PIECES", "Materials go in gloves or greaves, and plating in helmets or greaves. A piece that fits more than one grid is drawn grey with a hollow diamond and takes that grid's colour and mark when you drop it in."),
+    ("MOLDS", "Gloves and greaves both need a mold, but the two do not interchange - a gloves mold will not go on a shin. The role under a card's name says which it is."),
+    ("LOCKED ITEM", "Shift-click a finished item to lock it. A locked item stops looking for other pieces to join, turns as one piece, and moves in and out of the inventory whole. Shift-click again to release it."),
+    ("PINNED CARD", "Right-click a shop card to pin it. A reroll leaves pinned cards where they are, so you can hold something you cannot yet afford."),
     ("SPELL", "A weapon built the arcane way: a book or a crystal ball, ink, and the spell itself. It fills the weapon slot like any other item."),
     ("BOOK", "The core of a spell, the way a handle is the core of a weapon. It sets how often the spell casts, and binds exactly one spell."),
     ("INK", "Multiplies the cast it is bound into, and only that one - ink never touches your own weapon power. Stronger inks want paying for."),
@@ -3495,7 +3593,7 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("RATING", "How much an assembled item actually does per second, on a scale where the best possible item in its slot is 200. Scaled per slot, so a glove and a weapon can be compared."),
     ("RARE / EPIC / LEGENDARY", "Rating tiers, worn as one, two or three marks beside an item's name. Better gear costs far more in the shop."),
     ("QUEST", "A task carried by one component - so many activations, so many curses. It only counts while the component is part of an assembled item. Finishing it turns the component into something else, which may not belong in the slot it was sitting in."),
-    ("DIFFICULTY", "How many times as effective the opposition is: 1x, 3x, 9x or 27x. It splits evenly between staying alive and hitting back, so 27x is a monster about 5.2 times tougher and 5.2 times deadlier."),
+    ("DIFFICULTY", "Medium is the game as intended. Easy is half as hard, hard three times, insane nine. Most of that comes from the gear the opposition is wearing rather than from its numbers: a harder setting steps every one of its components up a rung, so the same creature turns up better equipped instead of merely inflated. What is left over splits evenly between staying alive and hitting back."),
     ("PASSIVE", "A standing rule on a combatant, granted by the difficulty. Hardened regenerates, Warded resists mind and curse, Relentless runs every item faster."),
     ("GRINDER", "A mode. Losing drops you to the rung you last cleared, so there is always something easier to farm."),
     ("ROGUE", "A mode. Losing costs one of three lives; the third ends the run and takes everything with it."),
@@ -4878,8 +4976,8 @@ async fn main() {
         // Tooltip for whatever is under the cursor (never while dragging).
         // A request left by a render pass wins: those regions are the panel
         // and the strips around each board, which nothing else claims.
-        if let (Drag::None, Some(lines)) = (&drag, hover.lines.take()) {
-            draw_tooltip(&lines, mx, my);
+        if let (Drag::None, Some(tip)) = (&drag, hover.tip.take()) {
+            draw_tip(&tip, mx, my);
         } else if matches!(drag, Drag::None) {
             let hovered_item_name = layout.slot_hit(mx, my).and_then(|(k, x, y)| {
                 let id = run.loadout.slot(k).get(x, y)?;

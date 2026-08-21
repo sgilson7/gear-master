@@ -936,3 +936,104 @@ fn a_locked_item_comes_off_the_board_as_one_thing() {
     let together = groups.iter().find(|g| g.contains(&handle)).expect("it is in there");
     assert_eq!(together.len(), 2, "carried as one thing, not two");
 }
+
+// ---------------------------------------------------------------- recipe text
+
+/// The split the interface draws: what makes an item work, and what only makes
+/// it better. A helmet is finished with a frame and one plating - the second
+/// plating and the crest are improvements to gear that already counts.
+#[test]
+fn a_recipe_separates_what_is_required_from_what_is_extra() {
+    use gearmaster_engine::piece::recipe_parts;
+
+    let helm = &recipe_parts(SlotKind::Helmet)[0];
+    assert_eq!(helm.required, vec!["1 frame", "1 plating"]);
+    assert_eq!(helm.optional, vec!["1 more plating", "1 crest"]);
+
+    // "gloves mold", not "mold": greaves want a mold too and the two do not
+    // interchange, so the bare word would invite exactly the wrong guess.
+    let gloves = &recipe_parts(SlotKind::Gloves)[0];
+    assert_eq!(gloves.required, vec!["1 material", "1 gloves mold"]);
+    assert_eq!(gloves.optional, vec!["2 rings"]);
+
+    let greaves = &recipe_parts(SlotKind::Greaves)[0];
+    assert_eq!(greaves.required, vec!["1 material", "1 greaves mold"]);
+}
+
+/// A role that two slots want but whose pieces do not carry between them is
+/// named for its slot; one whose pieces really are shared keeps the bare name.
+#[test]
+fn only_roles_that_do_not_interchange_are_qualified_by_slot() {
+    use gearmaster_engine::piece::PieceKind;
+
+    assert!(PieceKind::Mold.is_slot_specific(), "gloves and greaves molds do not swap");
+    assert_eq!(PieceKind::Mold.name_in(SlotKind::Gloves), "gloves mold");
+    assert_eq!(PieceKind::Mold.name_in(SlotKind::Greaves), "greaves mold");
+
+    // These do swap, so qualifying them would be the lie.
+    for kind in [PieceKind::Material, PieceKind::Plating] {
+        assert!(!kind.is_slot_specific(), "{:?} is shared between slots", kind);
+        assert_eq!(kind.name_in(SlotKind::Greaves), kind.name());
+    }
+
+    // A role only one slot uses needs no qualifying either.
+    assert!(!PieceKind::Ring.is_slot_specific());
+    assert!(!PieceKind::Crest.is_slot_specific());
+}
+
+/// Every way of building a slot is described separately, and each is named for
+/// the piece it is built around.
+#[test]
+fn a_slot_with_several_recipes_describes_each_one() {
+    use gearmaster_engine::piece::recipe_parts;
+
+    let ways = recipe_parts(SlotKind::Weapon);
+    assert_eq!(ways.len(), 3, "weapon builds three ways");
+    let titles: Vec<&str> = ways.iter().map(|w| w.title).collect();
+    assert_eq!(titles, vec!["Martial weapon", "Book spell", "Crystal ball"]);
+
+    assert_eq!(ways[1].required, vec!["1 book", "1 ink", "1 spell"]);
+    assert_eq!(ways[1].optional, vec!["1 accessory"]);
+}
+
+/// The required half is exactly what the assembly rule enforces. If a recipe's
+/// minimums change, the text changes with them rather than going stale.
+#[test]
+fn the_required_half_matches_the_recipe_minimums() {
+    use gearmaster_engine::piece::{recipe_parts, recipes};
+
+    for slot in SlotKind::ALL {
+        for (r, text) in recipes(slot).iter().zip(recipe_parts(slot)) {
+            let wanted = r.iter().filter(|(_, min, _)| *min > 0).count();
+            assert_eq!(
+                text.required.len(),
+                wanted,
+                "{:?}: {} required entries for {} non-zero minimums",
+                slot,
+                text.required.len(),
+                wanted
+            );
+        }
+    }
+}
+
+/// Counts read as English on both sides of the split.
+#[test]
+fn recipe_counts_are_pluralised() {
+    use gearmaster_engine::piece::recipe_parts;
+
+    let all: Vec<String> = SlotKind::ALL
+        .iter()
+        .flat_map(|&s| recipe_parts(s))
+        .flat_map(|p| p.required.into_iter().chain(p.optional))
+        .collect();
+
+    assert!(all.iter().any(|s| s == "2 rings"), "plural noun: {:?}", all);
+    assert!(all.iter().any(|s| s == "2 more layers"), "plural after 'more': {:?}", all);
+    // Mass nouns stay singular however many there are.
+    assert!(all.iter().any(|s| s == "1 more damaging"), "{:?}", all);
+    assert!(!all.iter().any(|s| s.contains("platings")), "no 'platings': {:?}", all);
+    // "accessory" -> "accessories", not "accessorys".
+    assert!(all.iter().any(|s| s == "2 accessories"), "{:?}", all);
+    assert!(!all.iter().any(|s| s.contains("accessorys")), "{:?}", all);
+}

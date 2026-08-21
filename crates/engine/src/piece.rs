@@ -41,19 +41,100 @@ impl SlotKind {
         }
     }
 
-    /// What a valid assembly in this slot needs, in one line for the UI.
-    pub fn recipe_text(self) -> &'static str {
-        match self {
-            SlotKind::Helmet => "1 frame + 1-2 plating + up to 1 crest",
-            SlotKind::Chest => "1 base + 1-3 layers",
-            SlotKind::Gloves => "1 material + 1 mold + up to 2 rings",
-            SlotKind::Greaves => "1 material + 1 mold + up to 1 plating",
-            SlotKind::Weapon => {
-                "1 handle + 1-2 damaging + up to 2 accessories, OR 1 book + 1 ink + 1 spell, \
-                 OR 1 crystal ball + 1-2 ink + 2-3 spells"
-            }
-        }
+    /// What a valid assembly in this slot needs, in one line.
+    ///
+    /// Built from the recipe table rather than written out, so it cannot drift
+    /// from the rule it describes. The interface uses `recipe_parts` instead,
+    /// which keeps the required and the optional halves separate.
+    pub fn recipe_text(self) -> String {
+        recipe_parts(self)
+            .iter()
+            .map(|p| {
+                let mut s = p.required.join(" + ");
+                if !p.optional.is_empty() {
+                    s.push_str(", plus up to ");
+                    s.push_str(&p.optional.join(" and "));
+                }
+                s
+            })
+            .collect::<Vec<_>>()
+            .join(", OR ")
     }
+}
+
+/// One way of building a slot, split at the line that matters: what an item
+/// must have before it counts as assembled, and what may be added on top.
+///
+/// Everything in `optional` is an improvement to gear that already works. A
+/// helmet is finished with a frame and one plating; the second plating and the
+/// crest make it better, not valid.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecipeParts {
+    /// What to call this way of building, when a slot offers several.
+    pub title: &'static str,
+    /// The minimum that makes an item, e.g. `["1 frame", "1 plating"]`.
+    pub required: Vec<String>,
+    /// What may be added beyond that, e.g. `["1 more plating", "1 crest"]`.
+    pub optional: Vec<String>,
+}
+
+/// `(2, PieceKind::Accessory)` -> `"accessories"`.
+fn noun(n: usize, kind: PieceKind, slot: SlotKind) -> String {
+    let name = kind.name_in(slot);
+    if n == 1 {
+        return name;
+    }
+    match kind {
+        // Mass nouns: "2 platings" is not English.
+        PieceKind::Damaging | PieceKind::Plating => name,
+        _ if name.ends_with('y') => format!("{}ies", &name[..name.len() - 1]),
+        _ => format!("{}s", name),
+    }
+}
+
+/// `(2, PieceKind::Accessory)` -> `"2 accessories"`.
+fn count_of(n: usize, kind: PieceKind, slot: SlotKind) -> String {
+    format!("{} {}", n, noun(n, kind, slot))
+}
+
+/// Every way of building `slot`, each split into required and optional.
+pub fn recipe_parts(slot: SlotKind) -> Vec<RecipeParts> {
+    recipes(slot)
+        .iter()
+        .map(|r| {
+            let mut required = Vec::new();
+            let mut optional = Vec::new();
+            for &(kind, min, max) in *r {
+                if min > 0 {
+                    required.push(count_of(min, kind, slot));
+                }
+                if max > min {
+                    // "1 more plating" when some was already required, so it
+                    // is clear this is on top of the minimum rather than an
+                    // alternative to it.
+                    let n = max - min;
+                    optional.push(if min > 0 {
+                        format!("{} more {}", n, noun(n, kind, slot))
+                    } else {
+                        count_of(n, kind, slot)
+                    });
+                }
+            }
+            // Named for the piece it is built around, which is the thing that
+            // decides which recipe you are following.
+            let title = r
+                .iter()
+                .find(|(k, ..)| k.is_core())
+                .map(|(k, ..)| match k {
+                    PieceKind::Handle => "Martial weapon",
+                    PieceKind::Book => "Book spell",
+                    PieceKind::Orb => "Crystal ball",
+                    _ => "",
+                })
+                .unwrap_or("");
+            RecipeParts { title, required, optional }
+        })
+        .collect()
 }
 
 /// What role a component plays inside its slot's recipe. Which slot a given
@@ -119,6 +200,37 @@ impl PieceKind {
             PieceKind::Material => "material",
             PieceKind::Mold => "mold",
         }
+    }
+
+    /// The name to show when the piece is known to belong to `slot`.
+    ///
+    /// Two slots can call for the same role without the pieces being
+    /// interchangeable: gloves and greaves both want a mold, but a glove's
+    /// mold will not go on a shin. Calling both "mold" invites exactly the
+    /// wrong conclusion, so a role used by several slots is qualified by its
+    /// slot - "gloves mold" - unless its pieces really are shared, in which
+    /// case the bare name is the honest one.
+    pub fn name_in(self, slot: SlotKind) -> String {
+        if self.is_slot_specific() {
+            format!("{} {}", slot.name().to_lowercase(), self.name())
+        } else {
+            self.name().to_string()
+        }
+    }
+
+    /// Is this a role that several slots want, but whose pieces do not carry
+    /// between them? Derived rather than listed, so new gear cannot quietly
+    /// reintroduce the ambiguity.
+    pub fn is_slot_specific(self) -> bool {
+        let shareable = CATALOG.iter().any(|d| d.kind == self && d.shared());
+        if shareable {
+            return false;
+        }
+        SlotKind::ALL
+            .iter()
+            .filter(|&&s| recipes(s).iter().any(|r| r.iter().any(|(k, ..)| *k == self)))
+            .count()
+            > 1
     }
 }
 
