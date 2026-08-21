@@ -132,7 +132,67 @@ pub static TURTLE_DICK: Theme = Theme {
         "Climb anyway.",
     ],
     pieces: &[],
-    monsters: &[],
+    monsters: &[
+        // The ladder, re-cast from the book. Each is matched to the kit the
+        // rung already has, not to its position: the wall bosses get the
+        // book's bouncers and wardens, the mind-damage rung gets the riddler
+        // who consumed those who could not answer, and the sovereign of vermin
+        // gets the Worm who is Death.
+        ("Cave Rat", "A. Rat"),
+        ("Bog Toad", "Bengulon Jungle Toad"),
+        ("Bone Archer", "Wallspider Swarm"),
+        ("Rust Golem", "The Crimper"),
+        ("Frost Wisp", "Frosty Kev"),
+        ("Plague Hound", "The Brumpus"),
+        ("The Iron Warden", "Gronkkos the Bouncer"),
+        ("Iron Sentinel", "Velothi High Guard"),
+        ("Whisperling", "Nesbit the Asker"),
+        ("Warded Idol", "Idol of Marbulon"),
+        ("Mirror Fiend", "The Yodregar Archive"),
+        ("Rust Colossus", "Ponkey Dong"),
+        ("Ashen Marshal", "Boucherian Commander"),
+        ("Grave Chorus", "The Rice Criers"),
+        // Your jailer. Beating him is the end of the first act.
+        ("The Hollow King", "Lord Drabley Henpeck"),
+        ("Salt Idol", "C O R K"),
+        ("Pale Twin", "The Gamer Grandparents"),
+        ("Ruin Hound", "Death-Leopard"),
+        ("Bone Cantor", "Skeleton Tool Wizard"),
+        ("Ember Wisp", "Lxirp Strangler Beast"),
+        ("Slag Warden", "Warden of the Centrifuge"),
+        ("The Gearwright", "Spike Kaklon"),
+        ("Crowned Hollow", "Lord Kumeka of the Eighth Ray"),
+        ("Cog Priest", "High Cork Priest"),
+        ("Mire Behemoth", "Titan Megalodon"),
+        // Death itself, and deliberately not at the top: the book is clear
+        // that Francis out-escalates Death.
+        ("Vermin Sovereign", "LETO, the Worm"),
+        ("Obsidian Colossus", "The Unmovable Rock"),
+        ("Null Sentinel", "Warden of Sneel"),
+        ("Silence", "The Glacier of Dobira"),
+        ("Weeping Idol", "The Weeping Seeker"),
+        ("The Long Mirror", "The Perfect Crime"),
+        ("Iron Abbot", "Time Order Bishop"),
+        ("The Last Gearwright", "Nikka Mista"),
+        ("Rimefather", "Emperor of Dobira"),
+        ("The Tallow Saint", "Stink Sandwich"),
+        ("Hollowmarch", "The Morning Rush"),
+        ("The Iron Choir", "The Eight Hymns"),
+        ("Gallowglass", "Mumu Lelonde"),
+        ("The Rust Parliament", "The Shareholders"),
+        ("Sootmother", "Marbulon"),
+        ("The Quiet Hour", "The Grand Calculation"),
+        ("Verdigris", "The Spreading Cork"),
+        ("The Drowned Court", "The Sea of Cleveland"),
+        ("Anvilheart", "The Comedian's Anvil"),
+        ("The Salt Wedding", "The Jester's Wedding"),
+        ("Nine of Ashes", "Nibbalonius the Wise"),
+        // The last three read as one story: the final holy beast, the coat
+        // made from one, and the man wearing it.
+        ("The Last Light", "The Last Wimpler Oxen"),
+        ("Gilt", "The Money Coat"),
+        ("Francis", "Francis the Gambler"),
+    ],
     words: &[],
 };
 
@@ -178,6 +238,50 @@ mod tests {
         for t in THEMES {
             assert!(!t.story.is_empty(), "{} has no opening", t.id);
             assert!(!t.label.is_empty() && !t.blurb.is_empty(), "{} is unlabelled", t.id);
+        }
+    }
+
+    /// A theme names creatures by their canonical name, so a typo in the
+    /// table is a rung that quietly keeps its old name. This catches that.
+    #[test]
+    fn every_themed_monster_names_a_real_one() {
+        use crate::combat::LADDER;
+        for t in THEMES {
+            for (canonical, themed) in t.monsters {
+                assert!(
+                    LADDER.iter().any(|m| m.name == *canonical),
+                    "{} renames {:?} -> {:?}, but no such creature is on the ladder",
+                    t.id,
+                    canonical,
+                    themed
+                );
+            }
+        }
+    }
+
+    /// And the other direction: a theme that claims to re-tell the ladder
+    /// should not leave half of it in the old words.
+    #[test]
+    fn the_turtle_theme_renames_the_whole_ladder() {
+        use crate::combat::LADDER;
+        let missed: Vec<&str> = LADDER
+            .iter()
+            .map(|m| m.name)
+            .filter(|n| TURTLE_DICK.monster(n) == *n)
+            .collect();
+        assert!(missed.is_empty(), "still in plain words: {:?}", missed);
+    }
+
+    /// Two creatures sharing a themed name would be two rungs the player
+    /// cannot tell apart.
+    #[test]
+    fn no_two_creatures_get_the_same_new_name() {
+        for t in THEMES {
+            let mut seen: Vec<&str> = Vec::new();
+            for (_, themed) in t.monsters {
+                assert!(!seen.contains(themed), "{} uses {:?} twice", t.id, themed);
+                seen.push(themed);
+            }
         }
     }
 

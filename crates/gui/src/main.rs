@@ -339,6 +339,47 @@ impl Layout {
     }
 }
 
+// ================================================================= theme
+
+/// The words this frame is being drawn in.
+///
+/// Set once at the top of each frame from `run.theme`. It lives here rather
+/// than being threaded through forty drawing functions because it is a display
+/// concern and nothing else - no drawing code decides anything with it, and
+/// the engine never sees a themed string at all.
+mod words {
+    use gearmaster_engine::theme::{Theme, THEMES};
+    use std::cell::Cell;
+
+    thread_local! {
+        static CURRENT: Cell<&'static Theme> = const { Cell::new(THEMES[0]) };
+    }
+
+    pub fn set(t: &'static Theme) {
+        CURRENT.with(|c| c.set(t));
+    }
+
+    pub fn current() -> &'static Theme {
+        CURRENT.with(|c| c.get())
+    }
+
+    /// A component's name, in this theme.
+    pub fn piece(canonical: &'static str) -> &'static str {
+        current().piece(canonical)
+    }
+
+    /// A creature's name, in this theme.
+    pub fn monster(canonical: &'static str) -> &'static str {
+        current().monster(canonical)
+    }
+
+    /// Any other interface string, by slug, with the plain wording as the
+    /// fallback so an unfinished theme reads as English rather than as slugs.
+    pub fn word(slug: &str, plain: &'static str) -> &'static str {
+        current().word(slug, plain)
+    }
+}
+
 // ============================================================= creatures
 
 /// A simple silhouette for each monster, drawn from primitives in a box of
@@ -2594,7 +2635,7 @@ fn render_slots(
                 // carries a motif, and two overlapping marks read as neither.
                 // Sized to the cell, since a three-word name abbreviates to
                 // three letters and those do not fit at the nominal size.
-                let label = abbrev(def.name);
+                let label = abbrev(words::piece(def.name));
                 let size = fitting_size(&label, SLOT_CELL - 7.0, &[13.0, 12.0, 11.0, 10.0, 9.0]);
                 let lw = text_width(&label, size).min(SLOT_CELL - 5.0);
                 draw_rectangle(
@@ -2860,8 +2901,9 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
         // landed on.
         let cx = card.rect.x + card.rect.w / 2.0;
         let mut ty = card.rect.y + 62.0;
-        let ns = fitting_size(def.name, card.rect.w - 12.0, &[13.0, 12.0, 11.0]);
-        let name_lines = wrap_px(def.name, card.rect.w - 12.0, ns);
+        let shown = words::piece(def.name);
+        let ns = fitting_size(shown, card.rect.w - 12.0, &[13.0, 12.0, 11.0]);
+        let name_lines = wrap_px(shown, card.rect.w - 12.0, ns);
         for line in name_lines.iter().take(2) {
             centered_text(line, cx, ty, ns, if afford { WHITE } else { col_dim() });
             ty += line_h(ns);
@@ -3064,9 +3106,9 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
                     .map(|&(p, ..)| run.registry.def(p))
                     .find(|d| d.kind.is_core())
                     .unwrap_or(def);
-                format!("{} +{}", core.name, pieces.len() - 1)
+                format!("{} +{}", words::piece(core.name), pieces.len() - 1)
             }
-            None => def.name.to_string(),
+            None => words::piece(def.name).to_string(),
         };
         // One line if it will fit at all, two only if it must - and shrink
         // before wrapping, since a shorter card has room for neither.
@@ -3148,7 +3190,7 @@ fn render_def_tooltip_inner(
         lines.push((n.to_string(), col_gold()));
         lines.push(("part of".to_string(), col_dim()));
     }
-    lines.push((def.name.to_string(), WHITE));
+    lines.push((words::piece(def.name).to_string(), WHITE));
     // A shared piece names every grid it fits, not just the one it is filed
     // under - naming one would be the same lie the old colouring told.
     let where_it_goes = def
@@ -4763,7 +4805,7 @@ fn render_ladder_picker(run: &Run, page: usize, mx: f32, my: f32) -> (Option<usi
             1.5,
             if hot { col_gold() } else { Color::from_rgba(64, 64, 88, 255) },
         );
-        let label = format!("{}. {}", rung + 1, m.name);
+        let label = format!("{}. {}", rung + 1, words::monster(m.name));
         let size = fitting_size(&label, cell.w - 16.0, &[14.0, 13.0, 12.0, 11.0]);
         draw_capped(&label, cell.x + 8.0, cell.y + 19.0, cell.w - 16.0, size, WHITE, 1);
         ui_text(
@@ -6315,9 +6357,10 @@ fn render_panel(
         col_foe(),
         Color::from_rgba(40, 22, 20, 255),
     );
-    ui_text(m.name, x + 20.0, y, 17.0, Color::from_rgba(230, 140, 120, 255));
+    let mname = words::monster(m.name);
+    ui_text(mname, x + 20.0, y, 17.0, Color::from_rgba(230, 140, 120, 255));
     let bounty = format!("{}g", m.bounty);
-    ui_text(&bounty, x + 20.0 + text_width(m.name, 17.0) + 14.0, y, 15.0, col_gold());
+    ui_text(&bounty, x + 20.0 + text_width(mname, 17.0) + 14.0, y, 15.0, col_gold());
     y += 18.0;
     ui_text(
         &format!("rung {} of {}  ·  {} hp", run.rung + 1, LADDER.len(), m.health),
@@ -6559,6 +6602,8 @@ async fn main() {
         clear_background(col_bg());
 
         let (mx, my) = viewport.mouse();
+        // Everything drawn this frame speaks the run's theme.
+        words::set(run.theme);
         let reports = run.reports();
         // The fullest single slot, not the total: each slot lists its own.
         let worn_count: usize = reports.iter().map(|r| r.assembled_count()).max().unwrap_or(0);
@@ -6576,7 +6621,7 @@ async fn main() {
                 let gold = run.settle();
                 message = match (gold, run.last_settlement.clone()) {
                     (Some(g), Some(st)) if st.outcome == Outcome::Victory => {
-                        format!("+{} gold. Next up: {}.", g, run.monster().name)
+                        format!("+{} gold. Next up: {}.", g, words::monster(run.monster().name))
                     }
                     (Some(g), Some(st)) if st.run_ended => format!(
                         "+{} gold, but that was your last life. Everything is gone - starting over.",
