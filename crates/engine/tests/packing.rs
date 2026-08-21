@@ -606,17 +606,33 @@ fn build_toward(class: &'static gearmaster_engine::class::ClassDef) -> Run {
             .collect();
         scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
-        let mut best: Option<(f32, Vec<(&'static str, u8, u8, u8)>)> = None;
-        for (score, names) in scored.into_iter().take(150) {
-            if let Some(p) = pack(slot, &names) {
-                best = Some((score, p));
+        // Try to actually wear each candidate, not just to pack it. Materials
+        // are shared between gloves and greaves and plating between helmets
+        // and greaves, so a build chosen for one slot can name a piece the
+        // slot before it is already wearing - the run owns one of each. Before
+        // this, greaves lost that race against gloves every single time and
+        // dropped out of the analysis entirely.
+        let mut worn = false;
+        for (_, names) in scored.into_iter().take(150) {
+            let Some(placed) = pack(slot, &names) else { continue };
+            if wear(&mut run, slot, &placed) {
+                worn = true;
                 break;
             }
-        }
-        if let Some((_, placed)) = best {
-            if !wear(&mut run, slot, &placed) {
-                println!("  (could not fit {} for {})", slot.name(), class.name);
+            // Put back whatever went on before it failed.
+            for (name, ..) in &placed {
+                if let Some(id) = run
+                    .owned
+                    .iter()
+                    .copied()
+                    .find(|&id| run.registry.def(id).name == *name && run.is_equipped(id))
+                {
+                    let _ = run.unequip(id);
+                }
             }
+        }
+        if !worn {
+            println!("  (could not fit {} for {})", slot.name(), class.name);
         }
     }
     run
