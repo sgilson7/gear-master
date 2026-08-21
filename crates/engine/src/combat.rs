@@ -426,6 +426,14 @@ pub const RUST_GOLEM: MonsterSpec = MonsterSpec {
 /// Difficulty is set by what each one is *wearing*, not by hand-tuned numbers:
 /// they buy from the same catalogue and assemble by the same rules. Making a
 /// monster harder means giving it better gear.
+/// What a spell costs to cast at full strength, and what it lands for when
+/// there is nothing to pay with.
+///
+/// An unpaid spell is not cancelled - it still fires, which matters, because a
+/// build that runs dry should get weaker rather than stop.
+pub const SPELL_MANA_COST: i32 = 3;
+pub const WEAK_CAST_PCT: i32 = 45;
+
 /// How many of its spells a crystal ball casts each time it comes round.
 ///
 /// Two, always. A class can raise it; nothing lowers it.
@@ -2418,6 +2426,8 @@ pub enum Event {
     Hit { by: Side, damage: i32, absorbed: i32, target_health: i32, target_armor: i32 },
     /// An item came round and nothing happened - a misfire ate it.
     Misfired { side: Side, item: String },
+    /// A spell went off. `paid` says whether it was cast in full or weakly.
+    Cast { side: Side, paid: bool, cost: i32, remaining: i32 },
     MindHit { by: Side, amount: i32, target_max_health: i32 },
     GainArmor { side: Side, amount: i32, total: i32 },
     GainMana { side: Side, amount: i32, total: i32 },
@@ -2497,6 +2507,23 @@ impl CombatLog {
             }
             Event::Misfired { side, item } => {
                 format!("{} {}'s {} misfires and does nothing", t, self.who(*side), item)
+            }
+            Event::Cast { side, paid, cost, remaining } => {
+                if *paid {
+                    format!(
+                        "{} {} spends {} mana and casts in full ({} left)",
+                        t,
+                        self.who(*side),
+                        cost,
+                        remaining
+                    )
+                } else {
+                    format!(
+                        "{} {} has no mana - the spell lands weakly",
+                        t,
+                        self.who(*side)
+                    )
+                }
             }
             Event::ResourceCheck { side, what, cost, paid, remaining } => format!(
                 "{} {} {} {} {} ({} left)",
@@ -2895,6 +2922,37 @@ fn activate(
             item.triggers.extend(also.triggers.iter().copied());
         }
         pick(p, e, side).items[idx].cast_index = (which + 1) % n;
+
+        // A spell has two intensities. Paid for, it lands in full; unpaid, it
+        // still goes off but weakly. Mana stops being a thing some gear
+        // happens to grant and becomes the difference between a spell that
+        // works and a spell that merely happens.
+        //
+        // One price per activation, covering every voice: a ball is meant to
+        // be the committed choice, and charging it twice for being one would
+        // undo that.
+        let paid = {
+            let me = pick(p, e, side);
+            if me.mana >= SPELL_MANA_COST {
+                me.mana -= SPELL_MANA_COST;
+                true
+            } else {
+                false
+            }
+        };
+        if !paid {
+            let weaken = |v: &mut i32| *v = *v * WEAK_CAST_PCT / 100;
+            weaken(&mut item.damage);
+            weaken(&mut item.physical_damage);
+            weaken(&mut item.magic_damage);
+            weaken(&mut item.mind);
+            weaken(&mut item.armor);
+        }
+        let remaining = pick(p, e, side).mana;
+        log.push(LogEntry {
+            at_ms: t,
+            event: Event::Cast { side, paid, cost: SPELL_MANA_COST, remaining },
+        });
     }
 
     log.push(LogEntry {

@@ -1665,6 +1665,18 @@ impl Playback {
             // Worth a line: an item coming round and doing nothing is the sort
             // of thing you want to see explained rather than wonder about.
             Event::Misfired { .. } => {}
+            // Keeps the mana read-out honest: a cast spends from the same pool
+            // everything else banks into.
+            Event::Cast { side, remaining, .. } => {
+                let pools = if matches!(side, Side::Player) {
+                    &mut self.player_pools
+                } else {
+                    &mut self.enemy_pools
+                };
+                if let Some(i) = pool_index("mana") {
+                    pools[i] = *remaining;
+                }
+            }
             Event::ResourceCheck { side, what, remaining, .. } => {
                 if let Some(i) = pool_index(what) {
                     let pools =
@@ -3528,6 +3540,15 @@ fn item_summary_lines(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> {
             acts.push(format!("{} {}", total, name));
         }
     }
+    // A spell has a price and two outcomes, and the card has to say so - it is
+    // the difference between the figures above and a little under half of them.
+    if !p.casts.is_empty() {
+        acts.push(format!(
+            "costs {} mana - without it the spell lands at {}%",
+            gearmaster_engine::combat::SPELL_MANA_COST,
+            gearmaster_engine::combat::WEAK_CAST_PCT
+        ));
+    }
     if p.power_bonus != 0 {
         acts.push(format!(
             "x{}.{:02} from the ink bound into it",
@@ -3915,6 +3936,9 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("LOCKED ITEM", "Shift-click a finished item to lock it. A locked item stops looking for other pieces to join, turns as one piece, and moves in and out of the inventory whole. Shift-click again to release it."),
     ("PINNED CARD", "Right-click a shop card to pin it. A reroll leaves pinned cards where they are, so you can hold something you cannot yet afford."),
     ("SPELL", "A weapon built the arcane way: a book or a crystal ball, ink, and the spell itself. It fills the weapon slot like any other item."),
+    ("CASTING", "Every spell has two strengths. Paid for, it lands in full; with no mana to spend it still goes off, but at less than half. A build that runs dry gets weaker rather than stopping, so mana income is the difference between a spell that works and one that merely happens."),
+    ("STUN", "Their gear stops dead. Not slowed - stopped, and a cooldown part-way through resumes from where it stood rather than starting over."),
+    ("MISFIRE", "One activation in three does nothing at all. The cooldown comes round, and nothing comes of it."),
     ("BOOK", "The core of a spell, the way a handle is the core of a weapon. It sets how often the spell casts, and binds exactly one spell."),
     ("INK", "Multiplies the cast it is bound into, and only that one - ink never touches your own weapon power. Stronger inks want paying for."),
     ("CRYSTAL BALL", "The other kind of spell core. It holds two or three spells and casts a different one each time it comes round, where a book casts its one every time."),

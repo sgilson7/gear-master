@@ -210,3 +210,71 @@ fn a_neighbour_reading_effect_is_dormant_until_its_item_assembles() {
         "a loose piece reads nothing"
     );
 }
+
+// ------------------------------------------------------------- casting
+
+/// A spell has two strengths. With mana it lands in full; without, it still
+/// goes off - a build that runs dry should get weaker, not stop.
+#[test]
+fn a_spell_cast_without_mana_still_lands_but_weakly() {
+    use gearmaster_engine::combat::{simulate, Event, Side, LADDER};
+    use gearmaster_engine::piece::SlotKind;
+    use gearmaster_engine::run::Run;
+
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Leaden Tome", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Soot Ink", SlotKind::Weapon, 3, 0);
+    equip(&mut run, "Emberburst", SlotKind::Weapon, 3, 1);
+    assert_eq!(run.report(SlotKind::Weapon).assembled_count(), 1);
+
+    let profiles = run.combat_items();
+    let mut stats = run.player_stats();
+    stats.health = 100_000;
+
+    // Nothing banked, so every cast after the opening mana runs out is weak.
+    let log = simulate(stats, &profiles, &LADDER[30]);
+    let paid: Vec<bool> = log
+        .entries
+        .iter()
+        .filter_map(|e| match e.event {
+            Event::Cast { side: Side::Player, paid, .. } => Some(paid),
+            _ => None,
+        })
+        .collect();
+    assert!(!paid.is_empty(), "the spell should be casting at all");
+    assert!(paid.iter().any(|p| !p), "with no mana income some casts must land weak");
+    // And a weak cast is still a cast: it fires rather than being skipped.
+    assert!(
+        log.entries.iter().any(|e| matches!(e.event, Event::Hit { by: Side::Player, .. })),
+        "a weak spell still lands something"
+    );
+}
+
+/// Mana banked is spent on casting, so a build that makes mana casts in full.
+#[test]
+fn mana_income_pays_for_full_strength_casts() {
+    use gearmaster_engine::combat::{simulate, Event, Side, LADDER};
+    use gearmaster_engine::piece::SlotKind;
+    use gearmaster_engine::run::Run;
+
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Leaden Tome", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Tidewrack Ink", SlotKind::Weapon, 3, 0);
+    equip(&mut run, "Emberburst", SlotKind::Weapon, 3, 1);
+    // A chestpiece that banks mana every time it fires. The layer has to
+    // actually touch the base or there is no chestpiece and no income.
+    equip(&mut run, "Wellspring Base", SlotKind::Chest, 0, 0);
+    equip(&mut run, "Aether Layer", SlotKind::Chest, 0, 1);
+    assert_eq!(run.report(SlotKind::Chest).assembled_count(), 1, "the fixture must assemble");
+
+    let profiles = run.combat_items();
+    let mut stats = run.player_stats();
+    stats.health = 100_000;
+    let log = simulate(stats, &profiles, &LADDER[30]);
+    let paid = log
+        .entries
+        .iter()
+        .filter(|e| matches!(e.event, Event::Cast { side: Side::Player, paid: true, .. }))
+        .count();
+    assert!(paid > 0, "a build banking mana should be paying for its casts");
+}
