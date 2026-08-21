@@ -2240,8 +2240,37 @@ fn cooldown_order(items: &[gearmaster_engine::combat::RunningItem]) -> Vec<usize
 }
 
 /// The clickable/hoverable band of one cooldown row.
-fn cooldown_row_rect(g: &BattleGeom, top: f32, i: usize) -> Rect {
-    Rect::new(g.cd_x, top + 30.0 + i as f32 * 28.0 - 5.0, g.cd_w, 26.0)
+/// How tall each cooldown row is, and how many of them get drawn.
+///
+/// A deep boss can field far more gear than the eight or so a band was drawn
+/// for. Left alone the two lists ran into each other and into the log strip,
+/// so the rows tighten to fit the space they have and, past the point where
+/// tightening would make them unreadable, the tail is summarised instead.
+fn cooldown_fit(count: usize, avail: f32) -> (f32, usize) {
+    const IDEAL: f32 = 28.0;
+    const FLOOR: f32 = 17.0;
+    if count == 0 {
+        return (IDEAL, 0);
+    }
+    let pitch = (avail / count as f32).clamp(FLOOR, IDEAL);
+    let fits = (avail / pitch).floor() as usize;
+    if fits >= count {
+        (pitch, count)
+    } else {
+        // Leave a row spare to say what was left out.
+        (pitch, fits.saturating_sub(1))
+    }
+}
+
+/// Room a side's cooldown list has before it would run into whatever is under
+/// it: the enemy's half for the player, the log strip for the enemy.
+fn cooldown_room(g: &BattleGeom, top: f32) -> f32 {
+    let floor = if top < g.enemy_board_y { g.enemy_board_y - 26.0 } else { g.log.y - 16.0 };
+    (floor - (top + 30.0)).max(40.0)
+}
+
+fn cooldown_row_rect(g: &BattleGeom, top: f32, i: usize, pitch: f32) -> Rect {
+    Rect::new(g.cd_x, top + 30.0 + i as f32 * pitch - 5.0, g.cd_w, pitch - 2.0)
 }
 
 /// Total width of five grids side by side./// Total width of five shrunk grids side by side.
@@ -2506,20 +2535,22 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
         ),
     ] {
         ui_text(label, g.cd_x, top + 14.0, 13.0, col_dim());
-        for (row, &i) in cooldown_order(items).iter().enumerate() {
+        let order = cooldown_order(items);
+        let (pitch, shown) = cooldown_fit(order.len(), cooldown_room(&g, top));
+        for (row, &i) in order.iter().take(shown).enumerate() {
             let it = &items[i];
-            if cooldown_row_rect(&g, top, row).contains(Vec2::new(mx, my)) {
+            if cooldown_row_rect(&g, top, row, pitch).contains(Vec2::new(mx, my)) {
                 draw_rectangle(
                     g.cd_x - 6.0,
-                    top + 25.0 + row as f32 * 28.0,
+                    top + 25.0 + row as f32 * pitch,
                     g.cd_w + 12.0,
-                    26.0,
+                    pitch - 2.0,
                     Color::from_rgba(255, 255, 255, 14),
                 );
             }
             render_cooldown_row(
                 g.cd_x,
-                top + 30.0 + row as f32 * 28.0,
+                top + 30.0 + row as f32 * pitch,
                 g.cd_w,
                 &it.name,
                 it.slot,
@@ -2529,6 +2560,15 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
                 pb.now_ms,
                 tint,
                 Rarity::of(it.rating),
+            );
+        }
+        if shown < order.len() {
+            ui_text(
+                &format!("+ {} more", order.len() - shown),
+                g.cd_x + 32.0,
+                top + 30.0 + shown as f32 * pitch + 12.0,
+                13.0,
+                col_dim(),
             );
         }
     }
@@ -2605,8 +2645,10 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
             (&log.player.items, g.player_board_y, &pb.player_profiles, 0usize),
             (&log.enemy.items, g.enemy_board_y, &pb.enemy_profiles, pb.enemy_attack_count),
         ] {
-            for (row, &i) in cooldown_order(items).iter().enumerate() {
-                if !cooldown_row_rect(&g, top, row).contains(Vec2::new(mx, my)) {
+            let order = cooldown_order(items);
+            let (pitch, shown) = cooldown_fit(order.len(), cooldown_room(&g, top));
+            for (row, &i) in order.iter().take(shown).enumerate() {
+                if !cooldown_row_rect(&g, top, row, pitch).contains(Vec2::new(mx, my)) {
                     continue;
                 }
                 match i.checked_sub(offset).and_then(|j| profiles.get(j)) {
@@ -3413,6 +3455,65 @@ fn button_rects(panel_x: f32) -> [Rect; 6] {
     ]
 }
 
+/// What a build produces each second, beyond damage. Rates rather than totals:
+/// an item granting 20 armour every four seconds and one granting 5 every
+/// second are the same thing and should read the same.
+struct BuildRates {
+    armor: f32,
+    mana: f32,
+    rage: f32,
+    faith: f32,
+    nature: f32,
+    mind: f32,
+    curses: f32,
+    activations: f32,
+    triggers: usize,
+}
+
+fn build_rates(items: &[ItemProfile]) -> BuildRates {
+    let mut r = BuildRates {
+        armor: 0.0,
+        mana: 0.0,
+        rage: 0.0,
+        faith: 0.0,
+        nature: 0.0,
+        mind: 0.0,
+        curses: 0.0,
+        activations: 0.0,
+        triggers: 0,
+    };
+    for p in items {
+        let rate = 1000.0 / p.cooldown_ms.max(1) as f32;
+        r.activations += rate;
+        r.armor += p.stats.armor as f32 * rate;
+        r.mana += p.stats.mana as f32 * rate;
+        r.rage += p.stats.rage as f32 * rate;
+        r.faith += p.stats.faith as f32 * rate;
+        r.nature += p.stats.nature as f32 * rate;
+        r.mind += p.stats.mind as f32 * rate;
+        r.triggers += p.triggers.len();
+        for t in &p.triggers {
+            if trigger_curses(t) {
+                r.curses += rate;
+            }
+        }
+    }
+    r
+}
+
+fn trigger_curses(t: &gearmaster_engine::piece::Trigger) -> bool {
+    use gearmaster_engine::piece::{Action, Target, Trigger};
+    let curses = |a: &Action| matches!(a, Action::Curse { target: Target::Enemy, .. });
+    match t {
+        Trigger::OnActivate(a)
+        | Trigger::PerAdjacentItem { action: a, .. }
+        | Trigger::OnAdjacentActivate(a)
+        | Trigger::OnAlignedActivate(a) => curses(a),
+        Trigger::SpendMana { on_success, on_failure, .. }
+        | Trigger::Spend { on_success, on_failure, .. } => curses(on_success) || curses(on_failure),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 /// Which of a tile's marks a summary line is describing, so the panel can
 /// show the same disc or diamond the piece itself is wearing.
@@ -3496,7 +3597,7 @@ fn render_panel(
         ui_text(label, x + 20.0, y, 16.0, LIGHTGRAY);
         let d_w = text_width(&value, 16.0);
         ui_text(&value, x + PANEL_W - 20.0 - d_w, y, 16.0, color);
-        y += 19.0;
+        y += 17.0;
     }
     // Damage is per item now, so a single "damage per attack" figure would
     // lie. Total damage a second across every weapon is the honest summary.
@@ -3509,7 +3610,56 @@ fn render_panel(
     let label = format!("{}.{}", dps_milli / 1000, (dps_milli % 1000) / 100);
     let d_w = text_width(&label, 19.0);
     ui_text(&label, x + PANEL_W - 20.0 - d_w, y, 19.0, col_gold());
-    y += 16.0;
+    y += 20.0;
+
+    // What the build produces per second beyond damage.
+    let rates = build_rates(&items);
+    let mut cells: Vec<(String, Color)> = Vec::new();
+    for (v, label, colour) in [
+        (rates.armor, "armour", col_ok()),
+        (rates.mana, "mana", Color::from_rgba(140, 200, 240, 255)),
+        (rates.rage, "rage", col_foe()),
+        (rates.faith, "faith", col_gold()),
+        (rates.nature, "nature", Color::from_rgba(140, 220, 150, 255)),
+        (rates.mind, "mind", Color::from_rgba(200, 160, 220, 255)),
+        (rates.curses, "curse", col_trigger()),
+    ] {
+        if v >= 0.05 {
+            cells.push((format!("{:.1} {}/s", v, label), colour));
+        }
+    }
+    cells.push((format!("{} items", items.len()), col_dim()));
+    cells.push((format!("{:.1} acts/s", rates.activations), col_dim()));
+    if rates.triggers > 0 {
+        cells.push((format!("{} triggers", rates.triggers), col_trigger()));
+    }
+    // One line only - the gear list below needs its five rows more than this
+    // needs to be complete - with everything on hover.
+    let line_y = y;
+    let mut cx = x + 20.0;
+    let mut shown = 0usize;
+    for (text, colour) in &cells {
+        let w = text_width(text, 12.0);
+        if cx + w > x + PANEL_W - 24.0 {
+            break;
+        }
+        ui_text(text, cx, line_y, 12.0, *colour);
+        cx += w + 12.0;
+        shown += 1;
+    }
+    if shown < cells.len() {
+        ui_text("...", cx, line_y, 12.0, col_dim());
+    }
+    hover.over(
+        Rect::new(x + 14.0, line_y - 13.0, PANEL_W - 28.0, 18.0),
+        mx,
+        my,
+        || {
+            let mut lines = vec![("PER SECOND".to_string(), col_gold())];
+            lines.extend(cells.iter().cloned());
+            lines
+        },
+    );
     y += 14.0;
 
     // Per-slot assembly readout. One row each; the bonus notes are what used
@@ -4577,6 +4727,44 @@ mod tests {
     // A tile says two things - which slot, and which part of the recipe - and
     // has to say both to a player who sees no colour. Slot rides on the motif,
     // role rides on lightness. These pin down that neither collapses.
+
+    #[test]
+    fn cooldown_rows_tighten_before_they_spill() {
+        // A deep boss fields far more gear than the band was drawn for. What
+        // must never happen is rows running past the space they were given -
+        // that is what put the two lists on top of each other.
+        let avail = 300.0;
+        for count in 1..40usize {
+            let (pitch, shown) = cooldown_fit(count, avail);
+            assert!(pitch >= 17.0 && pitch <= 28.0, "{} rows gave pitch {}", count, pitch);
+            assert!(
+                shown as f32 * pitch <= avail + 0.01,
+                "{} rows at pitch {} need {} of {}",
+                shown,
+                pitch,
+                shown as f32 * pitch,
+                avail
+            );
+            assert!(shown <= count);
+        }
+    }
+
+    #[test]
+    fn a_short_list_keeps_its_full_spacing_and_shows_everything() {
+        let (pitch, shown) = cooldown_fit(6, 300.0);
+        assert_eq!(pitch, 28.0);
+        assert_eq!(shown, 6);
+    }
+
+    #[test]
+    fn a_list_that_cannot_fit_leaves_a_row_to_say_so() {
+        // 30 rows cannot fit 300px even at the floor, so some are summarised -
+        // and a row is left spare for the "+ N more" line.
+        let (pitch, shown) = cooldown_fit(30, 300.0);
+        assert_eq!(pitch, 17.0);
+        assert!(shown < 30);
+        assert!((shown + 1) as f32 * pitch <= 300.0 + 0.01, "no room left for the tail line");
+    }
 
     #[test]
     fn every_slot_has_its_own_motif() {
