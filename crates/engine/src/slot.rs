@@ -339,6 +339,23 @@ impl Slot {
         span
     }
 
+    /// Are these pieces one orthogonally connected blob? An item whose parts
+    /// are not joined is not an item.
+    pub fn connected(&self, pieces: &[PieceId]) -> bool {
+        let Some(&first) = pieces.first() else { return true };
+        let mut seen = vec![first];
+        let mut queue = vec![first];
+        while let Some(p) = queue.pop() {
+            for q in self.neighbors_of(p) {
+                if pieces.contains(&q) && !seen.contains(&q) {
+                    seen.push(q);
+                    queue.push(q);
+                }
+            }
+        }
+        seen.len() == pieces.len()
+    }
+
     /// Do these two sets of pieces touch? Used for item-to-item adjacency,
     /// which is now possible because touching no longer merges items.
     pub fn sets_touch(&self, a: &[PieceId], b: &[PieceId]) -> bool {

@@ -227,7 +227,7 @@ impl Loadout {
     ///   5. add the flat assembly bonuses of assembled items
     pub fn report(&self, reg: &PieceRegistry, kind: SlotKind) -> SlotReport {
         let slot = self.slot(kind);
-        let groups = slot.items(reg);
+        let groups = repair_split(slot, reg, kind, slot.items(reg));
 
         // 2.
         let verdicts: Vec<Result<(), String>> =
@@ -507,6 +507,71 @@ impl Loadout {
         }
         total
     }
+}
+
+/// Hand contested pieces to whichever item actually needs them.
+///
+/// Items are split by giving each piece to its nearest core. That is the right
+/// default, but it is only a proximity rule - it knows nothing about recipes.
+/// Pack a spell hard against a weapon and the weapon, being one step closer,
+/// can take the spell's ink; both then fail, and the board looks broken for
+/// no reason a player can see.
+///
+/// So after the split, any piece sitting on the boundary between two items is
+/// offered to the one that is short of it, provided the item losing it can
+/// spare it. Being able to pack tightly is the whole point of having a second
+/// recipe in the slot, and this is what makes it safe.
+fn repair_split(
+    slot: &Slot,
+    reg: &PieceRegistry,
+    kind: SlotKind,
+    mut groups: Vec<Vec<PieceId>>,
+) -> Vec<Vec<PieceId>> {
+    // A handful of passes is plenty: each one either fixes an item or changes
+    // nothing, and a slot never holds many items.
+    for _ in 0..4 {
+        let ok: Vec<bool> =
+            groups.iter().map(|g| check_recipe(kind, reg, g).is_ok()).collect();
+        if ok.iter().all(|v| *v) {
+            break;
+        }
+        let mut moved = false;
+        'outer: for want in 0..groups.len() {
+            if ok[want] {
+                continue;
+            }
+            for give in 0..groups.len() {
+                if give == want || groups[give].len() <= 1 {
+                    continue;
+                }
+                for (pos, &piece) in groups[give].iter().enumerate() {
+                    // Only pieces actually touching the needy item, or it
+                    // would end up with parts it is not connected to.
+                    if !slot.sets_touch(&[piece], &groups[want]) {
+                        continue;
+                    }
+                    let mut donor = groups[give].clone();
+                    donor.remove(pos);
+                    let mut taker = groups[want].clone();
+                    taker.push(piece);
+                    // Only if it helps the one and does not break the other.
+                    if check_recipe(kind, reg, &taker).is_ok()
+                        && check_recipe(kind, reg, &donor).is_ok()
+                        && slot.connected(&donor)
+                    {
+                        groups[give] = donor;
+                        groups[want] = taker;
+                        moved = true;
+                        break 'outer;
+                    }
+                }
+            }
+        }
+        if !moved {
+            break;
+        }
+    }
+    groups
 }
 
 /// Does this group of components satisfy the slot's recipe? Returns the

@@ -770,3 +770,69 @@ fn a_greave_can_take_a_plate() {
     let report = run.report(SlotKind::Greaves);
     assert_eq!(report.assembled_count(), 1, "{}", report.summary());
 }
+
+// ------------------------------------------- spells packed against weapons
+
+#[test]
+fn a_spell_and_a_weapon_can_sit_flush_without_confusing_each_other() {
+    // The whole point of the spell recipes: books and orbs anchor items of
+    // their own, so a spell can be packed hard against a martial weapon and
+    // neither steals the other's parts. Three damaging pieces in one grid
+    // would be illegal in one weapon - split across two items it is fine.
+    let mut run = Run::with_all_pieces();
+    // A martial weapon on the left.
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Iron Blade", SlotKind::Weapon, 1, 0);
+    // A spell immediately beside it, touching.
+    equip(&mut run, "Pocket Grimoire", SlotKind::Weapon, 2, 0);
+    equip(&mut run, "Soot Ink", SlotKind::Weapon, 3, 0);
+    equip(&mut run, "Emberburst", SlotKind::Weapon, 3, 1);
+
+    let report = run.report(SlotKind::Weapon);
+    assert_eq!(
+        report.assembled_count(),
+        2,
+        "a weapon and a spell, side by side: {}",
+        report.summary()
+    );
+}
+
+#[test]
+fn two_spell_cores_can_be_neighbours() {
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Pocket Grimoire", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Soot Ink", SlotKind::Weapon, 1, 0);
+    equip(&mut run, "Emberburst", SlotKind::Weapon, 0, 2);
+    equip(&mut run, "Apprentice's Primer", SlotKind::Weapon, 3, 0);
+    equip(&mut run, "Prismatic Ink", SlotKind::Weapon, 3, 2);
+    equip(&mut run, "Rime Nova", SlotKind::Weapon, 3, 3);
+
+    let report = run.report(SlotKind::Weapon);
+    assert_eq!(report.assembled_count(), 2, "two books, two spells: {}", report.summary());
+}
+
+#[test]
+fn packing_a_spell_beside_a_weapon_beats_leaving_the_room_empty() {
+    // The claim the spell system rests on: access to it lets you fit more
+    // into one grid than the martial recipe alone allows.
+    let mut martial = Run::with_all_pieces();
+    equip(&mut martial, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut martial, "Iron Blade", SlotKind::Weapon, 1, 0);
+    let alone = martial.report(SlotKind::Weapon).stats;
+
+    let mut both = Run::with_all_pieces();
+    equip(&mut both, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut both, "Iron Blade", SlotKind::Weapon, 1, 0);
+    equip(&mut both, "Pocket Grimoire", SlotKind::Weapon, 2, 0);
+    equip(&mut both, "Soot Ink", SlotKind::Weapon, 3, 0);
+    equip(&mut both, "Emberburst", SlotKind::Weapon, 3, 1);
+    let packed = both.report(SlotKind::Weapon);
+
+    assert_eq!(packed.assembled_count(), 2);
+    assert!(
+        packed.stats.damage > alone.damage,
+        "the spell should be adding a payload the weapon alone had no room for: {:?} vs {:?}",
+        packed.stats.damage,
+        alone.damage
+    );
+}
