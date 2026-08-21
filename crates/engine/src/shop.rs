@@ -15,6 +15,9 @@ pub const REROLL_COST: i32 = 1;
 pub struct Shop {
     /// Catalog indices currently for sale, no duplicates.
     pub stock: Vec<usize>,
+    /// Shelves the player has pinned. A restock leaves these alone, so you
+    /// can hold something you cannot yet afford instead of watching it go.
+    pub locked: Vec<usize>,
     /// The stock before this one. Held so a restock brings genuinely new
     /// items rather than shuffling the same handful back at you.
     previous: Vec<usize>,
@@ -22,7 +25,7 @@ pub struct Shop {
 
 impl Shop {
     pub fn new(rng: &mut Rng) -> Self {
-        let mut shop = Shop { stock: Vec::new(), previous: Vec::new() };
+        let mut shop = Shop { stock: Vec::new(), locked: Vec::new(), previous: Vec::new() };
         shop.restock(rng);
         shop
     }
@@ -36,11 +39,24 @@ impl Shop {
     /// weapon at all, and a player with no weapon cannot win a fight to earn
     /// the gold to reroll out of it.
     pub fn restock(&mut self, rng: &mut Rng) {
-        let outgoing = std::mem::take(&mut self.stock);
-        let fresh = |i: &usize| !outgoing.contains(i);
+        // Whatever is pinned stays exactly where it is, and a restock fills
+        // the rest of the shelves around it.
+        let kept: Vec<(usize, usize)> = self
+            .locked
+            .iter()
+            .filter_map(|&i| self.stock.get(i).map(|&def| (i, def)))
+            .collect();
 
-        let mut chosen: Vec<usize> = Vec::new();
+        let outgoing = std::mem::take(&mut self.stock);
+        let held: Vec<usize> = kept.iter().map(|(_, d)| *d).collect();
+        let fresh = |i: &usize| !outgoing.contains(i) && !held.contains(i);
+
+        let mut chosen: Vec<usize> = held.clone();
         for want in [PieceKind::Handle, PieceKind::Damaging] {
+            if chosen.iter().any(|&i| CATALOG[i].slot == SlotKind::Weapon && CATALOG[i].kind == want)
+            {
+                continue;
+            }
             let mut candidates: Vec<usize> = (0..CATALOG.len())
                 .filter(|&i| CATALOG[i].slot == SlotKind::Weapon && CATALOG[i].kind == want)
                 .filter(|i| fresh(i) && !chosen.contains(i))
@@ -69,12 +85,37 @@ impl Shop {
             }
             chosen.push(i);
         }
-        // Don't leave the guaranteed pair sitting in the same two shelves
-        // every single time.
         rng.shuffle(&mut chosen);
+
+        // Put the pinned ones back on the shelves they were pinned to.
+        for &(slot, def) in &kept {
+            if let Some(at) = chosen.iter().position(|&c| c == def) {
+                if slot < chosen.len() {
+                    chosen.swap(at, slot);
+                }
+            }
+        }
         self.stock = chosen;
         self.previous = outgoing;
     }
+
+    /// Pin or unpin a shelf. Returns whether it is pinned afterwards.
+    pub fn toggle_lock(&mut self, slot: usize) -> bool {
+        if let Some(at) = self.locked.iter().position(|&i| i == slot) {
+            self.locked.remove(at);
+            false
+        } else if slot < self.stock.len() {
+            self.locked.push(slot);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_locked(&self, slot: usize) -> bool {
+        self.locked.contains(&slot)
+    }
+
 
     pub fn def(&self, slot: usize) -> Option<&'static PieceDef> {
         self.stock.get(slot).map(|&i| &CATALOG[i])
@@ -88,6 +129,14 @@ impl Shop {
     /// index. Buying it twice from one stock is not on offer.
     pub fn take(&mut self, slot: usize) -> Option<usize> {
         if slot < self.stock.len() {
+            // A bought shelf is no longer pinned, and the ones after it move
+            // down a place.
+            self.locked.retain(|&i| i != slot);
+            for i in self.locked.iter_mut() {
+                if *i > slot {
+                    *i -= 1;
+                }
+            }
             Some(self.stock.remove(slot))
         } else {
             None
@@ -160,6 +209,46 @@ mod tests {
             assert!(has_handle && has_damage, "round {} cannot build a weapon", round);
             shop.restock(&mut rng);
         }
+    }
+
+    #[test]
+    fn a_pinned_shelf_survives_a_restock() {
+        let mut rng = Rng::new(5);
+        let mut shop = Shop::new(&mut rng);
+        let kept = shop.stock[2];
+        assert!(shop.toggle_lock(2));
+        assert!(shop.is_locked(2));
+
+        for _ in 0..8 {
+            shop.restock(&mut rng);
+            assert_eq!(shop.stock[2], kept, "the pinned shelf should not turn over");
+            assert_eq!(shop.stock.len(), SHOP_SIZE);
+        }
+
+        // And unpinning lets it go again.
+        assert!(!shop.toggle_lock(2));
+        let mut moved = false;
+        for _ in 0..8 {
+            shop.restock(&mut rng);
+            if shop.stock[2] != kept {
+                moved = true;
+                break;
+            }
+        }
+        assert!(moved, "an unpinned shelf should eventually turn over");
+    }
+
+    #[test]
+    fn buying_a_shelf_shifts_the_pins_after_it() {
+        let mut rng = Rng::new(9);
+        let mut shop = Shop::new(&mut rng);
+        let pinned = shop.stock[4];
+        shop.toggle_lock(4);
+
+        shop.take(1);
+
+        assert!(shop.is_locked(3), "the pin follows its item down a place");
+        assert_eq!(shop.stock[3], pinned);
     }
 
     #[test]

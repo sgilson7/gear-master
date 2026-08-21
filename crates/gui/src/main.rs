@@ -1796,6 +1796,14 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::from_rgba(96, 84, 52, 255));
 
     ui_text("SHOP", r.x + 14.0, r.y + 26.0, 18.0, col_gold());
+    ui_text(
+        "right-click a card to pin it",
+        r.x + 24.0 + text_width("SHOP", 18.0),
+        r.y + 26.0,
+        12.0,
+        col_dim(),
+    );
+
     ui_text(&format!("{} gold", run.gold), r.x + 14.0, r.y + 50.0, 20.0, WHITE);
     ui_text("click to buy", r.x + 14.0, r.y + 68.0, 12.0, col_dim());
     button(
@@ -1865,6 +1873,23 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
             14.0,
             if afford { col_gold() } else { col_bad() },
         );
+
+        // A pinned shelf gets a bright border and a mark, so it reads as held
+        // rather than merely hovered.
+        if run.shop.is_locked(card.slot_index) {
+            draw_rectangle_lines(
+                card.rect.x - 2.0,
+                card.rect.y - 2.0,
+                card.rect.w + 4.0,
+                card.rect.h + 4.0,
+                3.0,
+                col_gold(),
+            );
+            let (px, py) = (card.rect.x + card.rect.w - 13.0, card.rect.y + card.rect.h - 13.0);
+            draw_circle(px, py, 6.0, col_gold());
+            draw_rectangle(px - 2.0, py - 1.0, 4.0, 7.0, Color::from_rgba(20, 18, 12, 255));
+            draw_circle_lines(px, py - 4.0, 4.0, 1.8, col_gold());
+        }
 
         // Same markers as the inventory, so a triggered piece is obvious
         // before you pay for it.
@@ -4199,6 +4224,12 @@ async fn main() {
             run.equip(id, slot, xs.parse().unwrap(), ys.parse().unwrap()).expect("fits");
         }
     }
+    // GEARMASTER_PIN=0,3 pins shelves, so the pinned state can be inspected.
+    if let Ok(v) = std::env::var("GEARMASTER_PIN") {
+        for n in v.split(',').filter_map(|n| n.trim().parse::<usize>().ok()) {
+            run.shop.toggle_lock(n);
+        }
+    }
     if let Ok(c) = std::env::var("GEARMASTER_CLASS") {
         run.class = gearmaster_engine::class::CLASSES
             .iter()
@@ -4618,6 +4649,16 @@ async fn main() {
 
             // --- rotate (right-click, held or in place) ---
             if is_mouse_button_pressed(MouseButton::Right) {
+                if let Some(i) = layout.shop_hit(mx, my) {
+                    let name = run.shop.def(i).map(|d| d.name).unwrap_or("that");
+                    message = if run.shop.toggle_lock(i) {
+                        format!("{} is pinned. A reroll will leave it there.", name)
+                    } else {
+                        format!("{} is loose again.", name)
+                    };
+                    next_frame().await;
+                    continue;
+                }
                 let target = drag.held_id().or_else(|| {
                     layout
                         .slot_hit(mx, my)
