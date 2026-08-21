@@ -5101,7 +5101,7 @@ fn render_class_card(run: &Run, mx: f32, my: f32) {
         ui_text(c.name, x + 16.0, ty, 17.0, col_gold());
         ty += 18.0;
         let d = c.power.describe();
-        for l in wrap_px(&d, w - 40.0, 12.0).into_iter().take(2) {
+        for l in wrap_px(&d, w - 40.0, 12.0).into_iter().take(4) {
             ui_text(&l, x + 22.0, ty, 12.0, LIGHTGRAY);
             ty += 14.0;
         }
@@ -5393,9 +5393,9 @@ fn render_panel(
             // The band is pinned, so the text shrinks to fit rather than being
             // cut off - a power whose description is a word longer than the
             // last one must not silently lose its ending.
-            let text = c.power.describe();
-            let size = fitting_size(&text, PANEL_W - 48.0, &[13.0, 12.0, 11.0, 10.0, 9.0]);
-            ui_text(&text, x + 24.0, y, size, LIGHTGRAY);
+            let text = c.power.short();
+            let size = fitting_size(&text, PANEL_W - 48.0, &[13.0, 12.0, 11.0, 10.0]);
+            draw_capped(&text, x + 24.0, y, PANEL_W - 48.0, size, LIGHTGRAY, 1);
             y += 18.0;
         }
     }

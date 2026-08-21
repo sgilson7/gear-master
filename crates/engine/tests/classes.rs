@@ -249,3 +249,56 @@ fn bloodscent_banks_rage_when_a_curse_lands() {
     let bl = CLASSES.iter().find(|c| c.name == "Bloodletter").expect("Bloodletter exists");
     assert!(rage(&[bl]) > rage(&[]), "curses should have banked rage");
 }
+
+// ------------------------------------------------------- what they say
+
+/// A description that says something different from what the code does is
+/// worse than one that says nothing. Consecrate is here by name because it
+/// was exactly that: it read "armour is stronger where you already resist",
+/// which is a rule that was never written. What it does is key off held faith.
+#[test]
+fn consecrate_describes_the_rule_that_was_actually_built() {
+    let warpriest = CLASSES.iter().find(|c| c.name == "Warpriest").expect("Warpriest exists");
+    let text = warpriest.power.describe().to_lowercase();
+    assert!(text.contains("faith"), "it keys off faith, and should say so: {}", text);
+    assert!(text.contains("armour"), "{}", text);
+    assert!(
+        !text.contains("already resist"),
+        "still describing a rule nobody wrote: {}",
+        text
+    );
+}
+
+/// Every power owes the player a sentence with something concrete in it: a
+/// number, or a named condition. "Held resources count double" told nobody
+/// what a resource does held.
+#[test]
+fn every_class_power_says_something_concrete() {
+    for c in CLASSES {
+        let full = c.power.describe();
+        assert!(full.len() >= 30, "{}: '{}' is too vague to act on", c.name, full);
+        // A number, or a word that stands in for one, or a named condition.
+        let concrete = full.chars().any(|ch| ch.is_ascii_digit())
+            || ["twice", "double", "all four", "opposite"]
+                .iter()
+                .any(|w| full.contains(w));
+        assert!(concrete, "{}: '{}' names no number and no condition", c.name, full);
+    }
+}
+
+/// The panel has one line for this and the glossary has a paragraph, so the
+/// short form has to actually be shorter - otherwise it is cut off on screen.
+#[test]
+fn the_short_form_fits_where_the_long_one_does_not() {
+    for c in CLASSES {
+        let short = c.power.short();
+        assert!(!short.is_empty(), "{} has no short form", c.name);
+        assert!(
+            short.len() <= 46,
+            "{}: '{}' is {} chars, too long for the panel",
+            c.name,
+            short,
+            short.len()
+        );
+    }
+}

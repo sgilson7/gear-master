@@ -87,7 +87,8 @@
       "Bash(grep -n \"Curse { kind: CurseKind::[A-Za-z]*, target: Target::Enemy }\" -B 14 crates/engine/src/piece.rs)",
       "Bash(awk '/name: \"The Last Gearwright\"/,/^    },$/' crates/engine/src/combat.rs)",
       "Bash(python3 /Users/samgilson/.claude/jobs/a7e69fbf/tmp/summit_gen.py)",
-      "Bash(awk '/^fn item_summary_lines/,/^}$/' crates/gui/src/main.rs)"
+      "Bash(awk '/^fn item_summary_lines/,/^}$/' crates/gui/src/main.rs)",
+      "Bash(awk '/pub fn describe\\\\\\(self\\\\\\) -> String \\\\{/,/^    \\\\}$/' crates/engine/src/class.rs)"
     ]
   }
 }

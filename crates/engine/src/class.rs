@@ -302,46 +302,125 @@ pub enum ClassPower {
 }
 
 impl ClassPower {
+    /// A few words for the side panel, where there is one line and it must
+    /// not shrink to nothing. The full sentence lives in `describe`, which is
+    /// what the glossary and the hover card show.
+    pub fn short(self) -> String {
+        match self {
+            ClassPower::Standing(s) => s.summary(),
+            ClassPower::SlowTime => "damage arrives over 5s".into(),
+            ClassPower::Leeching(pct) => format!("{}% of damage dealt heals you", pct),
+            ClassPower::Overflowing => "rage, faith and nature count twice".into(),
+            ClassPower::Echo(n) => format!("every {}rd activation fires twice", n),
+            ClassPower::Bastion(pct) => format!("armour returns {}% of what it soaks", pct),
+            ClassPower::Contagion => "curses land in pairs".into(),
+            ClassPower::Reprisal(n) => format!("being hit banks {} faith", n),
+            ClassPower::Riposte(ms) => {
+                format!("their every act speeds you {:.2}s", ms as f32 / 1000.0)
+            }
+            ClassPower::Momentum(n) => format!("+{} strength a second elapsed", n),
+            ClassPower::Resonance => "reactions pay out twice".into(),
+            ClassPower::Transmute(pct) => format!("{}% of iron lands again as magic", pct),
+            ClassPower::Untimely(n) => format!("every {}th act stops their gear", n),
+            ClassPower::Cascade(ms) => {
+                format!("each act speeds the rest {:.2}s", ms as f32 / 1000.0)
+            }
+            ClassPower::Consecrate(pct) => format!("holding faith: {}% more armour", pct),
+            ClassPower::Bloodscent(n) => format!("landing a curse banks {} rage", n),
+            ClassPower::Confluence(pct) => format!("spending a pool refunds {}% to each other", pct),
+            ClassPower::Adaptable => "every act banks one of all four pools".into(),
+        }
+    }
+
+    /// One sentence saying what actually happens.
+    ///
+    /// These are read by somebody deciding what to build, so vagueness is a
+    /// bug: "held resources count double" tells nobody what a resource does
+    /// held, and "armour is stronger where you already resist" described a
+    /// rule that was never written. Name the numbers and the condition.
     pub fn describe(self) -> String {
         match self {
             ClassPower::Standing(s) => s.summary(),
             ClassPower::SlowTime => {
-                "incoming damage arrives over 5s".into()
+                "damage against you arrives in slices over 5s instead of all at once, so \
+                 regeneration and armour get a chance to answer it"
+                    .into()
             }
-            ClassPower::Leeching(pct) => format!("{}% of damage dealt heals you", pct),
-            ClassPower::Overflowing => "held resources count double".into(),
-            ClassPower::Echo(n) => format!("every {}rd activation fires twice", n),
-            ClassPower::Bastion(pct) => {
-                format!("armour returns {}% of what it soaks", pct)
+            ClassPower::Leeching(pct) => {
+                format!("{}% of the damage you deal comes back to you as health", pct)
             }
-            ClassPower::Contagion => "curses land in pairs".into(),
-            ClassPower::Reprisal(n) => format!("taking a hit banks {} faith", n),
-            ClassPower::Riposte(ms) => format!("their every act speeds you {:.2}s", ms as f32 / 1000.0),
-            ClassPower::Momentum(n) => {
-                format!("+{} strength per second elapsed", n)
+            ClassPower::Overflowing => {
+                "rage, faith and nature count twice while you hold them - so double the \
+                 physical damage from rage, double the resistance from faith, double the \
+                 regeneration from nature"
+                    .into()
             }
-            ClassPower::Resonance => "reactions fire twice".into(),
-            ClassPower::Transmute(pct) => {
-                format!("{}% of physical lands again as magic", pct)
+            ClassPower::Echo(n) => {
+                format!("every {}rd time one of your items fires, it fires again immediately", n)
             }
+            ClassPower::Bastion(pct) => format!(
+                "whenever your armour soaks a hit, {}% of what it soaked is handed back as \
+                 fresh armour",
+                pct
+            ),
+            ClassPower::Contagion => {
+                "every curse you land brings its opposite with it - searing pulls in frost, \
+                 a stun pulls in a misfire"
+                    .into()
+            }
+            ClassPower::Reprisal(n) => {
+                format!("every hit that lands on you banks {} faith", n)
+            }
+            ClassPower::Riposte(ms) => format!(
+                "every time they activate anything, all of your cooldowns jump {:.2}s closer \
+                 to firing",
+                ms as f32 / 1000.0
+            ),
+            ClassPower::Momentum(n) => format!(
+                "+{} strength for every second the fight has lasted, so a long fight is one \
+                 you get better at",
+                n
+            ),
+            ClassPower::Resonance => {
+                "triggers that answer something else - a touching item firing, or one lined \
+                 up across the grids - pay out twice instead of once"
+                    .into()
+            }
+            ClassPower::Transmute(pct) => format!(
+                "{}% of every point of physical damage you deal lands a second time as \
+                 magic, against their magic defences",
+                pct
+            ),
             ClassPower::Untimely(n) => format!(
-                "every {}th activation of yours freezes their gear for {:.1}s and leaves \
-                 one activation in three misfiring for {:.0}s afterwards",
+                "every {}th time one of your items fires, their gear stops dead for {:.1}s \
+                 and then misfires one activation in three for {:.0}s",
                 n,
                 crate::curse::STUN_MS as f32 / 1000.0,
                 crate::curse::MISFIRE_MS as f32 / 1000.0,
             ),
-            ClassPower::Cascade(ms) => {
-                format!("each activation cuts {:.1}s off every other item", ms as f32 / 1000.0)
+            ClassPower::Cascade(ms) => format!(
+                "every time one of your items fires, every OTHER item of yours jumps {:.2}s \
+                 closer to firing",
+                ms as f32 / 1000.0
+            ),
+            ClassPower::Consecrate(pct) => format!(
+                "while you are holding any faith at all, every point of armour you gain is \
+                 worth {}% more",
+                pct
+            ),
+            ClassPower::Bloodscent(n) => {
+                format!("every curse you land on them banks {} rage for you", n)
             }
-            ClassPower::Consecrate(pct) => {
-                format!("armour is {}% stronger where you already resist", pct)
+            ClassPower::Confluence(pct) => format!(
+                "whenever you spend one pool, {}% of what you spent is paid into each of the \
+                 other three",
+                pct
+            ),
+            ClassPower::Adaptable => {
+                "every time any of your items fires, you bank one of all four pools at once - \
+                 one mana, one rage, one faith, one nature"
+                    .into()
             }
-            ClassPower::Bloodscent(n) => format!("landing a curse banks {} rage", n),
-            ClassPower::Confluence(pct) => {
-                format!("spending a pool refunds {}% to the others", pct)
-            }
-            ClassPower::Adaptable => "every act banks all four pools".into(),
         }
     }
 }
