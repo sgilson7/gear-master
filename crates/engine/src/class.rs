@@ -213,7 +213,8 @@ fn trigger_lands_a_curse(t: &crate::piece::Trigger) -> bool {
         | Trigger::PerAdjacentItem { action: a, .. }
         | Trigger::OnAdjacentActivate(a)
         | Trigger::OnAlignedActivate(a) => is_curse(a),
-        Trigger::SpendMana { on_success, on_failure, .. } => {
+        Trigger::SpendMana { on_success, on_failure, .. }
+        | Trigger::Spend { on_success, on_failure, .. } => {
             is_curse(on_success) || is_curse(on_failure)
         }
     }

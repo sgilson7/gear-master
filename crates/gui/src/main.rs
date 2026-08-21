@@ -1247,6 +1247,7 @@ impl Playback {
         let now = get_time();
         match &entry.event {
             Event::Activate { .. } => return, // shown as a bar, not a log line
+            Event::ResourceCheck { .. } => {}
             Event::GainResource { side, .. } => {
                 // Banked resources are read off the combatant, so the entry
                 // only needs to reach the log strip.
@@ -3557,8 +3558,65 @@ fn render_panel(
     }
     y += 10.0;
 
+    // ---- class ----
+    // Shown every frame, not only at the fountain: the whole point is that the
+    // outcome is something you build toward rather than find out about.
+    let outlook = run.class_outlook();
+    if let Some(c) = run.class {
+        ui_text("YOUR CLASS", x + 20.0, y, 14.0, col_dim());
+        y += 22.0;
+        ui_text(c.name, x + 20.0, y, 19.0, col_gold());
+        y += 20.0;
+        for l in wrap_px(&c.power.describe(), PANEL_W - 44.0, 13.0).into_iter().take(3) {
+            ui_text(&l, x + 24.0, y, 13.0, LIGHTGRAY);
+            y += line_h(13.0);
+        }
+        y += 8.0;
+    } else {
+        let at_fountain = run.at_fountain();
+        ui_text(
+            if at_fountain { "THE FOUNTAIN IS WAITING" } else { "CLASS ON THE 5TH RUNG" },
+            x + 20.0,
+            y,
+            14.0,
+            if at_fountain { col_gold() } else { col_dim() },
+        );
+        y += 22.0;
+        if let Some(best) = outlook.iter().find(|m| m.eligible) {
+            ui_text("you would be given", x + 20.0, y, 12.0, col_dim());
+            let w = text_width(best.class.name, 17.0);
+            ui_text(best.class.name, x + PANEL_W - 20.0 - w, y, 17.0, col_gold());
+            y += 20.0;
+        }
+        // The nearest thing you have not got, and what it is short of - so a
+        // player can chase a class instead of waiting to be told.
+        if let Some(near) = outlook.iter().find(|m| !m.eligible) {
+            let short: Vec<String> = near
+                .detail
+                .iter()
+                .filter(|(_, need, have)| have < need)
+                .map(|(a, need, have)| format!("{} {}/{}", a.name(), have, need))
+                .collect();
+            if !short.is_empty() {
+                ui_text(
+                    &format!("{} needs", near.class.name),
+                    x + 20.0,
+                    y,
+                    12.0,
+                    Color::from_rgba(150, 200, 240, 255),
+                );
+                y += 16.0;
+                for l in wrap_px(&short.join(", "), PANEL_W - 48.0, 12.0).into_iter().take(2) {
+                    ui_text(&l, x + 26.0, y, 12.0, col_dim());
+                    y += 15.0;
+                }
+            }
+        }
+        y += 10.0;
+    }
+
     let m = run.monster();
-    ui_text("NEXT OPPONENT", x + 20.0, y, 14.0, col_dim());
+    ui_text(if run.at_fountain() { "BEYOND THE FOUNTAIN" } else { "NEXT OPPONENT" }, x + 20.0, y, 14.0, col_dim());
     y += 20.0;
     draw_monster(
         x + PANEL_W - 78.0,
@@ -3622,7 +3680,13 @@ fn render_panel(
 
     // Buttons
     let r = button_rects(layout.panel_x);
-    button(r[0], "BEGIN FIGHT", true, mx, my);
+    button(
+        r[0],
+        if run.at_fountain() { "DRINK FROM THE FOUNTAIN" } else { "BEGIN FIGHT" },
+        true,
+        mx,
+        my,
+    );
     button(r[1], &format!("SPEED {}x", speed_label(speed)), true, mx, my);
 
     let can_undo = run.undoable().is_some();
@@ -3981,7 +4045,15 @@ async fn main() {
                 message = format!("Playback at {}x.", speed_label(playback_speed));
             }
         } else {
-            if clicked_button(0) {
+            if clicked_button(0) && run.at_fountain() {
+                // Not a fight: the fountain reads the build and imbues you.
+                let class = run.drink();
+                message = format!(
+                    "The fountain names you {}: {}.",
+                    class.name,
+                    class.power.describe()
+                );
+            } else if clicked_button(0) {
                 pb = Some({
                     let profiles = run.combat_items();
                     Playback::new(run.fight_next(), &profiles, playback_speed)

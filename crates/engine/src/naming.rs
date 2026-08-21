@@ -160,6 +160,7 @@ fn action_word(a: &Action) -> Option<&'static str> {
     use crate::curse::CurseKind::*;
     use crate::piece::Target::*;
     Some(match a {
+        Action::Gain { .. } => "Brimming",
         Action::Curse { kind: Searing, target: Enemy } => "Searing",
         Action::Curse { kind: Searing, target: Yourself } => "Martyr's",
         Action::Curse { kind: Frost, target: Enemy } => "Rimebound",
@@ -189,6 +190,16 @@ pub fn qualifiers(reg: &PieceRegistry, pieces: &[PieceId]) -> Vec<&'static str> 
         let def = reg.def(p);
         for t in def.triggers {
             match t {
+                Trigger::Spend { what, on_success, on_failure, .. } => {
+                    note(Some(match what {
+                        crate::piece::Resource::Mana => "Attuned",
+                        crate::piece::Resource::Rage => "Furious",
+                        crate::piece::Resource::Faith => "Devout",
+                        crate::piece::Resource::Nature => "Verdant",
+                    }));
+                    note(action_word(on_success));
+                    note(action_word(on_failure));
+                }
                 Trigger::OnActivate(a) => note(action_word(a)),
                 Trigger::SpendMana { on_success, on_failure, .. } => {
                     note(Some("Attuned"));

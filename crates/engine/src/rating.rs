@@ -200,6 +200,9 @@ fn action_points(a: &Action) -> f32 {
             }
         }
         Action::GainMana(n) => *n as f32 * weight::MANA_PS,
+        // The other pools are each worth roughly what mana is: all four are
+        // banked the same way and all four pay out while merely held.
+        Action::Gain { amount, .. } => *amount as f32 * weight::MANA_PS,
         Action::GainArmor(n) => *n as f32 * weight::ARMOR_PS,
         Action::ReduceCooldown(ms) => *ms as f32 / 1000.0 * weight::HASTE_PS,
         Action::GainEmpowerment(n) => *n as f32 * weight::STACK_PS,
@@ -217,7 +220,8 @@ fn trigger_points(t: &Trigger) -> f32 {
         Trigger::OnActivate(a) => action_points(a),
         // Mana income is finite, so assume it pays about two thirds of the
         // time and eats the failure branch the rest.
-        Trigger::SpendMana { cost, on_success, on_failure } => {
+        Trigger::Spend { cost, on_success, on_failure, .. }
+        | Trigger::SpendMana { cost, on_success, on_failure } => {
             0.66 * action_points(on_success) + 0.34 * action_points(on_failure)
                 - *cost as f32 * weight::MANA_PS * 0.66
         }

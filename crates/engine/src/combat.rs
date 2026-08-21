@@ -857,6 +857,27 @@ impl Combatant {
     /// What the resources you are holding are worth right now. Spending them
     /// gives it up, which is the whole tension: a hoarded pool is a standing
     /// bonus, and a spent one is a burst.
+    /// One of the four banked pools, by name.
+    pub fn pool(&self, what: crate::piece::Resource) -> i32 {
+        use crate::piece::Resource::*;
+        match what {
+            Mana => self.mana,
+            Rage => self.rage,
+            Faith => self.faith,
+            Nature => self.nature,
+        }
+    }
+
+    pub fn set_pool(&mut self, what: crate::piece::Resource, v: i32) {
+        use crate::piece::Resource::*;
+        match what {
+            Mana => self.mana = v,
+            Rage => self.rage = v,
+            Faith => self.faith = v,
+            Nature => self.nature = v,
+        }
+    }
+
     pub fn held_bonus(&self) -> Stats {
         let m = if self.overflowing { 2 } else { 1 };
         let (rage, faith, nature) = (self.rage * m, self.faith * m, self.nature * m);
@@ -955,6 +976,8 @@ pub enum Event {
     GainMana { side: Side, amount: i32, total: i32 },
     /// `paid` says which branch of a mana trigger ran.
     ManaCheck { side: Side, cost: i32, paid: bool, remaining: i32 },
+    /// A spend against rage, faith or nature.
+    ResourceCheck { side: Side, what: &'static str, cost: i32, paid: bool, remaining: i32 },
     Cursed { on: Side, kind: CurseKind, duration_ms: u32 },
     /// Damage-over-time landing this tick.
     Burn { side: Side, damage: i32, health: i32 },
@@ -1025,6 +1048,15 @@ impl CombatLog {
             Event::Activate { side, item, .. } => {
                 format!("{} {} activates {}", t, self.who(*side), item)
             }
+            Event::ResourceCheck { side, what, cost, paid, remaining } => format!(
+                "{} {} {} {} {} ({} left)",
+                t,
+                self.who(*side),
+                if *paid { "spends" } else { "cannot pay" },
+                cost,
+                what,
+                remaining
+            ),
             Event::GainResource { side, what, amount, total } => {
                 format!("{} {} gains {} {} ({})", t, self.who(*side), amount, what, total)
             }
@@ -1480,6 +1512,24 @@ fn activate(
                 });
                 apply(p, e, side, if paid { on_success } else { on_failure }, t, log, Some(idx));
             }
+            Trigger::Spend { what, cost, on_success, on_failure } => {
+                let paid = {
+                    let me = pick(p, e, side);
+                    let held = me.pool(what);
+                    if held >= cost {
+                        me.set_pool(what, held - cost);
+                        true
+                    } else {
+                        false
+                    }
+                };
+                let remaining = pick(p, e, side).pool(what);
+                log.push(LogEntry {
+                    at_ms: t,
+                    event: Event::ResourceCheck { side, what: what.name(), cost, paid, remaining },
+                });
+                apply(p, e, side, if paid { on_success } else { on_failure }, t, log, Some(idx));
+            }
             Trigger::PerAdjacentItem { action, same_slot_only: _ } => {
                 for _ in 0..item.adjacent_assembled_same_slot {
                     apply(p, e, side, action, t, log, Some(idx));
@@ -1586,6 +1636,15 @@ fn apply(
                     event: Event::MindHit { by: on.other(), amount: dealt, target_max_health: mh },
                 });
             }
+        }
+        Action::Gain { what, amount } => {
+            let me = pick(p, e, side);
+            let now = me.pool(what) + amount;
+            me.set_pool(what, now);
+            log.push(LogEntry {
+                at_ms: t,
+                event: Event::GainResource { side, what: what.name(), amount, total: now },
+            });
         }
         Action::GainMana(n) => {
             let c = pick(p, e, side);
