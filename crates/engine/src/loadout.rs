@@ -390,7 +390,7 @@ impl Loadout {
                 stats: item_stats,
                 notes: item_notes,
                 rating: if assembled[gi] {
-                    crate::rating::item_rating(reg, group, 0)
+                    crate::rating::item_rating(reg, group, 0, slot.kind)
                 } else {
                     0
                 },
@@ -499,7 +499,7 @@ impl Loadout {
                 triggers,
                 power_bonus,
                 casts,
-                rating: crate::rating::item_rating(reg, &item.pieces, cooldown_ms),
+                rating: crate::rating::item_rating(reg, &item.pieces, cooldown_ms, *kind),
             });
         }
         out

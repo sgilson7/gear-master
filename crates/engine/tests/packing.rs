@@ -139,7 +139,10 @@ fn pack(slot: SlotKind, names: &[&'static str]) -> Option<Vec<(&'static str, u8,
             .iter()
             .position(|c| c.name == *n)
             .unwrap_or_else(|| panic!("no component named {}", n));
-        assert_eq!(CATALOG[d].slot, slot, "{} is not a {} piece", n, slot.name());
+        // `fits`, not `slot ==`: a shared material or plating belongs to one
+        // slot but is wearable in another, and this guard is only here to
+        // catch a piece named into a slot that cannot hold it at all.
+        assert!(CATALOG[d].fits(slot), "{} does not fit in {}", n, slot.name());
         ids.push(reg.alloc(d));
     }
     let used: usize = names

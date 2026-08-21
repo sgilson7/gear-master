@@ -97,7 +97,10 @@ fn slot_ceiling(slot: SlotKind) -> f32 {
                 for &(kind, _, max) in *recipe {
                     let mut best: Vec<f32> = CATALOG
                         .iter()
-                        .filter(|d| d.slot == s && d.kind == kind)
+                        // `fits`, not `slot ==`: shared materials and plating
+                        // are wearable here even though they are filed
+                        // elsewhere, and a ceiling blind to them is too low.
+                        .filter(|d| d.fits(s) && d.kind == kind)
                         .map(|d| piece_points(d, 0))
                         .collect();
                     best.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
@@ -323,7 +326,20 @@ fn piece_points(def: &PieceDef, cooldown_ms: u32) -> f32 {
 /// ratings are the sum of it - so a component's worth reads the same whether
 /// you are looking at it on a shelf or in a finished item.
 pub fn piece_rating_at(def: &PieceDef, cooldown_ms: u32) -> f32 {
-    piece_points(def, cooldown_ms) * FULL_MARKS as f32 / slot_ceiling(def.slot)
+    piece_rating_in(def, def.slot, cooldown_ms)
+}
+
+/// The same, scaled against the slot the piece is actually worn in.
+///
+/// A shared material or plating is filed under one slot but wearable in
+/// another, and the two slots have different ceilings. Scaling it by where it
+/// is filed rather than where it sits measures it against a denominator it has
+/// nothing to do with - which is what pushed greaves 8 marks past the top of
+/// the scale every other slot is held to. A piece that is worn nowhere yet
+/// (in the shop, say) falls back to its home slot, which is the only answer
+/// available before it is placed.
+pub fn piece_rating_in(def: &PieceDef, slot: SlotKind, cooldown_ms: u32) -> f32 {
+    piece_points(def, cooldown_ms) * FULL_MARKS as f32 / slot_ceiling(slot)
 }
 
 /// The same at the slot's default cadence, rounded.
@@ -332,11 +348,17 @@ pub fn piece_rating(def: &PieceDef) -> i32 {
 }
 
 /// What an assembled item made of `pieces` is worth, at the cadence it will
-/// actually run at. The sum of what its components contribute.
-pub fn item_rating(reg: &PieceRegistry, pieces: &[PieceId], cooldown_ms: u32) -> i32 {
+/// actually run at. The sum of what its components contribute, each measured
+/// against the slot the item is worn in rather than where its piece is filed.
+pub fn item_rating(
+    reg: &PieceRegistry,
+    pieces: &[PieceId],
+    cooldown_ms: u32,
+    slot: SlotKind,
+) -> i32 {
     pieces
         .iter()
-        .map(|&p| piece_rating_at(reg.def(p), cooldown_ms))
+        .map(|&p| piece_rating_in(reg.def(p), slot, cooldown_ms))
         .sum::<f32>()
         .round() as i32
 }
@@ -403,8 +425,8 @@ mod tests {
             for &(kind, min, max) in *recipe {
                 let mut v: Vec<i32> = CATALOG
                     .iter()
-                    .filter(|d| d.slot == slot && d.kind == kind)
-                    .map(piece_rating)
+                    .filter(|d| d.fits(slot) && d.kind == kind)
+                    .map(|d| piece_rating_in(d, slot, 0).round() as i32)
                     .collect();
                 v.sort_unstable();
                 w += v.iter().take(min).sum::<i32>();
