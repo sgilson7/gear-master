@@ -3044,7 +3044,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
 
     // The full transcript is an overlay, so it never pushes the boards around.
     if log_expanded {
-        render_log_overlay(pb);
+        render_log_overlay(pb, log);
     } else {
         // Hovering a cooldown row explains what that item is worth.
         for (items, top, profiles, offset) in [
@@ -3236,26 +3236,179 @@ fn speed_label(speed: f32) -> String {
 }
 
 /// The complete combat transcript, over the top of everything else.
-fn render_log_overlay(pb: &Playback) {
-    let pad = 90.0;
-    let r = Rect::new(pad, pad, LOGICAL_W - 2.0 * pad, LOGICAL_H - 2.0 * pad - 60.0);
-    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 215));
+/// One stat's history over the fight, as sampled from the log.
+struct Series {
+    label: &'static str,
+    color: Color,
+    points: Vec<(u32, i32)>,
+}
+
+impl Series {
+    fn new(label: &'static str, color: Color) -> Self {
+        Series { label, color, points: vec![(0, 0)] }
+    }
+    fn at(&mut self, t: u32, v: i32) {
+        self.points.push((t, v));
+    }
+    fn last(&self) -> i32 {
+        self.points.last().map(|(_, v)| *v).unwrap_or(0)
+    }
+}
+
+/// Replay the log into one series per stat per side.
+///
+/// The fight is already decided; this is only reading back what happened, so
+/// it can be recomputed whenever the overlay opens rather than carried around.
+fn build_series(log: &CombatLog, side: Side) -> Vec<Series> {
+    let start_hp = if matches!(side, Side::Player) { log.player.max_health } else { log.enemy.max_health };
+    let mut hp = Series::new("health", if matches!(side, Side::Player) { col_you() } else { col_foe() });
+    hp.points[0] = (0, start_hp);
+    let mut armor = Series::new("armour", pool_color("armor"));
+    let mut mana = Series::new("mana", pool_color("mana"));
+    let mut rage = Series::new("rage", pool_color("rage"));
+    let mut faith = Series::new("faith", pool_color("faith"));
+    let mut nature = Series::new("nature", pool_color("nature"));
+
+    for e in &log.entries {
+        let t = e.at_ms;
+        match &e.event {
+            Event::Hit { by, target_health, target_armor, .. } if *by != side => {
+                hp.at(t, *target_health);
+                armor.at(t, *target_armor);
+            }
+            Event::GainArmor { side: s, total, .. } if *s == side => armor.at(t, *total),
+            Event::GainMana { side: s, total, .. } if *s == side => mana.at(t, *total),
+            Event::ManaCheck { side: s, remaining, .. } if *s == side => mana.at(t, *remaining),
+            Event::GainResource { side: s, what, total, .. } if *s == side => match *what {
+                "rage" => rage.at(t, *total),
+                "faith" => faith.at(t, *total),
+                _ => nature.at(t, *total),
+            },
+            Event::ResourceCheck { side: s, what, remaining, .. } if *s == side => match *what {
+                "rage" => rage.at(t, *remaining),
+                "faith" => faith.at(t, *remaining),
+                _ => nature.at(t, *remaining),
+            },
+            Event::Burn { side: s, health, .. } if *s == side => hp.at(t, *health),
+            Event::Regen { side: s, health, .. } if *s == side => hp.at(t, *health),
+            Event::MindHit { by, target_max_health, .. } if *by != side => {
+                // Maximum health falling is worth seeing on the same line.
+                let now = hp.last().min(*target_max_health);
+                hp.at(t, now);
+            }
+            _ => {}
+        }
+    }
+    vec![hp, armor, mana, rage, faith, nature]
+        .into_iter()
+        .filter(|s| s.points.iter().any(|(_, v)| *v != 0))
+        .collect()
+}
+
+/// One line chart. Time runs left to right; the peak sets the top.
+fn draw_series(r: Rect, s: &Series, duration_ms: u32) {
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(14, 14, 22, 255));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.0, Color::from_rgba(52, 52, 72, 255));
+
+    let peak = s.points.iter().map(|(_, v)| *v).max().unwrap_or(1).max(1) as f32;
+    let span = duration_ms.max(1) as f32;
+    let at = |(t, v): (u32, i32)| {
+        (r.x + (t as f32 / span) * r.w, r.y + r.h - (v.max(0) as f32 / peak) * (r.h - 4.0) - 2.0)
+    };
+
+    // A step chart: these are discrete events, not a smooth signal, and
+    // joining them with slopes would imply values that never existed.
+    let mut prev = at(s.points[0]);
+    for &p in &s.points[1..] {
+        let next = at(p);
+        draw_line(prev.0, prev.1, next.0, prev.1, 1.5, s.color);
+        draw_line(next.0, prev.1, next.0, next.1, 1.5, s.color);
+        prev = next;
+    }
+    draw_line(prev.0, prev.1, r.x + r.w, prev.1, 1.5, s.color);
+
+    ui_text(s.label, r.x + 5.0, r.y + 14.0, 11.0, s.color);
+    let peak_label = format!("{}", peak as i32);
+    ui_text(&peak_label, r.x + r.w - text_width(&peak_label, 11.0) - 5.0, r.y + 14.0, 11.0, col_dim());
+}
+
+/// The full transcript: what each side's stats did over the fight, and the
+/// blow-by-blow underneath, grouped by whatever set each exchange off.
+fn render_log_overlay(pb: &Playback, log: &CombatLog) {
+    let pad = 60.0;
+    let r = Rect::new(pad, pad, LOGICAL_W - 2.0 * pad, LOGICAL_H - 2.0 * pad - 40.0);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 226));
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::from_rgba(110, 110, 145, 255));
     ui_text("COMBAT LOG", r.x + 16.0, r.y + 28.0, 18.0, col_gold());
+    ui_text(
+        &format!("{:.1}s  ·  {}", log.duration_ms as f32 / 1000.0, log.enemy.name),
+        r.x + 30.0 + text_width("COMBAT LOG", 18.0),
+        r.y + 28.0,
+        13.0,
+        col_dim(),
+    );
 
-    let lh = line_h(14.0);
-    let visible = (((r.h - 62.0) / lh) as usize).max(1);
-    let start = pb.lines.len().saturating_sub(visible);
-    for (i, line) in pb.lines[start..].iter().enumerate() {
+    // ---- graphs, your side above theirs ----
+    let chart_h = 62.0;
+    let gap = 8.0;
+    let mut gy = r.y + 46.0;
+    for (side, who, tint) in
+        [(Side::Player, "YOU", col_you()), (Side::Enemy, log.enemy.name.as_str(), col_foe())]
+    {
+        ui_text(who, r.x + 16.0, gy + 12.0, 13.0, tint);
+        let series = build_series(log, side);
+        let cols = series.len().max(1);
+        let cw = (r.w - 32.0 - (cols as f32 - 1.0) * gap) / cols as f32;
+        for (i, s) in series.iter().enumerate() {
+            draw_series(
+                Rect::new(r.x + 16.0 + i as f32 * (cw + gap), gy + 18.0, cw, chart_h),
+                s,
+                log.duration_ms,
+            );
+        }
+        gy += chart_h + 34.0;
+    }
+
+    // ---- the blow-by-blow ----
+    let list_top = gy + 6.0;
+    draw_line(r.x + 16.0, list_top - 8.0, r.x + r.w - 16.0, list_top - 8.0, 1.0, Color::from_rgba(60, 60, 84, 255));
+
+    let lh = line_h(13.0);
+    let visible = (((r.y + r.h - list_top - 12.0) / lh) as usize).max(1);
+    let start = log.entries.len().saturating_sub(visible);
+    for (i, e) in log.entries[start..].iter().enumerate() {
+        // Who did it, and whether it is the thing that fired or a consequence
+        // of it - an activation names its item and sits proud of the rest.
+        let (indent, colour) = match &e.event {
+            Event::Activate { side, .. } => {
+                (0.0, if matches!(side, Side::Player) { col_you() } else { col_foe() })
+            }
+            Event::Hit { by, .. } | Event::MindHit { by, .. } => (
+                18.0,
+                if matches!(by, Side::Player) { col_you() } else { col_foe() },
+            ),
+            Event::GainArmor { side, .. }
+            | Event::GainMana { side, .. }
+            | Event::GainResource { side, .. }
+            | Event::ManaCheck { side, .. }
+            | Event::ResourceCheck { side, .. }
+            | Event::Regen { side, .. }
+            | Event::Burn { side, .. } => (
+                18.0,
+                if matches!(side, Side::Player) { col_you() } else { col_foe() },
+            ),
+            _ => (18.0, Color::from_rgba(170, 172, 192, 255)),
+        };
         ui_text(
-            line,
-            r.x + 16.0,
-            r.y + 62.0 + i as f32 * lh,
-            14.0,
-            Color::from_rgba(196, 198, 216, 255),
+            &log.describe(e),
+            r.x + 16.0 + indent,
+            list_top + lh + i as f32 * lh,
+            13.0,
+            colour,
         );
     }
+    let _ = pb;
 }
 
 /// Plain-English meanings for the words the interface throws around. Opened
