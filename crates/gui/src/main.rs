@@ -1456,6 +1456,35 @@ fn render_slots(
 ) {
     let held = drag.held_id();
 
+    // What the item under the cursor is watching. Triggers that read a
+    // neighbour or an aligned item are the hardest part of a build to see,
+    // because the thing they depend on is somewhere else on the board - so
+    // hovering one outlines whatever it is actually looking at.
+    let watching = layout.slot_hit(mx, my).and_then(|(kind, gx, gy)| {
+        let piece = run.loadout.slot(kind).get(gx, gy)?;
+        let report = &reports[kind.index()];
+        let item = report.items.iter().find(|i| i.assembled && i.pieces.contains(&piece))?;
+        let mut reads_neighbours = false;
+        let mut reads_rows = false;
+        for p in &item.pieces {
+            for t in run.registry.def(*p).triggers {
+                use gearmaster_engine::piece::Trigger;
+                match t {
+                    Trigger::OnAdjacentActivate(_) | Trigger::PerAdjacentItem { .. } => {
+                        reads_neighbours = true
+                    }
+                    Trigger::OnAlignedActivate(_) => reads_rows = true,
+                    _ => {}
+                }
+            }
+        }
+        if !reads_neighbours && !reads_rows {
+            return None;
+        }
+        let rows = run.loadout.slot(kind).row_span(&item.pieces);
+        Some((kind, item.pieces.clone(), reads_neighbours, reads_rows, rows))
+    });
+
     for view in &layout.slots {
         let report = &reports[view.kind.index()];
         let any_assembled = report.assembled_count() > 0;
@@ -1561,6 +1590,38 @@ fn render_slots(
         }
 
         render_item_outlines(view, run, report);
+
+        // Draw the watched cells over the top of the ordinary outlines.
+        if let Some((from_slot, ref source, neighbours, rows, span)) = watching {
+            let slot = run.loadout.slot(view.kind);
+            let pulse = ((get_time() * 4.0).sin() * 0.5 + 0.5) as f32;
+            let mark = Color::new(0.42, 0.86, 1.0, 0.45 + 0.35 * pulse);
+            for item in &report.items {
+                if !item.assembled || item.pieces.iter().any(|p| source.contains(p)) {
+                    continue;
+                }
+                let watched = if view.kind == from_slot {
+                    // Same grid: whatever this item is packed against.
+                    neighbours && slot.sets_touch(source, &item.pieces)
+                } else {
+                    // Another grid: whatever shares its rows.
+                    rows
+                        && match (span, slot.row_span(&item.pieces)) {
+                            (Some((a0, a1)), Some((b0, b1))) => a0 <= b1 && b0 <= a1,
+                            _ => false,
+                        }
+                };
+                if !watched {
+                    continue;
+                }
+                for p in &item.pieces {
+                    for (cx, cy) in slot.cells_of(*p) {
+                        let (px, py) = view.cell_origin(cx, cy);
+                        draw_rectangle_lines(px + 1.0, py + 1.0, SLOT_CELL - 2.0, SLOT_CELL - 2.0, 2.5, mark);
+                    }
+                }
+            }
+        }
 
         // Status line under the grid: how many items, then as much of the
         // stat total as fits the column. The rest is on hover - five columns

@@ -190,9 +190,9 @@ impl Fingerprint {
             (Axis::Ward, n(ward as f32, 90.0)),
             (Axis::Puncture, n(pierce as f32, 70.0)),
             (Axis::Attunement, n(mana, 4.0)),
-            (Axis::Wrath, n(rage, 4.0)),
-            (Axis::Devotion, n(faith, 3.0)),
-            (Axis::Growth, n(nature, 3.0)),
+            (Axis::Wrath, n(rage, 2.2)),
+            (Axis::Devotion, n(faith, 1.6)),
+            (Axis::Growth, n(nature, 1.4)),
             (Axis::Cadence, n(rate_total, 4.0)),
             (Axis::Mass, n(filled_cells as f32, 130.0)),
             // Per item, not in total: otherwise simply owning more gear maxes
@@ -202,9 +202,9 @@ impl Fingerprint {
                 Axis::Weave,
                 n(weave / (profiles.len().max(1) as f32), 2.6),
             ),
-            (Axis::Malice, n(curses, 2.0)),
+            (Axis::Malice, n(curses, 0.9)),
             (Axis::Bulwark, n(armor, 14.0)),
-            (Axis::Sorcery, n(sorcery as f32, 3.0)),
+            (Axis::Sorcery, n(sorcery as f32, 1.6)),
             (Axis::Orbits, n(orbits as f32, 2.0)),
         ];
         for slot in SlotKind::ALL {
