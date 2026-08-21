@@ -231,7 +231,10 @@ fn candidates_for(
     let mut per_kind: Vec<Vec<Vec<usize>>> = Vec::new();
     for &(kind, min, max) in recipe {
         let mut pool: Vec<usize> = (0..CATALOG.len())
-            .filter(|&i| CATALOG[i].slot == slot && CATALOG[i].kind == kind)
+            // `fits`, not `slot ==`: materials are shared between gloves and
+            // greaves and plating between helmets and greaves, so keying on
+            // the home slot hid 22 of the 46 pieces a greave can take.
+            .filter(|&i| CATALOG[i].fits(slot) && CATALOG[i].kind == kind)
             // A disconnected shape can never be part of an assembled item:
             // its islands flood-fill into groups of their own.
             .filter(|&i| connected(CATALOG[i].cells))
@@ -796,19 +799,15 @@ fn pack_dense(slot: SlotKind, rank: impl Fn(&PieceDefRef) -> i32) -> Vec<(&'stat
                 .iter()
                 .map(|n| reg.alloc(CATALOG.iter().position(|c| c.name == *n).unwrap()))
                 .collect();
+            // `seat` only returns a placement that leaves every item in the
+            // slot assembled, so anything it hands back is keepable.
             if let Some(spots) = seat(&mut reg, &mut loadout, slot, &ids, 0) {
-                // Only keep it if everything in the slot still assembles.
-                if loadout.report(&reg, slot).items.iter().all(|i| i.assembled) {
-                    for (i, &(x, y, rot)) in spots.iter().enumerate() {
-                        placed.push((names[i], x, y, rot));
-                    }
-                    used.extend(names.iter().copied());
-                    added = true;
-                    break 'candidate;
+                for (i, &(x, y, rot)) in spots.iter().enumerate() {
+                    placed.push((names[i], x, y, rot));
                 }
-                for &id in &ids {
-                    loadout.slot_mut(slot).remove(id);
-                }
+                used.extend(names.iter().copied());
+                added = true;
+                break 'candidate;
             }
         }
         if !added {
@@ -818,7 +817,15 @@ fn pack_dense(slot: SlotKind, rank: impl Fn(&PieceDefRef) -> i32) -> Vec<(&'stat
     placed
 }
 
-/// Seat every id somewhere, each touching what is already down if anything is.
+/// Seat every id somewhere such that everything in the slot still assembles.
+///
+/// The assembly check has to happen here, at the leaf, rather than on the
+/// finished seating. Pieces join their nearest core, so dropping a new item
+/// against an existing one can pull its pieces into that item's group and
+/// break both recipes - and the first seating that merely *fits* is very often
+/// one of those. Checking afterwards throws the whole candidate away; checking
+/// here backtracks to a placement further off in the grid that works. Gloves
+/// felt this worst, having the most spare room to be wrong in.
 fn seat(
     reg: &mut PieceRegistry,
     loadout: &mut Loadout,
@@ -826,27 +833,53 @@ fn seat(
     ids: &[PieceId],
     i: usize,
 ) -> Option<Vec<(u8, u8, u8)>> {
-    if i == ids.len() {
-        return Some(Vec::new());
-    }
-    let id = ids[i];
-    for rot in 0..4u8 {
-        reg.set_rotation(id, rot);
-        for y in 0..SLOT_H {
-            for x in 0..SLOT_W {
-                if loadout.can_place(reg, id, slot, x, y).is_err() {
-                    continue;
+    // Complete seatings tested. Backtracking over a near-empty grid is
+    // enormous, and the good placement turns up early or not at all.
+    const SEATINGS: u32 = 400;
+    fn go(
+        reg: &mut PieceRegistry,
+        loadout: &mut Loadout,
+        slot: SlotKind,
+        ids: &[PieceId],
+        i: usize,
+        budget: &mut u32,
+    ) -> Option<Vec<(u8, u8, u8)>> {
+        if i == ids.len() {
+            if *budget == 0 {
+                return None;
+            }
+            *budget -= 1;
+            return loadout
+                .report(reg, slot)
+                .items
+                .iter()
+                .all(|it| it.assembled)
+                .then(Vec::new);
+        }
+        let id = ids[i];
+        for rot in 0..4u8 {
+            reg.set_rotation(id, rot);
+            for y in 0..SLOT_H {
+                for x in 0..SLOT_W {
+                    if loadout.can_place(reg, id, slot, x, y).is_err() {
+                        continue;
+                    }
+                    loadout.slot_mut(slot).place(reg, id, x, y);
+                    if let Some(mut rest) = go(reg, loadout, slot, ids, i + 1, budget) {
+                        rest.insert(0, (x, y, rot));
+                        return Some(rest);
+                    }
+                    loadout.slot_mut(slot).remove(id);
+                    if *budget == 0 {
+                        return None;
+                    }
                 }
-                loadout.slot_mut(slot).place(reg, id, x, y);
-                if let Some(mut rest) = seat(reg, loadout, slot, ids, i + 1) {
-                    rest.insert(0, (x, y, rot));
-                    return Some(rest);
-                }
-                loadout.slot_mut(slot).remove(id);
             }
         }
+        None
     }
-    None
+    let mut budget = SEATINGS;
+    go(reg, loadout, slot, ids, i, &mut budget)
 }
 
 /// Pick a loadout for one slot the way this profile would.

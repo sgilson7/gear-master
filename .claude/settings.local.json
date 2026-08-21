@@ -72,7 +72,10 @@
       "Bash(grep -vE \"^\\\\s*$\")",
       "Bash(grep -vE \"^\\\\s*$|Compiling|Finished|Running|running 1|^test \")",
       "Bash(grep -vE \"^\\\\s*$|Compiling|Finished|Running|running 1|^test |warning|^\\\\s+\\\\||^\\\\s+=|-->\")",
-      "Bash(grep -vE \"^$|Compiling|Finished|Running|warning\")"
+      "Bash(grep -vE \"^$|Compiling|Finished|Running|warning\")",
+      "Bash(grep -vE \"^$|Compiling|Finished|Running|^warning|-->|^\\\\s*\\\\||^\\\\s*=\")",
+      "Bash(kill %1)",
+      "Bash(pkill -f \"packing.*balance_report\")"
     ]
   }
 }
