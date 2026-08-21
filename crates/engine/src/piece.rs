@@ -46,8 +46,8 @@ impl SlotKind {
         match self {
             SlotKind::Helmet => "1 frame + 1-2 plating + up to 1 crest",
             SlotKind::Chest => "1 base + 1-3 layers",
-            SlotKind::Gloves => "1 material + 1 mold",
-            SlotKind::Greaves => "1 material + 1 mold",
+            SlotKind::Gloves => "1 material + 1 mold + up to 2 rings",
+            SlotKind::Greaves => "1 material + 1 mold + up to 1 plating",
             SlotKind::Weapon => {
                 "1 handle + 1-2 damaging + up to 2 accessories, OR 1 book + 1 ink + 1 spell, \
                  OR 1 crystal ball + 1-2 ink + 2-3 spells"
@@ -75,6 +75,8 @@ pub enum PieceKind {
     // Gloves + greaves
     Material,
     Mold,
+    /// Worn on the hands. Up to two to a glove.
+    Ring,
     // Weapon, the arcane way: a book or an orb sets the cadence, ink scales
     // the payload, and the spell is the payload.
     Book,
@@ -101,6 +103,7 @@ impl PieceKind {
 
     pub fn name(self) -> &'static str {
         match self {
+            PieceKind::Ring => "ring",
             PieceKind::Book => "book",
             PieceKind::Ink => "ink",
             PieceKind::Spell => "spell",
@@ -403,6 +406,25 @@ pub struct PieceDef {
     pub price: i32,
 }
 
+impl PieceDef {
+    /// Which grids this component may be placed in.
+    ///
+    /// Most gear belongs to one slot. Two kinds are shared, because the thing
+    /// itself does not care where it goes: a material is leather or steel, and
+    /// it will wrap a hand or a shin alike; plating is a shaped sheet, and it
+    /// covers a head or a leg the same way.
+    pub fn fits(&self, slot: SlotKind) -> bool {
+        if self.slot == slot {
+            return true;
+        }
+        match self.kind {
+            PieceKind::Material => matches!(slot, SlotKind::Gloves | SlotKind::Greaves),
+            PieceKind::Plating => matches!(slot, SlotKind::Helmet | SlotKind::Greaves),
+            _ => false,
+        }
+    }
+}
+
 /// What a slot's recipes demand, as `(kind, min, max)` counts per item. A slot
 /// can have more than one: an item counts as assembled if it satisfies any of
 /// them.
@@ -437,9 +459,16 @@ pub fn recipes(kind: SlotKind) -> &'static [&'static [(PieceKind, usize, usize)]
             (PieceKind::Crest, 0, 1),
         ]],
         SlotKind::Chest => &[&[(PieceKind::Base, 1, 1), (PieceKind::Layer, 1, 3)]],
-        SlotKind::Gloves | SlotKind::Greaves => {
-            &[&[(PieceKind::Material, 1, 1), (PieceKind::Mold, 1, 1)]]
-        }
+        SlotKind::Gloves => &[&[
+            (PieceKind::Material, 1, 1),
+            (PieceKind::Mold, 1, 1),
+            (PieceKind::Ring, 0, 2),
+        ]],
+        SlotKind::Greaves => &[&[
+            (PieceKind::Material, 1, 1),
+            (PieceKind::Mold, 1, 1),
+            (PieceKind::Plating, 0, 1),
+        ]]
     }
 }
 
@@ -1243,6 +1272,160 @@ pub static CATALOG: &[PieceDef] = &[
         quest: None,
         power_bonus: 0,
         price: 21,
+    },
+    // ---- Rings ----
+    //
+    // A glove takes up to two. They are one cell each and cost little, which
+    // makes them the thing you slot into whatever corner is left over.
+    PieceDef {
+        name: "Signet of Vigour",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { health: 22, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 9,
+    },
+    PieceDef {
+        name: "Iron Band",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { strength: 4, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 11,
+    },
+    PieceDef {
+        name: "Ring of Tides",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { mana: 1, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 12,
+    },
+    PieceDef {
+        name: "Emberloop",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { magic_damage: 5, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 13,
+    },
+    PieceDef {
+        name: "Bloodring",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { rage: 1, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 12,
+    },
+    PieceDef {
+        name: "Warding Ring",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { physical_resist: 10, magic_resist: 10, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 14,
+    },
+    PieceDef {
+        name: "Ring of Hours",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0),(1,0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 35,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 15,
+    },
+    PieceDef {
+        name: "Seal of the Grove",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { nature: 1, regen: 1, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 13,
+    },
+    PieceDef {
+        name: "Oathring",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { faith: 1, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 12,
+    },
+    PieceDef {
+        name: "Piercer's Band",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { physical_pierce: 20, magic_pierce: 20, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 15,
     },
     // ---- Pace, and the answer to it ----
     //

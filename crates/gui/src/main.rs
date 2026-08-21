@@ -667,13 +667,10 @@ fn kind_luminance(kind: PieceKind) -> f32 {
         | PieceKind::Layer
         | PieceKind::Mold
         | PieceKind::Ink => 0.45,
-        PieceKind::Accessory | PieceKind::Crest | PieceKind::Spell => 0.72,
+        PieceKind::Accessory | PieceKind::Crest | PieceKind::Spell | PieceKind::Ring => 0.72,
     }
 }
 
-fn piece_color(def: &PieceDef) -> Color {
-    slot_color(def.slot, kind_luminance(def.kind))
-}
 
 /// A slot's hue at a given brightness. Luminance rises monotonically with HSL
 /// lightness, so a short bisection lands on the lightness that hits the target
@@ -998,8 +995,19 @@ fn motif_ink(fill: Color, alpha: f32) -> Color {
 /// four-cell blade reads as one blade, and the lines you *do* see inside an
 /// assembled item are the seams between its components - which is the thing
 /// worth being able to see at a glance.
-fn draw_shape(shape: &Shape, ox: f32, oy: f32, cell: f32, def: &PieceDef, alpha: f32) {
-    let color = piece_color(def);
+fn draw_shape(
+    shape: &Shape,
+    ox: f32,
+    oy: f32,
+    cell: f32,
+    def: &PieceDef,
+    worn_in: SlotKind,
+    alpha: f32,
+) {
+    // Materials and plating are shared between two grids, so a piece reads as
+    // the slot it is actually in - a steel material in the greaves is greaves
+    // coloured, not gloves coloured.
+    let color = slot_color(worn_in, kind_luminance(def.kind));
     let ink = motif_ink(color, alpha);
     let cells = shape.cells();
 
@@ -1009,7 +1017,7 @@ fn draw_shape(shape: &Shape, ox: f32, oy: f32, cell: f32, def: &PieceDef, alpha:
         let x = ox + dx as f32 * cell;
         let y = oy + dy as f32 * cell;
         draw_rectangle(x, y, cell, cell, with_alpha(color, alpha));
-        draw_slot_motif(x, y, cell, def.slot, ink);
+        draw_slot_motif(x, y, cell, worn_in, ink);
     }
 
     // Then trace the outside edge only. An edge is outside when the cell
@@ -1643,7 +1651,7 @@ fn render_slots(
             let def = run.registry.def(id);
             let shape = run.registry.shape(id);
             let (px, py) = view.cell_origin(ax, ay);
-            draw_shape(&shape, px, py, SLOT_CELL, def, 1.0);
+            draw_shape(&shape, px, py, SLOT_CELL, def, view.kind, 1.0);
 
             if let Some(&(dx, dy)) = shape.cells().first() {
                 let tx = px + dx as f32 * SLOT_CELL + SLOT_CELL / 2.0;
@@ -1839,6 +1847,7 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
             card.rect.y + 10.0 + (60.0 - sh) / 2.0,
             INV_CELL,
             def,
+            def.slot,
             alpha,
         );
 
@@ -1945,6 +1954,7 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
             card.rect.y + 12.0 + (72.0 - sh) / 2.0,
             INV_CELL,
             def,
+            def.slot,
             1.0,
         );
 
@@ -2511,6 +2521,7 @@ fn render_mini_board(
                 y0 + ay as f32 * MINI_CELL + dy,
                 MINI_CELL,
                 def,
+                kind,
                 1.0,
             );
         }
@@ -4374,7 +4385,12 @@ async fn main() {
                     }
                 }
             }
-            draw_shape(&shape, gx, gy, SLOT_CELL, def, 0.92);
+            let over = layout
+                .slot_hit(gx + SLOT_CELL * 0.5, gy + SLOT_CELL * 0.5)
+                .map(|(k, _, _)| k)
+                .filter(|k| def.fits(*k))
+                .unwrap_or(def.slot);
+            draw_shape(&shape, gx, gy, SLOT_CELL, def, over, 0.92);
         }
 
         if run.phase != Phase::Fighting {

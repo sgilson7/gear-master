@@ -711,3 +711,62 @@ fn every_quest_names_a_component_that_exists() {
     }
     assert!(with_quests >= 5, "only {} components carry quests", with_quests);
 }
+
+// ------------------------------------------------- shared pools and rings
+
+#[test]
+fn a_material_goes_on_a_hand_or_a_foot_alike() {
+    use gearmaster_engine::piece::CATALOG;
+    let mat = CATALOG.iter().find(|d| d.name == "Steel Material").expect("it exists");
+    assert!(mat.fits(SlotKind::Gloves));
+    assert!(mat.fits(SlotKind::Greaves));
+    assert!(!mat.fits(SlotKind::Helmet), "but not on a head");
+
+    // And it really places in the grid it was not declared for.
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Steel Material", SlotKind::Greaves, 0, 0);
+    equip(&mut run, "Runner's Mold", SlotKind::Greaves, 2, 0);
+    assert_eq!(run.report(SlotKind::Greaves).assembled_count(), 1);
+}
+
+#[test]
+fn plating_covers_a_head_or_a_shin() {
+    use gearmaster_engine::piece::CATALOG;
+    let plate = CATALOG.iter().find(|d| d.name == "Iron Plating").expect("it exists");
+    assert!(plate.fits(SlotKind::Helmet) && plate.fits(SlotKind::Greaves));
+    assert!(!plate.fits(SlotKind::Chest));
+}
+
+#[test]
+fn a_glove_takes_two_rings_and_a_greave_takes_none() {
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Steel Material", SlotKind::Gloves, 0, 0);
+    equip(&mut run, "Gauntlet Mold", SlotKind::Gloves, 2, 0);
+    equip(&mut run, "Iron Band", SlotKind::Gloves, 0, 3);
+    equip(&mut run, "Bloodring", SlotKind::Gloves, 1, 3);
+    let report = run.report(SlotKind::Gloves);
+    assert_eq!(report.assembled_count(), 1, "{}", report.summary());
+
+    // A third ring is one too many.
+    let mut over = Run::with_all_pieces();
+    equip(&mut over, "Steel Material", SlotKind::Gloves, 0, 0);
+    equip(&mut over, "Gauntlet Mold", SlotKind::Gloves, 2, 0);
+    for (i, r) in ["Iron Band", "Bloodring", "Oathring"].iter().enumerate() {
+        equip(&mut over, r, SlotKind::Gloves, i as u8, 3);
+    }
+    assert_eq!(over.report(SlotKind::Gloves).assembled_count(), 0, "three rings is too many");
+
+    // Rings belong on hands only.
+    let ring = gearmaster_engine::piece::CATALOG.iter().find(|d| d.name == "Iron Band").unwrap();
+    assert!(!ring.fits(SlotKind::Greaves));
+}
+
+#[test]
+fn a_greave_can_take_a_plate() {
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Runed Material", SlotKind::Greaves, 0, 0);
+    equip(&mut run, "Runner's Mold", SlotKind::Greaves, 2, 0);
+    equip(&mut run, "Warding Plate", SlotKind::Greaves, 0, 2);
+    let report = run.report(SlotKind::Greaves);
+    assert_eq!(report.assembled_count(), 1, "{}", report.summary());
+}

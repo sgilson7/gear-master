@@ -101,7 +101,9 @@ impl Slot {
         ax: u8,
         ay: u8,
     ) -> Result<(), PlaceError> {
-        if reg.def(id).slot != self.kind {
+        // `fits` rather than an equality check: materials and plating are
+        // shared between two grids each.
+        if !reg.def(id).fits(self.kind) {
             return Err(PlaceError::WrongSlot);
         }
         for &(dx, dy) in reg.shape(id).cells() {
