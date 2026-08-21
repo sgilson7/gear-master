@@ -3057,54 +3057,55 @@ const INTRO: &[(&str, &[&str])] = &[
     (
         "GEAR IS BUILT, NOT BOUGHT",
         &[
-            "You have five slots - helmet, chestpiece, gloves, greaves, weapon -",
-            "and each is an eight-by-six grid.",
+            "Five slots - helmet, chestpiece, gloves, greaves, weapon. Each one",
+            "is a grid you fill yourself.",
             "",
-            "The shop sells COMPONENTS, never finished gear. Drag them into a slot",
-            "and make them touch. Components that touch and match their slot's",
-            "recipe become an ASSEMBLED item, which is the only kind that fights.",
+            "The shop sells parts, never whole weapons. Drag them in and make",
+            "them touch. Parts that touch, and that add up to a real recipe,",
+            "become an item. Only items fight.",
             "",
-            "Loose pieces still give you their flat stats. They just never act.",
+            "A part sitting on its own still gives you its stats. It just never",
+            "does anything.",
         ],
     ),
     (
         "EVERY ITEM KEEPS ITS OWN TIME",
         &[
-            "There are no turns. Each assembled item has its own COOLDOWN and goes",
-            "off whenever it comes round - a fast dagger several times before a",
-            "heavy chestpiece once.",
+            "No turns. Every item runs its own clock and goes off when it comes",
+            "round. A light blade swings several times before a heavy plate",
+            "shifts once.",
             "",
-            "When an item goes off it does everything it carries at once: damage,",
-            "ARMOR (temporary hit points, from zero every fight), MANA, curses.",
+            "When it goes off it does everything it carries at once - damage,",
+            "armour, mana, curses. Armour is temporary and starts every fight at",
+            "nothing, so gear has to build it up.",
             "",
-            "Anything hanging off that moment is a TRIGGER. Some spend mana and do",
-            "one thing if they can pay and something worse if they cannot.",
+            "Anything hanging off that moment is a trigger. Some cost mana, and",
+            "do something worse when you cannot pay.",
         ],
     ),
     (
         "WHERE YOU PUT THINGS MATTERS",
         &[
-            "ADJACENT means two items in the same slot whose cells touch. ALIGNED",
-            "means two items in different slots lying on the same rows.",
+            "Two items touching in one grid are neighbours. Two items in",
+            "different grids sitting on the same rows are lined up.",
             "",
-            "Triggers read both. An item can fire off its neighbour's cooldown, or",
+            "Triggers read both. An item can fire off its neighbour's clock, or",
             "off a glove three grids away that happens to share its rows.",
             "",
-            "So the same components are worth different amounts depending on where",
-            "you set them down. That is the whole game.",
+            "So the same parts are worth more or less depending on where you set",
+            "them down. That is the game.",
         ],
     ),
     (
         "WINNING, LOSING, AND MARKS",
         &[
-            "Beat the monster and you climb a rung and take its bounty. Lose and",
-            "you still take the bounty - you will need it - but the thing is still",
-            "standing, so you do not advance.",
+            "Beat a monster, climb a rung, take the gold. Lose and you still get",
+            "the gold - you will need it - but the thing is still standing.",
             "",
-            "Finished items are scored on how much they actually do per second.",
-            "Past a threshold an item is marked RARE, then EPIC, then LEGENDARY.",
+            "Items are scored on how much they actually do per second. Good ones",
+            "are marked rare, then epic, then legendary.",
             "",
-            "Press G at any time for what every word means.",
+            "Press G whenever you want to know what a word means.",
         ],
     ),
 ];
@@ -3159,7 +3160,7 @@ fn render_mode_select(
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, col_bg());
     centered_text("HOW DO YOU WANT TO PLAY?", LOGICAL_W / 2.0, 84.0, 28.0, col_gold());
     centered_text(
-        "Either way a loss still pays the bounty, and never moves you up the ladder.",
+        "Losing pays either way. It just does not get you past the thing that beat you.",
         LOGICAL_W / 2.0,
         122.0,
         15.0,
@@ -3213,7 +3214,7 @@ fn render_mode_select(
                     );
                 }
                 centered_text(
-                    "you drop back a rung, and farm it",
+                    "lose, and you slide back one",
                     rect.x + rect.w / 2.0,
                     y + 50.0,
                     14.0,
@@ -3230,7 +3231,7 @@ fn render_mode_select(
                     }
                 }
                 centered_text(
-                    "one of three lives, then it all goes",
+                    "three lives, then you start over",
                     rect.x + rect.w / 2.0,
                     y + 50.0,
                     14.0,
@@ -3245,8 +3246,8 @@ fn render_mode_select(
     let dy = y0 + ch + 46.0;
     centered_text("HOW HARD?", LOGICAL_W / 2.0, dy, 22.0, col_gold());
     centered_text(
-        "The multiple is how much more effective the opposition is - split evenly between \
-         staying alive and hitting back.",
+        "Bigger numbers mean tougher, meaner monsters. Medium is the fight the game was \
+         built around.",
         LOGICAL_W / 2.0,
         dy + 30.0,
         14.0,
@@ -3259,7 +3260,7 @@ fn render_mode_select(
     let dx0 = (LOGICAL_W - (n * dw + (n - 1.0) * dgap)) / 2.0;
     let mut picks = Vec::new();
     for (i, &d) in Difficulty::ALL.iter().enumerate() {
-        let rect = Rect::new(dx0 + i as f32 * (dw + dgap), dy + 50.0, dw, 132.0);
+        let rect = Rect::new(dx0 + i as f32 * (dw + dgap), dy + 50.0, dw, 158.0);
         let hot = rect.contains(Vec2::new(mx, my));
         let picked = d == chosen;
         draw_rectangle(
@@ -3300,19 +3301,29 @@ fn render_mode_select(
             12.0,
             col_dim(),
         );
-        let names: Vec<&str> = d.passives().iter().map(|p| p.name()).collect();
-        centered_text(
-            &if names.is_empty() { String::from("no passives") } else { names.join(", ") },
-            rect.x + rect.w / 2.0,
-            rect.y + 114.0,
-            12.0,
-            if names.is_empty() { col_dim() } else { col_foe() },
-        );
+        if d.passives().is_empty() {
+            centered_text("nothing extra", rect.x + rect.w / 2.0, rect.y + 114.0, 12.0, col_dim());
+        } else {
+            let mut py = rect.y + 112.0;
+            for p in d.passives() {
+                centered_text(
+                    &format!("{} - {}", p.name(), p.describe()),
+                    rect.x + rect.w / 2.0,
+                    py,
+                    11.0,
+                    col_foe(),
+                );
+                py += 15.0;
+            }
+        }
+        if d.is_default() {
+            centered_text("how it is meant to play", rect.x + rect.w / 2.0, rect.y - 8.0, 12.0, col_gold());
+        }
         picks.push((d, rect));
     }
 
     centered_text(
-        "pick a difficulty, then a mode to begin",
+        "pick a difficulty, then a mode",
         LOGICAL_W / 2.0,
         dy + 214.0,
         15.0,

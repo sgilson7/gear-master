@@ -46,13 +46,12 @@ impl Mode {
     pub fn blurb(self) -> &'static str {
         match self {
             Mode::Grinder => {
-                "Lose and you drop back to the last rung you cleared. Take the \
-                 bounty either way and farm it until your gear is ready."
+                "Lose and you slide back a rung. You still get paid, so grind \
+                 the easy one until you can take the hard one."
             }
             Mode::Rogue => {
-                "Three losses and the run is over - everything you own goes \
-                 with it. You still take the bounty, so a loss buys one more \
-                 attempt."
+                "Three losses and it is over. Everything you own goes with it. \
+                 You still get paid, so a loss buys you one more shot."
             }
         }
     }

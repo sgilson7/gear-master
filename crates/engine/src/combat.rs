@@ -223,10 +223,10 @@ impl Difficulty {
     /// The advertised multiple: how many times as effective the opposition is.
     pub fn factor(self) -> f32 {
         match self {
-            Difficulty::Easy => 1.0,
-            Difficulty::Medium => 3.0,
-            Difficulty::Hard => 9.0,
-            Difficulty::Insane => 27.0,
+            Difficulty::Easy => 0.5,
+            Difficulty::Medium => 1.0,
+            Difficulty::Hard => 3.0,
+            Difficulty::Insane => 9.0,
         }
     }
 
@@ -240,7 +240,18 @@ impl Difficulty {
     }
 
     pub fn label(self) -> String {
-        format!("{}x", self.factor() as i32)
+        let f = self.factor();
+        if (f - f.round()).abs() < 0.01 {
+            format!("{}x", f as i32)
+        } else {
+            format!("{}x", f)
+        }
+    }
+
+    /// Medium is the way the game is meant to be played; the others are set
+    /// against it.
+    pub fn is_default(self) -> bool {
+        matches!(self, Difficulty::Medium)
     }
 
     /// What each half of the fight is multiplied by.
@@ -303,9 +314,9 @@ impl Passive {
 
     pub fn describe(self) -> &'static str {
         match self {
-            Passive::Hardened => "regenerates 4 health a second",
-            Passive::Warded => "40% mind and curse, 20% physical and magic resistance",
-            Passive::Relentless => "every one of its items runs 25% faster",
+            Passive::Hardened => "heals 4 a second",
+            Passive::Warded => "shrugs off 40% of mind and curses, 20% of blows and spells",
+            Passive::Relentless => "all its gear comes round a quarter sooner",
         }
     }
 }

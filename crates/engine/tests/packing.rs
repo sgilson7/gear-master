@@ -507,6 +507,7 @@ fn author_the_deep_ladder() {
 // classes a real build can actually reach and which one swallows everything.
 
 use gearmaster_engine::class::{classify, rank, Axis, CLASSES};
+use gearmaster_engine::combat::Difficulty;
 use gearmaster_engine::run::Run;
 
 /// Put a packed layout onto a run, honouring duplicates.
@@ -703,4 +704,160 @@ fn which_class_dominates() {
         weaves[0], pc(0.25), pc(0.5), pc(0.75), pc(0.9), weaves[weaves.len() - 1]
     );
     println!("{} builds sampled", n);
+}
+
+// ================================================== the balancing solver
+//
+// Medium is meant to be the fight the game was built around, so the question
+// this answers is: on Medium, how far up the ladder does each kind of player
+// get? Not one idealised build - four, because the people who play this are
+// not all the same person.
+
+#[derive(Copy, Clone, Debug)]
+enum Profile {
+    /// Buys and places without much thought. Legal builds, chosen at random.
+    RandomBuilder,
+    /// Never quite gets a recipe right. Pieces go down turned any which way,
+    /// so most of what they own never assembles.
+    NonAssembler,
+    /// Wants to get on with it. Takes whatever is cheap and fast and fights.
+    Grinder,
+    /// Optimises. Takes the best-rated thing that fits.
+    Optimiser,
+}
+
+impl Profile {
+    const ALL: &'static [Profile] = &[
+        Profile::RandomBuilder,
+        Profile::NonAssembler,
+        Profile::Grinder,
+        Profile::Optimiser,
+    ];
+
+    fn name(self) -> &'static str {
+        match self {
+            Profile::RandomBuilder => "random builder",
+            Profile::NonAssembler => "non-assembler",
+            Profile::Grinder => "grinder (fast)",
+            Profile::Optimiser => "optimiser (best)",
+        }
+    }
+}
+
+/// Pick a loadout for one slot the way this profile would.
+fn cached_candidates(slot: SlotKind) -> &'static [(i32, Vec<&'static str>)] {
+    // Built once per slot: the pairing is expensive and the catalogue does
+    // not change between runs.
+    use std::sync::OnceLock;
+    static CACHE: OnceLock<Vec<Vec<(i32, Vec<&'static str>)>>> = OnceLock::new();
+    let all = CACHE.get_or_init(|| {
+        SlotKind::ALL
+            .iter()
+            .map(|&s| combined_candidates(s, 2).into_iter().take(600).collect())
+            .collect()
+    });
+    &all[slot.index()]
+}
+
+fn choose(profile: Profile, slot: SlotKind, seed: u64) -> Option<Vec<(&'static str, u8, u8, u8)>> {
+    use gearmaster_engine::rating::piece_rating;
+    let mut cands: Vec<(i32, Vec<&'static str>)> = cached_candidates(slot).to_vec();
+    if cands.is_empty() {
+        return None;
+    }
+    match profile {
+        Profile::Optimiser => {}
+        Profile::Grinder => {
+            // Fast and cheap: sort by how often it would go off, not by worth.
+            cands.sort_by_key(|(_, names)| {
+                let cd: i32 = names
+                    .iter()
+                    .map(|n| CATALOG.iter().find(|c| c.name == *n).unwrap().cooldown_ms as i32)
+                    .filter(|c| *c > 0)
+                    .min()
+                    .unwrap_or(3000);
+                (cd, names.iter().map(|n| {
+                    CATALOG.iter().find(|c| c.name == *n).map(piece_rating).unwrap_or(0)
+                }).sum::<i32>())
+            });
+        }
+        Profile::RandomBuilder | Profile::NonAssembler => {
+            let pick = (seed as usize * 2654435761) % cands.len();
+            cands.swap(0, pick);
+        }
+    }
+    for (_, names) in cands.into_iter().take(40) {
+        if let Some(p) = pack(slot, &names) {
+            // The non-assembler turns things. Most of it stops fitting its
+            // recipe, which is the point of the profile.
+            if matches!(profile, Profile::NonAssembler) {
+                return Some(
+                    p.into_iter()
+                        .enumerate()
+                        .map(|(i, (n, x, y, _))| (n, x, y, ((seed as u8) + i as u8) % 4))
+                        .collect(),
+                );
+            }
+            return Some(p);
+        }
+    }
+    None
+}
+
+fn play(profile: Profile, difficulty: Difficulty, seed: u64) -> usize {
+    use gearmaster_engine::run::{Mode, Run};
+    let mut run = Run::with_all_pieces();
+    run.difficulty = difficulty;
+    run.mode = Mode::Grinder;
+    for (si, &slot) in SlotKind::ALL.iter().enumerate() {
+        if let Some(p) = choose(profile, slot, seed + si as u64) {
+            // A turned piece may no longer fit; that is the profile working.
+            for (name, x, y, rot) in p {
+                if let Some(id) = run
+                    .owned
+                    .iter()
+                    .copied()
+                    .find(|&i| run.registry.def(i).name == name && !run.is_equipped(i))
+                {
+                    run.registry.set_rotation(id, rot);
+                    let _ = run.equip(id, slot, x, y);
+                }
+            }
+        }
+    }
+    // Fight up the ladder until something stops them.
+    let mut cleared = 0;
+    for rung in 0..LADDER_LEN {
+        run.rung = rung;
+        if run.fight_next().outcome != gearmaster_engine::combat::Outcome::Victory {
+            break;
+        }
+        cleared = rung + 1;
+        run.back_to_loadout();
+    }
+    cleared
+}
+
+const LADDER_LEN: usize = 33;
+
+#[test]
+#[ignore]
+fn balance_report() {
+    use gearmaster_engine::combat::Difficulty;
+    println!("\n=== rungs cleared, by profile and difficulty ===");
+    println!("(medium is the intended fight; a profile should get somewhere on it)\n");
+    print!("{:<18}", "profile");
+    for d in Difficulty::ALL {
+        print!("{:>12}", format!("{} {}", d.name(), d.label()));
+    }
+    println!();
+    for &profile in Profile::ALL {
+        print!("{:<18}", profile.name());
+        for &d in Difficulty::ALL {
+            let runs: Vec<usize> = (0..2).map(|s| play(profile, d, s * 7 + 1)).collect();
+            let avg = runs.iter().sum::<usize>() as f32 / runs.len() as f32;
+            print!("{:>12}", format!("{:.1}/{}", avg, LADDER_LEN));
+        }
+        println!();
+    }
 }

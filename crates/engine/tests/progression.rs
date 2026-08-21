@@ -366,7 +366,9 @@ fn the_difficulty_multiple_is_what_it_says_on_the_tin() {
     use gearmaster_engine::combat::{Combatant, Difficulty};
     // Half the factor goes into staying alive and half into hitting back, so
     // the two multiply back out to the number the player picked.
-    let base = Combatant::monster_at(&LADDER[6], Difficulty::Easy);
+    // Medium is the baseline the others are set against, and its factor is
+    // 1.0 - so ratios taken from it are the multiples on the tin.
+    let base = Combatant::monster_at(&LADDER[6], Difficulty::Medium);
     for &d in Difficulty::ALL {
         let scaled = Combatant::monster_at(&LADDER[6], d);
         let tough = scaled.max_health as f32 / base.max_health as f32;
