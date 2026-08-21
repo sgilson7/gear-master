@@ -3260,7 +3260,7 @@ fn render_mode_select(
     let dx0 = (LOGICAL_W - (n * dw + (n - 1.0) * dgap)) / 2.0;
     let mut picks = Vec::new();
     for (i, &d) in Difficulty::ALL.iter().enumerate() {
-        let rect = Rect::new(dx0 + i as f32 * (dw + dgap), dy + 50.0, dw, 158.0);
+        let rect = Rect::new(dx0 + i as f32 * (dw + dgap), dy + 48.0, dw, 210.0);
         let hot = rect.contains(Vec2::new(mx, my));
         let picked = d == chosen;
         draw_rectangle(
@@ -3302,22 +3302,29 @@ fn render_mode_select(
             col_dim(),
         );
         if d.passives().is_empty() {
-            centered_text("nothing extra", rect.x + rect.w / 2.0, rect.y + 114.0, 12.0, col_dim());
+            centered_text("nothing extra", rect.x + rect.w / 2.0, rect.y + 116.0, 12.0, col_dim());
         } else {
             let mut py = rect.y + 112.0;
             for p in d.passives() {
-                centered_text(
-                    &format!("{} - {}", p.name(), p.describe()),
-                    rect.x + rect.w / 2.0,
-                    py,
-                    11.0,
-                    col_foe(),
-                );
-                py += 15.0;
+                centered_text(p.name(), rect.x + rect.w / 2.0, py, 12.0, col_foe());
+                py += 14.0;
+                for l in wrap_px(p.describe(), rect.w - 24.0, 10.0) {
+                    centered_text(&l, rect.x + rect.w / 2.0, py, 10.0, col_dim());
+                    py += 12.0;
+                }
+                py += 3.0;
             }
         }
         if d.is_default() {
-            centered_text("how it is meant to play", rect.x + rect.w / 2.0, rect.y - 8.0, 12.0, col_gold());
+            // Inside the card: above it, this ran into the neighbouring
+            // headings.
+            centered_text(
+                "the intended fight",
+                rect.x + rect.w / 2.0,
+                rect.y + rect.h - 10.0,
+                12.0,
+                col_gold(),
+            );
         }
         picks.push((d, rect));
     }
@@ -3325,7 +3332,7 @@ fn render_mode_select(
     centered_text(
         "pick a difficulty, then a mode",
         LOGICAL_W / 2.0,
-        dy + 214.0,
+        dy + 282.0,
         15.0,
         LIGHTGRAY,
     );
