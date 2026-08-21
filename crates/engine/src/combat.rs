@@ -2466,6 +2466,8 @@ pub enum Event {
     Misfired { side: Side, item: String },
     /// A spell went off. `paid` says whether it was cast in full or weakly.
     Cast { side: Side, paid: bool, cost: i32, remaining: i32 },
+    /// Maximum health grew mid-fight.
+    Grew { side: Side, amount: i32, total: i32 },
     MindHit { by: Side, amount: i32, target_max_health: i32 },
     GainArmor { side: Side, amount: i32, total: i32 },
     GainMana { side: Side, amount: i32, total: i32 },
@@ -2543,6 +2545,13 @@ impl CombatLog {
             Event::Activate { side, item, .. } => {
                 format!("{} {} activates {}", t, self.who(*side), item)
             }
+            Event::Grew { side, amount, total } => format!(
+                "{} {} grows {} tougher ({} max health)",
+                t,
+                self.who(*side),
+                amount,
+                total
+            ),
             Event::Misfired { side, item } => {
                 format!("{} {}'s {} misfires and does nothing", t, self.who(*side), item)
             }
@@ -3397,6 +3406,16 @@ fn apply(
             c.mana += n;
             let total = c.mana;
             log.push(LogEntry { at_ms: t, event: Event::GainMana { side, amount: n, total } });
+        }
+        Action::Grow(n) => {
+            // Maximum health up, and the new room filled - growing into a gap
+            // you then have to heal would make it useless in the fight that is
+            // actually happening.
+            let c = pick(p, e, side);
+            c.max_health += n;
+            c.health += n;
+            let total = c.max_health;
+            log.push(LogEntry { at_ms: t, event: Event::Grew { side, amount: n, total } });
         }
         Action::GainArmor(n) => {
             let c = pick(p, e, side);

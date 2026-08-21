@@ -294,6 +294,14 @@ pub enum EffectKind {
     /// `stat`. Cross-item, which is only expressible because items are anchored
     /// by their core and may therefore sit flush against one another.
     DoubleAdjacentItemStat { stat: StatKind },
+    /// Multiply every number on this item by `times`, but only while the item
+    /// is standing alone in the sense `what` describes.
+    ///
+    /// The point of a build being a set of five grids is that they are five
+    /// grids; this is what makes *where* you put a thing matter as much as
+    /// what it is. The multipliers are enormous and the conditions are very
+    /// easy to break by accident, which is the trade.
+    SoleIf { what: Solitude, times: i32 },
     /// This piece gains `per` of `stat` for every orthogonally adjacent piece
     /// of `kind` in the same grid. Where `DoubleNeighbor` reaches out and
     /// changes what its neighbours are worth, this reads them and changes
@@ -313,6 +321,37 @@ impl Effect {
     /// Full description including the condition, for tooltips and the CLI.
     pub fn describe(&self) -> String {
         format!("{}{}", self.label, self.when.suffix())
+    }
+}
+
+/// What "standing alone" has to mean for a `SoleIf` multiplier to pay.
+///
+/// All of these look at *assembled* items only. Loose pieces are not gear and
+/// do not crowd anything.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Solitude {
+    /// No other finished item anywhere on the board occupies a row this one
+    /// occupies. The strictest of the three, and worth the most.
+    Row,
+    /// Lay the five grids on top of one another: no other finished item covers
+    /// a cell this one covers.
+    Stacked,
+    /// The same, but only items in this slot are counted.
+    StackedWith(SlotKind),
+}
+
+impl Solitude {
+    pub fn describe(self) -> String {
+        match self {
+            Solitude::Row => "no other finished item shares a row with it".into(),
+            Solitude::Stacked => {
+                "no other finished item overlaps it with the grids stacked".into()
+            }
+            Solitude::StackedWith(s) => format!(
+                "no finished {} overlaps it with the grids stacked",
+                s.name().to_lowercase()
+            ),
+        }
     }
 }
 
@@ -371,6 +410,12 @@ pub enum Action {
     /// Gain stacks of mana shield: each stack cuts 1 point off every incoming
     /// hit per point of mana you are holding, whatever the damage type.
     GainShield(u32),
+    /// Raise maximum health by `n` for the rest of the fight, and heal for it.
+    ///
+    /// The only thing in the game that grows while a fight is running, so a
+    /// piece carrying it is worth more the longer the fight lasts - which is
+    /// the opposite of everything else, and why they cost what they cost.
+    Grow(i32),
 }
 
 impl Action {
@@ -391,6 +436,7 @@ impl Action {
             }
             Action::GainEmpowerment(n) => format!("gain {} mana empowerment", n),
             Action::GainShield(n) => format!("gain {} mana shield", n),
+            Action::Grow(n) => format!("gain {} maximum health for the rest of the fight", n),
         }
     }
 }
@@ -6518,6 +6564,186 @@ pub static CATALOG: &[PieceDef] = &[
         quest: None,
         power_bonus: 0,
         price: 999,
+    },
+    PieceDef {
+        name: "Heartwood Crest",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0,0),(1,0)],
+        base: Stats { health: 60, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Grow(14))],
+        quest: None,
+        power_bonus: 0,
+        price: 46,
+    },
+    PieceDef {
+        name: "The Growing Weight",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        cells: &[(0,0),(1,0),(0,1),(1,1)],
+        base: Stats { health: 90, armor: 10, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Grow(22))],
+        quest: None,
+        power_bonus: 0,
+        price: 62,
+    },
+    PieceDef {
+        name: "Grasping Ring",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { health: 40, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Grow(10))],
+        quest: None,
+        power_bonus: 0,
+        price: 38,
+    },
+    PieceDef {
+        name: "Deeprooted Sole",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Mold,
+        cells: &[(0,0),(1,0),(2,0)],
+        base: Stats { health: 70, regen: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Grow(16))],
+        quest: None,
+        power_bonus: 0,
+        price: 52,
+    },
+    PieceDef {
+        name: "Gluttonous Fang",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Damaging,
+        cells: &[(0,0),(0,1),(1,1)],
+        base: Stats { damage: 9, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Grow(12))],
+        quest: None,
+        power_bonus: 0,
+        price: 55,
+    },
+    PieceDef {
+        name: "Hermit's Band",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { health: 40, strength: 3, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect { label: "Hermit: everything x6 while its row is its own", when: When::Assembled, kind: EffectKind::SoleIf { what: Solitude::Row, times: 6 } }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 58,
+    },
+    PieceDef {
+        name: "The Empty Crown",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0,0),(1,0)],
+        base: Stats { health: 55, armor: 12, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect { label: "Empty Crown: everything x5 while its row is its own", when: When::Assembled, kind: EffectKind::SoleIf { what: Solitude::Row, times: 5 } }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 64,
+    },
+    PieceDef {
+        name: "Lonely Plating",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Plating,
+        cells: &[(0,0),(1,0)],
+        base: Stats { armor: 14, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect { label: "Lonely: everything x4 while nothing overlaps it", when: When::Assembled, kind: EffectKind::SoleIf { what: Solitude::Stacked, times: 4 } }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 54,
+    },
+    PieceDef {
+        name: "Widow's Sole",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Mold,
+        cells: &[(0,0),(0,1)],
+        base: Stats { health: 45, regen: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect { label: "Widow: everything x4 while nothing overlaps it", when: When::Assembled, kind: EffectKind::SoleIf { what: Solitude::Stacked, times: 4 } }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 56,
+    },
+    PieceDef {
+        name: "Bare-Headed Fang",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Damaging,
+        cells: &[(0,0),(1,0)],
+        base: Stats { damage: 11, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect { label: "Bare-Headed: everything x3 while no helmet overlaps it", when: When::Assembled, kind: EffectKind::SoleIf { what: Solitude::StackedWith(SlotKind::Helmet), times: 3 } }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 44,
+    },
+    PieceDef {
+        name: "Ungloved Layer",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        cells: &[(0,0),(1,0),(0,1)],
+        base: Stats { armor: 16, health: 50, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect { label: "Ungloved: everything x3 while no glove overlaps it", when: When::Assembled, kind: EffectKind::SoleIf { what: Solitude::StackedWith(SlotKind::Gloves), times: 3 } }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 46,
+    },
+    PieceDef {
+        name: "Unshod Signet",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { magic_damage: 7, mana: 1, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect { label: "Unshod: everything x10 while no greave overlaps it", when: When::Assembled, kind: EffectKind::SoleIf { what: Solitude::StackedWith(SlotKind::Greaves), times: 10 } }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 88,
     },
 ];
 

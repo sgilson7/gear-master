@@ -3,7 +3,7 @@
 
 mod common;
 
-use common::equip;
+use common::{equip, piece};
 use gearmaster_engine::piece::SlotKind;
 use gearmaster_engine::run::Run;
 
@@ -277,4 +277,70 @@ fn mana_income_pays_for_full_strength_casts() {
         .filter(|e| matches!(e.event, Event::Cast { side: Side::Player, paid: true, .. }))
         .count();
     assert!(paid > 0, "a build banking mana should be paying for its casts");
+}
+
+// ------------------------------------------------- solitude multipliers
+
+/// A row-solitude piece multiplies everything on its item, but only while
+/// nothing else finished shares a row with it anywhere on the board.
+#[test]
+fn a_row_multiplier_pays_only_while_the_row_is_its_own() {
+    let mut run = Run::with_all_pieces();
+    // A glove built high, carrying the ring.
+    equip(&mut run, "Leather Material", SlotKind::Gloves, 0, 0);
+    equip(&mut run, "Gripping Mold", SlotKind::Gloves, 2, 0);
+    equip(&mut run, "Hermit's Band", SlotKind::Gloves, 4, 0);
+    assert_eq!(run.report(SlotKind::Gloves).assembled_count(), 1);
+
+    let alone = run.combat_items()[0].stats.health;
+    assert!(alone > 0, "the glove should be worth something");
+
+    // Now a weapon on the same rows, in a different grid.
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Iron Blade", SlotKind::Weapon, 1, 0);
+    let items = run.combat_items();
+    let glove = items.iter().find(|i| i.slot == SlotKind::Gloves).expect("still there");
+    assert!(
+        glove.stats.health < alone,
+        "the multiplier should have lapsed: {} vs {}",
+        glove.stats.health,
+        alone
+    );
+
+    // Move the weapon down out of its rows and it comes back.
+    let handle = piece(&run, "Oak Handle");
+    let blade = piece(&run, "Iron Blade");
+    run.equip(handle, SlotKind::Weapon, 0, 4).expect("room below");
+    run.equip(blade, SlotKind::Weapon, 1, 4).expect("room below");
+    let items = run.combat_items();
+    let glove = items.iter().find(|i| i.slot == SlotKind::Gloves).expect("still there");
+    assert_eq!(glove.stats.health, alone, "clear rows again");
+}
+
+/// A stacked-solitude piece cares about cells, not rows: two items can share
+/// rows and still not overlap.
+#[test]
+fn a_stacked_multiplier_cares_about_cells_not_rows() {
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Tin Frame", SlotKind::Helmet, 0, 0);
+    equip(&mut run, "Lonely Plating", SlotKind::Helmet, 0, 2);
+    assert_eq!(run.report(SlotKind::Helmet).assembled_count(), 1);
+    let alone = run.combat_items()[0].stats.armor;
+
+    // A chestpiece on the same rows but the far side of the grid: same rows,
+    // no overlapping cells, so the multiplier holds.
+    equip(&mut run, "Sackcloth Base", SlotKind::Chest, 4, 0);
+    equip(&mut run, "Rag Layer", SlotKind::Chest, 4, 2);
+    let items = run.combat_items();
+    let helm = items.iter().find(|i| i.slot == SlotKind::Helmet).expect("still there");
+    assert_eq!(helm.stats.armor, alone, "different cells, so still alone");
+
+    // Slide the chestpiece on top of it and the multiplier lapses.
+    let base = piece(&run, "Sackcloth Base");
+    let layer = piece(&run, "Rag Layer");
+    run.equip(base, SlotKind::Chest, 0, 0).expect("room");
+    run.equip(layer, SlotKind::Chest, 0, 2).expect("room");
+    let items = run.combat_items();
+    let helm = items.iter().find(|i| i.slot == SlotKind::Helmet).expect("still there");
+    assert!(helm.stats.armor < alone, "overlapping now, so the bonus is gone");
 }

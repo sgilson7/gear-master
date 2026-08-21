@@ -102,6 +102,32 @@ pub enum StatKind {
 }
 
 impl StatKind {
+    /// Every stat, so something that acts on "all the numbers" can do so
+    /// without listing them and forgetting one when a new field is added.
+    pub const ALL: [StatKind; 21] = [
+        StatKind::Health,
+        StatKind::Strength,
+        StatKind::Regen,
+        StatKind::Power,
+        StatKind::Damage,
+        StatKind::Armor,
+        StatKind::Mana,
+        StatKind::Mind,
+        StatKind::MindResist,
+        StatKind::CurseResist,
+        StatKind::PhysicalDamage,
+        StatKind::PhysicalResist,
+        StatKind::PhysicalPierce,
+        StatKind::PhysicalHarden,
+        StatKind::MagicDamage,
+        StatKind::MagicResist,
+        StatKind::MagicPierce,
+        StatKind::MagicHarden,
+        StatKind::Rage,
+        StatKind::Faith,
+        StatKind::Nature,
+    ];
+
     pub fn name(self) -> &'static str {
         match self {
             StatKind::Health => "health",
@@ -245,6 +271,19 @@ impl Stats {
     /// The character's starting point before any gear is considered.
     pub const fn base_character() -> Self {
         Stats::new(BASE_HEALTH, BASE_STRENGTH, BASE_REGEN, BASE_POWER)
+    }
+
+    /// Every number multiplied. What a solitude bonus does when it lands.
+    pub fn times(self, n: i32) -> Stats {
+        if n <= 1 {
+            return self;
+        }
+        let mut out = self;
+        for k in StatKind::ALL {
+            let v = out.get(k);
+            out.set(k, v * n);
+        }
+        out
     }
 
     /// Damage per attack: strength scaled by the weapon multiplier.

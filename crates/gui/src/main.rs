@@ -1484,6 +1484,7 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
         Action::Damage { .. } => note("damage", out),
         Action::ReduceCooldown(_) => note("speed", out),
         Action::GainEmpowerment(_) | Action::GainShield(_) => note("mana", out),
+        Action::Grow(_) => note("health", out),
     } }
     for t in def.triggers {
         match t {
@@ -2293,6 +2294,11 @@ impl Playback {
             // Worth a line: an item coming round and doing nothing is the sort
             // of thing you want to see explained rather than wonder about.
             Event::Misfired { .. } => {}
+            // Growth changes the bar itself, not just what is in it.
+            Event::Grew { side, total, .. } => match side {
+                Side::Player => self.player_max = *total,
+                Side::Enemy => self.enemy_max = *total,
+            },
             // Keeps the mana read-out honest: a cast spends from the same pool
             // everything else banks into.
             Event::Cast { side, remaining, .. } => {

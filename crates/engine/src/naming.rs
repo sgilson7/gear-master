@@ -172,6 +172,7 @@ fn action_word(a: &Action) -> Option<&'static str> {
         Action::MindDamage { .. } => "Whispering",
         Action::GainMana(_) => "Welling",
         Action::GainArmor(_) => "Warded",
+        Action::Grow(_) => "Everlasting",
         Action::Damage { .. } => "Striking",
         Action::ReduceCooldown(_) => "Hastening",
         Action::GainEmpowerment(_) => "Empowered",
@@ -231,6 +232,7 @@ pub fn qualifiers(reg: &PieceRegistry, pieces: &[PieceId]) -> Vec<&'static str> 
         if let Some(eff) = def.effect {
             note(Some(match eff.kind {
                 EffectKind::SelfPerNeighborKind { .. } => "Clustered",
+                EffectKind::SoleIf { .. } => "Solitary",
                 EffectKind::Flat { .. } => {
                     if eff.when == crate::piece::When::NotAssembled { "Unbound" } else { "Blessed" }
                 }

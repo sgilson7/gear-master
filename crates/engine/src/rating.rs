@@ -209,6 +209,11 @@ fn action_points(a: &Action) -> f32 {
                 weight::CURSE_PS
             }
         }
+        // Growth compounds: it is worth the health itself, and worth more
+        // again because every later activation happens with more room. Rated
+        // at roughly three times a flat point of health to account for that,
+        // which is what makes these pieces expensive.
+        Action::Grow(n) => *n as f32 * weight::HEALTH * 3.0,
         Action::Damage { amount, target } => {
             let v = *amount as f32 * weight::DAMAGE_PS;
             if matches!(target, crate::piece::Target::Yourself) {
@@ -277,6 +282,11 @@ fn effect_points(e: &Effect, rate: f32) -> f32 {
         When::NotAssembled => 0.35,
     };
     let raw = match e.kind {
+        // A multiplier on everything, if you can keep the board clear enough
+        // to earn it. Rated as though it pays about a third of the time: it is
+        // enormous when it lands and very easy to break by accident, and the
+        // rating cannot see the board it will end up on.
+        EffectKind::SoleIf { times, .. } => (times - 1) as f32 * 22.0,
         // Worth roughly two neighbours of the right sort, which is what a
         // build that wants this effect will actually manage.
         EffectKind::SelfPerNeighborKind { per, stat, .. } => {

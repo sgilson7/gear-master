@@ -3,7 +3,8 @@ use std::collections::HashSet;
 use crate::curse::TICK_MS;
 use crate::naming::{item_hash, name_item, ItemName};
 use crate::piece::{
-    default_cooldown_ms, EffectKind, PieceId, PieceKind, PieceRegistry, SlotKind, Trigger,
+    default_cooldown_ms, EffectKind, PieceId, PieceKind, PieceRegistry, SlotKind, Solitude,
+    Trigger,
 };
 use crate::slot::{PlaceError, Slot};
 use crate::stats::{StatKind, Stats};
@@ -432,6 +433,56 @@ impl Loadout {
             }
         }
 
+        // Solitude multipliers need every grid at once - "no other item shares
+        // a row" is not a question a single slot can answer - so they are
+        // resolved here rather than in `report`, which is per-slot.
+        let cells: Vec<Vec<(u8, u8)>> = gathered
+            .iter()
+            .map(|(kind, item)| {
+                let slot = self.slot(*kind);
+                item.pieces.iter().flat_map(|&p| slot.cells_of(p)).collect()
+            })
+            .collect();
+        let multipliers: Vec<i32> = (0..gathered.len())
+            .map(|i| {
+                let (kind, item) = &gathered[i];
+                let mut times = 1;
+                for &p in &item.pieces {
+                    let Some(eff) = reg.def(p).effect else { continue };
+                    let EffectKind::SoleIf { what, times: n } = eff.kind else { continue };
+                    let alone = (0..gathered.len()).filter(|&j| j != i).all(|j| {
+                        match what {
+                            Solitude::Row => {
+                                let rows = |v: &Vec<(u8, u8)>| {
+                                    let lo = v.iter().map(|(_, y)| *y).min().unwrap_or(0);
+                                    let hi = v.iter().map(|(_, y)| *y).max().unwrap_or(0);
+                                    (lo, hi)
+                                };
+                                let (a0, a1) = rows(&cells[i]);
+                                let (b0, b1) = rows(&cells[j]);
+                                !(a0 <= b1 && b0 <= a1)
+                            }
+                            Solitude::Stacked => {
+                                !cells[j].iter().any(|c| cells[i].contains(c))
+                            }
+                            Solitude::StackedWith(want) => {
+                                gathered[j].0 != want
+                                    || !cells[j].iter().any(|c| cells[i].contains(c))
+                            }
+                        }
+                    });
+                    // The piece has to be part of a finished item for its own
+                    // effect to count, which it is: `gathered` is assembled
+                    // items only.
+                    let _ = kind;
+                    if alone {
+                        times = times.max(n);
+                    }
+                }
+                times
+            })
+            .collect();
+
         // Second pass: who touches whom, and who lines up with whom. Both are
         // global indices into the list being built, so combat can resolve a
         // reaction without knowing anything about grids.
@@ -513,6 +564,16 @@ impl Loadout {
                 })
                 .collect();
 
+            // Everything on the item, multiplied. All the numbers means all of
+            // them - what it grants standing, what it does per activation, and
+            // every spell it casts.
+            let times = multipliers[i];
+            let scaled_stats = item.stats.times(times);
+            let casts: Vec<Cast> = casts
+                .into_iter()
+                .map(|c| Cast { stats: c.stats.times(times), ..c })
+                .collect();
+
             out.push(ItemProfile {
                 sigil_seed: item_hash(self.name_seed, reg, slot, &item.pieces),
                 pieces: item.pieces.clone(),
@@ -524,7 +585,7 @@ impl Loadout {
                 core: core.map(|c| reg.def(c).name.to_string()).unwrap_or_default(),
                 slot: *kind,
                 cooldown_ms,
-                stats: item.stats,
+                stats: scaled_stats,
                 triggers,
                 power_bonus,
                 casts,
