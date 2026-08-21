@@ -4003,6 +4003,7 @@ async fn main() {
     // Any debug hook skips straight to the board.
     let skip_intro = std::env::var("GEARMASTER_PRESET").is_ok()
         || std::env::var("GEARMASTER_FIGHT").is_ok()
+        || std::env::var("GEARMASTER_PLACE").is_ok()
         || std::env::var("GEARMASTER_SKIP_INTRO").is_ok();
     let mut opening = if skip_intro { Opening::Playing } else { Opening::Intro(0) };
     let mut chosen_difficulty = Difficulty::Easy;
@@ -4024,6 +4025,28 @@ async fn main() {
     }
     // GEARMASTER_CLASS=<name> grants a class without playing to the fountain,
     // so the panel can be inspected in the state a granted class puts it in.
+    // GEARMASTER_PLACE="Name@Slot:x,y;..." puts an exact build on the board,
+    // so a specific interaction can be inspected without playing to it.
+    if let Ok(spec) = std::env::var("GEARMASTER_PLACE") {
+        run = Run::with_all_pieces();
+        for entry in spec.split(';').filter(|e| !e.is_empty()) {
+            let (name, rest) = entry.split_once('@').expect("Name@Slot:x,y");
+            let (slot_name, coords) = rest.split_once(':').expect("Slot:x,y");
+            let (xs, ys) = coords.split_once(',').expect("x,y");
+            let slot = SlotKind::ALL
+                .iter()
+                .copied()
+                .find(|s| s.name().eq_ignore_ascii_case(slot_name))
+                .expect("unknown slot");
+            let id = run
+                .owned
+                .iter()
+                .copied()
+                .find(|&i| run.registry.def(i).name == name && !run.is_equipped(i))
+                .expect("unknown or already-placed component");
+            run.equip(id, slot, xs.parse().unwrap(), ys.parse().unwrap()).expect("fits");
+        }
+    }
     if let Ok(c) = std::env::var("GEARMASTER_CLASS") {
         run.class = gearmaster_engine::class::CLASSES
             .iter()

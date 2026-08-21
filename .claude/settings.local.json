@@ -66,7 +66,8 @@
       "Bash(sed -n '/GLOSSARY/,$p')",
       "Bash(awk '{s+=$4} END {print s\" tests\"}')",
       "Bash(grep -n \"Action::Curse { kind, target } =>\" -A 14 crates/engine/src/combat.rs)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(bash -n packaging/package-web.sh)"
     ]
   }
 }
