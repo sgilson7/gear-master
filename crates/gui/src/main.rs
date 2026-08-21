@@ -752,6 +752,175 @@ fn pool_index(what: &str) -> Option<usize> {
     }
 }
 
+/// Every keyword a component touches, so a card can show at a glance what it
+/// deals in without anyone reading the tooltip.
+///
+/// Derived from what the piece actually carries - its stats, its adjacency
+/// bonus, its effect and its triggers - rather than from a hand-written list,
+/// so a new component is described correctly the moment it exists.
+fn note(k: &'static str, out: &mut Vec<&'static str>) {
+    if !out.contains(&k) {
+        out.push(k);
+    }
+}
+
+fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
+    use gearmaster_engine::piece::{Action, Resource, Trigger};
+    let mut out: Vec<&'static str> = Vec::new();
+    fn from_stats(st: &gearmaster_engine::stats::Stats, out: &mut Vec<&'static str>) {
+        for (v, k) in [
+            (st.mana, "mana"),
+            (st.rage, "rage"),
+            (st.faith, "faith"),
+            (st.nature, "nature"),
+            (st.armor, "armor"),
+            (st.mind, "mind"),
+            (st.magic_damage + st.magic_resist + st.magic_pierce + st.magic_harden, "magic"),
+            (st.physical_damage + st.physical_resist + st.physical_pierce + st.physical_harden, "physical"),
+            (st.damage, "damage"),
+        ] {
+            if v != 0 {
+                note(k, out);
+            }
+        }
+    }
+    from_stats(&def.base, &mut out);
+    if let Some(a) = def.adjacency {
+        from_stats(&a.stats, &mut out);
+    }
+    if let Some(e) = def.effect {
+        if let gearmaster_engine::piece::EffectKind::Flat { stats } = e.kind {
+            from_stats(&stats, &mut out);
+        }
+    }
+    if def.speed_bonus != 0 {
+        note("speed", &mut out);
+    }
+    if def.quest.is_some() {
+        note("quest", &mut out);
+    }
+
+    fn from_action(a: &Action, out: &mut Vec<&'static str>) { match a {
+        Action::Curse { .. } => note("curse", out),
+        Action::GainMana(_) => note("mana", out),
+        Action::Gain { what, .. } => note(
+            match what {
+                Resource::Mana => "mana",
+                Resource::Rage => "rage",
+                Resource::Faith => "faith",
+                Resource::Nature => "nature",
+            },
+            out,
+        ),
+        Action::GainArmor(_) => note("armor", out),
+        Action::MindDamage { .. } => note("mind", out),
+        Action::Damage { .. } => note("damage", out),
+        Action::ReduceCooldown(_) => note("speed", out),
+        Action::GainEmpowerment(_) | Action::GainShield(_) => note("mana", out),
+    } }
+    for t in def.triggers {
+        match t {
+            Trigger::OnActivate(a)
+            | Trigger::PerAdjacentItem { action: a, .. }
+            | Trigger::OnAdjacentActivate(a)
+            | Trigger::OnAlignedActivate(a) => from_action(a, &mut out),
+            Trigger::SpendMana { on_success, on_failure, .. } => {
+                note("mana", &mut out);
+                from_action(on_success, &mut out);
+                from_action(on_failure, &mut out);
+            }
+            Trigger::Spend { what, on_success, on_failure, .. } => {
+                note(
+                    match what {
+                        Resource::Mana => "mana",
+                        Resource::Rage => "rage",
+                        Resource::Faith => "faith",
+                        Resource::Nature => "nature",
+                    },
+                    &mut out,
+                );
+                from_action(on_success, &mut out);
+                from_action(on_failure, &mut out);
+            }
+        }
+    }
+    out
+}
+
+/// One keyword's mark. The four pools reuse the glyphs the battle screen
+/// draws, so the same thing looks the same wherever it appears.
+fn draw_keyword(x: f32, y: f32, s: f32, keyword: &str) {
+    let c = keyword_color(keyword);
+    match keyword {
+        "mana" | "rage" | "faith" | "nature" | "armor" => draw_pool_glyph(x, y, s, keyword, c),
+        // A curse: a crooked horn.
+        "curse" => {
+            draw_line(x + s * 0.20, y + s * 0.85, x + s * 0.5, y + s * 0.15, s * 0.14, c);
+            draw_line(x + s * 0.5, y + s * 0.15, x + s * 0.80, y + s * 0.55, s * 0.14, c);
+        }
+        // Speed: a chevron.
+        "speed" => {
+            draw_line(x + s * 0.20, y + s * 0.20, x + s * 0.70, y + s * 0.5, s * 0.14, c);
+            draw_line(x + s * 0.70, y + s * 0.5, x + s * 0.20, y + s * 0.80, s * 0.14, c);
+        }
+        // Mind: a spiral of sorts.
+        "mind" => {
+            draw_circle_lines(x + s * 0.5, y + s * 0.5, s * 0.34, s * 0.12, c);
+            draw_circle(x + s * 0.5, y + s * 0.5, s * 0.12, c);
+        }
+        // Magic: a four-pointed star.
+        "magic" => {
+            draw_triangle(
+                Vec2::new(x + s * 0.5, y),
+                Vec2::new(x + s * 0.64, y + s * 0.5),
+                Vec2::new(x + s * 0.36, y + s * 0.5),
+                c,
+            );
+            draw_triangle(
+                Vec2::new(x + s * 0.5, y + s),
+                Vec2::new(x + s * 0.64, y + s * 0.5),
+                Vec2::new(x + s * 0.36, y + s * 0.5),
+                c,
+            );
+            draw_line(x, y + s * 0.5, x + s, y + s * 0.5, s * 0.14, c);
+        }
+        // Physical: a blunt wedge.
+        "physical" => {
+            draw_triangle(
+                Vec2::new(x + s * 0.5, y + s * 0.05),
+                Vec2::new(x + s * 0.9, y + s * 0.95),
+                Vec2::new(x + s * 0.1, y + s * 0.95),
+                c,
+            );
+        }
+        // A quest: a small flag.
+        "quest" => {
+            draw_line(x + s * 0.25, y + s * 0.05, x + s * 0.25, y + s * 0.95, s * 0.13, c);
+            draw_triangle(
+                Vec2::new(x + s * 0.30, y + s * 0.10),
+                Vec2::new(x + s * 0.88, y + s * 0.32),
+                Vec2::new(x + s * 0.30, y + s * 0.55),
+                c,
+            );
+        }
+        // Plain damage: a slash.
+        _ => draw_line(x + s * 0.18, y + s * 0.82, x + s * 0.82, y + s * 0.18, s * 0.16, c),
+    }
+}
+
+fn keyword_color(k: &str) -> Color {
+    match k {
+        "mana" | "rage" | "faith" | "nature" | "armor" => pool_color(k),
+        "curse" => col_trigger(),
+        "speed" => Color::from_rgba(150, 220, 240, 255),
+        "mind" => Color::from_rgba(200, 160, 220, 255),
+        "magic" => Color::from_rgba(170, 150, 245, 255),
+        "physical" => Color::from_rgba(226, 150, 110, 255),
+        "quest" => Color::from_rgba(150, 220, 190, 255),
+        _ => Color::from_rgba(220, 200, 180, 255),
+    }
+}
+
 /// A small mark for each banked pool, drawn from primitives so the four read
 /// apart at a glance instead of being four numbers in a row.
 fn draw_pool_glyph(x: f32, y: f32, s: f32, which: &str, c: Color) {
@@ -1873,6 +2042,16 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
             14.0,
             if afford { col_gold() } else { col_bad() },
         );
+
+        // What this piece deals in, stacked down the left edge - mana above
+        // rage above whatever else it touches - so the shelves can be read
+        // without opening a single tooltip.
+        let keys = keywords_of(def);
+        let mut ky = card.rect.y + 8.0;
+        for k in keys.iter().take(6) {
+            draw_keyword(card.rect.x + 4.0, ky, 13.0, k);
+            ky += 15.0;
+        }
 
         // A pinned shelf gets a bright border and a mark, so it reads as held
         // rather than merely hovered.
