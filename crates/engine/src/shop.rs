@@ -77,6 +77,7 @@ impl Shop {
 
         let mut pool: Vec<usize> = (0..CATALOG.len())
             .filter(|i| fresh(i) && !chosen.contains(i))
+            .filter(|&i| !crate::piece::is_boss_only(CATALOG[i].name))
             .collect();
         rng.shuffle(&mut pool);
         for i in pool {

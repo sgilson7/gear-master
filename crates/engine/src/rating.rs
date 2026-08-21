@@ -100,7 +100,7 @@ fn slot_ceiling(slot: SlotKind) -> f32 {
                         // `fits`, not `slot ==`: shared materials and plating
                         // are wearable here even though they are filed
                         // elsewhere, and a ceiling blind to them is too low.
-                        .filter(|d| d.fits(s) && d.kind == kind)
+                        .filter(|d| d.fits(s) && d.kind == kind && !crate::piece::is_boss_only(d.name))
                         .map(|d| piece_points(d, 0))
                         .collect();
                     best.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
@@ -429,7 +429,7 @@ mod tests {
             for &(kind, min, max) in *recipe {
                 let mut v: Vec<i32> = CATALOG
                     .iter()
-                    .filter(|d| d.fits(slot) && d.kind == kind)
+                    .filter(|d| d.fits(slot) && d.kind == kind && !crate::piece::is_boss_only(d.name))
                     .map(|d| piece_rating_in(d, slot, 0).round() as i32)
                     .collect();
                 v.sort_unstable();
@@ -485,13 +485,40 @@ mod tests {
 
     #[test]
     fn every_component_has_a_rating_and_none_of_them_is_absurd() {
+        // Boss gear is exempt by design: it is meant to be off the scale, and
+        // it is kept out of the ceiling so that being off the scale does not
+        // drag every ordinary piece down with it.
         for (name, _, _, r) in catalog_ratings() {
+            if crate::piece::is_boss_only(name) {
+                continue;
+            }
             assert!(
                 (-40..=FULL_MARKS).contains(&r),
                 "{} rates {}, outside anything a single component should reach",
                 name,
                 r
             );
+        }
+    }
+
+    /// The point of the exemption: an absurd boss piece must not move the
+    /// scale every other piece in its slot is measured against.
+    #[test]
+    fn boss_gear_does_not_move_the_scale_for_anything_else() {
+        for name in crate::piece::BOSS_ONLY {
+            let d = CATALOG.iter().find(|c| c.name == *name).expect("boss gear exists");
+            let best = CATALOG
+                .iter()
+                .filter(|c| c.slot == d.slot && c.kind == d.kind && !crate::piece::is_boss_only(c.name))
+                .map(piece_rating)
+                .max()
+                .unwrap_or(0);
+            assert!(
+                piece_rating(d) > best,
+                "{} is not actually stronger than anything a player can buy",
+                name
+            );
+            assert!(best <= FULL_MARKS, "the scale moved: best ordinary is {}", best);
         }
     }
 

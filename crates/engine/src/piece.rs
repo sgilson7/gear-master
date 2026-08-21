@@ -6487,7 +6487,52 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 0,
         price: 45,
     },
+    // Francis only. Never stocked, and deliberately outside the scale every
+    // other chestpiece is measured against - see BOSS_ONLY.
+    PieceDef {
+        name: "The Money Jacket",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Base,
+        cells: &[(0,0),(1,0),(2,0),(3,0),(0,1),(1,1),(2,1),(3,1),(0,2),(1,2),(2,2),(3,2)],
+        base: Stats {
+            health: 420,
+            armor: 90,
+            regen: 9,
+            strength: 26,
+            physical_resist: 40,
+            magic_resist: 40,
+            physical_harden: 30,
+            magic_harden: 30,
+            mind_resist: 40,
+            curse_resist: 40,
+            ..Stats::ZERO
+        },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 2600,
+        speed_bonus: 0,
+        triggers: &[
+            Trigger::OnActivate(Action::GainArmor(70)),
+            Trigger::OnActivate(Action::Damage { amount: 40, target: Target::Enemy }),
+        ],
+        quest: None,
+        power_bonus: 0,
+        price: 999,
+    },
 ];
+
+/// Gear that exists only on a boss.
+///
+/// Kept out of the shop, and out of the scale every other piece is rated
+/// against. One absurd chestpiece in the ceiling would quietly deflate the
+/// rating - and so the rarity mark and the price - of every other chestpiece
+/// in the game.
+pub const BOSS_ONLY: &[&str] = &["The Money Jacket"];
+
+/// Is this a piece a player can never own?
+pub fn is_boss_only(name: &str) -> bool {
+    BOSS_ONLY.contains(&name)
+}
 
 /// Index of every definition in `CATALOG`, in catalog order.
 pub fn all_def_indices() -> Vec<usize> {

@@ -238,6 +238,9 @@ fn candidates_for(
             // greaves and plating between helmets and greaves, so keying on
             // the home slot hid 22 of the 46 pieces a greave can take.
             .filter(|&i| CATALOG[i].fits(slot) && CATALOG[i].kind == kind)
+            // Boss gear belongs to one creature. Without this the tool handed
+            // the Money Jacket to every monster it authored.
+            .filter(|&i| !gearmaster_engine::piece::is_boss_only(CATALOG[i].name))
             // A disconnected shape can never be part of an assembled item:
             // its islands flood-fill into groups of their own.
             .filter(|&i| connected(CATALOG[i].cells))
@@ -1222,5 +1225,47 @@ fn how_dense_is_dense() {
             cells(&by_sec),
             names(&by_cell) == names(&by_sec)
         );
+    }
+}
+
+/// One gear block per monster above the old final boss, climbing. Francis is
+/// authored separately: his chestpiece is built round a piece nobody else has.
+#[test]
+#[ignore]
+fn author_the_summit() {
+    const N: usize = 15;
+    let per_slot: Vec<Vec<(i32, Vec<(&'static str, u8, u8, u8)>)>> =
+        SlotKind::ALL.iter().map(|&s| ladder_for(s, N)).collect();
+
+    for i in 0..N {
+        let mut total = 0;
+        let mut lines = Vec::new();
+        for (si, _) in SlotKind::ALL.iter().enumerate() {
+            let rung = &per_slot[si];
+            if rung.is_empty() {
+                continue;
+            }
+            // Take from the top of each slot's ladder: these sit above
+            // everything already on it.
+            let at = (rung.len() - 1).saturating_sub(N - 1 - i);
+            let (rating, placed) = &rung[at];
+            total += rating;
+            for (n, x, y, r) in placed {
+                lines.push(format!(
+                    "            (\"{}\", SlotKind::{:?}, {}, {}, {}),",
+                    n,
+                    SlotKind::ALL[si],
+                    x,
+                    y,
+                    r
+                ));
+            }
+        }
+        println!("// summit {} - gear rating {}", i, total);
+        println!("        gear: &[");
+        for l in &lines {
+            println!("{}", l);
+        }
+        println!("        ],");
     }
 }

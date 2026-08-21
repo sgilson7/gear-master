@@ -156,7 +156,8 @@ fn selling_refunds_half_and_strips_the_piece_off() {
 
 #[test]
 fn the_ladder_climbs_all_the_way_up() {
-    assert_eq!(LADDER.len(), 33, "eleven monsters, two bosses, and twenty beyond");
+    assert_eq!(LADDER.len(), 49, "the old ladder, fifteen above it, and Francis");
+    assert_eq!(LADDER[LADDER.len() - 1].name, "Francis", "Francis is the end of it");
     let bounties: Vec<i32> = LADDER.iter().map(|m| m.bounty).collect();
     assert!(
         bounties.windows(2).all(|w| w[0] <= w[1]),
@@ -510,17 +511,38 @@ fn price_climbs_with_effectiveness_and_the_best_gear_is_dear() {
 // ------------------------------------------------------------- the fountain
 
 #[test]
-fn the_fountain_sits_at_the_fifth_rung_and_always_gives_something() {
+fn a_fountain_always_gives_something_and_only_once() {
     let mut run = Run::with_all_pieces();
-    run.rung = Run::FOUNTAIN_RUNG;
+    let first = Run::FOUNTAINS[0];
+    run.rung = first;
     assert!(run.at_fountain());
 
     // Even a bare board gets an imbuement - a fountain is never wasted.
     let class = run.drink();
     assert_eq!(class.name, "Wanderer");
-    assert!(run.class.is_some());
-    assert_eq!(run.rung, Run::FOUNTAIN_RUNG + 1, "and it moves you past it");
-    assert!(!run.at_fountain(), "it only happens once");
+    assert_eq!(run.classes.len(), 1);
+    // A fountain stands between rungs, not on one: the creature at this rung
+    // is still there to be fought afterwards.
+    assert_eq!(run.rung, first, "drinking does not climb the ladder");
+    assert!(!run.at_fountain(), "that one only happens once");
+}
+
+/// The second fountain adds to the first rather than replacing it, and never
+/// reads you the same way twice - a rung that gave you what you already have
+/// would be a rung of nothing.
+#[test]
+fn the_second_fountain_gives_a_different_class() {
+    let mut run = Run::with_all_pieces();
+    run.apply_preset();
+    run.rung = Run::FOUNTAINS[0];
+    let first = run.drink().name;
+
+    run.rung = Run::FOUNTAINS[1];
+    assert!(run.at_fountain(), "the second one is waiting");
+    let second = run.drink().name;
+
+    assert_eq!(run.classes.len(), 2, "you keep both");
+    assert_ne!(first, second, "and they are not the same class twice");
 }
 
 #[test]
@@ -536,7 +558,7 @@ fn the_class_you_would_get_is_visible_before_you_drink() {
         .expect("something is always eligible")
         .class
         .name;
-    run.rung = Run::FOUNTAIN_RUNG;
+    run.rung = Run::FOUNTAINS[0];
     assert_eq!(run.drink().name, predicted);
 }
 
@@ -568,7 +590,7 @@ fn a_standing_class_power_reaches_the_players_stats() {
 
     let mut run = Run::with_all_pieces();
     let before = run.player_stats();
-    run.class = Some(&STONE);
+    run.classes = vec![&STONE];
     let after = run.player_stats();
 
     assert_eq!(after.health, before.health + 90);
@@ -611,8 +633,8 @@ fn slow_time_spreads_a_hit_instead_of_stopping_it() {
     };
 
     let stats = Stats::new(400, 0, 0, 100);
-    let plain = simulate_with_class(stats, &[], &LADDER[6], Difficulty::Easy, None);
-    let slowed = simulate_with_class(stats, &[], &LADDER[6], Difficulty::Easy, Some(&CHRONO));
+    let plain = simulate_with_class(stats, &[], &LADDER[6], Difficulty::Easy, &[]);
+    let slowed = simulate_with_class(stats, &[], &LADDER[6], Difficulty::Easy, &[&CHRONO]);
 
     // The swing is still logged either way - slow time changes when it lands,
     // not whether it happened.
@@ -676,4 +698,53 @@ fn skipping_turns_the_shop_over() {
     let before = run.shop.stock.clone();
     run.skip_fight().expect("there is a rung above");
     assert_ne!(run.shop.stock, before, "fresh shelves after a skip");
+}
+
+/// Francis is meant to be a wall, and the Money Jacket is why. This pins that
+/// he is actually wearing it and that it actually comes together - a boss whose
+/// signature piece silently fails to assemble is just a large statue.
+#[test]
+fn francis_is_wearing_the_money_jacket() {
+    use gearmaster_engine::piece::SlotKind;
+    let francis = LADDER.last().expect("a ladder has a top");
+    assert_eq!(francis.name, "Francis");
+    assert!(
+        francis.gear.iter().any(|(n, s, ..)| *n == "The Money Jacket" && *s == SlotKind::Chest),
+        "the jacket is the whole point of him"
+    );
+    assert!(francis.unassembled().is_empty(), "{:?}", francis.unassembled());
+}
+
+/// Nobody else gets one. Boss gear that leaks onto the rest of the ladder is
+/// no longer boss gear.
+#[test]
+fn boss_gear_belongs_to_exactly_one_monster() {
+    for name in gearmaster_engine::piece::BOSS_ONLY {
+        let wearers: Vec<&str> = LADDER
+            .iter()
+            .filter(|m| m.gear.iter().any(|(n, ..)| n == name))
+            .map(|m| m.name)
+            .collect();
+        assert_eq!(wearers.len(), 1, "{} is worn by {:?}", name, wearers);
+    }
+}
+
+/// The summit has to actually be a summit: every one of the new creatures
+/// stands above the boss that used to be the top of the ladder.
+#[test]
+fn the_summit_stands_above_the_old_final_boss() {
+    let old = LADDER
+        .iter()
+        .position(|m| m.name == "The Last Gearwright")
+        .expect("the old boss is still on the ladder");
+    let benchmark = LADDER[old].health;
+    for m in &LADDER[old + 1..] {
+        assert!(
+            m.health > benchmark,
+            "{} has {} health, no more than the old boss's {}",
+            m.name,
+            m.health,
+            benchmark
+        );
+    }
 }

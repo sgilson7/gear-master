@@ -147,8 +147,9 @@ pub struct Run {
     pub losses: u32,
     pub mode: Mode,
     pub difficulty: Difficulty,
-    /// The class the fountain gave you, once you have reached it.
-    pub class: Option<&'static crate::class::ClassDef>,
+    /// The classes the fountains have given you, in the order taken. Every
+    /// one of their powers applies at once.
+    pub classes: Vec<&'static crate::class::ClassDef>,
     /// Losses left before a Rogue run is wiped. Ignored in Grinder.
     pub lives: u32,
     /// The last settled fight, kept so the GUI can report what it cost.
@@ -206,7 +207,7 @@ impl Run {
             losses: 0,
             mode: Mode::Grinder,
             difficulty: Difficulty::Easy,
-            class: None,
+            classes: Vec::new(),
             lives: ROGUE_LIVES,
             last_settlement: None,
             best_rung: 0,
@@ -403,7 +404,7 @@ impl Run {
         let mut fresh = Run::seeded(seed);
         fresh.mode = mode;
         fresh.difficulty = self.difficulty;
-        fresh.class = None;
+        fresh.classes = Vec::new();
         fresh.last_settlement = settlement;
         // The fight just watched stays on screen; the GUI is still replaying
         // it and needs somewhere to go back to.
@@ -627,11 +628,28 @@ impl Run {
 
     /// Which rung is the fairy fountain rather than a monster. You meet it
     /// after the fourth battle.
-    pub const FOUNTAIN_RUNG: usize = 4;
+    /// Rungs where a fountain stands instead of a fight.
+    ///
+    /// The first sits past the Iron Sentinel, which is far enough in that a
+    /// build has a shape worth reading; the second past the Hollow King, by
+    /// which point that shape has usually changed enough to be worth reading
+    /// again. Each hands over a class you do not already hold, so the second
+    /// adds to the first rather than replacing it.
+    pub const FOUNTAINS: &'static [usize] = &[7, 14];
 
-    /// Is the next thing on the ladder the fountain?
+    /// Is the next thing on the ladder a fountain?
+    ///
+    /// A fountain stands *between* rungs rather than on one: drinking does not
+    /// move you up, so the creature at that rung is still there to be fought
+    /// afterwards. Advancing past it - which is what this used to do - quietly
+    /// deleted a monster from every run.
     pub fn at_fountain(&self) -> bool {
-        self.rung == Self::FOUNTAIN_RUNG && self.class.is_none()
+        Self::FOUNTAINS.get(self.classes.len()) == Some(&self.rung)
+    }
+
+    /// The rung the next fountain stands on, if there is one left.
+    pub fn next_fountain(&self) -> Option<usize> {
+        Self::FOUNTAINS.get(self.classes.len()).copied()
     }
 
     /// Measure the build as it stands. What the fountain will read, and what
@@ -654,12 +672,18 @@ impl Run {
 
     /// Take the imbuement. Returns the class given.
     pub fn drink(&mut self) -> &'static crate::class::ClassDef {
-        let class = crate::class::classify(&self.fingerprint());
-        self.class = Some(class);
-        // The fountain is not a fight, so nothing is settled - just move past
-        // it and turn the shelves over.
-        self.rung += 1;
-        self.best_rung = self.best_rung.max(self.rung);
+        // Never the same twice: a second fountain that read you the same way
+        // as the first would be a rung of nothing.
+        let held: Vec<&str> = self.classes.iter().map(|c| c.name).collect();
+        let class = crate::class::rank(&self.fingerprint())
+            .into_iter()
+            .find(|m| m.eligible && !held.contains(&m.class.name))
+            .map(|m| m.class)
+            .unwrap_or_else(|| crate::class::classify(&self.fingerprint()));
+        self.classes.push(class);
+        // A fountain is not a fight and does not stand on a rung of its own,
+        // so the ladder does not move. The shelves still turn over: drinking
+        // is a moment between fights like any other.
         self.shop.restock(&mut self.rng);
         class
     }
@@ -1014,7 +1038,7 @@ impl Run {
     /// Base character stats plus every slot's contribution.
     pub fn player_stats(&self) -> Stats {
         let mut base = self.raw_player_stats();
-        if let Some(c) = self.class {
+        for c in &self.classes {
             if let crate::class::ClassPower::Standing(bonus) = c.power {
                 base += bonus;
             }
@@ -1038,7 +1062,7 @@ impl Run {
             &self.combat_items(),
             spec,
             self.difficulty,
-            self.class,
+            &self.classes,
         );
         self.phase = Phase::Fighting;
         self.settled = false;

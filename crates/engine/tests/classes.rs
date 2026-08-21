@@ -147,7 +147,7 @@ fn manifold_casts_more_than_one_spell_at_a_time() {
     let mut stats = run.player_stats();
     stats.health = 100_000;
 
-    let hits = |class: Option<&'static gearmaster_engine::class::ClassDef>| -> i32 {
+    let hits = |class: &[&'static gearmaster_engine::class::ClassDef]| -> i32 {
         let log =
             simulate_with_class(stats, &profiles, &LADDER[0], Difficulty::Medium, class);
         log.entries
@@ -161,7 +161,7 @@ fn manifold_casts_more_than_one_spell_at_a_time() {
 
     let oracle = CLASSES.iter().find(|c| c.name == "Oracle").expect("Oracle exists");
     assert!(
-        hits(Some(oracle)) > hits(None),
+        hits(&[oracle]) > hits(&[]),
         "a ball casting two spells should land more than one casting one"
     );
 }
@@ -180,7 +180,7 @@ fn bloodscent_banks_rage_when_a_curse_lands() {
     let mut stats = run.player_stats();
     stats.health = 100_000;
 
-    let rage = |class: Option<&'static gearmaster_engine::class::ClassDef>| -> i32 {
+    let rage = |class: &[&'static gearmaster_engine::class::ClassDef]| -> i32 {
         let log =
             simulate_with_class(stats, &profiles, &LADDER[0], Difficulty::Medium, class);
         log.entries
@@ -192,5 +192,5 @@ fn bloodscent_banks_rage_when_a_curse_lands() {
     };
 
     let bl = CLASSES.iter().find(|c| c.name == "Bloodletter").expect("Bloodletter exists");
-    assert!(rage(Some(bl)) > rage(None), "curses should have banked rage");
+    assert!(rage(&[bl]) > rage(&[]), "curses should have banked rage");
 }

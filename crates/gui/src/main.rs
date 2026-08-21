@@ -3824,8 +3824,8 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("RAGE", "Banked by some gear. Every point adds physical damage while you hold it, and some triggers spend it for a burst."),
     ("FAITH", "Banked slowly. Every point adds resistance of both types while held, up to 40%."),
     ("NATURE", "Banked by growing things. Every point adds regeneration while held."),
-    ("CLASS", "Given once, by the fountain on the fifth rung. Which one you get is read off your build, and the panel shows what you would be given before you drink."),
-    ("THE FOUNTAIN", "Not a fight. It measures your gear along a set of axes - how much magic, how much iron, how fast, how woven together - and names you accordingly."),
+    ("CLASS", "Read off your build at a fountain, never chosen. There are two fountains on the ladder and they give different classes, so you end up holding both and both powers apply. Hover the class panel to see your build drawn as a shape, what you would be given now, and what you are nearest to otherwise."),
+    ("THE FOUNTAIN", "Not a fight, and not a rung: drinking costs you nothing and the creature standing there is still to be fought. It measures your gear along a set of axes - how much magic, how much iron, how fast, how woven together - and gives you the most demanding class you qualify for. The second fountain will not repeat the first."),
     // Last, so it lands on the last page. It is a control as well as a
     // definition; see SKIP_TERM.
     (SKIP_TERM, "The road up the mountain, which most of us have walked more times than we care to count. Those who know it well are not made to walk it again: click these words and the next rung is behind you, its bounty paid in full, as though you had fought it and won. It keeps no quests. It asks no questions."),
@@ -4695,11 +4695,14 @@ fn render_class_card(run: &Run, mx: f32, my: f32) {
     ty += 26.0;
 
     // ---- the class this earns, and the next two -------------------------
-    let head = if run.class.is_some() { "YOUR CLASS" } else { "YOU WOULD BE GIVEN" };
+    let head = if run.classes.is_empty() { "YOU WOULD BE GIVEN" } else { "YOUR CLASSES" };
     ui_text(head, x + 16.0, ty, 12.0, col_dim());
     ty += 20.0;
-    let given = run.class.or_else(|| ranked.iter().find(|m| m.eligible).map(|m| m.class));
-    if let Some(c) = given {
+    let mut shown: Vec<&'static gearmaster_engine::class::ClassDef> = run.classes.clone();
+    if shown.is_empty() {
+        shown.extend(ranked.iter().find(|m| m.eligible).map(|m| m.class));
+    }
+    for c in &shown {
         ui_text(c.name, x + 16.0, ty, 17.0, col_gold());
         ty += 18.0;
         let d = c.power.describe();
@@ -4718,7 +4721,7 @@ fn render_class_card(run: &Run, mx: f32, my: f32) {
     // so tells nobody anything about their build.
     for m in ranked
         .iter()
-        .filter(|m| Some(m.class.name) != given.map(|g| g.name))
+        .filter(|m| !shown.iter().any(|c| c.name == m.class.name))
         .filter(|m| !m.class.requires.is_empty())
         .take(2)
     {
@@ -4977,21 +4980,38 @@ fn render_panel(
     {
         hover.class_card = true;
     }
-    if let Some(c) = run.class {
-        ui_text("YOUR CLASS", x + 20.0, y, 14.0, col_dim());
-        y += 22.0;
-        ui_text(c.name, x + 20.0, y, 19.0, col_gold());
-        y += 20.0;
-        // The band is pinned, so the text shrinks to fit rather than being cut
-        // off - a power whose description is a word longer than the last one
-        // must not silently lose its ending.
-        let text = c.power.describe();
-        let size = fitting_size(&text, PANEL_W - 48.0, &[13.0, 12.0, 11.0, 10.0, 9.0]);
-        ui_text(&text, x + 24.0, y, size, LIGHTGRAY);
-    } else {
-        let at_fountain = run.at_fountain();
+    let at_fountain = run.at_fountain();
+    if !run.classes.is_empty() {
         ui_text(
-            if at_fountain { "THE FOUNTAIN IS WAITING" } else { "CLASS ON THE 5TH RUNG" },
+            if run.classes.len() > 1 { "YOUR CLASSES" } else { "YOUR CLASS" },
+            x + 20.0,
+            y,
+            14.0,
+            col_dim(),
+        );
+        y += 22.0;
+        for c in &run.classes {
+            ui_text(c.name, x + 20.0, y, 19.0, col_gold());
+            y += 18.0;
+            // The band is pinned, so the text shrinks to fit rather than being
+            // cut off - a power whose description is a word longer than the
+            // last one must not silently lose its ending.
+            let text = c.power.describe();
+            let size = fitting_size(&text, PANEL_W - 48.0, &[13.0, 12.0, 11.0, 10.0, 9.0]);
+            ui_text(&text, x + 24.0, y, size, LIGHTGRAY);
+            y += 18.0;
+        }
+    }
+    if run.classes.len() < Run::FOUNTAINS.len() {
+        ui_text(
+            &if at_fountain {
+                "THE FOUNTAIN IS WAITING".to_string()
+            } else {
+                match run.next_fountain() {
+                    Some(r) => format!("ANOTHER FOUNTAIN ON RUNG {}", r + 1),
+                    None => "NO FOUNTAINS LEFT".to_string(),
+                }
+            },
             x + 20.0,
             y,
             14.0,
@@ -5212,9 +5232,15 @@ async fn main() {
         }
     }
     if let Ok(c) = std::env::var("GEARMASTER_CLASS") {
-        run.class = gearmaster_engine::class::CLASSES
-            .iter()
-            .find(|d| d.name.eq_ignore_ascii_case(&c));
+        // Comma-separated, so both fountains can be inspected at once.
+        run.classes = c
+            .split(',')
+            .filter_map(|want| {
+                gearmaster_engine::class::CLASSES
+                    .iter()
+                    .find(|d| d.name.eq_ignore_ascii_case(want.trim()))
+            })
+            .collect();
     }
     if let Ok(m) = std::env::var("GEARMASTER_MODE") {
         run.mode = if m.eq_ignore_ascii_case("rogue") { Mode::Rogue } else { Mode::Grinder };
