@@ -133,10 +133,11 @@ fn every_class_power_is_used_once() {
     }
 }
 
-/// Manifold: an Oracle's ball speaks with more than one voice, so one
-/// activation lands more than one spell's worth.
+/// A crystal ball speaks with two voices, and does so for anyone - no class
+/// required. A ball that cast one spell at a time was just a book that could
+/// not make up its mind.
 #[test]
-fn manifold_casts_more_than_one_spell_at_a_time() {
+fn a_crystal_ball_casts_two_spells_at_once_by_default() {
     use gearmaster_engine::combat::{simulate_with_class, Difficulty, Event, Side, LADDER};
 
     let mut run = Run::with_all_pieces();
@@ -159,11 +160,65 @@ fn manifold_casts_more_than_one_spell_at_a_time() {
             .sum()
     };
 
+    // Both spells land on every activation, so the ball out-damages the sum of
+    // what either would do alone at that cadence.
+    let both = hits(&[]);
+    assert!(both > 0, "the ball should be landing something");
+
+    let single: i32 = {
+        let mut solo = Run::with_all_pieces();
+        equip(&mut solo, "Pocket Grimoire", SlotKind::Weapon, 0, 0);
+        equip(&mut solo, "Soot Ink", SlotKind::Weapon, 2, 0);
+        equip(&mut solo, "Emberburst", SlotKind::Weapon, 3, 0);
+        let profiles = solo.combat_items();
+        let mut st = solo.player_stats();
+        st.health = 100_000;
+        let log = simulate_with_class(st, &profiles, &LADDER[0], Difficulty::Medium, &[]);
+        log.entries
+            .iter()
+            .filter_map(|e| match e.event {
+                Event::Hit { by: Side::Player, damage, .. } => Some(damage),
+                _ => None,
+            })
+            .sum()
+    };
+    assert!(both > single, "a ball ({}) should out-hit a book ({})", both, single);
+}
+
+/// The Oracle reaches at the clock rather than at flesh: it is the only way
+/// anyone gets the two curses that stop gear rather than hurting it.
+#[test]
+fn an_oracle_stops_their_gear() {
+    use gearmaster_engine::combat::{simulate_with_class, Difficulty, Event, Side, LADDER};
+    use gearmaster_engine::curse::CurseKind;
+
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Scrying Orb", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Emberburst", SlotKind::Weapon, 1, 3);
+    equip(&mut run, "Rime Nova", SlotKind::Weapon, 4, 0);
+    let profiles = run.combat_items();
+    let mut stats = run.player_stats();
+    stats.health = 100_000;
+
+    // A deep monster, not a rat: an Oracle needs four activations to reach the
+    // clock and a rat does not last four activations.
+    let tough = &LADDER[30];
+    let stuns = |class: &[&'static gearmaster_engine::class::ClassDef]| -> usize {
+        let log = simulate_with_class(stats, &profiles, tough, Difficulty::Medium, class);
+        log.entries
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e.event,
+                    Event::Cursed { on: Side::Enemy, kind: CurseKind::Stun, .. }
+                )
+            })
+            .count()
+    };
+
     let oracle = CLASSES.iter().find(|c| c.name == "Oracle").expect("Oracle exists");
-    assert!(
-        hits(&[oracle]) > hits(&[]),
-        "a ball casting two spells should land more than one casting one"
-    );
+    assert_eq!(stuns(&[]), 0, "nothing else in the game lands a stun");
+    assert!(stuns(&[oracle]) > 0, "an Oracle should be stopping their gear");
 }
 
 /// Bloodscent: what a Bloodletter rots, it feeds on.

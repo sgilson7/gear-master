@@ -426,6 +426,11 @@ pub const RUST_GOLEM: MonsterSpec = MonsterSpec {
 /// Difficulty is set by what each one is *wearing*, not by hand-tuned numbers:
 /// they buy from the same catalogue and assemble by the same rules. Making a
 /// monster harder means giving it better gear.
+/// How many of its spells a crystal ball casts each time it comes round.
+///
+/// Two, always. A class can raise it; nothing lowers it.
+pub const BALL_VOICES: u32 = 2;
+
 pub const LADDER: &[MonsterSpec] = &[
     MonsterSpec {
         name: "Cave Rat",
@@ -2108,15 +2113,20 @@ pub struct Combatant {
     pub transmute: i32,
     /// Every activation banks one of each pool.
     pub adaptable: bool,
-    /// Oracle: a crystal ball casts this many of its spells each time it comes
-    /// round instead of one.
-    pub manifold: u32,
+    /// Oracle: every this-many-th activation lands the two curses that work on
+    /// time - a stun and a misfire.
+    pub untimely: u32,
     /// Stormcaller: every activation pushes every OTHER item's cooldown
     /// forward by this many ms, so a fast build compounds on itself.
     pub cascade: u32,
     /// Warpriest: armour gained is this much stronger, in percent, while any
     /// faith is held.
     pub consecrate: i32,
+    /// Activations counted for the misfire curse. Counting rather than rolling
+    /// keeps the fight deterministic.
+    pub misfire_count: u32,
+    /// The same, for an Oracle's periodic reach at the clock.
+    pub untimely_count: u32,
     /// Bloodletter: landing a curse banks this much rage.
     pub bloodscent: i32,
     /// Wellspring: spending a pool refunds this percent of it to each of the
@@ -2167,9 +2177,11 @@ impl Combatant {
             resonance: false,
             transmute: 0,
             adaptable: false,
-            manifold: 0,
+            untimely: 0,
             cascade: 0,
             consecrate: 0,
+            misfire_count: 0,
+            untimely_count: 0,
             bloodscent: 0,
             confluence: 0,
             activations: 0,
@@ -2254,9 +2266,11 @@ impl Combatant {
             resonance: false,
             transmute: 0,
             adaptable: false,
-            manifold: 0,
+            untimely: 0,
             cascade: 0,
             consecrate: 0,
+            misfire_count: 0,
+            untimely_count: 0,
             bloodscent: 0,
             confluence: 0,
             activations: 0,
@@ -2402,6 +2416,8 @@ pub enum Event {
     /// Rage, faith or nature banked.
     GainResource { side: Side, what: &'static str, amount: i32, total: i32 },
     Hit { by: Side, damage: i32, absorbed: i32, target_health: i32, target_armor: i32 },
+    /// An item came round and nothing happened - a misfire ate it.
+    Misfired { side: Side, item: String },
     MindHit { by: Side, amount: i32, target_max_health: i32 },
     GainArmor { side: Side, amount: i32, total: i32 },
     GainMana { side: Side, amount: i32, total: i32 },
@@ -2478,6 +2494,9 @@ impl CombatLog {
         match &e.event {
             Event::Activate { side, item, .. } => {
                 format!("{} {} activates {}", t, self.who(*side), item)
+            }
+            Event::Misfired { side, item } => {
+                format!("{} {}'s {} misfires and does nothing", t, self.who(*side), item)
             }
             Event::ResourceCheck { side, what, cost, paid, remaining } => format!(
                 "{} {} {} {} {} ({} left)",
@@ -2633,7 +2652,7 @@ pub fn simulate_with_class(
             crate::class::ClassPower::Resonance => start_player.resonance = true,
             crate::class::ClassPower::Transmute(pct) => start_player.transmute = pct,
             crate::class::ClassPower::Adaptable => start_player.adaptable = true,
-            crate::class::ClassPower::Manifold(n) => start_player.manifold = n,
+            crate::class::ClassPower::Untimely(n) => start_player.untimely = n,
             crate::class::ClassPower::Cascade(ms) => start_player.cascade = ms,
             crate::class::ClassPower::Consecrate(pct) => start_player.consecrate = pct,
             crate::class::ClassPower::Bloodscent(n) => start_player.bloodscent = n,
@@ -2724,20 +2743,39 @@ pub fn simulate_with_class(
             for idx in 0..count {
                 let ready = {
                     let c = pick(&mut p, &mut e, side);
-                    // Frost stretches the cooldown by slowing how fast the bar
-                    // fills, rather than by rewriting the cooldown itself.
-                    let slow = c.curses.slow_pct();
-                    let step = (TICK_MS as i32 * (100 - slow) / 100).max(1) as u32;
-                    let item = &mut c.items[idx];
-                    item.progress_ms += step;
-                    if item.progress_ms >= item.cooldown_ms {
-                        item.progress_ms -= item.cooldown_ms;
-                        true
-                    } else {
+                    // A stun stops the bar dead. Not a slow: nothing advances
+                    // at all, and what was part-way through stays part-way
+                    // through, so it resumes rather than starting over.
+                    if c.curses.stunned() {
                         false
+                    } else {
+                        // Frost stretches the cooldown by slowing how fast the
+                        // bar fills, rather than by rewriting the cooldown.
+                        let slow = c.curses.slow_pct();
+                        let step = (TICK_MS as i32 * (100 - slow) / 100).max(1) as u32;
+                        let item = &mut c.items[idx];
+                        item.progress_ms += step;
+                        if item.progress_ms >= item.cooldown_ms {
+                            item.progress_ms -= item.cooldown_ms;
+                            true
+                        } else {
+                            false
+                        }
                     }
                 };
                 if ready {
+                    // A misfire eats the activation itself: the cooldown has
+                    // already come round, and nothing comes of it.
+                    let fizzled = {
+                        let c = pick(&mut p, &mut e, side);
+                        c.misfire_count = c.misfire_count.wrapping_add(1);
+                        c.curses.misfires(c.misfire_count)
+                    };
+                    if fizzled {
+                        let name = pick(&mut p, &mut e, side).items[idx].name.clone();
+                        log.push(LogEntry { at_ms: t, event: Event::Misfired { side, item: name } });
+                        continue;
+                    }
                     activate(&mut p, &mut e, side, idx, t, &mut log);
                     if check_down(&p, &e, t, &mut log, &mut outcome) {
                         break 'fight;
@@ -2837,10 +2875,12 @@ fn activate(
         if n > 1 {
             cast_name = Some(cast.name);
         }
-        // Manifold: the ball speaks with more than one voice. The extra spells
-        // are the ones next in the cycle, so which they are still changes each
-        // time it comes round.
-        let extra = pick(p, e, side).manifold.saturating_sub(1) as usize;
+        // A ball speaks with two voices. This is what a ball IS - a book binds
+        // one spell and casts it every time, and if a ball only ever cast one
+        // too then holding three of them bought nothing but variety. The
+        // second is whichever is next in the cycle, so which pair you get
+        // still changes each time it comes round.
+        let extra = (BALL_VOICES - 1) as usize;
         for k in 0..extra.min(n.saturating_sub(1)) {
             let also = &item.casts[(which + 1 + k) % n];
             item.damage += also.stats.damage;
@@ -3070,6 +3110,29 @@ fn activate(
         }
     }
 
+    // Untimely: an Oracle reaches past the gear and at the clock behind it.
+    let untimely = pick(p, e, side).untimely;
+    if untimely > 0 {
+        let due = {
+            let me = pick(p, e, side);
+            me.untimely_count = me.untimely_count.wrapping_add(1);
+            me.untimely_count % untimely == 0
+        };
+        if due {
+            for kind in [CurseKind::Stun, CurseKind::Misfire] {
+                let victim = pick(p, e, side.other());
+                let resist = victim.curse_resist;
+                let ms = victim.curses.apply(kind, resist);
+                if ms > 0 {
+                    log.push(LogEntry {
+                        at_ms: t,
+                        event: Event::Cursed { on: side.other(), kind, duration_ms: ms },
+                    });
+                }
+            }
+        }
+    }
+
     // Cascade: everything else moves a little closer to firing. Never the item
     // that just went off, or a single fast item would wind itself up forever.
     let cascade = pick(p, e, side).cascade;
@@ -3171,9 +3234,13 @@ fn apply(
             }
             // Contagion: landing one brings the other along.
             if matches!(target, Target::Enemy) && pick(p, e, side).contagion {
+                // Contagion pairs a curse with its opposite number: heat and
+                // cold, stopped and unreliable.
                 let other = match kind {
                     CurseKind::Searing => CurseKind::Frost,
                     CurseKind::Frost => CurseKind::Searing,
+                    CurseKind::Stun => CurseKind::Misfire,
+                    CurseKind::Misfire => CurseKind::Stun,
                 };
                 let victim = pick(p, e, side.other());
                 let resist = victim.curse_resist;

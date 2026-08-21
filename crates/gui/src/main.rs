@@ -1662,6 +1662,9 @@ impl Playback {
         let now = get_time();
         match &entry.event {
             Event::Activate { .. } => return, // shown as a bar, not a log line
+            // Worth a line: an item coming round and doing nothing is the sort
+            // of thing you want to see explained rather than wonder about.
+            Event::Misfired { .. } => {}
             Event::ResourceCheck { side, what, remaining, .. } => {
                 if let Some(i) = pool_index(what) {
                     let pools =

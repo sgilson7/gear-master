@@ -285,9 +285,10 @@ pub enum ClassPower {
     Transmute(i32),
     /// Every activation banks one of each of the four pools.
     Adaptable,
-    /// A crystal ball casts `n` of its spells each time it comes round instead
-    /// of one. What a ball is for, made literal.
-    Manifold(u32),
+    /// Every `n`th activation of yours stops their gear dead and leaves it
+    /// misfiring. The only way anyone gets at the two curses that work on time
+    /// rather than on flesh.
+    Untimely(u32),
     /// Every activation shortens every *other* item's cooldown by `ms`, so a
     /// fast build compounds on itself.
     Cascade(u32),
@@ -323,7 +324,13 @@ impl ClassPower {
             ClassPower::Transmute(pct) => {
                 format!("{}% of physical lands again as magic", pct)
             }
-            ClassPower::Manifold(n) => format!("a crystal ball casts {} spells at once", n),
+            ClassPower::Untimely(n) => format!(
+                "every {}th activation of yours freezes their gear for {:.1}s and leaves \
+                 one activation in three misfiring for {:.0}s afterwards",
+                n,
+                crate::curse::STUN_MS as f32 / 1000.0,
+                crate::curse::MISFIRE_MS as f32 / 1000.0,
+            ),
             ClassPower::Cascade(ms) => {
                 format!("each activation cuts {:.1}s off every other item", ms as f32 / 1000.0)
             }
@@ -434,9 +441,9 @@ pub static CLASSES: &[ClassDef] = &[
     // ---- built around the gear the crystal ball rework brought in ----------
     ClassDef {
         name: "Oracle",
-        blurb: "A ball whose spells answer each other, and never the same one twice.",
+        blurb: "A ball whose spells answer each other, and the only hands that can stop a clock.",
         requires: &[(Axis::Orbits, 50), (Axis::Answering, 45)],
-        power: ClassPower::Manifold(2),
+        power: ClassPower::Untimely(4),
     },
     ClassDef {
         name: "Stormcaller",

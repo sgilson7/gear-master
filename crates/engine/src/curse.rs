@@ -17,18 +17,35 @@ pub enum CurseKind {
     Searing,
     /// Slows every one of the target's items by `FROST_SLOW_PCT`.
     Frost,
+    /// Stops the target's gear dead. Nothing of theirs advances at all while
+    /// it lasts, so every cooldown they were part-way through resumes from
+    /// where it stood rather than starting over.
+    Stun,
+    /// Every `MISFIRE_EVERY`th activation of theirs does nothing at all.
+    ///
+    /// Deterministic rather than random, which is not a compromise but a
+    /// requirement: the whole combat engine is deterministic and every test in
+    /// the suite depends on replaying a fight and getting the same answer.
+    /// "One in three fizzles" is the same experience as a one-in-three chance,
+    /// and it is one you can actually plan around.
+    Misfire,
 }
 
 pub const SEARING_DPS: i32 = 10;
 pub const SEARING_MS: u32 = 10_000;
 pub const FROST_SLOW_PCT: i32 = 50;
 pub const FROST_MS: u32 = 1_000;
+pub const STUN_MS: u32 = 1_200;
+pub const MISFIRE_MS: u32 = 6_000;
+pub const MISFIRE_EVERY: u32 = 3;
 
 impl CurseKind {
     pub fn name(self) -> &'static str {
         match self {
             CurseKind::Searing => "searing",
             CurseKind::Frost => "frost",
+            CurseKind::Stun => "stun",
+            CurseKind::Misfire => "misfire",
         }
     }
 
@@ -37,6 +54,8 @@ impl CurseKind {
         match self {
             CurseKind::Searing => SEARING_MS,
             CurseKind::Frost => FROST_MS,
+            CurseKind::Stun => STUN_MS,
+            CurseKind::Misfire => MISFIRE_MS,
         }
     }
 
@@ -44,6 +63,8 @@ impl CurseKind {
         match self {
             CurseKind::Searing => "10 damage a second for 10 seconds",
             CurseKind::Frost => "gear runs 50% slower for 1 second",
+            CurseKind::Stun => "gear stops dead for 1.2 seconds, then carries on from where it stood",
+            CurseKind::Misfire => "one activation in three does nothing, for 6 seconds",
         }
     }
 }
@@ -126,7 +147,7 @@ impl Curses {
             .iter()
             .map(|c| match c.kind {
                 CurseKind::Searing => SEARING_DPS * c.stacks as i32 * TICK_MS as i32,
-                CurseKind::Frost => 0,
+                CurseKind::Frost | CurseKind::Stun | CurseKind::Misfire => 0,
             })
             .sum()
     }
@@ -139,10 +160,24 @@ impl Curses {
             .iter()
             .map(|c| match c.kind {
                 CurseKind::Frost => FROST_SLOW_PCT * c.stacks as i32,
-                CurseKind::Searing => 0,
+                CurseKind::Searing | CurseKind::Stun | CurseKind::Misfire => 0,
             })
             .sum();
         raw.min(90)
+    }
+
+    /// Is the gear stopped dead? A stun does not slow anything; it stops
+    /// everything, and what was part-way through stays part-way through.
+    pub fn stunned(&self) -> bool {
+        self.has(CurseKind::Stun)
+    }
+
+    /// Is this activation one of the ones a misfire eats?
+    ///
+    /// Counted rather than rolled: the combat engine is deterministic and the
+    /// whole test suite depends on a fight replaying identically.
+    pub fn misfires(&self, activation: u32) -> bool {
+        self.has(CurseKind::Misfire) && activation % MISFIRE_EVERY == 0
     }
 
     pub fn clear(&mut self) {
