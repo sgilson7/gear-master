@@ -224,6 +224,7 @@ fn candidates_for(
 ) -> Vec<(i32, Vec<&'static str>)> {
     use gearmaster_engine::rating::piece_rating;
 
+    /// Choose `n` from `pool` with repetition, as sorted index lists.
     fn combos(pool: &[usize], n: usize) -> Vec<Vec<usize>> {
         if n == 0 {
             return vec![vec![]];
