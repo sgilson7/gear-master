@@ -177,6 +177,12 @@ pub enum EffectKind {
     /// `stat`. Cross-item, which is only expressible because items are anchored
     /// by their core and may therefore sit flush against one another.
     DoubleAdjacentItemStat { stat: StatKind },
+    /// This piece gains `per` of `stat` for every orthogonally adjacent piece
+    /// of `kind` in the same grid. Where `DoubleNeighbor` reaches out and
+    /// changes what its neighbours are worth, this reads them and changes
+    /// what *it* is worth - so a piece can be built to reward being packed
+    /// against a particular sort of thing.
+    SelfPerNeighborKind { kind: PieceKind, stat: StatKind, per: i32 },
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -1272,6 +1278,102 @@ pub static CATALOG: &[PieceDef] = &[
         quest: None,
         power_bonus: 0,
         price: 21,
+    },
+    // ---- Gear that reads its neighbours ----
+    //
+    // `DoubleNeighbor` reaches out and changes what the pieces around it are
+    // worth. These do the opposite: they read what is packed against them and
+    // change what THEY are worth, so a component can reward a particular sort
+    // of company.
+    PieceDef {
+        name: "Multi-Handle",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Handle,
+        cells: &[(0,0),(1,0),(0,1),(1,1),(0,2),(1,2)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: Some(Effect { label: "Multi-Handle: +2 strength per adjacent damaging piece", when: When::Assembled, kind: EffectKind::SelfPerNeighborKind { kind: PieceKind::Damaging, stat: StatKind::Strength, per: 2 } }),
+        cooldown_ms: 1800,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 20,
+    },
+    PieceDef {
+        name: "Reliquary Frame of Nine",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0,0),(1,0),(2,0),(1,1)],
+        base: Stats { health: 20, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect { label: "Nine: +14 health per adjacent plating", when: When::Assembled, kind: EffectKind::SelfPerNeighborKind { kind: PieceKind::Plating, stat: StatKind::Health, per: 14 } }),
+        cooldown_ms: 3400,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 21,
+    },
+    PieceDef {
+        name: "Layered Core",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Base,
+        cells: &[(0,0),(1,0),(0,1),(1,1)],
+        base: Stats { health: 25, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect { label: "Layered: +12 health per adjacent layer", when: When::Assembled, kind: EffectKind::SelfPerNeighborKind { kind: PieceKind::Layer, stat: StatKind::Health, per: 12 } }),
+        cooldown_ms: 3600,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 22,
+    },
+    PieceDef {
+        name: "Knuckleduster",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Mold,
+        cells: &[(0,0),(1,0),(0,1)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: Some(Effect { label: "Knuckleduster: +9 health per adjacent ring", when: When::Assembled, kind: EffectKind::SelfPerNeighborKind { kind: PieceKind::Ring, stat: StatKind::Health, per: 9 } }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 17,
+    },
+    PieceDef {
+        name: "Grimoire Rack",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0,0),(0,1)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: Some(Effect { label: "Rack: +0.15x power per adjacent spell", when: When::Assembled, kind: EffectKind::SelfPerNeighborKind { kind: PieceKind::Spell, stat: StatKind::Power, per: 15 } }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 18,
+    },
+    PieceDef {
+        name: "Studded Sole",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Mold,
+        cells: &[(0,0),(0,1),(0,2)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: Some(Effect { label: "Studded: +8 health per adjacent material", when: When::Assembled, kind: EffectKind::SelfPerNeighborKind { kind: PieceKind::Material, stat: StatKind::Health, per: 8 } }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 16,
     },
     // ---- Rings ----
     //

@@ -259,6 +259,26 @@ impl Loadout {
                             item_notes.push(format!("{}: {}", def.name, eff.label));
                         }
                     }
+                    if let EffectKind::SelfPerNeighborKind { kind: want, stat, per } = eff.kind {
+                        if eff.when.holds(assembled[gi]) {
+                            let n = slot
+                                .neighbors_of(p)
+                                .into_iter()
+                                .filter(|&q| reg.def(q).kind == want)
+                                .count() as i32;
+                            if n > 0 {
+                                contribution.add(stat, per * n);
+                                item_notes.push(format!(
+                                    "{}: +{} {} from {} adjacent {}",
+                                    def.name,
+                                    per * n,
+                                    stat.name(),
+                                    n,
+                                    want.name()
+                                ));
+                            }
+                        }
+                    }
                     if let EffectKind::SelfPerEmptyCell { stat, per } = eff.kind {
                         if eff.when.holds(assembled[gi]) {
                             let n = slot.empty_neighbor_cells(p) as i32;

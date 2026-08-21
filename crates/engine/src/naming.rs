@@ -222,6 +222,7 @@ pub fn qualifiers(reg: &PieceRegistry, pieces: &[PieceId]) -> Vec<&'static str> 
         }
         if let Some(eff) = def.effect {
             note(Some(match eff.kind {
+                EffectKind::SelfPerNeighborKind { .. } => "Clustered",
                 EffectKind::Flat { .. } => {
                     if eff.when == crate::piece::When::NotAssembled { "Unbound" } else { "Blessed" }
                 }

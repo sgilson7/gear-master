@@ -270,6 +270,17 @@ fn effect_points(e: &Effect, rate: f32) -> f32 {
         When::NotAssembled => 0.35,
     };
     let raw = match e.kind {
+        // Worth roughly two neighbours of the right sort, which is what a
+        // build that wants this effect will actually manage.
+        EffectKind::SelfPerNeighborKind { per, stat, .. } => {
+            2.0 * per as f32
+                * match stat {
+                    crate::stats::StatKind::Strength => weight::STRENGTH,
+                    crate::stats::StatKind::Health => weight::HEALTH,
+                    crate::stats::StatKind::Power => weight::POWER,
+                    _ => 2.0,
+                }
+        }
         // Doubling a neighbour is worth about what a good neighbour carries.
         EffectKind::DoubleNeighbor { .. } => 16.0,
         EffectKind::DoubleAdjacentItemStat { .. } => 20.0,

@@ -166,3 +166,47 @@ fn a_piece_with_no_effect_is_unchanged_by_the_new_machinery() {
     assert_eq!(report.stats.strength, 2);
     assert_eq!(report.stats.power, 100);
 }
+
+#[test]
+fn a_multi_handle_counts_the_damaging_pieces_packed_against_it() {
+    // The point of the effect: it reads its company rather than changing it.
+    let mut run = Run::with_all_pieces();
+    // Multi-Handle occupies (0..1, 0..2). Blades either side of it.
+    equip(&mut run, "Multi-Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Iron Blade", SlotKind::Weapon, 2, 0);
+    let one = run.report(SlotKind::Weapon);
+    assert_eq!(one.assembled_count(), 1, "{}", one.summary());
+    let with_one = one.stats.strength;
+
+    let mut two = Run::with_all_pieces();
+    equip(&mut two, "Multi-Handle", SlotKind::Weapon, 1, 0);
+    equip(&mut two, "Iron Blade", SlotKind::Weapon, 0, 0);
+    equip(&mut two, "Serrated Edge", SlotKind::Weapon, 3, 0);
+    let report = two.report(SlotKind::Weapon);
+    assert_eq!(report.assembled_count(), 1, "{}", report.summary());
+
+    assert!(
+        report.stats.strength > with_one,
+        "two damaging neighbours should beat one: {} vs {}",
+        report.stats.strength,
+        with_one
+    );
+    assert!(
+        report.notes().iter().any(|n| n.contains("adjacent damaging")),
+        "and it should say so: {:?}",
+        report.notes()
+    );
+}
+
+#[test]
+fn a_neighbour_reading_effect_is_dormant_until_its_item_assembles() {
+    let mut run = Run::with_all_pieces();
+    // A handle with a blade beside it but no complete weapon around them.
+    equip(&mut run, "Multi-Handle", SlotKind::Weapon, 0, 0);
+    let report = run.report(SlotKind::Weapon);
+    assert_eq!(report.assembled_count(), 0);
+    assert!(
+        !report.notes().iter().any(|n| n.contains("adjacent damaging")),
+        "a loose piece reads nothing"
+    );
+}
