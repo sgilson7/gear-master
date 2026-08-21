@@ -28,18 +28,23 @@ const LOGICAL_W: f32 = 1600.0;
 const LOGICAL_H: f32 = 980.0;
 
 const PANEL_W: f32 = 366.0;
-const SLOT_CELL: f32 = 26.0;
+/// Sized so the five boards together span exactly the width of the shop
+/// beneath them: the H of HELMET starts on the shop's left edge and the weapon
+/// board ends on its right. Derived rather than chosen - the panel width less
+/// its margins and the four gaps, over thirty columns - and pinned by a test,
+/// so changing the side panel cannot quietly break the alignment.
+const SLOT_CELL: f32 = 36.6;
 const SLOT_GAP: f32 = 22.0;
-/// The finished-item strip under the boards: where it starts below the grids,
-/// how big a card is, and how far it is allowed to grow before it starts
-/// counting the rest instead of drawing them.
-const STRIP_TOP: f32 = 44.0;
-const STRIP_CARD_H: f32 = 38.0;
-const STRIP_GAP: f32 = 8.0;
-const STRIP_PER_ROW: usize = 5;
-const STRIP_ROWS: usize = 2;
+/// Finished items are listed under the board they were built in, one line
+/// each. `STRIP_TOP` is where the first line sits below the grid, `STRIP_ROWS`
+/// how many are drawn before the rest are counted instead.
+const STRIP_TOP: f32 = 18.0;
+const STRIP_ROW_H: f32 = 19.0;
+const STRIP_ROWS: usize = 4;
 
-const SLOT_TOP: f32 = 112.0;
+/// Tighter than it was: the taller boards need the room and there is nothing
+/// above them but a slot name.
+const SLOT_TOP: f32 = 68.0;
 const INV_CELL: f32 = 15.0;
 const CARD_W: f32 = 140.0;
 const CARD_H: f32 = 156.0;
@@ -203,15 +208,51 @@ struct Layout {
     panel_x: f32,
 }
 
+/// The bands the loadout screen is built from, in pixels, with no reference to
+/// macroquad. Split out so the alignment between the boards and the shop can
+/// be tested - `Layout::build` measures text, which needs a graphics context a
+/// unit test does not have.
+struct Bands {
+    /// Left edge of the first board, and of the shop.
+    x0: f32,
+    /// Combined width of the five boards, and of the shop.
+    total: f32,
+    /// Top of the shop.
+    strip_y: f32,
+    shop_h: f32,
+    inv_y: f32,
+    inv_h: f32,
+}
+
+fn bands(worn: usize) -> Bands {
+    let panel_x = LOGICAL_W - PANEL_W;
+    let gh = SLOT_H as f32 * SLOT_CELL;
+    let total = (panel_x - 48.0).max(100.0);
+    // Each slot lists its own items, so the band is as tall as the fullest one
+    // rather than as tall as the whole loadout. One more row for "unfinished".
+    let rows = (worn.clamp(1, STRIP_ROWS) + 1) as f32;
+    let strip_y = SLOT_TOP + gh + STRIP_TOP + rows * STRIP_ROW_H + 10.0;
+    let shop_h = CARD_H + 58.0;
+    let inv_y = strip_y + shop_h + 14.0;
+    Bands {
+        x0: 24.0,
+        total,
+        strip_y,
+        shop_h,
+        inv_y,
+        inv_h: (LOGICAL_H - inv_y - 24.0).max(100.0),
+    }
+}
+
 impl Layout {
     /// `worn` is how many finished items the strip below the boards has to
     /// show. The band grows a row at a time rather than always reserving room
     /// for a full loadout, which would be dead space for most of a run.
     fn build(run: &Run, worn: usize) -> Self {
         let panel_x = LOGICAL_W - PANEL_W;
-        let (gw, gh) = (SLOT_W as f32 * SLOT_CELL, SLOT_H as f32 * SLOT_CELL);
-        let total = 5.0 * gw + 4.0 * SLOT_GAP;
-        let x0 = ((panel_x - total) / 2.0).max(20.0);
+        let gw = SLOT_W as f32 * SLOT_CELL;
+        let b = bands(worn);
+        let x0 = b.x0;
 
         let slots = SlotKind::ALL
             .iter()
@@ -222,16 +263,8 @@ impl Layout {
             })
             .collect();
 
-        // Room under the boards for the finished-item strip: a line of
-        // problems, then however many rows of cards are needed.
-        let rows = worn.div_ceil(STRIP_PER_ROW).clamp(1, STRIP_ROWS) as f32;
-        let strip_y =
-            SLOT_TOP + gh + STRIP_TOP + 10.0 + rows * (STRIP_CARD_H + STRIP_GAP) + 8.0;
-        let width = (panel_x - 48.0).max(100.0);
-        let shop_h = CARD_H + 58.0;
-        let shop = Rect::new(24.0, strip_y, width, shop_h);
-        let inv_y = strip_y + shop_h + 14.0;
-        let inv = Rect::new(24.0, inv_y, width, (LOGICAL_H - inv_y - 24.0).max(100.0));
+        let shop = Rect::new(b.x0, b.strip_y, b.total, b.shop_h);
+        let inv = Rect::new(b.x0, b.inv_y, b.total, b.inv_h);
 
         // Cards flow left to right, wrapping to fill the tray.
         let per_row = (((inv.w + CARD_GAP) / (CARD_W + CARD_GAP)) as usize).max(1);
@@ -2650,120 +2683,81 @@ fn render_slots(
             }
         }
 
-        // Only problems get a line under the grid. What a finished item does
-        // is on its own card in the strip below, where there is room to say
-        // it properly - five columns of stat totals used to run into each
-        // other sideways and none of them said very much.
-        let full = report.summary();
+        // What each slot holds is listed under it by `render_slot_items`,
+        // which owns everything below the grid now.
+    }
+}
+
+/// The finished items in each slot, listed under the board they were built
+/// in - one line each, the way the battle screen lists cooldowns.
+///
+/// They used to be cards in one shared strip below all five boards, which ran
+/// off the bottom of the screen once a build had more than a few items and
+/// never said which slot anything came from. A line under its own board says
+/// both, in a fraction of the space.
+fn render_slot_items(
+    layout: &Layout,
+    run: &Run,
+    reports: &[SlotReport],
+    profiles: &[ItemProfile],
+    hover: &mut Hover,
+    mx: f32,
+    my: f32,
+) {
+    for view in &layout.slots {
+        let (gw, gh) = view.size();
+        let (ox, oy) = view.origin;
+        let mut y = oy + gh + STRIP_TOP;
+
+        let mine: Vec<&ItemProfile> = profiles.iter().filter(|p| p.slot == view.kind).collect();
+        for (i, p) in mine.iter().enumerate() {
+            if i == STRIP_ROWS && mine.len() > STRIP_ROWS {
+                ui_text(&format!("+{} more", mine.len() - i), ox + 4.0, y + 13.0, 12.0, col_dim());
+                y += STRIP_ROW_H;
+                break;
+            }
+            let row = Rect::new(ox, y, gw, STRIP_ROW_H);
+            let hot = row.contains(Vec2::new(mx, my));
+            if hot {
+                draw_rectangle(row.x, row.y, row.w, row.h, Color::from_rgba(255, 255, 255, 18));
+            }
+            draw_item_sigil(ox + 9.0, y + 9.0, 15.0, Some(p.slot), p.sigil_seed, LIGHTGRAY);
+            // The cadence is pinned right, so a long name shortens rather than
+            // pushing the number off the end of the board.
+            let time = format!("{:.1}s", p.cooldown_ms as f32 / 1000.0);
+            let tw = text_width(&time, 12.0);
+            ui_text(&time, ox + gw - tw - 2.0, y + 14.0, 12.0, col_dim());
+            let room = gw - 22.0 - tw - 22.0;
+            let size = fitting_size(&p.name, room, &[14.0, 13.0, 12.0, 11.0]);
+            draw_capped(&p.name, ox + 20.0, y + 14.0, room, size, WHITE, 1);
+            draw_rarity_pips(
+                ox + 20.0 + text_width(&p.name, size).min(room) + 6.0,
+                y + 9.0,
+                p.rarity(),
+                0.7,
+            );
+            if hot {
+                let profile = (*p).clone();
+                hover.over_tip(row, mx, my, || Tip::plain(item_summary_lines(&profile, run)));
+            }
+            y += STRIP_ROW_H;
+        }
+
+        // Anything that has not come together yet, under its finished items.
+        let report = &reports[view.kind.index()];
         if report.loose_count() > 0 {
             let short = short_summary(report);
-            let size = fitting_size(&short, gw, &[15.0, 14.0, 13.0, 12.0]);
-            let cut = draw_capped(&short, ox, oy + gh + 28.0, gw, size, col_bad(), 1);
-            let foot = Rect::new(ox, oy + gh + 8.0, gw, 34.0);
-            if foot.contains(Vec2::new(mx, my)) && cut {
-                draw_rectangle(foot.x, foot.y, foot.w, foot.h, Color::from_rgba(255, 255, 255, 12));
-            }
-            hover.over(foot, mx, my, || {
+            let size = fitting_size(&short, gw - 8.0, &[13.0, 12.0, 11.0]);
+            let row = Rect::new(ox, y, gw, STRIP_ROW_H);
+            draw_capped(&short, ox + 4.0, y + 14.0, gw - 8.0, size, col_bad(), 1);
+            let full = report.summary();
+            hover.over(row, mx, my, || {
                 let mut lines = vec![(full.clone(), col_bad())];
                 for item in report.items.iter().filter(|i| !i.assembled) {
                     lines.push((format!("  {}: {}", item.name.short, item.status), LIGHTGRAY));
                 }
                 lines
             });
-        }
-    }
-}
-
-/// Every finished item you are wearing, as a row of cards under the boards.
-///
-/// The battle screen lets you hover an item and read exactly what it does; up
-/// to now the loadout screen - the one where you are actually deciding - only
-/// had a squashed stat total per slot. This is the same card, in the place the
-/// decisions get made.
-fn render_assembled_strip(
-    layout: &Layout,
-    run: &Run,
-    profiles: &[ItemProfile],
-    hover: &mut Hover,
-    mx: f32,
-    my: f32,
-) {
-    let Some(view) = layout.slots.first() else { return };
-    let (_, gh) = view.size();
-    let top = view.origin.1 + gh + STRIP_TOP;
-    let left = view.origin.0;
-    let right = layout
-        .slots
-        .last()
-        .map(|v| v.origin.0 + v.size().0)
-        .unwrap_or(left + 600.0);
-
-    ui_text("YOUR ITEMS", left, top, 14.0, col_gold());
-    if profiles.is_empty() {
-        ui_text(
-            "nothing finished yet - a slot's pieces have to make a whole item",
-            left + text_width("YOUR ITEMS", 14.0) + 16.0,
-            top,
-            13.0,
-            col_dim(),
-        );
-        return;
-    }
-
-    // Cards wrap rather than shrinking without limit: eight of them squeezed
-    // onto one row left no space for a name, which is the one thing a card has
-    // to carry.
-    let y0 = top + 10.0;
-    let h = STRIP_CARD_H;
-    let gap = STRIP_GAP;
-    let avail = right - left;
-    let cw = ((avail + gap) / STRIP_PER_ROW as f32) - gap;
-    let cap = STRIP_PER_ROW * STRIP_ROWS;
-
-    for (i, p) in profiles.iter().enumerate() {
-        if i == cap && profiles.len() > cap {
-            // Out of room. Say how many are not shown rather than drawing off
-            // the end of the boards.
-            let x = left + (i % STRIP_PER_ROW) as f32 * (cw + gap);
-            let y = y0 + (i / STRIP_PER_ROW) as f32 * (h + gap);
-            ui_text(&format!("+{} more", profiles.len() - i), x, y + 22.0, 13.0, col_dim());
-            break;
-        }
-        let x = left + (i % STRIP_PER_ROW) as f32 * (cw + gap);
-        let y = y0 + (i / STRIP_PER_ROW) as f32 * (h + gap);
-        let r = Rect::new(x, y, cw, h);
-        let hot = r.contains(Vec2::new(mx, my));
-        draw_rectangle(
-            r.x,
-            r.y,
-            r.w,
-            r.h,
-            if hot { Color::from_rgba(46, 46, 64, 255) } else { Color::from_rgba(30, 30, 42, 255) },
-        );
-        draw_rectangle_lines(
-            r.x,
-            r.y,
-            r.w,
-            r.h,
-            1.5,
-            if hot { col_gold() } else { Color::from_rgba(58, 58, 78, 255) },
-        );
-        draw_item_sigil(r.x + 17.0, r.y + h / 2.0, 20.0, Some(p.slot), p.sigil_seed, LIGHTGRAY);
-
-        let tx = r.x + 32.0;
-        let tw = r.w - 38.0;
-        let size = fitting_size(&p.name, tw, &[14.0, 13.0, 12.0, 11.0]);
-        draw_capped(&p.name, tx, r.y + 15.0, tw, size, WHITE, 1);
-        let sub = format!("{} · {:.1}s", p.slot.name(), p.cooldown_ms as f32 / 1000.0);
-        let sub_size = fitting_size(&sub, tw - 30.0, &[12.0, 11.0, 10.0]);
-        ui_text(&sub, tx, r.y + 29.0, sub_size, col_dim());
-        draw_rarity_pips(tx + text_width(&sub, sub_size) + 8.0, r.y + 25.0, p.rarity(), 0.75);
-
-        // The same card the battle screen shows, so what an item does reads
-        // identically in both places.
-        if hot {
-            let p = p.clone();
-            hover.over_tip(r, mx, my, || Tip::plain(item_summary_lines(&p, run)));
         }
     }
 }
@@ -6403,7 +6397,8 @@ async fn main() {
 
         let (mx, my) = viewport.mouse();
         let reports = run.reports();
-        let worn_count: usize = reports.iter().map(|r| r.assembled_count()).sum();
+        // The fullest single slot, not the total: each slot lists its own.
+        let worn_count: usize = reports.iter().map(|r| r.assembled_count()).max().unwrap_or(0);
         let layout = Layout::build(&run, worn_count);
         // What is actually finished and worn, for the strip under the boards.
         // Only needed out of combat; during a fight the battle screen has its
@@ -6516,7 +6511,7 @@ async fn main() {
             }
         } else {
             render_slots(&layout, &run, &reports, &drag, &mut hover, mx, my);
-            render_assembled_strip(&layout, &run, &worn, &mut hover, mx, my);
+            render_slot_items(&layout, &run, &reports, &worn, &mut hover, mx, my);
             render_shop(&layout, &run, mx, my);
             render_inventory(&layout, &run, &drag, mx, my);
         }
@@ -7550,6 +7545,40 @@ mod tests {
 #[cfg(test)]
 mod radar_tests {
     use super::*;
+
+    /// The five boards span exactly the shop's width: the H of HELMET starts
+    /// on its left edge and the weapon board ends on its right. Sized by hand,
+    /// so this is what stops a change to the side panel quietly breaking it.
+    #[test]
+    fn the_boards_line_up_with_the_shop() {
+        let b = bands(0);
+        let gw = SLOT_W as f32 * SLOT_CELL;
+        let boards = 5.0 * gw + 4.0 * SLOT_GAP;
+        assert!(
+            (boards - b.total).abs() < 1.0,
+            "five boards span {:.1}, the shop {:.1} - SLOT_CELL should be {:.2}",
+            boards,
+            b.total,
+            (b.total - 4.0 * SLOT_GAP) / (5.0 * SLOT_W as f32)
+        );
+    }
+
+    /// Everything below the boards has to fit on the screen. Bigger cells cost
+    /// vertical room, and the inventory is what pays for it.
+    #[test]
+    fn the_shop_and_tray_still_fit_under_the_boards() {
+        for worn in [0usize, 2, 4, 8] {
+            let b = bands(worn);
+            let board_bottom = SLOT_TOP + SLOT_H as f32 * SLOT_CELL;
+            assert!(b.strip_y > board_bottom, "shop overlaps the boards at {} items", worn);
+            assert!(
+                b.inv_y + b.inv_h <= LOGICAL_H,
+                "the tray runs off the bottom at {} items",
+                worn
+            );
+            assert!(b.inv_h >= CARD_H, "no room for a single card at {} items", worn);
+        }
+    }
 
     /// The chart's corners are fixed and distinct. Fixed is the point: two
     /// builds are meant to be comparable by their shape, which stops being

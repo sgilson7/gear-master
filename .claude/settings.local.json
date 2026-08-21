@@ -88,7 +88,9 @@
       "Bash(awk '/name: \"The Last Gearwright\"/,/^    },$/' crates/engine/src/combat.rs)",
       "Bash(python3 /Users/samgilson/.claude/jobs/a7e69fbf/tmp/summit_gen.py)",
       "Bash(awk '/^fn item_summary_lines/,/^}$/' crates/gui/src/main.rs)",
-      "Bash(awk '/pub fn describe\\\\\\(self\\\\\\) -> String \\\\{/,/^    \\\\}$/' crates/engine/src/class.rs)"
+      "Bash(awk '/pub fn describe\\\\\\(self\\\\\\) -> String \\\\{/,/^    \\\\}$/' crates/engine/src/class.rs)",
+      "Bash(awk '/^fn render_assembled_strip\\\\\\(/{f=1} f{print NR\": \"$0} f&&/^}$/{exit}' crates/gui/src/main.rs)",
+      "Bash(python3 /Users/samgilson/.claude/jobs/a7e69fbf/tmp/relist.py)"
     ]
   }
 }
