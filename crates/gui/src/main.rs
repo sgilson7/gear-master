@@ -46,8 +46,12 @@ const STRIP_ROWS: usize = 4;
 /// above them but a slot name.
 const SLOT_TOP: f32 = 68.0;
 const INV_CELL: f32 = 15.0;
-const CARD_W: f32 = 140.0;
-const CARD_H: f32 = 156.0;
+const CARD_W: f32 = 126.0;
+/// Short enough that a full tray - twelve loose pieces, two rows of eight -
+/// fits under the shop without running off the screen. Both card layouts flow
+/// their text rather than pinning it to the bottom edge, so the height can
+/// come down without the name landing on the role.
+const CARD_H: f32 = 114.0;
 const CARD_GAP: f32 = 10.0;
 /// How long an item jitters after it fires, and how far.
 const SHAKE_MS: u32 = 260;
@@ -2838,24 +2842,38 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
         draw_shape(
             &shape,
             card.rect.x + (card.rect.w - sw) / 2.0,
-            card.rect.y + 10.0 + (60.0 - sh) / 2.0,
+            card.rect.y + 8.0 + (44.0 - sh) / 2.0,
             INV_CELL,
             def,
             None,
             alpha,
         );
 
+        // Flowed, not pinned: the price sits under the role, the role under
+        // the name, and a two-line name pushes them down rather than being
+        // landed on.
         let cx = card.rect.x + card.rect.w / 2.0;
-        let mut ty = card.rect.y + 80.0;
-        for line in wrap_px(def.name, card.rect.w - 12.0, 13.0).into_iter().take(2) {
-            centered_text(&line, cx, ty, 13.0, if afford { WHITE } else { col_dim() });
-            ty += line_h(13.0);
+        let mut ty = card.rect.y + 62.0;
+        let ns = fitting_size(def.name, card.rect.w - 12.0, &[13.0, 12.0, 11.0]);
+        let name_lines = wrap_px(def.name, card.rect.w - 12.0, ns);
+        for line in name_lines.iter().take(2) {
+            centered_text(line, cx, ty, ns, if afford { WHITE } else { col_dim() });
+            ty += line_h(ns);
         }
-        centered_text(&def.kind.name_in(def.slot), cx, card.rect.bottom() - 28.0, 12.0, col_dim());
+        // The price always. The role only when the name left room for it - a
+        // two-line name and a role and a price do not all fit on a card this
+        // short, and of the three the role is the one a hover already gives
+        // you.
+        let price_y = card.rect.bottom() - 8.0;
+        if ty < price_y - 14.0 {
+            let role = def.kind.name_in(def.slot);
+            let rs = fitting_size(&role, card.rect.w - 10.0, &[12.0, 11.0, 10.0]);
+            centered_text(&role, cx, ty, rs, col_dim());
+        }
         centered_text(
             &format!("{} gold", shop_price(def)),
             cx,
-            card.rect.bottom() - 9.0,
+            price_y,
             14.0,
             if afford { col_gold() } else { col_bad() },
         );
@@ -2930,6 +2948,19 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
         Color::from_rgba(60, 60, 82, 255),
     );
     ui_text("INVENTORY", layout.inv.x + 14.0, layout.inv.y + 24.0, 18.0, WHITE);
+    // How full it is, next to the heading. A limit you cannot see is a limit
+    // you only find out about at the moment it stops you.
+    let held = run.inventory().len();
+    let cap = gearmaster_engine::run::INVENTORY_CAP;
+    let count = format!("{} / {}", held, cap);
+    let cw = text_width(&count, 15.0);
+    ui_text(
+        &count,
+        layout.inv.x + layout.inv.w - cw - 14.0,
+        layout.inv.y + 24.0,
+        15.0,
+        if held >= cap { col_bad() } else { col_dim() },
+    );
     // The hint sits after the heading with whatever room is left, so it never
     // grows back into the word "INVENTORY" as the text scale moves.
     let hint_x = layout.inv.x + 30.0 + text_width("INVENTORY", 18.0);
@@ -2980,11 +3011,11 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
                 let (gw, gh) = group_cells(run, pieces);
                 // Its footprint can be far larger than a single piece, so the
                 // preview is scaled down to fit rather than overflowing.
-                let cell = INV_CELL.min(72.0 / gh as f32).min((card.rect.w - 16.0) / gw as f32);
+                let cell = INV_CELL.min(46.0 / gh as f32).min((card.rect.w - 16.0) / gw as f32);
                 let (sw, sh) = (gw as f32 * cell, gh as f32 * cell);
                 let (bx, by) = (
                     card.rect.x + (card.rect.w - sw) / 2.0,
-                    card.rect.y + 12.0 + (72.0 - sh) / 2.0,
+                    card.rect.y + 8.0 + (46.0 - sh) / 2.0,
                 );
                 for &(p, dx, dy) in pieces {
                     draw_shape(
@@ -3004,7 +3035,7 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
                 draw_shape(
                     &shape,
                     card.rect.x + (card.rect.w - sw) / 2.0,
-                    card.rect.y + 12.0 + (72.0 - sh) / 2.0,
+                    card.rect.y + 8.0 + (46.0 - sh) / 2.0,
                     INV_CELL,
                     def,
                     None,
@@ -3013,9 +3044,11 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
             }
         }
 
-        // Name (wrapped) and role.
+        // Name (wrapped) and role. The role follows the name rather than being
+        // pinned to the bottom edge: a two-line name and a fixed footer had
+        // nowhere to be but on top of each other once the card got shorter.
         let cx = card.rect.x + card.rect.w / 2.0;
-        let mut ty = card.rect.y + 94.0;
+        let mut ty = card.rect.y + 70.0;
         let label = match &group {
             // Named for the piece it is built around, the way the board names
             // it, with the rest of the item accounted for.
@@ -3029,9 +3062,12 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
             }
             None => def.name.to_string(),
         };
-        for line in wrap_px(&label, card.rect.w - 12.0, 13.0).into_iter().take(2) {
-            centered_text(&line, cx, ty, 13.0, Color::from_rgba(215, 218, 235, 255));
-            ty += line_h(13.0);
+        // One line if it will fit at all, two only if it must - and shrink
+        // before wrapping, since a shorter card has room for neither.
+        let name_size = fitting_size(&label, card.rect.w - 12.0, &[13.0, 12.0, 11.0]);
+        for line in wrap_px(&label, card.rect.w - 12.0, name_size).into_iter().take(2) {
+            centered_text(&line, cx, ty, name_size, Color::from_rgba(215, 218, 235, 255));
+            ty += line_h(name_size);
         }
         if hovered {
             // Selling is the card's only click action, so it only appears
@@ -3055,7 +3091,9 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
                 if hot { col_gold() } else { LIGHTGRAY },
             );
         } else {
-            centered_text(&def.kind.name_in(def.slot), cx, card.rect.bottom() - 12.0, 12.0, col_dim());
+            let role = def.kind.name_in(def.slot);
+            let rs = fitting_size(&role, card.rect.w - 10.0, &[12.0, 11.0, 10.0]);
+            centered_text(&role, cx, ty.min(card.rect.bottom() - 8.0), rs, col_dim());
         }
 
         if def.adjacency.is_some() {
@@ -7040,7 +7078,19 @@ async fn main() {
                     if !placed {
                         // Dropped on the tray? Then leaving it unequipped IS
                         // the intent. Anywhere else, put it back where it was.
-                        let on_tray = layout.inv.contains(Vec2::new(mx, my));
+                        //
+                        // The held piece is already counted as loose - it was
+                        // lifted off the board to be dragged - so the tray is
+                        // over its limit rather than at it when there is no
+                        // room for this one.
+                        let over = run.inventory().len() > gearmaster_engine::run::INVENTORY_CAP;
+                        let on_tray = layout.inv.contains(Vec2::new(mx, my)) && !over;
+                        if layout.inv.contains(Vec2::new(mx, my)) && over {
+                            message = format!(
+                                "The tray only holds {} pieces. Wear something or sell something.",
+                                gearmaster_engine::run::INVENTORY_CAP
+                            );
+                        }
                         if on_tray {
                             message = if locked {
                                 "Item stowed. It stays locked, and goes back down as one piece."
@@ -7576,7 +7626,20 @@ mod radar_tests {
                 "the tray runs off the bottom at {} items",
                 worn
             );
-            assert!(b.inv_h >= CARD_H, "no room for a single card at {} items", worn);
+            // The tray has to be able to show a full tray. A cap you cannot
+            // see the contents of is worse than no cap.
+            let per_row = (((b.total + CARD_GAP) / (CARD_W + CARD_GAP)) as usize).max(1);
+            let rows_needed = gearmaster_engine::run::INVENTORY_CAP.div_ceil(per_row) as f32;
+            let needed = 36.0 + rows_needed * (CARD_H + CARD_GAP);
+            assert!(
+                b.inv_h >= needed,
+                "tray is {:.0} tall, needs {:.0} to show {} pieces in {} rows of {}",
+                b.inv_h,
+                needed,
+                gearmaster_engine::run::INVENTORY_CAP,
+                rows_needed,
+                per_row
+            );
         }
     }
 

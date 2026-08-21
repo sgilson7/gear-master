@@ -826,3 +826,56 @@ fn francis_has_a_face_of_his_own() {
         .count();
     assert_eq!(others, 0, "Francis is wearing somebody else's silhouette");
 }
+
+// ------------------------------------------------------------ the tray
+
+/// A tray with no limit turns every shop into "buy it, decide later". Twelve
+/// loose pieces is the ceiling, and buying past it is refused rather than
+/// quietly allowed.
+#[test]
+fn the_tray_holds_twelve_loose_pieces_and_no_more() {
+    use gearmaster_engine::run::{Run, RuleError, INVENTORY_CAP};
+    let mut run = Run::new();
+    run.gold = 100_000;
+
+    let mut bought = 0;
+    // Reroll between buys so there is always something on the shelves.
+    for _ in 0..200 {
+        if run.tray_full() {
+            break;
+        }
+        if run.buy(0).is_ok() {
+            bought += 1;
+        }
+        let _ = run.reroll();
+    }
+    assert!(bought > 0, "it should have bought something");
+    assert_eq!(run.inventory().len(), INVENTORY_CAP, "it should fill exactly to the cap");
+
+    // And the next one is refused, by name.
+    let err = run.buy(0).unwrap_err();
+    assert!(matches!(err, RuleError::TrayFull), "got {:?}", err);
+    assert_eq!(run.inventory().len(), INVENTORY_CAP, "a refused buy changes nothing");
+}
+
+/// Only loose gear counts. What you are wearing is not in the tray, so a full
+/// loadout never blocks the shop.
+#[test]
+fn worn_gear_does_not_count_against_the_tray() {
+    use gearmaster_engine::piece::SlotKind;
+    use gearmaster_engine::run::{Run, INVENTORY_CAP};
+    let mut run = Run::with_all_pieces();
+    assert!(run.inventory().len() > INVENTORY_CAP, "the fixture owns plenty");
+
+    run.apply_preset();
+    let worn: usize = SlotKind::ALL
+        .iter()
+        .map(|&k| run.loadout.slot(k).pieces().len())
+        .sum();
+    assert!(worn > 0, "the preset should be wearing something");
+    assert_eq!(
+        run.inventory().len(),
+        run.owned.len() - worn,
+        "the tray is everything owned less everything worn"
+    );
+}

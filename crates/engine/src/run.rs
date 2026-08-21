@@ -63,6 +63,14 @@ pub const ROGUE_LIVES: u32 = 3;
 /// How many board changes can be taken back.
 pub const UNDO_DEPTH: usize = 40;
 
+/// How many loose pieces you may carry.
+///
+/// A tray with no limit turns every shop into "buy it, decide later", and the
+/// decision never comes: you end a run holding forty things you meant to look
+/// at. Twelve is enough to hold a plan and not enough to hold every plan, so
+/// buying something means either using it or selling something first.
+pub const INVENTORY_CAP: usize = 12;
+
 /// The board as it stood before a change. Rotations live on the registry
 /// rather than the loadout, so both have to be kept or undoing a rotate would
 /// put a piece back at the wrong footprint.
@@ -107,6 +115,8 @@ pub enum RuleError {
     NotEnoughGold { need: i32, have: i32 },
     /// Tried to buy from an empty shelf.
     NothingThere,
+    /// No room left in the tray for another loose piece.
+    TrayFull,
 }
 
 impl std::fmt::Display for RuleError {
@@ -119,6 +129,11 @@ impl std::fmt::Display for RuleError {
                 write!(f, "costs {} gold, you have {}", need, have)
             }
             RuleError::NothingThere => write!(f, "nothing for sale there"),
+            RuleError::TrayFull => write!(
+                f,
+                "your tray is full at {} pieces - wear something or sell something",
+                INVENTORY_CAP
+            ),
         }
     }
 }
@@ -262,6 +277,9 @@ impl Run {
         let price = self.shop.price(slot).ok_or(RuleError::NothingThere)?;
         if self.gold < price {
             return Err(RuleError::NotEnoughGold { need: price, have: self.gold });
+        }
+        if self.inventory().len() >= INVENTORY_CAP {
+            return Err(RuleError::TrayFull);
         }
         let def = self.shop.take(slot).ok_or(RuleError::NothingThere)?;
         self.gold -= price;
@@ -652,6 +670,12 @@ impl Run {
     /// again. Each hands over a class you do not already hold, so the second
     /// adds to the first rather than replacing it.
     pub const FOUNTAINS: &'static [usize] = &[7, 14];
+
+    /// Is the tray at its limit? Loose pieces only - what you are wearing does
+    /// not count against it.
+    pub fn tray_full(&self) -> bool {
+        self.inventory().len() >= INVENTORY_CAP
+    }
 
     /// Is the next thing on the ladder a fountain?
     ///
