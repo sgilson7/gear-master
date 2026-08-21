@@ -24,3 +24,4 @@ pub mod shop;
 pub mod shape;
 pub mod slot;
 pub mod stats;
+pub mod theme;

@@ -165,6 +165,10 @@ pub struct Run {
     /// The classes the fountains have given you, in the order taken. Every
     /// one of their powers applies at once.
     pub classes: Vec<&'static crate::class::ClassDef>,
+    /// The words this run is played in. Purely a display layer - nothing the
+    /// engine decides depends on it - so a run is the same run whichever theme
+    /// it is wearing.
+    pub theme: &'static crate::theme::Theme,
     /// Maximum health earned by gear that grows, kept for the whole run.
     ///
     /// This is the only number on a character that a fight can leave larger
@@ -230,6 +234,7 @@ impl Run {
             mode: Mode::Grinder,
             difficulty: Difficulty::Easy,
             classes: Vec::new(),
+            theme: crate::theme::THEMES[0],
             grown_health: 0,
             lives: ROGUE_LIVES,
             last_settlement: None,
@@ -247,6 +252,20 @@ impl Run {
         let mut run = Self::seeded(seed);
         run.mode = mode;
         run.difficulty = difficulty;
+        run
+    }
+
+    /// Same, in a chosen set of words. The theme changes nothing the engine
+    /// decides - it survives a Rogue wipe for that reason, being a property of
+    /// the sitting rather than of the run.
+    pub fn start_themed(
+        seed: u64,
+        mode: Mode,
+        difficulty: Difficulty,
+        theme: &'static crate::theme::Theme,
+    ) -> Self {
+        let mut run = Self::start(seed, mode, difficulty);
+        run.theme = theme;
         run
     }
 
@@ -466,6 +485,7 @@ impl Run {
     /// run does when it runs out of lives.
     pub fn wipe(&mut self) {
         let mode = self.mode;
+        let theme = self.theme;
         let settlement = self.last_settlement.take();
         let seed = self.rng.next_u64();
         let mut fresh = Run::seeded(seed);
@@ -473,6 +493,7 @@ impl Run {
         fresh.difficulty = self.difficulty;
         fresh.classes = Vec::new();
         fresh.grown_health = 0;
+        fresh.theme = theme;
         fresh.last_settlement = settlement;
         // The fight just watched stays on screen; the GUI is still replaying
         // it and needs somewhere to go back to.

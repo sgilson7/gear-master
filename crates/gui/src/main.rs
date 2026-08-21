@@ -4897,8 +4897,10 @@ fn clock_seed() -> u64 {
 enum Opening {
     /// Reading page N of the introduction.
     Intro(usize),
-    /// Picking Grinder or Rogue.
+    /// Picking Grinder or Rogue, and which words to play in.
     ModeSelect,
+    /// Reading who you are before the board appears.
+    Story,
     /// Done; the board is live.
     Playing,
 }
@@ -5006,11 +5008,51 @@ fn render_intro(page: usize, mx: f32, my: f32) -> (Rect, Rect) {
 
 /// The mode and difficulty picker, shown once the intro is done. Returns the
 /// rects for both rows so the caller can hit-test them.
+/// Who you are, before the board appears. One page, then the game.
+///
+/// Every theme owes the player this: the boards do not explain themselves, and
+/// "why am I doing this" is not something you can work out from a grid.
+/// Returns the button that leaves it.
+fn render_story(theme: &'static gearmaster_engine::theme::Theme, mx: f32, my: f32) -> Rect {
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, col_bg());
+    let w = 980.0;
+    let x = (LOGICAL_W - w) / 2.0;
+    centered_text(theme.label, LOGICAL_W / 2.0, 128.0, 30.0, col_gold());
+
+    let mut y = 210.0;
+    for (i, para) in theme.story.iter().enumerate() {
+        // The first line is the premise and gets to be a headline; the rest is
+        // the explanation.
+        let size = if i == 0 { 24.0 } else { 17.0 };
+        let colour = if i == 0 { WHITE } else { Color::from_rgba(206, 208, 226, 255) };
+        for l in wrap_px(para, w, size) {
+            ui_text(&l, x, y, size, colour);
+            y += line_h(size) + 2.0;
+        }
+        y += 20.0;
+    }
+
+    let go = Rect::new((LOGICAL_W - 420.0) / 2.0, LOGICAL_H - 130.0, 420.0, 56.0);
+    let hot = go.contains(Vec2::new(mx, my));
+    draw_rectangle(
+        go.x,
+        go.y,
+        go.w,
+        go.h,
+        if hot { Color::from_rgba(52, 46, 30, 255) } else { Color::from_rgba(28, 28, 40, 255) },
+    );
+    draw_rectangle_lines(go.x, go.y, go.w, go.h, if hot { 3.0 } else { 2.0 }, col_gold());
+    centered_text("BEGIN", go.x + go.w / 2.0, go.y + 37.0, 24.0, WHITE);
+    go
+}
+
+#[allow(clippy::type_complexity)]
 fn render_mode_select(
     chosen: Difficulty,
+    theme: &'static gearmaster_engine::theme::Theme,
     mx: f32,
     my: f32,
-) -> ([(Mode, Rect); 2], Vec<(Difficulty, Rect)>) {
+) -> ([(Mode, Rect); 2], Vec<(Difficulty, Rect)>, Vec<(&'static gearmaster_engine::theme::Theme, Rect)>) {
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, col_bg());
     centered_text("HOW DO YOU WANT TO PLAY?", LOGICAL_W / 2.0, 84.0, 28.0, col_gold());
     centered_text(
@@ -5021,10 +5063,64 @@ fn render_mode_select(
         col_dim(),
     );
 
-    let (cw, ch) = (500.0, 330.0);
+    // ---- which words ----
+    //
+    // Up here rather than at the bottom: it is a small choice and it needs
+    // little room, and the two big grids below it were already using every
+    // pixel they had.
+    let ty = 152.0;
+    centered_text("IN WHOSE WORDS?", LOGICAL_W / 2.0, ty, 16.0, col_gold());
+    let tw = 430.0;
+    let tgap = 30.0;
+    let themes = gearmaster_engine::theme::THEMES;
+    let n = themes.len() as f32;
+    let tx0 = (LOGICAL_W - (n * tw + (n - 1.0) * tgap)) / 2.0;
+    let mut theme_picks = Vec::new();
+    for (i, &t) in themes.iter().enumerate() {
+        let rect = Rect::new(tx0 + i as f32 * (tw + tgap), ty + 12.0, tw, 88.0);
+        let hot = rect.contains(Vec2::new(mx, my));
+        let picked = std::ptr::eq(t, theme);
+        draw_rectangle(
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            if picked {
+                Color::from_rgba(44, 40, 26, 255)
+            } else if hot {
+                Color::from_rgba(34, 34, 50, 255)
+            } else {
+                Color::from_rgba(22, 22, 34, 255)
+            },
+        );
+        draw_rectangle_lines(
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            if picked || hot { 3.0 } else { 1.5 },
+            if picked {
+                col_gold()
+            } else if hot {
+                LIGHTGRAY
+            } else {
+                Color::from_rgba(80, 80, 105, 255)
+            },
+        );
+        let size = fitting_size(t.label, rect.w - 24.0, &[18.0, 16.0, 14.0]);
+        centered_text(t.label, rect.x + rect.w / 2.0, rect.y + 26.0, size, WHITE);
+        let mut by = rect.y + 48.0;
+        for l in wrap_px(t.blurb, rect.w - 28.0, 12.0).into_iter().take(2) {
+            centered_text(&l, rect.x + rect.w / 2.0, by, 12.0, col_dim());
+            by += 14.0;
+        }
+        theme_picks.push((t, rect));
+    }
+
+    let (cw, ch) = (500.0, 300.0);
     let gap = 56.0;
     let x0 = (LOGICAL_W - (2.0 * cw + gap)) / 2.0;
-    let y0 = 158.0;
+    let y0 = 272.0;
     let modes = [Mode::Grinder, Mode::Rogue];
     let mut out = [(Mode::Grinder, Rect::new(0.0, 0.0, 0.0, 0.0)); 2];
 
@@ -5049,12 +5145,15 @@ fn render_mode_select(
         centered_text(mode.name(), rect.x + rect.w / 2.0, rect.y + 52.0, 26.0, WHITE);
 
         let mut y = rect.y + 100.0;
-        for line in wrap_px(mode.blurb(), rect.w - 60.0, 15.0) {
+        for line in wrap_px(mode.blurb(), rect.w - 36.0, 15.0) {
             centered_text(&line, rect.x + rect.w / 2.0, y, 15.0, LIGHTGRAY);
             y += line_h(15.0);
         }
 
-        y = rect.y + rect.h - 110.0;
+        // Flowed after the blurb rather than pinned to the bottom edge: the
+        // Rogue blurb is a line longer than the Grinder one, and a fixed
+        // offset put its life pips through the middle of its own text.
+        y += 16.0;
         match mode {
             Mode::Grinder => {
                 for step in 0..5 {
@@ -5114,7 +5213,7 @@ fn render_mode_select(
     let dx0 = (LOGICAL_W - (n * dw + (n - 1.0) * dgap)) / 2.0;
     let mut picks = Vec::new();
     for (i, &d) in Difficulty::ALL.iter().enumerate() {
-        let rect = Rect::new(dx0 + i as f32 * (dw + dgap), dy + 48.0, dw, 210.0);
+        let rect = Rect::new(dx0 + i as f32 * (dw + dgap), dy + 46.0, dw, 230.0);
         let hot = rect.contains(Vec2::new(mx, my));
         let picked = d == chosen;
         draw_rectangle(
@@ -5184,13 +5283,13 @@ fn render_mode_select(
     }
 
     centered_text(
-        "pick a difficulty, then a mode",
+        "pick a difficulty and a set of words, then a mode to start",
         LOGICAL_W / 2.0,
-        dy + 282.0,
+        dy + 300.0,
         15.0,
         LIGHTGRAY,
     );
-    (out, picks)
+    (out, picks, theme_picks)
 }
 
 
@@ -6324,6 +6423,11 @@ async fn main() {
         || std::env::var("GEARMASTER_FIGHT").is_ok()
         || std::env::var("GEARMASTER_PLACE").is_ok()
         || std::env::var("GEARMASTER_SKIP_INTRO").is_ok();
+    let mut chosen_theme: &'static gearmaster_engine::theme::Theme =
+        match std::env::var("GEARMASTER_THEME") {
+            Ok(id) => gearmaster_engine::theme::by_id(&id),
+            Err(_) => gearmaster_engine::theme::THEMES[0],
+        };
     let mut opening = if skip_intro { Opening::Playing } else { Opening::Intro(0) };
     let mut chosen_difficulty = Difficulty::Easy;
     if let Ok(d) = std::env::var("GEARMASTER_DIFFICULTY") {
@@ -6336,7 +6440,9 @@ async fn main() {
     }
     // GEARMASTER_OPENING=mode|2|... opens on a given page, for screenshots.
     if let Ok(o) = std::env::var("GEARMASTER_OPENING") {
-        opening = if o == "mode" {
+        opening = if o == "story" {
+            Opening::Story
+        } else if o == "mode" {
             Opening::ModeSelect
         } else {
             Opening::Intro(o.parse::<usize>().unwrap_or(0).min(INTRO.len() - 1))
@@ -6402,6 +6508,9 @@ async fn main() {
                     .find(|d| d.name.eq_ignore_ascii_case(want.trim()))
             })
             .collect();
+    }
+    if std::env::var("GEARMASTER_THEME").is_ok() {
+        run.theme = chosen_theme;
     }
     if let Ok(m) = std::env::var("GEARMASTER_MODE") {
         run.mode = if m.eq_ignore_ascii_case("rogue") { Mode::Rogue } else { Mode::Grinder };
@@ -6517,10 +6626,16 @@ async fn main() {
                     }
                 }
                 Opening::ModeSelect => {
-                    let (modes, difficulties) = render_mode_select(chosen_difficulty, mx, my);
+                    let (modes, difficulties, themes) =
+                        render_mode_select(chosen_difficulty, chosen_theme, mx, my);
                     for (d, rect) in difficulties {
                         if clicked && rect.contains(Vec2::new(mx, my)) {
                             chosen_difficulty = d;
+                        }
+                    }
+                    for (t, rect) in themes {
+                        if clicked && rect.contains(Vec2::new(mx, my)) {
+                            chosen_theme = t;
                         }
                     }
                     for (mode, rect) in modes {
@@ -6528,15 +6643,26 @@ async fn main() {
                             // The shop's rolls come from the clock, so two
                             // runs started at different moments stock
                             // differently. Tests still pin their own seeds.
-                            run = Run::start(clock_seed(), mode, chosen_difficulty);
+                            run = Run::start_themed(
+                                clock_seed(),
+                                mode,
+                                chosen_difficulty,
+                                chosen_theme,
+                            );
                             message = format!(
                                 "{} run, {} ({}). Drag components into a slot - they must touch to become gear.",
                                 mode.name(),
                                 chosen_difficulty.name(),
                                 chosen_difficulty.label()
                             );
-                            opening = Opening::Playing;
+                            opening = Opening::Story;
                         }
+                    }
+                }
+                Opening::Story => {
+                    let go = render_story(run.theme, mx, my);
+                    if clicked && go.contains(Vec2::new(mx, my)) {
+                        opening = Opening::Playing;
                     }
                 }
                 Opening::Playing => {}
