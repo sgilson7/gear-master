@@ -3453,6 +3453,27 @@ fn render_panel(
 ) {
     let x = layout.panel_x;
     draw_rectangle(x, 0.0, PANEL_W, LOGICAL_H, col_panel());
+
+    // The panel used to flow top to bottom throughout, and granting a class
+    // inserts a block partway down - which pushed the opponent into the
+    // message and the message into the buttons. So the bottom three sections
+    // are pinned to fixed lines instead, and only the character read-out above
+    // them flows, clipped where the class band begins.
+    let msg_lines = 3.0;
+    let msg_top = button_rects(layout.panel_x)[0].y - 12.0 - msg_lines * line_h(14.0);
+    // The opponent block is pinned too, directly above the message. Only the
+    // section above it flows, so nothing below can be pushed into anything
+    // else however long a class description runs.
+    let opp_top = msg_top - 98.0;
+    // The class band is pinned as well, so the only thing that flows is the
+    // character read-out above it - and that gets clipped at this line.
+    let class_top = opp_top - 90.0;
+    // And the run line above that. Bottom-up, every section below the gear
+    // list has a fixed home, so nothing can be pushed into anything else.
+    let run_top = class_top - 44.0;
+    let room = |y: f32, need: f32| y + need <= msg_top;
+
+
     draw_line(x, 0.0, x, LOGICAL_H, 2.0, Color::from_rgba(60, 60, 85, 255));
 
     let mut y = 38.0;
@@ -3475,9 +3496,8 @@ fn render_panel(
         ui_text(label, x + 20.0, y, 16.0, LIGHTGRAY);
         let d_w = text_width(&value, 16.0);
         ui_text(&value, x + PANEL_W - 20.0 - d_w, y, 16.0, color);
-        y += 21.0;
+        y += 19.0;
     }
-    y += 4.0;
     // Damage is per item now, so a single "damage per attack" figure would
     // lie. Total damage a second across every weapon is the honest summary.
     let items = run.combat_items();
@@ -3490,17 +3510,6 @@ fn render_panel(
     let d_w = text_width(&label, 19.0);
     ui_text(&label, x + PANEL_W - 20.0 - d_w, y, 19.0, col_gold());
     y += 16.0;
-    for it in items.iter().filter(|i| i.hit_for(stats.strength, stats.power) > 0).take(3) {
-        let detail = format!(
-            "{} hits {} every {:.2}s",
-            it.name,
-            it.hit_for(stats.strength, stats.power),
-            it.cooldown_ms as f32 / 1000.0
-        );
-        let avail = PANEL_W - 52.0;
-        ui_text(&detail, x + 32.0, y, fitting_size(&detail, avail, &[13.0, 12.0, 11.0]), col_dim());
-        y += line_h(13.0);
-    }
     y += 14.0;
 
     // Per-slot assembly readout. One row each; the bonus notes are what used
@@ -3508,6 +3517,9 @@ fn render_panel(
     ui_text("GEAR", x + 20.0, y, 14.0, col_dim());
     y += 22.0;
     for r in reports {
+        if y + 19.0 > run_top - 6.0 {
+            break;
+        }
         let done = r.assembled_count();
         let (mark, color) = if done > 0 { ("+", col_ok()) } else { ("-", col_dim()) };
         let notes = r.notes();
@@ -3534,7 +3546,7 @@ fn render_panel(
             14.0,
             if done > 0 { col_ok() } else if r.is_empty() { col_dim() } else { col_bad() },
         );
-        y += 21.0;
+        y += 19.0;
         hover.over(row, mx, my, || {
             let mut lines =
                 vec![(format!("{}  -  {}", r.slot.name(), r.summary()), WHITE)];
@@ -3555,8 +3567,8 @@ fn render_panel(
             lines
         });
     }
-    y += 12.0;
 
+    y = run_top;
     ui_text("RUN", x + 20.0, y, 14.0, col_dim());
     let mode_label = match run.lives_left() {
         Some(n) => format!("{} {}  ·  {} lives", run.mode.name(), run.difficulty.label(), n),
@@ -3570,33 +3582,32 @@ fn render_panel(
         13.0,
         if run.lives_left() == Some(1) { col_bad() } else { col_dim() },
     );
-    y += 20.0;
-    for (label, value, color) in [
-        ("Gold", format!("{}", run.gold), col_gold()),
-        ("Won", format!("{}", run.wins), col_ok()),
-        ("Lost", format!("{}", run.losses), col_bad()),
-    ] {
-        ui_text(label, x + 20.0, y, 15.0, LIGHTGRAY);
-        let d_w = text_width(&value, 15.0);
-        ui_text(&value, x + PANEL_W - 20.0 - d_w, y, 15.0, color);
-        y += 18.0;
-    }
-    y += 10.0;
+    y += 22.0;
+    // One line rather than three rows: the panel has to find room for a class
+    // block, and three numbers this small do not need a row each.
+    ui_text(&format!("{}", run.gold), x + 20.0, y, 17.0, col_gold());
+    let gw = text_width(&format!("{}", run.gold), 17.0);
+    ui_text("gold", x + 24.0 + gw, y, 13.0, col_dim());
+    let record = format!("{} won  ·  {} lost", run.wins, run.losses);
+    let r_w = text_width(&record, 13.0);
+    ui_text(&record, x + PANEL_W - 20.0 - r_w, y, 13.0, col_dim());
 
     // ---- class ----
     // Shown every frame, not only at the fountain: the whole point is that the
     // outcome is something you build toward rather than find out about.
     let outlook = run.class_outlook();
+    y = class_top;
     if let Some(c) = run.class {
         ui_text("YOUR CLASS", x + 20.0, y, 14.0, col_dim());
         y += 22.0;
         ui_text(c.name, x + 20.0, y, 19.0, col_gold());
         y += 20.0;
-        for l in wrap_px(&c.power.describe(), PANEL_W - 44.0, 13.0).into_iter().take(3) {
-            ui_text(&l, x + 24.0, y, 13.0, LIGHTGRAY);
-            y += line_h(13.0);
-        }
-        y += 8.0;
+        // The band is pinned, so the text shrinks to fit rather than being cut
+        // off - a power whose description is a word longer than the last one
+        // must not silently lose its ending.
+        let text = c.power.describe();
+        let size = fitting_size(&text, PANEL_W - 48.0, &[13.0, 12.0, 11.0, 10.0, 9.0]);
+        ui_text(&text, x + 24.0, y, size, LIGHTGRAY);
     } else {
         let at_fountain = run.at_fountain();
         ui_text(
@@ -3637,9 +3648,9 @@ fn render_panel(
                 }
             }
         }
-        y += 10.0;
     }
 
+    let mut y = opp_top;
     let m = run.monster();
     ui_text(if run.at_fountain() { "BEYOND THE FOUNTAIN" } else { "NEXT OPPONENT" }, x + 20.0, y, 14.0, col_dim());
     y += 20.0;
@@ -3664,6 +3675,9 @@ fn render_panel(
     );
     y += 16.0;
     for a in m.attacks {
+        if !room(y, 14.0) {
+            break;
+        }
         let mut what = String::new();
         if a.damage > 0 {
             what.push_str(&format!("{} dmg ", a.damage));
@@ -3686,7 +3700,7 @@ fn render_panel(
         );
         y += 14.0;
     }
-    if m.mind_resist > 0 || m.curse_resist > 0 {
+    if (m.mind_resist > 0 || m.curse_resist > 0) && room(y, 14.0) {
         ui_text(
             &format!("  resists: {}% mind, {}% curse", m.mind_resist, m.curse_resist),
             x + 20.0,
@@ -3694,13 +3708,12 @@ fn render_panel(
             12.0,
             Color::from_rgba(190, 160, 200, 255),
         );
-        y += 14.0;
     }
-    y += 12.0;
-
-    for line in wrap_px(message, PANEL_W - 40.0, 14.0).into_iter().take(3) {
-        ui_text(&line, x + 20.0, y, 14.0, Color::from_rgba(225, 225, 240, 255));
-        y += line_h(14.0);
+    // Whatever the flow did above, the message lands here.
+    let mut my = msg_top;
+    for line in wrap_px(message, PANEL_W - 40.0, 14.0).into_iter().take(msg_lines as usize) {
+        ui_text(&line, x + 20.0, my, 14.0, Color::from_rgba(225, 225, 240, 255));
+        my += line_h(14.0);
     }
 
     // Buttons
@@ -3766,6 +3779,13 @@ async fn main() {
         } else {
             Opening::Intro(o.parse::<usize>().unwrap_or(0).min(INTRO.len() - 1))
         };
+    }
+    // GEARMASTER_CLASS=<name> grants a class without playing to the fountain,
+    // so the panel can be inspected in the state a granted class puts it in.
+    if let Ok(c) = std::env::var("GEARMASTER_CLASS") {
+        run.class = gearmaster_engine::class::CLASSES
+            .iter()
+            .find(|d| d.name.eq_ignore_ascii_case(&c));
     }
     if let Ok(m) = std::env::var("GEARMASTER_MODE") {
         run.mode = if m.eq_ignore_ascii_case("rogue") { Mode::Rogue } else { Mode::Grinder };

@@ -263,28 +263,25 @@ impl ClassPower {
         match self {
             ClassPower::Standing(s) => s.summary(),
             ClassPower::SlowTime => {
-                "damage you take arrives over 5 seconds instead of all at once".into()
+                "incoming damage arrives over 5s".into()
             }
-            ClassPower::Leeching(pct) => format!("{}% of the damage you deal heals you", pct),
-            ClassPower::Overflowing => "everything you are holding is worth double".into(),
-            ClassPower::Echo(n) => format!("every {}th activation fires twice", n),
+            ClassPower::Leeching(pct) => format!("{}% of damage dealt heals you", pct),
+            ClassPower::Overflowing => "held resources count double".into(),
+            ClassPower::Echo(n) => format!("every {}rd activation fires twice", n),
             ClassPower::Bastion(pct) => {
-                format!("{}% of what your armour soaks is handed back as armour", pct)
+                format!("armour returns {}% of what it soaks", pct)
             }
-            ClassPower::Contagion => "every curse you land brings the other kind with it".into(),
+            ClassPower::Contagion => "curses land in pairs".into(),
             ClassPower::Reprisal(n) => format!("taking a hit banks {} faith", n),
-            ClassPower::Riposte(ms) => format!(
-                "every enemy activation pushes your cooldowns forward {:.1}s",
-                ms as f32 / 1000.0
-            ),
+            ClassPower::Riposte(ms) => format!("their every act speeds you {:.2}s", ms as f32 / 1000.0),
             ClassPower::Momentum(n) => {
-                format!("+{} strength for every second the fight has lasted", n)
+                format!("+{} strength per second elapsed", n)
             }
-            ClassPower::Resonance => "reactions to neighbours and aligned gear fire twice".into(),
+            ClassPower::Resonance => "reactions fire twice".into(),
             ClassPower::Transmute(pct) => {
-                format!("{}% of your physical damage lands again as magic", pct)
+                format!("{}% of physical lands again as magic", pct)
             }
-            ClassPower::Adaptable => "every activation banks one of all four pools".into(),
+            ClassPower::Adaptable => "every act banks all four pools".into(),
         }
     }
 }
