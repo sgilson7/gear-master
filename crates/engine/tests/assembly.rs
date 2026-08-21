@@ -836,3 +836,103 @@ fn packing_a_spell_beside_a_weapon_beats_leaving_the_room_empty() {
         alone.damage
     );
 }
+
+// -------------------------------------------------------- locked items
+
+/// A weapon and a spell packed flush, which is exactly the case where the
+/// split can be argued with.
+fn packed_pair() -> Run {
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Iron Blade", SlotKind::Weapon, 1, 0);
+    equip(&mut run, "Pocket Grimoire", SlotKind::Weapon, 2, 0);
+    equip(&mut run, "Soot Ink", SlotKind::Weapon, 3, 0);
+    equip(&mut run, "Emberburst", SlotKind::Weapon, 3, 1);
+    run
+}
+
+#[test]
+fn locking_an_item_stops_it_negotiating_with_its_neighbours() {
+    let mut run = packed_pair();
+    let handle = piece(&run, "Oak Handle");
+    assert_eq!(run.report(SlotKind::Weapon).assembled_count(), 2);
+
+    assert!(run.toggle_lock_item(handle), "an assembled item can be locked");
+    let set = run.locked_set(handle).expect("it is locked").to_vec();
+    assert!(set.contains(&piece(&run, "Iron Blade")), "the lock holds the whole item");
+    assert_eq!(set.len(), 2);
+
+    // Still two items, and the locked one is unchanged.
+    let report = run.report(SlotKind::Weapon);
+    assert_eq!(report.assembled_count(), 2, "{}", report.summary());
+
+    assert!(!run.toggle_lock_item(handle), "and it can be released again");
+    assert!(run.locked_set(handle).is_none());
+}
+
+#[test]
+fn a_locked_item_will_not_absorb_a_piece_dropped_beside_it() {
+    let mut run = packed_pair();
+    let handle = piece(&run, "Oak Handle");
+    run.toggle_lock_item(handle);
+    let locked = run.locked_set(handle).unwrap().to_vec();
+
+    // Drop another damaging piece against the locked weapon.
+    equip(&mut run, "Serrated Edge", SlotKind::Weapon, 0, 4);
+
+    assert_eq!(
+        run.locked_set(handle).unwrap(),
+        locked.as_slice(),
+        "the locked item is exactly what it was"
+    );
+    let report = run.report(SlotKind::Weapon);
+    assert!(
+        report.items.iter().any(|i| i.pieces == locked && i.assembled),
+        "and it is still assembled: {}",
+        report.summary()
+    );
+}
+
+#[test]
+fn a_locked_item_turns_as_one_piece() {
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Iron Blade", SlotKind::Weapon, 1, 0);
+    let handle = piece(&run, "Oak Handle");
+    let blade = piece(&run, "Iron Blade");
+    run.toggle_lock_item(handle);
+
+    let before = (
+        run.loadout.slot(SlotKind::Weapon).cells_of(handle).len(),
+        run.loadout.slot(SlotKind::Weapon).cells_of(blade).len(),
+    );
+    run.rotate_locked(handle).expect("there is room to turn");
+
+    // Both pieces turned, both are still on the board, and the item is intact.
+    let after = (
+        run.loadout.slot(SlotKind::Weapon).cells_of(handle).len(),
+        run.loadout.slot(SlotKind::Weapon).cells_of(blade).len(),
+    );
+    assert_eq!(before, after, "no piece lost a cell");
+    assert_eq!(run.registry.rotation(handle), 1);
+    assert_eq!(run.registry.rotation(blade), 1);
+    assert_eq!(run.report(SlotKind::Weapon).assembled_count(), 1, "still one item");
+}
+
+#[test]
+fn a_locked_item_comes_off_the_board_as_one_thing() {
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Iron Blade", SlotKind::Weapon, 1, 0);
+    let handle = piece(&run, "Oak Handle");
+    run.toggle_lock_item(handle);
+
+    run.unequip_locked(handle).expect("it can come off");
+    assert!(!run.is_equipped(handle));
+    assert!(!run.is_equipped(piece(&run, "Iron Blade")), "and so did the rest of it");
+
+    // And the inventory carries it as a single entry.
+    let groups = run.inventory_groups();
+    let together = groups.iter().find(|g| g.contains(&handle)).expect("it is in there");
+    assert_eq!(together.len(), 2, "carried as one thing, not two");
+}

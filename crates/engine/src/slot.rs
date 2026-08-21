@@ -275,9 +275,38 @@ impl Slot {
     /// Deterministic: cores are seeded in row-major order and ties in the
     /// multi-source search go to the earlier core.
     pub fn items(&self, reg: &PieceRegistry) -> Vec<Vec<PieceId>> {
+        self.items_with_locks(reg, &[])
+    }
+
+    /// The same, except that any set in `locked` is taken out first and kept
+    /// exactly as it is.
+    ///
+    /// A locked item stops negotiating: nothing else can join it, and it
+    /// cannot lose a piece to a neighbour. That is the point of locking one -
+    /// you have decided what it is, and packing something beside it should no
+    /// longer be able to change its mind.
+    pub fn items_with_locks(
+        &self,
+        reg: &PieceRegistry,
+        locked: &[Vec<PieceId>],
+    ) -> Vec<Vec<PieceId>> {
         let mut out = Vec::new();
+        let mut spoken_for: Vec<PieceId> = Vec::new();
+        for set in locked {
+            let here: Vec<PieceId> =
+                set.iter().copied().filter(|&p| self.contains(p)).collect();
+            if here.len() == set.len() && !here.is_empty() {
+                spoken_for.extend(here.iter().copied());
+                out.push(here);
+            }
+        }
 
         for group in self.groups() {
+            let group: Vec<PieceId> =
+                group.into_iter().filter(|p| !spoken_for.contains(p)).collect();
+            if group.is_empty() {
+                continue;
+            }
             let cores: Vec<PieceId> = group
                 .iter()
                 .copied()

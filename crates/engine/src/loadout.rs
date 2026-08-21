@@ -162,6 +162,10 @@ impl SlotReport {
 #[derive(Clone, Debug)]
 pub struct Loadout {
     pub slots: Vec<Slot>,
+    /// Items the player has fixed in place. Each is the exact set of pieces
+    /// that item is made of; nothing else may join it and it may not lose a
+    /// piece to a neighbour.
+    pub locks: Vec<Vec<PieceId>>,
     /// Seeds the item-name generator. Set from the run's seed so a given run
     /// names a given arrangement consistently.
     pub name_seed: u64,
@@ -176,6 +180,7 @@ impl Default for Loadout {
 impl Loadout {
     pub fn new() -> Self {
         Loadout {
+            locks: Vec::new(),
             slots: SlotKind::ALL.iter().map(|&k| Slot::new(k)).collect(),
             name_seed: 0,
         }
@@ -227,7 +232,8 @@ impl Loadout {
     ///   5. add the flat assembly bonuses of assembled items
     pub fn report(&self, reg: &PieceRegistry, kind: SlotKind) -> SlotReport {
         let slot = self.slot(kind);
-        let groups = repair_split(slot, reg, kind, slot.items(reg));
+        let groups =
+            repair_split(slot, reg, kind, slot.items_with_locks(reg, &self.locks), &self.locks);
 
         // 2.
         let verdicts: Vec<Result<(), String>> =
@@ -526,7 +532,9 @@ fn repair_split(
     reg: &PieceRegistry,
     kind: SlotKind,
     mut groups: Vec<Vec<PieceId>>,
+    locks: &[Vec<PieceId>],
 ) -> Vec<Vec<PieceId>> {
+    let is_locked = |g: &Vec<PieceId>| locks.iter().any(|l| l == g);
     // A handful of passes is plenty: each one either fixes an item or changes
     // nothing, and a slot never holds many items.
     for _ in 0..4 {
@@ -537,11 +545,12 @@ fn repair_split(
         }
         let mut moved = false;
         'outer: for want in 0..groups.len() {
-            if ok[want] {
+            // A locked item neither takes nor gives.
+            if ok[want] || is_locked(&groups[want]) {
                 continue;
             }
             for give in 0..groups.len() {
-                if give == want || groups[give].len() <= 1 {
+                if give == want || groups[give].len() <= 1 || is_locked(&groups[give]) {
                     continue;
                 }
                 for (pos, &piece) in groups[give].iter().enumerate() {

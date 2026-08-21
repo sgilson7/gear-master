@@ -385,6 +385,148 @@ impl Run {
         self.forget_undo();
     }
 
+    // ------------------------------------------------------------- locks
+
+    /// Fix an assembled item in place, or release one. Returns whether it is
+    /// locked afterwards.
+    ///
+    /// A locked item stops negotiating with its neighbours: nothing can join
+    /// it and it cannot lose a piece. From then on it behaves like a single
+    /// large component - it turns as one, and it comes off the board as one.
+    pub fn toggle_lock_item(&mut self, piece: PieceId) -> bool {
+        if let Some(at) = self.loadout.locks.iter().position(|l| l.contains(&piece)) {
+            self.remember("releasing an item");
+            self.loadout.locks.remove(at);
+            return false;
+        }
+        let Some(kind) = self.loadout.slot_holding(piece) else { return false };
+        let Some(item) = self
+            .report(kind)
+            .items
+            .into_iter()
+            .find(|i| i.assembled && i.pieces.contains(&piece))
+        else {
+            return false;
+        };
+        self.remember("locking an item");
+        self.loadout.locks.push(item.pieces);
+        true
+    }
+
+    pub fn locked_set(&self, piece: PieceId) -> Option<&[PieceId]> {
+        self.loadout.locks.iter().find(|l| l.contains(&piece)).map(|l| l.as_slice())
+    }
+
+    pub fn is_locked_item(&self, piece: PieceId) -> bool {
+        self.locked_set(piece).is_some()
+    }
+
+    /// Turn a locked item a quarter turn, as though it were one component.
+    ///
+    /// Every piece turns, and the whole footprint turns with it: a cell at
+    /// `(x, y)` in the item's bounding box lands at `(height - 1 - y, x)`.
+    /// Refused, and rolled back, if the result would not fit.
+    pub fn rotate_locked(&mut self, piece: PieceId) -> Result<(), RuleError> {
+        if self.phase != Phase::Loadout {
+            return Err(RuleError::LoadoutLocked);
+        }
+        let Some(set) = self.locked_set(piece).map(|s| s.to_vec()) else {
+            return Err(RuleError::NotEquipped);
+        };
+        let Some(kind) = self.loadout.slot_holding(piece) else {
+            return Err(RuleError::NotEquipped);
+        };
+
+        let slot = self.loadout.slot(kind);
+        let cells: Vec<(PieceId, Vec<(u8, u8)>)> =
+            set.iter().map(|&p| (p, slot.cells_of(p))).collect();
+        let minx = cells.iter().flat_map(|(_, c)| c.iter().map(|(x, _)| *x)).min().unwrap_or(0);
+        let miny = cells.iter().flat_map(|(_, c)| c.iter().map(|(_, y)| *y)).min().unwrap_or(0);
+        let maxy = cells.iter().flat_map(|(_, c)| c.iter().map(|(_, y)| *y)).max().unwrap_or(0);
+        let height = maxy - miny + 1;
+
+        // Where each piece's own footprint lands once the item has turned.
+        let mut want: Vec<(PieceId, u8, u8)> = Vec::new();
+        for (p, cs) in &cells {
+            let turned: Vec<(u8, u8)> = cs
+                .iter()
+                .map(|&(x, y)| (minx + (height - 1 - (y - miny)), miny + (x - minx)))
+                .collect();
+            let ax = turned.iter().map(|(x, _)| *x).min().unwrap_or(0);
+            let ay = turned.iter().map(|(_, y)| *y).min().unwrap_or(0);
+            want.push((*p, ax, ay));
+        }
+
+        self.remember("turning a locked item");
+        let before: Vec<(PieceId, u8, u8, u8)> = cells
+            .iter()
+            .map(|(p, _)| {
+                let a = self.loadout.slot(kind).anchor_of(*p).unwrap_or((0, 0));
+                (*p, a.0, a.1, self.registry.rotation(*p))
+            })
+            .collect();
+
+        for &(p, ..) in &before {
+            self.loadout.slot_mut(kind).remove(p);
+            self.registry.rotate_cw(p);
+        }
+        let mut ok = true;
+        for &(p, ax, ay) in &want {
+            if self.loadout.can_place(&self.registry, p, kind, ax, ay).is_ok() {
+                self.loadout.slot_mut(kind).place(&self.registry, p, ax, ay);
+            } else {
+                ok = false;
+                break;
+            }
+        }
+        if !ok {
+            for &(p, ax, ay, rot) in &before {
+                self.loadout.slot_mut(kind).remove(p);
+                self.registry.set_rotation(p, rot);
+                self.loadout.slot_mut(kind).place(&self.registry, p, ax, ay);
+            }
+            self.undo_stack.pop();
+            return Err(RuleError::Place(PlaceError::OutOfBounds));
+        }
+        Ok(())
+    }
+
+    /// Take a whole locked item off the board.
+    pub fn unequip_locked(&mut self, piece: PieceId) -> Result<(), RuleError> {
+        if self.phase != Phase::Loadout {
+            return Err(RuleError::LoadoutLocked);
+        }
+        let Some(set) = self.locked_set(piece).map(|s| s.to_vec()) else {
+            return Err(RuleError::NotEquipped);
+        };
+        self.remember("removing a locked item");
+        for p in set {
+            self.loadout.remove_anywhere(p);
+        }
+        Ok(())
+    }
+
+    /// The inventory, with locked items kept together as one entry. A locked
+    /// item off the board is carried around as a single thing.
+    pub fn inventory_groups(&self) -> Vec<Vec<PieceId>> {
+        let loose = self.inventory();
+        let mut out: Vec<Vec<PieceId>> = Vec::new();
+        let mut taken: Vec<PieceId> = Vec::new();
+        for &id in &loose {
+            if taken.contains(&id) {
+                continue;
+            }
+            match self.locked_set(id) {
+                Some(set) if set.iter().all(|p| loose.contains(p)) => {
+                    taken.extend(set.iter().copied());
+                    out.push(set.to_vec());
+                }
+                _ => out.push(vec![id]),
+            }
+        }
+        out
+    }
+
     // ----------------------------------------------------------- classes
 
     /// Which rung is the fairy fountain rather than a monster. You meet it

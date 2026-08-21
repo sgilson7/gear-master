@@ -1865,6 +1865,37 @@ fn render_slots(
 
         render_item_outlines(view, run, report);
 
+        // A locked item wears a solid gold border rather than the pulsing
+        // white one, so "I decided this" reads differently from "this happens
+        // to be assembled".
+        for set in &run.loadout.locks {
+            let slot = run.loadout.slot(view.kind);
+            let cells: HashSet<(u8, u8)> =
+                set.iter().flat_map(|&p| slot.cells_of(p)).collect();
+            if cells.is_empty() {
+                continue;
+            }
+            for &(cx, cy) in &cells {
+                let (px, py) = view.cell_origin(cx, cy);
+                let edge = |dx: i32, dy: i32| {
+                    let (nx, ny) = (cx as i32 + dx, cy as i32 + dy);
+                    !(nx >= 0 && ny >= 0 && cells.contains(&(nx as u8, ny as u8)))
+                };
+                if edge(0, -1) {
+                    draw_line(px, py, px + SLOT_CELL, py, 3.0, col_gold());
+                }
+                if edge(0, 1) {
+                    draw_line(px, py + SLOT_CELL, px + SLOT_CELL, py + SLOT_CELL, 3.0, col_gold());
+                }
+                if edge(-1, 0) {
+                    draw_line(px, py, px, py + SLOT_CELL, 3.0, col_gold());
+                }
+                if edge(1, 0) {
+                    draw_line(px + SLOT_CELL, py, px + SLOT_CELL, py + SLOT_CELL, 3.0, col_gold());
+                }
+            }
+        }
+
         // Draw the watched cells over the top of the ordinary outlines.
         if let Some((from_slot, ref source, neighbours, rows, span)) = watching {
             let slot = run.loadout.slot(view.kind);
@@ -2116,7 +2147,7 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
     // The hint sits after the heading with whatever room is left, so it never
     // grows back into the word "INVENTORY" as the text scale moves.
     let hint_x = layout.inv.x + 30.0 + text_width("INVENTORY", 18.0);
-    let hint = "drag onto a slot  ·  right-click rotates  ·  click SELL to cash a piece in";
+    let hint = "drag onto a slot  ·  right-click rotates  ·  shift-click to lock an item";
     let hint_size = fitting_size(hint, layout.inv.w - (hint_x - layout.inv.x) - 16.0, &[14.0, 13.0, 12.0, 11.0]);
     ui_text(hint, hint_x, layout.inv.y + 24.0, hint_size, col_dim());
 
@@ -4409,6 +4440,16 @@ async fn main() {
             run.shop.toggle_lock(n);
         }
     }
+    // GEARMASTER_LOCK=1 locks the first assembled item it finds, so the
+    // locked state can be inspected.
+    if std::env::var("GEARMASTER_LOCK").is_ok() {
+        let first = SlotKind::ALL.iter().find_map(|&k| {
+            run.report(k).items.into_iter().find(|i| i.assembled).and_then(|i| i.pieces.first().copied())
+        });
+        if let Some(p) = first {
+            run.toggle_lock_item(p);
+        }
+    }
     if let Ok(c) = std::env::var("GEARMASTER_CLASS") {
         run.class = gearmaster_engine::class::CLASSES
             .iter()
@@ -4827,6 +4868,23 @@ async fn main() {
             }
 
             // --- rotate (right-click, held or in place) ---
+            // Shift-click fixes an assembled item in place, or releases one.
+            if is_mouse_button_pressed(MouseButton::Left)
+                && (is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift))
+            {
+                if let Some(id) =
+                    layout.slot_hit(mx, my).and_then(|(k, x, y)| run.loadout.slot(k).get(x, y))
+                {
+                    message = if run.toggle_lock_item(id) {
+                        "Locked. It turns and travels as one piece now.".to_string()
+                    } else {
+                        "Released. Its pieces can be rearranged again.".to_string()
+                    };
+                    next_frame().await;
+                    continue;
+                }
+            }
+
             if is_mouse_button_pressed(MouseButton::Right) {
                 if let Some(i) = layout.shop_hit(mx, my) {
                     let name = run.shop.def(i).map(|d| d.name).unwrap_or("that");
@@ -4834,6 +4892,18 @@ async fn main() {
                         format!("{} is pinned. A reroll will leave it there.", name)
                     } else {
                         format!("{} is loose again.", name)
+                    };
+                    next_frame().await;
+                    continue;
+                }
+                if let Some(id) = layout
+                    .slot_hit(mx, my)
+                    .and_then(|(k, x, y)| run.loadout.slot(k).get(x, y))
+                    .filter(|&id| run.is_locked_item(id))
+                {
+                    message = match run.rotate_locked(id) {
+                        Ok(()) => "Turned the whole item.".to_string(),
+                        Err(e) => format!("{}", e),
                     };
                     next_frame().await;
                     continue;
