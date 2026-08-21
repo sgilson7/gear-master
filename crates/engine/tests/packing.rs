@@ -388,6 +388,36 @@ fn author_the_mid_boss_rest() {
     );
 }
 
+/// Candidate layouts holding `k` finished items in one slot.
+///
+/// The single-item lists are what `candidates` produces, and a sampler built
+/// from those can never exercise adjacency: two items never share a grid, so
+/// the weave axis reads zero however it is weighted. Combining two of them and
+/// packing the result gives the thing players actually build.
+fn combined_candidates(slot: SlotKind, k: usize) -> Vec<(i32, Vec<&'static str>)> {
+    let singles: Vec<(i32, Vec<&'static str>)> = candidates(slot).into_iter().take(120).collect();
+    if k <= 1 {
+        return singles;
+    }
+    let cells = |names: &[&'static str]| -> usize {
+        names.iter().map(|n| CATALOG.iter().find(|c| c.name == *n).unwrap().cells.len()).sum()
+    };
+    let mut out = Vec::new();
+    for (i, (ra, a)) in singles.iter().enumerate() {
+        for (rb, b) in singles.iter().skip(i) {
+            let mut names = a.clone();
+            names.extend(b.iter().copied());
+            if cells(&names) > CELLS {
+                continue;
+            }
+            out.push((ra + rb, names));
+        }
+    }
+    out.sort_by_key(|(r, _)| std::cmp::Reverse(*r));
+    out.truncate(4000);
+    out
+}
+
 /// Packable loadouts for a slot, spread across the range of what the
 /// catalogue can build rather than only the best of them.
 ///
@@ -396,7 +426,15 @@ fn author_the_mid_boss_rest() {
 /// gives a difficulty ramp made of gear instead of a ramp made of stat
 /// multipliers on the same gear.
 fn ladder_for(slot: SlotKind, n: usize) -> Vec<(i32, Vec<(&'static str, u8, u8, u8)>)> {
-    let cands = candidates(slot);
+    ladder_of(slot, n, 1)
+}
+
+fn ladder_of(
+    slot: SlotKind,
+    n: usize,
+    items: usize,
+) -> Vec<(i32, Vec<(&'static str, u8, u8, u8)>)> {
+    let cands = combined_candidates(slot, items);
     if cands.is_empty() {
         return Vec::new();
     }
@@ -541,6 +579,10 @@ fn build_toward(class: &'static gearmaster_engine::class::ClassDef) -> Run {
         // Rank by what this class wants, not by rating. Taking the top of a
         // rating-sorted list would only ever look at heavy martial gear and
         // would report every other class dead for reasons of its own making.
+        // Deliberately the full single-item list, not `combined_candidates`:
+        // that prunes to the top singles by rating before pairing them, which
+        // is the same rating bias that once reported every non-martial class
+        // dead. Here the ranking has to be by what the class wants.
         let mut scored: Vec<(f32, Vec<&'static str>)> = candidates(slot)
             .into_iter()
             // A run owns one of each component, so a layout that wants two of
@@ -619,8 +661,15 @@ fn which_classes_are_reachable() {
 fn which_class_dominates() {
     // Sample builds across the whole rating range and see where they land.
     println!("\n=== what a spread of builds classifies as ===");
-    let ladders: Vec<Vec<(i32, Vec<(&'static str, u8, u8, u8)>)>> =
-        SlotKind::ALL.iter().map(|&s| ladder_for(s, 12)).collect();
+    // Two items a slot, so the sample actually contains gear packed against
+    // gear - which is what adjacency, and therefore weave, is about.
+    let ladders: Vec<Vec<(i32, Vec<(&'static str, u8, u8, u8)>)>> = SlotKind::ALL
+        .iter()
+        .map(|&s| {
+            let two = ladder_of(s, 12, 2);
+            if two.is_empty() { ladder_of(s, 12, 1) } else { two }
+        })
+        .collect();
 
     let mut tally: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
     let mut weaves: Vec<i32> = Vec::new();
