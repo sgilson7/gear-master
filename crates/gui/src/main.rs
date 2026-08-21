@@ -2590,9 +2590,15 @@ struct BattleGeom {
     cd_w: f32,
     log: Rect,
     buttons: [Rect; 5],
+    /// The one thing to do once the fight is over. It sits above the ordinary
+    /// row and is much larger, because a finished fight goes nowhere until it
+    /// is clicked and people were not seeing that.
+    primary: Rect,
 }
 
-fn battle_geom() -> BattleGeom {
+/// `done` moves the ordinary button row down to make room for the primary
+/// action, which only exists once the fight has finished.
+fn battle_geom(done: bool) -> BattleGeom {
     let board_x = 24.0;
     let board_w = mini_board_width();
     let gh = SLOT_H as f32 * MINI_CELL;
@@ -2612,7 +2618,13 @@ fn battle_geom() -> BattleGeom {
     let gap = 12.0;
     let x0 = (LOGICAL_W - (5.0 * w + 4.0 * gap)) / 2.0;
     let btn_y = log_top + log.h + 16.0;
+    // The primary takes the first two slots of the same row and grows upward,
+    // so its bottom still lines up with the ordinary buttons. There is no room
+    // below them: the row already sits near the bottom of the viewport.
+    let _ = done;
+    let pw = 2.0 * w + gap;
     BattleGeom {
+        primary: Rect::new(x0, btn_y - 18.0, pw, 56.0),
         board_x,
         board_w,
         player_board_y,
@@ -2962,7 +2974,7 @@ fn render_mini_board(
 /// foot. Pressing SHOW FULL LOG overlays the complete transcript.
 fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32) {
     let Some(log) = run.log.as_ref() else { return };
-    let g = battle_geom();
+    let g = battle_geom(pb.done);
     let gh = SLOT_H as f32 * MINI_CELL;
     let reports = run.reports();
 
@@ -3186,8 +3198,35 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
     }
 
     let btn = g.buttons;
-    button(btn[0], "BACK TO GEAR", true, mx, my);
-    button(btn[1], "SKIP", !pb.done, mx, my);
+    if pb.done {
+        // Nothing happens until this is clicked, and people were missing that
+        // - so it is large, it is named for what just happened, and it moves.
+        let (label, color) = match log.outcome {
+            Outcome::Victory => ("VICTORY - NEXT FIGHT", col_ok()),
+            Outcome::Defeat => ("DEFEAT - TRY AGAIN", col_bad()),
+            Outcome::Stalemate => ("STALEMATE - TRY AGAIN", col_gold()),
+        };
+        let r = g.primary;
+        let hot = r.contains(Vec2::new(mx, my));
+        // A slow pulse on the fill and the border. Brightness rather than hue,
+        // so it still reads as movement without colour.
+        let p = ((get_time() * 3.4).sin() * 0.5 + 0.5) as f32;
+        let lift = if hot { 0.30 } else { 0.16 * p };
+        draw_rectangle(
+            r.x,
+            r.y,
+            r.w,
+            r.h,
+            Color::new(color.r * lift, color.g * lift, color.b * lift, 1.0),
+        );
+        draw_rectangle_lines(r.x, r.y, r.w, r.h, 3.0 + 1.5 * p, color);
+        let size = fitting_size(label, r.w - 28.0, &[24.0, 22.0, 20.0, 18.0]);
+        centered_text(label, r.x + r.w / 2.0, r.y + 26.0, size, WHITE);
+        centered_text("click to continue", r.x + r.w / 2.0, r.y + 46.0, 13.0, color);
+    } else {
+        button(btn[0], "BACK TO GEAR", true, mx, my);
+        button(btn[1], "SKIP", true, mx, my);
+    }
     button(btn[2], "REMATCH", true, mx, my);
     button(btn[3], if log_expanded { "HIDE LOG" } else { "FULL LOG" }, true, mx, my);
     button(btn[4], &format!("SPEED {}x", speed_label(pb.speed)), true, mx, my);
@@ -5160,12 +5199,22 @@ async fn main() {
         };
 
         if run.phase == Phase::Fighting {
-            let br = battle_geom().buttons;
+            let done = pb.as_ref().map(|p| p.done).unwrap_or(false);
+            let g = battle_geom(done);
+            let br = g.buttons;
             let hit = |i: usize| {
                 is_mouse_button_pressed(MouseButton::Left)
                     && br[i].contains(Vec2::new(mx, my))
             };
-            if hit(0) {
+            // Once the fight is over the big primary is the way out; before
+            // then it is the ordinary first button. Only one exists at a time.
+            let leave = if done {
+                is_mouse_button_pressed(MouseButton::Left)
+                    && g.primary.contains(Vec2::new(mx, my))
+            } else {
+                hit(0)
+            };
+            if leave {
                 run.back_to_loadout();
                 pb = None;
                 log_expanded = false;
