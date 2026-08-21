@@ -362,28 +362,81 @@ fn every_monster_can_actually_hurt_you() {
 // ----------------------------------------------------------- difficulty
 
 #[test]
-fn the_difficulty_multiple_is_what_it_says_on_the_tin() {
-    use gearmaster_engine::combat::{Combatant, Difficulty};
-    // Half the factor goes into staying alive and half into hitting back, so
-    // the two multiply back out to the number the player picked.
-    // Medium is the baseline the others are set against, and its factor is
-    // 1.0 - so ratios taken from it are the multiples on the tin.
-    let base = Combatant::monster_at(&LADDER[6], Difficulty::Medium);
-    for &d in Difficulty::ALL {
-        let scaled = Combatant::monster_at(&LADDER[6], d);
-        let tough = scaled.max_health as f32 / base.max_health as f32;
-        let deadly = scaled.strength as f32 / base.strength as f32;
-        let product = tough * deadly;
-        assert!(
-            (product - d.factor()).abs() < d.factor() * 0.06,
-            "{:?}: {:.2}x tougher and {:.2}x deadlier is {:.1}x, not {}x",
-            d,
-            tough,
-            deadly,
-            product,
-            d.factor()
-        );
+fn a_harder_setting_puts_the_monster_in_better_gear() {
+    // The headline claim: a Bog Toad on Insane is not the Medium toad with
+    // bigger numbers, it is a toad wearing better things.
+    use gearmaster_engine::combat::Difficulty;
+    let mut changed = 0;
+    for spec in LADDER.iter().filter(|m| !m.gear.is_empty()) {
+        let medium = spec.gear_at(Difficulty::Medium);
+        let insane = spec.gear_at(Difficulty::Insane);
+        assert_eq!(medium.len(), insane.len(), "{} should wear the same number of things", spec.name);
+        if medium.iter().zip(&insane).any(|(a, b)| a.0 != b.0) {
+            changed += 1;
+        }
+        // Whatever it swapped to has to sit exactly where the old one did.
+        for (a, b) in medium.iter().zip(&insane) {
+            assert_eq!((a.1, a.2, a.3, a.4), (b.1, b.2, b.3, b.4), "{} moved a piece", spec.name);
+        }
     }
+    assert!(changed > 5, "only {} monsters re-equip at all", changed);
+}
+
+#[test]
+fn every_monsters_gear_still_assembles_at_every_setting() {
+    // A swap that breaks a recipe would leave a monster silently harmless.
+    use gearmaster_engine::combat::Difficulty;
+    for spec in LADDER {
+        for &d in Difficulty::ALL {
+            let (reg, loadout) = spec.loadout_at(d);
+            for kind in gearmaster_engine::piece::SlotKind::ALL {
+                for item in loadout.report(&reg, kind).items {
+                    assert!(
+                        item.assembled,
+                        "{} at {:?}: {} {}",
+                        spec.name,
+                        d,
+                        kind.name(),
+                        item.status
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn effectiveness_climbs_with_the_setting() {
+    // Difficulty is no longer a pair of stat multipliers, so measure what it
+    // is actually meant to deliver: how much fight the thing puts up, taken
+    // end to end - what it can survive times what it can dish out.
+    use gearmaster_engine::combat::{Combatant, Difficulty};
+    let effectiveness = |d: Difficulty| -> f32 {
+        let c = Combatant::monster_at(&LADDER[8], d);
+        let dps: i64 = c
+            .items
+            .iter()
+            .map(|i| {
+                let per = (i.damage + i.physical_damage + i.magic_damage + c.strength) as i64;
+                per * 1000 / i.cooldown_ms.max(1) as i64
+            })
+            .sum();
+        c.max_health as f32 * dps.max(1) as f32
+    };
+    let (easy, medium, hard, insane) = (
+        effectiveness(Difficulty::Easy),
+        effectiveness(Difficulty::Medium),
+        effectiveness(Difficulty::Hard),
+        effectiveness(Difficulty::Insane),
+    );
+    assert!(easy < medium, "easy {} should be under medium {}", easy, medium);
+    assert!(medium < hard, "medium {} should be under hard {}", medium, hard);
+    assert!(hard < insane, "hard {} should be under insane {}", hard, insane);
+    assert!(
+        insane / medium > 3.0,
+        "insane should be a different fight, not a nudge: {:.1}x medium",
+        insane / medium
+    );
 }
 
 #[test]

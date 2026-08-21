@@ -127,10 +127,49 @@ pub struct MonsterSpec {
     pub sprite: MonsterSprite,
 }
 
+/// The component this one becomes `step` rungs up its own kind.
+///
+/// Same kind and the same footprint, so the monster's layout still packs
+/// exactly as authored - no re-solving, and a boss cannot end up with a hole
+/// in its board because a swap was one cell too wide. Where a kind has no
+/// better piece of that shape, the original stands.
+pub fn stepped_component(name: &str, step: i32) -> &'static str {
+    use crate::piece::CATALOG;
+    let Some(here) = CATALOG.iter().find(|d| d.name == name) else { return "" };
+    if step == 0 {
+        return here.name;
+    }
+    let mut family: Vec<&'static crate::piece::PieceDef> = CATALOG
+        .iter()
+        .filter(|d| d.kind == here.kind && d.slot == here.slot && d.cells == here.cells)
+        .collect();
+    family.sort_by_key(|d| crate::rating::piece_rating(d));
+    let Some(at) = family.iter().position(|d| d.name == here.name) else { return here.name };
+    let want = (at as i32 + step).clamp(0, family.len() as i32 - 1) as usize;
+    family[want].name
+}
+
 impl MonsterSpec {
     /// Lay this monster's gear out in real slots. Returned so the interface can
     /// draw an enemy's board exactly the way it draws yours.
+    /// This monster's gear, stepped for a difficulty.
+    pub fn gear_at(&self, difficulty: Difficulty) -> Vec<GearPlacement> {
+        let step = difficulty.gear_step();
+        self.gear
+            .iter()
+            .map(|&(name, slot, x, y, rot)| (stepped_component(name, step), slot, x, y, rot))
+            .collect()
+    }
+
     pub fn loadout(&self) -> (crate::piece::PieceRegistry, crate::loadout::Loadout) {
+        self.loadout_at(Difficulty::Medium)
+    }
+
+    pub fn loadout_at(
+        &self,
+        difficulty: Difficulty,
+    ) -> (crate::piece::PieceRegistry, crate::loadout::Loadout) {
+        let gear = self.gear_at(difficulty);
         let mut reg = crate::piece::PieceRegistry::new();
         let mut loadout = crate::loadout::Loadout::new();
         // Seed names off the monster's own name so its gear is named too, and
@@ -139,7 +178,7 @@ impl MonsterSpec {
             a.rotate_left(7) ^ b as u64
         });
 
-        for &(name, slot, x, y, rot) in self.gear {
+        for &(name, slot, x, y, rot) in &gear {
             let Some(def) = crate::piece::CATALOG.iter().position(|d| d.name == name) else {
                 continue;
             };
@@ -155,7 +194,11 @@ impl MonsterSpec {
     /// Build this monster's loadout and reduce it to stats plus activation
     /// profiles — the exact pipeline the player's gear goes through.
     pub fn outfit(&self) -> (Stats, Vec<ItemProfile>) {
-        let (reg, loadout) = self.loadout();
+        self.outfit_at(Difficulty::Medium)
+    }
+
+    pub fn outfit_at(&self, difficulty: Difficulty) -> (Stats, Vec<ItemProfile>) {
+        let (reg, loadout) = self.loadout_at(difficulty);
         let mut stats = loadout.total_stats(&reg);
         // `total_stats` starts from the player's baseline; swap in the
         // monster's own.
@@ -254,9 +297,29 @@ impl Difficulty {
         matches!(self, Difficulty::Medium)
     }
 
-    /// What each half of the fight is multiplied by.
+    /// How far up its own kind each of a monster's components is swapped.
+    ///
+    /// This is where most of a difficulty setting now lives. Medium is the
+    /// gear as written; Hard and Insane trade each component for a better one
+    /// of the same kind, and Easy trades down. A Bog Toad on Insane is not the
+    /// Medium toad with bigger numbers - it is a toad in better armour.
+    pub fn gear_step(self) -> i32 {
+        match self {
+            Difficulty::Easy => -1,
+            Difficulty::Medium => 0,
+            Difficulty::Hard => 1,
+            Difficulty::Insane => 2,
+        }
+    }
+
+    /// What is left for raw stats to carry, once gear has done its part.
+    ///
+    /// Deliberately small. Multiplying health and damage is the crude lever;
+    /// it is kept only as a floor, because a component has no better version
+    /// to swap to at the top of its kind and the setting still has to mean
+    /// something.
     pub fn each_way(self) -> f32 {
-        self.factor().sqrt()
+        self.factor().powf(0.25)
     }
 
     /// Standing bonuses the opposition gets on top of the raw scaling. These
@@ -1490,7 +1553,9 @@ impl Combatant {
     }
 
     pub fn monster_at(spec: &MonsterSpec, difficulty: Difficulty) -> Self {
-        let (mut stats, profiles) = spec.outfit();
+        // Most of the setting is in what it is wearing; the multiplier below
+        // is only what is left over.
+        let (mut stats, profiles) = spec.outfit_at(difficulty);
 
         // Half the difficulty goes into staying alive and half into hitting
         // back, so the two multiply out to the factor on the tin.

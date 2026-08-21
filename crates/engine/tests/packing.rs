@@ -190,23 +190,6 @@ fn emit(label: &str, slot: SlotKind, names: &[&'static str]) {
 /// Repeats are allowed: a boss is not shopping, and nothing in the rules says
 /// two of the same layer cannot go on one chestpiece.
 fn candidates(slot: SlotKind) -> Vec<(i32, Vec<&'static str>)> {
-    use gearmaster_engine::rating::piece_rating;
-
-    // Choose `n` from `pool` with repetition, as sorted index lists.
-    fn combos(pool: &[usize], n: usize) -> Vec<Vec<usize>> {
-        if n == 0 {
-            return vec![vec![]];
-        }
-        let mut out = Vec::new();
-        for (i, &p) in pool.iter().enumerate() {
-            for mut rest in combos(&pool[i..], n - 1) {
-                rest.push(p);
-                out.push(rest);
-            }
-        }
-        out
-    }
-
     // Every recipe the slot offers, not just the first: the weapon slot builds
     // martial weapons, book spells and orb spells, and only generating the
     // first meant no monster and no analysis ever saw a spell.
@@ -945,5 +928,18 @@ fn balance_report() {
             println!();
         }
         println!();
+    }
+}
+
+#[test]
+#[ignore]
+fn show_gear_by_difficulty() {
+    use gearmaster_engine::combat::{Difficulty, LADDER};
+    for spec in LADDER.iter().filter(|m| !m.gear.is_empty()).take(4) {
+        println!("\n{}", spec.name);
+        for &d in Difficulty::ALL {
+            let names: Vec<&str> = spec.gear_at(d).iter().map(|g| g.0).collect();
+            println!("  {:<8} {}", d.name(), names.join(", "));
+        }
     }
 }
