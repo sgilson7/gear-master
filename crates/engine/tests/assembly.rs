@@ -536,10 +536,10 @@ fn a_book_will_not_take_a_second_spell_but_an_orb_wants_one() {
         "a book binds one spell, not two"
     );
 
-    // The same parts around an orb are exactly what it asks for.
+    // Two spells around an orb are exactly what it asks for - and no ink,
+    // which an orb has not wanted since alignments took over that job.
     let mut orb = Run::with_all_pieces();
     equip(&mut orb, "Scrying Orb", SlotKind::Weapon, 0, 0);
-    equip(&mut orb, "Soot Ink", SlotKind::Weapon, 0, 3);
     equip(&mut orb, "Emberburst", SlotKind::Weapon, 1, 3);
     equip(&mut orb, "Rime Nova", SlotKind::Weapon, 4, 0);
     let report = orb.report(SlotKind::Weapon);
@@ -570,7 +570,6 @@ fn an_orb_casts_a_different_spell_each_time() {
     use gearmaster_engine::combat::{simulate, Event, Side, LADDER};
     let mut run = Run::with_all_pieces();
     equip(&mut run, "Scrying Orb", SlotKind::Weapon, 0, 0);
-    equip(&mut run, "Soot Ink", SlotKind::Weapon, 0, 3);
     equip(&mut run, "Emberburst", SlotKind::Weapon, 1, 3);
     equip(&mut run, "Rime Nova", SlotKind::Weapon, 4, 0);
     assert_eq!(run.report(SlotKind::Weapon).assembled_count(), 1);
@@ -1148,4 +1147,91 @@ fn selling_a_piece_of_a_locked_item_releases_it() {
         run.loadout.locks.iter().all(|l| !l.pieces.contains(&blade)),
         "no lock still names the sold piece"
     );
+}
+
+// ------------------------------------------------------- orbs and alignments
+
+/// An orb takes no ink any more: two spells are the whole requirement, and an
+/// alignment is the optional third part.
+#[test]
+fn an_orb_assembles_from_spells_alone_and_takes_an_alignment() {
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Scrying Orb", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Emberburst", SlotKind::Weapon, 1, 3);
+    equip(&mut run, "Rime Nova", SlotKind::Weapon, 4, 0);
+    assert_eq!(run.report(SlotKind::Weapon).assembled_count(), 1, "two spells is enough");
+
+    // And the alignment joins without breaking it.
+    equip(&mut run, "Azure Alignment", SlotKind::Weapon, 4, 2);
+    let r = run.report(SlotKind::Weapon);
+    assert_eq!(r.assembled_count(), 1, "{}", r.summary());
+}
+
+/// An alignment is never cast itself - it colours every spell the ball holds.
+#[test]
+fn an_alignment_colours_every_spell_in_the_ball() {
+    let mut plain = Run::with_all_pieces();
+    equip(&mut plain, "Scrying Orb", SlotKind::Weapon, 0, 0);
+    equip(&mut plain, "Emberburst", SlotKind::Weapon, 1, 3);
+    equip(&mut plain, "Rime Nova", SlotKind::Weapon, 4, 0);
+    let before = plain.combat_items();
+    let before = before.iter().find(|i| i.casts.len() > 1).expect("an orb");
+    assert_eq!(before.casts.len(), 2, "the alignment is not itself a cast");
+    let mana_before: Vec<i32> = before.casts.iter().map(|c| c.stats.mana).collect();
+
+    let mut aligned = Run::with_all_pieces();
+    equip(&mut aligned, "Scrying Orb", SlotKind::Weapon, 0, 0);
+    equip(&mut aligned, "Emberburst", SlotKind::Weapon, 1, 3);
+    equip(&mut aligned, "Rime Nova", SlotKind::Weapon, 4, 0);
+    equip(&mut aligned, "Azure Alignment", SlotKind::Weapon, 4, 2);
+    let after = aligned.combat_items();
+    let after = after.iter().find(|i| i.casts.len() > 1).expect("an orb");
+    assert_eq!(after.casts.len(), 2, "still two casts, not three");
+
+    for (i, c) in after.casts.iter().enumerate() {
+        assert_eq!(
+            c.stats.mana,
+            mana_before[i] + 2,
+            "every spell gained the alignment's mana, not just one"
+        );
+    }
+}
+
+/// A spell that answers its siblings pays out when one of them is cast, which
+/// is what a ball can do and a book cannot.
+#[test]
+fn a_spell_answers_its_siblings_going_off() {
+    use gearmaster_engine::piece::{Action, Trigger};
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Scrying Orb", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Echo Sigil", SlotKind::Weapon, 1, 3);
+    equip(&mut run, "Rime Nova", SlotKind::Weapon, 4, 0);
+    assert_eq!(run.report(SlotKind::Weapon).assembled_count(), 1);
+
+    let items = run.combat_items();
+    let orb = items.iter().find(|i| i.casts.len() > 1).expect("an orb");
+    let echo = orb
+        .casts
+        .iter()
+        .find(|c| c.name == "Echo Sigil")
+        .expect("the sigil is one of its casts");
+    assert!(
+        echo.triggers.iter().any(|t| matches!(t, Trigger::OnOtherCast(Action::GainMana(_)))),
+        "it carries the answering trigger: {:?}",
+        echo.triggers
+    );
+}
+
+/// Every spell that answers a sibling is worth having: a book holds one spell,
+/// so the trigger would be dead weight there. This pins that they exist and
+/// that the catalogue offers enough of them to build a ball around.
+#[test]
+fn there_are_spells_that_answer_other_spells() {
+    use gearmaster_engine::piece::{PieceKind, Trigger, CATALOG};
+    let answering = CATALOG
+        .iter()
+        .filter(|d| d.kind == PieceKind::Spell)
+        .filter(|d| d.triggers.iter().any(|t| matches!(t, Trigger::OnOtherCast(_))))
+        .count();
+    assert!(answering >= 5, "only {} spells answer their siblings", answering);
 }

@@ -670,7 +670,11 @@ fn kind_luminance(kind: PieceKind) -> f32 {
         | PieceKind::Layer
         | PieceKind::Mold
         | PieceKind::Ink => 0.45,
-        PieceKind::Accessory | PieceKind::Crest | PieceKind::Spell | PieceKind::Ring => 0.72,
+        PieceKind::Accessory
+        | PieceKind::Crest
+        | PieceKind::Spell
+        | PieceKind::Ring
+        | PieceKind::Alignment => 0.72,
     }
 }
 
@@ -840,7 +844,8 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
             Trigger::OnActivate(a)
             | Trigger::PerAdjacentItem { action: a, .. }
             | Trigger::OnAdjacentActivate(a)
-            | Trigger::OnAlignedActivate(a) => from_action(a, &mut out),
+            | Trigger::OnAlignedActivate(a)
+            | Trigger::OnOtherCast(a) => from_action(a, &mut out),
             Trigger::SpendMana { on_success, on_failure, .. } => {
                 note("mana", &mut out);
                 from_action(on_success, &mut out);
@@ -4358,7 +4363,8 @@ fn trigger_curses(t: &gearmaster_engine::piece::Trigger) -> bool {
         Trigger::OnActivate(a)
         | Trigger::PerAdjacentItem { action: a, .. }
         | Trigger::OnAdjacentActivate(a)
-        | Trigger::OnAlignedActivate(a) => curses(a),
+        | Trigger::OnAlignedActivate(a)
+        | Trigger::OnOtherCast(a) => curses(a),
         Trigger::SpendMana { on_success, on_failure, .. }
         | Trigger::Spend { on_success, on_failure, .. } => curses(on_success) || curses(on_failure),
     }

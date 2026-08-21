@@ -257,6 +257,10 @@ fn trigger_points(t: &Trigger) -> f32 {
         // than your own, but they need a neighbour to exist at all.
         Trigger::OnAdjacentActivate(a) => 1.1 * action_points(a),
         Trigger::OnAlignedActivate(a) => 0.9 * action_points(a),
+        // Pays on every activation of the ball except its own turn in the
+        // cycle - so on a three-spell ball, two casts out of three. Worth more
+        // than a neighbour reaction because the item it waits on is itself.
+        Trigger::OnOtherCast(a) => 1.5 * action_points(a),
     }
 }
 

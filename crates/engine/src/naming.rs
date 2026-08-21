@@ -218,6 +218,10 @@ pub fn qualifiers(reg: &PieceRegistry, pieces: &[PieceId]) -> Vec<&'static str> 
                     note(Some("Aligned"));
                     note(action_word(a));
                 }
+                Trigger::OnOtherCast(a) => {
+                    note(Some("Answering"));
+                    note(action_word(a));
+                }
             }
         }
         if let Some(eff) = def.effect {

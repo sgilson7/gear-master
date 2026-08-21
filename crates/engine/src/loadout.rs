@@ -485,17 +485,31 @@ impl Loadout {
             // Every spell in the item is one payload. A book has bound one,
             // an orb several; ordinary gear has none and keeps carrying its
             // payload on the item.
+            // An alignment is not cast itself. It colours every spell the ball
+            // holds - which is why an orb needs no ink: the alignment is the
+            // build decision, and it is a choice of pool rather than a flat
+            // multiplier.
+            let aligned_by: Vec<PieceId> = item
+                .pieces
+                .iter()
+                .copied()
+                .filter(|&p| reg.def(p).kind == PieceKind::Alignment)
+                .collect();
+
             let casts: Vec<Cast> = item
                 .pieces
                 .iter()
                 .filter(|&&p| reg.def(p).kind == PieceKind::Spell)
                 .map(|&p| {
                     let d = reg.def(p);
-                    Cast {
-                        name: d.name.to_string(),
-                        stats: d.base,
-                        triggers: d.triggers.to_vec(),
+                    let mut stats = d.base;
+                    let mut triggers = d.triggers.to_vec();
+                    for &a in &aligned_by {
+                        let ad = reg.def(a);
+                        stats += ad.base;
+                        triggers.extend(ad.triggers.iter().copied());
                     }
+                    Cast { name: d.name.to_string(), stats, triggers }
                 })
                 .collect();
 

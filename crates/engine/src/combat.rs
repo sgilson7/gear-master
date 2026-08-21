@@ -2219,6 +2219,19 @@ fn activate(
         item.armor = cast.stats.armor;
         item.mana = cast.stats.mana;
         item.triggers = cast.triggers;
+        // The spells that did not come up this turn still answer the one that
+        // did. This is what makes a ball worth more than its spells apart:
+        // only a crystal ball holds several, so only a ball can pay this out.
+        for (i, other) in item.casts.iter().enumerate() {
+            if i == which {
+                continue;
+            }
+            for trig in &other.triggers {
+                if let Trigger::OnOtherCast(a) = trig {
+                    item.triggers.push(Trigger::OnActivate(*a));
+                }
+            }
+        }
         if n > 1 {
             cast_name = Some(cast.name);
         }
@@ -2420,7 +2433,9 @@ fn activate(
                 }
             }
             // These wait for someone else to act.
-            Trigger::OnAdjacentActivate(_) | Trigger::OnAlignedActivate(_) => {}
+            Trigger::OnAdjacentActivate(_)
+            | Trigger::OnAlignedActivate(_)
+            | Trigger::OnOtherCast(_) => {}
         }
     }
 
