@@ -26,8 +26,12 @@ use std::sync::OnceLock;
 
 /// Points per unit of each standing stat.
 mod weight {
-    /// Health is plentiful, so each point is worth little.
-    pub const HEALTH: f32 = 0.55;
+    /// Health is plentiful, so each point is worth little - and since every
+    /// health bonus in the game was multiplied by five, each point is now
+    /// worth a fifth of what it was. Without this the scale would have tipped
+    /// entirely: health-heavy pieces set the ceiling, and everything that was
+    /// not health deflated against them.
+    pub const HEALTH: f32 = 0.11;
     /// Strength is added to every weapon hit before power multiplies it.
     pub const STRENGTH: f32 = 3.2;
     /// Regen already is a per-second figure.
@@ -69,6 +73,10 @@ mod weight {
     /// whatever the item is already worth rather than on its own.
     pub const SPEED_PCT: f32 = 0.006;
 }
+
+/// How long a fight that goes somewhere lasts, in seconds. Only used to value
+/// growth, which is worth what it will have accumulated by the end.
+const TYPICAL_FIGHT_S: f32 = 20.0;
 
 /// The rating a slot's best possible item is worth. Everything is expressed
 /// as a fraction of this, so the tiers mean the same thing in every slot.
@@ -209,11 +217,12 @@ fn action_points(a: &Action) -> f32 {
                 weight::CURSE_PS
             }
         }
-        // Growth compounds: it is worth the health itself, and worth more
-        // again because every later activation happens with more room. Rated
-        // at roughly three times a flat point of health to account for that,
-        // which is what makes these pieces expensive.
-        Action::Grow(n) => *n as f32 * weight::HEALTH * 3.0,
+        // Growth is worth what it will have granted by the end of the fight.
+        // The caller turns this into a per-second figure, so multiplying by a
+        // fight length in seconds converts "health per activation" into "the
+        // flat health this will be worth" - which is the thing it should be
+        // compared against. Twenty seconds is a fight that goes somewhere.
+        Action::Grow(n) => *n as f32 * weight::HEALTH * TYPICAL_FIGHT_S,
         Action::Damage { amount, target } => {
             let v = *amount as f32 * weight::DAMAGE_PS;
             if matches!(target, crate::piece::Target::Yourself) {
@@ -385,8 +394,18 @@ pub fn item_rating(
 /// item to legendary on its own costs a fortune.
 pub fn shop_price(def: &PieceDef) -> i32 {
     let r = piece_rating(def).max(0) as f32;
-    // 3 gold at nothing, ~14 at a middling 40, ~120 at a slot-carrying 140.
-    (3.0 + (r / 9.0).powf(1.9)).round() as i32
+    // Priced against what a run actually earns. A rung pays between 6 and 500
+    // gold, and a bounty should buy roughly one piece worth having at that
+    // stage - so a middling piece is a few fights' income and a slot-carrying
+    // one is most of a late fight's.
+    //
+    //   rating  10 ->    6g      rating  80 ->  207g
+    //   rating  40 ->   59g      rating 140 ->  581g
+    //
+    // The old curve topped out around 120g for the best piece in the game,
+    // against 688 gold banked by rung seventeen, so everything was free from
+    // the early game onward and the shop stopped being a decision.
+    (2.0 + (r / 4.5).powf(1.85)).round() as i32
 }
 
 /// Half of what it cost, rounded down - what selling one back pays.

@@ -879,3 +879,78 @@ fn worn_gear_does_not_count_against_the_tray() {
         "the tray is everything owned less everything worn"
     );
 }
+
+/// A quest reward has to be earned. Finding one on a shelf would make the
+/// quest that leads to it pointless - you would buy the answer instead.
+#[test]
+fn quest_rewards_never_appear_in_the_shop() {
+    use gearmaster_engine::piece::{is_quest_reward, CATALOG};
+    use gearmaster_engine::run::Run;
+
+    let rewards: Vec<&str> =
+        CATALOG.iter().filter(|d| is_quest_reward(d.name)).map(|d| d.name).collect();
+    assert!(!rewards.is_empty(), "there are quests, so there are rewards");
+
+    // Many runs, many rerolls: if one can turn up, it will.
+    for seed in 0..40u64 {
+        let mut run = Run::seeded(seed * 7919 + 13);
+        run.gold = 1_000_000;
+        for _ in 0..25 {
+            for i in 0..run.shop.stock.len() {
+                if let Some(def) = run.shop.def(i) {
+                    assert!(
+                        !is_quest_reward(def.name),
+                        "{} is a quest reward and was on a shelf",
+                        def.name
+                    );
+                }
+            }
+            let _ = run.reroll();
+        }
+    }
+}
+
+/// Boss gear stays off the shelves too, for the same reason it is off the
+/// rating scale: it is not the player's to have.
+#[test]
+fn boss_gear_never_appears_in_the_shop() {
+    use gearmaster_engine::piece::is_boss_only;
+    use gearmaster_engine::run::Run;
+    for seed in 0..25u64 {
+        let mut run = Run::seeded(seed * 104_729 + 3);
+        run.gold = 1_000_000;
+        for _ in 0..25 {
+            for i in 0..run.shop.stock.len() {
+                if let Some(def) = run.shop.def(i) {
+                    assert!(!is_boss_only(def.name), "{} was on a shelf", def.name);
+                }
+            }
+            let _ = run.reroll();
+        }
+    }
+}
+
+/// Prices have to mean something against what a run earns. A middling piece
+/// should be a few fights' income and the best gear most of a late fight's -
+/// not, as it was, free from the early game onward.
+#[test]
+fn prices_are_worth_something_against_the_purse() {
+    use gearmaster_engine::piece::{is_boss_only, CATALOG};
+    use gearmaster_engine::rating::shop_price;
+
+    let mut prices: Vec<i32> = CATALOG
+        .iter()
+        .filter(|d| !is_boss_only(d.name))
+        .map(shop_price)
+        .collect();
+    prices.sort_unstable();
+    let n = prices.len();
+    let (p50, p90, top) = (prices[n / 2], prices[n * 9 / 10], prices[n - 1]);
+
+    // An early bounty is 6 gold and a late one 500. The best piece a player
+    // can buy should cost about a late fight's pay, not a fiftieth of it.
+    assert!(top >= 250, "the dearest piece is only {}g", top);
+    assert!(p90 >= 25, "nine in ten pieces cost under {}g", p90);
+    assert!(p50 <= 30, "even a middling piece costs {}g", p50);
+    assert!(prices[0] >= 1, "nothing should be free");
+}

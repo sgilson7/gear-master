@@ -6575,7 +6575,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Grow(14))],
+        triggers: &[Trigger::OnActivate(Action::Grow(40))],
         quest: None,
         power_bonus: 0,
         price: 46,
@@ -6590,7 +6590,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Grow(22))],
+        triggers: &[Trigger::OnActivate(Action::Grow(60))],
         quest: None,
         power_bonus: 0,
         price: 62,
@@ -6605,7 +6605,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Grow(10))],
+        triggers: &[Trigger::OnActivate(Action::Grow(30))],
         quest: None,
         power_bonus: 0,
         price: 38,
@@ -6620,7 +6620,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Grow(16))],
+        triggers: &[Trigger::OnActivate(Action::Grow(45))],
         quest: None,
         power_bonus: 0,
         price: 52,
@@ -6635,7 +6635,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Grow(12))],
+        triggers: &[Trigger::OnActivate(Action::Grow(35))],
         quest: None,
         power_bonus: 0,
         price: 55,
@@ -6758,6 +6758,16 @@ pub const BOSS_ONLY: &[&str] = &["The Money Jacket"];
 /// Is this a piece a player can never own?
 pub fn is_boss_only(name: &str) -> bool {
     BOSS_ONLY.contains(&name)
+}
+
+/// Is this piece the far side of somebody's quest?
+///
+/// A quest reward has to be earned. Finding one on a shelf makes the quest
+/// that leads to it pointless - you would just buy the answer - so these are
+/// kept off the shelves entirely and exist only as something a piece turns
+/// into.
+pub fn is_quest_reward(name: &str) -> bool {
+    CATALOG.iter().any(|d| d.quest.is_some_and(|q| q.becomes == name))
 }
 
 /// Index of every definition in `CATALOG`, in catalog order.

@@ -57,15 +57,25 @@ impl Shop {
             {
                 continue;
             }
+            // The same two exclusions as the general pool. The guaranteed
+            // handle and damaging piece come through here rather than there,
+            // so a quest reward that happened to be a damaging piece walked
+            // straight past the filter and onto a shelf.
+            let sellable = |i: &usize| {
+                CATALOG[*i].slot == SlotKind::Weapon
+                    && CATALOG[*i].kind == want
+                    && !crate::piece::is_boss_only(CATALOG[*i].name)
+                    && !crate::piece::is_quest_reward(CATALOG[*i].name)
+            };
             let mut candidates: Vec<usize> = (0..CATALOG.len())
-                .filter(|&i| CATALOG[i].slot == SlotKind::Weapon && CATALOG[i].kind == want)
+                .filter(sellable)
                 .filter(|i| fresh(i) && !chosen.contains(i))
                 .collect();
             // If everything of this kind was on the last shelf, allow a repeat
             // rather than break the guarantee.
             if candidates.is_empty() {
                 candidates = (0..CATALOG.len())
-                    .filter(|&i| CATALOG[i].slot == SlotKind::Weapon && CATALOG[i].kind == want)
+                    .filter(sellable)
                     .filter(|i| !chosen.contains(i))
                     .collect();
             }
@@ -78,6 +88,9 @@ impl Shop {
         let mut pool: Vec<usize> = (0..CATALOG.len())
             .filter(|i| fresh(i) && !chosen.contains(i))
             .filter(|&i| !crate::piece::is_boss_only(CATALOG[i].name))
+            // A quest reward is the far side of a quest. Selling it would make
+            // the quest that leads to it pointless.
+            .filter(|&i| !crate::piece::is_quest_reward(CATALOG[i].name))
             .collect();
         rng.shuffle(&mut pool);
         for i in pool {
