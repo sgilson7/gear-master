@@ -7,7 +7,7 @@
 //! prints gear tuples ready to paste into `LADDER`.
 
 use gearmaster_engine::loadout::Loadout;
-use gearmaster_engine::piece::{PieceId, PieceRegistry, SlotKind, CATALOG};
+use gearmaster_engine::piece::{PieceId, PieceKind, PieceRegistry, SlotKind, CATALOG};
 use gearmaster_engine::slot::{SLOT_H, SLOT_W};
 
 const CELLS: usize = SLOT_W as usize * SLOT_H as usize;
@@ -428,4 +428,189 @@ fn author_the_deep_ladder() {
         }
         println!("ENDMONSTER");
     }
+}
+
+// ===================================================== class reachability
+//
+// The axis reference values in `Fingerprint::of` were set by eye before there
+// was gear to move them. This works out, from the catalogue itself, which
+// classes a real build can actually reach and which one swallows everything.
+
+use gearmaster_engine::class::{classify, rank, Axis, CLASSES};
+use gearmaster_engine::run::Run;
+
+/// Put a packed layout onto a run, honouring duplicates.
+fn wear(run: &mut Run, slot: SlotKind, placed: &[(&'static str, u8, u8, u8)]) -> bool {
+    for (name, x, y, rot) in placed {
+        let id = run
+            .owned
+            .iter()
+            .copied()
+            .find(|&id| run.registry.def(id).name == *name && !run.is_equipped(id));
+        let Some(id) = id else { return false };
+        run.registry.set_rotation(id, *rot);
+        if run.equip(id, slot, *x, *y).is_err() {
+            return false;
+        }
+    }
+    true
+}
+
+/// How much a set of components pushes on one axis, roughly - enough to steer
+/// a greedy search without duplicating the fingerprint's own maths.
+fn pull(names: &[&'static str], axis: Axis) -> f32 {
+    let mut total = 0.0;
+    for n in names {
+        let d = CATALOG.iter().find(|c| c.name == *n).unwrap();
+        let s = &d.base;
+        total += match axis {
+            Axis::Arcana => s.magic_damage as f32,
+            Axis::Brutality => (s.physical_damage + s.damage) as f32,
+            Axis::Ward => (s.physical_resist + s.magic_resist + s.physical_harden + s.magic_harden) as f32,
+            Axis::Puncture => (s.physical_pierce + s.magic_pierce) as f32,
+            Axis::Attunement => s.mana as f32 * 4.0,
+            Axis::Wrath => s.rage as f32 * 6.0,
+            Axis::Devotion => s.faith as f32 * 6.0,
+            Axis::Growth => s.nature as f32 * 6.0,
+            Axis::Bulwark => s.armor as f32,
+            Axis::Cadence => 1.0,
+            Axis::Mass => d.cells.len() as f32,
+            Axis::Weave => 1.0,
+            Axis::Malice => d.triggers.len() as f32,
+            Axis::Sorcery => {
+                if matches!(d.kind, PieceKind::Book | PieceKind::Orb) { 30.0 } else { 0.0 }
+            }
+            Axis::Orbits => if d.kind == PieceKind::Orb { 40.0 } else { 0.0 },
+            Axis::MagicIn(sl) => {
+                if d.slot == sl {
+                    (s.magic_damage + s.magic_resist + s.magic_pierce + s.magic_harden) as f32
+                        + if matches!(d.kind, PieceKind::Spell | PieceKind::Ink) { 8.0 } else { 0.0 }
+                } else {
+                    0.0
+                }
+            }
+            Axis::PhysicalIn(sl) => {
+                if d.slot == sl {
+                    (s.physical_damage + s.damage + s.physical_resist + s.physical_pierce) as f32
+                } else {
+                    0.0
+                }
+            }
+        };
+    }
+    total
+}
+
+/// The best build this catalogue can offer for one class: per slot, the
+/// packable loadout that pushes hardest on whatever that class asks for.
+fn build_toward(class: &'static gearmaster_engine::class::ClassDef) -> Run {
+    let mut run = Run::with_all_pieces();
+    for slot in SlotKind::ALL {
+        // Rank by what this class wants, not by rating. Taking the top of a
+        // rating-sorted list would only ever look at heavy martial gear and
+        // would report every other class dead for reasons of its own making.
+        let mut scored: Vec<(f32, Vec<&'static str>)> = candidates(slot)
+            .into_iter()
+            // A run owns one of each component, so a layout that wants two of
+            // something cannot actually be worn - only monsters get those.
+            .filter(|(_, names)| {
+                let mut seen: Vec<&str> = Vec::new();
+                names.iter().all(|n| {
+                    if seen.contains(n) {
+                        false
+                    } else {
+                        seen.push(n);
+                        true
+                    }
+                })
+            })
+            .map(|(rating, names)| {
+                let mut score: f32 = class.requires.iter().map(|&(a, _)| pull(&names, a)).sum();
+                if class.requires.is_empty() {
+                    score = rating as f32 * 0.01;
+                }
+                (score, names)
+            })
+            .collect();
+        scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+
+        let mut best: Option<(f32, Vec<(&'static str, u8, u8, u8)>)> = None;
+        for (score, names) in scored.into_iter().take(150) {
+            if let Some(p) = pack(slot, &names) {
+                best = Some((score, p));
+                break;
+            }
+        }
+        if let Some((_, placed)) = best {
+            if !wear(&mut run, slot, &placed) {
+                println!("  (could not fit {} for {})", slot.name(), class.name);
+            }
+        }
+    }
+    run
+}
+
+#[test]
+#[ignore]
+fn which_classes_are_reachable() {
+    println!("\n=== can a real build reach each class? ===");
+    let mut dead = Vec::new();
+    for class in CLASSES {
+        let run = build_toward(class);
+        let fp = run.fingerprint();
+        let got = classify(&fp).name;
+        let detail: Vec<String> = class
+            .requires
+            .iter()
+            .map(|&(a, need)| {
+                let have = fp.get(a);
+                format!("{} {}/{}{}", a.name(), have, need, if have >= need { "" } else { "  <-- short" })
+            })
+            .collect();
+        let reached = rank(&fp).into_iter().any(|m| m.eligible && m.class.name == class.name);
+        if !reached {
+            dead.push(class.name);
+        }
+        println!(
+            "{:<14} {:<10} best build lands on {:<14} [{}]",
+            class.name,
+            if reached { "REACHABLE" } else { "DEAD" },
+            got,
+            detail.join(", ")
+        );
+    }
+    println!("\nunreachable: {:?}", dead);
+}
+
+#[test]
+#[ignore]
+fn which_class_dominates() {
+    // Sample builds across the whole rating range and see where they land.
+    println!("\n=== what a spread of builds classifies as ===");
+    let ladders: Vec<Vec<(i32, Vec<(&'static str, u8, u8, u8)>)>> =
+        SlotKind::ALL.iter().map(|&s| ladder_for(s, 12)).collect();
+
+    let mut tally: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    let mut n = 0;
+    for a in 0..12 {
+        for shift in 0..12 {
+            let mut run = Run::with_all_pieces();
+            for (si, &slot) in SlotKind::ALL.iter().enumerate() {
+                let l = &ladders[si];
+                if l.is_empty() {
+                    continue;
+                }
+                let pick = (a + si * shift) % l.len();
+                wear(&mut run, slot, &l[pick].1);
+            }
+            *tally.entry(classify(&run.fingerprint()).name).or_insert(0) += 1;
+            n += 1;
+        }
+    }
+    let mut rows: Vec<(&str, usize)> = tally.into_iter().collect();
+    rows.sort_by_key(|(_, c)| std::cmp::Reverse(*c));
+    for (name, count) in &rows {
+        println!("{:<14} {:>4}  ({:.0}%)", name, count, *count as f32 * 100.0 / n as f32);
+    }
+    println!("{} builds sampled", n);
 }
