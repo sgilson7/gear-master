@@ -369,6 +369,31 @@ impl Run {
         Some(bounty)
     }
 
+    /// Take the next rung without fighting for it, paid as though you had won.
+    ///
+    /// Exists because the early rungs get played many times over - once to
+    /// learn them and once for every later idea that has to start from the
+    /// bottom - and because the numbers further up are much easier to test
+    /// when reaching them is not itself the work. It pays the full bounty, so
+    /// a skipped rung leaves the run exactly as beating it would have.
+    ///
+    /// Returns the bounty, or `None` if there is nothing left to skip.
+    pub fn skip_fight(&mut self) -> Option<i32> {
+        if self.phase != Phase::Loadout || self.rung + 1 >= LADDER.len() {
+            return None;
+        }
+        let bounty = self.monster().bounty;
+        self.gold += bounty;
+        self.wins += 1;
+        self.rung += 1;
+        self.best_rung = self.best_rung.max(self.rung);
+        self.shop.restock(&mut self.rng);
+        // Quests want a fight to have happened, so a skipped rung does not
+        // advance them. Skipping past a quest is the cost of skipping.
+        self.last_settlement = None;
+        Some(bounty)
+    }
+
     /// Throw the run away and start over, keeping only the mode. What a Rogue
     /// run does when it runs out of lives.
     pub fn wipe(&mut self) {

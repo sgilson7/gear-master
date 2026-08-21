@@ -3731,7 +3731,19 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("NATURE", "Banked by growing things. Every point adds regeneration while held."),
     ("CLASS", "Given once, by the fountain on the fifth rung. Which one you get is read off your build, and the panel shows what you would be given before you drink."),
     ("THE FOUNTAIN", "Not a fight. It measures your gear along a set of axes - how much magic, how much iron, how fast, how woven together - and names you accordingly."),
+    // Last, so it lands on the last page. It is a control as well as a
+    // definition; see SKIP_TERM.
+    (SKIP_TERM, "The road up the mountain, which most of us have walked more times than we care to count. Those who know it well are not made to walk it again: click these words and the next rung is behind you, its bounty paid in full, as though you had fought it and won. It keeps no quests. It asks no questions."),
 ];
+
+/// The glossary entry that is also a button.
+///
+/// Skipping a rung is here rather than on a menu because it is not meant to be
+/// the first thing a new player finds - but the early rungs get walked many
+/// times over, once to learn them and once for every later idea that starts
+/// from the bottom, and the numbers further up are far easier to test when
+/// getting there is not itself the work.
+const SKIP_TERM: &str = "THE WORN PATH";
 
 /// The key to a tile: which motif means which slot, which corner mark means
 /// what, and what the lightness of a tile is telling you. Returns its height
@@ -4128,7 +4140,9 @@ fn render_mode_select(
 /// Paged rather than squeezed: the word list has outgrown one screenful, and
 /// shrinking the text until it all fits would undo the point of making it
 /// legible in the first place.
-fn render_glossary(page: usize, mx: f32, my: f32) -> (Rect, Rect, usize) {
+/// Returns the close button, the next-page button, the page count, and the
+/// region of the one entry that is also a control - see `SKIP_TERM`.
+fn render_glossary(page: usize, mx: f32, my: f32) -> (Rect, Rect, usize, Option<Rect>) {
     let pad = 56.0;
     let r = Rect::new(pad, pad, LOGICAL_W - 2.0 * pad, LOGICAL_H - 2.0 * pad);
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 228));
@@ -4160,6 +4174,7 @@ fn render_glossary(page: usize, mx: f32, my: f32) -> (Rect, Rect, usize) {
     let mut y = top;
     let mut pages = 1usize;
     let mut start_of_page = 0usize;
+    let mut skip_hot: Option<Rect> = None;
     while at < GLOSSARY.len() {
         let (term, meaning) = GLOSSARY[at];
         let lines = wrap_px(meaning, col_w - 16.0, size);
@@ -4183,13 +4198,34 @@ fn render_glossary(page: usize, mx: f32, my: f32) -> (Rect, Rect, usize) {
         }
         if this_page == page {
             let x = r.x + 24.0 + col as f32 * (col_w + gap);
-            ui_text(term, x, y, size, Color::from_rgba(150, 200, 240, 255));
+            // One entry is a control as well as a definition. It is not marked
+            // as one - finding it is the point - but it does light up under
+            // the cursor, so nobody has to click every word to be sure.
+            let is_skip = term == SKIP_TERM;
+            let hot = is_skip
+                && Rect::new(x, y - lh, col_w, lh * (1.0 + lines.len() as f32))
+                    .contains(Vec2::new(mx, my));
+            let head = if is_skip && hot {
+                col_gold()
+            } else {
+                Color::from_rgba(150, 200, 240, 255)
+            };
+            let body = if is_skip && hot {
+                Color::from_rgba(240, 226, 170, 255)
+            } else {
+                Color::from_rgba(198, 200, 218, 255)
+            };
+            let block_top = y - lh;
+            ui_text(term, x, y, size, head);
             y += lh;
             for l in lines {
-                ui_text(&l, x + 14.0, y, size, Color::from_rgba(198, 200, 218, 255));
+                ui_text(&l, x + 14.0, y, size, body);
                 y += lh;
             }
             y += 10.0;
+            if is_skip {
+                skip_hot = Some(Rect::new(x, block_top, col_w, y - block_top));
+            }
         } else {
             y += needed;
         }
@@ -4228,7 +4264,7 @@ fn render_glossary(page: usize, mx: f32, my: f32) -> (Rect, Rect, usize) {
         );
         button(next, if page + 1 < pages { "NEXT PAGE" } else { "BACK TO START" }, true, mx, my);
     }
-    (close, next, pages)
+    (close, next, pages, skip_hot)
 }
 
 
@@ -5161,13 +5197,25 @@ async fn main() {
         // The glossary sits over everything and eats input while open, so a
         // click meant for CLOSE never also lands on the board behind it.
         if glossary_open {
-            let (close, next, pages) = render_glossary(glossary_page, mx, my);
+            let (close, next, pages, skip_hot) = render_glossary(glossary_page, mx, my);
             let click = is_mouse_button_pressed(MouseButton::Left);
             if click && close.contains(Vec2::new(mx, my)) {
                 glossary_open = false;
                 glossary_page = 0;
             } else if click && pages > 1 && next.contains(Vec2::new(mx, my)) {
                 glossary_page = (glossary_page + 1) % pages;
+            } else if click && skip_hot.map_or(false, |r| r.contains(Vec2::new(mx, my))) {
+                // The one entry that does something. Closes the book, since
+                // the thing it changes is behind it.
+                let name = run.monster().name;
+                message = match run.skip_fight() {
+                    Some(gold) => {
+                        glossary_open = false;
+                        glossary_page = 0;
+                        format!("{} is behind you. {} gold, and no fight.", name, gold)
+                    }
+                    None => "Nothing left up there to skip.".to_string(),
+                };
             }
             if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::G) {
                 glossary_open = false;

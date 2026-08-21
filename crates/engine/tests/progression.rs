@@ -632,3 +632,48 @@ fn slow_time_spreads_a_hit_instead_of_stopping_it() {
         plain.duration_ms
     );
 }
+
+// ------------------------------------------------------------ skipping a rung
+
+/// Skipping pays exactly what winning pays and moves exactly as far, so a run
+/// picked up part-way is the same run it would have been.
+#[test]
+fn skipping_a_rung_pays_the_bounty_and_advances() {
+    use gearmaster_engine::run::Run;
+    let mut run = Run::new();
+    let gold = run.gold;
+    let rung = run.rung;
+    let bounty = run.monster().bounty;
+
+    let paid = run.skip_fight().expect("there is a rung above");
+    assert_eq!(paid, bounty, "the full bounty, as though it had been fought");
+    assert_eq!(run.gold, gold + bounty);
+    assert_eq!(run.rung, rung + 1);
+    assert_eq!(run.wins, 1, "it counts as a win, because it advanced");
+    assert_eq!(run.best_rung, rung + 1);
+}
+
+/// It refuses at the top rather than walking off the end of the ladder.
+#[test]
+fn skipping_stops_at_the_top_of_the_ladder() {
+    use gearmaster_engine::combat::LADDER;
+    use gearmaster_engine::run::Run;
+    let mut run = Run::new();
+    let mut guard = 0;
+    while run.skip_fight().is_some() {
+        guard += 1;
+        assert!(guard < 500, "skip_fight never refused");
+    }
+    assert_eq!(run.rung, LADDER.len() - 1, "it stops on the last rung");
+}
+
+/// A skip restocks the shop, the way finishing a fight does - otherwise
+/// skipping several rungs would leave you shopping from the opening shelves.
+#[test]
+fn skipping_turns_the_shop_over() {
+    use gearmaster_engine::run::Run;
+    let mut run = Run::new();
+    let before = run.shop.stock.clone();
+    run.skip_fight().expect("there is a rung above");
+    assert_ne!(run.shop.stock, before, "fresh shelves after a skip");
+}
