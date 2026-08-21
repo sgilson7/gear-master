@@ -355,3 +355,77 @@ fn author_the_mid_boss_rest() {
         &["Bone Frame", "Iron Plating", "Steel Frame", "Warding Plate"],
     );
 }
+
+/// Packable loadouts for a slot, spread across the range of what the
+/// catalogue can build rather than only the best of them.
+///
+/// `n` targets are spaced evenly between the weakest and strongest legal
+/// item; for each, the nearest candidate that actually packs is taken. That
+/// gives a difficulty ramp made of gear instead of a ramp made of stat
+/// multipliers on the same gear.
+fn ladder_for(slot: SlotKind, n: usize) -> Vec<(i32, Vec<(&'static str, u8, u8, u8)>)> {
+    let cands = candidates(slot);
+    if cands.is_empty() {
+        return Vec::new();
+    }
+    let best = cands.first().map(|(r, _)| *r).unwrap_or(0);
+    let worst = cands.last().map(|(r, _)| *r).unwrap_or(0);
+
+    let mut out: Vec<(i32, Vec<(&'static str, u8, u8, u8)>)> = Vec::new();
+    let mut used: Vec<Vec<&'static str>> = Vec::new();
+    for i in 0..n {
+        let target = worst + (best - worst) * i as i32 / (n.max(2) - 1) as i32;
+        // Nearest by rating, skipping anything already handed out so two
+        // monsters never wear the identical thing.
+        let mut by_distance: Vec<&(i32, Vec<&'static str>)> = cands.iter().collect();
+        by_distance.sort_by_key(|(r, _)| (r - target).abs());
+        for (rating, names) in by_distance.into_iter().take(400) {
+            if used.contains(names) {
+                continue;
+            }
+            if let Some(p) = pack(slot, names) {
+                used.push(names.clone());
+                out.push((*rating, p));
+                break;
+            }
+        }
+    }
+    out
+}
+
+#[test]
+#[ignore]
+fn author_the_deep_ladder() {
+    // One gear block per monster past the Gearwright, climbing.
+    const N: usize = 20;
+    let per_slot: Vec<Vec<(i32, Vec<(&'static str, u8, u8, u8)>)>> =
+        SlotKind::ALL.iter().map(|&s| ladder_for(s, N)).collect();
+
+    for i in 0..N {
+        let mut total = 0;
+        let mut lines = Vec::new();
+        for (si, _) in SlotKind::ALL.iter().enumerate() {
+            let rung = &per_slot[si];
+            if rung.is_empty() {
+                continue;
+            }
+            let (rating, placed) = &rung[i.min(rung.len() - 1)];
+            total += rating;
+            for (n, x, y, r) in placed {
+                lines.push(format!(
+                    "            (\"{}\", SlotKind::{:?}, {}, {}, {}),",
+                    n,
+                    SlotKind::ALL[si],
+                    x,
+                    y,
+                    r
+                ));
+            }
+        }
+        println!("MONSTER {} rating {}", i, total);
+        for l in lines {
+            println!("{}", l);
+        }
+        println!("ENDMONSTER");
+    }
+}
