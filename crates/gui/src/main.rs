@@ -744,6 +744,91 @@ fn slot_motif(slot: SlotKind) -> Motif {
 
 /// Stamp a slot's motif into one cell. Sized to still read at the 15px cells
 /// the shop cards use.
+/// Rage, faith and nature, in a fixed order. Mana is tracked separately
+/// because it predates the other three.
+fn pool_index(what: &str) -> Option<usize> {
+    match what {
+        "rage" => Some(0),
+        "faith" => Some(1),
+        "nature" => Some(2),
+        _ => None,
+    }
+}
+
+/// A small mark for each banked pool, drawn from primitives so the four read
+/// apart at a glance instead of being four numbers in a row.
+fn draw_pool_glyph(x: f32, y: f32, s: f32, which: &str, c: Color) {
+    let t = (s * 0.14).max(1.5);
+    match which {
+        // Mana: a droplet.
+        "mana" => {
+            draw_circle(x + s * 0.5, y + s * 0.62, s * 0.28, c);
+            draw_triangle(
+                Vec2::new(x + s * 0.26, y + s * 0.62),
+                Vec2::new(x + s * 0.74, y + s * 0.62),
+                Vec2::new(x + s * 0.5, y + s * 0.10),
+                c,
+            );
+        }
+        // Rage: a jagged spark.
+        "rage" => {
+            draw_triangle(
+                Vec2::new(x + s * 0.58, y + s * 0.05),
+                Vec2::new(x + s * 0.20, y + s * 0.58),
+                Vec2::new(x + s * 0.50, y + s * 0.52),
+                c,
+            );
+            draw_triangle(
+                Vec2::new(x + s * 0.50, y + s * 0.48),
+                Vec2::new(x + s * 0.80, y + s * 0.42),
+                Vec2::new(x + s * 0.42, y + s * 0.95),
+                c,
+            );
+        }
+        // Faith: a cross.
+        "faith" => {
+            draw_line(x + s * 0.5, y + s * 0.06, x + s * 0.5, y + s * 0.94, t, c);
+            draw_line(x + s * 0.22, y + s * 0.36, x + s * 0.78, y + s * 0.36, t, c);
+        }
+        // Nature: a leaf on a stem.
+        "nature" => {
+            draw_line(x + s * 0.5, y + s * 0.95, x + s * 0.5, y + s * 0.35, t, c);
+            draw_triangle(
+                Vec2::new(x + s * 0.5, y + s * 0.05),
+                Vec2::new(x + s * 0.88, y + s * 0.48),
+                Vec2::new(x + s * 0.5, y + s * 0.58),
+                c,
+            );
+            draw_triangle(
+                Vec2::new(x + s * 0.5, y + s * 0.05),
+                Vec2::new(x + s * 0.12, y + s * 0.48),
+                Vec2::new(x + s * 0.5, y + s * 0.58),
+                c,
+            );
+        }
+        // Armour: a shield.
+        _ => {
+            draw_triangle(
+                Vec2::new(x + s * 0.12, y + s * 0.12),
+                Vec2::new(x + s * 0.88, y + s * 0.12),
+                Vec2::new(x + s * 0.5, y + s * 0.95),
+                c,
+            );
+            draw_rectangle(x + s * 0.12, y + s * 0.10, s * 0.76, s * 0.22, c);
+        }
+    }
+}
+
+fn pool_color(which: &str) -> Color {
+    match which {
+        "mana" => Color::from_rgba(140, 200, 240, 255),
+        "rage" => Color::from_rgba(232, 108, 92, 255),
+        "faith" => Color::from_rgba(240, 208, 120, 255),
+        "nature" => Color::from_rgba(140, 220, 150, 255),
+        _ => Color::from_rgba(170, 190, 220, 255),
+    }
+}
+
 fn draw_slot_motif(x: f32, y: f32, cell: f32, slot: SlotKind, ink: Color) {
     let t = (cell * 0.11).max(1.5);
     match slot_motif(slot) {
@@ -1163,6 +1248,8 @@ struct Playback {
     player_max: i32,
     player_armor: i32,
     player_mana: i32,
+    player_pools: [i32; 3],
+    enemy_pools: [i32; 3],
     enemy_hp: i32,
     enemy_max: i32,
     enemy_armor: i32,
@@ -1242,6 +1329,8 @@ impl Playback {
             player_max: log.player.max_health,
             player_armor: 0,
             player_mana: 0,
+            player_pools: [0; 3],
+            enemy_pools: [0; 3],
             enemy_hp: log.enemy.health,
             enemy_max: log.enemy.max_health,
             enemy_armor: 0,
@@ -1272,11 +1361,19 @@ impl Playback {
         let now = get_time();
         match &entry.event {
             Event::Activate { .. } => return, // shown as a bar, not a log line
-            Event::ResourceCheck { .. } => {}
-            Event::GainResource { side, .. } => {
-                // Banked resources are read off the combatant, so the entry
-                // only needs to reach the log strip.
-                let _ = side;
+            Event::ResourceCheck { side, what, remaining, .. } => {
+                if let Some(i) = pool_index(what) {
+                    let pools =
+                        if matches!(side, Side::Player) { &mut self.player_pools } else { &mut self.enemy_pools };
+                    pools[i] = *remaining;
+                }
+            }
+            Event::GainResource { side, what, total, .. } => {
+                if let Some(i) = pool_index(what) {
+                    let pools =
+                        if matches!(side, Side::Player) { &mut self.player_pools } else { &mut self.enemy_pools };
+                    pools[i] = *total;
+                }
             }
             Event::Hit { by, target_health, target_armor, .. } => match by {
                 Side::Player => {
@@ -2504,6 +2601,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
         pb.player_empower,
         pb.player_shield,
         &pb.player_curses,
+        pb.player_pools,
         pb.flash_player,
         col_you(),
     );
@@ -2562,6 +2660,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
         pb.enemy_empower,
         pb.enemy_shield,
         &pb.enemy_curses,
+        pb.enemy_pools,
         pb.flash_enemy,
         col_foe(),
     );
@@ -3465,6 +3564,8 @@ fn render_battle_side(
     empower: u32,
     shield: u32,
     curses: &[(&'static str, u32)],
+    // Rage, faith and nature, in that order.
+    pools: [i32; 3],
     flash: f64,
     tint: Color,
 ) {
@@ -3491,9 +3592,29 @@ fn render_battle_side(
     }
     draw_rectangle_lines(x, y + 34.0, w, 14.0, 1.0, Color::from_rgba(80, 80, 105, 255));
 
-    let mut label = format!("armor {}", armor);
+    // Armour and the four pools, each behind its own mark rather than a row of
+    // words - during a fight these change constantly and want reading fast.
+    let mut gx = x;
+    let gy = y + 56.0;
+    for (which, value) in [("armor", Some(armor)), ("mana", mana)]
+        .into_iter()
+        .chain(
+            ["rage", "faith", "nature"]
+                .into_iter()
+                .zip(pools.iter().copied())
+                .map(|(n, v)| (n, if v > 0 { Some(v) } else { None })),
+        )
+    {
+        let Some(v) = value else { continue };
+        let c = pool_color(which);
+        draw_pool_glyph(gx, gy, 15.0, which, c);
+        let text = format!("{}", v);
+        ui_text(&text, gx + 19.0, gy + 13.0, 14.0, c);
+        gx += 19.0 + text_width(&text, 14.0) + 16.0;
+    }
+
+    let mut label = String::new();
     if let Some(m) = mana {
-        label.push_str(&format!("   mana {}", m));
         // Both buffs multiply the mana you are still holding, so show the
         // figure they currently work out to rather than just the stack count.
         if empower > 0 {
@@ -3508,7 +3629,9 @@ fn render_battle_side(
             label.push_str(&format!("   shield x{} (-{})", shield, shield as i32 * m));
         }
     }
-    ui_text(&label, x, y + 68.0, 13.0, Color::from_rgba(160, 190, 225, 255));
+    if !label.is_empty() {
+        ui_text(label.trim(), gx, gy + 13.0, 13.0, Color::from_rgba(160, 190, 225, 255));
+    }
 
     let mut cx = x + 210.0;
     for (kind, _) in curses {

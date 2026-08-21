@@ -804,14 +804,20 @@ fn choose(profile: Profile, slot: SlotKind, seed: u64) -> Option<Vec<(&'static s
     None
 }
 
-fn play(profile: Profile, difficulty: Difficulty, seed: u64) -> usize {
+/// Rungs to test at, rather than walking all 33. A full walk meant thousands
+/// of simulations and never finished; five spot checks answer the same
+/// question - how deep does this kind of player get - in seconds.
+const BREAKPOINTS: [usize; 5] = [0, 8, 16, 24, 32];
+
+/// Build once the way `profile` would, then see which breakpoints it can beat.
+fn play(profile: Profile, difficulty: Difficulty, seed: u64) -> Vec<bool> {
+    use gearmaster_engine::combat::Outcome;
     use gearmaster_engine::run::{Mode, Run};
     let mut run = Run::with_all_pieces();
     run.difficulty = difficulty;
     run.mode = Mode::Grinder;
     for (si, &slot) in SlotKind::ALL.iter().enumerate() {
         if let Some(p) = choose(profile, slot, seed + si as u64) {
-            // A turned piece may no longer fit; that is the profile working.
             for (name, x, y, rot) in p {
                 if let Some(id) = run
                     .owned
@@ -820,43 +826,52 @@ fn play(profile: Profile, difficulty: Difficulty, seed: u64) -> usize {
                     .find(|&i| run.registry.def(i).name == name && !run.is_equipped(i))
                 {
                     run.registry.set_rotation(id, rot);
+                    // A turned piece may no longer fit. That is the
+                    // non-assembler profile working, not a failure.
                     let _ = run.equip(id, slot, x, y);
                 }
             }
         }
     }
-    // Fight up the ladder until something stops them.
-    let mut cleared = 0;
-    for rung in 0..LADDER_LEN {
-        run.rung = rung;
-        if run.fight_next().outcome != gearmaster_engine::combat::Outcome::Victory {
-            break;
-        }
-        cleared = rung + 1;
-        run.back_to_loadout();
-    }
-    cleared
+    BREAKPOINTS
+        .iter()
+        .map(|&rung| {
+            run.rung = rung;
+            let won = run.fight_next().outcome == Outcome::Victory;
+            run.back_to_loadout();
+            won
+        })
+        .collect()
 }
 
-const LADDER_LEN: usize = 33;
 
 #[test]
 #[ignore]
 fn balance_report() {
     use gearmaster_engine::combat::Difficulty;
-    println!("\n=== rungs cleared, by profile and difficulty ===");
-    println!("(medium is the intended fight; a profile should get somewhere on it)\n");
-    print!("{:<18}", "profile");
-    for d in Difficulty::ALL {
-        print!("{:>12}", format!("{} {}", d.name(), d.label()));
+    println!("\n=== which rungs each kind of player can beat ===");
+    println!("medium is the intended fight, so a profile should clear the early");
+    println!("breakpoints there and start failing somewhere in the middle.\n");
+    print!("{:<18}{:<10}", "profile", "setting");
+    for r in BREAKPOINTS {
+        print!("{:>8}", format!("r{}", r + 1));
     }
     println!();
     for &profile in Profile::ALL {
-        print!("{:<18}", profile.name());
         for &d in Difficulty::ALL {
-            let runs: Vec<usize> = (0..2).map(|s| play(profile, d, s * 7 + 1)).collect();
-            let avg = runs.iter().sum::<usize>() as f32 / runs.len() as f32;
-            print!("{:>12}", format!("{:.1}/{}", avg, LADDER_LEN));
+            // Two builds a profile, so one lucky shop does not decide it.
+            let a = play(profile, d, 1);
+            let b = play(profile, d, 29);
+            print!("{:<18}{:<10}", profile.name(), format!("{} {}", d.name(), d.label()));
+            for i in 0..BREAKPOINTS.len() {
+                let n = a[i] as u8 + b[i] as u8;
+                print!("{:>8}", match n {
+                    2 => "win",
+                    1 => "split",
+                    _ => "-",
+                });
+            }
+            println!();
         }
         println!();
     }

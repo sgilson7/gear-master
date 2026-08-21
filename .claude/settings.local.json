@@ -67,7 +67,8 @@
       "Bash(awk '{s+=$4} END {print s\" tests\"}')",
       "Bash(grep -n \"Action::Curse { kind, target } =>\" -A 14 crates/engine/src/combat.rs)",
       "Bash(git checkout *)",
-      "Bash(bash -n packaging/package-web.sh)"
+      "Bash(bash -n packaging/package-web.sh)",
+      "Bash(grep -n \"Event::GainResource { side, .. } => {\" -A 6 crates/gui/src/main.rs)"
     ]
   }
 }
