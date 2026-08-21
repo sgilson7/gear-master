@@ -9,7 +9,7 @@
 
 use crate::curse::{mind_damage_after_resist, CurseKind, Curses, TICK_MS};
 use crate::loadout::ItemProfile;
-use crate::piece::{Action, SlotKind, Target, Trigger};
+use crate::piece::{Action, Resource, SlotKind, Target, Trigger};
 use crate::stats::Stats;
 
 /// How often damage-over-time is summarised into the log.
@@ -1538,6 +1538,20 @@ pub struct Combatant {
     pub transmute: i32,
     /// Every activation banks one of each pool.
     pub adaptable: bool,
+    /// Oracle: a crystal ball casts this many of its spells each time it comes
+    /// round instead of one.
+    pub manifold: u32,
+    /// Stormcaller: every activation pushes every OTHER item's cooldown
+    /// forward by this many ms, so a fast build compounds on itself.
+    pub cascade: u32,
+    /// Warpriest: armour gained is this much stronger, in percent, while any
+    /// faith is held.
+    pub consecrate: i32,
+    /// Bloodletter: landing a curse banks this much rage.
+    pub bloodscent: i32,
+    /// Wellspring: spending a pool refunds this percent of it to each of the
+    /// other three.
+    pub confluence: i32,
     /// How many times this side has activated anything, for `echo_every`.
     activations: u32,
     dot_milli: i32,
@@ -1583,6 +1597,11 @@ impl Combatant {
             resonance: false,
             transmute: 0,
             adaptable: false,
+            manifold: 0,
+            cascade: 0,
+            consecrate: 0,
+            bloodscent: 0,
+            confluence: 0,
             activations: 0,
             curse_resist: stats.curse_resist,
             curses: Curses::new(),
@@ -1665,6 +1684,11 @@ impl Combatant {
             resonance: false,
             transmute: 0,
             adaptable: false,
+            manifold: 0,
+            cascade: 0,
+            consecrate: 0,
+            bloodscent: 0,
+            confluence: 0,
             activations: 0,
             curse_resist: stats.curse_resist,
             curses: Curses::new(),
@@ -2036,6 +2060,11 @@ pub fn simulate_with_class(
             crate::class::ClassPower::Resonance => start_player.resonance = true,
             crate::class::ClassPower::Transmute(pct) => start_player.transmute = pct,
             crate::class::ClassPower::Adaptable => start_player.adaptable = true,
+            crate::class::ClassPower::Manifold(n) => start_player.manifold = n,
+            crate::class::ClassPower::Cascade(ms) => start_player.cascade = ms,
+            crate::class::ClassPower::Consecrate(pct) => start_player.consecrate = pct,
+            crate::class::ClassPower::Bloodscent(n) => start_player.bloodscent = n,
+            crate::class::ClassPower::Confluence(pct) => start_player.confluence = pct,
         }
     }
     let start_player = start_player;
@@ -2235,6 +2264,23 @@ fn activate(
         if n > 1 {
             cast_name = Some(cast.name);
         }
+        // Manifold: the ball speaks with more than one voice. The extra spells
+        // are the ones next in the cycle, so which they are still changes each
+        // time it comes round.
+        let extra = pick(p, e, side).manifold.saturating_sub(1) as usize;
+        for k in 0..extra.min(n.saturating_sub(1)) {
+            let also = &item.casts[(which + 1 + k) % n];
+            item.damage += also.stats.damage;
+            item.physical_damage += also.stats.physical_damage;
+            item.magic_damage += also.stats.magic_damage;
+            item.rage += also.stats.rage;
+            item.faith += also.stats.faith;
+            item.nature += also.stats.nature;
+            item.mind += also.stats.mind;
+            item.armor += also.stats.armor;
+            item.mana += also.stats.mana;
+            item.triggers.extend(also.triggers.iter().copied());
+        }
         pick(p, e, side).items[idx].cast_index = (which + 1) % n;
     }
 
@@ -2415,6 +2461,18 @@ fn activate(
                     let held = me.pool(what);
                     if held >= cost {
                         me.set_pool(what, held - cost);
+                        // Confluence: what one pool spends, the others drink.
+                        let back = me.confluence * cost / 100;
+                        if back > 0 {
+                            for other in
+                                [Resource::Mana, Resource::Rage, Resource::Faith, Resource::Nature]
+                            {
+                                if other != what {
+                                    let total = me.pool(other) + back;
+                                    me.set_pool(other, total);
+                                }
+                            }
+                        }
                         true
                     } else {
                         false
@@ -2436,6 +2494,19 @@ fn activate(
             Trigger::OnAdjacentActivate(_)
             | Trigger::OnAlignedActivate(_)
             | Trigger::OnOtherCast(_) => {}
+        }
+    }
+
+    // Cascade: everything else moves a little closer to firing. Never the item
+    // that just went off, or a single fast item would wind itself up forever.
+    let cascade = pick(p, e, side).cascade;
+    if cascade > 0 {
+        let me = pick(p, e, side);
+        for (i, it) in me.items.iter_mut().enumerate() {
+            if i != idx {
+                it.progress_ms =
+                    (it.progress_ms + cascade).min(it.cooldown_ms.saturating_sub(1));
+            }
         }
     }
 
@@ -2507,6 +2578,24 @@ fn apply(
 
     match action {
         Action::Curse { kind, target } => {
+            // Bloodscent: what you rot, you feed on.
+            if matches!(target, Target::Enemy) {
+                let gain = pick(p, e, side).bloodscent;
+                if gain > 0 {
+                    let me = pick(p, e, side);
+                    let total = me.pool(Resource::Rage) + gain;
+                    me.set_pool(Resource::Rage, total);
+                    log.push(LogEntry {
+                        at_ms: t,
+                        event: Event::GainResource {
+                            side,
+                            what: Resource::Rage.name(),
+                            amount: gain,
+                            total,
+                        },
+                    });
+                }
+            }
             // Contagion: landing one brings the other along.
             if matches!(target, Target::Enemy) && pick(p, e, side).contagion {
                 let other = match kind {
@@ -2575,6 +2664,14 @@ fn apply(
         }
         Action::GainArmor(n) => {
             let c = pick(p, e, side);
+            // Consecrate: faith held makes the wall worth more. Gated on
+            // actually holding some, so it rewards banking rather than being a
+            // flat bonus wearing a name.
+            let n = if c.consecrate > 0 && c.pool(Resource::Faith) > 0 {
+                n + n * c.consecrate / 100
+            } else {
+                n
+            };
             c.armor += n;
             let total = c.armor;
             log.push(LogEntry { at_ms: t, event: Event::GainArmor { side, amount: n, total } });

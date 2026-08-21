@@ -60,6 +60,10 @@ pub enum Axis {
     Sorcery,
     /// Crystal balls specifically, which cycle their spells.
     Orbits,
+    /// Spells that answer their siblings going off, per second. Only a crystal
+    /// ball holds more than one spell, so this measures a build that has
+    /// committed to a ball rather than merely owning one.
+    Answering,
     /// Magical weight carried by one slot. Five axes, one per slot, so a class
     /// can care about *where* the magic is and not only how much.
     MagicIn(SlotKind),
@@ -85,6 +89,7 @@ impl Axis {
             Axis::Bulwark => "bulwark".into(),
             Axis::Sorcery => "sorcery".into(),
             Axis::Orbits => "orbits".into(),
+            Axis::Answering => "answering".into(),
             Axis::MagicIn(s) => format!("magic in the {}", s.name().to_lowercase()),
             Axis::PhysicalIn(s) => format!("iron in the {}", s.name().to_lowercase()),
         }
@@ -129,6 +134,7 @@ impl Fingerprint {
         let mut curses = 0.0f32;
         let mut sorcery = 0i32;
         let mut orbits = 0i32;
+        let mut answering = 0.0f32;
         let mut weave = 0.0f32;
         let mut magic_in = [0.0f32; 5];
         let mut physical_in = [0.0f32; 5];
@@ -169,6 +175,9 @@ impl Fingerprint {
                 if trigger_lands_a_curse(t) {
                     curses += rate;
                 }
+                if matches!(t, crate::piece::Trigger::OnOtherCast(_)) {
+                    answering += rate;
+                }
             }
             // Adjacency only. Alignment was measured here too, and it turned
             // out to carry no information: across five grids nearly all gear
@@ -182,6 +191,12 @@ impl Fingerprint {
         // Reference values: roughly what a strong, focused build reaches. A
         // build past one reads 100 rather than overflowing, so more of the
         // same never costs you a class you already qualified for.
+        //
+        // These have to be revisited when the catalogue grows, and there is a
+        // test that says so: `every_axis_is_reachable` builds toward each one
+        // and fails if the best the game can do falls short. Wrath, cadence
+        // and weave were all set against a much smaller catalogue and had
+        // drifted to where nothing could reach them.
         let n = |v: f32, full: f32| -> i32 { ((v / full) * 100.0).clamp(0.0, 100.0) as i32 };
 
         let mut scores = vec![
@@ -190,22 +205,23 @@ impl Fingerprint {
             (Axis::Ward, n(ward as f32, 90.0)),
             (Axis::Puncture, n(pierce as f32, 70.0)),
             (Axis::Attunement, n(mana, 4.0)),
-            (Axis::Wrath, n(rage, 2.2)),
+            (Axis::Wrath, n(rage, 1.3)),
             (Axis::Devotion, n(faith, 1.6)),
             (Axis::Growth, n(nature, 1.4)),
-            (Axis::Cadence, n(rate_total, 4.0)),
+            (Axis::Cadence, n(rate_total, 2.6)),
             (Axis::Mass, n(filled_cells as f32, 130.0)),
             // Per item, not in total: otherwise simply owning more gear maxes
             // it, and "how interconnected is this build" becomes "how much of
             // it is there", which `Mass` already measures.
             (
                 Axis::Weave,
-                n(weave / (profiles.len().max(1) as f32), 2.6),
+                n(weave / (profiles.len().max(1) as f32), 1.8),
             ),
             (Axis::Malice, n(curses, 0.9)),
             (Axis::Bulwark, n(armor, 14.0)),
             (Axis::Sorcery, n(sorcery as f32, 1.6)),
             (Axis::Orbits, n(orbits as f32, 2.0)),
+            (Axis::Answering, n(answering, 1.1)),
         ];
         for slot in SlotKind::ALL {
             scores.push((Axis::MagicIn(slot), n(magic_in[slot.index()], 30.0)));
@@ -269,6 +285,19 @@ pub enum ClassPower {
     Transmute(i32),
     /// Every activation banks one of each of the four pools.
     Adaptable,
+    /// A crystal ball casts `n` of its spells each time it comes round instead
+    /// of one. What a ball is for, made literal.
+    Manifold(u32),
+    /// Every activation shortens every *other* item's cooldown by `ms`, so a
+    /// fast build compounds on itself.
+    Cascade(u32),
+    /// Armour is worth `pct` more against the damage type you have most
+    /// resistance to already.
+    Consecrate(i32),
+    /// Landing a curse also banks that much rage.
+    Bloodscent(i32),
+    /// Spending any pool refunds `pct` of it to every *other* pool.
+    Confluence(i32),
 }
 
 impl ClassPower {
@@ -294,6 +323,17 @@ impl ClassPower {
             ClassPower::Transmute(pct) => {
                 format!("{}% of physical lands again as magic", pct)
             }
+            ClassPower::Manifold(n) => format!("a crystal ball casts {} spells at once", n),
+            ClassPower::Cascade(ms) => {
+                format!("each activation cuts {:.1}s off every other item", ms as f32 / 1000.0)
+            }
+            ClassPower::Consecrate(pct) => {
+                format!("armour is {}% stronger where you already resist", pct)
+            }
+            ClassPower::Bloodscent(n) => format!("landing a curse banks {} rage", n),
+            ClassPower::Confluence(pct) => {
+                format!("spending a pool refunds {}% to the others", pct)
+            }
             ClassPower::Adaptable => "every act banks all four pools".into(),
         }
     }
@@ -308,6 +348,14 @@ pub struct ClassDef {
     pub blurb: &'static str,
     pub requires: &'static [(Axis, i32)],
     pub power: ClassPower,
+}
+
+impl ClassDef {
+    /// How much this class asks for in total. What decides which of the
+    /// classes you qualify for you are actually given - see `rank`.
+    pub fn demand(&self) -> i32 {
+        self.requires.iter().map(|&(_, n)| n).sum()
+    }
 }
 
 pub static CLASSES: &[ClassDef] = &[
@@ -380,8 +428,44 @@ pub static CLASSES: &[ClassDef] = &[
     ClassDef {
         name: "Spellblade",
         blurb: "Half sword, half spellbook, and unwilling to choose.",
-        requires: &[(Axis::Arcana, 30), (Axis::Brutality, 30), (Axis::Sorcery, 25)],
+        requires: &[(Axis::Arcana, 30), (Axis::Brutality, 22), (Axis::Sorcery, 25)],
         power: ClassPower::Transmute(50),
+    },
+    // ---- built around the gear the crystal ball rework brought in ----------
+    ClassDef {
+        name: "Oracle",
+        blurb: "A ball whose spells answer each other, and never the same one twice.",
+        requires: &[(Axis::Orbits, 50), (Axis::Answering, 45)],
+        power: ClassPower::Manifold(2),
+    },
+    ClassDef {
+        name: "Stormcaller",
+        blurb: "Magic that arrives faster than it can be answered.",
+        requires: &[(Axis::Arcana, 55), (Axis::Cadence, 45)],
+        power: ClassPower::Cascade(120),
+    },
+    ClassDef {
+        name: "Warpriest",
+        blurb: "Faith banked behind a wall, and a wall that faith keeps standing.",
+        requires: &[(Axis::Devotion, 45), (Axis::Bulwark, 50)],
+        power: ClassPower::Consecrate(40),
+    },
+    ClassDef {
+        name: "Bloodletter",
+        blurb: "Rage kept boiling, and something rotting on the other side of it.",
+        requires: &[(Axis::Wrath, 45), (Axis::Malice, 40)],
+        power: ClassPower::Bloodscent(3),
+    },
+    ClassDef {
+        name: "Wellspring",
+        blurb: "Every pool at once, and every drop of it worth twice what it looks.",
+        requires: &[
+            (Axis::Attunement, 35),
+            (Axis::Devotion, 25),
+            (Axis::Growth, 30),
+            (Axis::Wrath, 25),
+        ],
+        power: ClassPower::Confluence(50),
     },
     ClassDef {
         name: "Wanderer",
@@ -423,7 +507,20 @@ pub fn rank(fp: &Fingerprint) -> Vec<Match> {
             Match { class, eligible, margin, detail }
         })
         .collect();
-    out.sort_by_key(|m| (!m.eligible, std::cmp::Reverse(m.margin)));
+    // The rule, in one sentence: you are given the most demanding class you
+    // qualify for.
+    //
+    // Sorting by surplus instead - which is what this used to do - rewards a
+    // class for being easy. Bulwark asks for ward 45 and bulwark 40, and
+    // armour is on almost every piece in the game, so nearly any build cleared
+    // both by fifty points and out-scored the class it was actually built
+    // for. Nine of the twelve best builds came back Bulwark.
+    //
+    // Total demand is the right tiebreak because a demanding threshold is a
+    // distinctive one: anything can stumble into ward 45, but arcana 50 and
+    // sorcery 50 together mean you are genuinely carrying spells. Surplus
+    // still decides between classes that ask for the same amount.
+    out.sort_by_key(|m| (!m.eligible, std::cmp::Reverse(m.class.demand()), std::cmp::Reverse(m.margin)));
     out
 }
 

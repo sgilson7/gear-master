@@ -83,7 +83,8 @@
       "Bash(python3 /Users/samgilson/.claude/jobs/a7e69fbf/tmp/gen_m1.py)",
       "Bash(awk '{s+=$4} END {print \"tests:\",s}')",
       "Bash(awk '/^fn render_item_summary/,/^}/' crates/gui/src/main.rs)",
-      "Bash(grep -vE \"Compiling|Finished|Running|^warning|^$\")"
+      "Bash(grep -vE \"Compiling|Finished|Running|^warning|^$\")",
+      "Bash(grep -n \"Curse { kind: CurseKind::[A-Za-z]*, target: Target::Enemy }\" -B 14 crates/engine/src/piece.rs)"
     ]
   }
 }

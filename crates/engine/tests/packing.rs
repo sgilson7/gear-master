@@ -7,7 +7,7 @@
 //! prints gear tuples ready to paste into `LADDER`.
 
 use gearmaster_engine::loadout::Loadout;
-use gearmaster_engine::piece::{PieceId, PieceKind, PieceRegistry, SlotKind, CATALOG};
+use gearmaster_engine::piece::{PieceId, PieceKind, PieceRegistry, SlotKind, Trigger, CATALOG};
 use gearmaster_engine::slot::{SLOT_H, SLOT_W};
 
 const CELLS: usize = SLOT_W as usize * SLOT_H as usize;
@@ -243,7 +243,33 @@ fn candidates_for(
             .filter(|&i| connected(CATALOG[i].cells))
             .collect();
         pool.sort_by_key(|&i| std::cmp::Reverse(piece_rating(&CATALOG[i])));
-        pool.truncate(POOL_CAP);
+        // Rating alone is not enough to choose a pool by. A piece can be worth
+        // little on its own and be the entire point of a build - a spell that
+        // answers its siblings rates poorly, because the rating cannot see the
+        // ball it will sit in, so the six best spells never included one and
+        // Oracle came back unreachable when it is reachable by hand.
+        //
+        // So: the best few by rating, then a few more that do something none
+        // of those do.
+        let mut kept: Vec<usize> = pool.iter().copied().take(POOL_CAP).collect();
+        let shape = |i: usize| -> Vec<std::mem::Discriminant<Trigger>> {
+            let mut v: Vec<_> = CATALOG[i].triggers.iter().map(std::mem::discriminant).collect();
+            v.dedup();
+            v
+        };
+        let mut seen: Vec<std::mem::Discriminant<Trigger>> =
+            kept.iter().flat_map(|&i| shape(i)).collect();
+        for &i in pool.iter().skip(POOL_CAP) {
+            if kept.len() >= POOL_CAP + 4 {
+                break;
+            }
+            let s = shape(i);
+            if !s.is_empty() && s.iter().any(|d| !seen.contains(d)) {
+                seen.extend(s);
+                kept.push(i);
+            }
+        }
+        pool = kept;
         let mut choices = Vec::new();
         for n in min..=max {
             choices.extend(combos(&pool, n));
@@ -549,6 +575,15 @@ fn pull(names: &[&'static str], axis: Axis) -> f32 {
                 if matches!(d.kind, PieceKind::Book | PieceKind::Orb) { 30.0 } else { 0.0 }
             }
             Axis::Orbits => if d.kind == PieceKind::Orb { 40.0 } else { 0.0 },
+            // Steer hard towards spells that answer their siblings: they are
+            // the point of committing to a ball rather than a book.
+            Axis::Answering => {
+                if d.triggers.iter().any(|t| matches!(t, Trigger::OnOtherCast(_))) {
+                    30.0
+                } else {
+                    0.0
+                }
+            }
             Axis::MagicIn(sl) => {
                 if d.slot == sl {
                     (s.magic_damage + s.magic_resist + s.magic_pierce + s.magic_harden) as f32
