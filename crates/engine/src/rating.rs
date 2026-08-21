@@ -87,17 +87,25 @@ fn slot_ceiling(slot: SlotKind) -> f32 {
     let all = CEILINGS.get_or_init(|| {
         let mut out = [1.0f32; 5];
         for s in SlotKind::ALL {
-            let mut total = 0.0f32;
-            for &(kind, _, max) in crate::piece::recipe(s) {
-                let mut best: Vec<f32> = CATALOG
-                    .iter()
-                    .filter(|d| d.slot == s && d.kind == kind)
-                    .map(|d| piece_points(d, 0))
-                    .collect();
-                best.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
-                total += best.into_iter().take(max).filter(|v| *v > 0.0).sum::<f32>();
+            // Across every recipe the slot offers, not just the first. The
+            // weapon slot builds martial weapons and spells, and rating a
+            // spell against a ceiling made of handles and blades would scale
+            // it against a denominator it has nothing to do with.
+            let mut ceiling = 0.0f32;
+            for recipe in crate::piece::recipes(s) {
+                let mut total = 0.0f32;
+                for &(kind, _, max) in *recipe {
+                    let mut best: Vec<f32> = CATALOG
+                        .iter()
+                        .filter(|d| d.slot == s && d.kind == kind)
+                        .map(|d| piece_points(d, 0))
+                        .collect();
+                    best.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+                    total += best.into_iter().take(max).filter(|v| *v > 0.0).sum::<f32>();
+                }
+                ceiling = ceiling.max(total);
             }
-            out[s.index()] = total.max(1.0);
+            out[s.index()] = ceiling.max(1.0);
         }
         out
     });
@@ -378,16 +386,21 @@ mod tests {
 
     /// Best and worst legal item in a slot, by rating.
     fn slot_bounds(slot: SlotKind) -> (i32, i32) {
-        let (mut best, mut worst) = (0, 0);
-        for &(kind, min, max) in crate::piece::recipe(slot) {
-            let mut v: Vec<i32> = CATALOG
-                .iter()
-                .filter(|d| d.slot == slot && d.kind == kind)
-                .map(piece_rating)
-                .collect();
-            v.sort_unstable();
-            worst += v.iter().take(min).sum::<i32>();
-            best += v.iter().rev().take(max).filter(|r| **r > 0).sum::<i32>();
+        let (mut best, mut worst) = (0, i32::MAX);
+        for recipe in crate::piece::recipes(slot) {
+            let (mut b, mut w) = (0, 0);
+            for &(kind, min, max) in *recipe {
+                let mut v: Vec<i32> = CATALOG
+                    .iter()
+                    .filter(|d| d.slot == slot && d.kind == kind)
+                    .map(piece_rating)
+                    .collect();
+                v.sort_unstable();
+                w += v.iter().take(min).sum::<i32>();
+                b += v.iter().rev().take(max).filter(|r| **r > 0).sum::<i32>();
+            }
+            best = best.max(b);
+            worst = worst.min(w);
         }
         (worst, best)
     }

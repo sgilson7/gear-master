@@ -207,8 +207,39 @@ fn candidates(slot: SlotKind) -> Vec<(i32, Vec<&'static str>)> {
         out
     }
 
+    // Every recipe the slot offers, not just the first: the weapon slot builds
+    // martial weapons, book spells and orb spells, and only generating the
+    // first meant no monster and no analysis ever saw a spell.
+    let mut out: Vec<(i32, Vec<&'static str>)> = Vec::new();
+    for recipe in gearmaster_engine::piece::recipes(slot) {
+        out.extend(candidates_for(slot, recipe));
+    }
+    out.sort_by_key(|(r, _)| std::cmp::Reverse(*r));
+    out
+}
+
+fn candidates_for(
+    slot: SlotKind,
+    recipe: &'static [(PieceKind, usize, usize)],
+) -> Vec<(i32, Vec<&'static str>)> {
+    use gearmaster_engine::rating::piece_rating;
+
+    fn combos(pool: &[usize], n: usize) -> Vec<Vec<usize>> {
+        if n == 0 {
+            return vec![vec![]];
+        }
+        let mut out = Vec::new();
+        for (i, &p) in pool.iter().enumerate() {
+            for mut rest in combos(&pool[i..], n - 1) {
+                rest.push(p);
+                out.push(rest);
+            }
+        }
+        out
+    }
+
     let mut per_kind: Vec<Vec<Vec<usize>>> = Vec::new();
-    for &(kind, min, max) in gearmaster_engine::piece::recipe(slot) {
+    for &(kind, min, max) in recipe {
         let pool: Vec<usize> = (0..CATALOG.len())
             .filter(|&i| CATALOG[i].slot == slot && CATALOG[i].kind == kind)
             // A disconnected shape can never be part of an assembled item:
