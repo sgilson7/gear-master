@@ -5302,13 +5302,17 @@ fn render_panel(
             y += 18.0;
         }
     }
-    if run.classes.len() < Run::FOUNTAINS.len() {
+    // Everything below is pinned, so this block has a hard ceiling: it must
+    // never grow into the opponent. Each line is asked for room first.
+    let bottom = opp_top - 6.0;
+    let fits = |y: f32, need: f32| y + need <= bottom;
+    if run.classes.len() < Run::FOUNTAINS.len() && fits(y, 20.0) {
         ui_text(
             &if at_fountain {
                 "THE FOUNTAIN IS WAITING".to_string()
             } else {
                 match run.next_fountain() {
-                    Some(r) => format!("ANOTHER FOUNTAIN ON RUNG {}", r + 1),
+                    Some(r) => format!("A FOUNTAIN ON RUNG {}", r + 1),
                     None => "NO FOUNTAINS LEFT".to_string(),
                 }
             },
@@ -5317,23 +5321,34 @@ fn render_panel(
             14.0,
             if at_fountain { col_gold() } else { col_dim() },
         );
-        y += 22.0;
-        if let Some(best) = outlook.iter().find(|m| m.eligible) {
-            ui_text("you would be given", x + 20.0, y, 12.0, col_dim());
-            let w = text_width(best.class.name, 17.0);
-            ui_text(best.class.name, x + PANEL_W - 20.0 - w, y, 17.0, col_gold());
-            y += 20.0;
+        y += 20.0;
+        // What the *next* fountain would hand over, which is never something
+        // you are already wearing. Saying "you would be given Geomancer" to
+        // somebody who is standing there as a Geomancer is worse than saying
+        // nothing.
+        let held: Vec<&str> = run.classes.iter().map(|c| c.name).collect();
+        let next = outlook.iter().find(|m| m.eligible && !held.contains(&m.class.name));
+        if let Some(best) = next {
+            if fits(y, 18.0) {
+                ui_text("it would give you", x + 20.0, y, 12.0, col_dim());
+                let w = text_width(best.class.name, 16.0);
+                ui_text(best.class.name, x + PANEL_W - 20.0 - w, y, 16.0, col_gold());
+                y += 18.0;
+            }
         }
         // The nearest thing you have not got, and what it is short of - so a
-        // player can chase a class instead of waiting to be told.
-        if let Some(near) = outlook.iter().find(|m| !m.eligible) {
+        // player can chase a class instead of waiting to be told. Only if
+        // there is genuinely room for both of its lines.
+        if let Some(near) =
+            outlook.iter().find(|m| !m.eligible && !held.contains(&m.class.name))
+        {
             let short: Vec<String> = near
                 .detail
                 .iter()
                 .filter(|(_, need, have)| have < need)
                 .map(|(a, need, have)| format!("{} {}/{}", a.name(), have, need))
                 .collect();
-            if !short.is_empty() {
+            if !short.is_empty() && fits(y, 30.0) {
                 ui_text(
                     &format!("{} needs", near.class.name),
                     x + 20.0,
@@ -5341,14 +5356,14 @@ fn render_panel(
                     12.0,
                     Color::from_rgba(150, 200, 240, 255),
                 );
-                y += 16.0;
-                for l in wrap_px(&short.join(", "), PANEL_W - 48.0, 12.0).into_iter().take(2) {
-                    ui_text(&l, x + 26.0, y, 12.0, col_dim());
-                    y += 15.0;
-                }
+                y += 15.0;
+                let line = short.join(", ");
+                let size = fitting_size(&line, PANEL_W - 52.0, &[12.0, 11.0, 10.0]);
+                draw_capped(&line, x + 26.0, y, PANEL_W - 52.0, size, col_dim(), 1);
             }
         }
     }
+
 
     let mut y = opp_top;
     let m = run.monster();
