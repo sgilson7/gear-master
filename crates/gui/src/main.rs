@@ -8,7 +8,8 @@ use gearmaster_engine::class::Axis;
 use gearmaster_engine::combat::{CombatLog, Event, MonsterSprite, Outcome, Side, LADDER};
 use gearmaster_engine::loadout::{ItemProfile, Loadout, SlotReport};
 use gearmaster_engine::piece::{
-    default_cooldown_ms, PieceDef, PieceId, PieceKind, PieceRegistry, SlotKind,
+    default_cooldown_ms, Action, PieceDef, PieceId, PieceKind, PieceRegistry, Resource, SlotKind,
+    Trigger,
 };
 use gearmaster_engine::rating::{resale_price, shop_price, Rarity};
 use gearmaster_engine::combat::Difficulty;
@@ -2537,6 +2538,18 @@ fn render_def_tooltip_inner(
             Color::from_rgba(200, 190, 150, 255),
         ));
     }
+    // What an ink is for. It multiplies the one cast it is bound into and
+    // never the wearer, and none of that was on the card at all.
+    if def.power_bonus != 0 {
+        lines.push((
+            format!(
+                "x{}.{:02} to the item it is part of, and nothing else",
+                def.power_bonus / 100,
+                def.power_bonus.abs() % 100
+            ),
+            Color::from_rgba(200, 190, 150, 255),
+        ));
+    }
 
     if let Some(adj) = def.adjacency {
         for (i, l) in wrap(adj.label, 46).into_iter().enumerate() {
@@ -2551,7 +2564,34 @@ fn render_def_tooltip_inner(
             lines.push((l, col_effect()));
         }
     }
+    // Same rule as the item card: an unconditional pool gain reads as a stat,
+    // because that is what it is. Only the conditional triggers - spending a
+    // pool, answering a neighbour - earn a line of their own.
+    let mut banked: Vec<(Resource, i32)> = Vec::new();
+    let mut conditional: Vec<&Trigger> = Vec::new();
     for t in def.triggers {
+        let plain = match t {
+            Trigger::OnActivate(Action::GainMana(n)) => Some((Resource::Mana, *n)),
+            Trigger::OnActivate(Action::Gain { what, amount }) => Some((*what, *amount)),
+            _ => None,
+        };
+        match plain {
+            Some((what, amount)) => match banked.iter_mut().find(|(w, _)| *w == what) {
+                Some(entry) => entry.1 += amount,
+                None => banked.push((what, amount)),
+            },
+            None => conditional.push(t),
+        }
+    }
+    if !banked.is_empty() {
+        let each: Vec<String> =
+            banked.iter().map(|(w, n)| format!("{:+} {}", n, w.name())).collect();
+        lines.push((
+            format!("{} each time its item fires", each.join(", ")),
+            Color::from_rgba(190, 210, 245, 255),
+        ));
+    }
+    for t in conditional {
         for l in wrap(&t.describe(), 46) {
             lines.push((l, col_trigger()));
         }
@@ -3398,6 +3438,18 @@ fn item_summary_lines(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> {
     if st.curse_resist != 0 {
         passive.push(format!("{:+}% curse resist", st.curse_resist));
     }
+    for (v, label) in [
+        (st.physical_resist, "physical resist"),
+        (st.magic_resist, "magic resist"),
+        (st.physical_pierce, "physical piercing"),
+        (st.magic_pierce, "magic piercing"),
+        (st.physical_harden, "physical hardening"),
+        (st.magic_harden, "magic hardening"),
+    ] {
+        if v != 0 {
+            passive.push(format!("{:+}% {}", v, label));
+        }
+    }
     lines.push(("OUT OF COMBAT".to_string(), Color::from_rgba(150, 200, 240, 255)));
     if passive.is_empty() {
         lines.push(("  nothing - it only acts in a fight".to_string(), col_dim()));
@@ -3412,29 +3464,84 @@ fn item_summary_lines(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> {
         format!("IN COMBAT - every {:.2}s", p.cooldown_ms as f32 / 1000.0),
         Color::from_rgba(240, 190, 140, 255),
     ));
-    let hit = p.hit_for(total.strength, total.power);
+    // Ink bound into this item multiplies this item, so the figure has to
+    // include it: combat does. Without it a well-inked spell read as though it
+    // hit for a third of what it actually lands.
+    let power = total.power + p.power_bonus;
+    let hit = p.hit_for(total.strength, power);
     if hit > 0 {
-        let dps = p.dps_milli(total.strength, total.power);
+        let dps = p.dps_milli(total.strength, power);
         lines.push((
             format!("  hits for {}  ({}.{} a second)", hit, dps / 1000, (dps % 1000) / 100),
             Color::from_rgba(240, 210, 190, 255),
         ));
     }
+    // An unconditional pool gain is a stat wearing a trigger's clothes. Fold
+    // those into the figures below, so a piece that banks two faith reads
+    // "2 faith" like every other piece that banks two faith - rather than
+    // "on activation, gain 2 faith" in trigger colours. Anything conditional -
+    // spending a pool, answering a neighbour, landing a curse - keeps its own
+    // line, because there the wording is the information.
+    let mut banked = [0i32; 4];
+    let slot_of = |r: Resource| match r {
+        Resource::Mana => 0,
+        Resource::Rage => 1,
+        Resource::Faith => 2,
+        Resource::Nature => 3,
+    };
+    let mut conditional: Vec<&Trigger> = Vec::new();
+    for t in &p.triggers {
+        match t {
+            Trigger::OnActivate(Action::GainMana(n)) => banked[0] += n,
+            Trigger::OnActivate(Action::Gain { what, amount }) => {
+                banked[slot_of(*what)] += amount
+            }
+            other => conditional.push(other),
+        }
+    }
+
+    let mut acts: Vec<String> = Vec::new();
+    if st.physical_damage > 0 {
+        acts.push(format!("{} physical damage", st.physical_damage));
+    }
+    if st.magic_damage > 0 {
+        acts.push(format!("{} magic damage", st.magic_damage));
+    }
     if st.mind > 0 {
-        lines.push((format!("  {} mind damage", st.mind), Color::from_rgba(240, 210, 190, 255)));
+        acts.push(format!("{} mind damage", st.mind));
     }
     if st.armor > 0 {
-        lines.push((format!("  {} armor", st.armor), Color::from_rgba(240, 210, 190, 255)));
+        acts.push(format!("{} armor", st.armor));
     }
-    if st.mana > 0 {
-        lines.push((format!("  {} mana", st.mana), Color::from_rgba(240, 210, 190, 255)));
+    for (i, name) in ["mana", "rage", "faith", "nature"].iter().enumerate() {
+        let total = banked[i]
+            + match i {
+                0 => st.mana,
+                1 => st.rage,
+                2 => st.faith,
+                _ => st.nature,
+            };
+        if total > 0 {
+            acts.push(format!("{} {}", total, name));
+        }
     }
-    for t in &p.triggers {
+    if p.power_bonus != 0 {
+        acts.push(format!(
+            "x{}.{:02} from the ink bound into it",
+            p.power_bonus / 100,
+            p.power_bonus.abs() % 100
+        ));
+    }
+    let nothing = hit == 0 && acts.is_empty() && conditional.is_empty();
+    for a in &acts {
+        lines.push((format!("  {}", a), Color::from_rgba(240, 210, 190, 255)));
+    }
+    for t in conditional {
         for l in wrap(&t.describe(), 52) {
             lines.push((format!("  {}", l), col_trigger()));
         }
     }
-    if hit == 0 && st.mind == 0 && st.armor == 0 && st.mana == 0 && p.triggers.is_empty() {
+    if nothing {
         lines.push(("  ticks over doing nothing".to_string(), col_dim()));
     }
     lines
@@ -6546,5 +6653,76 @@ mod radar_tests {
         for (axis, tag) in RADAR {
             assert!(tag.len() <= 5, "{} is too long a tag for {}", tag, axis.name());
         }
+    }
+}
+
+#[cfg(test)]
+mod tooltip_tests {
+    use super::*;
+    use gearmaster_engine::run::Run;
+
+    fn inked_spell() -> (Run, ItemProfile) {
+        let mut run = Run::with_all_pieces();
+        for (name, x, y) in
+            [("Oathbound Ink", 0u8, 0u8), ("Scholar's Codex", 2, 0), ("Absolution", 4, 0)]
+        {
+            let id = run
+                .owned
+                .iter()
+                .copied()
+                .find(|&i| run.registry.def(i).name == name)
+                .expect("piece exists");
+            run.equip(id, SlotKind::Weapon, x, y).expect("it fits");
+        }
+        let p = run.combat_items().into_iter().next().expect("one item");
+        (run, p)
+    }
+
+    /// An unconditional pool gain is a stat, and reads like one. It used to
+    /// appear only as trigger text, so a piece banking two faith looked
+    /// different from a piece whose two faith happened to be a base stat.
+    #[test]
+    fn a_plain_pool_gain_reads_as_a_stat_not_a_trigger() {
+        let (run, p) = inked_spell();
+        let lines = item_summary_lines(&p, &run);
+        let body: Vec<&str> = lines.iter().map(|(s, _)| s.as_str()).collect();
+        assert!(body.iter().any(|l| l.trim() == "2 faith"), "{:?}", body);
+        assert!(
+            !body.iter().any(|l| l.contains("gain 2 faith")),
+            "the plain gain is still wearing trigger clothes: {:?}",
+            body
+        );
+    }
+
+    /// A trigger that *spends* a pool keeps its own line: there the wording is
+    /// the information, not decoration.
+    #[test]
+    fn a_conditional_trigger_keeps_its_line() {
+        let (run, p) = inked_spell();
+        let lines = item_summary_lines(&p, &run);
+        assert!(
+            lines.iter().any(|(s, c)| s.contains("spend 3 faith") && *c == col_trigger()),
+            "the spend should still be called out in trigger colours"
+        );
+    }
+
+    /// Ink multiplies the item it is bound into, and combat applies it. The
+    /// card left it out, so a well-inked spell read as hitting for less than
+    /// half what it actually lands.
+    #[test]
+    fn the_card_counts_the_ink_bound_into_the_item() {
+        let (run, p) = inked_spell();
+        assert!(p.power_bonus > 0, "the fixture should be inked");
+        let with = p.hit_for(run.player_stats().strength, run.player_stats().power + p.power_bonus);
+        let without = p.hit_for(run.player_stats().strength, run.player_stats().power);
+        assert!(with > without, "ink should raise the figure");
+
+        let lines = item_summary_lines(&p, &run);
+        let shown = lines
+            .iter()
+            .find(|(s, _)| s.contains("hits for"))
+            .map(|(s, _)| s.clone())
+            .expect("it hits for something");
+        assert!(shown.contains(&with.to_string()), "card shows {:?}, combat lands {}", shown, with);
     }
 }
