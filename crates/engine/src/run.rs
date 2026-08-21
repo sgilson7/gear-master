@@ -165,6 +165,13 @@ pub struct Run {
     /// The classes the fountains have given you, in the order taken. Every
     /// one of their powers applies at once.
     pub classes: Vec<&'static crate::class::ClassDef>,
+    /// Maximum health earned by gear that grows, kept for the whole run.
+    ///
+    /// This is the only number on a character that a fight can leave larger
+    /// than it found it. It is what makes a growing piece worth its price: the
+    /// health it banked in the last fight is health you start the next one
+    /// with, and it goes on compounding for as long as the run does.
+    pub grown_health: i32,
     /// Losses left before a Rogue run is wiped. Ignored in Grinder.
     pub lives: u32,
     /// The last settled fight, kept so the GUI can report what it cost.
@@ -223,6 +230,7 @@ impl Run {
             mode: Mode::Grinder,
             difficulty: Difficulty::Easy,
             classes: Vec::new(),
+            grown_health: 0,
             lives: ROGUE_LIVES,
             last_settlement: None,
             best_rung: 0,
@@ -333,6 +341,31 @@ impl Run {
         let outcome = self.log.as_ref()?.outcome;
         self.settled = true;
 
+        // Whatever your gear grew, you keep - win or lose. The work was done
+        // either way, and a piece that only paid on a win would be worth
+        // nothing in the fights where you actually need it.
+        //
+        // A stalemate is the exception, and it has to be. Nothing banks more
+        // growth than surviving the full clock, so counting it would make
+        // failing to finish the most profitable thing a growing build could
+        // do - and the knock-back means it can be repeated for ever. A fight
+        // you did not finish leaves you nothing.
+        let grew: i32 = self
+            .log
+            .as_ref()
+            .filter(|l| l.outcome != Outcome::Stalemate)
+            .map(|l| {
+                l.entries
+                    .iter()
+                    .filter_map(|e| match e.event {
+                        Event::Grew { side: Side::Player, amount, .. } => Some(amount),
+                        _ => None,
+                    })
+                    .sum()
+            })
+            .unwrap_or(0);
+        self.grown_health += grew;
+
         let bounty = self.monster().bounty;
         self.gold += bounty;
 
@@ -439,6 +472,7 @@ impl Run {
         fresh.mode = mode;
         fresh.difficulty = self.difficulty;
         fresh.classes = Vec::new();
+        fresh.grown_health = 0;
         fresh.last_settlement = settlement;
         // The fight just watched stays on screen; the GUI is still replaying
         // it and needs somewhere to go back to.
@@ -1128,6 +1162,7 @@ impl Run {
     /// Base character stats plus every slot's contribution.
     pub fn player_stats(&self) -> Stats {
         let mut base = self.raw_player_stats();
+        base.health += self.grown_health;
         for c in &self.classes {
             if let crate::class::ClassPower::Standing(bonus) = c.power {
                 base += bonus;

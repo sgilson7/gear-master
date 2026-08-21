@@ -4565,6 +4565,8 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("LOCKED ITEM", "Shift-click a finished item to lock it. A locked item stops looking for other pieces to join, turns as one piece, and moves in and out of the inventory whole. Shift-click again to release it."),
     ("PINNED CARD", "Right-click a shop card to pin it. A reroll leaves pinned cards where they are, so you can hold something you cannot yet afford."),
     ("SPELL", "A weapon built the arcane way: a book or a crystal ball, ink, and the spell itself. It fills the weapon slot like any other item."),
+    ("GROWING", "A few pieces raise your maximum health every time they fire, and you keep it - the health won in one fight is health you start the next one with, for the rest of the run. That is what makes them the dearest things in the shop. A stalemate banks nothing: surviving the clock would otherwise be the most profitable thing you could do."),
+    ("STANDING ALONE", "Some gear multiplies every number on its item, but only while that item is alone - nothing else finished sharing its rows, or nothing overlapping it once the five grids are laid on top of one another. The multipliers are large and the conditions are easy to break by accident. That is the trade."),
     ("CASTING", "Every spell has two strengths. Paid for, it lands in full; with no mana to spend it still goes off, but at less than half. A build that runs dry gets weaker rather than stopping, so mana income is the difference between a spell that works and one that merely happens."),
     ("STUN", "Their gear stops dead. Not slowed - stopped, and a cooldown part-way through resumes from where it stood rather than starting over."),
     ("MISFIRE", "One activation in three does nothing at all. The cooldown comes round, and nothing comes of it."),
@@ -5918,7 +5920,15 @@ fn render_panel(
     ui_text("YOUR CHARACTER", x + 20.0, y, 14.0, col_dim());
     y += 22.0;
     for (label, value, color) in [
-        ("Health", format!("{}", stats.health), Color::from_rgba(120, 220, 150, 255)),
+        (
+            "Health",
+            if run.grown_health > 0 {
+                format!("{}  (+{} grown)", stats.health, run.grown_health)
+            } else {
+                format!("{}", stats.health)
+            },
+            Color::from_rgba(120, 220, 150, 255),
+        ),
         ("Strength", format!("{}", stats.strength), Color::from_rgba(240, 170, 120, 255)),
         ("Regen", format!("{}/turn", stats.regen), Color::from_rgba(140, 200, 240, 255)),
         (

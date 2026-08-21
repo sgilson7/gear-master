@@ -74,9 +74,15 @@ mod weight {
     pub const SPEED_PCT: f32 = 0.006;
 }
 
-/// How long a fight that goes somewhere lasts, in seconds. Only used to value
-/// growth, which is worth what it will have accumulated by the end.
-const TYPICAL_FIGHT_S: f32 = 20.0;
+/// How many seconds of growth a growing piece is rated for.
+///
+/// Not one fight's worth. What a growing piece banks it keeps for the whole
+/// run, so the health it wins in this fight is health you start the next one
+/// with - it compounds for as long as the run does. Three fights' worth is a
+/// deliberate understatement of that: enough to price these pieces as the
+/// strongest things a player can buy, without a single item running away with
+/// a scale that has to hold the rest of the catalogue too.
+const TYPICAL_FIGHT_S: f32 = 60.0;
 
 /// The rating a slot's best possible item is worth. Everything is expressed
 /// as a fraction of this, so the tiers mean the same thing in every slot.
@@ -217,11 +223,11 @@ fn action_points(a: &Action) -> f32 {
                 weight::CURSE_PS
             }
         }
-        // Growth is worth what it will have granted by the end of the fight.
-        // The caller turns this into a per-second figure, so multiplying by a
-        // fight length in seconds converts "health per activation" into "the
-        // flat health this will be worth" - which is the thing it should be
-        // compared against. Twenty seconds is a fight that goes somewhere.
+        // Growth is worth what it will have granted, and it is never given
+        // back. The caller turns this into a per-second figure, so multiplying
+        // by a span in seconds converts "health per activation" into "the flat
+        // health this will be worth" - which is the thing to compare it
+        // against.
         Action::Grow(n) => *n as f32 * weight::HEALTH * TYPICAL_FIGHT_S,
         Action::Damage { amount, target } => {
             let v = *amount as f32 * weight::DAMAGE_PS;

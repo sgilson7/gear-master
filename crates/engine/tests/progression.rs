@@ -2,6 +2,7 @@
 
 mod common;
 
+use common::equip;
 use gearmaster_engine::combat::{Outcome, LADDER};
 use gearmaster_engine::run::{Run, RuleError, STARTER_KIT};
 use gearmaster_engine::shop::{SHOP_SIZE, STARTING_GOLD};
@@ -953,4 +954,102 @@ fn prices_are_worth_something_against_the_purse() {
     assert!(p90 >= 25, "nine in ten pieces cost under {}g", p90);
     assert!(p50 <= 30, "even a middling piece costs {}g", p50);
     assert!(prices[0] >= 1, "nothing should be free");
+}
+
+// -------------------------------------------------------------- growth
+
+/// What a growing piece banks, it keeps. The health it wins in one fight is
+/// health you start the next with - that persistence is the whole reason the
+/// pieces cost what they do.
+#[test]
+fn growth_is_kept_between_fights() {
+    use gearmaster_engine::piece::SlotKind;
+
+    let mut run = Run::with_all_pieces();
+    // A weapon that grows every time it swings.
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Gluttonous Fang", SlotKind::Weapon, 1, 0);
+    assert_eq!(run.report(SlotKind::Weapon).assembled_count(), 1);
+
+    let before = run.player_stats().health;
+    assert_eq!(run.grown_health, 0, "nothing grown yet");
+
+    run.fight_next();
+    run.settle();
+    let after_one = run.grown_health;
+    assert!(after_one > 0, "the fang should have grown something");
+    assert_eq!(
+        run.player_stats().health,
+        before + after_one,
+        "and it should be on the character now"
+    );
+
+    // A second fight builds on the first rather than starting over.
+    run.back_to_loadout();
+    run.fight_next();
+    run.settle();
+    assert!(run.grown_health > after_one, "growth should compound across fights");
+}
+
+/// You keep it whether you won or not. The work was done either way, and a
+/// piece that only paid on a win would be worth nothing in the fights where
+/// you actually need it.
+#[test]
+fn growth_is_kept_after_a_loss_too() {
+    use gearmaster_engine::piece::SlotKind;
+
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Gluttonous Fang", SlotKind::Weapon, 1, 0);
+    // Far up the ladder, where this build has no chance.
+    run.rung = 40;
+
+    let log = run.fight_next();
+    assert_ne!(log.outcome, Outcome::Victory, "the fixture should be losing this");
+    run.settle();
+    assert!(run.grown_health > 0, "a loss still leaves what it grew");
+}
+
+/// A wiped Rogue run starts over in every sense, growth included.
+#[test]
+fn a_wipe_takes_the_growth_with_it() {
+    let mut run = Run::with_all_pieces();
+    run.grown_health = 900;
+    run.wipe();
+    assert_eq!(run.grown_health, 0);
+}
+
+/// Nothing banks more growth than surviving the full clock, so a stalemate
+/// would be the most profitable thing a growing build could do - and in
+/// Grinder the knock-back lets it be repeated for ever. A fight you did not
+/// finish leaves you nothing.
+#[test]
+fn a_stalemate_banks_no_growth() {
+    use gearmaster_engine::combat::{Event, Side};
+    use gearmaster_engine::piece::SlotKind;
+
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Gluttonous Fang", SlotKind::Weapon, 1, 0);
+
+    run.fight_next();
+    // The fixture has to actually grow, or this test proves nothing.
+    let grew = run
+        .log
+        .as_ref()
+        .map(|l| {
+            l.entries
+                .iter()
+                .filter(|e| matches!(e.event, Event::Grew { side: Side::Player, .. }))
+                .count()
+        })
+        .unwrap_or(0);
+    assert!(grew > 0, "the fang should have grown during the fight");
+
+    // Call it a draw and settle: the growth goes with it.
+    if let Some(l) = run.log.as_mut() {
+        l.outcome = Outcome::Stalemate;
+    }
+    run.settle();
+    assert_eq!(run.grown_health, 0, "an unfinished fight leaves nothing behind");
 }
