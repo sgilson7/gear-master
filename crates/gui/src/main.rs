@@ -3962,8 +3962,105 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("THE FOUNTAIN", "Not a fight, and not a rung: drinking costs you nothing and the creature standing there is still to be fought. It measures your gear along a set of axes - how much magic, how much iron, how fast, how woven together - and gives you the most demanding class you qualify for. The second fountain will not repeat the first."),
     // Last, so it lands on the last page. It is a control as well as a
     // definition; see SKIP_TERM.
-    (SKIP_TERM, "The road up the mountain, which most of us have walked more times than we care to count. Those who know it well are not made to walk it again: click these words and the next rung is behind you, its bounty paid in full, as though you had fought it and won. It keeps no quests. It asks no questions."),
+    (SKIP_TERM, "The road up the mountain, which most of us have walked more times than we care to count. Those who know it well are not made to walk it again: click these words and choose where to pick it up. Every rung on the way pays its bounty in full, as though each had been fought and won. It only runs upward. It keeps no quests. It asks no questions."),
 ];
+
+/// The ladder, as a list you can click. Opened from the glossary's one entry
+/// that is also a control.
+///
+/// Returns the rung chosen, and whether the picker should close.
+fn render_ladder_picker(run: &Run, page: usize, mx: f32, my: f32) -> (Option<usize>, bool, usize) {
+    let pad = 56.0;
+    let r = Rect::new(pad, pad, LOGICAL_W - 2.0 * pad, LOGICAL_H - 2.0 * pad);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 232));
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
+    ui_text("THE WORN PATH", r.x + 24.0, r.y + 38.0, 20.0, col_gold());
+    ui_text(
+        "Choose where to pick the road up. Every rung on the way pays its bounty, \
+         and none of them can be walked back down.",
+        r.x + 24.0,
+        r.y + 62.0,
+        13.0,
+        col_dim(),
+    );
+
+    let close = Rect::new(r.x + r.w - 140.0, r.y + 16.0, 120.0, 34.0);
+    button(close, "CLOSE", true, mx, my);
+
+    // Only what is ahead. Behind you is not a choice, it is a memory.
+    let ahead: Vec<usize> = (run.rung + 1..LADDER.len()).collect();
+    let cols = 4usize;
+    let gap = 16.0;
+    let cw = (r.w - 48.0 - (cols - 1) as f32 * gap) / cols as f32;
+    let rh = 46.0;
+    let top = r.y + 92.0;
+    let rows = (((r.y + r.h - 60.0) - top) / (rh + 8.0)) as usize;
+    let per_page = rows * cols;
+    let pages = ahead.len().div_ceil(per_page.max(1)).max(1);
+    let page = page.min(pages - 1);
+
+    let mut chosen = None;
+    for (i, &rung) in ahead.iter().skip(page * per_page).take(per_page).enumerate() {
+        let (cx, cy) = (i % cols, i / cols);
+        let cell = Rect::new(
+            r.x + 24.0 + cx as f32 * (cw + gap),
+            top + cy as f32 * (rh + 8.0),
+            cw,
+            rh,
+        );
+        let m = &LADDER[rung];
+        let hot = cell.contains(Vec2::new(mx, my));
+        // Everything up to and including this rung is paid on arrival, so the
+        // number shown is what taking it is actually worth.
+        let purse: i32 = (run.rung..rung).map(|i| LADDER[i].bounty).sum();
+        draw_rectangle(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { Color::from_rgba(52, 46, 30, 255) } else { Color::from_rgba(28, 28, 40, 255) },
+        );
+        draw_rectangle_lines(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            1.5,
+            if hot { col_gold() } else { Color::from_rgba(64, 64, 88, 255) },
+        );
+        let label = format!("{}. {}", rung + 1, m.name);
+        let size = fitting_size(&label, cell.w - 16.0, &[14.0, 13.0, 12.0, 11.0]);
+        draw_capped(&label, cell.x + 8.0, cell.y + 19.0, cell.w - 16.0, size, WHITE, 1);
+        ui_text(
+            &format!("{} hp  ·  {}g on the way", m.health, purse),
+            cell.x + 8.0,
+            cell.y + 36.0,
+            11.0,
+            col_dim(),
+        );
+        if hot && is_mouse_button_pressed(MouseButton::Left) {
+            chosen = Some(rung);
+        }
+    }
+
+    let next = Rect::new(r.x + r.w - 260.0, r.y + r.h - 46.0, 240.0, 34.0);
+    if pages > 1 {
+        ui_text(
+            &format!("page {} of {}", page + 1, pages),
+            r.x + 24.0,
+            r.y + r.h - 22.0,
+            14.0,
+            col_dim(),
+        );
+        button(next, if page + 1 < pages { "FURTHER UP" } else { "BACK TO THE START" }, true, mx, my);
+        if is_mouse_button_pressed(MouseButton::Left) && next.contains(Vec2::new(mx, my)) {
+            return (None, false, (page + 1) % pages);
+        }
+    }
+    let shut = is_mouse_button_pressed(MouseButton::Left) && close.contains(Vec2::new(mx, my));
+    (chosen, shut, page)
+}
 
 /// The glossary entry that is also a button.
 ///
@@ -5468,6 +5565,8 @@ async fn main() {
     // Kept between fights, and settable before one starts.
     let mut playback_speed = DEFAULT_SPEED;
     let mut glossary_open = std::env::var("GEARMASTER_GLOSSARY").is_ok();
+    let mut picker_open = std::env::var("GEARMASTER_PICKER").is_ok();
+    let mut picker_page: usize = 0;
     let mut glossary_tab: usize = std::env::var("GEARMASTER_GLOSSARY_TAB")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -5825,6 +5924,40 @@ async fn main() {
             }
         }
 
+        // The ladder picker sits over everything and eats input, the same way
+        // the glossary does.
+        if picker_open {
+            let (chosen, shut, page) = render_ladder_picker(&run, picker_page, mx, my);
+            picker_page = page;
+            if let Some(rung) = chosen {
+                let name = LADDER[rung].name;
+                message = match run.skip_to(rung) {
+                    Some(gold) => {
+                        picker_open = false;
+                        format!("The road is behind you. {} gold, and {} ahead.", gold, name)
+                    }
+                    None => "That is not up the mountain.".to_string(),
+                };
+            }
+            if shut || is_key_pressed(KeyCode::Escape) {
+                picker_open = false;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
+        }
+
         // The glossary sits over everything and eats input while open, so a
         // click meant for CLOSE never also lands on the board behind it.
         if glossary_open {
@@ -5842,17 +5975,13 @@ async fn main() {
             } else if click && g.pages > 1 && g.next.contains(Vec2::new(mx, my)) {
                 glossary_page = (glossary_page + 1) % g.pages;
             } else if click && g.skip.map_or(false, |r| r.contains(Vec2::new(mx, my))) {
-                // The one entry that does something. Closes the book, since
-                // the thing it changes is behind it.
-                let name = run.monster().name;
-                message = match run.skip_fight() {
-                    Some(gold) => {
-                        glossary_open = false;
-                        glossary_page = 0;
-                        format!("{} is behind you. {} gold, and no fight.", name, gold)
-                    }
-                    None => "Nothing left up there to skip.".to_string(),
-                };
+                // The one entry that does something. It opens the ladder
+                // rather than moving you: where to pick the road up is a
+                // decision, and taking one rung at a time was not offering it.
+                glossary_open = false;
+                glossary_page = 0;
+                picker_open = true;
+                picker_page = 0;
             }
             if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::G) {
                 glossary_open = false;

@@ -748,3 +748,45 @@ fn the_summit_stands_above_the_old_final_boss() {
         );
     }
 }
+
+/// Walking several rungs at once pays every one of them, so arriving at a rung
+/// by the worn path leaves the same purse as arriving by the long road.
+#[test]
+fn walking_the_worn_path_pays_every_rung_it_crosses() {
+    use gearmaster_engine::run::Run;
+    let mut run = Run::new();
+    let target = 6;
+    let owed: i32 = (0..target).map(|i| LADDER[i].bounty).sum();
+    let before = run.gold;
+
+    let paid = run.skip_to(target).expect("there is a road up");
+    assert_eq!(paid, owed, "every rung on the way pays");
+    assert_eq!(run.gold, before + owed);
+    assert_eq!(run.rung, target);
+    assert_eq!(run.wins, target as u32, "each one counts as cleared");
+}
+
+/// It only runs upward. A ladder that can be walked back down is not a ladder,
+/// and going down is what losing is for.
+#[test]
+fn the_worn_path_only_runs_upward() {
+    use gearmaster_engine::run::Run;
+    let mut run = Run::new();
+    run.skip_to(10).expect("up is fine");
+    let gold = run.gold;
+
+    assert!(run.skip_to(4).is_none(), "back down the mountain");
+    assert!(run.skip_to(10).is_none(), "standing still is not a journey");
+    assert_eq!(run.rung, 10, "and neither moved us");
+    assert_eq!(run.gold, gold, "nor paid us");
+}
+
+/// The top of the ladder is the top. There is nothing past Francis to walk to.
+#[test]
+fn the_worn_path_stops_at_francis() {
+    use gearmaster_engine::run::Run;
+    let mut run = Run::new();
+    assert!(run.skip_to(LADDER.len()).is_none(), "off the end of the world");
+    assert!(run.skip_to(LADDER.len() - 1).is_some(), "but Francis himself is reachable");
+    assert_eq!(run.rung, LADDER.len() - 1);
+}

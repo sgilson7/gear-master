@@ -380,19 +380,35 @@ impl Run {
     ///
     /// Returns the bounty, or `None` if there is nothing left to skip.
     pub fn skip_fight(&mut self) -> Option<i32> {
-        if self.phase != Phase::Loadout || self.rung + 1 >= LADDER.len() {
+        self.skip_to(self.rung + 1)
+    }
+
+    /// Walk up to `target` without fighting for any of it, paid as though every
+    /// rung on the way had been won.
+    ///
+    /// Only ever upwards: going back down is what losing is for, and a ladder
+    /// that can be walked in both directions is not a ladder. Every rung
+    /// crossed pays its own bounty, so arriving at rung twenty by this road
+    /// leaves the same purse as arriving by the long one.
+    ///
+    /// Returns the total paid, or `None` if there is nothing to walk to.
+    pub fn skip_to(&mut self, target: usize) -> Option<i32> {
+        if self.phase != Phase::Loadout || target <= self.rung || target >= LADDER.len() {
             return None;
         }
-        let bounty = self.monster().bounty;
-        self.gold += bounty;
-        self.wins += 1;
-        self.rung += 1;
+        let mut paid = 0;
+        while self.rung < target {
+            paid += self.monster().bounty;
+            self.wins += 1;
+            self.rung += 1;
+        }
+        self.gold += paid;
         self.best_rung = self.best_rung.max(self.rung);
         self.shop.restock(&mut self.rng);
         // Quests want a fight to have happened, so a skipped rung does not
         // advance them. Skipping past a quest is the cost of skipping.
         self.last_settlement = None;
-        Some(bounty)
+        Some(paid)
     }
 
     /// Throw the run away and start over, keeping only the mode. What a Rogue
