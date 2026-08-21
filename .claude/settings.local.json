@@ -75,7 +75,9 @@
       "Bash(grep -vE \"^$|Compiling|Finished|Running|warning\")",
       "Bash(grep -vE \"^$|Compiling|Finished|Running|^warning|-->|^\\\\s*\\\\||^\\\\s*=\")",
       "Bash(kill %1)",
-      "Bash(pkill -f \"packing.*balance_report\")"
+      "Bash(pkill -f \"packing.*balance_report\")",
+      "Bash(GEARMASTER_SHOT=/Users/samgilson/.claude/jobs/a7e69fbf/tmp/shop.png GEARMASTER_SHOT_FRAME=12 GEARMASTER_SKIP_INTRO=1 timeout 90 cargo run -p gearmaster-gui)",
+      "Bash(GEARMASTER_SHOT=/Users/samgilson/.claude/jobs/a7e69fbf/tmp/shop.png GEARMASTER_SHOT_FRAME=12 GEARMASTER_SKIP_INTRO=1 cargo run -p gearmaster-gui)"
     ]
   }
 }

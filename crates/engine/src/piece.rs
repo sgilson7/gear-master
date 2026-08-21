@@ -429,6 +429,19 @@ impl PieceDef {
             _ => false,
         }
     }
+
+    /// Does this component go in more than one grid?
+    ///
+    /// Such a piece has no slot of its own until it is put somewhere, which is
+    /// why it is drawn without a slot's colour until then.
+    pub fn shared(&self) -> bool {
+        SlotKind::ALL.iter().filter(|&&s| self.fits(s)).count() > 1
+    }
+
+    /// Every grid this component may go in, in slot order.
+    pub fn slots(&self) -> Vec<SlotKind> {
+        SlotKind::ALL.iter().copied().filter(|&s| self.fits(s)).collect()
+    }
 }
 
 /// What a slot's recipes demand, as `(kind, min, max)` counts per item. A slot

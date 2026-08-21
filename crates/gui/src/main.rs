@@ -727,6 +727,9 @@ enum Motif {
     Weave,
     /// The straps of a greave.
     Straps,
+    /// Not any one slot's mark: the piece fits more than one grid and has not
+    /// been put in either yet.
+    Shared,
 }
 
 fn slot_motif(slot: SlotKind) -> Motif {
@@ -737,6 +740,17 @@ fn slot_motif(slot: SlotKind) -> Motif {
         SlotKind::Gloves => Motif::Weave,
         SlotKind::Greaves => Motif::Straps,
     }
+}
+
+/// The grey a shared piece wears before it is placed, at the brightness its
+/// role calls for. Grey has no hue to carry a slot, which is the point - a
+/// steel material is not a glove or a greave until it is in one. Role
+/// brightness still reads, so the three-step role scale survives.
+fn unplaced_color(kind: PieceKind) -> Color {
+    // luminance() weights sum to 1, so a neutral grey's luminance is its own
+    // channel value and no bisection is needed.
+    let l = kind_luminance(kind);
+    Color::new(l, l, l, 1.0)
 }
 
 /// Stamp a slot's motif into one cell. Sized to still read at the 15px cells
@@ -995,9 +1009,11 @@ fn pool_color(which: &str) -> Color {
     }
 }
 
-fn draw_slot_motif(x: f32, y: f32, cell: f32, slot: SlotKind, ink: Color) {
+/// Stamp the mark for the grid a piece is sitting in, or the shared mark if it
+/// is not in one yet.
+fn draw_motif(x: f32, y: f32, cell: f32, motif: Motif, ink: Color) {
     let t = (cell * 0.11).max(1.5);
-    match slot_motif(slot) {
+    match motif {
         Motif::Diagonal => {
             draw_line(x + cell * 0.24, y + cell * 0.76, x + cell * 0.76, y + cell * 0.24, t, ink);
         }
@@ -1018,6 +1034,31 @@ fn draw_slot_motif(x: f32, y: f32, cell: f32, slot: SlotKind, ink: Color) {
                 draw_line(x + cell * col, y + cell * 0.22, x + cell * col, y + cell * 0.78, t, ink);
             }
         }
+        // A hollow diamond: no straight run and no filled centre, so it is not
+        // mistaken for any of the five slot marks at a 15px shop cell.
+        Motif::Shared => {
+            let (cx, cy, r) = (x + cell * 0.5, y + cell * 0.5, cell * 0.26);
+            let pts = [(cx, cy - r), (cx + r, cy), (cx, cy + r), (cx - r, cy)];
+            for i in 0..4 {
+                let (ax, ay) = pts[i];
+                let (bx, by) = pts[(i + 1) % 4];
+                draw_line(ax, ay, bx, by, t, ink);
+            }
+        }
+    }
+}
+
+/// The mark and fill a piece wears: its grid's if it is in one, the shared
+/// mark and no colour at all if it fits several and is in none.
+fn piece_look(def: &PieceDef, worn_in: Option<SlotKind>) -> (Color, Motif) {
+    match worn_in {
+        Some(slot) => (slot_color(slot, kind_luminance(def.kind)), slot_motif(slot)),
+        // A piece that only ever goes one place is drawn as that place even
+        // when it is loose - there is no ambiguity to represent.
+        None if !def.shared() => {
+            (slot_color(def.slot, kind_luminance(def.kind)), slot_motif(def.slot))
+        }
+        None => (unplaced_color(def.kind), Motif::Shared),
     }
 }
 
@@ -1170,13 +1211,14 @@ fn draw_shape(
     oy: f32,
     cell: f32,
     def: &PieceDef,
-    worn_in: SlotKind,
+    worn_in: Option<SlotKind>,
     alpha: f32,
 ) {
     // Materials and plating are shared between two grids, so a piece reads as
     // the slot it is actually in - a steel material in the greaves is greaves
-    // coloured, not gloves coloured.
-    let color = slot_color(worn_in, kind_luminance(def.kind));
+    // coloured, not gloves coloured. Before it is in either it wears no slot
+    // colour at all, because it does not belong to one yet.
+    let (color, motif) = piece_look(def, worn_in);
     let ink = motif_ink(color, alpha);
     let cells = shape.cells();
 
@@ -1186,7 +1228,7 @@ fn draw_shape(
         let x = ox + dx as f32 * cell;
         let y = oy + dy as f32 * cell;
         draw_rectangle(x, y, cell, cell, with_alpha(color, alpha));
-        draw_slot_motif(x, y, cell, worn_in, ink);
+        draw_motif(x, y, cell, motif, ink);
     }
 
     // Then trace the outside edge only. An edge is outside when the cell
@@ -1820,7 +1862,7 @@ fn render_slots(
             let def = run.registry.def(id);
             let shape = run.registry.shape(id);
             let (px, py) = view.cell_origin(ax, ay);
-            draw_shape(&shape, px, py, SLOT_CELL, def, view.kind, 1.0);
+            draw_shape(&shape, px, py, SLOT_CELL, def, Some(view.kind), 1.0);
 
             if let Some(&(dx, dy)) = shape.cells().first() {
                 let tx = px + dx as f32 * SLOT_CELL + SLOT_CELL / 2.0;
@@ -2055,7 +2097,7 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
             card.rect.y + 10.0 + (60.0 - sh) / 2.0,
             INV_CELL,
             def,
-            def.slot,
+            None,
             alpha,
         );
 
@@ -2189,7 +2231,7 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
             card.rect.y + 12.0 + (72.0 - sh) / 2.0,
             INV_CELL,
             def,
-            def.slot,
+            None,
             1.0,
         );
 
@@ -2756,7 +2798,7 @@ fn render_mini_board(
                 y0 + ay as f32 * MINI_CELL + dy,
                 MINI_CELL,
                 def,
-                kind,
+                Some(kind),
                 1.0,
             );
         }
@@ -3491,10 +3533,31 @@ fn draw_tile_legend(x: f32, y: f32, w: f32) -> f32 {
         let sx = x + i as f32 * step;
         let fill = slot_color(slot, 0.45);
         draw_rectangle(sx, ty, sample, sample, fill);
-        draw_slot_motif(sx, ty, sample, slot, motif_ink(fill, 1.0));
+        draw_motif(sx, ty, sample, slot_motif(slot), motif_ink(fill, 1.0));
         draw_rectangle_lines(sx, ty, sample, sample, 1.0, Color::from_rgba(0, 0, 0, 110));
         ui_text(slot.name(), sx + sample + 8.0, ty + 20.0, 13.0, LIGHTGRAY);
     }
+    ty += row_h;
+
+    // The shared mark, which is the absence of a slot rather than one of them.
+    let grey = unplaced_color(PieceKind::Plating);
+    draw_rectangle(x, ty, sample, sample, grey);
+    draw_motif(x, ty, sample, Motif::Shared, motif_ink(grey, 1.0));
+    draw_rectangle_lines(x, ty, sample, sample, 1.0, Color::from_rgba(0, 0, 0, 110));
+    ui_text(
+        "grey, no slot mark: fits more than one grid. It takes the colour and mark of",
+        x + sample + 8.0,
+        ty + 15.0,
+        12.0,
+        LIGHTGRAY,
+    );
+    ui_text(
+        "whichever grid you drop it into. Materials go in gloves or greaves, plating in helmets or greaves.",
+        x + sample + 8.0,
+        ty + 30.0,
+        12.0,
+        col_dim(),
+    );
     ty += row_h;
 
     // Corner marks, then what lightness means.
@@ -4789,11 +4852,13 @@ async fn main() {
                     }
                 }
             }
+            // A shared piece on the cursor is grey until it is over a grid that
+            // will take it, and takes that grid's colour and mark as it crosses
+            // in - which shows the rule without anywhere having to state it.
             let over = layout
                 .slot_hit(gx + SLOT_CELL * 0.5, gy + SLOT_CELL * 0.5)
                 .map(|(k, _, _)| k)
-                .filter(|k| def.fits(*k))
-                .unwrap_or(def.slot);
+                .filter(|k| def.fits(*k));
             draw_shape(&shape, gx, gy, SLOT_CELL, def, over, 0.92);
         }
 
@@ -5521,6 +5586,58 @@ mod tests {
                     lums
                 );
             }
+        }
+    }
+
+    #[test]
+    fn a_shared_piece_is_colourless_until_it_is_placed() {
+        use gearmaster_engine::piece::CATALOG;
+        let shared: Vec<&PieceDef> = CATALOG.iter().filter(|d| d.shared()).collect();
+        assert!(!shared.is_empty(), "no shared pieces to check");
+
+        for def in &shared {
+            // Loose: no slot's colour and no slot's mark.
+            let (c, m) = piece_look(def, None);
+            assert_eq!(m, Motif::Shared, "{} loose should wear the shared mark", def.name);
+            assert!(
+                (c.r - c.g).abs() < 0.001 && (c.g - c.b).abs() < 0.001,
+                "{} loose should be grey, got {:?}",
+                def.name,
+                c
+            );
+
+            // Placed: it takes the grid it is in, in every grid it can go.
+            for slot in def.slots() {
+                let (c, m) = piece_look(def, Some(slot));
+                assert_eq!(m, slot_motif(slot), "{} in {:?}", def.name, slot);
+                assert_eq!(c, slot_color(slot, kind_luminance(def.kind)), "{}", def.name);
+            }
+        }
+    }
+
+    #[test]
+    fn a_piece_that_goes_one_place_looks_the_same_loose_or_placed() {
+        // Only ambiguity gets greyed out. Everything else would just be losing
+        // information for no reason.
+        use gearmaster_engine::piece::CATALOG;
+        for def in CATALOG.iter().filter(|d| !d.shared()) {
+            assert_eq!(piece_look(def, None), piece_look(def, Some(def.slot)), "{}", def.name);
+        }
+    }
+
+    #[test]
+    fn the_shared_grey_keeps_the_roles_apart_in_greyscale() {
+        let roles = [PieceKind::Handle, PieceKind::Damaging, PieceKind::Accessory];
+        let lums: Vec<f32> = roles.iter().map(|&k| luminance(unplaced_color(k))).collect();
+        for w in lums.windows(2) {
+            assert!(w[1] - w[0] > 0.08, "shared greys only {:.3} apart ({:?})", w[1] - w[0], lums);
+        }
+    }
+
+    #[test]
+    fn the_shared_mark_is_not_one_of_the_slot_marks() {
+        for slot in SlotKind::ALL {
+            assert_ne!(slot_motif(slot), Motif::Shared);
         }
     }
 
