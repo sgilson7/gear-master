@@ -40,6 +40,18 @@ pub struct Theme {
     pub monsters: &'static [(&'static str, &'static str)],
     /// Any other string in the interface, keyed by a short slug. See `word`.
     pub words: &'static [(&'static str, &'static str)],
+    /// Whole words to swap inside prose the engine wrote - log lines, stat
+    /// summaries, glossary definitions. Matched case-insensitively on whole
+    /// words only, so "mana" becomes "Funny" and "manacle" is left alone.
+    ///
+    /// This is a translation of the engine's output rather than a change to
+    /// it: the engine still says "mana" everywhere, because everything it
+    /// decides depends on that word meaning one thing.
+    pub vocabulary: &'static [(&'static str, &'static str)],
+    /// Glossary entries this theme replaces or adds, as
+    /// `(term to replace, new term, new definition)`. An empty first field
+    /// adds an entry the plain game does not have.
+    pub glossary: &'static [(&'static str, &'static str, &'static str)],
 }
 
 impl Theme {
@@ -56,6 +68,61 @@ impl Theme {
     /// The same for a creature on the ladder.
     pub fn monster(&'static self, canonical: &'static str) -> &'static str {
         lookup(self, Table::Monsters, canonical).unwrap_or(canonical)
+    }
+
+    /// Re-tell a sentence the engine wrote in this theme's words.
+    ///
+    /// Whole words only, and the original's capitalisation is kept: "Mana" in
+    /// mid-sentence comes back "Funny", "mana" comes back "funny". Returns the
+    /// input untouched when the theme has no vocabulary, so the plain game
+    /// pays nothing for this.
+    pub fn retell(&'static self, prose: &str) -> String {
+        if self.vocabulary.is_empty() {
+            return prose.to_string();
+        }
+        let mut out = String::with_capacity(prose.len() + 16);
+        let mut word = String::new();
+        let flush = |word: &mut String, out: &mut String, this: &'static Theme| {
+            if word.is_empty() {
+                return;
+            }
+            let lower = word.to_lowercase();
+            match this.vocabulary.iter().find(|(from, _)| *from == lower) {
+                Some((_, to)) => {
+                    // Follow the original's case so a replacement mid-sentence
+                    // does not shout.
+                    let starts_upper = word.chars().next().is_some_and(|c| c.is_uppercase());
+                    if starts_upper {
+                        out.push_str(to);
+                    } else {
+                        out.push_str(&to.to_lowercase());
+                    }
+                }
+                None => out.push_str(word),
+            }
+            word.clear();
+        };
+        for ch in prose.chars() {
+            if ch.is_alphanumeric() || ch == '\'' {
+                word.push(ch);
+            } else {
+                flush(&mut word, &mut out, self);
+                out.push(ch);
+            }
+        }
+        flush(&mut word, &mut out, self);
+        out
+    }
+
+    /// What this theme calls a glossary entry, and what it says about it.
+    /// `None` when the theme leaves that entry alone.
+    pub fn glossary_entry(&'static self, term: &str) -> Option<(&'static str, &'static str)> {
+        self.glossary.iter().find(|(from, ..)| *from == term).map(|(_, t, d)| (*t, *d))
+    }
+
+    /// Entries this theme adds that the plain game has no equivalent for.
+    pub fn extra_glossary(&'static self) -> impl Iterator<Item = (&'static str, &'static str)> {
+        self.glossary.iter().filter(|(from, ..)| from.is_empty()).map(|(_, t, d)| (*t, *d))
     }
 
     /// An interface string by slug - "gold", "shop", "mana" and so on. Falls
@@ -116,6 +183,8 @@ pub static PLAIN: Theme = Theme {
     pieces: &[],
     monsters: &[],
     words: &[],
+    vocabulary: &[],
+    glossary: &[],
 };
 
 pub static TURTLE_DICK: Theme = Theme {
@@ -607,6 +676,97 @@ pub static TURTLE_DICK: Theme = Theme {
         ("faith", "Devotion"),
         ("nature", "Harvest"),
     ],
+    // Whole words swapped inside anything the engine wrote. The engine still
+    // says "mana" everywhere - every rule it applies depends on that word
+    // meaning exactly one thing - and this translates the output.
+    vocabulary: &[
+        ("mana", "Funny"),
+        ("armor", "Cork"),
+        ("armour", "Cork"),
+        ("rage", "Fury"),
+        ("faith", "Devotion"),
+        ("nature", "Harvest"),
+        ("gold", "Fnorp"),
+        ("searing", "roasting"),
+        ("frost", "nut-freeze"),
+        ("stun", "trance"),
+        ("misfire", "goof"),
+        ("misfires", "goofs"),
+        ("mind", "idiot"),
+    ],
+    glossary: &[
+        (
+            "MANA",
+            "THE FUNNY",
+            "What goofs cost. The Funny is comedic energy: a banana peel, a pie, an anvil on \
+             your own foot. Items that spend it fail politely when you are out, and a spell \
+             cast without it still goes off - just weakly. Low-level Funny Men's goofs often \
+             go horribly wrong. Yours will not, because you read the jokebook.",
+        ),
+        (
+            "ARMOR",
+            "CORK",
+            "Temporary hit points. Starts every fight at ZERO - your gear lays it on as it \
+             activates - and soaks damage before health does. C O R K grows to encompass \
+             whole planes; a layer of it will do for one fight.",
+        ),
+        (
+            "RAGE",
+            "FURY",
+            "Banked by some gear. Every point adds physical damage while you hold it, and \
+             some triggers spend it for a burst. The fury of a thousand bears, kept in a jar.",
+        ),
+        (
+            "FAITH",
+            "DEVOTION",
+            "Banked slowly. Every point adds resistance of both types while held, up to 40%. \
+             The Francians managed eight hymns about it.",
+        ),
+        (
+            "NATURE",
+            "HARVEST",
+            "Banked by growing things. Every point adds regeneration while held. A billion \
+             acres of rice, working quietly on your behalf.",
+        ),
+        (
+            "MIND DAMAGE",
+            "IDIOT MODE",
+            "Small numbers, but it eats your MAXIMUM health, so no amount of regeneration \
+             wins it back. Some stories are foolish enough that hearing them takes something \
+             from you permanently.",
+        ),
+        (
+            "MIND RESIST",
+            "THICK SKULL",
+            "Percent reduction to Idiot Mode. Survivable, given a thick enough one.",
+        ),
+        (
+            "BOUNTY",
+            "BOUNTY",
+            "Paid in Fnorp whether you win or lose. Losing never moves you up the road, but \
+             it does pay - a run with no income cannot buy its way past whatever just beat it.",
+        ),
+        (
+            "",
+            "THE WORM FACT",
+            "LETO sits on the flesh Throne and is Death, and the Worm Fact remains law. He is \
+             not the last thing on this road, which should tell you something about the last \
+             thing on this road.",
+        ),
+        (
+            "",
+            "SPROCKETMEN",
+            "Gear-folk of the Great Gear Cave in west Bambulon, suffocated out of it by Lord \
+             Drabley Henpeck when he found the Deep Chocolate underneath. They glow when they \
+             have something to be joyous about. There has not been much call for it lately.",
+        ),
+        (
+            "",
+            "FNORP",
+            "Money. The going rate on an Lxirp Strangler Beast is a hundred and twenty-five \
+             billion of them, so the numbers here are modest by comparison.",
+        ),
+    ],
 };
 
 /// The book's words, for the item-name generator. Every entry is a proper
@@ -880,6 +1040,53 @@ mod tests {
         for t in THEMES {
             for (slug, value) in t.words {
                 assert!(!slug.is_empty() && !value.is_empty(), "{} has an empty entry", t.id);
+            }
+        }
+    }
+
+    /// Whole words only. The failure this guards against is a substring
+    /// match turning "manacle" into "Funnycle" and "armoury" into "Corky".
+    #[test]
+    fn retelling_only_replaces_whole_words() {
+        let t = &TURTLE_DICK;
+        // Lower in, lower out - the case rule applies here too.
+        assert_eq!(t.retell("mana"), "funny");
+        assert_eq!(t.retell("manacle"), "manacle");
+        assert_eq!(t.retell("armoury"), "armoury");
+        assert_eq!(t.retell("2 mana a second"), "2 funny a second");
+        assert_eq!(t.retell("gains 12 armor (12)"), "gains 12 cork (12)");
+    }
+
+    /// The original's capitalisation is kept, so a replacement mid-sentence
+    /// does not shout and one at the start is not lowercased.
+    #[test]
+    fn retelling_follows_the_case_it_found() {
+        let t = &TURTLE_DICK;
+        assert_eq!(t.retell("Mana is spent"), "Funny is spent");
+        assert_eq!(t.retell("spends mana"), "spends funny");
+        assert_eq!(t.retell("ARMOR"), "Cork");
+    }
+
+    /// The plain theme has no vocabulary, so it hands prose straight back -
+    /// the untranslated game pays nothing for this existing.
+    #[test]
+    fn the_plain_theme_leaves_prose_alone() {
+        let long = "on activation, spend 3 faith: if it works, gain 30 armor";
+        assert_eq!(PLAIN.retell(long), long);
+    }
+
+    /// A glossary entry a theme replaces must name one that exists, or it
+    /// silently becomes an addition nobody asked for.
+    #[test]
+    fn every_replaced_glossary_entry_replaces_something() {
+        // The interface owns the plain glossary, so this checks the shape of
+        // the table rather than the terms themselves: a replacement names a
+        // term, an addition names none.
+        for t in THEMES {
+            for (from, term, def) in t.glossary {
+                assert!(!term.is_empty(), "{}: an entry with no term", t.id);
+                assert!(!def.is_empty(), "{}: {:?} has no definition", t.id, term);
+                let _ = from;
             }
         }
     }

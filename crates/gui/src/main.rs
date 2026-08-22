@@ -378,6 +378,12 @@ mod words {
     pub fn word(slug: &str, plain: &'static str) -> &'static str {
         current().word(slug, plain)
     }
+
+    /// Re-tell prose the engine wrote. Whole words only; the plain theme has
+    /// no vocabulary and hands the string straight back.
+    pub fn retell(prose: &str) -> String {
+        current().retell(prose)
+    }
 }
 
 // ============================================================= creatures
@@ -2439,7 +2445,7 @@ impl Playback {
             Event::Fell { .. } => {}
             Event::End { .. } => self.done = true,
         }
-        self.lines.push(log.describe(entry));
+        self.lines.push(words::retell(&log.describe(entry)));
     }
 
     /// Advance to whatever beat playback time has reached.
@@ -3201,6 +3207,8 @@ fn render_def_tooltip_inner(
     mx: f32,
     my: f32,
 ) {
+    // Collected plainly and re-told once at the end - the same treatment the
+    // item card gets, and for the same reason.
     let mut lines: Vec<(String, Color)> = Vec::new();
     if let Some(n) = item_name {
         lines.push((n.to_string(), col_gold()));
@@ -3307,13 +3315,18 @@ fn render_def_tooltip_inner(
         for l in wrap(&q.track.describe(q.goal), 46) {
             lines.push((format!("  {}", l), Color::from_rgba(150, 220, 190, 255)));
         }
-        lines.push((format!("  then it becomes {}", q.becomes), col_gold()));
+        lines.push((format!("  then it becomes {}", words::piece(q.becomes)), col_gold()));
         lines.push(("  only counts while assembled".to_string(), col_dim()));
     }
     lines.push((
         format!("{} {}", shop_price(def), words::word("gold-lower", "gold")),
         col_gold(),
     ));
+    // Re-told once, now the whole card is collected. The piece's own name went
+    // through the theme when it was pushed; this catches everything the engine
+    // wrote about it.
+    let lines: Vec<(String, Color)> =
+        lines.into_iter().map(|(s, c)| (words::retell(&s), c)).collect();
 
     let w = lines
         .iter()
@@ -4102,6 +4115,13 @@ fn render_item_summary(p: &ItemProfile, run: &Run, mx: f32, my: f32) {
 /// The body of that card, so the loadout screen can show the same thing in a
 /// hover of its own rather than keeping a second, worse description in sync.
 fn item_summary_lines(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> {
+    // Everything this card says is the engine's vocabulary, so the whole
+    // thing is re-told at the end rather than word by word as it is built.
+    let lines = item_summary_lines_plain(p, run);
+    lines.into_iter().map(|(s, c)| (words::retell(&s), c)).collect()
+}
+
+fn item_summary_lines_plain(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> {
     let total = run.player_stats();
     let st = p.stats;
     let mut lines: Vec<(String, Color)> = vec![
@@ -4575,7 +4595,7 @@ fn render_log_overlay(pb: &Playback, log: &CombatLog) {
             _ => (18.0, Color::from_rgba(170, 172, 192, 255)),
         };
         ui_text(
-            &log.describe(e),
+            &words::retell(&log.describe(e)),
             r.x + 16.0 + indent,
             list_top + lh + i as f32 * lh,
             13.0,
@@ -4725,7 +4745,7 @@ fn render_fountain(run: &Run, mx: f32, my: f32) -> Option<&'static gearmaster_en
         let size = fitting_size(c.name, cell.w - 28.0, &[22.0, 20.0, 18.0, 16.0]);
         ui_text(c.name, cell.x + 14.0, y, size, col_gold());
         y += 24.0;
-        for l in wrap_px(c.blurb, cell.w - 28.0, 13.0) {
+        for l in wrap_px(&words::retell(c.blurb), cell.w - 28.0, 13.0) {
             ui_text(&l, cell.x + 14.0, y, 13.0, Color::from_rgba(198, 200, 218, 255));
             y += 16.0;
         }
@@ -4736,7 +4756,7 @@ fn render_fountain(run: &Run, mx: f32, my: f32) -> Option<&'static gearmaster_en
         for &(axis, need) in c.requires {
             let have = fp.get(axis);
             ui_text(
-                &format!("{} {}/{}", axis.name(), have, need),
+                &format!("{} {}/{}", words::retell(&axis.name()), have, need),
                 cell.x + 14.0,
                 y,
                 12.0,
@@ -4749,7 +4769,7 @@ fn render_fountain(run: &Run, mx: f32, my: f32) -> Option<&'static gearmaster_en
             y += 15.0;
         }
         y += 10.0;
-        for l in wrap_px(&c.power.describe(), cell.w - 28.0, 12.0) {
+        for l in wrap_px(&words::retell(&c.power.describe()), cell.w - 28.0, 12.0) {
             ui_text(&l, cell.x + 14.0, y, 12.0, col_ok());
             y += 15.0;
         }
@@ -4876,6 +4896,20 @@ const SKIP_TERM: &str = "THE WORN PATH";
 /// Without this the motifs are only learnable by association, which is fine
 /// on the loadout boards - each is under a labelled column - but not on a
 /// shop card, where a shape appears with no slot named anywhere near it.
+/// The legend's height, drawing it only when asked.
+///
+/// The page count needs to know how tall it is even on pages that do not show
+/// it, so measuring and drawing have to come apart.
+fn draw_tile_legend_maybe(r: Rect, draw: bool) -> f32 {
+    if draw {
+        draw_tile_legend(r.x + 24.0, r.y + 86.0, r.w - 48.0)
+    } else {
+        // Same arithmetic, off-screen, so the number matches what page one
+        // would actually reserve.
+        draw_tile_legend(r.x + 24.0, -10_000.0, r.w - 48.0)
+    }
+}
+
 fn draw_tile_legend(x: f32, y: f32, w: f32) -> f32 {
     let sample = 30.0;
     let row_h = 44.0;
@@ -5431,9 +5465,13 @@ fn render_glossary(tab: usize, page: usize, mx: f32, my: f32) -> GlossaryHit {
     }
 
     // The tile legend only belongs on the first page.
-    let legend_h = if page == 0 { draw_tile_legend(r.x + 24.0, r.y + 86.0, r.w - 48.0) } else { 0.0 };
-
-    let top = r.y + 96.0 + legend_h;
+    // The tile legend only belongs on the first page - but it takes vertical
+    // room, and the page *count* has to know that. Measuring it on whichever
+    // page happens to be open and applying that height to every page is what
+    // made the footer read "page 7 of 6": page one counted as though every
+    // page were short, page seven as though none were.
+    let legend_h = draw_tile_legend_maybe(r, page == 0);
+    let top_of = |p: usize| r.y + 96.0 + if p == 0 { legend_h } else { 0.0 };
     let bottom = r.y + r.h - 54.0;
     let gap = 24.0;
     let cols = 4usize;
@@ -5444,21 +5482,34 @@ fn render_glossary(tab: usize, page: usize, mx: f32, my: f32) -> GlossaryHit {
     // Walk the whole list, laying it out page by page, and only draw the one
     // asked for. Cheap enough at this size, and it means the page count and
     // the layout can never disagree.
+    // The glossary in this theme's words: entries it replaces are swapped,
+    // entries it adds come last, and everything else has its definition
+    // re-told. Built once here rather than at each of the three places below
+    // that walk it.
+    let entries: Vec<(&str, String)> = GLOSSARY
+        .iter()
+        .map(|(term, meaning)| match words::current().glossary_entry(term) {
+            Some((t, d)) => (t, d.to_string()),
+            None => (*term, words::retell(meaning)),
+        })
+        .chain(words::current().extra_glossary().map(|(t, d)| (t, d.to_string())))
+        .collect();
+
     let mut at = 0usize;
     let mut this_page = 0usize;
     let mut col = 0usize;
-    let mut y = top;
+    let mut y = top_of(0);
     let mut pages = 1usize;
     let mut start_of_page = 0usize;
     let mut skip_hot: Option<Rect> = None;
-    while at < GLOSSARY.len() {
-        let (term, meaning) = GLOSSARY[at];
+    while at < entries.len() {
+        let (term, meaning) = (&entries[at].0, &entries[at].1);
         let lines = wrap_px(meaning, col_w - 16.0, size);
         let needed = lh * (1.0 + lines.len() as f32) + 10.0;
         if y + needed > bottom {
             if col + 1 < cols {
                 col += 1;
-                y = top;
+                y = top_of(this_page);
             } else {
                 // Page full.
                 if this_page == page {
@@ -5467,7 +5518,7 @@ fn render_glossary(tab: usize, page: usize, mx: f32, my: f32) -> GlossaryHit {
                 this_page += 1;
                 pages += 1;
                 col = 0;
-                y = top;
+                y = top_of(this_page);
                 start_of_page = at;
                 continue;
             }
@@ -5477,7 +5528,7 @@ fn render_glossary(tab: usize, page: usize, mx: f32, my: f32) -> GlossaryHit {
             // One entry is a control as well as a definition. It is not marked
             // as one - finding it is the point - but it does light up under
             // the cursor, so nobody has to click every word to be sure.
-            let is_skip = term == SKIP_TERM;
+            let is_skip = *term == SKIP_TERM;
             let hot = is_skip
                 && Rect::new(x, y - lh, col_w, lh * (1.0 + lines.len() as f32))
                     .contains(Vec2::new(mx, my));
@@ -5508,20 +5559,22 @@ fn render_glossary(tab: usize, page: usize, mx: f32, my: f32) -> GlossaryHit {
         at += 1;
     }
     // Finish counting pages even after the drawn one ends.
-    if at < GLOSSARY.len() {
+    if at < entries.len() {
         let mut c = col;
         let mut yy = y;
-        for i in at..GLOSSARY.len() {
+        let mut p = this_page;
+        for i in at..entries.len() {
             let needed =
-                lh * (1.0 + wrap_px(GLOSSARY[i].1, col_w - 16.0, size).len() as f32) + 10.0;
+                lh * (1.0 + wrap_px(&entries[i].1, col_w - 16.0, size).len() as f32) + 10.0;
             if yy + needed > bottom {
                 if c + 1 < cols {
                     c += 1;
-                    yy = top;
+                    yy = top_of(p);
                 } else {
                     pages += 1;
+                    p += 1;
                     c = 0;
-                    yy = top;
+                    yy = top_of(p);
                 }
             }
             yy += needed;
@@ -5597,7 +5650,7 @@ fn render_class_pages(r: Rect, page: usize, _mx: f32, _my: f32) -> usize {
             let x = r.x + 24.0 + col as f32 * (col_w + gap);
             ui_text(c.name, x, y, 16.0, col_gold());
             y += 20.0;
-            for l in wrap_px(c.blurb, col_w - 12.0, 12.0) {
+            for l in wrap_px(&words::retell(c.blurb), col_w - 12.0, 12.0) {
                 ui_text(&l, x + 8.0, y, 12.0, Color::from_rgba(198, 200, 218, 255));
                 y += 15.0;
             }
@@ -5608,7 +5661,7 @@ fn render_class_pages(r: Rect, page: usize, _mx: f32, _my: f32) -> usize {
             } else {
                 for &(axis, need) in c.requires {
                     ui_text(
-                        &format!("{} {}+", axis.name(), need),
+                        &format!("{} {}+", words::retell(&axis.name()), need),
                         x + 8.0,
                         y,
                         12.0,
@@ -5618,7 +5671,7 @@ fn render_class_pages(r: Rect, page: usize, _mx: f32, _my: f32) -> usize {
                 }
             }
             y += 4.0;
-            for l in wrap_px(&c.power.describe(), col_w - 12.0, 12.0) {
+            for l in wrap_px(&words::retell(&c.power.describe()), col_w - 12.0, 12.0) {
                 ui_text(&l, x + 8.0, y, 12.0, col_ok());
                 y += 15.0;
             }
@@ -5943,6 +5996,7 @@ fn render_class_card(run: &Run, mx: f32, my: f32) {
         let p = point(i, 1.0);
         let dx = p.x - cx;
         let label = format!("{} {}", tag, fp.get(axis));
+        let label = words::retell(&label);
         let tw = text_width(&label, 12.0);
         let lx = if dx.abs() < 6.0 {
             p.x - tw / 2.0
@@ -5973,7 +6027,7 @@ fn render_class_card(run: &Run, mx: f32, my: f32) {
         (Axis::Growth, "nature"),
     ];
     let line: Vec<String> =
-        pools.iter().map(|&(a, n)| format!("{} {}", n, fp.get(a))).collect();
+        pools.iter().map(|&(a, n)| format!("{} {}", words::retell(n), fp.get(a))).collect();
     ui_text(&line.join("   "), x + 16.0, ty, 12.0, col_dim());
     ty += 16.0;
     let more = format!(
@@ -5997,7 +6051,7 @@ fn render_class_card(run: &Run, mx: f32, my: f32) {
     for c in &shown {
         ui_text(c.name, x + 16.0, ty, 17.0, col_gold());
         ty += 18.0;
-        let d = c.power.describe();
+        let d = words::retell(&c.power.describe());
         for l in wrap_px(&d, w - 40.0, 12.0).into_iter().take(4) {
             ui_text(&l, x + 22.0, ty, 12.0, LIGHTGRAY);
             ty += 14.0;
@@ -6228,7 +6282,7 @@ fn render_panel(
         hover.over(row, mx, my, || {
             let mut lines =
                 vec![(format!("{}  -  {}", r.slot.name(), r.summary()), WHITE)];
-            let contrib = r.stats.summary();
+            let contrib = words::retell(&r.stats.summary());
             if !contrib.is_empty() {
                 for l in wrap_px(&contrib, 380.0, 14.0) {
                     lines.push((l, LIGHTGRAY));
@@ -6302,7 +6356,7 @@ fn render_panel(
             // The band is pinned, so the text shrinks to fit rather than being
             // cut off - a power whose description is a word longer than the
             // last one must not silently lose its ending.
-            let text = c.power.short();
+            let text = words::retell(&c.power.short());
             let size = fitting_size(&text, PANEL_W - 48.0, &[13.0, 12.0, 11.0, 10.0]);
             draw_capped(&text, x + 24.0, y, PANEL_W - 48.0, size, LIGHTGRAY, 1);
             y += 18.0;
@@ -7294,7 +7348,7 @@ async fn main() {
                                         "{}: {}  {}",
                                         kind.name(),
                                         r.summary(),
-                                        r.stats.summary()
+                                        words::retell(&r.stats.summary())
                                     );
                                     true
                                 }
