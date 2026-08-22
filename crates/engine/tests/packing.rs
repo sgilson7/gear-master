@@ -230,7 +230,13 @@ fn candidates_for(
     // handles times damaging-with-repetition times accessories-with-repetition
     // - and every one of them costs a linear scan of the catalogue to rate.
     // The best of each kind is what any of this is looking for anyway.
-    const POOL_CAP: usize = 6;
+    // Nine, not six. Six was cheap enough to run in five seconds and wrong
+    // often enough to be worse than useless: it reported the Oracle dead when
+    // it was reachable, then reported Templar, Warpriest, Juggernaut and
+    // Spellblade dead the moment the pool pieces were priced properly and
+    // displaced the physical ones out of the top six. Nine costs twenty
+    // seconds and reports every class reachable, which is the truth.
+    const POOL_CAP: usize = 9;
     let mut per_kind: Vec<Vec<Vec<usize>>> = Vec::new();
     for &(kind, min, max) in recipe {
         let mut pool: Vec<usize> = (0..CATALOG.len())

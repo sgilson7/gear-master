@@ -54,8 +54,35 @@ mod weight {
     pub const ARMOR_PS: f32 = 1.5;
     pub const MANA_PS: f32 = 4.0;
     /// Rage, faith and nature are banked the same way mana is and, like mana,
-    /// pay out while merely held. Worth the same per point.
+    /// pay out while merely held. Worth the same per point when spent.
     pub const RESOURCE_PS: f32 = 4.0;
+    /// What one point of a banked pool is worth for the time you sit on it,
+    /// before anything spends it.
+    ///
+    /// This was missing entirely, and it is most of what these pools are: a
+    /// point of faith is a point of both resistances for the rest of the
+    /// fight, a point of nature is a point of regeneration, a point of rage is
+    /// a point on every physical swing. Leaving it out priced every pool
+    /// piece in the game at nearly nothing - every faith-carrying component
+    /// rated between 0 and 13, which put all of them outside the top of their
+    /// own bucket and made two classes look unreachable.
+    ///
+    /// Held against the naive figure: a pool climbs all fight, so the average
+    /// holding is about half the total banked, and triggers spend some of it
+    /// back down. A quarter of the accumulation is the honest discount.
+    pub const HELD_SHARE: f32 = 0.25;
+    /// Faith is a point of each resistance; nature a point of regen; rage a
+    /// point on every swing. Averaged, since a piece grants one pool and the
+    /// rating is one number.
+    pub const HELD_PER_POINT: f32 = 2.6;
+    /// Hundredths of weapon power that apply to this item alone.
+    ///
+    /// Worth less than the wearer's own `POWER`, which multiplies everything
+    /// they hold - but not much less on the piece that carries the payload,
+    /// which for a caster is the whole item. This was not scored at all, so
+    /// every ink in the game was priced as though it were blank while being
+    /// the largest damage multiplier available.
+    pub const POWER_BONUS: f32 = 0.30;
     /// Mind damage eats maximum health, which regen can never win back.
     pub const MIND_PS: f32 = 7.0;
 
@@ -212,6 +239,17 @@ fn activated_points(s: &Stats, rate: f32) -> f32 {
         * rate
 }
 
+/// What the pools a piece banks are worth for the time you hold them.
+///
+/// Distinct from `activated_points`, which prices the same points for being
+/// spent. A pool is both: you bank it, it works for you while it sits there,
+/// and then a trigger spends it. Scoring only the spending is what made every
+/// faith piece in the catalogue rate near zero.
+fn held_points(s: &Stats, rate: f32) -> f32 {
+    let banked_per_fight = (s.rage + s.faith + s.nature) as f32 * rate * TYPICAL_FIGHT_S;
+    banked_per_fight * weight::HELD_SHARE * weight::HELD_PER_POINT
+}
+
 /// What one action is worth each time it happens.
 fn action_points(a: &Action) -> f32 {
     match a {
@@ -339,7 +377,10 @@ fn piece_points(def: &PieceDef, cooldown_ms: u32) -> f32 {
     let cd = if cooldown_ms == 0 { default_cooldown_ms(def.slot) } else { cooldown_ms };
     let rate = 1000.0 / cd.max(1) as f32;
 
-    let mut points = standing_points(&def.base) + activated_points(&def.base, rate);
+    let mut points = standing_points(&def.base)
+        + activated_points(&def.base, rate)
+        + held_points(&def.base, rate)
+        + def.power_bonus as f32 * weight::POWER_BONUS;
     if let Some(adj) = def.adjacency {
         points += adjacency_points(&adj, rate);
     }
@@ -520,6 +561,50 @@ mod tests {
                 FULL_MARKS
             );
         }
+    }
+
+    /// An ink is the largest damage multiplier in the game - 90 to 240
+    /// hundredths of weapon power on the item it is bound into - and for a
+    /// long time the scale could not see it at all, so every ink was priced
+    /// as though it were a blank page.
+    #[test]
+    fn a_piece_that_multiplies_an_item_is_not_priced_as_a_blank_one() {
+        use crate::piece::PieceKind;
+        for kind in [PieceKind::Ink, PieceKind::Orb, PieceKind::Alignment] {
+            let cheapest = CATALOG
+                .iter()
+                .filter(|d| d.kind == kind && !crate::piece::is_boss_only(d.name))
+                .map(shop_price)
+                .min()
+                .expect("the catalogue has these");
+            assert!(
+                cheapest >= 4,
+                "{:?} start at {}g, which is what a piece that does nothing costs",
+                kind,
+                cheapest
+            );
+        }
+    }
+
+    /// A banked pool is worth two things: what it buys when a trigger spends
+    /// it, and what it does for the whole fight while it sits there - a point
+    /// of faith is a point of both resistances, a point of nature a point of
+    /// regeneration. Only the first was ever scored, which rated every
+    /// faith-carrying component in the game between 0 and 13 and put all of
+    /// them outside the top of their own bucket.
+    #[test]
+    fn banked_pools_are_worth_holding_not_only_spending() {
+        let best_faith = CATALOG
+            .iter()
+            .filter(|d| d.base.faith > 0 && !crate::piece::is_boss_only(d.name))
+            .map(piece_rating)
+            .max()
+            .expect("faith pieces exist");
+        assert!(
+            best_faith >= 25,
+            "the best faith piece in the game rates {}, which is noise",
+            best_faith
+        );
     }
 
     #[test]
