@@ -38,6 +38,10 @@ pub struct Theme {
     pub pieces: &'static [(&'static str, &'static str)],
     /// Canonical monster name -> the name to show.
     pub monsters: &'static [(&'static str, &'static str)],
+    /// Canonical class name -> the title to show. The plain game's classes
+    /// are named out of high fantasy; a theme that is not high fantasy has to
+    /// say so somewhere, and this is the most visible place it shows.
+    pub classes: &'static [(&'static str, &'static str)],
     /// Any other string in the interface, keyed by a short slug. See `word`.
     pub words: &'static [(&'static str, &'static str)],
     /// Whole words to swap inside prose the engine wrote - log lines, stat
@@ -77,6 +81,11 @@ impl Theme {
     /// The same for a creature on the ladder.
     pub fn monster(&'static self, canonical: &'static str) -> &'static str {
         lookup(self, Table::Monsters, canonical).unwrap_or(canonical)
+    }
+
+    /// The same for a class.
+    pub fn class(&'static self, canonical: &'static str) -> &'static str {
+        lookup(self, Table::Classes, canonical).unwrap_or(canonical)
     }
 
     /// Re-tell a sentence the engine wrote in this theme's words.
@@ -165,6 +174,7 @@ enum Table {
     Pieces,
     Monsters,
     Words,
+    Classes,
 }
 
 /// Built once per theme per table. The tables are static and never change, so
@@ -175,7 +185,7 @@ fn lookup(theme: &'static Theme, table: Table, key: &str) -> Option<&'static str
     let maps = MAPS.get_or_init(|| {
         let mut all = HashMap::new();
         for t in THEMES {
-            for (i, pairs) in [t.pieces, t.monsters, t.words].iter().enumerate() {
+            for (i, pairs) in [t.pieces, t.monsters, t.words, t.classes].iter().enumerate() {
                 all.insert((t.id, i), pairs.iter().copied().collect());
             }
         }
@@ -185,6 +195,7 @@ fn lookup(theme: &'static Theme, table: Table, key: &str) -> Option<&'static str
         Table::Pieces => 0,
         Table::Monsters => 1,
         Table::Words => 2,
+        Table::Classes => 3,
     };
     // Nothing in the table means the caller's own string is the answer, which
     // is what makes a half-written theme safe to ship.
@@ -209,6 +220,7 @@ pub static PLAIN: Theme = Theme {
     ],
     pieces: &[],
     monsters: &[],
+    classes: &[],
     words: &[],
     vocabulary: &[],
     glossary: &[],
@@ -238,6 +250,29 @@ pub static TURTLE_DICK: Theme = Theme {
          up out of scrap until you can take Henpeck apart, and get them out.",
         "Somewhere far above all that, the gambler is still going, and the coat \
          is still on him. Neither of them is your problem.",
+    ],
+    classes: &[
+        // Titles, not spell schools. Every one is somebody or something the
+        // book already has, with the page it came off - the plain game names
+        // its classes out of high fantasy, and that is the loudest place a
+        // theme that is not high fantasy gives itself away.
+        ("Archmage", "Master of Funny"),        // the chapter that is one blank page, p. 51
+        ("Berserker", "Gorillathon"),           // the bedazzled gorilla, pp. 20-22
+        ("Bloodletter", "Worm-Fact Keeper"),    // LETO on the flesh Throne, pp. 96-99
+        ("Bulwark", "Corkwright"),              // cork, the bottom of the armour ladder
+        ("Chronomancer", "Time-Sapper"),        // Time Sap from the Tree of Time, pp. 37-39
+        ("Druid", "Radish Farmer"),             // silicon radishes, p. 115
+        ("Duelist", "Treyway Prince"),          // the claim that summons Mumu Lelonde, p. 18
+        ("Geomancer", "Grand Calculator"),      // the Grand Calculation, pp. 61-63
+        ("Hexweaver", "Funnel Sergeant"),       // army-issue Funny funnels, p. 78
+        ("Juggernaut", "Multicity Commuter"),   // 1.79 trillion residents, pp. 70-73
+        ("Oracle", "Galapagos Timekeeper"),     // Galapagos Jim, time traveller, pp. 89-90
+        ("Spellblade", "Katana Psychologist"),  // Henpeck's other job, p. 95
+        ("Stormcaller", "Plug Energy Rep"),     // Spike Kaklon's Plug Energy, p. 32
+        ("Templar", "Francian Ordinate"),       // the Francians pp. 61-63, ordination p. 75
+        ("Wanderer", "Plane Tourist"),          // half-tourist, half-catastrophe
+        ("Warpriest", "Acolyte of Dobira"),     // the Master and Baylon, pp. 46-50
+        ("Wellspring", "Soda Tycoon"),          // Skink Brink, pp. 4, 7-8, 53
     ],
     pieces: &[
         // The catalogue, re-cast from the book. Grades are kept as grades: the
@@ -1016,6 +1051,48 @@ mod tests {
             .filter(|n| !KEPT.contains(n))
             .collect();
         assert!(missed.is_empty(), "still in plain words: {:?}", missed);
+    }
+
+    /// The same for titles. A typo here is a class that quietly keeps its
+    /// high-fantasy name in a game that has none.
+    #[test]
+    fn every_themed_class_names_a_real_one() {
+        use crate::class::CLASSES;
+        for t in THEMES {
+            for (canonical, themed) in t.classes {
+                assert!(
+                    CLASSES.iter().any(|c| c.name == *canonical),
+                    "{} renames {:?} -> {:?}, but no such class exists",
+                    t.id,
+                    canonical,
+                    themed
+                );
+            }
+        }
+    }
+
+    /// And the other direction. "Archmage" beside "Fnorp" is the single
+    /// loudest way the theme gives itself away as a coat of paint.
+    #[test]
+    fn the_turtle_theme_retitles_every_class() {
+        use crate::class::CLASSES;
+        let missed: Vec<&str> = CLASSES
+            .iter()
+            .map(|c| c.name)
+            .filter(|n| TURTLE_DICK.class(n) == *n)
+            .collect();
+        assert!(missed.is_empty(), "still in plain words: {:?}", missed);
+    }
+
+    #[test]
+    fn no_two_classes_get_the_same_new_name() {
+        for t in THEMES {
+            let mut seen: Vec<&str> = Vec::new();
+            for (_, themed) in t.classes {
+                assert!(!seen.contains(themed), "{} uses {:?} twice", t.id, themed);
+                seen.push(themed);
+            }
+        }
     }
 
     /// A theme names creatures by their canonical name, so a typo in the

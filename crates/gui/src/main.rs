@@ -373,6 +373,12 @@ mod words {
         current().monster(canonical)
     }
 
+    /// A class's title, in this theme. Comparisons keep using the canonical
+    /// name - only what the player reads goes through here.
+    pub fn class(canonical: &'static str) -> &'static str {
+        current().class(canonical)
+    }
+
     /// Any other interface string, by slug, with the plain wording as the
     /// fallback so an unfinished theme reads as English rather than as slugs.
     pub fn word(slug: &str, plain: &'static str) -> &'static str {
@@ -2836,15 +2842,21 @@ fn render_slot_items(
 /// Where the shop's first card starts: clear of the gold column and the
 /// reroll button beneath it, both of which grow with the text scale.
 /// What the reroll button says, in this theme.
+/// A number of coins, in this theme's currency.
+///
+/// "1g" reads fine while the currency is gold. A theme that spends something
+/// else has to spell it out, or a button says "1g" directly under a purse
+/// that says "28 fnorp" - which is exactly what three separate call sites
+/// were doing before this existed.
+fn coins(n: i32) -> String {
+    match words::word("gold-suffix", "") {
+        "" => format!("{}g", n),
+        unit => format!("{} {}", n, unit),
+    }
+}
+
 fn reroll_label() -> String {
-    // "REROLL 1g" reads fine while the currency is gold. A theme that spends
-    // something else has to spell it out, or the button says "1g" directly
-    // under a purse that says "28 fnorp".
-    let cost = match words::word("gold-suffix", "") {
-        "" => format!("{}g", REROLL_COST),
-        unit => format!("{} {}", REROLL_COST, unit),
-    };
-    format!("{} {}", words::word("reroll", "REROLL"), cost)
+    format!("{} {}", words::word("reroll", "REROLL"), coins(REROLL_COST))
 }
 
 fn shop_cards_x(shop: Rect) -> f32 {
@@ -3175,7 +3187,7 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
             );
             draw_rectangle_lines(b.x, b.y, b.w, b.h, 1.5, if hot { col_gold() } else { col_dim() });
             centered_text(
-                &format!("SELL {}g", resale_price(def)),
+                &format!("SELL {}", coins(resale_price(def))),
                 b.x + b.w / 2.0,
                 b.y + b.h - 7.0,
                 13.0,
@@ -4772,8 +4784,9 @@ fn render_fountain(run: &Run, mx: f32, my: f32) -> Option<&'static gearmaster_en
         };
         ui_text(tag, cell.x + 14.0, y, 11.0, col_dim());
         y += 24.0;
-        let size = fitting_size(c.name, cell.w - 28.0, &[22.0, 20.0, 18.0, 16.0]);
-        ui_text(c.name, cell.x + 14.0, y, size, col_gold());
+        let title = words::class(c.name);
+        let size = fitting_size(title, cell.w - 28.0, &[22.0, 20.0, 18.0, 16.0]);
+        ui_text(title, cell.x + 14.0, y, size, col_gold());
         y += 24.0;
         for l in wrap_px(&words::retell(c.blurb), cell.w - 28.0, 13.0) {
             ui_text(&l, cell.x + 14.0, y, 13.0, Color::from_rgba(198, 200, 218, 255));
@@ -5734,7 +5747,7 @@ fn render_class_pages(r: Rect, page: usize, _mx: f32, _my: f32) -> usize {
         }
         if this_page == page {
             let x = r.x + 24.0 + col as f32 * (col_w + gap);
-            ui_text(c.name, x, y, 16.0, col_gold());
+            ui_text(words::class(c.name), x, y, 16.0, col_gold());
             y += 20.0;
             for l in wrap_px(&words::retell(c.blurb), col_w - 12.0, 12.0) {
                 ui_text(&l, x + 8.0, y, 12.0, Color::from_rgba(198, 200, 218, 255));
@@ -6136,7 +6149,7 @@ fn render_class_card(run: &Run, mx: f32, my: f32) {
         shown.extend(ranked.iter().find(|m| m.eligible).map(|m| m.class));
     }
     for c in &shown {
-        ui_text(c.name, x + 16.0, ty, 17.0, col_gold());
+        ui_text(words::class(c.name), x + 16.0, ty, 17.0, col_gold());
         ty += 18.0;
         let d = words::retell(&c.power.describe());
         for l in wrap_px(&d, w - 40.0, 12.0).into_iter().take(4) {
@@ -6169,7 +6182,7 @@ fn render_class_card(run: &Run, mx: f32, my: f32) {
         } else {
             (short.join(", "), Color::from_rgba(150, 200, 240, 255))
         };
-        ui_text(m.class.name, x + 22.0, ty, 13.0, WHITE);
+        ui_text(words::class(m.class.name), x + 22.0, ty, 13.0, WHITE);
         ty += 15.0;
         for l in wrap_px(&tag, w - 52.0, 11.0).into_iter().take(2) {
             ui_text(&l, x + 30.0, ty, 11.0, colour);
@@ -6438,7 +6451,7 @@ fn render_panel(
         );
         y += 22.0;
         for c in &run.classes {
-            ui_text(c.name, x + 20.0, y, 19.0, col_gold());
+            ui_text(words::class(c.name), x + 20.0, y, 19.0, col_gold());
             y += 18.0;
             // The band is pinned, so the text shrinks to fit rather than being
             // cut off - a power whose description is a word longer than the
@@ -6478,8 +6491,9 @@ fn render_panel(
         if let Some(best) = next {
             if fits(y, 18.0) {
                 ui_text("it would give you", x + 20.0, y, 12.0, col_dim());
-                let w = text_width(best.class.name, 16.0);
-                ui_text(best.class.name, x + PANEL_W - 20.0 - w, y, 16.0, col_gold());
+                let title = words::class(best.class.name);
+                let w = text_width(title, 16.0);
+                ui_text(title, x + PANEL_W - 20.0 - w, y, 16.0, col_gold());
                 y += 18.0;
             }
         }
@@ -6497,7 +6511,7 @@ fn render_panel(
                 .collect();
             if !short.is_empty() && fits(y, 30.0) {
                 ui_text(
-                    &format!("{} needs", near.class.name),
+                    &format!("{} needs", words::class(near.class.name)),
                     x + 20.0,
                     y,
                     12.0,
@@ -6536,7 +6550,7 @@ fn render_panel(
     );
     let mname = words::monster(m.name);
     ui_text(mname, x + 20.0, y, 17.0, Color::from_rgba(230, 140, 120, 255));
-    let bounty = format!("{}g", m.bounty);
+    let bounty = coins(m.bounty);
     ui_text(&bounty, x + 20.0 + text_width(mname, 17.0) + 14.0, y, 15.0, col_gold());
     y += 18.0;
     ui_text(
