@@ -5106,6 +5106,45 @@ fn render_intro(page: usize, mx: f32, my: f32) -> (Rect, Rect) {
 
 /// The mode and difficulty picker, shown once the intro is done. Returns the
 /// rects for both rows so the caller can hit-test them.
+/// A scene between fights: what just happened, and what it means. Drawn over
+/// everything, dismissed by a button.
+///
+/// Returns that button.
+fn render_scene(scene: &[&str], mx: f32, my: f32) -> Rect {
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 246));
+    let w = 940.0;
+    let x = (LOGICAL_W - w) / 2.0;
+
+    // Vertically centred on what it actually holds, so a short scene does not
+    // sit in the top corner of an empty screen.
+    let mut height = 0.0;
+    for para in scene {
+        height += wrap_px(para, w, 17.0).len() as f32 * (line_h(17.0) + 2.0) + 22.0;
+    }
+    let mut y = ((LOGICAL_H - height) / 2.0).max(90.0);
+
+    for para in scene {
+        for l in wrap_px(para, w, 17.0) {
+            ui_text(&l, x, y, 17.0, Color::from_rgba(214, 216, 232, 255));
+            y += line_h(17.0) + 2.0;
+        }
+        y += 22.0;
+    }
+
+    let go = Rect::new((LOGICAL_W - 360.0) / 2.0, LOGICAL_H - 120.0, 360.0, 52.0);
+    let hot = go.contains(Vec2::new(mx, my));
+    draw_rectangle(
+        go.x,
+        go.y,
+        go.w,
+        go.h,
+        if hot { Color::from_rgba(52, 46, 30, 255) } else { Color::from_rgba(28, 28, 40, 255) },
+    );
+    draw_rectangle_lines(go.x, go.y, go.w, go.h, if hot { 3.0 } else { 2.0 }, col_gold());
+    centered_text("GO ON", go.x + go.w / 2.0, go.y + 34.0, 22.0, WHITE);
+    go
+}
+
 /// Who you are, before the board appears. One page, then the game.
 ///
 /// Every theme owes the player this: the boards do not explain themselves, and
@@ -5117,20 +5156,37 @@ fn render_story(theme: &'static gearmaster_engine::theme::Theme, mx: f32, my: f3
     let x = (LOGICAL_W - w) / 2.0;
     centered_text(theme.label, LOGICAL_W / 2.0, 128.0, 30.0, col_gold());
 
-    let mut y = 210.0;
+    // Sized to fit above the button rather than at a fixed size: a theme is
+    // free to write a longer opening than the plain one, and the first draft
+    // of the turtle story ran straight through BEGIN.
+    let go = Rect::new((LOGICAL_W - 420.0) / 2.0, LOGICAL_H - 130.0, 420.0, 56.0);
+    let top = 200.0;
+    let room = go.y - 24.0 - top;
+    let (size, gap) = [(17.0f32, 20.0f32), (16.0, 16.0), (15.0, 13.0), (14.0, 10.0), (13.0, 8.0)]
+        .into_iter()
+        .find(|&(size, gap)| {
+            let head = 24.0f32.min(size + 7.0);
+            let mut h = wrap_px(theme.story[0], w, head).len() as f32 * (line_h(head) + 2.0) + gap;
+            for para in &theme.story[1..] {
+                h += wrap_px(para, w, size).len() as f32 * (line_h(size) + 2.0) + gap;
+            }
+            h <= room
+        })
+        .unwrap_or((13.0, 8.0));
+
+    let mut y = top;
     for (i, para) in theme.story.iter().enumerate() {
         // The first line is the premise and gets to be a headline; the rest is
         // the explanation.
-        let size = if i == 0 { 24.0 } else { 17.0 };
+        let size = if i == 0 { 24.0f32.min(size + 7.0) } else { size };
         let colour = if i == 0 { WHITE } else { Color::from_rgba(206, 208, 226, 255) };
         for l in wrap_px(para, w, size) {
             ui_text(&l, x, y, size, colour);
             y += line_h(size) + 2.0;
         }
-        y += 20.0;
+        y += gap;
     }
 
-    let go = Rect::new((LOGICAL_W - 420.0) / 2.0, LOGICAL_H - 130.0, 420.0, 56.0);
     let hot = go.contains(Vec2::new(mx, my));
     draw_rectangle(
         go.x,
@@ -6115,7 +6171,7 @@ fn render_panel(
     // The opponent block is pinned too, directly above the message. Only the
     // section above it flows, so nothing below can be pushed into anything
     // else however long a class description runs.
-    let opp_top = msg_top - 98.0;
+    let opp_top = msg_top - 118.0;
     // The class band is pinned as well, so the only thing that flows is the
     // character read-out above it - and that gets clipped at this line. It has
     // to hold two classes and a line about the next fountain, which is what
@@ -6460,6 +6516,19 @@ fn render_panel(
         col_dim(),
     );
     y += 16.0;
+    // What the theme has to say about this one - why it is in your way, or
+    // why it is not. The superbosses at the top are marked here as optional
+    // rather than as the plot.
+    if let Some(note) = words::current().note(m.name) {
+        for l in wrap_px(note, PANEL_W - 44.0, 12.0).into_iter().take(2) {
+            if !room(y, 14.0) {
+                break;
+            }
+            ui_text(&l, x + 20.0, y, 12.0, Color::from_rgba(170, 178, 200, 255));
+            y += 14.0;
+        }
+        y += 4.0;
+    }
     for a in m.attacks {
         if !room(y, 14.0) {
             break;
@@ -6648,6 +6717,11 @@ async fn main() {
     }
     if std::env::var("GEARMASTER_THEME").is_ok() {
         run.set_theme(chosen_theme);
+    }
+    // GEARMASTER_SCENE=<canonical monster> opens on that creature's scene, so
+    // it can be read without playing fifteen rungs to earn it.
+    if let Ok(who) = std::env::var("GEARMASTER_SCENE") {
+        run.pending_scene = run.theme.cutscene(&who);
     }
     if let Ok(m) = std::env::var("GEARMASTER_MODE") {
         run.mode = if m.eq_ignore_ascii_case("rogue") { Mode::Rogue } else { Mode::Grinder };
@@ -6953,6 +7027,29 @@ async fn main() {
                 let label = m.name;
                 let size = fitting_size(label, cell - 8.0, &[12.0, 11.0, 10.0, 9.0]);
                 draw_capped(label, cx, cy + cell * 0.72, cell - 8.0, size, LIGHTGRAY, 1);
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
+        }
+
+        // A scene the theme owes for the last fight comes before anything
+        // else: it is the reason the next rung looks the way it does.
+        if let Some(scene) = run.pending_scene {
+            let go = render_scene(scene, mx, my);
+            if is_mouse_button_pressed(MouseButton::Left) && go.contains(Vec2::new(mx, my)) {
+                run.pending_scene = None;
             }
             #[cfg(not(target_arch = "wasm32"))]
             {

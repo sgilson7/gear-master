@@ -48,6 +48,15 @@ pub struct Theme {
     /// it: the engine still says "mana" everywhere, because everything it
     /// decides depends on that word meaning one thing.
     pub vocabulary: &'static [(&'static str, &'static str)],
+    /// A scene shown once, the first time a particular creature is beaten.
+    /// Keyed by canonical monster name; the paragraphs are shown in order.
+    ///
+    /// A theme with none simply never interrupts, which is what the plain game
+    /// does - it has no story to tell between fights.
+    pub cutscenes: &'static [(&'static str, &'static [&'static str])],
+    /// A line shown under a creature on the opponent panel: what it is, or why
+    /// you would pick a fight with it. Keyed by canonical monster name.
+    pub notes: &'static [(&'static str, &'static str)],
     /// Glossary entries this theme replaces or adds, as
     /// `(term to replace, new term, new definition)`. An empty first field
     /// adds an entry the plain game does not have.
@@ -112,6 +121,16 @@ impl Theme {
         }
         flush(&mut word, &mut out, self);
         out
+    }
+
+    /// The scene owed for beating this creature, if any.
+    pub fn cutscene(&'static self, monster: &str) -> Option<&'static [&'static str]> {
+        self.cutscenes.iter().find(|(m, _)| *m == monster).map(|(_, s)| *s)
+    }
+
+    /// A line about this creature, if the theme has one.
+    pub fn note(&'static self, monster: &str) -> Option<&'static str> {
+        self.notes.iter().find(|(m, _)| *m == monster).map(|(_, n)| *n)
     }
 
     /// What this theme calls a glossary entry, and what it says about it.
@@ -185,6 +204,8 @@ pub static PLAIN: Theme = Theme {
     words: &[],
     vocabulary: &[],
     glossary: &[],
+    cutscenes: &[],
+    notes: &[],
 };
 
 pub static TURTLE_DICK: Theme = Theme {
@@ -198,13 +219,18 @@ pub static TURTLE_DICK: Theme = Theme {
          until Lord Drabley Henpeck found the Deep Chocolate you had been \
          quietly mining under it. He had the caves cleared and marched you all \
          to the pit the locals now call The End of All Gears.",
-        "A Sprocketman's whole craft is making working gear out of loose \
-         pieces. That is what the five frames are. Piece by scavenged piece, \
-         you build yourself out of the hole.",
-        "Above the pit are the planes, and above those is Mount Dobira, and at \
-         the top of it is a gambler in a coat made of money who flattens worlds \
-         when he loses.",
-        "Climb anyway.",
+        "Then a gambler in a coat made of money fell through the roof of it.",
+        "He was not there for you. He was there for something he had lost, and \
+         he found it, and on his way back out he put a hand through the wall of \
+         your cell because it was in front of him. He did not ask your name. By \
+         the time you had climbed out he was three planes away.",
+        "So: you are the one Sprocketman not in that pit, and there are still \
+         millions who are. A Sprocketman's whole craft is making working gear \
+         out of loose pieces - that is what the five frames are. Build yourself \
+         up out of scrap until you can take Henpeck apart, and get them out.",
+        "Somewhere far above all that, the gambler is still going, and the coat \
+         is still on him. Neither of them is your problem. Both of them can be \
+         fought, by anyone whose build is perfect enough to try.",
     ],
     pieces: &[
         // The catalogue, re-cast from the book. Grades are kept as grades: the
@@ -664,7 +690,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("fountain-take", "DRINK"),
         ("class", "TITLE"),
         ("classes", "TITLES"),
-        ("begin-fight", "PLANESWALK"),
+        ("begin-fight", "NEXT FIGHT"),
         ("character", "YOUR SPROCKETMAN"),
         ("opponent", "NEXT ON THE ROAD"),
         ("glossary", "WHAT THE WORDS MEAN"),
@@ -766,6 +792,31 @@ pub static TURTLE_DICK: Theme = Theme {
             "Money. The going rate on an Lxirp Strangler Beast is a hundred and twenty-five \
              billion of them, so the numbers here are modest by comparison.",
         ),
+    ],
+    cutscenes: &[(
+        // The first act ends here, and it ends by turning out not to be the
+        // whole job.
+        "The Hollow King",
+        &[
+            "Lord Drabley Henpeck goes down in a heap of good coat.",
+            "You get the cell keys off him before he has finished falling. They \
+             do not fit. You try them twice more, which is twice more than you \
+             need to, and then you look at him properly.",
+            "\"Oh,\" he says, with some effort, and a little delight. \"No. No, I \
+             sold them. Months ago. All of them, in one lot - I am not a \
+             *retailer*.\"",
+            "He tells you the buyer's name. He is enjoying himself so much that \
+             he tells you twice.",
+            "The pit behind you is empty. It has been empty for months. \
+             Everything above you is where they went.",
+        ],
+    )],
+    notes: &[
+        // Kept to two lines: the opponent band is a fixed height and a third
+        // line lands on the message underneath it.
+        ("The Hollow King", "Your jailer. Everything before him is practice."),
+        ("Gilt", "Wimpler fur, and nobody paying attention. A perfect build only."),
+        ("Francis", "Not your enemy, and the reason you are out. Optional."),
     ],
 };
 
@@ -1087,6 +1138,33 @@ mod tests {
                 assert!(!term.is_empty(), "{}: an entry with no term", t.id);
                 assert!(!def.is_empty(), "{}: {:?} has no definition", t.id, term);
                 let _ = from;
+            }
+        }
+    }
+
+    /// A scene or a note keyed to a creature that does not exist would never
+    /// fire, and nothing would say so.
+    #[test]
+    fn scenes_and_notes_name_creatures_that_exist() {
+        use crate::combat::LADDER;
+        for t in THEMES {
+            for (m, scene) in t.cutscenes {
+                assert!(
+                    LADDER.iter().any(|x| x.name == *m),
+                    "{}: a scene for {:?}, which is nobody",
+                    t.id,
+                    m
+                );
+                assert!(!scene.is_empty(), "{}: {:?} has an empty scene", t.id, m);
+            }
+            for (m, note) in t.notes {
+                assert!(
+                    LADDER.iter().any(|x| x.name == *m),
+                    "{}: a note about {:?}, which is nobody",
+                    t.id,
+                    m
+                );
+                assert!(!note.is_empty(), "{}: {:?} has an empty note", t.id, m);
             }
         }
     }

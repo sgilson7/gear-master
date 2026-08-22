@@ -165,6 +165,12 @@ pub struct Run {
     /// The classes the fountains have given you, in the order taken. Every
     /// one of their powers applies at once.
     pub classes: Vec<&'static crate::class::ClassDef>,
+    /// A scene the theme owes you for the fight just settled, waiting to be
+    /// read. Cleared once it has been.
+    pub pending_scene: Option<&'static [&'static str]>,
+    /// Creatures whose scene has already been shown, so beating one twice does
+    /// not tell you the same thing twice.
+    seen_scenes: Vec<&'static str>,
     /// The words this run is played in. Purely a display layer - nothing the
     /// engine decides depends on it - so a run is the same run whichever theme
     /// it is wearing.
@@ -234,6 +240,8 @@ impl Run {
             mode: Mode::Grinder,
             difficulty: Difficulty::Easy,
             classes: Vec::new(),
+            pending_scene: None,
+            seen_scenes: Vec::new(),
             theme: crate::theme::THEMES[0],
             grown_health: 0,
             lives: ROGUE_LIVES,
@@ -407,6 +415,15 @@ impl Run {
         match outcome {
             Outcome::Victory => {
                 self.wins += 1;
+                // A scene is owed for beating this thing, if the theme has one
+                // and has not already told it.
+                let beaten = LADDER[self.rung.min(LADDER.len() - 1)].name;
+                if !self.seen_scenes.contains(&beaten) {
+                    if let Some(scene) = self.theme.cutscene(beaten) {
+                        self.seen_scenes.push(beaten);
+                        self.pending_scene = Some(scene);
+                    }
+                }
                 self.rung += 1;
                 self.best_rung = self.best_rung.max(self.rung);
             }
@@ -501,6 +518,7 @@ impl Run {
         fresh.classes = Vec::new();
         fresh.grown_health = 0;
         fresh.set_theme(theme);
+        fresh.pending_scene = None;
         fresh.last_settlement = settlement;
         // The fight just watched stays on screen; the GUI is still replaying
         // it and needs somewhere to go back to.

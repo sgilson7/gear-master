@@ -1053,3 +1053,50 @@ fn a_stalemate_banks_no_growth() {
     run.settle();
     assert_eq!(run.grown_health, 0, "an unfinished fight leaves nothing behind");
 }
+
+/// A theme's scene fires once, when its creature is beaten, and not again.
+#[test]
+fn a_scene_plays_once_when_its_creature_falls() {
+    use gearmaster_engine::run::Run;
+    use gearmaster_engine::theme::by_id;
+
+    let mut run = Run::with_all_pieces();
+    run.set_theme(by_id("td"));
+    // Rung fifteen is the jailer, and the one scene the turtle theme owes.
+    let henpeck = LADDER.iter().position(|m| m.name == "The Hollow King").expect("he is on it");
+    run.rung = henpeck;
+    run.apply_preset();
+
+    // Win it outright, however the fight would really go.
+    run.fight_next();
+    if let Some(l) = run.log.as_mut() {
+        l.outcome = Outcome::Victory;
+    }
+    run.settle();
+    assert!(run.pending_scene.is_some(), "beating the jailer should have something to say");
+
+    // Reading it clears it, and it does not come back for a second win.
+    run.pending_scene = None;
+    run.back_to_loadout();
+    run.rung = henpeck;
+    run.fight_next();
+    if let Some(l) = run.log.as_mut() {
+        l.outcome = Outcome::Victory;
+    }
+    run.settle();
+    assert!(run.pending_scene.is_none(), "it should not tell you twice");
+}
+
+/// The plain game has no story to tell between fights and never interrupts.
+#[test]
+fn the_plain_theme_never_interrupts() {
+    use gearmaster_engine::run::Run;
+    let mut run = Run::with_all_pieces();
+    run.apply_preset();
+    for _ in 0..6 {
+        run.fight_next();
+        run.settle();
+        assert!(run.pending_scene.is_none(), "the plain game stopped to talk");
+        run.back_to_loadout();
+    }
+}
