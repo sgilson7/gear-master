@@ -330,6 +330,7 @@ fn trigger_lands_a_curse(t: &crate::piece::Trigger) -> bool {
     };
     match t {
         Trigger::PerAdjacentEmpty(inner) => trigger_lands_a_curse(inner),
+        Trigger::Consume { per, .. } => is_curse(per),
         Trigger::OnActivate(a)
         | Trigger::PerAdjacentItem { action: a, .. }
         | Trigger::OnAdjacentActivate(a)

@@ -3193,6 +3193,48 @@ fn activate(
                 });
                 apply(p, e, side, if paid { on_success } else { on_failure }, t, log, Some(idx));
             }
+            Trigger::Consume { what, each, per } => {
+                // Takes the whole pool and pays out by the handful. The
+                // remainder below one handful is spent too - the trigger is
+                // "empty your reserve", not "spend a multiple of `each`".
+                let (held, times) = {
+                    let me = pick(p, e, side);
+                    let held = me.pool(what).max(0);
+                    let times = held / each.max(1);
+                    if times > 0 {
+                        me.set_pool(what, 0);
+                        // Confluence pays on this too: what one pool spends,
+                        // the others drink.
+                        let back = me.confluence * held / 100;
+                        if back > 0 {
+                            for other in
+                                [Resource::Mana, Resource::Rage, Resource::Faith, Resource::Nature]
+                            {
+                                if other != what {
+                                    let total = me.pool(other) + back;
+                                    me.set_pool(other, total);
+                                }
+                            }
+                        }
+                    }
+                    (held, times)
+                };
+                if times > 0 {
+                    log.push(LogEntry {
+                        at_ms: t,
+                        event: Event::ResourceCheck {
+                            side,
+                            what: what.name(),
+                            cost: held,
+                            paid: true,
+                            remaining: 0,
+                        },
+                    });
+                    for _ in 0..times {
+                        apply(p, e, side, per, t, log, Some(idx));
+                    }
+                }
+            }
             Trigger::Spend { what, cost, on_success, on_failure } => {
                 let paid = {
                     let me = pick(p, e, side);

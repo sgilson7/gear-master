@@ -466,6 +466,17 @@ pub enum Trigger {
     /// same rows as this one, activates. Rewards lining gear up across the
     /// five grids rather than only within one.
     OnAlignedActivate(Action),
+    /// Spend the **whole** pool, and run `per` once for every `each` points
+    /// it found. Nothing at all happens below `each`.
+    ///
+    /// Every other sink in the game is a fixed threshold: it takes the same
+    /// amount whatever you have banked, so building a bigger reserve buys you
+    /// nothing but more attempts. This is the one that reads the reserve. It
+    /// makes holding a pool a decision rather than a waiting room, and it
+    /// gives faith somewhere to go once the 40% resistance cap has stopped
+    /// paying - which is otherwise the point where a faith build's income
+    /// turns into dead weight.
+    Consume { what: Resource, each: i32, per: Action },
     /// Run the wrapped trigger once per in-bounds empty cell touching this
     /// item.
     ///
@@ -504,6 +515,12 @@ impl Trigger {
                 "on activation, per adjacent assembled {}, {}",
                 if *same_slot_only { "item in this slot" } else { "item" },
                 action.describe()
+            ),
+            Trigger::Consume { what, each, per } => format!(
+                "on activation, spend all your {}: per {} spent, {}",
+                what.name(),
+                each,
+                per.describe()
             ),
             Trigger::PerAdjacentEmpty(inner) => {
                 format!("per empty cell touching this item: {}", inner.describe())
@@ -4456,9 +4473,15 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         // Room around the ball is where the light gets in.
+        //
+        // Four, not the ten this was first written with: the repeat charges
+        // it once per open cell, so ten meant forty faith an activation and
+        // the trigger could never once pay. It banked faith and took the
+        // failure branch forever. Nothing said so until spending a hold pool
+        // started costing what it actually costs.
         triggers: &[Trigger::PerAdjacentEmpty(&Trigger::Spend {
             what: Resource::Faith,
-            cost: 10,
+            cost: 4,
             on_success: Action::GainShield(1),
             on_failure: Action::Gain { what: Resource::Faith, amount: 2 },
         })],
@@ -7007,6 +7030,354 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 0,
         price: 88,
     },
+
+    // ---- spending a pool, rather than only banking one ---------------------
+    //
+    // A survey of the catalogue found every sink was a fixed threshold, and
+    // that each pool could buy exactly one kind of thing: faith only bought
+    // defence, nature only bought health, rage only bought damage, and mana
+    // never bought growth at all. Sixteen pieces against that, plus the first
+    // sinks outside the weapon slot that any of the hold pools have had.
+    // Faith kept is a wall. Faith spent all at once is a verdict.
+    PieceDef {
+        name: "Reckoning Crest",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0,0),(1,0)],
+        base: Stats { faith: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Consume {
+            what: Resource::Faith,
+            each: 6,
+            per: Action::Damage {
+                amount: 11,
+                kind: DamageType::Magic,
+                target: Target::Enemy,
+            },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 26,
+    },
+    PieceDef {
+        name: "Zealot's Haft",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Handle,
+        cells: &[(0,0),(0,1),(0,2)],
+        base: Stats { faith: 2, strength: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 2600,
+        speed_bonus: 0,
+        triggers: &[Trigger::Spend {
+            what: Resource::Faith,
+            cost: 7,
+            on_success: Action::Damage {
+                amount: 19,
+                kind: DamageType::Physical,
+                target: Target::Enemy,
+            },
+            on_failure: Action::Gain { what: Resource::Faith, amount: 3 },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 22,
+    },
+    // Everything that grows has thorns on it somewhere.
+    PieceDef {
+        name: "Bramble Mold",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Mold,
+        cells: &[(0,0),(1,0),(0,1)],
+        base: Stats { nature: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Spend {
+            what: Resource::Nature,
+            cost: 5,
+            on_success: Action::Damage {
+                amount: 21,
+                kind: DamageType::Physical,
+                target: Target::Enemy,
+            },
+            on_failure: Action::Gain { what: Resource::Nature, amount: 3 },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 20,
+    },
+    PieceDef {
+        name: "Wildfire Layer",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        cells: &[(0,0),(1,0),(2,0)],
+        base: Stats { nature: 2, ..Stats::health(40) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Consume {
+            what: Resource::Nature,
+            each: 5,
+            per: Action::Damage {
+                amount: 8,
+                kind: DamageType::Magic,
+                target: Target::Enemy,
+            },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 24,
+    },
+    // Fury spent on staying upright, which is not what fury is for.
+    PieceDef {
+        name: "Scarred Plating",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Plating,
+        cells: &[(0,0),(1,0)],
+        base: Stats { rage: 2, ..Stats::armor(6) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Spend {
+            what: Resource::Rage,
+            cost: 6,
+            on_success: Action::GainArmor(30),
+            on_failure: Action::Gain { what: Resource::Rage, amount: 3 },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 21,
+    },
+    PieceDef {
+        name: "Bloodbank Base",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Base,
+        cells: &[(0,0),(1,0),(0,1),(1,1)],
+        base: Stats { rage: 2, ..Stats::health(60) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 4800,
+        speed_bonus: 0,
+        triggers: &[Trigger::Consume {
+            what: Resource::Rage,
+            each: 6,
+            per: Action::GainArmor(11),
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 27,
+    },
+    PieceDef {
+        name: "Wellspring Sole",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Mold,
+        cells: &[(0,0),(1,0),(2,0)],
+        base: Stats { mana: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Spend {
+            what: Resource::Mana,
+            cost: 4,
+            on_success: Action::Grow(15),
+            on_failure: Action::GainMana(2),
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 23,
+    },
+    // Drink the whole reserve. You keep what it makes of you.
+    PieceDef {
+        name: "Deepdraught Ring",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { mana: 1, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Consume {
+            what: Resource::Mana,
+            each: 5,
+            per: Action::Grow(9),
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 19,
+    },
+    // Conviction, cashed in for something less patient.
+    PieceDef {
+        name: "Tithe Ring",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { faith: 1, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Spend {
+            what: Resource::Faith,
+            cost: 5,
+            on_success: Action::Gain { what: Resource::Rage, amount: 8 },
+            on_failure: Action::Gain { what: Resource::Faith, amount: 2 },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 17,
+    },
+    // What burns down feeds what grows back.
+    PieceDef {
+        name: "Ashen Material",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Material,
+        cells: &[(0,0),(1,0),(0,1),(1,1)],
+        base: Stats { rage: 2, ..Stats::health(35) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Spend {
+            what: Resource::Rage,
+            cost: 5,
+            on_success: Action::Gain { what: Resource::Nature, amount: 8 },
+            on_failure: Action::Gain { what: Resource::Rage, amount: 2 },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 18,
+    },
+    PieceDef {
+        name: "Covenant Frame",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0,0),(1,0),(2,0),(1,1)],
+        base: Stats { mana: 2, ..Stats::health(45) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 4000,
+        speed_bonus: 0,
+        triggers: &[Trigger::Spend {
+            what: Resource::Mana,
+            cost: 4,
+            on_success: Action::Gain { what: Resource::Faith, amount: 7 },
+            on_failure: Action::GainMana(2),
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 20,
+    },
+    PieceDef {
+        name: "Reliquary Sole",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Material,
+        cells: &[(0,0),(1,0),(0,1),(1,1)],
+        base: Stats { faith: 2, ..Stats::armor(8) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Consume {
+            what: Resource::Faith,
+            each: 9,
+            per: Action::Grow(12),
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 28,
+    },
+    // It has been keeping a list.
+    PieceDef {
+        name: "Grudge Bead",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0,0)],
+        base: Stats { rage: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Consume {
+            what: Resource::Rage,
+            each: 5,
+            per: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 25,
+    },
+    // Everything at once, and nothing left in the field.
+    PieceDef {
+        name: "Harvest Crest",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0,0),(0,1)],
+        base: Stats { nature: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Consume {
+            what: Resource::Nature,
+            each: 6,
+            per: Action::Grow(13),
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 26,
+    },
+    // Conviction stops turning aside harm at forty percent. This is where the rest of it goes.
+    PieceDef {
+        name: "Overflow Plate",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Plating,
+        cells: &[(0,0),(1,0),(0,1),(1,1)],
+        base: Stats { faith: 3, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Consume {
+            what: Resource::Faith,
+            each: 8,
+            per: Action::GainArmor(16),
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 29,
+    },
+    PieceDef {
+        name: "Last Rite",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Spell,
+        cells: &[(0,0),(1,0),(1,1)],
+        base: Stats { magic_damage: 6, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Consume {
+            what: Resource::Faith,
+            each: 4,
+            per: Action::Damage {
+                amount: 13,
+                kind: DamageType::Magic,
+                target: Target::Enemy,
+            },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 24,
+    },
 ];
 
 /// Gear that exists only on a boss.
@@ -7131,6 +7502,7 @@ mod tests {
             let is = |a: &Action| matches!(a, Action::Curse { kind, .. } if *kind == want);
             match t {
                 Trigger::PerAdjacentEmpty(inner) => lands(inner, want),
+                Trigger::Consume { per, .. } => is(per),
                 Trigger::OnActivate(a)
                 | Trigger::PerAdjacentItem { action: a, .. }
                 | Trigger::OnAdjacentActivate(a)
@@ -7154,6 +7526,105 @@ mod tests {
                     slot.name(),
                     want
                 );
+            }
+        }
+    }
+
+    /// A survey of pool spending found each pool could buy exactly one kind
+    /// of thing: faith only ever bought defence, nature only health, rage only
+    /// damage, and mana never bought growth at all. That made holding a pool a
+    /// decision about *when* to spend rather than *what* for.
+    #[test]
+    fn every_pool_can_buy_something_outside_its_own_lane() {
+        use crate::stats::StatKind;
+        fn payoffs(what: Resource) -> Vec<&'static str> {
+            fn walk(t: &Trigger, what: Resource, out: &mut Vec<&'static str>) {
+                let tag = |a: &Action| -> &'static str {
+                    match a {
+                        Action::Damage { .. } => "harm",
+                        Action::MindDamage { .. } => "harm",
+                        Action::Curse { .. } => "harm",
+                        Action::GainArmor(_) | Action::GainShield(_) => "defence",
+                        Action::Grow(_) => "growth",
+                        Action::GainMana(_) | Action::Gain { .. } => "pool",
+                        _ => "other",
+                    }
+                };
+                match t {
+                    Trigger::PerAdjacentEmpty(inner) => walk(inner, what, out),
+                    Trigger::Consume { what: w, per, .. } if *w == what => out.push(tag(per)),
+                    Trigger::Spend { what: w, on_success, .. } if *w == what => {
+                        out.push(tag(on_success))
+                    }
+                    Trigger::SpendMana { on_success, .. } if what == Resource::Mana => {
+                        out.push(tag(on_success))
+                    }
+                    _ => {}
+                }
+            }
+            let mut out = Vec::new();
+            for d in CATALOG {
+                for t in d.triggers {
+                    walk(t, what, &mut out);
+                }
+            }
+            out
+        }
+        for what in [Resource::Mana, Resource::Rage, Resource::Faith, Resource::Nature] {
+            let p = payoffs(what);
+            let mut kinds: Vec<&str> = p.clone();
+            kinds.sort_unstable();
+            kinds.dedup();
+            assert!(
+                kinds.len() >= 3,
+                "{:?} can only buy {:?}; a pool with one use is a timer, not a choice",
+                what,
+                kinds
+            );
+        }
+        let _ = StatKind::Health;
+    }
+
+    /// Every hold pool needs a sink somewhere other than the weapon, or a
+    /// build that is not a caster banks rage, faith and nature all fight with
+    /// nowhere to put any of it. Before this there was exactly one.
+    #[test]
+    fn the_hold_pools_can_be_spent_outside_the_weapon_slot() {
+        for what in [Resource::Rage, Resource::Faith, Resource::Nature] {
+            let outside: Vec<&str> = CATALOG
+                .iter()
+                .filter(|d| d.slot != SlotKind::Weapon)
+                .filter(|d| {
+                    d.triggers.iter().any(|t| {
+                        matches!(t, Trigger::Spend { what: w, .. } | Trigger::Consume { what: w, .. } if *w == what)
+                    })
+                })
+                .map(|d| d.name)
+                .collect();
+            assert!(
+                outside.len() >= 3,
+                "{:?} has only {} sink(s) off the weapon: {:?}",
+                what,
+                outside.len(),
+                outside
+            );
+        }
+    }
+
+    /// A sink that empties the reserve has to pay more for a bigger reserve,
+    /// or it is just a fixed threshold wearing a different name.
+    #[test]
+    fn emptying_a_reserve_pays_by_the_handful() {
+        let consumers: Vec<&PieceDef> = CATALOG
+            .iter()
+            .filter(|d| d.triggers.iter().any(|t| matches!(t, Trigger::Consume { .. })))
+            .collect();
+        assert!(consumers.len() >= 6, "only {} pieces empty a pool", consumers.len());
+        for d in &consumers {
+            for t in d.triggers {
+                if let Trigger::Consume { each, .. } = t {
+                    assert!(*each > 0, "{} would divide by zero", d.name);
+                }
             }
         }
     }

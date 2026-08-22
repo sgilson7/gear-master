@@ -294,6 +294,32 @@ fn action_points(a: &Action) -> f32 {
     }
 }
 
+/// What a point of `what` costs to spend.
+///
+/// Not the same number for all four, and it took a survey of the catalogue to
+/// see why. Mana does nothing while you merely hold it - its standing value is
+/// conditional on owning empowerment or shield stacks - so spending it costs
+/// you the point and nothing else. Rage, faith and nature all pay out for
+/// every second they sit in the reserve: a point of rage is a point on every
+/// swing, a point of faith is two points of both resistances, a point of
+/// nature is a point of regeneration. Spending one of those destroys a bonus
+/// you were already collecting, and the scale used to charge nothing for it -
+/// so a trigger that burned faith was priced exactly like one that burned
+/// mana, which made every hold-pool sink in the game look cheaper than it is.
+///
+/// Half of `HELD_PER_POINT`, because a point spent is a point that was going
+/// to keep paying for the rest of the fight and the average spend lands
+/// somewhere in the middle of one.
+fn pool_weight(what: crate::piece::Resource) -> f32 {
+    use crate::piece::Resource;
+    match what {
+        Resource::Mana => weight::MANA_PS,
+        Resource::Rage | Resource::Faith | Resource::Nature => {
+            weight::RESOURCE_PS + weight::HELD_PER_POINT / 2.0
+        }
+    }
+}
+
 /// What one trigger is worth per activation of its item.
 ///
 /// The conditional ones are discounted rather than guessed at: how often a
@@ -304,10 +330,22 @@ fn trigger_points(t: &Trigger) -> f32 {
         Trigger::OnActivate(a) => action_points(a),
         // Mana income is finite, so assume it pays about two thirds of the
         // time and eats the failure branch the rest.
-        Trigger::Spend { cost, on_success, on_failure, .. }
-        | Trigger::SpendMana { cost, on_success, on_failure } => {
+        Trigger::Spend { what, cost, on_success, on_failure } => {
+            0.66 * action_points(on_success) + 0.34 * action_points(on_failure)
+                - *cost as f32 * pool_weight(*what) * 0.66
+        }
+        Trigger::SpendMana { cost, on_success, on_failure } => {
             0.66 * action_points(on_success) + 0.34 * action_points(on_failure)
                 - *cost as f32 * weight::MANA_PS * 0.66
+        }
+        // Emptying a reserve pays by the handful, so what it is worth depends
+        // on how full the reserve was - which this function cannot see. Three
+        // handfuls is what a build that actually feeds the thing gets to; a
+        // build that does not gets nothing at all, and the discount for that
+        // is already in the fact that three is a modest guess.
+        Trigger::Consume { what, each, per } => {
+            let times = 3.0;
+            times * action_points(per) - times * *each as f32 * pool_weight(*what)
         }
         // A piece with room around it touches one or two finished items.
         Trigger::PerAdjacentItem { action, .. } => 1.3 * action_points(action),

@@ -215,6 +215,53 @@ fn a_neighbour_reading_effect_is_dormant_until_its_item_assembles() {
 
 /// A spell has two strengths. With mana it lands in full; without, it still
 /// goes off - a build that runs dry should get weaker, not stop.
+/// Emptying a reserve pays out by the handful, and the handful is what
+/// separates it from every other sink in the game: a fixed threshold takes the
+/// same amount whatever you have banked, so building a bigger reserve buys
+/// nothing but more attempts.
+#[test]
+fn emptying_a_pool_pays_more_the_fuller_it_was() {
+    use gearmaster_engine::combat::{simulate, Event, Side, LADDER};
+    use gearmaster_engine::piece::SlotKind;
+    use gearmaster_engine::run::Run;
+
+    // Same piece, two builds: one with faith income behind it, one without.
+    let dealt = |with_income: bool| -> i32 {
+        let mut run = Run::with_all_pieces();
+        equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+        equip(&mut run, "Iron Blade", SlotKind::Weapon, 1, 0);
+        equip(&mut run, "Steel Frame", SlotKind::Helmet, 0, 0);
+        equip(&mut run, "Iron Plating", SlotKind::Helmet, 0, 2);
+        equip(&mut run, "Reckoning Crest", SlotKind::Helmet, 3, 0);
+        if with_income {
+            // Touching, or the chestpiece never assembles and never
+            // activates - and an item that never activates banks nothing.
+            equip(&mut run, "Chapel Base", SlotKind::Chest, 0, 0);
+            equip(&mut run, "Oathplate", SlotKind::Chest, 0, 1);
+            assert_eq!(run.report(SlotKind::Chest).assembled_count(), 1);
+        }
+        let profiles = run.combat_items();
+        let mut stats = run.player_stats();
+        stats.health = 100_000;
+        let log = simulate(stats, &profiles, &LADDER[25]);
+        log.entries
+            .iter()
+            .filter_map(|e| match e.event {
+                Event::Hit { by: Side::Player, damage, .. } => Some(damage),
+                _ => None,
+            })
+            .sum()
+    };
+    let lean = dealt(false);
+    let fed = dealt(true);
+    assert!(
+        fed > lean,
+        "a fuller reserve has to be worth more: fed {} vs lean {}",
+        fed,
+        lean
+    );
+}
+
 /// Paying for a spell has to buy something. It used to buy only "not being
 /// weakened", which meant the ceiling on a caster was the number printed on
 /// the piece - and that number had to compete with a blade that swings for it

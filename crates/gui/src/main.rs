@@ -1559,6 +1559,18 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
                 from_action(on_success, &mut out);
                 from_action(on_failure, &mut out);
             }
+            Trigger::Consume { what, per, .. } => {
+                note(
+                    match what {
+                        Resource::Mana => "mana",
+                        Resource::Rage => "rage",
+                        Resource::Faith => "faith",
+                        Resource::Nature => "nature",
+                    },
+                    &mut out,
+                );
+                from_action(per, &mut out);
+            }
             Trigger::Spend { what, on_success, on_failure, .. } => {
                 note(
                     match what {
@@ -6064,6 +6076,7 @@ fn trigger_curses(t: &gearmaster_engine::piece::Trigger) -> bool {
     let curses = |a: &Action| matches!(a, Action::Curse { target: Target::Enemy, .. });
     match t {
         Trigger::PerAdjacentEmpty(inner) => trigger_curses(inner),
+        Trigger::Consume { per, .. } => curses(per),
         Trigger::OnActivate(a)
         | Trigger::PerAdjacentItem { action: a, .. }
         | Trigger::OnAdjacentActivate(a)
