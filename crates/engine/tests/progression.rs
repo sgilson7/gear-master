@@ -159,6 +159,33 @@ fn selling_refunds_half_and_strips_the_piece_off() {
 /// rest of the machinery keys off rank - how densely a creature may pack its
 /// board, and whether beating it drops something no shop sells - so a rank
 /// that quietly moved would move all of that with it.
+/// A named fight has to look like one. A boss whose helmet holds a single
+/// item is a boss you out-gear, and the whole reason the authoring tool learnt
+/// to lock items is that a 6x8 grid turns out to hold three of them - it just
+/// could not find the arrangement while every item was free to steal from its
+/// neighbours.
+#[test]
+fn the_named_fights_pack_their_boards() {
+    use gearmaster_engine::combat::Rank;
+    use gearmaster_engine::piece::SlotKind;
+    for m in LADDER.iter().filter(|m| m.rank != Rank::Ordinary) {
+        let need = m.rank.min_items_per_slot();
+        let (reg, lo) = m.loadout();
+        for slot in SlotKind::ALL {
+            let got = lo.report(&reg, slot).items.iter().filter(|it| it.assembled).count();
+            assert!(
+                got >= need,
+                "{} ({:?}) has {} assembled item(s) in the {}, needs {}",
+                m.name,
+                m.rank,
+                got,
+                slot.name(),
+                need
+            );
+        }
+    }
+}
+
 #[test]
 fn the_named_fights_are_where_they_were_put() {
     use gearmaster_engine::combat::Rank;

@@ -180,6 +180,45 @@ pub struct LockedItem {
     pub offsets: Vec<(u8, u8)>,
 }
 
+/// Fix every assembled item in one slot where it stands.
+///
+/// What locking buys, and why a monster's board uses it: an unlocked item
+/// negotiates with whatever it is touching. Pack two of them flush and the
+/// optional pieces drift to whichever core is nearest, so the arrangement you
+/// authored is not necessarily the arrangement that comes out. Locked, each is
+/// a single large component - which means a board can be packed far tighter
+/// than one that has to leave gaps to stay legible.
+///
+/// Returns how many items it fixed.
+pub fn lock_assembled_in(
+    loadout: &mut Loadout,
+    reg: &PieceRegistry,
+    slot: SlotKind,
+) -> usize {
+    let items: Vec<Vec<PieceId>> = loadout
+        .report(reg, slot)
+        .items
+        .into_iter()
+        .filter(|i| i.assembled)
+        .map(|i| i.pieces)
+        .collect();
+    let mut n = 0;
+    for pieces in items {
+        if pieces.iter().any(|p| loadout.locks.iter().any(|l| l.pieces.contains(p))) {
+            continue;
+        }
+        let g = loadout.slot(slot);
+        let anchors: Vec<(u8, u8)> =
+            pieces.iter().map(|&p| g.anchor_of(p).unwrap_or((0, 0))).collect();
+        let minx = anchors.iter().map(|(x, _)| *x).min().unwrap_or(0);
+        let miny = anchors.iter().map(|(_, y)| *y).min().unwrap_or(0);
+        let offsets = anchors.iter().map(|&(x, y)| (x - minx, y - miny)).collect();
+        loadout.locks.push(LockedItem { pieces, offsets });
+        n += 1;
+    }
+    n
+}
+
 /// The character's five equipment grids.
 #[derive(Clone, Debug)]
 pub struct Loadout {

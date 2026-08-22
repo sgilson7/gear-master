@@ -1275,3 +1275,336 @@ fn author_the_summit() {
         println!("        ],");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Authoring the named fights, with locking.
+//
+// The old seater packed a slot and then asked "did everything assemble?".
+// That question gets harder the more you put in, because an unlocked board
+// negotiates with itself: the optional pieces drift to whichever core is
+// nearest, so a second item packed flush against the first can quietly steal
+// from it. The tool answered by leaving room, which is why every boss on the
+// ladder was wearing exactly one item per slot.
+//
+// Locking is the way out, and it is the same button the player has. Seat one
+// item, lock it, seat the next against it. A locked item cannot be joined and
+// cannot lose a piece, so "flush" stops being dangerous and a 6x8 grid turns
+// out to hold three of them.
+
+/// Seat one item's pieces into a slot that may already hold locked ones.
+///
+/// Succeeds only if every piece lands *and* the pieces just placed come out as
+/// a single assembled item of their own.
+fn seat_one_item(
+    reg: &mut PieceRegistry,
+    loadout: &mut Loadout,
+    slot: SlotKind,
+    ids: &[PieceId],
+) -> bool {
+    fn go(
+        reg: &mut PieceRegistry,
+        loadout: &mut Loadout,
+        slot: SlotKind,
+        ids: &[PieceId],
+        i: usize,
+        budget: &mut u32,
+    ) -> bool {
+        if i == ids.len() {
+            if *budget == 0 {
+                return false;
+            }
+            *budget -= 1;
+            // The new pieces must be one assembled item, and the items that
+            // were already there must still be assembled - a locked one always
+            // is, which is the whole point.
+            let rep = loadout.report(reg, slot);
+            let mine = rep
+                .items
+                .iter()
+                .find(|it| it.pieces.iter().any(|p| ids.contains(p)));
+            return match mine {
+                Some(it) => it.assembled && ids.iter().all(|p| it.pieces.contains(p)),
+                None => false,
+            };
+        }
+        let id = ids[i];
+        for rot in Packer::distinct_rotations(reg, id) {
+            reg.set_rotation(id, rot);
+            for y in 0..SLOT_H {
+                for x in 0..SLOT_W {
+                    if loadout.can_place(reg, id, slot, x, y).is_err() {
+                        continue;
+                    }
+                    // An item is one connected blob, so every piece after the
+                    // first has to touch one already down. Without this the
+                    // search wanders the whole 48-cell grid for every piece
+                    // and never finishes.
+                    if i > 0 {
+                        let touches = {
+                            let g = loadout.slot(slot);
+                            let mut ok = false;
+                            for &(dx, dy) in reg.shape(id).cells() {
+                                let (cx, cy) = (x as i32 + dx as i32, y as i32 + dy as i32);
+                                for (ax, ay) in [(1i32, 0i32), (-1, 0), (0, 1), (0, -1)] {
+                                    let (nx, ny) = (cx + ax, cy + ay);
+                                    if nx < 0 || ny < 0 || nx >= SLOT_W as i32 || ny >= SLOT_H as i32
+                                    {
+                                        continue;
+                                    }
+                                    if let Some(other) = g.get(nx as u8, ny as u8) {
+                                        if ids[..i].contains(&other) {
+                                            ok = true;
+                                        }
+                                    }
+                                }
+                            }
+                            ok
+                        };
+                        if !touches {
+                            continue;
+                        }
+                    }
+                    loadout.slot_mut(slot).place(reg, id, x, y);
+                    if go(reg, loadout, slot, ids, i + 1, budget) {
+                        return true;
+                    }
+                    loadout.slot_mut(slot).remove(id);
+                    if *budget == 0 {
+                        return false;
+                    }
+                }
+            }
+        }
+        false
+    }
+    let mut budget = 1200u32;
+    go(reg, loadout, slot, ids, 0, &mut budget)
+}
+
+/// One item's worth of pieces, per candidate.
+///
+/// Not `cached_candidates`, which hands back *two* items concatenated - that
+/// pool exists for the old seater, which packed a whole slot at once. Seating
+/// one item at a time needs one item at a time.
+fn cached_singles(slot: SlotKind) -> &'static [(i32, Vec<&'static str>)] {
+    use std::sync::OnceLock;
+    static CACHE: OnceLock<Vec<Vec<(i32, Vec<&'static str>)>>> = OnceLock::new();
+    let all = CACHE.get_or_init(|| {
+        SlotKind::ALL
+            .iter()
+            .map(|&s| {
+                let cells = |names: &[&'static str]| -> usize {
+                    names
+                        .iter()
+                        .map(|n| CATALOG.iter().find(|c| c.name == *n).unwrap().cells.len())
+                        .sum()
+                };
+                // Two orderings, merged. Rating alone is not a pool you can
+                // pack three items out of: the best chestpieces are the
+                // biggest, so the top 300 by rating had nothing under twelve
+                // cells in it and a boss could never wear three of them. The
+                // second half is by worth per cell, which is what "compact"
+                // means when you are trying to fit more than one.
+                let full = candidates(s);
+                let mut out: Vec<(i32, Vec<&'static str>)> =
+                    full.iter().take(200).cloned().collect();
+                let mut dense = full;
+                dense.sort_by_key(|(r, n)| std::cmp::Reverse(*r * 100 / cells(n).max(1) as i32));
+                for c in dense.into_iter().take(200) {
+                    if !out.iter().any(|(_, n)| *n == c.1) {
+                        out.push(c);
+                    }
+                }
+                // And the weak end. A pool made only of the best and the most
+                // compact has no floor: the first named board authored against
+                // a rung-nine target came out eight times what the creatures
+                // either side of it were wearing, because nothing weaker than
+                // fifty marks existed to pick.
+                let mut weak = candidates(s);
+                weak.sort_by_key(|(r, _)| *r);
+                for c in weak.into_iter().take(200) {
+                    if !out.iter().any(|(_, n)| *n == c.1) {
+                        out.push(c);
+                    }
+                }
+                out
+            })
+            .collect()
+    });
+    &all[slot.index()]
+}
+
+/// Pack `want` assembled items into one slot, locking each as it lands.
+///
+/// Returns the placements and what the whole slot rates.
+fn pack_locked(
+    slot: SlotKind,
+    want: usize,
+    seed: u64,
+    target_per_item: i32,
+) -> Option<(Vec<(&'static str, u8, u8, u8)>, i32, Vec<usize>)> {
+    let mut reg = PieceRegistry::new();
+    let mut loadout = Loadout::new();
+    let mut out: Vec<(&'static str, u8, u8, u8)> = Vec::new();
+    let mut sizes: Vec<usize> = Vec::new();
+
+    // Aimed at a rating, not at the top of the catalogue.
+    //
+    // Picking the best available is what the tool did for the old one-item
+    // boards, and it does not survive being asked for ten: a mini-boss at rung
+    // nine came out rating 1954 against rung thirteen's 83, which is not
+    // difficulty, it is a wall. The target comes from what the creatures
+    // either side of it are wearing.
+    let pool: Vec<&(i32, Vec<&'static str>)> = cached_singles(slot).iter().collect();
+
+    let mut rng = seed | 1;
+    let mut next = || {
+        rng ^= rng << 13;
+        rng ^= rng >> 7;
+        rng ^= rng << 17;
+        rng
+    };
+
+    let cells_of = |names: &[&'static str]| -> usize {
+        names.iter().map(|n| CATALOG.iter().find(|c| c.name == *n).unwrap().cells.len()).sum()
+    };
+    // How much room the ones still to come will need, so the first item does
+    // not eat the whole grid. Three chest items would not fit at all until
+    // this existed: the pool is sorted by rating, the best chestpieces are
+    // the biggest, and the seater kept picking three of them.
+    let mut placed_items = 0usize;
+    let mut tries = 0usize;
+    let mut used = 0usize;
+    while placed_items < want && tries < 200 {
+        tries += 1;
+        let left = want - placed_items;
+        let room = CELLS.saturating_sub(used);
+        // Leave the ones after this at least four cells each.
+        let cap = room.saturating_sub(4 * (left - 1));
+        let mut fits: Vec<&&(i32, Vec<&'static str>)> =
+            pool.iter().filter(|(_, n)| cells_of(n) <= cap).collect();
+        if fits.is_empty() {
+            break;
+        }
+        // Nearest the target first. The later items also have to fit around
+        // what is already locked down, so they are broken toward the compact
+        // end of the equally-good ones - a boss could never get three
+        // chestpieces on until this existed, because the seater kept reaching
+        // for three of the largest in the game.
+        fits.sort_by_key(|(r, n)| {
+            let miss = (*r - target_per_item).abs();
+            if placed_items == 0 { (miss, 0usize) } else { (miss, cells_of(n)) }
+        });
+        let span = fits.len().min(22);
+        let pick = fits[(next() as usize) % span.max(1)];
+        let ids: Vec<PieceId> = pick
+            .1
+            .iter()
+            .filter_map(|n| CATALOG.iter().position(|d| d.name == *n))
+            .map(|i| reg.alloc(i))
+            .collect();
+        if ids.len() != pick.1.len() {
+            continue;
+        }
+        if seat_one_item(&mut reg, &mut loadout, slot, &ids) {
+            for (&id, &name) in ids.iter().zip(pick.1.iter()) {
+                let (x, y) = loadout.slot(slot).anchor_of(id).unwrap();
+                out.push((name, x, y, reg.rotation(id)));
+            }
+            gearmaster_engine::loadout::lock_assembled_in(&mut loadout, &reg, slot);
+            sizes.push(ids.len());
+            used += cells_of(&pick.1);
+            placed_items += 1;
+        } else {
+            for id in ids {
+                loadout.slot_mut(slot).remove(id);
+            }
+        }
+    }
+    if placed_items < want {
+        return None;
+    }
+    let rating: i32 = loadout
+        .report(&reg, slot)
+        .items
+        .iter()
+        .filter(|it| it.assembled)
+        .map(|it| it.rating)
+        .sum();
+    Some((out, rating, sizes))
+}
+
+/// Print dense boards for every boss and mini-boss, ready to paste.
+#[test]
+#[ignore]
+fn author_the_named_fights() {
+    use gearmaster_engine::combat::{Rank, LADDER};
+    // What the creatures either side of a named one are wearing, so its board
+    // is denser than theirs without being from a different game.
+    let ordinary: Vec<(usize, i32)> = LADDER
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| m.rank == Rank::Ordinary)
+        .map(|(i, m)| {
+            let (reg, lo) = m.loadout();
+            let r: i32 = SlotKind::ALL
+                .iter()
+                .flat_map(|s| {
+                    lo.report(&reg, *s)
+                        .items
+                        .into_iter()
+                        .filter(|it| it.assembled)
+                        .map(|it| it.rating)
+                        .collect::<Vec<_>>()
+                })
+                .sum();
+            (i, r)
+        })
+        .collect();
+
+    for (idx, m) in LADDER.iter().enumerate().filter(|(_, m)| m.rank != Rank::Ordinary) {
+        let want = m.rank.min_items_per_slot();
+        // The nearest ordinary rung on either side, averaged.
+        let mut near: Vec<(usize, i32)> = ordinary.clone();
+        near.sort_by_key(|(i, _)| (*i as i64 - idx as i64).abs());
+        let base: i32 = near.iter().take(2).map(|(_, r)| *r).sum::<i32>() / 2;
+        // A mini-boss is worth about two ordinary rungs, a boss about three.
+        let step = if m.rank == Rank::Boss { 3.0 } else { 1.9 };
+        let total_target = (base as f32 * step) as i32;
+        let target_per_item = (total_target / 5 / want as i32).max(6);
+        println!("\n// ---- {} ({:?}, {} items a slot, target {}) ----", m.name, m.rank, want, total_target);
+        let mut total = 0;
+        let mut chunks: Vec<usize> = Vec::new();
+        println!("        gear: &[");
+        for slot in SlotKind::ALL {
+            let mut best: Option<(Vec<(&'static str, u8, u8, u8)>, i32, Vec<usize>)> = None;
+            for seed in 0..6u64 {
+                let s = seed
+                    .wrapping_mul(0x9E37_79B9)
+                    .wrapping_add(m.name.bytes().map(|b| b as u64).sum::<u64>());
+                if let Some(got) = pack_locked(slot, want, s, target_per_item) {
+                    let want_slot = total_target / 5;
+                    let closer = best
+                        .as_ref()
+                        .is_none_or(|b| (got.1 - want_slot).abs() < (b.1 - want_slot).abs());
+                    if closer {
+                        best = Some(got);
+                    }
+                }
+            }
+            match best {
+                Some((placed, r, sizes)) => {
+                    total += r;
+                    for (n, x, y, rot) in placed {
+                        println!("            (\"{}\", SlotKind::{:?}, {}, {}, {}),", n, slot, x, y, rot);
+                    }
+                    chunks.extend(sizes);
+                }
+                None => println!("            // FAILED to pack {} items into {:?}", want, slot),
+            }
+        }
+        println!("        ],  // total gear rating {}", total);
+        println!("        items: &{:?},", chunks);
+    }
+}
+

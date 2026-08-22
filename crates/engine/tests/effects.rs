@@ -365,7 +365,14 @@ fn mana_income_pays_for_full_strength_casts() {
     let profiles = run.combat_items();
     let mut stats = run.player_stats();
     stats.health = 100_000;
-    let log = simulate(stats, &profiles, &LADDER[30]);
+    // An ordinary rung on purpose. LADDER[30] used to be one and is now the
+    // Weeping Idol, whose fifteen items end the fight before a caster has
+    // banked anything - which tells you nothing about mana income.
+    let foe = LADDER
+        .iter()
+        .find(|m| m.rank == gearmaster_engine::combat::Rank::Ordinary && m.health > 3000)
+        .expect("the deep ladder has ordinary rungs");
+    let log = simulate(stats, &profiles, foe);
     let paid = log
         .entries
         .iter()

@@ -599,6 +599,22 @@ fn draw_monster(x: f32, y: f32, sz: f32, sprite: MonsterSprite, c: Color, dark: 
             draw_circle(fx(0.44), fy(0.32), sz * 0.035, dark);
             draw_circle(fx(0.56), fy(0.32), sz * 0.035, dark);
         }
+        MonsterSprite::Curator => {
+            // A display case with something still in it, and the small figure
+            // beside it holding the watch. He collects planes; the exhibits
+            // are people who came to look at them.
+            draw_rectangle_lines(fx(0.10), fy(0.16), sz * 0.44, sz * 0.62, t, c);
+            draw_line(fx(0.32), fy(0.16), fx(0.32), fy(0.78), t * 0.6, dark);
+            // the exhibit: a small shape standing inside the glass
+            draw_circle(fx(0.21), fy(0.40), sz * 0.05, dark);
+            draw_rectangle(fx(0.17), fy(0.47), sz * 0.08, sz * 0.22, dark);
+            // the curator, outside it
+            draw_circle(fx(0.72), fy(0.28), sz * 0.09, c);
+            draw_rectangle(fx(0.65), fy(0.39), sz * 0.14, sz * 0.34, c);
+            draw_line(fx(0.79), fy(0.46), fx(0.88), fy(0.52), t, c); // arm
+            draw_circle_lines(fx(0.90), fy(0.56), sz * 0.07, t, c);  // the watch
+            draw_line(fx(0.90), fy(0.56), fx(0.90), fy(0.51), t * 0.6, c);
+        }
         MonsterSprite::Idol => {
             // Stacked stone with a carved face.
             draw_rectangle(fx(0.30), fy(0.14), sz * 0.40, sz * 0.30, c);

@@ -23,6 +23,9 @@ const DUMMY: MonsterSpec = MonsterSpec {
     gear_offset: 0,
     bounty: 0,
     sprite: gearmaster_engine::combat::MonsterSprite::Rat,
+    rank: gearmaster_engine::combat::Rank::Ordinary,
+    drops: &[],
+    items: &[],
 };
 
 fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfile {
@@ -269,6 +272,9 @@ fn mana_shield_blunts_every_kind_of_damage() {
         gear_offset: 0,
         bounty: 0,
         sprite: gearmaster_engine::combat::MonsterSprite::Rat,
+        rank: gearmaster_engine::combat::Rank::Ordinary,
+        drops: &[],
+        items: &[],
     };
 
     // A battery to bank mana, and a ward that turns it into a shield.

@@ -49,6 +49,9 @@ const DUMMY: MonsterSpec = MonsterSpec {
     gear_offset: 0,
     bounty: 0,
     sprite: gearmaster_engine::combat::MonsterSprite::Rat,
+    rank: gearmaster_engine::combat::Rank::Ordinary,
+    drops: &[],
+    items: &[],
 };
 
 /// A monster that only hits, for testing defensive mechanics.
@@ -65,6 +68,9 @@ const PUNCHER: MonsterSpec = MonsterSpec {
     gear_offset: 0,
     bounty: 0,
     sprite: gearmaster_engine::combat::MonsterSprite::Rat,
+    rank: gearmaster_engine::combat::Rank::Ordinary,
+    drops: &[],
+    items: &[],
 };
 
 fn activations_of(log: &gearmaster_engine::combat::CombatLog, name: &str) -> Vec<u32> {
@@ -339,6 +345,9 @@ fn curse_resistance_shortens_the_burn() {
         gear_offset: 0,
         bounty: 0,
         sprite: gearmaster_engine::combat::MonsterSprite::Rat,
+        rank: gearmaster_engine::combat::Rank::Ordinary,
+        drops: &[],
+        items: &[],
     };
     let log = simulate(Stats::new(1000, 0, 0, 100), &[brand], &TOUGH);
 
@@ -404,6 +413,9 @@ fn mind_damage_eats_maximum_health_and_cannot_be_healed_back() {
         gear_offset: 0,
         bounty: 0,
         sprite: gearmaster_engine::combat::MonsterSprite::Rat,
+        rank: gearmaster_engine::combat::Rank::Ordinary,
+        drops: &[],
+        items: &[],
     };
     // Plenty of regeneration: it still cannot undo a lowered ceiling.
     let log = simulate(Stats::new(100, 0, 50, 100), &[], &PSION);
@@ -436,6 +448,9 @@ fn mind_resistance_blunts_it() {
         gear_offset: 0,
         bounty: 0,
         sprite: gearmaster_engine::combat::MonsterSprite::Rat,
+        rank: gearmaster_engine::combat::Rank::Ordinary,
+        drops: &[],
+        items: &[],
     };
     let mut warded = Stats::new(100, 0, 0, 100);
     warded.mind_resist = 60;
