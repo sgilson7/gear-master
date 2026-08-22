@@ -2829,7 +2829,14 @@ fn render_slot_items(
 /// reroll button beneath it, both of which grow with the text scale.
 /// What the reroll button says, in this theme.
 fn reroll_label() -> String {
-    format!("{} {}g", words::word("reroll", "REROLL"), REROLL_COST)
+    // "REROLL 1g" reads fine while the currency is gold. A theme that spends
+    // something else has to spell it out, or the button says "1g" directly
+    // under a purse that says "28 fnorp".
+    let cost = match words::word("gold-suffix", "") {
+        "" => format!("{}g", REROLL_COST),
+        unit => format!("{} {}", REROLL_COST, unit),
+    };
+    format!("{} {}", words::word("reroll", "REROLL"), cost)
 }
 
 fn shop_cards_x(shop: Rect) -> f32 {

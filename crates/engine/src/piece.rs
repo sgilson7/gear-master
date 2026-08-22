@@ -4254,7 +4254,7 @@ pub static CATALOG: &[PieceDef] = &[
         price: 20,
     },
     PieceDef {
-        name: "Starfall",
+        name: "Cometfall",
         slot: SlotKind::Weapon,
         kind: PieceKind::Spell,
         cells: &[(0,0),(1,0),(2,0),(1,1)],
@@ -4614,7 +4614,7 @@ pub static CATALOG: &[PieceDef] = &[
         price: 9,
     },
     PieceDef {
-        name: "Serrated Edge",
+        name: "Sawtooth Edge",
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0,0),(1,0)],
@@ -4974,7 +4974,7 @@ pub static CATALOG: &[PieceDef] = &[
         price: 8,
     },
     PieceDef {
-        name: "Reliquary Frame",
+        name: "Ossuary Frame",
         slot: SlotKind::Helmet,
         kind: PieceKind::Frame,
         cells: &[(0,0),(0,1),(1,1)],
@@ -6144,7 +6144,7 @@ pub static CATALOG: &[PieceDef] = &[
         price: 9,
     },
     PieceDef {
-        name: "Ring of Tides",
+        name: "Ring of Wells",
         slot: SlotKind::Gloves,
         kind: PieceKind::Ring,
         cells: &[(0,0)],
@@ -6828,6 +6828,64 @@ mod tests {
         assert_eq!(reg.rotation(id), 0);
     }
 
+    /// Every lookup in the game is `CATALOG.iter().find(|d| d.name == n)`, so
+    /// a name used twice makes the second definition unreachable by anything
+    /// that asks for it by name - monster loadouts, quest rewards, the theme
+    /// table - while the shop still stocks both. The player gets two visibly
+    /// different components with one name, and the theme can only translate
+    /// them as one thing.
+    #[test]
+    fn no_two_components_share_a_name() {
+        let mut seen: Vec<&str> = Vec::with_capacity(CATALOG.len());
+        for def in CATALOG {
+            assert!(
+                !seen.contains(&def.name),
+                "{} is defined twice; the second one is unreachable by name",
+                def.name
+            );
+            seen.push(def.name);
+        }
+    }
+
+    /// A piece is one thing wherever it lands. Most shapes are a single
+    /// connected blob, but the Hollow Sphere is a ring of four cells touching
+    /// only at the corners, and flooding the grid cell by cell used to hand
+    /// the same orb back as four separate items.
+    #[test]
+    fn a_hollow_piece_placed_alone_is_still_one_item() {
+        use crate::run::Run;
+        let holey: Vec<&str> = CATALOG
+            .iter()
+            .filter(|d| !one_blob(d.cells))
+            .map(|d| d.name)
+            .collect();
+        for name in holey {
+            let mut run = Run::new();
+            let idx = CATALOG.iter().position(|d| d.name == name).unwrap();
+            let id = run.registry.alloc(idx);
+            run.owned.push(id);
+            let slot = CATALOG[idx].slot;
+            run.equip(id, slot, 1, 1).expect("placed");
+            let items = run.loadout.slot(slot).items(&run.registry);
+            assert_eq!(items.len(), 1, "{} placed alone came back as {} items", name, items.len());
+        }
+    }
+
+    fn one_blob(cells: &[(i8, i8)]) -> bool {
+        let mut reached = vec![cells[0]];
+        let mut i = 0;
+        while i < reached.len() {
+            let (x, y) = reached[i];
+            i += 1;
+            for n in [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)] {
+                if cells.contains(&n) && !reached.contains(&n) {
+                    reached.push(n);
+                }
+            }
+        }
+        reached.len() == cells.len()
+    }
+
     #[test]
     fn no_piece_is_larger_than_a_slot() {
         for def in CATALOG {
@@ -6844,3 +6902,4 @@ mod tests {
         }
     }
 }
+

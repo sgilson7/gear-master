@@ -218,6 +218,12 @@ impl Slot {
     /// group is a candidate item: one slot can hold as many finished items as
     /// the player can fit, so long as they don't touch each other.
     ///
+    /// A piece is atomic. Most shapes are one connected blob anyway, but a few
+    /// are not - the Hollow Sphere is a ring of four cells that touch only at
+    /// the corners - and cell-by-cell flooding would hand back the same id as
+    /// four separate items. Reaching any cell of a piece therefore reaches all
+    /// of them.
+    ///
     /// Groups come back ordered by their topmost-then-leftmost cell, so the
     /// UI can label them stably.
     pub fn groups(&self) -> Vec<Vec<PieceId>> {
@@ -238,6 +244,13 @@ impl Slot {
                     if let Some(id) = self.get(cx, cy) {
                         if !members.contains(&id) {
                             members.push(id);
+                            // The rest of this piece comes along, connected or
+                            // not, so a hollow shape stays one thing.
+                            for (ox, oy) in self.cells_of(id) {
+                                if visited.insert((ox, oy)) {
+                                    queue.push_back((ox, oy));
+                                }
+                            }
                         }
                     }
                     for (nx, ny) in Self::orthogonal(cx, cy) {

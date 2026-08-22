@@ -318,6 +318,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Clouded Orb", "Blizzard Globe"),
         ("Codex Interminable", "The Endless Dissertation"),
         ("Colossus Ring", "Wheel of the Thrumbus Race"),
+        ("Cometfall", "Steel-Ball Drop"),
         ("Consecrated Plating", "Francian Plating"),
         ("Corded Grip", "Fishing-Line Grip"),
         ("Coven Crest", "Order Crest"),
@@ -442,6 +443,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Oathstone Bead", "Drambus Seed"),
         ("Obsidian Orb", "Academy Steel Ball"),
         ("Orb of the Nine", "Orb of the Eighth Ray"),
+        ("Ossuary Frame", "Cork Wimple"),
         ("Overflow Vial", "Soda Labyrinth Phial"),
         ("Padded Base", "Cardboard Base"),
         ("Padded Mold", "Oven-Mitt Mold"),
@@ -481,6 +483,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Ring of Roots", "Grungo Ring"),
         ("Ring of Tides", "Brie-Sea Ring"),
         ("Ring of Vigils", "Night-Worker's Ring"),
+        ("Ring of Wells", "Soda-Well Ring"),
         ("Rite of Answer", "Worm Fact"),
         ("Riveted Layer", "Riveted Gear-Layer"),
         ("Rootbound Material", "Grungo-Root Material"),
@@ -499,6 +502,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Sanctified Material", "Francian Material"),
         ("Sanctuary", "Time-Bomb"),
         ("Sapling Mold", "Silicon-Radish Sole"),
+        ("Sawtooth Edge", "Frong Sawtooth"),
         ("Scale Layer", "Toad-Skin Layer"),
         ("Scaled Material", "Skink Scale"),
         ("Scaled Plating", "Megalodon Scale"),
@@ -684,6 +688,7 @@ pub static TURTLE_DICK: Theme = Theme {
         // build never silently unhooks a translation.
         ("gold", "Fnorp"),
         ("gold-lower", "fnorp"),
+        ("gold-suffix", "fnorp"),
         ("shop", "GALAPAGOS EMPORIUM"),
         ("shop-hint", "right-click a card to hold it for Jim"),
         ("reroll", "SKOOGLE IT"),
@@ -1092,7 +1097,7 @@ mod tests {
     #[test]
     fn the_turtle_theme_answers_the_slugs_the_interface_uses() {
         const ASKED: &[&str] = &[
-            "gold", "gold-lower", "shop", "shop-hint", "reroll", "inventory",
+            "gold", "gold-lower", "gold-suffix", "shop", "shop-hint", "reroll", "inventory",
             "inventory-hint", "your-items", "fountain", "fountain-blurb",
             "fountain-take", "class", "classes", "begin-fight", "character",
             "opponent", "glossary",
