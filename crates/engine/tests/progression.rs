@@ -155,9 +155,37 @@ fn selling_refunds_half_and_strips_the_piece_off() {
 
 // ------------------------------------------------------------- the ladder
 
+/// Three bosses and seven mini-bosses, at the rungs they were placed at. The
+/// rest of the machinery keys off rank - how densely a creature may pack its
+/// board, and whether beating it drops something no shop sells - so a rank
+/// that quietly moved would move all of that with it.
+#[test]
+fn the_named_fights_are_where_they_were_put() {
+    use gearmaster_engine::combat::Rank;
+    let at = |rung: usize| &LADDER[rung - 1];
+    for (rung, name) in [(15, "The Hollow King"), (31, "Weeping Idol"), (47, "Nine of Ashes")] {
+        assert_eq!(at(rung).name, name, "rung {}", rung);
+        assert_eq!(at(rung).rank, Rank::Boss, "{} should be a boss", name);
+    }
+    for (rung, name) in [
+        (9, "Whisperling"),
+        (20, "Bone Cantor"),
+        (23, "The Gearwright"),
+        (24, "Crowned Hollow"),
+        (39, "Gallowglass"),
+        (43, "Verdigris"),
+        (49, "Gilt"),
+    ] {
+        assert_eq!(at(rung).name, name, "rung {}", rung);
+        assert_eq!(at(rung).rank, Rank::Mini, "{} should be a mini-boss", name);
+    }
+    assert_eq!(LADDER.iter().filter(|m| m.rank == Rank::Boss).count(), 3);
+    assert_eq!(LADDER.iter().filter(|m| m.rank == Rank::Mini).count(), 7);
+}
+
 #[test]
 fn the_ladder_climbs_all_the_way_up() {
-    assert_eq!(LADDER.len(), 49, "the old ladder, fifteen above it, and Francis");
+    assert_eq!(LADDER.len(), 50, "the old ladder, the Curator, and Francis on the end");
     assert_eq!(LADDER[LADDER.len() - 1].name, "Francis", "Francis is the end of it");
     let bounties: Vec<i32> = LADDER.iter().map(|m| m.bounty).collect();
     assert!(

@@ -127,9 +127,10 @@ Ypytryktrium. Do not invent a sixth metal.
 fits, write a plain descriptive name in the book's register rather than
 fabricating a proper noun.
 
-**The charter:** no sexual or anatomical content, no drugs/alcohol/smoking, no
-bathroom humour, no slur-adjacent coinages, no real public figures. Violence
-stays cartoon-grade. The build is publicly hosted.
+**The charter:** crude character names are allowed - the owner asked for Big
+Yomp and PoopFart by name. Still out: sexual or anatomical content, drugs,
+alcohol and smoking, slur-adjacent coinages, and every real public figure.
+Violence stays cartoon-grade. The build is publicly hosted.
 
 Nine canonical names stay in English on purpose; they are listed with their
 reasons in `the_turtle_theme_covers_the_catalogue`.

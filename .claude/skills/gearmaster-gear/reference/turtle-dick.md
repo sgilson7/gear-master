@@ -84,17 +84,21 @@ proper noun that implies lore the book does not have.
 
 ## The content charter
 
-The book is uneven on purpose and this build is publicly hosted. The game uses
-only its clean half.
+The build is public, so the theme uses the book's clean half - with one
+deliberate exception, added after the fact.
 
-**Excluded outright:** sexual and anatomical humour of any kind; drugs, alcohol
-and smoking (semuta stays as *music*; Corquewine, B-quila, shermsticks and
+**Crude character names are in.** The owner asked for them by name: Big Yomp,
+and PoopFart, which is what the book actually calls the Weeping Seeker. Bodily
+-function humour is allowed *in names*. This reverses the original rule, which
+had the Seeker referred to only by his epithet.
+
+**Still excluded outright:** sexual and anatomical humour; drugs, alcohol and
+smoking (semuta stays as *music*; Corquewine, B-quila, shermsticks and
 Skunkweed do not appear; Blingarian Corona Rum is only ever a nameless "searing
-liqueur," and never in game text); bathroom humour (the Weeping Seeker is never
-called by his other name); slur-adjacent coinages (the LSB calves on p. 31, "Las
-Gayass" on p. 42); every real public figure.
+liqueur," and never in game text); slur-adjacent coinages (the LSB calves on
+p. 31, "Las Gayass" on p. 42); every real public figure.
 
-**Renamed where the concept is good and the name is not** — the *Autoloading Net
+**Renamed where the concept is good and the name is not** - the *Autoloading Net
 Ejaculator* (p. 28) is the **Net Launcher**; "FitAss" is the **Fit Watch**.
 Rename the concept and keep it; the book's ideas are better than its labels.
 

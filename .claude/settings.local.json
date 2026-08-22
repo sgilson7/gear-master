@@ -92,7 +92,19 @@
       "Bash(awk '/^fn render_assembled_strip\\\\\\(/{f=1} f{print NR\": \"$0} f&&/^}$/{exit}' crates/gui/src/main.rs)",
       "Bash(python3 /Users/samgilson/.claude/jobs/a7e69fbf/tmp/relist.py)",
       "Bash(awk 'NR>=5060 && NR<=5120' crates/gui/src/main.rs)",
-      "Bash(grep -n '\"{} mana\"\\\\|mana,' crates/gui/src/main.rs)"
+      "Bash(grep -n '\"{} mana\"\\\\|mana,' crates/gui/src/main.rs)",
+      "Bash(mkdir -p .claude/skills/gearmaster-gear)",
+      "Bash(cat)",
+      "Bash(awk '/pieces: &\\\\[/,/\\\\];/' crates/engine/src/theme.rs)",
+      "Bash(awk '/vocabulary: &\\\\[/,/\\\\],$/' crates/engine/src/theme.rs)",
+      "Bash(awk '/^    words: &\\\\[/,/^    \\\\],/' crates/engine/src/theme.rs)",
+      "Bash(grep -n \"^#\\\\{1,3\\\\} \" gear-master-td-retheme.md)",
+      "Bash(chmod +x .claude/skills/gearmaster-gear/scripts/check-parity.sh)",
+      "Bash(.claude/skills/gearmaster-gear/scripts/check-parity.sh)",
+      "Bash(pkill -f \"packing-.*balance_report\")",
+      "Bash(pkill -f \"balance_report\")",
+      "Bash(git stash *)",
+      "Bash(git diff *)"
     ]
   }
 }

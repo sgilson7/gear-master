@@ -694,7 +694,8 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Grave Chorus", "The Rice Criers"),
         // Your jailer. Beating him is the end of the first act.
         ("The Hollow King", "Lord Drabley Henpeck"),
-        ("Salt Idol", "C O R K"),
+        ("The Curator", "Galapagos Jim"),
+        ("Salt Idol", "The Stone Keeper"),
         ("Pale Twin", "The Gamer Grandparents"),
         ("Ruin Hound", "Death-Leopard"),
         ("Bone Cantor", "Skeleton Tool Wizard"),
@@ -710,7 +711,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Obsidian Colossus", "The Unmovable Rock"),
         ("Null Sentinel", "Warden of Sneel"),
         ("Silence", "The Glacier of Dobira"),
-        ("Weeping Idol", "The Weeping Seeker"),
+        ("Weeping Idol", "PoopFart"),
         ("The Long Mirror", "The Perfect Crime"),
         ("Iron Abbot", "Time Order Bishop"),
         ("The Last Gearwright", "Nikka Mista"),
@@ -722,10 +723,10 @@ pub static TURTLE_DICK: Theme = Theme {
         ("The Rust Parliament", "The Shareholders"),
         ("Sootmother", "Marbulon"),
         ("The Quiet Hour", "The Grand Calculation"),
-        ("Verdigris", "The Spreading Cork"),
+        ("Verdigris", "Gappy Handman"),
         ("The Drowned Court", "The Sea of Cleveland"),
-        ("Anvilheart", "The Comedian's Anvil"),
-        ("The Salt Wedding", "The Jester's Wedding"),
+        ("Anvilheart", "Big Yomp"),
+        ("The Salt Wedding", "C O R K"),
         ("Nine of Ashes", "Nibbalonius the Wise"),
         // The last three read as one story: the final holy beast, the coat
         // made from one, and the man wearing it.
