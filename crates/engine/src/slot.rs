@@ -214,6 +214,27 @@ impl Slot {
         seen.len()
     }
 
+    /// In-bounds empty cells orthogonally touching any part of a set of
+    /// pieces, counted once each.
+    ///
+    /// The item-wide version of `empty_neighbor_cells`. Per-piece would be the
+    /// stricter reading, but a component packed inside its own item touches
+    /// nothing empty however airy the build is - which would make anything
+    /// keyed on it dead the moment the item was worth building. This asks
+    /// whether the *item* was given room.
+    pub fn open_cells_around(&self, pieces: &[PieceId]) -> usize {
+        let own: HashSet<(u8, u8)> = pieces.iter().flat_map(|&p| self.cells_of(p)).collect();
+        let mut seen: HashSet<(u8, u8)> = HashSet::new();
+        for &(x, y) in &own {
+            for (nx, ny) in Self::orthogonal(x, y) {
+                if self.get(nx, ny).is_none() {
+                    seen.insert((nx, ny));
+                }
+            }
+        }
+        seen.len()
+    }
+
     /// The slot's pieces partitioned into orthogonally-connected groups. Each
     /// group is a candidate item: one slot can hold as many finished items as
     /// the player can fit, so long as they don't touch each other.

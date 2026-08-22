@@ -466,6 +466,15 @@ pub enum Trigger {
     /// same rows as this one, activates. Rewards lining gear up across the
     /// five grids rather than only within one.
     OnAlignedActivate(Action),
+    /// Run the wrapped trigger once per in-bounds empty cell touching this
+    /// item.
+    ///
+    /// A build decision rather than a stat: room around an item is bought with
+    /// the gear you did not pack there, and this is what pays for it. It wraps
+    /// a trigger rather than an action so it composes with the spending ones -
+    /// "for each open cell, spend 10 faith to gain a mana shield" is a repeat
+    /// around a `Spend`.
+    PerAdjacentEmpty(&'static Trigger),
     /// Fires when a **different spell in the same item** is cast.
     ///
     /// Only a crystal ball holds more than one spell, so this is what makes a
@@ -496,6 +505,9 @@ impl Trigger {
                 if *same_slot_only { "item in this slot" } else { "item" },
                 action.describe()
             ),
+            Trigger::PerAdjacentEmpty(inner) => {
+                format!("per empty cell touching this item: {}", inner.describe())
+            }
             Trigger::OnAdjacentActivate(a) => {
                 format!("when a touching item activates, {}", a.describe())
             }
@@ -834,7 +846,15 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 3000,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::SpendMana {
+            cost: 2,
+            on_success: Action::Damage {
+                amount: 9,
+                kind: DamageType::Magic,
+                target: Target::Enemy,
+            },
+            on_failure: Action::GainMana(2),
+        }],
         quest: Some(Quest {
             label: "Apprentice's Primer",
             goal: 20,
@@ -854,7 +874,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 1700,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::SpendMana {
+            cost: 5,
+            on_success: Action::GainEmpowerment(1),
+            on_failure: Action::GainMana(3),
+        }],
         quest: None,
         power_bonus: 160,
         price: 34,
@@ -1390,7 +1414,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2200,
         speed_bonus: 0,
-        triggers: &[],
+        // It reads the clock, and sometimes stops theirs.
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::Curse { kind: CurseKind::Stun, target: Target::Enemy },
+            on_failure: Action::ReduceCooldown(250),
+        }],
         quest: None,
         power_bonus: 45,
         price: 16,
@@ -1405,7 +1434,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 3000,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnOtherCast(Action::Damage {
+            amount: 7,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 70,
         price: 15,
@@ -1435,7 +1468,10 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnOtherCast(Action::Curse {
+            kind: CurseKind::Stun,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 0,
         price: 20,
@@ -1465,7 +1501,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2800,
         speed_bonus: 0,
-        triggers: &[],
+        // Worn thin enough that time leaks through it.
+        triggers: &[Trigger::SpendMana {
+            cost: 4,
+            on_success: Action::Curse { kind: CurseKind::Stun, target: Target::Enemy },
+            on_failure: Action::ReduceCooldown(300),
+        }],
         quest: None,
         power_bonus: 65,
         price: 21,
@@ -1610,7 +1651,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        // The tide goes out from under them.
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::Curse { kind: CurseKind::Stun, target: Target::Enemy },
+            on_failure: Action::GainMana(1),
+        }],
         quest: None,
         power_bonus: 0,
         price: 12,
@@ -2132,7 +2178,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2400,
         speed_bonus: 0,
-        triggers: &[],
+        // The rune holds them still for as long as it holds.
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::Curse { kind: CurseKind::Stun, target: Target::Enemy },
+            on_failure: Action::GainMana(2),
+        }],
         quest: None,
         power_bonus: 110,
         price: 22,
@@ -2147,7 +2198,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2400,
         speed_bonus: 0,
-        triggers: &[],
+        // It has seen what they were going to do.
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::Curse { kind: CurseKind::Misfire, target: Target::Enemy },
+            on_failure: Action::GainMana(2),
+        }],
         quest: None,
         power_bonus: 70,
         price: 17,
@@ -2162,7 +2218,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnOtherCast(Action::Damage {
+            amount: 9,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 0,
         price: 23,
@@ -2294,7 +2354,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 1600,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnActivate(Action::GainMana(1))],
         quest: None,
         power_bonus: 0,
         price: 5,
@@ -2313,7 +2373,8 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 5000,
         speed_bonus: 0,
-        triggers: &[],
+        // Heavy going, for whoever it lands on.
+        triggers: &[Trigger::OnActivate(Action::Curse { kind: CurseKind::Frost, target: Target::Enemy })],
         quest: None,
         power_bonus: 120,
         price: 14,
@@ -2344,7 +2405,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2600,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnOtherCast(Action::GainMana(1))],
         quest: None,
         power_bonus: 35,
         price: 13,
@@ -2359,7 +2420,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 1900,
         speed_bonus: 0,
-        triggers: &[],
+        // The hole in the middle is the point: it wants room.
+        triggers: &[Trigger::PerAdjacentEmpty(&Trigger::OnActivate(Action::Damage {
+            amount: 6,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        }))],
         quest: None,
         power_bonus: 55,
         price: 9,
@@ -2374,7 +2440,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnActivate(Action::Curse { kind: CurseKind::Searing, target: Target::Enemy })],
         quest: None,
         power_bonus: 90,
         price: 5,
@@ -2480,7 +2546,8 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        // It shields whatever else the ball is doing.
+        triggers: &[Trigger::OnOtherCast(Action::GainArmor(7))],
         quest: None,
         power_bonus: 0,
         price: 8,
@@ -3099,7 +3166,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::Curse { kind: CurseKind::Misfire, target: Target::Enemy },
+            on_failure: Action::GainMana(2),
+        }],
         quest: None,
         power_bonus: 0,
         price: 6,
@@ -3850,7 +3921,10 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnOtherCast(Action::Curse {
+            kind: CurseKind::Searing,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 100,
         price: 6,
@@ -3925,7 +3999,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 12,
-        triggers: &[],
+        triggers: &[Trigger::OnActivate(Action::ReduceCooldown(200))],
         quest: None,
         power_bonus: 95,
         price: 8,
@@ -3940,7 +4014,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        // Washes the runes off their gear for a while.
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::Curse { kind: CurseKind::Misfire, target: Target::Enemy },
+            on_failure: Action::GainMana(2),
+        }],
         quest: None,
         power_bonus: 135,
         price: 14,
@@ -3985,7 +4064,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        // Hollow: it is worth what is not there.
+        triggers: &[Trigger::PerAdjacentEmpty(&Trigger::OnActivate(Action::MindDamage {
+            amount: 2,
+            target: Target::Enemy,
+        }))],
         quest: None,
         power_bonus: 150,
         price: 18,
@@ -4015,7 +4098,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        // Lines up with whatever shares its rows.
+        triggers: &[Trigger::OnAlignedActivate(Action::Damage {
+            amount: 7,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 160,
         price: 20,
@@ -4030,7 +4118,16 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::Spend {
+            what: Resource::Rage,
+            cost: 6,
+            on_success: Action::Damage {
+                amount: 16,
+                kind: DamageType::Magic,
+                target: Target::Enemy,
+            },
+            on_failure: Action::Gain { what: Resource::Rage, amount: 2 },
+        }],
         quest: None,
         power_bonus: 130,
         price: 16,
@@ -4045,7 +4142,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::SpendMana {
+            cost: 4,
+            on_success: Action::Curse { kind: CurseKind::Stun, target: Target::Enemy },
+            on_failure: Action::MindDamage { amount: 4, target: Target::Enemy },
+        }],
         quest: None,
         power_bonus: 185,
         price: 26,
@@ -4060,7 +4161,16 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        // Expensive to write with, and it knows it.
+        triggers: &[Trigger::SpendMana {
+            cost: 6,
+            on_success: Action::Damage {
+                amount: 42,
+                kind: DamageType::Magic,
+                target: Target::Enemy,
+            },
+            on_failure: Action::Curse { kind: CurseKind::Searing, target: Target::Yourself },
+        }],
         quest: None,
         power_bonus: 205,
         price: 34,
@@ -4180,7 +4290,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::Curse { kind: CurseKind::Misfire, target: Target::Enemy },
+            on_failure: Action::GainMana(2),
+        }],
         quest: None,
         power_bonus: 0,
         price: 22,
@@ -4210,7 +4324,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::PerAdjacentEmpty(&Trigger::OnActivate(Action::Damage {
+            amount: 4,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        }))],
         quest: None,
         power_bonus: 0,
         price: 26,
@@ -4270,7 +4388,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        // It lands on them either way.
+        triggers: &[Trigger::SpendMana {
+            cost: 5,
+            on_success: Action::Curse { kind: CurseKind::Stun, target: Target::Enemy },
+            on_failure: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
+        }],
         quest: None,
         power_bonus: 0,
         price: 30,
@@ -4285,7 +4408,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnOtherCast(Action::MindDamage { amount: 3, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 25,
@@ -4300,7 +4423,8 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        // Open water. Every cell it is not touching gear is a cell it draws from.
+        triggers: &[Trigger::PerAdjacentEmpty(&Trigger::OnActivate(Action::GainMana(1)))],
         quest: None,
         power_bonus: 70,
         price: 12,
@@ -4315,7 +4439,8 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        // Each spell that goes off feeds the next.
+        triggers: &[Trigger::OnOtherCast(Action::Gain { what: Resource::Rage, amount: 3 })],
         quest: None,
         power_bonus: 70,
         price: 12,
@@ -4330,7 +4455,13 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        // Room around the ball is where the light gets in.
+        triggers: &[Trigger::PerAdjacentEmpty(&Trigger::Spend {
+            what: Resource::Faith,
+            cost: 10,
+            on_success: Action::GainShield(1),
+            on_failure: Action::Gain { what: Resource::Faith, amount: 2 },
+        })],
         quest: None,
         power_bonus: 70,
         price: 12,
@@ -4345,7 +4476,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnOtherCast(Action::Gain { what: Resource::Nature, amount: 3 })],
         quest: None,
         power_bonus: 70,
         price: 12,
@@ -4375,7 +4506,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::Spend {
+            what: Resource::Rage,
+            cost: 8,
+            on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
+            on_failure: Action::Gain { what: Resource::Rage, amount: 3 },
+        }],
         quest: None,
         power_bonus: 85,
         price: 19,
@@ -4390,7 +4526,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::Spend {
+            what: Resource::Faith,
+            cost: 12,
+            on_success: Action::GainArmor(22),
+            on_failure: Action::Gain { what: Resource::Faith, amount: 3 },
+        }],
         quest: None,
         power_bonus: 80,
         price: 18,
@@ -4405,7 +4546,13 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        // Growth banked while the fight runs, which is what nature is for.
+        triggers: &[Trigger::Spend {
+            what: Resource::Nature,
+            cost: 12,
+            on_success: Action::Grow(14),
+            on_failure: Action::Gain { what: Resource::Nature, amount: 3 },
+        }],
         quest: None,
         power_bonus: 80,
         price: 19,
@@ -4420,7 +4567,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        // It takes whatever light reaches it, from wherever there is room.
+        triggers: &[Trigger::PerAdjacentEmpty(&Trigger::OnActivate(Action::Gain {
+            what: Resource::Mana,
+            amount: 1,
+        }))],
         quest: None,
         power_bonus: 95,
         price: 24,
@@ -4435,7 +4586,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        // The hole in the ball: their gear forgets what it was doing.
+        triggers: &[Trigger::SpendMana {
+            cost: 4,
+            on_success: Action::Curse { kind: CurseKind::Misfire, target: Target::Enemy },
+            on_failure: Action::MindDamage { amount: 3, target: Target::Enemy },
+        }],
         quest: None,
         power_bonus: 100,
         price: 27,
@@ -5230,7 +5386,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        // It sees the swing coming and they fumble it.
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::Curse { kind: CurseKind::Misfire, target: Target::Enemy },
+            on_failure: Action::GainMana(2),
+        }],
         quest: None,
         power_bonus: 0,
         price: 9,
@@ -5335,7 +5496,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::SpendMana {
+            cost: 4,
+            on_success: Action::Curse { kind: CurseKind::Stun, target: Target::Enemy },
+            on_failure: Action::MindDamage { amount: 3, target: Target::Enemy },
+        }],
         quest: None,
         power_bonus: 0,
         price: 30,
@@ -5620,7 +5785,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::SpendMana {
+            cost: 4,
+            on_success: Action::Curse { kind: CurseKind::Stun, target: Target::Enemy },
+            on_failure: Action::GainArmor(10),
+        }],
         quest: None,
         power_bonus: 0,
         price: 22,
@@ -5770,7 +5939,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 3200,
         speed_bonus: 0,
-        triggers: &[],
+        // Dusk: they can no longer quite see what they are doing.
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::Curse { kind: CurseKind::Misfire, target: Target::Enemy },
+            on_failure: Action::GainMana(1),
+        }],
         quest: None,
         power_bonus: 0,
         price: 19,
@@ -6055,7 +6229,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 10,
-        triggers: &[],
+        // A step ahead, and they lose a beat.
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::Curse { kind: CurseKind::Stun, target: Target::Enemy },
+            on_failure: Action::ReduceCooldown(200),
+        }],
         quest: None,
         power_bonus: 0,
         price: 17,
@@ -6250,7 +6429,8 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 3000,
         speed_bonus: 0,
-        triggers: &[],
+        // Short enough to read twice.
+        triggers: &[Trigger::OnActivate(Action::ReduceCooldown(150))],
         quest: None,
         power_bonus: 0,
         price: 5,
@@ -6265,7 +6445,8 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2600,
         speed_bonus: 0,
-        triggers: &[],
+        // Read on the move: it answers whatever is keeping pace with it.
+        triggers: &[Trigger::OnAlignedActivate(Action::GainMana(1))],
         quest: None,
         power_bonus: 0,
         price: 9,
@@ -6280,7 +6461,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2200,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnOtherCast(Action::GainMana(2))],
         quest: None,
         power_bonus: 0,
         price: 15,
@@ -6295,7 +6476,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2800,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::Spend {
+            what: Resource::Faith,
+            cost: 10,
+            on_success: Action::GainArmor(18),
+            on_failure: Action::Gain { what: Resource::Faith, amount: 3 },
+        }],
         quest: None,
         power_bonus: 0,
         price: 12,
@@ -6310,7 +6496,17 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2800,
         speed_bonus: 0,
-        triggers: &[],
+        // It settles accounts.
+        triggers: &[Trigger::Spend {
+            what: Resource::Rage,
+            cost: 10,
+            on_success: Action::Damage {
+                amount: 24,
+                kind: DamageType::Physical,
+                target: Target::Enemy,
+            },
+            on_failure: Action::Gain { what: Resource::Rage, amount: 3 },
+        }],
         quest: None,
         power_bonus: 0,
         price: 12,
@@ -6325,7 +6521,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2800,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::Spend {
+            what: Resource::Nature,
+            cost: 10,
+            on_success: Action::Grow(11),
+            on_failure: Action::Gain { what: Resource::Nature, amount: 3 },
+        }],
         quest: None,
         power_bonus: 0,
         price: 12,
@@ -6340,7 +6541,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2000,
         speed_bonus: 12,
-        triggers: &[],
+        triggers: &[Trigger::OnActivate(Action::ReduceCooldown(300))],
         quest: None,
         power_bonus: 0,
         price: 18,
@@ -6355,7 +6556,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2400,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnActivate(Action::MindDamage { amount: 3, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 20,
@@ -6370,7 +6571,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2600,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnOtherCast(Action::Damage {
+            amount: 8,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 0,
         price: 28,
@@ -6385,7 +6590,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2400,
         speed_bonus: 6,
-        triggers: &[],
+        // It never ends, so it fills whatever room it is given.
+        triggers: &[Trigger::PerAdjacentEmpty(&Trigger::OnActivate(Action::Damage {
+            amount: 5,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        }))],
         quest: None,
         power_bonus: 0,
         price: 38,
@@ -6400,7 +6610,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 3200,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnOtherCast(Action::MindDamage { amount: 2, target: Target::Enemy })],
         quest: None,
         power_bonus: 40,
         price: 7,
@@ -6415,7 +6625,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2900,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnOtherCast(Action::Damage {
+            amount: 5,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 55,
         price: 12,
@@ -6430,7 +6644,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2600,
         speed_bonus: 0,
-        triggers: &[],
+        // Every spell it holds shows them a future they then fumble.
+        triggers: &[Trigger::OnOtherCast(Action::Curse {
+            kind: CurseKind::Misfire,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 75,
         price: 19,
@@ -6445,7 +6663,8 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2700,
         speed_bonus: 0,
-        triggers: &[],
+        // One spell pulls the next in behind it.
+        triggers: &[Trigger::OnOtherCast(Action::GainMana(2))],
         quest: None,
         power_bonus: 75,
         price: 22,
@@ -6460,7 +6679,16 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2700,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::Spend {
+            what: Resource::Rage,
+            cost: 9,
+            on_success: Action::Damage {
+                amount: 26,
+                kind: DamageType::Magic,
+                target: Target::Enemy,
+            },
+            on_failure: Action::Gain { what: Resource::Rage, amount: 3 },
+        }],
         quest: None,
         power_bonus: 65,
         price: 22,
@@ -6475,7 +6703,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2700,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::Spend {
+            what: Resource::Nature,
+            cost: 9,
+            on_success: Action::Grow(16),
+            on_failure: Action::Gain { what: Resource::Nature, amount: 3 },
+        }],
         quest: None,
         power_bonus: 65,
         price: 22,
@@ -6490,7 +6723,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2700,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::Spend {
+            what: Resource::Faith,
+            cost: 9,
+            on_success: Action::GainShield(1),
+            on_failure: Action::Gain { what: Resource::Faith, amount: 3 },
+        }],
         quest: None,
         power_bonus: 65,
         price: 22,
@@ -6505,7 +6743,8 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2200,
         speed_bonus: 14,
-        triggers: &[],
+        // Every spell that goes off gives it another shove.
+        triggers: &[Trigger::OnOtherCast(Action::ReduceCooldown(180))],
         quest: None,
         power_bonus: 60,
         price: 26,
@@ -6520,7 +6759,16 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2500,
         speed_bonus: 0,
-        triggers: &[],
+        // Nine of them, and each wants a window.
+        triggers: &[Trigger::PerAdjacentEmpty(&Trigger::SpendMana {
+            cost: 2,
+            on_success: Action::Damage {
+                amount: 11,
+                kind: DamageType::Magic,
+                target: Target::Enemy,
+            },
+            on_failure: Action::GainMana(1),
+        })],
         quest: None,
         power_bonus: 95,
         price: 33,
@@ -6535,7 +6783,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2300,
         speed_bonus: 8,
-        triggers: &[],
+        // It looks at them and they stop.
+        triggers: &[Trigger::OnOtherCast(Action::Curse {
+            kind: CurseKind::Stun,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 120,
         price: 45,
@@ -6747,7 +6999,10 @@ pub static CATALOG: &[PieceDef] = &[
         effect: Some(Effect { label: "Unshod: everything x10 while no greave overlaps it", when: When::Assembled, kind: EffectKind::SoleIf { what: Solitude::StackedWith(SlotKind::Greaves), times: 10 } }),
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnAlignedActivate(Action::Curse {
+            kind: CurseKind::Misfire,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 0,
         price: 88,
@@ -6861,6 +7116,45 @@ mod tests {
                 || def.speed_bonus != 0
                 || def.power_bonus != 0;
             assert!(does_something, "{} is a {:?} piece that does nothing at all", def.name, def.kind);
+        }
+    }
+
+    /// Stun and misfire used to exist only as an Oracle's class power, and
+    /// the Oracle needed a crystal ball to reach - so the two most interesting
+    /// curses in the game were behind a door that needed the thing behind the
+    /// door to open. They are now on gear, in every slot, so a build can grow
+    /// into them instead of being handed them.
+    #[test]
+    fn the_time_curses_are_reachable_from_every_slot() {
+        use crate::curse::CurseKind;
+        fn lands(t: &Trigger, want: CurseKind) -> bool {
+            let is = |a: &Action| matches!(a, Action::Curse { kind, .. } if *kind == want);
+            match t {
+                Trigger::PerAdjacentEmpty(inner) => lands(inner, want),
+                Trigger::OnActivate(a)
+                | Trigger::PerAdjacentItem { action: a, .. }
+                | Trigger::OnAdjacentActivate(a)
+                | Trigger::OnAlignedActivate(a)
+                | Trigger::OnOtherCast(a) => is(a),
+                Trigger::SpendMana { on_success, on_failure, .. }
+                | Trigger::Spend { on_success, on_failure, .. } => is(on_success) || is(on_failure),
+            }
+        }
+        for want in [CurseKind::Stun, CurseKind::Misfire] {
+            let carriers: Vec<&str> = CATALOG
+                .iter()
+                .filter(|d| d.triggers.iter().any(|t| lands(t, want)))
+                .map(|d| d.name)
+                .collect();
+            assert!(carriers.len() >= 6, "only {} pieces land {:?}", carriers.len(), want);
+            for slot in SlotKind::ALL {
+                assert!(
+                    CATALOG.iter().any(|d| d.fits(slot) && d.triggers.iter().any(|t| lands(t, want))),
+                    "no {} lands {:?}",
+                    slot.name(),
+                    want
+                );
+            }
         }
     }
 

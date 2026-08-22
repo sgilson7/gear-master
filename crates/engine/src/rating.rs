@@ -273,6 +273,10 @@ fn trigger_points(t: &Trigger) -> f32 {
         }
         // A piece with room around it touches one or two finished items.
         Trigger::PerAdjacentItem { action, .. } => 1.3 * action_points(action),
+        // Room around an item is bought with the gear you did not pack there.
+        // Four open cells is what a build that is trying gets; more is
+        // possible and costs more than it is worth.
+        Trigger::PerAdjacentEmpty(inner) => 4.0 * trigger_points(inner),
         // Reactions fire off someone else's cooldown, which is usually faster
         // than your own, but they need a neighbour to exist at all.
         Trigger::OnAdjacentActivate(a) => 1.1 * action_points(a),

@@ -1532,8 +1532,17 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
         Action::GainEmpowerment(_) | Action::GainShield(_) => note("mana", out),
         Action::Grow(_) => note("health", out),
     } }
-    for t in def.triggers {
+    // A repeat carries a trigger, so unwrap it once and read that: a piece
+    // whose only trigger is a repeat would otherwise show no icons at all.
+    let unwrap = |t: &'static Trigger| -> &'static Trigger {
         match t {
+            Trigger::PerAdjacentEmpty(inner) => inner,
+            other => other,
+        }
+    };
+    for t in def.triggers.iter().map(unwrap) {
+        match t {
+            Trigger::PerAdjacentEmpty(_) => {}
             Trigger::OnActivate(a)
             | Trigger::PerAdjacentItem { action: a, .. }
             | Trigger::OnAdjacentActivate(a)
@@ -5952,6 +5961,7 @@ fn trigger_curses(t: &gearmaster_engine::piece::Trigger) -> bool {
     use gearmaster_engine::piece::{Action, Target, Trigger};
     let curses = |a: &Action| matches!(a, Action::Curse { target: Target::Enemy, .. });
     match t {
+        Trigger::PerAdjacentEmpty(inner) => trigger_curses(inner),
         Trigger::OnActivate(a)
         | Trigger::PerAdjacentItem { action: a, .. }
         | Trigger::OnAdjacentActivate(a)
@@ -7716,6 +7726,7 @@ mod tests {
             stats: gearmaster_engine::stats::Stats::ZERO,
             triggers: Vec::new(),
             adjacent_assembled_same_slot: 0,
+        open_cells: 0,
         rating: 0,
         power_bonus: 0,
         casts: Vec::new(),

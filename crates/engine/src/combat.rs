@@ -2026,6 +2026,8 @@ pub struct RunningItem {
     pub nature: i32,
     pub triggers: Vec<Trigger>,
     pub adjacent_assembled_same_slot: usize,
+    /// Empty cells touching this item on the board it was built on.
+    pub open_cells: usize,
     /// Indices, in the owner's item list, of items this one reacts to.
     pub adjacent_items: Vec<usize>,
     pub aligned_items: Vec<usize>,
@@ -2058,6 +2060,7 @@ impl RunningItem {
             mana: p.stats.mana,
             triggers: p.triggers.clone(),
             adjacent_assembled_same_slot: p.adjacent_assembled_same_slot,
+            open_cells: p.open_cells,
             adjacent_items: p.adjacent_items.clone(),
             aligned_items: p.aligned_items.clone(),
             curse: None,
@@ -2085,6 +2088,7 @@ impl RunningItem {
             mana: 0,
             triggers: Vec::new(),
             adjacent_assembled_same_slot: 0,
+            open_cells: 0,
             adjacent_items: Vec::new(),
             aligned_items: Vec::new(),
             curse: a.curse,
@@ -3155,7 +3159,21 @@ fn activate(
         }
     }
 
+    // A repeat is expanded here rather than in the match below, so the thing
+    // being repeated stays an ordinary trigger and every arm keeps working.
+    let mut firing: Vec<Trigger> = Vec::with_capacity(item.triggers.len());
     for trigger in &item.triggers {
+        match *trigger {
+            Trigger::PerAdjacentEmpty(inner) => {
+                for _ in 0..item.open_cells {
+                    firing.push(*inner);
+                }
+            }
+            other => firing.push(other),
+        }
+    }
+
+    for trigger in &firing {
         match *trigger {
             Trigger::OnActivate(action) => apply(p, e, side, action, t, log, Some(idx)),
             Trigger::SpendMana { cost, on_success, on_failure } => {
@@ -3210,6 +3228,8 @@ fn activate(
                     apply(p, e, side, action, t, log, Some(idx));
                 }
             }
+            // Already expanded above; a nested one is not authored.
+            Trigger::PerAdjacentEmpty(_) => {}
             // These wait for someone else to act.
             Trigger::OnAdjacentActivate(_)
             | Trigger::OnAlignedActivate(_)

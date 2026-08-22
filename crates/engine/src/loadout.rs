@@ -43,6 +43,8 @@ pub struct ItemProfile {
     pub triggers: Vec<Trigger>,
     /// Assembled items in the same slot touching this one, counted once.
     pub adjacent_assembled_same_slot: usize,
+    /// Empty cells touching this item - what `PerAdjacentEmpty` repeats over.
+    pub open_cells: usize,
     /// Hundredths of weapon power that apply to THIS item alone - what the
     /// ink in a spell is worth. Never reaches the wearer's own total.
     pub power_bonus: i32,
@@ -593,6 +595,7 @@ impl Loadout {
                 sigil_seed: item_hash(self.name_seed, reg, slot, &item.pieces),
                 pieces: item.pieces.clone(),
                 adjacent_assembled_same_slot: adjacent.len(),
+                open_cells: slot.open_cells_around(&item.pieces),
                 adjacent_items: adjacent,
                 aligned_items: aligned,
                 name: item.name.short.clone(),
