@@ -475,6 +475,17 @@ pub const RUST_GOLEM: MonsterSpec = MonsterSpec {
 pub const SPELL_MANA_COST: i32 = 3;
 pub const WEAK_CAST_PCT: i32 = 45;
 
+/// What a paid cast lands for.
+///
+/// Playtesters found spells universally weak and crystal balls not worth the
+/// room they take. The reason was that paying for a spell bought you nothing
+/// except not being weakened - the ceiling was the number printed on the
+/// piece, and that number had to compete with a blade that swings for it
+/// every time and never asks for mana. So paying now doubles the cast. The
+/// shop price is unchanged on purpose: the point is to make casters worth
+/// their slot, not to make them cost more.
+pub const EMPOWERED_CAST_PCT: i32 = 200;
+
 /// How many of its spells a crystal ball casts each time it comes round.
 ///
 /// Two, always. A class can raise it; nothing lowers it.
@@ -2979,12 +2990,14 @@ fn activate(
                 false
             }
         };
-        if !paid {
-            let weaken = |v: &mut i32| *v = *v * WEAK_CAST_PCT / 100;
-            weaken(&mut item.physical_damage);
-            weaken(&mut item.magic_damage);
-            weaken(&mut item.mind);
-            weaken(&mut item.armor);
+        let scale = if paid { EMPOWERED_CAST_PCT } else { WEAK_CAST_PCT };
+        for v in [
+            &mut item.physical_damage,
+            &mut item.magic_damage,
+            &mut item.mind,
+            &mut item.armor,
+        ] {
+            *v = *v * scale / 100;
         }
         let remaining = pick(p, e, side).mana;
         log.push(LogEntry {

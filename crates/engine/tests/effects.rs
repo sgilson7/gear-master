@@ -215,6 +215,54 @@ fn a_neighbour_reading_effect_is_dormant_until_its_item_assembles() {
 
 /// A spell has two strengths. With mana it lands in full; without, it still
 /// goes off - a build that runs dry should get weaker, not stop.
+/// Paying for a spell has to buy something. It used to buy only "not being
+/// weakened", which meant the ceiling on a caster was the number printed on
+/// the piece - and that number had to compete with a blade that swings for it
+/// every time and never asks for mana. Playtesters found casters uniformly
+/// weak for exactly this reason.
+#[test]
+fn a_paid_cast_lands_about_twice_what_an_unpaid_one_does() {
+    use gearmaster_engine::combat::{EMPOWERED_CAST_PCT, WEAK_CAST_PCT};
+    // Not an arbitrary ratio: this is the promise the shop price is set
+    // against, so moving one without the other silently reprices every caster.
+    assert!(
+        EMPOWERED_CAST_PCT >= 2 * WEAK_CAST_PCT * 2,
+        "a paid cast should be worth roughly twice an unpaid one, not {}x",
+        EMPOWERED_CAST_PCT as f32 / WEAK_CAST_PCT as f32
+    );
+}
+
+/// A crystal ball costs more room than a book and casts more often, so it has
+/// to out-damage one. It did not: a book takes an ink and an ink carries a
+/// power multiplier, while every orb and every alignment carried none - even
+/// though the orb recipe has always claimed the alignment scales the ball.
+#[test]
+fn an_orb_out_damages_a_book_for_the_room_it_costs() {
+    use gearmaster_engine::piece::{PieceKind, CATALOG};
+    let power = |kind: PieceKind| -> Vec<i32> {
+        CATALOG.iter().filter(|d| d.kind == kind).map(|d| d.power_bonus).collect()
+    };
+    for kind in [PieceKind::Orb, PieceKind::Alignment] {
+        let p = power(kind);
+        assert!(
+            p.iter().all(|b| *b > 0),
+            "{:?}: every one of these scales what a ball casts, so none may be zero",
+            kind
+        );
+    }
+    // And the seat an alignment fills is the ink's, so it should be worth
+    // something comparable rather than a rounding error beside one.
+    let inks: Vec<i32> = power(PieceKind::Ink);
+    let aligns: Vec<i32> = power(PieceKind::Alignment);
+    let avg = |v: &[i32]| v.iter().sum::<i32>() as f32 / v.len() as f32;
+    assert!(
+        avg(&aligns) > avg(&inks) * 0.4,
+        "alignments average {:.0} power against inks' {:.0}",
+        avg(&aligns),
+        avg(&inks)
+    );
+}
+
 #[test]
 fn a_spell_cast_without_mana_still_lands_but_weakly() {
     use gearmaster_engine::combat::{simulate, Event, Side, LADDER};

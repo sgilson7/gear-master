@@ -1392,7 +1392,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 45,
         price: 16,
     },
     PieceDef {
@@ -1407,7 +1407,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 70,
         price: 15,
     },
     PieceDef {
@@ -1467,7 +1467,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 65,
         price: 21,
     },
     // ---- Gear that reads its neighbours ----
@@ -2149,7 +2149,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 70,
         price: 17,
     },
     PieceDef {
@@ -2346,7 +2346,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 35,
         price: 13,
     },
     PieceDef {
@@ -2361,7 +2361,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 55,
         price: 9,
     },
     PieceDef {
@@ -4302,7 +4302,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 70,
         price: 12,
     },
     PieceDef {
@@ -4317,7 +4317,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 70,
         price: 12,
     },
     PieceDef {
@@ -4332,7 +4332,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 70,
         price: 12,
     },
     PieceDef {
@@ -4347,7 +4347,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 70,
         price: 12,
     },
     PieceDef {
@@ -4362,7 +4362,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[Trigger::SpendMana { cost: 4, on_success: Action::GainEmpowerment(1), on_failure: Action::GainMana(2) }],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 90,
         price: 20,
     },
     PieceDef {
@@ -4377,7 +4377,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 85,
         price: 19,
     },
     PieceDef {
@@ -4392,7 +4392,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 80,
         price: 18,
     },
     PieceDef {
@@ -4407,7 +4407,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 80,
         price: 19,
     },
     PieceDef {
@@ -4422,7 +4422,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 95,
         price: 24,
     },
     PieceDef {
@@ -4437,7 +4437,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 100,
         price: 27,
     },
     PieceDef {
@@ -6402,7 +6402,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 40,
         price: 7,
     },
     PieceDef {
@@ -6417,7 +6417,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 55,
         price: 12,
     },
     PieceDef {
@@ -6432,7 +6432,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 75,
         price: 19,
     },
     PieceDef {
@@ -6447,7 +6447,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 75,
         price: 22,
     },
     PieceDef {
@@ -6462,7 +6462,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 65,
         price: 22,
     },
     PieceDef {
@@ -6477,7 +6477,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 65,
         price: 22,
     },
     PieceDef {
@@ -6492,7 +6492,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 65,
         price: 22,
     },
     PieceDef {
@@ -6507,7 +6507,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 14,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 60,
         price: 26,
     },
     PieceDef {
@@ -6522,7 +6522,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 95,
         price: 33,
     },
     PieceDef {
@@ -6537,7 +6537,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 8,
         triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 120,
         price: 45,
     },
     // Francis only. Never stocked, and deliberately outside the scale every
