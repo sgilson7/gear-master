@@ -102,7 +102,15 @@ impl Theme {
                     // does not shout.
                     let starts_upper = word.chars().next().is_some_and(|c| c.is_uppercase());
                     if starts_upper {
-                        out.push_str(to);
+                        // Capitalise the replacement rather than trusting the
+                        // table's own casing: "Searing" became "roasting"
+                        // mid-name because the entry happened to be written
+                        // lowercase.
+                        let mut cs = to.chars();
+                        if let Some(f) = cs.next() {
+                            out.extend(f.to_uppercase());
+                            out.push_str(cs.as_str());
+                        }
                     } else {
                         out.push_str(&to.to_lowercase());
                     }
@@ -229,8 +237,7 @@ pub static TURTLE_DICK: Theme = Theme {
          out of loose pieces - that is what the five frames are. Build yourself \
          up out of scrap until you can take Henpeck apart, and get them out.",
         "Somewhere far above all that, the gambler is still going, and the coat \
-         is still on him. Neither of them is your problem. Both of them can be \
-         fought, by anyone whose build is perfect enough to try.",
+         is still on him. Neither of them is your problem.",
     ],
     pieces: &[
         // The catalogue, re-cast from the book. Grades are kept as grades: the
@@ -694,8 +701,8 @@ pub static TURTLE_DICK: Theme = Theme {
         ("character", "YOUR SPROCKETMAN"),
         ("opponent", "NEXT ON THE ROAD"),
         ("glossary", "WHAT THE WORDS MEAN"),
-        ("mana", "Funny"),
-        ("mana-lower", "funny"),
+        ("mana", "Jokes"),
+        ("mana-lower", "jokes"),
         ("armor", "Cork"),
         ("armor-lower", "cork"),
         ("rage", "Fury"),
@@ -706,7 +713,12 @@ pub static TURTLE_DICK: Theme = Theme {
     // says "mana" everywhere - every rule it applies depends on that word
     // meaning exactly one thing - and this translates the output.
     vocabulary: &[
-        ("mana", "Funny"),
+        // Jokes are what you spend; Funny is the kind of harm they do. Keeping
+        // the two words apart is what makes "spend 3 jokes to deal 12 funny
+        // damage" a sentence rather than a tautology.
+        ("mana", "Jokes"),
+        ("magic", "Funny"),
+        ("arcana", "funny"),
         ("armor", "Cork"),
         ("armour", "Cork"),
         ("rage", "Fury"),
@@ -723,11 +735,18 @@ pub static TURTLE_DICK: Theme = Theme {
     glossary: &[
         (
             "MANA",
-            "THE FUNNY",
-            "What goofs cost. The Funny is comedic energy: a banana peel, a pie, an anvil on \
-             your own foot. Items that spend it fail politely when you are out, and a spell \
-             cast without it still goes off - just weakly. Low-level Funny Men's goofs often \
-             go horribly wrong. Yours will not, because you read the jokebook.",
+            "JOKES",
+            "What goofs cost. You bank jokes and spend them: a banana peel, a pie, an anvil \
+             on your own foot. Items that spend jokes fail politely when you are out, and a \
+             spell cast without them still goes off - just weakly. Low-level Funny Men's \
+             goofs often go horribly wrong. Yours will not, because you read the jokebook.",
+        ),
+        (
+            "PHYSICAL / MAGIC",
+            "IRON / FUNNY",
+            "The two kinds of harm. Iron is the ordinary sort. Funny is what a landed joke \
+             does - comedic energy, delivered through a funnel, and it has its own set of \
+             defences. Untyped damage, like a burn or a bite, answers to neither.",
         ),
         (
             "ARMOR",
@@ -1101,10 +1120,13 @@ mod tests {
     fn retelling_only_replaces_whole_words() {
         let t = &TURTLE_DICK;
         // Lower in, lower out - the case rule applies here too.
-        assert_eq!(t.retell("mana"), "funny");
+        assert_eq!(t.retell("mana"), "jokes");
         assert_eq!(t.retell("manacle"), "manacle");
+        // Two words that must not blur into one another.
+        assert_eq!(t.retell("magic damage"), "funny damage");
+        assert_eq!(t.retell("spend 3 mana"), "spend 3 jokes");
         assert_eq!(t.retell("armoury"), "armoury");
-        assert_eq!(t.retell("2 mana a second"), "2 funny a second");
+        assert_eq!(t.retell("2 mana a second"), "2 jokes a second");
         assert_eq!(t.retell("gains 12 armor (12)"), "gains 12 cork (12)");
     }
 
@@ -1113,9 +1135,11 @@ mod tests {
     #[test]
     fn retelling_follows_the_case_it_found() {
         let t = &TURTLE_DICK;
-        assert_eq!(t.retell("Mana is spent"), "Funny is spent");
-        assert_eq!(t.retell("spends mana"), "spends funny");
+        assert_eq!(t.retell("Mana is spent"), "Jokes is spent");
+        assert_eq!(t.retell("spends mana"), "spends jokes");
         assert_eq!(t.retell("ARMOR"), "Cork");
+        // The replacement takes the source's case, not the table's.
+        assert_eq!(t.retell("Searing Thorn"), "Roasting Thorn");
     }
 
     /// The plain theme has no vocabulary, so it hands prose straight back -

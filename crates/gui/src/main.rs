@@ -2785,10 +2785,13 @@ fn render_slot_items(
             let tw = text_width(&time, 12.0);
             ui_text(&time, ox + gw - tw - 2.0, y + 14.0, 12.0, col_dim());
             let room = gw - 22.0 - tw - 22.0;
-            let size = fitting_size(&p.name, room, &[14.0, 13.0, 12.0, 11.0]);
-            draw_capped(&p.name, ox + 20.0, y + 14.0, room, size, WHITE, 1);
+            // The short name goes through the theme too, or an item is called
+            // one thing in the list and another on its own card.
+            let shown = words::retell(&p.name);
+            let size = fitting_size(&shown, room, &[14.0, 13.0, 12.0, 11.0]);
+            draw_capped(&shown, ox + 20.0, y + 14.0, room, size, WHITE, 1);
             draw_rarity_pips(
-                ox + 20.0 + text_width(&p.name, size).min(room) + 6.0,
+                ox + 20.0 + text_width(&shown, size).min(room) + 6.0,
                 y + 9.0,
                 p.rarity(),
                 0.7,
@@ -2811,7 +2814,10 @@ fn render_slot_items(
             hover.over(row, mx, my, || {
                 let mut lines = vec![(full.clone(), col_bad())];
                 for item in report.items.iter().filter(|i| !i.assembled) {
-                    lines.push((format!("  {}: {}", item.name.short, item.status), LIGHTGRAY));
+                    lines.push((
+                        format!("  {}: {}", words::retell(&item.name.short), item.status),
+                        LIGHTGRAY,
+                    ));
                 }
                 lines
             });
@@ -3968,7 +3974,7 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
                 g.cd_x,
                 top + 30.0 + row as f32 * pitch,
                 g.cd_w,
-                &it.name,
+                &words::retell(&it.name),
                 it.slot,
                 it.sigil_seed,
                 it.cooldown_ms,
@@ -4284,7 +4290,7 @@ fn item_summary_lines_plain(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> 
 /// A monster's innate attack, which has no components behind it.
 fn render_innate_summary(it: &gearmaster_engine::combat::RunningItem, mx: f32, my: f32) {
     let mut lines: Vec<(String, Color)> = vec![
-        (it.name.clone(), col_gold()),
+        (words::retell(&it.name), col_gold()),
         ("innate - not gear".to_string(), col_dim()),
         (
             format!("IN COMBAT - every {:.2}s", it.cooldown_ms as f32 / 1000.0),
@@ -6241,7 +6247,7 @@ fn render_panel(
         (rates.curses, "curse", col_trigger()),
     ] {
         if v >= 0.05 {
-            cells.push((format!("{:.1} {}/s", v, label), colour));
+            cells.push((format!("{:.1} {}/s", v, words::retell(label)), colour));
         }
     }
     cells.push((format!("{} items", items.len()), col_dim()));
