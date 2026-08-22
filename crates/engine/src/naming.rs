@@ -12,6 +12,7 @@
 //! So the name is stable, reproducible, and tells you something true.
 
 use crate::piece::{Action, EffectKind, PieceId, PieceRegistry, SlotKind, Trigger};
+use crate::rating::Rarity;
 use crate::slot::Slot;
 
 // ------------------------------------------------------------------ hash
@@ -59,42 +60,44 @@ fn pick<'a>(h: u64, shift: u32, corpus: &[&'a str]) -> &'a str {
 
 // --------------------------------------------------------------- corpora
 
-fn bases(slot: SlotKind) -> &'static [&'static str] {
-    match slot {
-        SlotKind::Weapon => &[
+/// Nouns an item can be built around, one pool per slot.
+const WEAPON_BASES: &[&str] = &[
             "Blade", "Edge", "Cleaver", "Fang", "Sliver", "Reaver", "Talon", "Sabre",
             "Thorn", "Lance", "Hewer", "Splitter", "Falchion", "Glaive", "Sting", "Bite",
             "Rend", "Scar", "Warblade", "Kris", "Shiv", "Ripper", "Pike", "Cudgel",
             "Sickle", "Razor", "Spine", "Hook", "Gutter", "Tooth", "Barb", "Skewer",
-        ],
-        SlotKind::Helmet => &[
+];
+
+const HELMET_BASES: &[&str] = &[
             "Crown", "Helm", "Visage", "Casque", "Coif", "Diadem", "Circlet", "Mask",
             "Skullcap", "Barbute", "Sallet", "Gaze", "Brow", "Vigil", "Cowl", "Hood",
             "Faceplate", "Crest", "Halo", "Veil", "Bascinet", "Headpiece", "Wreath", "Horn",
             "Antler", "Beak", "Muzzle", "Blinder", "Watcher", "Sentinel", "Eye", "Mind",
-        ],
-        SlotKind::Chest => &[
+];
+
+const CHEST_BASES: &[&str] = &[
             "Carapace", "Cuirass", "Hauberk", "Aegis", "Shell", "Vestment", "Mantle",
             "Plating", "Ribcage", "Bulwark", "Shroud", "Harness", "Brigandine", "Jerkin",
             "Weave", "Lattice", "Husk", "Chassis", "Frame", "Barrel", "Girdle", "Wrap",
             "Sheath", "Bark", "Scale", "Hide", "Casing", "Cradle", "Vault", "Keel",
             "Hollow", "Cage",
-        ],
-        SlotKind::Gloves => &[
+];
+
+const GLOVE_BASES: &[&str] = &[
             "Grasp", "Gauntlet", "Clutch", "Fist", "Grip", "Talons", "Handwraps",
             "Knuckles", "Palm", "Vise", "Claw", "Mitt", "Cuff", "Hold", "Pinch", "Snare",
             "Bracer", "Digit", "Thumbscrew", "Wringer", "Catcher", "Hand", "Finger",
             "Crusher", "Squeeze", "Latch", "Clamp", "Nail", "Paw", "Grapple", "Hook",
             "Cinch",
-        ],
-        SlotKind::Greaves => &[
+];
+
+const GREAVE_BASES: &[&str] = &[
             "Stride", "Greave", "Tread", "Step", "Sabaton", "Legguard", "Gait", "Pace",
             "Boot", "March", "Footfall", "Shin", "Heel", "Kick", "Runner", "Walker",
             "Trudge", "Lope", "Vault", "Spur", "Stirrup", "Anklet", "Sole", "Track",
             "Trail", "Wander", "Roam", "Prowl", "Creep", "Bound", "Leap", "Dance",
-        ],
-    }
-}
+];
+
 
 /// Trailing "of the ___". Deliberately atmospheric rather than descriptive —
 /// the qualifier already carries the meaning.
@@ -106,6 +109,16 @@ const SUFFIXES: &[&str] = &[
     "Silt", "Wake", "Hunger", "Threadbare Crown", "Iron Fen", "Weeping Gate",
     "Sunken Mile", "Barrow", "Glass Waste", "First Frost", "Red Hour", "Mourning",
     "Fallow Year", "Tallow", "Shale", "Hush", "Cinder Vow", "Long Silence",
+];
+
+/// Words that sit between the qualifier and the noun on a common item, where
+/// there is no room for an "of the ..." tail. Places and materials: a common
+/// item should read like something made locally out of what was to hand.
+const ATTRIBUTIVES: &[&str] = &[
+    "Iron", "Ash", "Salt", "Bone", "Rust", "Pale", "Grave", "Cold", "Thin", "Low",
+    "Deep", "Quiet", "Slow", "Broken", "Hollow", "Long", "Kiln", "Fen", "Barrow",
+    "Silt", "Tallow", "Shale", "Bell", "Gate", "Cinder", "Fallow", "Glass", "Sunken",
+    "Drowned", "Weeping", "Winnow", "Hush",
 ];
 
 /// Used when an item does nothing distinctive enough to earn a real qualifier.
@@ -288,9 +301,60 @@ pub struct ItemName {
 }
 
 /// Name one assembled item.
-pub fn name_item(seed: u64, reg: &PieceRegistry, slot: &Slot, pieces: &[PieceId]) -> ItemName {
+/// The words one theme names items out of.
+///
+/// Everything the generator draws on, so a theme can replace the whole corpus
+/// without touching how names are built. The rule that a name grows with its
+/// rarity is the generator's, not a theme's.
+#[derive(Debug)]
+pub struct Naming {
+    pub weapon_bases: &'static [&'static str],
+    pub helmet_bases: &'static [&'static str],
+    pub chest_bases: &'static [&'static str],
+    pub glove_bases: &'static [&'static str],
+    pub greave_bases: &'static [&'static str],
+    /// Sits between qualifier and noun on a common item.
+    pub attributives: &'static [&'static str],
+    /// Tails. One- and two-word entries may be mixed; the generator picks by
+    /// length, so a legendary always gets a longer one than an epic.
+    pub suffixes: &'static [&'static str],
+    /// For an item that earned no qualifier of its own.
+    pub epithets: &'static [&'static str],
+}
+
+impl Naming {
+    pub fn bases(&self, kind: SlotKind) -> &'static [&'static str] {
+        match kind {
+            SlotKind::Weapon => self.weapon_bases,
+            SlotKind::Helmet => self.helmet_bases,
+            SlotKind::Chest => self.chest_bases,
+            SlotKind::Gloves => self.glove_bases,
+            SlotKind::Greaves => self.greave_bases,
+        }
+    }
+}
+
+/// The game's own words.
+pub static PLAIN_NAMING: Naming = Naming {
+    weapon_bases: WEAPON_BASES,
+    helmet_bases: HELMET_BASES,
+    chest_bases: CHEST_BASES,
+    glove_bases: GLOVE_BASES,
+    greave_bases: GREAVE_BASES,
+    attributives: ATTRIBUTIVES,
+    suffixes: SUFFIXES,
+    epithets: PLAIN_EPITHETS,
+};
+
+pub fn name_item(
+    seed: u64,
+    reg: &PieceRegistry,
+    slot: &Slot,
+    pieces: &[PieceId],
+    rarity: Rarity,
+    naming: &Naming,
+) -> ItemName {
     let h = item_hash(seed, reg, slot, pieces);
-    let suffix = pick(h, 21, SUFFIXES);
 
     // A trigger or effect names the item if it has one; otherwise fall back to
     // whichever stat it actually carries, picked by hash so gear that all
@@ -298,18 +362,42 @@ pub fn name_item(seed: u64, reg: &PieceRegistry, slot: &Slot, pieces: &[PieceId]
     let earned = qualifiers(reg, pieces);
     let qualifier = match earned.first() {
         Some(q) => *q,
-        None => stat_qualifier(h, reg, pieces).unwrap_or_else(|| pick(h, 42, PLAIN_EPITHETS)),
+        None => stat_qualifier(h, reg, pieces).unwrap_or_else(|| pick(h, 42, naming.epithets)),
     };
 
     // Draw the noun from a corpus with the qualifier removed, so "Hollow
     // Hollow" cannot happen. Retrying a different hash slice would only make
     // it rare, not impossible.
     let corpus: Vec<&str> =
-        bases(slot.kind).iter().copied().filter(|b| *b != qualifier).collect();
+        naming.bases(slot.kind).iter().copied().filter(|b| *b != qualifier).collect();
     let base = pick(h, 0, &corpus);
-
     let short = format!("{} {}", qualifier, base);
-    ItemName { full: format!("{} of the {}", short, suffix), short }
+
+    // A name grows with what it is worth, so rarity is audible before the
+    // badge is read: three words common, four rare, five epic, six legendary.
+    let tail = |want: usize| -> &'static str {
+        let pool: Vec<&str> =
+            naming.suffixes.iter().copied().filter(|s| s.split_whitespace().count() == want).collect();
+        // A theme with no tail of that length falls back to any tail rather
+        // than to nothing; the word count is a target, not a promise it can
+        // keep on somebody else's corpus.
+        if pool.is_empty() {
+            pick(h, 21, naming.suffixes)
+        } else {
+            pick(h, 21, &pool)
+        }
+    };
+    let full = match rarity {
+        Rarity::Common => {
+            let attr: Vec<&str> =
+                naming.attributives.iter().copied().filter(|a| *a != qualifier && *a != base).collect();
+            format!("{} {} {}", qualifier, pick(h, 33, &attr), base)
+        }
+        Rarity::Rare => format!("{} of {}", short, tail(1)),
+        Rarity::Epic => format!("{} of the {}", short, tail(1)),
+        Rarity::Legendary => format!("{} of the {}", short, tail(2)),
+    };
+    ItemName { full, short }
 }
 
 #[cfg(test)]
@@ -334,8 +422,8 @@ mod tests {
     #[test]
     fn the_same_arrangement_always_gets_the_same_name() {
         let (reg, slot, ids) = place(&[("Oak Handle", 0, 0), ("Iron Blade", 1, 0)], SlotKind::Weapon);
-        let a = name_item(7, &reg, &slot, &ids);
-        let b = name_item(7, &reg, &slot, &ids);
+        let a = name_item(7, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING);
+        let b = name_item(7, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING);
         assert_eq!(a, b);
         assert!(!a.short.is_empty());
     }
@@ -344,45 +432,45 @@ mod tests {
     fn moving_a_piece_one_cell_renames_the_item() {
         let (r1, s1, i1) = place(&[("Oak Handle", 0, 0), ("Iron Blade", 1, 0)], SlotKind::Weapon);
         let (r2, s2, i2) = place(&[("Oak Handle", 0, 1), ("Iron Blade", 1, 1)], SlotKind::Weapon);
-        assert_ne!(name_item(7, &r1, &s1, &i1), name_item(7, &r2, &s2, &i2));
+        assert_ne!(name_item(7, &r1, &s1, &i1, Rarity::Epic, &PLAIN_NAMING), name_item(7, &r2, &s2, &i2, Rarity::Epic, &PLAIN_NAMING));
     }
 
     #[test]
     fn a_different_seed_renames_everything() {
         let (reg, slot, ids) = place(&[("Oak Handle", 0, 0), ("Iron Blade", 1, 0)], SlotKind::Weapon);
-        assert_ne!(name_item(1, &reg, &slot, &ids), name_item(2, &reg, &slot, &ids));
+        assert_ne!(name_item(1, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING), name_item(2, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING));
     }
 
     #[test]
     fn rotation_counts_as_part_of_the_arrangement() {
         let (mut reg, slot, ids) = place(&[("Gauntlet Mold", 0, 0)], SlotKind::Gloves);
-        let before = name_item(3, &reg, &slot, &ids);
+        let before = name_item(3, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING);
         reg.rotate_cw(ids[0]);
-        assert_ne!(name_item(3, &reg, &slot, &ids), before);
+        assert_ne!(name_item(3, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING), before);
     }
 
     #[test]
     fn the_order_pieces_were_placed_in_does_not_matter() {
         let (r1, s1, mut i1) =
             place(&[("Oak Handle", 0, 0), ("Iron Blade", 1, 0)], SlotKind::Weapon);
-        let name = name_item(9, &r1, &s1, &i1);
+        let name = name_item(9, &r1, &s1, &i1, Rarity::Epic, &PLAIN_NAMING);
         i1.reverse();
-        assert_eq!(name_item(9, &r1, &s1, &i1), name, "the arrangement is what counts");
+        assert_eq!(name_item(9, &r1, &s1, &i1, Rarity::Epic, &PLAIN_NAMING), name, "the arrangement is what counts");
     }
 
     #[test]
     fn the_base_noun_suits_the_slot() {
         let (reg, slot, ids) = place(&[("Steel Frame", 0, 0)], SlotKind::Helmet);
-        let n = name_item(11, &reg, &slot, &ids);
+        let n = name_item(11, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING);
         let word = n.short.split_whitespace().last().unwrap();
-        assert!(bases(SlotKind::Helmet).contains(&word), "{} is not a helmet word", word);
+        assert!(PLAIN_NAMING.bases(SlotKind::Helmet).contains(&word), "{} is not a helmet word", word);
     }
 
     #[test]
     fn a_burning_weapon_is_named_for_its_curse() {
         let (reg, slot, ids) =
             place(&[("Cursed Handle", 0, 0), ("Iron Blade", 1, 0)], SlotKind::Weapon);
-        let n = name_item(4, &reg, &slot, &ids);
+        let n = name_item(4, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING);
         assert!(n.short.starts_with("Searing"), "got {:?}", n.short);
     }
 
@@ -390,14 +478,14 @@ mod tests {
     fn a_self_cursing_blade_is_named_for_that_instead() {
         let (reg, slot, ids) =
             place(&[("Oak Handle", 0, 0), ("Cursed Blade", 1, 0)], SlotKind::Weapon);
-        let n = name_item(4, &reg, &slot, &ids);
+        let n = name_item(4, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING);
         assert!(n.short.starts_with("Martyr's"), "got {:?}", n.short);
     }
 
     #[test]
     fn a_plain_item_still_gets_a_name() {
         let (reg, slot, ids) = place(&[("Oak Handle", 0, 0)], SlotKind::Weapon);
-        let n = name_item(4, &reg, &slot, &ids);
+        let n = name_item(4, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING);
         assert!(!n.short.is_empty());
         assert!(n.full.contains("of the"));
     }
@@ -410,7 +498,7 @@ mod tests {
             for x in 0..4u8 {
                 let (reg, slot, ids) =
                     place(&[("Hollow Weave", x, 2), ("Padded Base", x, 3)], SlotKind::Chest);
-                let n = name_item(seed, &reg, &slot, &ids);
+                let n = name_item(seed, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING);
                 let mut words = n.short.split_whitespace();
                 let q = words.next().unwrap();
                 let b = words.next().unwrap();
@@ -428,7 +516,7 @@ mod tests {
             for y in 0..4u8 {
                 let (reg, slot, ids) =
                     place(&[("Steel Frame", x, y), ("Iron Plating", x, y + 2)], SlotKind::Helmet);
-                let n = name_item(77, &reg, &slot, &ids);
+                let n = name_item(77, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING);
                 seen.insert(n.short.split_whitespace().next().unwrap().to_string());
             }
         }
@@ -442,7 +530,7 @@ mod tests {
         let (reg, slot, ids) =
             place(&[("Cursed Handle", 0, 0), ("Iron Blade", 1, 0)], SlotKind::Weapon);
         for seed in 0..50u64 {
-            let n = name_item(seed, &reg, &slot, &ids);
+            let n = name_item(seed, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING);
             assert!(n.short.starts_with("Searing"), "seed {} gave {:?}", seed, n.short);
         }
     }
@@ -457,7 +545,7 @@ mod tests {
             for x in 0..4u8 {
                 let (reg, slot, ids) =
                     place(&[("Oak Handle", x, y), ("Iron Blade", x + 1, y)], SlotKind::Weapon);
-                seen.insert(name_item(1234, &reg, &slot, &ids).full);
+                seen.insert(name_item(1234, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING).full);
                 total += 1;
             }
         }
@@ -467,5 +555,109 @@ mod tests {
             seen.len(),
             total
         );
+    }
+}
+
+#[cfg(test)]
+mod rarity_names {
+    use super::*;
+    use crate::piece::{PieceRegistry, CATALOG};
+    use crate::slot::Slot;
+
+    fn built(kind: SlotKind, names: &[(&str, u8, u8)]) -> (PieceRegistry, Slot, Vec<PieceId>) {
+        let mut reg = PieceRegistry::new();
+        let mut slot = Slot::new(kind);
+        let mut ids = Vec::new();
+        for (name, x, y) in names {
+            let d = CATALOG.iter().position(|c| c.name == *name).expect("known component");
+            let id = reg.alloc(d);
+            slot.place(&reg, id, *x, *y);
+            ids.push(id);
+        }
+        (reg, slot, ids)
+    }
+
+    /// The rule: a name grows with what the item is worth, so rarity is
+    /// audible before the badge is read. Three words common, four rare, five
+    /// epic, six legendary - counting every token, "of" and "the" included.
+    #[test]
+    fn a_name_is_as_long_as_the_item_is_good() {
+        let (reg, slot, ids) = built(SlotKind::Weapon, &[("Oak Handle", 0, 0), ("Iron Blade", 1, 0)]);
+        for (rarity, want) in [
+            (Rarity::Common, 3),
+            (Rarity::Rare, 4),
+            (Rarity::Epic, 5),
+            (Rarity::Legendary, 6),
+        ] {
+            for seed in 0..64u64 {
+                let n = name_item(seed, &reg, &slot, &ids, rarity, &PLAIN_NAMING);
+                assert_eq!(
+                    n.full.split_whitespace().count(),
+                    want,
+                    "{:?} name {:?} is the wrong length",
+                    rarity,
+                    n.full
+                );
+            }
+        }
+    }
+
+    /// The short form is what the cooldown bars show and it has to stay two
+    /// words whatever the item is worth, or the bars start wrapping.
+    #[test]
+    fn the_short_name_does_not_grow() {
+        let (reg, slot, ids) = built(SlotKind::Weapon, &[("Oak Handle", 0, 0), ("Iron Blade", 1, 0)]);
+        for rarity in [Rarity::Common, Rarity::Rare, Rarity::Epic, Rarity::Legendary] {
+            let n = name_item(3, &reg, &slot, &ids, rarity, &PLAIN_NAMING);
+            assert_eq!(n.short.split_whitespace().count(), 2, "{:?}: {:?}", rarity, n.short);
+        }
+    }
+
+    /// A word must not appear twice in one name. "Hollow Hollow Cage" is the
+    /// failure the corpus filtering exists to prevent, and the common tier
+    /// draws from one more pool than the others.
+    #[test]
+    fn no_name_repeats_a_word() {
+        for kind in SlotKind::ALL {
+            let (reg, slot, ids) = match kind {
+                SlotKind::Weapon => built(kind, &[("Oak Handle", 0, 0), ("Iron Blade", 1, 0)]),
+                SlotKind::Helmet => built(kind, &[("Tin Frame", 0, 0), ("Tin Plating", 0, 2)]),
+                SlotKind::Chest => built(kind, &[("Sackcloth Base", 0, 0), ("Rag Layer", 0, 2)]),
+                SlotKind::Gloves => built(kind, &[("Leather Material", 0, 0), ("Gripping Mold", 2, 0)]),
+                SlotKind::Greaves => built(kind, &[("Leather Material", 0, 0), ("Greave Mold", 2, 0)]),
+            };
+            for seed in 0..96u64 {
+                for rarity in [Rarity::Common, Rarity::Rare, Rarity::Epic, Rarity::Legendary] {
+                    let n = name_item(seed, &reg, &slot, &ids, rarity, &PLAIN_NAMING);
+                    let mut words: Vec<String> =
+                        n.full.split_whitespace().map(|w| w.to_lowercase()).collect();
+                    words.retain(|w| w != "of" && w != "the");
+                    let mut seen = Vec::new();
+                    for w in &words {
+                        assert!(!seen.contains(w), "{:?} repeats {:?}", n.full, w);
+                        seen.push(w.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    /// Every corpus a theme supplies has to be big enough to draw from, or
+    /// names collapse onto a handful of repeats.
+    #[test]
+    fn the_plain_corpora_are_deep_enough() {
+        for kind in SlotKind::ALL {
+            assert!(PLAIN_NAMING.bases(kind).len() >= 24, "{:?} has too few nouns", kind);
+        }
+        assert!(PLAIN_NAMING.attributives.len() >= 16);
+        assert!(PLAIN_NAMING.epithets.len() >= 8);
+        for want in [1usize, 2] {
+            let n = PLAIN_NAMING
+                .suffixes
+                .iter()
+                .filter(|s| s.split_whitespace().count() == want)
+                .count();
+            assert!(n >= 8, "only {} tails of {} word(s)", n, want);
+        }
     }
 }

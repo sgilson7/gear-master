@@ -6553,7 +6553,7 @@ async fn main() {
             .collect();
     }
     if std::env::var("GEARMASTER_THEME").is_ok() {
-        run.theme = chosen_theme;
+        run.set_theme(chosen_theme);
     }
     if let Ok(m) = std::env::var("GEARMASTER_MODE") {
         run.mode = if m.eq_ignore_ascii_case("rogue") { Mode::Rogue } else { Mode::Grinder };

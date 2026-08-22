@@ -185,6 +185,10 @@ pub struct Loadout {
     /// Seeds the item-name generator. Set from the run's seed so a given run
     /// names a given arrangement consistently.
     pub name_seed: u64,
+    /// The words items are named out of. A display concern like the rest of
+    /// the theme, but it has to live here: names are generated where items
+    /// are, not where they are drawn.
+    pub naming: &'static crate::naming::Naming,
 }
 
 impl Default for Loadout {
@@ -199,6 +203,7 @@ impl Loadout {
             locks: Vec::new(),
             slots: SlotKind::ALL.iter().map(|&k| Slot::new(k)).collect(),
             name_seed: 0,
+            naming: &crate::naming::PLAIN_NAMING,
         }
     }
 
@@ -395,8 +400,19 @@ impl Loadout {
                 }
             }
             slot_total += item_stats;
+            // A name grows with what the item is worth, so the rating has to
+            // be in hand before the name is made.
+            let rating =
+                if assembled[gi] { crate::rating::item_rating(reg, group, 0, slot.kind) } else { 0 };
             items.push(GearItem {
-                name: name_item(self.name_seed, reg, slot, group),
+                name: name_item(
+                    self.name_seed,
+                    reg,
+                    slot,
+                    group,
+                    crate::rating::Rarity::of(rating),
+                    self.naming,
+                ),
                 pieces: group.clone(),
                 assembled: assembled[gi],
                 status: match &verdicts[gi] {
@@ -405,11 +421,7 @@ impl Loadout {
                 },
                 stats: item_stats,
                 notes: item_notes,
-                rating: if assembled[gi] {
-                    crate::rating::item_rating(reg, group, 0, slot.kind)
-                } else {
-                    0
-                },
+                rating,
             });
         }
 

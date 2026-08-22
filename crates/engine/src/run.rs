@@ -265,8 +265,15 @@ impl Run {
         theme: &'static crate::theme::Theme,
     ) -> Self {
         let mut run = Self::start(seed, mode, difficulty);
-        run.theme = theme;
+        run.set_theme(theme);
         run
+    }
+
+    /// Change the words. The name generator draws from the theme's corpora, so
+    /// the loadout has to be told as well as the run.
+    pub fn set_theme(&mut self, theme: &'static crate::theme::Theme) {
+        self.theme = theme;
+        self.loadout.naming = theme.naming;
     }
 
     /// Same, in a chosen mode.
@@ -493,7 +500,7 @@ impl Run {
         fresh.difficulty = self.difficulty;
         fresh.classes = Vec::new();
         fresh.grown_health = 0;
-        fresh.theme = theme;
+        fresh.set_theme(theme);
         fresh.last_settlement = settlement;
         // The fight just watched stays on screen; the GUI is still replaying
         // it and needs somewhere to go back to.

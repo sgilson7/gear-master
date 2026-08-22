@@ -21,6 +21,10 @@ use std::sync::OnceLock;
 
 /// One complete set of words for the game.
 pub struct Theme {
+    /// The words items are named out of. Nothing else about how a name is
+    /// built is a theme's business - the rule that a name grows with its
+    /// rarity belongs to the generator.
+    pub naming: &'static crate::naming::Naming,
     /// Stable identifier, for save data and debug hooks.
     pub id: &'static str,
     /// What the selection screen calls it.
@@ -97,6 +101,7 @@ fn lookup(theme: &'static Theme, table: Table, key: &str) -> Option<&'static str
 pub static THEMES: &[&Theme] = &[&PLAIN, &TURTLE_DICK];
 
 pub static PLAIN: Theme = Theme {
+    naming: &crate::naming::PLAIN_NAMING,
     id: "plain",
     label: "GEAR MASTER",
     blurb: "The game as it is written.",
@@ -114,6 +119,7 @@ pub static PLAIN: Theme = Theme {
 };
 
 pub static TURTLE_DICK: Theme = Theme {
+    naming: &TD_NAMING,
     id: "td",
     label: "TALES FROM THE CRYPT",
     blurb: "The same game, told in the language of the book. It's about a turtle.",
@@ -573,6 +579,69 @@ pub static TURTLE_DICK: Theme = Theme {
     words: &[],
 };
 
+/// The book's words, for the item-name generator. Every entry is a proper
+/// noun, object or place from the text - a common item reads like a regional
+/// export, and a legendary one like something out of the cosmology.
+pub static TD_NAMING: crate::naming::Naming = crate::naming::Naming {
+    weapon_bases: &[
+        "Fang", "Edge", "Dart", "Skewer", "Peel", "Jaw", "Rim", "Splinter", "Glint",
+        "Bolt", "Barb", "Tooth", "Crank", "Lever", "Cleaver", "Sliver", "Thorn",
+        "Wheel", "Shard", "Bite", "Sting", "Ladle", "Racquet", "Spoke", "Spur",
+        "Nail", "Pick", "Saw", "Quill", "Hook", "Wedge", "Gear",
+    ],
+    helmet_bases: &[
+        "Crown", "Hood", "Hat", "Visor", "Monocle", "Wig", "Helm", "Cowl", "Crest",
+        "Halo", "Gaze", "Brow", "Mask", "Cap", "Wreath", "Beak", "Antler", "Blinder",
+        "Watcher", "Eye", "Mind", "Dome", "Casque", "Circlet", "Bonnet", "Shade",
+        "Veil", "Horn", "Skullcap", "Muzzle", "Diadem", "Wimple",
+    ],
+    chest_bases: &[
+        "Coat", "Jacket", "Smock", "Tapestry", "Shell", "Vest", "Mantle", "Weave",
+        "Bale", "Husk", "Chassis", "Frame", "Girdle", "Wrap", "Bark", "Scale", "Hide",
+        "Casing", "Cradle", "Vault", "Keel", "Cage", "Robe", "Tunic", "Harness", "Fur",
+        "Cork", "Plating", "Sheath", "Barrel", "Hauberk", "Carapace",
+    ],
+    glove_bases: &[
+        "Grasp", "Mitt", "Grip", "Fist", "Palm", "Claw", "Paw", "Cuff", "Hold",
+        "Pinch", "Snare", "Knuckle", "Digit", "Finger", "Hand", "Clamp", "Latch",
+        "Crank", "Press", "Wringer", "Catcher", "Squeeze", "Talon", "Vise",
+        "Gauntlet", "Handwrap", "Bracer", "Nail", "Grapple", "Hook", "Cinch", "Clutch",
+    ],
+    greave_bases: &[
+        "Stride", "Tread", "Step", "Gait", "Pace", "Boot", "March", "Roll", "Shin",
+        "Heel", "Kick", "Runner", "Walker", "Trundle", "Lope", "Vault", "Spur",
+        "Stirrup", "Anklet", "Sole", "Track", "Trail", "Wander", "Roam", "Prowl",
+        "Creep", "Bound", "Leap", "Dance", "Sprint", "Stilt", "Tab",
+    ],
+    attributives: &[
+        "Treyway", "Kaplin", "Multicity", "Petonkle", "Dobira", "Cork", "Sneel",
+        "Rice", "Nut", "Worm", "Fnorp", "Gear", "Soda", "Brink", "Yonk", "Mansus",
+        "Bambulon", "Kolok", "Wextreen", "Yodregar", "Songil", "Promte", "Thrumbus",
+        "Gooster", "Frong", "Brumpus", "Ench", "Octarine", "Wimpler", "Funny",
+        "Skoogle", "Drambus",
+    ],
+    suffixes: &[
+        // One word: the tails a rare or an epic gets.
+        "Brink", "Funny", "Crypt", "Treyway", "Mansus", "Wimple", "Roast", "Harvest",
+        "Labyrinth", "Emporium", "Crimper", "Monastery", "Quarry", "Glacier",
+        "Flattening", "Lottery", "Squeals", "Anticipations", "Worm", "Cork", "Peel",
+        "Rush", "Archives", "Calculation",
+        // Two words: reserved for legendaries, which is what makes the extra
+        // word audible.
+        "Grand Calculation", "Gear Cave", "Soda Labyrinth", "Worm Fact", "Money Coat",
+        "Last Oxen", "Nut Tapestry", "Rice Criers", "Eighth Ray", "Time Sap",
+        "Deep Chocolate", "Grey Sphere", "Perfect Crime", "Morning Rush",
+        "Unmovable Rock", "Hybrid Dodecathlon", "Weeping Seeker", "Blank Page",
+        "Second Eclipse", "Slow Trundler", "Burger Eden", "Wolf Scrape",
+        "Brie Cliffs", "Stone Keeper",
+    ],
+    epithets: &[
+        "Plain", "Honest", "Serviceable", "Blunt", "Worn", "Simple", "Sturdy",
+        "Rough", "Old", "Lowborn", "Practical", "Unadorned", "Weathered", "Solid",
+        "Modest", "Bare",
+    ],
+};
+
 /// The theme with this id, or the default.
 pub fn by_id(id: &str) -> &'static Theme {
     THEMES.iter().copied().find(|t| t.id == id).unwrap_or(THEMES[0])
@@ -723,6 +792,35 @@ mod tests {
             for (_, themed) in t.monsters {
                 assert!(!seen.contains(themed), "{} uses {:?} twice", t.id, themed);
                 seen.push(themed);
+            }
+        }
+    }
+
+    /// Every theme has to be able to name an item at every tier. A corpus
+    /// with no two-word tails would silently hand legendaries a five-word
+    /// name, which is the one thing the rule exists to prevent.
+    #[test]
+    fn every_theme_can_name_at_every_length() {
+        use crate::piece::SlotKind;
+        for t in THEMES {
+            for kind in SlotKind::ALL {
+                assert!(
+                    t.naming.bases(kind).len() >= 24,
+                    "{}: too few {:?} nouns",
+                    t.id,
+                    kind
+                );
+            }
+            assert!(t.naming.attributives.len() >= 16, "{}: too few attributives", t.id);
+            assert!(!t.naming.epithets.is_empty(), "{}: no epithets", t.id);
+            for want in [1usize, 2] {
+                let n = t
+                    .naming
+                    .suffixes
+                    .iter()
+                    .filter(|s| s.split_whitespace().count() == want)
+                    .count();
+                assert!(n >= 8, "{}: only {} tails of {} word(s)", t.id, n, want);
             }
         }
     }
