@@ -2815,6 +2815,11 @@ fn render_slot_items(
 
 /// Where the shop's first card starts: clear of the gold column and the
 /// reroll button beneath it, both of which grow with the text scale.
+/// What the reroll button says, in this theme.
+fn reroll_label() -> String {
+    format!("{} {}g", words::word("reroll", "REROLL"), REROLL_COST)
+}
+
 fn shop_cards_x(shop: Rect) -> f32 {
     reroll_rect(shop).right() + 18.0
 }
@@ -2822,7 +2827,7 @@ fn shop_cards_x(shop: Rect) -> f32 {
 /// Where the reroll button sits inside the shop strip. Sized to its label so
 /// the text cannot outgrow the box.
 fn reroll_rect(shop: Rect) -> Rect {
-    let w = text_width(&format!("REROLL {}g", REROLL_COST), 18.0) + 26.0;
+    let w = text_width(&reroll_label(), 18.0) + 26.0;
     Rect::new(shop.x + 12.0, shop.y + 78.0, w, 34.0)
 }
 
@@ -2832,20 +2837,27 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(28, 26, 22, 255));
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::from_rgba(96, 84, 52, 255));
 
-    ui_text("SHOP", r.x + 14.0, r.y + 26.0, 18.0, col_gold());
+    let shop_label = words::word("shop", "SHOP");
+    ui_text(shop_label, r.x + 14.0, r.y + 26.0, 18.0, col_gold());
     ui_text(
-        "right-click a card to pin it",
-        r.x + 24.0 + text_width("SHOP", 18.0),
+        words::word("shop-hint", "right-click a card to pin it"),
+        r.x + 24.0 + text_width(shop_label, 18.0),
         r.y + 26.0,
         12.0,
         col_dim(),
     );
 
-    ui_text(&format!("{} gold", run.gold), r.x + 14.0, r.y + 50.0, 20.0, WHITE);
-    ui_text("click to buy", r.x + 14.0, r.y + 68.0, 12.0, col_dim());
+    ui_text(
+        &format!("{} {}", run.gold, words::word("gold-lower", "gold")),
+        r.x + 14.0,
+        r.y + 50.0,
+        20.0,
+        WHITE,
+    );
+    ui_text(words::word("buy-hint", "click to buy"), r.x + 14.0, r.y + 68.0, 12.0, col_dim());
     button(
         reroll_rect(r),
-        &format!("REROLL {}g", REROLL_COST),
+        &reroll_label(),
         run.gold >= REROLL_COST,
         mx,
         my,
@@ -2919,7 +2931,7 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
             centered_text(&role, cx, ty, rs, col_dim());
         }
         centered_text(
-            &format!("{} gold", shop_price(def)),
+            &format!("{} {}", shop_price(def), words::word("gold-lower", "gold")),
             cx,
             price_y,
             14.0,
@@ -2995,7 +3007,8 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
         2.0,
         Color::from_rgba(60, 60, 82, 255),
     );
-    ui_text("INVENTORY", layout.inv.x + 14.0, layout.inv.y + 24.0, 18.0, WHITE);
+    let inv_label = words::word("inventory", "INVENTORY");
+    ui_text(inv_label, layout.inv.x + 14.0, layout.inv.y + 24.0, 18.0, WHITE);
     // How full it is, next to the heading. A limit you cannot see is a limit
     // you only find out about at the moment it stops you.
     let held = run.inventory().len();
@@ -3012,7 +3025,10 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
     // The hint sits after the heading with whatever room is left, so it never
     // grows back into the word "INVENTORY" as the text scale moves.
     let hint_x = layout.inv.x + 30.0 + text_width("INVENTORY", 18.0);
-    let hint = "drag onto a slot  ·  right-click rotates  ·  shift-click to lock an item";
+    let hint = words::word(
+        "inventory-hint",
+        "drag onto a slot  ·  right-click rotates  ·  shift-click to lock an item",
+    );
     let hint_size = fitting_size(hint, layout.inv.w - (hint_x - layout.inv.x) - 16.0, &[14.0, 13.0, 12.0, 11.0]);
     ui_text(hint, hint_x, layout.inv.y + 24.0, hint_size, col_dim());
 
@@ -3294,7 +3310,10 @@ fn render_def_tooltip_inner(
         lines.push((format!("  then it becomes {}", q.becomes), col_gold()));
         lines.push(("  only counts while assembled".to_string(), col_dim()));
     }
-    lines.push((format!("{} gold", shop_price(def)), col_gold()));
+    lines.push((
+        format!("{} {}", shop_price(def), words::word("gold-lower", "gold")),
+        col_gold(),
+    ));
 
     let w = lines
         .iter()
@@ -4652,10 +4671,13 @@ fn render_fountain(run: &Run, mx: f32, my: f32) -> Option<&'static gearmaster_en
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
-    ui_text("THE FOUNTAIN", r.x + 28.0, r.y + 42.0, 24.0, col_gold());
+    ui_text(words::word("fountain", "THE FOUNTAIN"), r.x + 28.0, r.y + 42.0, 24.0, col_gold());
     ui_text(
-        "It has read your gear. Take what it saw, or one of the two you came closest to, \
-         or whatever is at the bottom of the water.",
+        words::word(
+            "fountain-blurb",
+            "It has read your gear. Take what it saw, or one of the two you came closest to, \
+             or whatever is at the bottom of the water.",
+        ),
         r.x + 28.0,
         r.y + 68.0,
         13.0,
@@ -4733,7 +4755,7 @@ fn render_fountain(run: &Run, mx: f32, my: f32) -> Option<&'static gearmaster_en
         }
 
         let take = Rect::new(cell.x + 14.0, cell.y + cell.h - 46.0, cell.w - 28.0, 34.0);
-        button(take, "DRINK", true, mx, my);
+        button(take, words::word("fountain-take", "DRINK"), true, mx, my);
         if is_mouse_button_pressed(MouseButton::Left) && take.contains(Vec2::new(mx, my)) {
             chosen = Some(*c);
         }
@@ -5349,7 +5371,7 @@ fn render_glossary(tab: usize, page: usize, mx: f32, my: f32) -> GlossaryHit {
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 228));
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::from_rgba(120, 120, 155, 255));
-    ui_text("WHAT THE WORDS MEAN", r.x + 24.0, r.y + 38.0, 20.0, col_gold());
+    ui_text(words::word("glossary", "WHAT THE WORDS MEAN"), r.x + 24.0, r.y + 38.0, 20.0, col_gold());
     ui_text("G or Esc to close", r.x + 24.0, r.y + 62.0, 12.0, col_dim());
 
     let close = Rect::new(r.x + r.w - 140.0, r.y + 16.0, 120.0, 34.0);
@@ -6058,7 +6080,7 @@ fn render_panel(
     y += 30.0;
 
     let stats = run.player_stats();
-    ui_text("YOUR CHARACTER", x + 20.0, y, 14.0, col_dim());
+    ui_text(words::word("character", "YOUR CHARACTER"), x + 20.0, y, 14.0, col_dim());
     y += 22.0;
     for (label, value, color) in [
         (
@@ -6243,7 +6265,7 @@ fn render_panel(
     // block, and three numbers this small do not need a row each.
     ui_text(&format!("{}", run.gold), x + 20.0, y, 17.0, col_gold());
     let gw = text_width(&format!("{}", run.gold), 17.0);
-    ui_text("gold", x + 24.0 + gw, y, 13.0, col_dim());
+    ui_text(words::word("gold-lower", "gold"), x + 24.0 + gw, y, 13.0, col_dim());
     let record = format!("{} won  ·  {} lost", run.wins, run.losses);
     let r_w = text_width(&record, 13.0);
     ui_text(&record, x + PANEL_W - 20.0 - r_w, y, 13.0, col_dim());
@@ -6263,7 +6285,11 @@ fn render_panel(
     let at_fountain = run.at_fountain();
     if !run.classes.is_empty() {
         ui_text(
-            if run.classes.len() > 1 { "YOUR CLASSES" } else { "YOUR CLASS" },
+            if run.classes.len() > 1 {
+                words::word("classes", "YOUR CLASSES")
+            } else {
+                words::word("class", "YOUR CLASS")
+            },
             x + 20.0,
             y,
             14.0,
@@ -6347,7 +6373,17 @@ fn render_panel(
 
     let mut y = opp_top;
     let m = run.monster();
-    ui_text(if run.at_fountain() { "BEYOND THE FOUNTAIN" } else { "NEXT OPPONENT" }, x + 20.0, y, 14.0, col_dim());
+    ui_text(
+        if run.at_fountain() {
+            words::word("beyond-fountain", "BEYOND THE FOUNTAIN")
+        } else {
+            words::word("opponent", "NEXT OPPONENT")
+        },
+        x + 20.0,
+        y,
+        14.0,
+        col_dim(),
+    );
     y += 20.0;
     draw_monster(
         x + PANEL_W - 78.0,
@@ -6416,7 +6452,11 @@ fn render_panel(
     let r = button_rects(layout.panel_x);
     button(
         r[0],
-        if run.at_fountain() { "DRINK FROM THE FOUNTAIN" } else { "BEGIN FIGHT" },
+        if run.at_fountain() {
+            words::word("fountain-take-btn", "DRINK FROM THE FOUNTAIN")
+        } else {
+            words::word("begin-fight", "BEGIN FIGHT")
+        },
         true,
         mx,
         my,
@@ -6431,7 +6471,7 @@ fn render_panel(
         });
     }
     button(r[3], "CLEAR ALL", true, mx, my);
-    button(r[4], "WHAT THE WORDS MEAN", true, mx, my);
+    button(r[4], words::word("glossary", "WHAT THE WORDS MEAN"), true, mx, my);
     button(r[5], "F12", true, mx, my);
 }
 
@@ -6621,7 +6661,12 @@ async fn main() {
                 let gold = run.settle();
                 message = match (gold, run.last_settlement.clone()) {
                     (Some(g), Some(st)) if st.outcome == Outcome::Victory => {
-                        format!("+{} gold. Next up: {}.", g, words::monster(run.monster().name))
+                        format!(
+                            "+{} {}. Next up: {}.",
+                            g,
+                            words::word("gold-lower", "gold"),
+                            words::monster(run.monster().name)
+                        )
                     }
                     (Some(g), Some(st)) if st.run_ended => format!(
                         "+{} gold, but that was your last life. Everything is gone - starting over.",

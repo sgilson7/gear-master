@@ -576,7 +576,37 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Gilt", "The Money Coat"),
         ("Francis", "Francis the Gambler"),
     ],
-    words: &[],
+    words: &[
+        // The interface, in the book's vocabulary. Slugs are keyed by what the
+        // thing is, not by what it currently says, so re-wording the plain
+        // build never silently unhooks a translation.
+        ("gold", "Fnorp"),
+        ("gold-lower", "fnorp"),
+        ("shop", "GALAPAGOS EMPORIUM"),
+        ("shop-hint", "right-click a card to hold it for Jim"),
+        ("reroll", "SKOOGLE IT"),
+        ("inventory", "SALVAGE"),
+        ("inventory-hint", "drag onto a frame  ·  right-click rotates  ·  shift-click to lock an item"),
+        ("your-items", "WHAT YOU HAVE BUILT"),
+        ("fountain", "THE SODA LABYRINTH"),
+        ("fountain-blurb", "It has read your gear. Drink what it saw in you, or one of the two you came \
+                            closest to, or whatever is at the bottom of the bottle."),
+        ("fountain-waiting", "THE SODA LABYRINTH IS OPEN"),
+        ("fountain-take", "DRINK"),
+        ("class", "TITLE"),
+        ("classes", "TITLES"),
+        ("begin-fight", "PLANESWALK"),
+        ("character", "YOUR SPROCKETMAN"),
+        ("opponent", "NEXT ON THE ROAD"),
+        ("glossary", "WHAT THE WORDS MEAN"),
+        ("mana", "Funny"),
+        ("mana-lower", "funny"),
+        ("armor", "Cork"),
+        ("armor-lower", "cork"),
+        ("rage", "Fury"),
+        ("faith", "Devotion"),
+        ("nature", "Harvest"),
+    ],
 };
 
 /// The book's words, for the item-name generator. Every entry is a proper
@@ -821,6 +851,35 @@ mod tests {
                     .filter(|s| s.split_whitespace().count() == want)
                     .count();
                 assert!(n >= 8, "{}: only {} tails of {} word(s)", t.id, n, want);
+            }
+        }
+    }
+
+    /// A slug the interface asks for and no theme answers is a word that will
+    /// never be translated. This is the list of what the interface actually
+    /// asks for; a theme is free to answer none of it, but a typo in a slug on
+    /// either side should be visible here rather than on screen.
+    #[test]
+    fn the_turtle_theme_answers_the_slugs_the_interface_uses() {
+        const ASKED: &[&str] = &[
+            "gold", "gold-lower", "shop", "shop-hint", "reroll", "inventory",
+            "inventory-hint", "your-items", "fountain", "fountain-blurb",
+            "fountain-take", "class", "classes", "begin-fight", "character",
+            "opponent", "glossary",
+        ];
+        let unanswered: Vec<&str> =
+            ASKED.iter().copied().filter(|k| TURTLE_DICK.word(k, "") == "").collect();
+        assert!(unanswered.is_empty(), "no turtle wording for: {:?}", unanswered);
+    }
+
+    /// And the other way: a word in a theme's table that nothing ever asks for
+    /// is dead weight, but harmless - so this only checks the table is not
+    /// full of empties.
+    #[test]
+    fn no_theme_maps_a_word_to_nothing() {
+        for t in THEMES {
+            for (slug, value) in t.words {
+                assert!(!slug.is_empty() && !value.is_empty(), "{} has an empty entry", t.id);
             }
         }
     }
