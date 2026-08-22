@@ -1,3 +1,4 @@
+use crate::combat::DamageType;
 use crate::curse::CurseKind;
 use crate::shape::Shape;
 use crate::stats::{StatKind, Stats};
@@ -396,7 +397,7 @@ impl Resource {
 #[derive(Copy, Clone, Debug)]
 pub enum Action {
     Curse { kind: CurseKind, target: Target },
-    Damage { amount: i32, target: Target },
+    Damage { amount: i32, kind: crate::combat::DamageType, target: Target },
     MindDamage { amount: i32, target: Target },
     GainMana(i32),
     /// Bank any of the four pools.
@@ -424,7 +425,9 @@ impl Action {
             Action::Curse { kind, target } => {
                 format!("apply curse of {} to {}", kind.name(), target.name())
             }
-            Action::Damage { amount, target } => format!("deal {} damage to {}", amount, target.name()),
+            Action::Damage { amount, kind, target } => {
+                format!("deal {} {} to {}", amount, kind.name(), target.name())
+            }
             Action::MindDamage { amount, target } => {
                 format!("deal {} mind damage to {}", amount, target.name())
             }
@@ -1195,7 +1198,7 @@ pub static CATALOG: &[PieceDef] = &[
         triggers: &[Trigger::Spend {
             what: Resource::Rage,
             cost: 4,
-            on_success: Action::Damage { amount: 22, target: Target::Enemy },
+            on_success: Action::Damage { amount: 22, kind: DamageType::Physical, target: Target::Enemy },
             on_failure: Action::Gain { what: Resource::Rage, amount: 2 },
         }],
         quest: None,
@@ -2191,7 +2194,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0, 0), (1, 0), (0, 1), (1, 1), (0, 2), (1, 2)],
-        base: Stats::damage(34),
+        base: Stats::physical(34),
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -2420,7 +2423,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Spell,
         cells: &[(1, 0), (0, 1), (1, 1), (2, 1)],
-        base: Stats::damage(14),
+        base: Stats::magic(14),
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -2438,7 +2441,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Spell,
         cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
-        base: Stats::damage(7),
+        base: Stats::magic(7),
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -2487,14 +2490,14 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Spell,
         cells: &[(0, 0), (1, 0), (1, 1), (2, 1)],
-        base: Stats::damage(9),
+        base: Stats::magic(9),
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
         // Jumps: worth more the more finished gear it sits against.
         triggers: &[Trigger::PerAdjacentItem {
-            action: Action::Damage { amount: 6, target: Target::Enemy },
+            action: Action::Damage { amount: 6, kind: DamageType::Magic, target: Target::Enemy },
             same_slot_only: false,
         }],
         quest: None,
@@ -2514,6 +2517,7 @@ pub static CATALOG: &[PieceDef] = &[
         // Does nothing on its own; it answers whatever fired beside it.
         triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
             amount: 7,
+            kind: DamageType::Magic,
             target: Target::Enemy,
         })],
         quest: None,
@@ -2560,7 +2564,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0, 0), (0, 1), (0, 2), (0, 3)],
-        base: Stats { damage: 8, ..Stats::new(0, 2, 0, 80) },
+        base: Stats { physical_damage: 8, ..Stats::new(0, 2, 0, 80) },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -2575,7 +2579,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(1, 0), (1, 1), (0, 1), (1, 2)],
-        base: Stats { damage: 6, ..Stats::new(0, 4, 0, 60) },
+        base: Stats { physical_damage: 6, ..Stats::new(0, 4, 0, 60) },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -2886,7 +2890,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Damaging,
         // A cross-ish blade, so it can touch accessories on several sides.
         cells: &[(0, 0), (0, 1), (0, 2), (1, 1)],
-        base: Stats { damage: 5, ..Stats::new(0, 1, 0, 45) },
+        base: Stats { physical_damage: 5, ..Stats::new(0, 1, 0, 45) },
         adjacency: None,
         effect: Some(Effect {
             label: "adjacent accessories give double strength",
@@ -2974,7 +2978,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0, 0), (0, 1), (1, 1), (0, 2)],
-        base: Stats::damage(10),
+        base: Stats::physical(10),
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -3040,7 +3044,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0, 0), (0, 1), (1, 1)],
-        base: Stats { damage: 3, ..Stats::new(0, 0, 0, 20) },
+        base: Stats { magic_damage: 3, ..Stats::new(0, 0, 0, 20) },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -3048,7 +3052,7 @@ pub static CATALOG: &[PieceDef] = &[
         // Cheap to fire, brutal when the mana is there.
         triggers: &[Trigger::SpendMana {
             cost: 4,
-            on_success: Action::Damage { amount: 18, target: Target::Enemy },
+            on_success: Action::Damage { amount: 18, kind: DamageType::Magic, target: Target::Enemy },
             on_failure: Action::GainMana(1),
         }],
         quest: None,
@@ -3189,7 +3193,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0, 0), (0, 1), (0, 2)],
-        base: Stats { damage: 7, mind: 2, ..Stats::new(0, 0, 0, 40) },
+        base: Stats { magic_damage: 7, mind: 2, ..Stats::new(0, 0, 0, 40) },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -3353,6 +3357,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
             amount: 5,
+            kind: DamageType::Physical,
             target: Target::Enemy,
         })],
         quest: None,
@@ -3403,6 +3408,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
             amount: 3,
+            kind: DamageType::Physical,
             target: Target::Enemy,
         })],
         quest: None,
@@ -3436,6 +3442,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[Trigger::OnAlignedActivate(Action::Damage {
             amount: 2,
+            kind: DamageType::Magic,
             target: Target::Enemy,
         })],
         quest: None,
@@ -3552,7 +3559,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0, 0), (1, 0), (1, 1), (2, 1)],
-        base: Stats { damage: 9, ..Stats::new(0, 3, 0, 30) },
+        base: Stats { physical_damage: 9, ..Stats::new(0, 3, 0, 30) },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -4083,7 +4090,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnOtherCast(Action::Damage { amount: 6, target: Target::Enemy })],
+        triggers: &[Trigger::OnOtherCast(Action::Damage { amount: 6, kind: DamageType::Magic, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 17,
@@ -4233,7 +4240,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::Spend { what: Resource::Rage, cost: 5, on_success: Action::Damage { amount: 22, target: Target::Enemy }, on_failure: Action::Gain { what: Resource::Rage, amount: 3 } }],
+        triggers: &[Trigger::Spend { what: Resource::Rage, cost: 5, on_success: Action::Damage { amount: 22, kind: DamageType::Magic, target: Target::Enemy }, on_failure: Action::Gain { what: Resource::Rage, amount: 3 } }],
         quest: None,
         power_bonus: 0,
         price: 23,
@@ -4588,7 +4595,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0,0),(1,0)],
-        base: Stats { damage: 6, ..Stats::ZERO },
+        base: Stats { physical_damage: 6, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -4603,7 +4610,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0,0),(1,0)],
-        base: Stats { damage: 10, ..Stats::ZERO },
+        base: Stats { physical_damage: 10, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -4618,7 +4625,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0,0),(1,0)],
-        base: Stats { damage: 15, ..Stats::ZERO },
+        base: Stats { physical_damage: 15, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -4708,7 +4715,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0,0),(1,0),(1,1),(2,1)],
-        base: Stats { damage: 18, physical_pierce: 15, ..Stats::ZERO },
+        base: Stats { physical_damage: 18, physical_pierce: 15, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -4723,7 +4730,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0,0),(1,0),(2,0),(1,1)],
-        base: Stats { damage: 30, physical_pierce: 35, ..Stats::ZERO },
+        base: Stats { physical_damage: 30, physical_pierce: 35, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -6559,7 +6566,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[
             Trigger::OnActivate(Action::GainArmor(70)),
-            Trigger::OnActivate(Action::Damage { amount: 40, target: Target::Enemy }),
+            Trigger::OnActivate(Action::Damage { amount: 40, kind: DamageType::Physical, target: Target::Enemy }),
         ],
         quest: None,
         power_bonus: 0,
@@ -6630,7 +6637,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0,0),(0,1),(1,1)],
-        base: Stats { damage: 9, ..Stats::ZERO },
+        base: Stats { physical_damage: 9, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -6705,7 +6712,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Damaging,
         cells: &[(0,0),(1,0)],
-        base: Stats { damage: 11, ..Stats::ZERO },
+        base: Stats { physical_damage: 11, ..Stats::ZERO },
         adjacency: None,
         effect: Some(Effect { label: "Bare-Headed: everything x3 while no helmet overlaps it", when: When::Assembled, kind: EffectKind::SoleIf { what: Solitude::StackedWith(SlotKind::Helmet), times: 3 } }),
         cooldown_ms: 0,
@@ -6834,6 +6841,29 @@ mod tests {
     /// table - while the shop still stocks both. The player gets two visibly
     /// different components with one name, and the theme can only translate
     /// them as one thing.
+    /// Damage carries a type - physical, magic, or mind - and there is no
+    /// untyped option left to fall back on: `Stats` has no bare damage field
+    /// and `DamageType` has no `Untyped` variant, so an untyped number cannot
+    /// be authored at all. What authoring can still produce is a blade or a
+    /// spell that is simply inert, which is what this catches. Not every one
+    /// of them deals damage - the Warding Sigil is a spell that shields - but
+    /// every one of them has to do something.
+    #[test]
+    fn no_blade_or_spell_is_inert() {
+        for def in CATALOG {
+            if !matches!(def.kind, PieceKind::Damaging | PieceKind::Spell) {
+                continue;
+            }
+            let does_something = def.base != Stats::ZERO
+                || !def.triggers.is_empty()
+                || def.adjacency.is_some()
+                || def.effect.is_some()
+                || def.speed_bonus != 0
+                || def.power_bonus != 0;
+            assert!(does_something, "{} is a {:?} piece that does nothing at all", def.name, def.kind);
+        }
+    }
+
     #[test]
     fn no_two_components_share_a_name() {
         let mut seen: Vec<&str> = Vec::with_capacity(CATALOG.len());

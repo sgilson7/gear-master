@@ -675,7 +675,7 @@ fn a_finished_quest_is_reported_once() {
 fn the_blade_of_helms_gives_armour_where_a_damaging_piece_gives_damage() {
     use gearmaster_engine::piece::CATALOG;
     let d = CATALOG.iter().find(|d| d.name == "Blade of Helms").expect("it exists");
-    assert_eq!(d.base.damage, 0, "it is a damaging piece that deals none");
+    assert_eq!(d.base.physical_damage, 0, "it is a damaging piece that deals none");
     assert!(
         d.triggers.iter().any(|t| matches!(
             t,
@@ -829,10 +829,10 @@ fn packing_a_spell_beside_a_weapon_beats_leaving_the_room_empty() {
 
     assert_eq!(packed.assembled_count(), 2);
     assert!(
-        packed.stats.damage > alone.damage,
+        packed.stats.magic_damage > alone.magic_damage,
         "the spell should be adding a payload the weapon alone had no room for: {:?} vs {:?}",
-        packed.stats.damage,
-        alone.damage
+        packed.stats.magic_damage,
+        alone.magic_damage
     );
 }
 

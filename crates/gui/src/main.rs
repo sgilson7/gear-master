@@ -1491,7 +1491,6 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
             (st.mind, "mind"),
             (st.magic_damage + st.magic_resist + st.magic_pierce + st.magic_harden, "magic"),
             (st.physical_damage + st.physical_resist + st.physical_pierce + st.physical_harden, "physical"),
-            (st.damage, "damage"),
         ] {
             if v != 0 {
                 note(k, out);
@@ -4304,8 +4303,17 @@ fn render_innate_summary(it: &gearmaster_engine::combat::RunningItem, mx: f32, m
             Color::from_rgba(240, 190, 140, 255),
         ),
     ];
-    if it.damage > 0 {
-        lines.push((format!("  {} damage", it.damage), Color::from_rgba(240, 210, 190, 255)));
+    if it.physical_damage > 0 {
+        lines.push((
+            format!("  {} physical damage", it.physical_damage),
+            Color::from_rgba(240, 210, 190, 255),
+        ));
+    }
+    if it.magic_damage > 0 {
+        lines.push((
+            format!("  {} magic damage", it.magic_damage),
+            Color::from_rgba(240, 210, 190, 255),
+        ));
     }
     if it.mind > 0 {
         lines.push((format!("  {} mind damage", it.mind), Color::from_rgba(240, 210, 190, 255)));
@@ -4676,7 +4684,7 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("ROGUE", "A mode. Losing costs one of three lives; the third ends the run and takes everything with it."),
     ("BOUNTY", "Paid whether you win or lose. Losing never moves you up the ladder, but it does pay - a run with no income cannot buy its way past whatever just beat it."),
     ("UNDO", "Steps the board back one change. It covers placing, moving, turning and clearing, but never a purchase."),
-    ("PHYSICAL / MAGIC", "The two damage types. Most gear deals one or the other, and each has its own set of defences. Untyped damage - a curse's burn, a creature's bite - answers to none of them."),
+    ("PHYSICAL / MAGIC", "The two damage types. Every number a piece of gear deals is one or the other, and each has its own set of defences, so resistance is always worth something. Mind damage is the exception: it is not reduced by either, only by mind resistance."),
     ("RESISTANCE", "Cuts incoming damage of its type, in percent."),
     ("PIERCING", "Ignores that much of the target's resistance of that type. Stacking resistance alone loses to a pierced attacker."),
     ("HARDENING", "Blunts that much of an attacker's piercing. Stacking piercing alone loses to a hardened defender."),

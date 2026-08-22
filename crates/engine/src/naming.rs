@@ -274,7 +274,7 @@ fn stat_qualifier(h: u64, reg: &PieceRegistry, pieces: &[PieceId]) -> Option<&'s
     let present: Vec<&(&str, &[&str])> = STAT_WORDS
         .iter()
         .filter(|(name, _)| match *name {
-            "damage" => total.damage > 0,
+            "damage" => total.physical_damage + total.magic_damage > 0,
             "mind" => total.mind > 0,
             "armor" => total.armor > 0,
             "mana" => total.mana > 0,

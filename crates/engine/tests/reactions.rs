@@ -59,7 +59,7 @@ fn activations(log: &gearmaster_engine::combat::CombatLog, name: &str) -> Vec<u3
 
 #[test]
 fn a_reactive_item_answers_the_neighbour_it_touches() {
-    let driver = item("Driver", SlotKind::Weapon, 1000, Stats::damage(1));
+    let driver = item("Driver", SlotKind::Weapon, 1000, Stats::physical(1));
     let mut reactor = item("Reactor", SlotKind::Helmet, 60_000, Stats::ZERO);
     reactor.triggers = vec![Trigger::OnAdjacentActivate(Action::GainMana(3))];
     reactor.adjacent_items = vec![0]; // touching the driver
@@ -78,7 +78,7 @@ fn a_reactive_item_answers_the_neighbour_it_touches() {
 
 #[test]
 fn a_reactive_item_ignores_gear_it_does_not_touch() {
-    let stranger = item("Stranger", SlotKind::Weapon, 1000, Stats::damage(1));
+    let stranger = item("Stranger", SlotKind::Weapon, 1000, Stats::physical(1));
     let mut reactor = item("Reactor", SlotKind::Helmet, 60_000, Stats::ZERO);
     reactor.triggers = vec![Trigger::OnAdjacentActivate(Action::GainMana(3))];
     // adjacent_items left empty: it touches nothing.
@@ -93,7 +93,7 @@ fn a_reactive_item_ignores_gear_it_does_not_touch() {
 
 #[test]
 fn reducing_a_cooldown_makes_the_item_fire_sooner() {
-    let driver = item("Driver", SlotKind::Weapon, 1000, Stats::damage(1));
+    let driver = item("Driver", SlotKind::Weapon, 1000, Stats::physical(1));
     let mut charmed = item("Charmed", SlotKind::Helmet, 4000, Stats::armor(1));
     charmed.triggers = vec![Trigger::OnAdjacentActivate(Action::ReduceCooldown(1000))];
     charmed.adjacent_items = vec![0];
@@ -116,7 +116,7 @@ fn reducing_a_cooldown_makes_the_item_fire_sooner() {
 fn two_items_reacting_to_each_other_do_not_loop() {
     // Both react to the other. A reaction must not itself count as an
     // activation, or this would recurse until the stack gives out.
-    let mut a = item("A", SlotKind::Weapon, 1000, Stats::damage(1));
+    let mut a = item("A", SlotKind::Weapon, 1000, Stats::physical(1));
     a.triggers = vec![Trigger::OnAdjacentActivate(Action::GainMana(1))];
     a.adjacent_items = vec![1];
     let mut b = item("B", SlotKind::Helmet, 1000, Stats::armor(1));
@@ -253,7 +253,7 @@ fn mana_empowerment_scales_power_with_the_mana_you_still_hold() {
 
 #[test]
 fn mana_shield_blunts_every_kind_of_damage() {
-    let mut hitter = item("Hitter", SlotKind::Weapon, 1000, Stats::damage(30));
+    let mut hitter = item("Hitter", SlotKind::Weapon, 1000, Stats::physical(30));
     hitter.triggers = vec![];
     const PUNCHER: MonsterSpec = MonsterSpec {
         name: "Puncher",

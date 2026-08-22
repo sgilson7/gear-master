@@ -388,12 +388,16 @@ impl Difficulty {
     }
 }
 
-/// What kind of harm an attack is, so the matching defences apply. Untyped
-/// answers to no resistance at all - a curse's burn, a creature's plain bite.
+/// What kind of harm an attack is, so the matching defences apply.
+///
+/// There is no untyped option on purpose. Every number a piece of gear deals
+/// is physical, magic, or mind, which is what makes resistance worth buying:
+/// a defence that half the game ignored would be a coin flip at the shop.
+/// Curse burn is the one thing that still bypasses all of it, and it answers
+/// to curse resistance instead.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
 pub enum DamageType {
     #[default]
-    Untyped,
     Physical,
     Magic,
 }
@@ -401,7 +405,6 @@ pub enum DamageType {
 impl DamageType {
     pub fn name(self) -> &'static str {
         match self {
-            DamageType::Untyped => "damage",
             DamageType::Physical => "physical damage",
             DamageType::Magic => "magic damage",
         }
@@ -2002,7 +2005,6 @@ pub struct RunningItem {
     pub slot: Option<SlotKind>,
     pub cooldown_ms: u32,
     pub progress_ms: u32,
-    pub damage: i32,
     pub physical_damage: i32,
     pub magic_damage: i32,
     pub mind: i32,
@@ -2035,7 +2037,6 @@ impl RunningItem {
             slot: Some(p.slot),
             cooldown_ms: p.cooldown_ms,
             progress_ms: 0,
-            damage: p.stats.damage,
             physical_damage: p.stats.physical_damage,
             magic_damage: p.stats.magic_damage,
             rage: p.stats.rage,
@@ -2063,8 +2064,7 @@ impl RunningItem {
             slot: None,
             cooldown_ms: a.cooldown_ms.max(TICK_MS),
             progress_ms: 0,
-            damage: a.damage,
-            physical_damage: 0,
+            physical_damage: a.damage,
             magic_damage: 0,
             rage: 0,
             faith: 0,
@@ -2387,16 +2387,10 @@ impl Combatant {
 
     /// Mana shield first, then armour, then health. Returns (absorbed by
     /// armour, through to health).
-    fn take_damage(&mut self, amount: i32) -> (i32, i32) {
-        self.take_typed(amount, DamageType::Untyped, 0)
-    }
-
     /// Take `amount` of `kind`, from an attacker with `pierce` percent
-    /// piercing of that type. Untyped damage answers to no resistance at all,
-    /// which is what a curse's burn and a monster's plain bite deal.
+    /// piercing of that type.
     fn take_typed(&mut self, amount: i32, kind: DamageType, pierce: i32) -> (i32, i32) {
         let amount = match kind {
-            DamageType::Untyped => amount,
             DamageType::Physical => crate::stats::after_defences(
                 amount,
                 self.physical_resist,
@@ -2923,7 +2917,6 @@ fn activate(
         let n = item.casts.len();
         let which = item.cast_index % n;
         let cast = item.casts[which].clone();
-        item.damage = cast.stats.damage;
         item.physical_damage = cast.stats.physical_damage;
         item.magic_damage = cast.stats.magic_damage;
         item.rage = cast.stats.rage;
@@ -2957,7 +2950,6 @@ fn activate(
         let extra = (BALL_VOICES - 1) as usize;
         for k in 0..extra.min(n.saturating_sub(1)) {
             let also = &item.casts[(which + 1 + k) % n];
-            item.damage += also.stats.damage;
             item.physical_damage += also.stats.physical_damage;
             item.magic_damage += also.stats.magic_damage;
             item.rage += also.stats.rage;
@@ -2989,7 +2981,6 @@ fn activate(
         };
         if !paid {
             let weaken = |v: &mut i32| *v = *v * WEAK_CAST_PCT / 100;
-            weaken(&mut item.damage);
             weaken(&mut item.physical_damage);
             weaken(&mut item.magic_damage);
             weaken(&mut item.mind);
@@ -3031,24 +3022,22 @@ fn activate(
         let mult = |flat: i32| -> i32 {
             ((flat as i64) * (power + item.power_bonus) as i64 / 100).max(0) as i32
         };
-        let untyped = mult(item.damage + strength);
-        let physical = mult(item.physical_damage + rage);
+        let physical = mult(item.physical_damage + rage + strength);
         // Transmute: part of the iron lands again as magic.
         let transmute = pick(p, e, side).transmute;
         let magic = mult(item.magic_damage) + physical * transmute / 100;
         // Momentum: the longer the fight runs, the harder you swing.
         let momentum = pick(p, e, side).momentum * (t / 1000) as i32;
-        let untyped = untyped + mult(momentum);
+        let physical = physical + mult(momentum);
         let reps = if echoes { 2 } else { 1 };
 
         // The log reports the swing, not what survived the defences: a hit
         // that is turned aside completely still has to show up, or a player
         // stacking resistance sees nothing happening at all.
-        let swing = untyped + physical + magic;
+        let swing = physical + magic;
         let mut absorbed_total = 0;
         for _ in 0..reps {
             for (amount, kind, pierce) in [
-                (untyped, DamageType::Untyped, 0),
                 (physical, DamageType::Physical, phys_pierce),
                 (magic, DamageType::Magic, magic_pierce),
             ] {
@@ -3364,10 +3353,14 @@ fn apply(
                 log.push(LogEntry { at_ms: t, event: Event::Cursed { on, kind, duration_ms: duration } });
             }
         }
-        Action::Damage { amount, target } => {
+        Action::Damage { amount, kind, target } => {
             let on = resolve(target);
+            let pierce = match kind {
+                DamageType::Physical => pick(p, e, on.other()).physical_pierce,
+                DamageType::Magic => pick(p, e, on.other()).magic_pierce,
+            };
             let c = pick(p, e, on);
-            let (absorbed, _) = c.take_damage(amount);
+            let (absorbed, _) = c.take_typed(amount, kind, pierce);
             let (hp, ar) = (c.health, c.armor);
             log.push(LogEntry {
                 at_ms: t,

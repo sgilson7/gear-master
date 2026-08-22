@@ -69,7 +69,10 @@ impl ItemProfile {
         if self.slot != SlotKind::Weapon {
             return 0;
         }
-        (((self.stats.damage + strength) as i64 * power as i64) / 100).max(0) as i32
+        (((self.stats.physical_damage + self.stats.magic_damage + strength) as i64
+            * power as i64)
+            / 100)
+            .max(0) as i32
     }
 
     /// Damage a second, in thousandths, so a slow heavy weapon and a fast

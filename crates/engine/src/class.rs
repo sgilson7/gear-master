@@ -145,7 +145,7 @@ impl Fingerprint {
             let s: &Stats = &p.stats;
 
             magic += s.magic_damage as f32 * rate;
-            physical += (s.physical_damage + s.damage) as f32 * rate;
+            physical += s.physical_damage as f32 * rate;
             ward += s.physical_resist + s.magic_resist + s.physical_harden + s.magic_harden;
             pierce += s.physical_pierce + s.magic_pierce;
             mana += s.mana as f32 * rate;
@@ -157,7 +157,7 @@ impl Fingerprint {
             magic_in[p.slot.index()] +=
                 (s.magic_damage + s.magic_resist + s.magic_pierce + s.magic_harden) as f32;
             physical_in[p.slot.index()] +=
-                (s.physical_damage + s.damage + s.physical_resist + s.physical_pierce) as f32;
+                (s.physical_damage + s.physical_resist + s.physical_pierce) as f32;
 
             for piece in &p.pieces {
                 match reg.def(*piece).kind {

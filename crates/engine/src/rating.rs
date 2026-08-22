@@ -204,7 +204,7 @@ fn standing_points(s: &Stats) -> f32 {
 
 /// Stats granted once per activation, scored at `rate` activations a second.
 fn activated_points(s: &Stats, rate: f32) -> f32 {
-    ((s.damage + s.physical_damage + s.magic_damage) as f32 * weight::DAMAGE_PS
+    ((s.physical_damage + s.magic_damage) as f32 * weight::DAMAGE_PS
         + s.armor as f32 * weight::ARMOR_PS
         + s.mana as f32 * weight::MANA_PS
         + (s.rage + s.faith + s.nature) as f32 * weight::RESOURCE_PS
@@ -229,7 +229,7 @@ fn action_points(a: &Action) -> f32 {
         // health this will be worth" - which is the thing to compare it
         // against.
         Action::Grow(n) => *n as f32 * weight::HEALTH * TYPICAL_FIGHT_S,
-        Action::Damage { amount, target } => {
+        Action::Damage { amount, target, .. } => {
             let v = *amount as f32 * weight::DAMAGE_PS;
             if matches!(target, crate::piece::Target::Yourself) {
                 -v

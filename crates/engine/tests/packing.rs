@@ -562,7 +562,7 @@ fn pull(names: &[&'static str], axis: Axis) -> f32 {
         let s = &d.base;
         total += match axis {
             Axis::Arcana => s.magic_damage as f32,
-            Axis::Brutality => (s.physical_damage + s.damage) as f32,
+            Axis::Brutality => s.physical_damage as f32,
             Axis::Ward => (s.physical_resist + s.magic_resist + s.physical_harden + s.magic_harden) as f32,
             Axis::Puncture => (s.physical_pierce + s.magic_pierce) as f32,
             Axis::Attunement => s.mana as f32 * 4.0,
@@ -597,7 +597,7 @@ fn pull(names: &[&'static str], axis: Axis) -> f32 {
             }
             Axis::PhysicalIn(sl) => {
                 if d.slot == sl {
-                    (s.physical_damage + s.damage + s.physical_resist + s.physical_pierce) as f32
+                    (s.physical_damage + s.physical_resist + s.physical_pierce) as f32
                 } else {
                     0.0
                 }

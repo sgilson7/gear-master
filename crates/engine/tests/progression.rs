@@ -419,7 +419,7 @@ fn effectiveness_climbs_with_the_setting() {
             .items
             .iter()
             .map(|i| {
-                let per = (i.damage + i.physical_damage + i.magic_damage + c.strength) as i64;
+                let per = (i.physical_damage + i.magic_damage + c.strength) as i64;
                 per * 1000 / i.cooldown_ms.max(1) as i64
             })
             .sum();

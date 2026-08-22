@@ -12,8 +12,6 @@ pub struct Stats {
     pub strength: i32,
     pub regen: i32,
     pub power: i32,
-    /// Flat damage an item deals each time it activates.
-    pub damage: i32,
     /// Temporary hit points granted per activation. Armour starts every combat
     /// at zero and soaks damage before health does.
     pub armor: i32,
@@ -82,7 +80,6 @@ pub enum StatKind {
     Strength,
     Regen,
     Power,
-    Damage,
     Armor,
     Mana,
     Mind,
@@ -104,12 +101,11 @@ pub enum StatKind {
 impl StatKind {
     /// Every stat, so something that acts on "all the numbers" can do so
     /// without listing them and forgetting one when a new field is added.
-    pub const ALL: [StatKind; 21] = [
+    pub const ALL: [StatKind; 20] = [
         StatKind::Health,
         StatKind::Strength,
         StatKind::Regen,
         StatKind::Power,
-        StatKind::Damage,
         StatKind::Armor,
         StatKind::Mana,
         StatKind::Mind,
@@ -134,7 +130,6 @@ impl StatKind {
             StatKind::Strength => "strength",
             StatKind::Regen => "regen",
             StatKind::Power => "power",
-            StatKind::Damage => "damage",
             StatKind::Armor => "armor",
             StatKind::Mana => "mana",
             StatKind::Mind => "mind damage",
@@ -161,7 +156,6 @@ impl Stats {
         strength: 0,
         regen: 0,
         power: 0,
-        damage: 0,
         armor: 0,
         mana: 0,
         mind: 0,
@@ -186,7 +180,6 @@ impl Stats {
             StatKind::Strength => self.strength,
             StatKind::Regen => self.regen,
             StatKind::Power => self.power,
-            StatKind::Damage => self.damage,
             StatKind::Armor => self.armor,
             StatKind::Mana => self.mana,
             StatKind::Mind => self.mind,
@@ -212,7 +205,6 @@ impl Stats {
             StatKind::Strength => self.strength = v,
             StatKind::Regen => self.regen = v,
             StatKind::Power => self.power = v,
-            StatKind::Damage => self.damage = v,
             StatKind::Armor => self.armor = v,
             StatKind::Mana => self.mana = v,
             StatKind::Mind => self.mind = v,
@@ -242,8 +234,11 @@ impl Stats {
         Stats { health, strength, regen, power, ..Stats::ZERO }
     }
 
-    pub const fn damage(damage: i32) -> Self {
-        Stats { damage, ..Stats::ZERO }
+    pub const fn physical(physical_damage: i32) -> Self {
+        Stats { physical_damage, ..Stats::ZERO }
+    }
+    pub const fn magic(magic_damage: i32) -> Self {
+        Stats { magic_damage, ..Stats::ZERO }
     }
     pub const fn armor(armor: i32) -> Self {
         Stats { armor, ..Stats::ZERO }
@@ -306,9 +301,6 @@ impl Stats {
         }
         if self.power != 0 {
             parts.push(format!("{:+}.{:02}x power", self.power / 100, (self.power % 100).abs()));
-        }
-        if self.damage != 0 {
-            parts.push(format!("{:+} dmg", self.damage));
         }
         if self.armor != 0 {
             parts.push(format!("{:+} armor", self.armor));
@@ -376,7 +368,6 @@ impl Add for Stats {
             strength: self.strength + o.strength,
             regen: self.regen + o.regen,
             power: self.power + o.power,
-            damage: self.damage + o.damage,
             armor: self.armor + o.armor,
             mana: self.mana + o.mana,
             mind: self.mind + o.mind,

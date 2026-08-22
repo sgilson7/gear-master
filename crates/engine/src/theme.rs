@@ -751,7 +751,8 @@ pub static TURTLE_DICK: Theme = Theme {
             "IRON / FUNNY",
             "The two kinds of harm. Iron is the ordinary sort. Funny is what a landed joke \
              does - comedic energy, delivered through a funnel, and it has its own set of \
-             defences. Untyped damage, like a burn or a bite, answers to neither.",
+             defences. A curse's burn answers to neither - stack Devotion \
+             against that instead.",
         ),
         (
             "ARMOR",

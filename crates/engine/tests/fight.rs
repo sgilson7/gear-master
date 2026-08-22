@@ -122,8 +122,8 @@ fn the_log_is_ordered_and_ends_with_the_outcome() {
 
 #[test]
 fn each_item_keeps_its_own_cooldown() {
-    let fast = item("Fast", SlotKind::Weapon, 500, Stats::damage(1));
-    let slow = item("Slow", SlotKind::Weapon, 2000, Stats::damage(1));
+    let fast = item("Fast", SlotKind::Weapon, 500, Stats::physical(1));
+    let slow = item("Slow", SlotKind::Weapon, 2000, Stats::physical(1));
     let log = simulate(Stats::new(1000, 0, 0, 100), &[fast, slow], &DUMMY);
 
     let fast_hits = activations_of(&log, "Fast").len();
@@ -141,7 +141,7 @@ fn each_item_keeps_its_own_cooldown() {
 fn activations_land_exactly_on_the_cooldown() {
     let log = simulate(
         Stats::new(1000, 0, 0, 100),
-        &[item("Tick", SlotKind::Weapon, 750, Stats::damage(1))],
+        &[item("Tick", SlotKind::Weapon, 750, Stats::physical(1))],
         &DUMMY,
     );
     let at = activations_of(&log, "Tick");
@@ -204,7 +204,7 @@ fn armour_starts_every_fight_at_zero() {
 
 #[test]
 fn a_mana_trigger_takes_the_failure_branch_when_it_cannot_pay() {
-    let mut caster = item("Caster", SlotKind::Weapon, 1000, Stats::damage(1));
+    let mut caster = item("Caster", SlotKind::Weapon, 1000, Stats::physical(1));
     caster.triggers = vec![Trigger::SpendMana {
         cost: 5,
         on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
@@ -235,7 +235,7 @@ fn a_mana_trigger_takes_the_failure_branch_when_it_cannot_pay() {
 #[test]
 fn a_mana_trigger_spends_and_curses_the_enemy_when_it_can_pay() {
     let battery = item("Battery", SlotKind::Helmet, 500, Stats::mana(10));
-    let mut caster = item("Caster", SlotKind::Weapon, 1000, Stats::damage(1));
+    let mut caster = item("Caster", SlotKind::Weapon, 1000, Stats::physical(1));
     caster.triggers = vec![Trigger::SpendMana {
         cost: 5,
         on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
@@ -264,7 +264,7 @@ fn a_mana_trigger_spends_and_curses_the_enemy_when_it_can_pay() {
 
 #[test]
 fn frost_on_yourself_visibly_delays_your_next_activation() {
-    let mut cursed = item("Cursed", SlotKind::Weapon, 1000, Stats::damage(1));
+    let mut cursed = item("Cursed", SlotKind::Weapon, 1000, Stats::physical(1));
     cursed.triggers = vec![Trigger::SpendMana {
         cost: 5,
         on_success: Action::GainMana(0),
@@ -284,7 +284,7 @@ fn frost_on_yourself_visibly_delays_your_next_activation() {
 
 #[test]
 fn searing_burns_the_enemy_over_time() {
-    let mut brand = item("Brand", SlotKind::Weapon, 20_000, Stats::damage(1));
+    let mut brand = item("Brand", SlotKind::Weapon, 20_000, Stats::physical(1));
     brand.triggers = vec![Trigger::OnActivate(Action::Curse {
         kind: CurseKind::Searing,
         target: Target::Enemy,
@@ -320,7 +320,7 @@ fn searing_burns_the_enemy_over_time() {
 
 #[test]
 fn curse_resistance_shortens_the_burn() {
-    let mut brand = item("Brand", SlotKind::Weapon, 20_000, Stats::damage(1));
+    let mut brand = item("Brand", SlotKind::Weapon, 20_000, Stats::physical(1));
     brand.triggers = vec![Trigger::OnActivate(Action::Curse {
         kind: CurseKind::Searing,
         target: Target::Enemy,
@@ -366,7 +366,7 @@ fn curse_resistance_shortens_the_burn() {
 
 #[test]
 fn the_per_adjacent_item_trigger_fires_once_per_touching_item() {
-    let mut blade = item("Blade", SlotKind::Weapon, 1000, Stats::damage(1));
+    let mut blade = item("Blade", SlotKind::Weapon, 1000, Stats::physical(1));
     blade.triggers = vec![Trigger::PerAdjacentItem {
         action: Action::Curse { kind: CurseKind::Searing, target: Target::Yourself },
         same_slot_only: true,
