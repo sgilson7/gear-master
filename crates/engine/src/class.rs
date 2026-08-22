@@ -96,6 +96,98 @@ impl Axis {
     }
 }
 
+impl Axis {
+    /// What this axis actually measures, and what raises it.
+    ///
+    /// The fountain reads a build and hands you a title for it, and until now
+    /// the only thing it would tell you was the name of the number it had
+    /// scored you on. "Geomancer needs weave 0/70" is not a sentence a player
+    /// can act on unless they already know what weave is.
+    pub fn explain(self) -> &'static str {
+        match self {
+            Axis::Arcana => "Magic damage a second, across every finished item. \
+                Spells, books, balls and inks all count - and so does making \
+                those items faster, because it is measured per second rather \
+                than per cast.",
+            Axis::Brutality => "Physical damage a second, the same way: \
+                blades, claws, the strength on your character sheet, and any \
+                rage you are holding.",
+            Axis::Ward => "Resistance and hardening of both types, added up. \
+                Flat defence only - the numbers that cut a hit before it \
+                lands, not anything conditional.",
+            Axis::Puncture => "Piercing of both types. Worth only what the \
+                other side is resisting, so it reads high on a build that has \
+                decided to go through armour rather than around it.",
+            Axis::Attunement => "Mana banked a second. It counts mana granted \
+                per activation, so a fast item granting 1 beats a slow one \
+                granting 2.",
+            Axis::Wrath => "Rage banked a second. Every point of rage you are \
+                holding adds to physical damage.",
+            Axis::Devotion => "Faith banked a second. Every point of faith you \
+                are holding adds to both resistances.",
+            Axis::Growth => "Nature banked a second. Every point of nature you \
+                are holding adds to regeneration.",
+            Axis::Cadence => "Activations a second, added up across every \
+                finished item. Many fast items read higher than a few slow \
+                ones, whatever any of them actually do.",
+            Axis::Mass => "How many of the 240 cells across the five grids are \
+                covered. It does not care what is in them.",
+            Axis::Weave => "How connected the build is, per item: finished \
+                items touching each other inside one grid, and items in \
+                different grids sharing rows. Divided by how many items you \
+                have, so simply owning more gear does not raise it - that is \
+                Mass.",
+            Axis::Malice => "Curses landed a second. Any trigger that puts a \
+                curse on the enemy counts, whatever the curse is.",
+            Axis::Bulwark => "Armour granted a second. Armour starts every \
+                fight at zero and soaks damage before health does.",
+            Axis::Sorcery => "How many spell cores you are holding. Books and \
+                crystal balls both count.",
+            Axis::Orbits => "Crystal balls only. A ball cycles through its \
+                spells; a book casts the one thing it is bound to.",
+            Axis::Answering => "Spells that answer their siblings going off. \
+                Only a ball holds more than one spell, so this reads a build \
+                that has committed to a ball rather than merely bought one.",
+            Axis::MagicIn(_) => "Magical weight sitting in one particular \
+                grid. There are five of these, one per slot, so a title can \
+                care about where the magic is and not only how much of it \
+                there is.",
+            Axis::PhysicalIn(_) => "The same for physical weight: blades, \
+                plating and armour concentrated in one grid rather than \
+                spread across all five.",
+        }
+    }
+
+    /// The axes as the glossary shows them: every distinct one once, with the
+    /// five per-slot pairs collapsed to the one entry that explains them all.
+    pub fn glossary() -> Vec<(String, &'static str)> {
+        let mut out: Vec<(String, &'static str)> = [
+            Axis::Arcana,
+            Axis::Brutality,
+            Axis::Ward,
+            Axis::Puncture,
+            Axis::Attunement,
+            Axis::Wrath,
+            Axis::Devotion,
+            Axis::Growth,
+            Axis::Cadence,
+            Axis::Mass,
+            Axis::Weave,
+            Axis::Malice,
+            Axis::Bulwark,
+            Axis::Sorcery,
+            Axis::Orbits,
+            Axis::Answering,
+        ]
+        .iter()
+        .map(|a| (a.name(), a.explain()))
+        .collect();
+        out.push(("magic in a slot".into(), Axis::MagicIn(SlotKind::Weapon).explain()));
+        out.push(("iron in a slot".into(), Axis::PhysicalIn(SlotKind::Weapon).explain()));
+        out
+    }
+}
+
 /// Every axis, measured 0-100.
 #[derive(Clone, Debug, Default)]
 pub struct Fingerprint {
@@ -615,6 +707,39 @@ pub fn rank(fp: &Fingerprint) -> Vec<Match> {
 /// no requirements, so a fountain always has something to hand over.
 pub fn classify(fp: &Fingerprint) -> &'static ClassDef {
     rank(fp).into_iter().find(|m| m.eligible).map(|m| m.class).unwrap_or(&CLASSES[CLASSES.len() - 1])
+}
+
+#[cfg(test)]
+mod axis_tests {
+    use super::{Axis, CLASSES};
+
+    /// The fountain tells you which axis you are short on. If the glossary
+    /// cannot say what that axis is, the message is a number and a word the
+    /// player has no way to look up.
+    #[test]
+    fn every_axis_the_fountain_can_name_is_explained() {
+        for (name, text) in Axis::glossary() {
+            assert!(!name.is_empty() && text.len() > 40, "{} is not explained", name);
+        }
+        // Every axis a class actually asks for has to be in that list, under
+        // the name the class requirement prints.
+        let listed: Vec<String> = Axis::glossary().into_iter().map(|(n, _)| n).collect();
+        for class in CLASSES {
+            for (axis, _) in class.requires {
+                let name = match axis {
+                    Axis::MagicIn(_) => "magic in a slot".to_string(),
+                    Axis::PhysicalIn(_) => "iron in a slot".to_string(),
+                    other => other.name(),
+                };
+                assert!(
+                    listed.contains(&name),
+                    "{} asks for {:?} and the glossary has no entry for it",
+                    class.name,
+                    axis
+                );
+            }
+        }
+    }
 }
 
 #[cfg(test)]

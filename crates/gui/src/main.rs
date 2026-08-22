@@ -5510,15 +5510,22 @@ fn render_glossary(tab: usize, page: usize, mx: f32, my: f32) -> GlossaryHit {
     let close = Rect::new(r.x + r.w - 140.0, r.y + 16.0, 120.0, 34.0);
     button(close, "CLOSE", true, mx, my);
 
-    // Two shelves: the words, and the classes. Classes want a paragraph each
-    // and a list of what they ask for, which does not fit the four-column
-    // layout the definitions use.
+    // Three shelves: the words, the classes, and the axes a fountain scores
+    // a build on. Each of the last two wants a paragraph per entry, which
+    // does not fit the four-column layout the plain definitions use.
     let tw = 150.0;
     let tabs = [
         Rect::new(r.x + 320.0, r.y + 20.0, tw, 30.0),
         Rect::new(r.x + 320.0 + tw + 10.0, r.y + 20.0, tw, 30.0),
+        Rect::new(r.x + 320.0 + (tw + 10.0) * 2.0, r.y + 20.0, tw, 30.0),
     ];
-    for (i, (rect, name)) in tabs.iter().zip(["WORDS", "CLASSES"]).enumerate() {
+    let tab_names = [
+        words::word("classes", "CLASSES"),
+        words::word("axes", "WHAT DECIDES"),
+    ];
+    for (i, (rect, name)) in
+        tabs.iter().zip(["WORDS", tab_names[0], tab_names[1]]).enumerate()
+    {
         let on = i == tab;
         draw_rectangle(
             rect.x,
@@ -5547,8 +5554,12 @@ fn render_glossary(tab: usize, page: usize, mx: f32, my: f32) -> GlossaryHit {
             if on { col_gold() } else { col_dim() },
         );
     }
-    if tab == 1 {
-        let pages = render_class_pages(r, page, mx, my);
+    if tab == 1 || tab == 2 {
+        let pages = if tab == 1 {
+            render_class_pages(r, page, mx, my)
+        } else {
+            render_axis_pages(r, page)
+        };
         let next = Rect::new(r.x + r.w - 260.0, r.y + r.h - 46.0, 240.0, 34.0);
         if pages > 1 {
             ui_text(
@@ -5702,11 +5713,89 @@ struct GlossaryHit {
     pages: usize,
     /// The one entry that is also a control - see `SKIP_TERM`.
     skip: Option<Rect>,
-    tabs: [Rect; 2],
+    tabs: [Rect; 3],
 }
 
 /// Every class, in full: what it asks for, how close you are to it, and what
 /// it does for you. Returns the page count.
+/// The axes a fountain scores you on, one paragraph each.
+///
+/// The fountain reads a build and says "Geomancer needs weave 0/70", which is
+/// only useful to someone who already knows what weave is. This is where they
+/// find out.
+fn render_axis_pages(r: Rect, page: usize) -> usize {
+    use gearmaster_engine::class::Axis;
+    let entries = Axis::glossary();
+    let top = r.y + 96.0;
+    let bottom = r.y + r.h - 54.0;
+    let gap = 26.0;
+    let cols = 3usize;
+    let col_w = (r.w - 48.0 - (cols - 1) as f32 * gap) / cols as f32;
+
+    let block_h = |text: &str| -> f32 {
+        22.0 + wrap_px(&words::retell(text), col_w - 12.0, 12.0).len() as f32 * 15.0 + 14.0
+    };
+
+    let mut at = 0usize;
+    let mut this_page = 0usize;
+    let mut col = 0usize;
+    let mut y = top;
+    let mut pages = 1usize;
+    while at < entries.len() {
+        let (name, text) = &entries[at];
+        let needed = block_h(text);
+        if y + needed > bottom {
+            if col + 1 < cols {
+                col += 1;
+                y = top;
+            } else {
+                if this_page == page {
+                    break;
+                }
+                this_page += 1;
+                pages += 1;
+                col = 0;
+                y = top;
+                continue;
+            }
+        }
+        if this_page == page {
+            let x = r.x + 24.0 + col as f32 * (col_w + gap);
+            ui_text(&words::retell(name).to_uppercase(), x, y, 15.0, col_gold());
+            y += 20.0;
+            for l in wrap_px(&words::retell(text), col_w - 12.0, 12.0) {
+                ui_text(&l, x + 8.0, y, 12.0, Color::from_rgba(198, 200, 218, 255));
+                y += 15.0;
+            }
+            y += 14.0;
+        } else {
+            y += needed;
+        }
+        at += 1;
+    }
+    // Finish counting pages past the drawn one, the same way the other tabs
+    // do - a count taken from the open page's geometry is what once made the
+    // footer read "page 7 of 6".
+    if at < entries.len() {
+        let (mut c2, mut yy) = (col, y);
+        for (_, text) in &entries[at..] {
+            let needed = block_h(text);
+            if yy + needed > bottom {
+                if c2 + 1 < cols {
+                    c2 += 1;
+                    yy = top;
+                } else {
+                    pages += 1;
+                    c2 = 0;
+                    yy = top;
+                }
+            }
+            yy += needed;
+        }
+    }
+    pages
+}
+
 fn render_class_pages(r: Rect, page: usize, _mx: f32, _my: f32) -> usize {
     use gearmaster_engine::class::CLASSES;
     let top = r.y + 96.0;
