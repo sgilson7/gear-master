@@ -453,3 +453,65 @@ fn a_stacked_multiplier_cares_about_cells_not_rows() {
     let helm = items.iter().find(|i| i.slot == SlotKind::Helmet).expect("still there");
     assert!(helm.stats.armor < alone, "overlapping now, so the bonus is gone");
 }
+
+
+// ------------------------------------------------- walking in holding something
+
+/// Armour and all four pools start every fight at zero, so the opening seconds
+/// look the same whatever is on the board. This is the gear that does not.
+#[test]
+fn a_prepared_item_is_already_holding_something_on_the_first_tick() {
+    use gearmaster_engine::combat::{simulate, Event, Side, LADDER};
+    use gearmaster_engine::piece::SlotKind;
+    use gearmaster_engine::run::Run;
+
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Steel Frame", SlotKind::Helmet, 0, 0);
+    equip(&mut run, "Braced Plating", SlotKind::Helmet, 0, 2);
+    assert_eq!(run.report(SlotKind::Helmet).assembled_count(), 1, "the fixture must assemble");
+
+    let profiles = run.combat_items();
+    let mut stats = run.player_stats();
+    stats.health = 100_000;
+    let foe = LADDER.iter().find(|m| m.name == "Cave Rat").unwrap();
+    let log = simulate(stats, &profiles, foe);
+
+    // The armour is there before anything has had a turn.
+    let first = log
+        .entries
+        .iter()
+        .find(|e| matches!(e.event, Event::GainArmor { side: Side::Player, .. }))
+        .expect("the plating should have braced");
+    assert_eq!(first.at_ms, 0, "it braces before the clock starts, not on a cooldown");
+}
+
+/// It fires once, not once a second - otherwise it is just a fast cooldown
+/// with a different name on it.
+#[test]
+fn a_prepared_item_only_opens_once() {
+    use gearmaster_engine::combat::{simulate, Event, Side, LADDER};
+    use gearmaster_engine::piece::SlotKind;
+    use gearmaster_engine::run::Run;
+
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Leather Material", SlotKind::Gloves, 0, 0);
+    equip(&mut run, "Gripping Mold", SlotKind::Gloves, 2, 0);
+    equip(&mut run, "Opening Grudge", SlotKind::Gloves, 0, 2);
+    assert_eq!(run.report(SlotKind::Gloves).assembled_count(), 1, "the fixture must assemble");
+
+    let profiles = run.combat_items();
+    let mut stats = run.player_stats();
+    stats.health = 100_000;
+    let foe = LADDER.iter().find(|m| m.name == "Cave Rat").unwrap();
+    let log = simulate(stats, &profiles, foe);
+
+    let opens = log
+        .entries
+        .iter()
+        .filter(|e| {
+            e.at_ms == 0
+                && matches!(e.event, Event::GainResource { side: Side::Player, what, .. } if what == "rage")
+        })
+        .count();
+    assert_eq!(opens, 1, "once, at the bell");
+}

@@ -1566,6 +1566,7 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
         match t {
             Trigger::PerAdjacentEmpty(_) => {}
             Trigger::OnActivate(a)
+            | Trigger::OnBattleStart(a)
             | Trigger::PerAdjacentItem { action: a, .. }
             | Trigger::OnAdjacentActivate(a)
             | Trigger::OnAlignedActivate(a)
@@ -6189,6 +6190,7 @@ fn trigger_curses(t: &gearmaster_engine::piece::Trigger) -> bool {
         Trigger::PerAdjacentEmpty(inner) => trigger_curses(inner),
         Trigger::Consume { per, .. } => curses(per),
         Trigger::OnActivate(a)
+        | Trigger::OnBattleStart(a)
         | Trigger::PerAdjacentItem { action: a, .. }
         | Trigger::OnAdjacentActivate(a)
         | Trigger::OnAlignedActivate(a)

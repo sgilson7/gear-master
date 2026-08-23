@@ -367,6 +367,10 @@ fn pool_weight(what: crate::piece::Resource) -> f32 {
 fn trigger_points(t: &Trigger) -> f32 {
     match t {
         Trigger::OnActivate(a) => action_points(a),
+        // Handled by the caller: it happens once a fight, not once an
+        // activation, so multiplying it by the activation rate is exactly
+        // backwards. See `piece_points`.
+        Trigger::OnBattleStart(_) => 0.0,
         // Mana income is finite, so assume it pays about two thirds of the
         // time and eats the failure branch the rest.
         Trigger::Spend { what, cost, on_success, on_failure } => {
@@ -472,7 +476,18 @@ fn piece_points(def: &PieceDef, cooldown_ms: u32) -> f32 {
         points += effect_points(&eff, rate);
     }
     for t in def.triggers {
-        points += trigger_points(t) * rate;
+        // Everything else is worth its value once per activation, so it scales
+        // with how often the item comes round. An opening happens once a
+        // fight however fast the item is - which makes it worth its value
+        // spread across the fight, not multiplied by the cadence. Getting that
+        // backwards priced a 90-armour opening as though it arrived every two
+        // seconds, and the weapon slot's ceiling went up enough to deflate
+        // every ink in the game to nothing.
+        if let Trigger::OnBattleStart(a) = t {
+            points += action_points(a) / TYPICAL_FIGHT_S;
+        } else {
+            points += trigger_points(t) * rate;
+        }
     }
     // Speed lifts everything the item does - but only score it here when the
     // caller could not. Given a real cooldown, the item's speed is already in

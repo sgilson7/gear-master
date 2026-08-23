@@ -210,6 +210,10 @@ pub fn qualifiers(reg: &PieceRegistry, pieces: &[PieceId]) -> Vec<&'static str> 
             match t {
                 Trigger::PerAdjacentEmpty(_) => note(Some("Unbounded")),
                 Trigger::Consume { .. } => note(Some("Emptying")),
+                Trigger::OnBattleStart(a) => {
+                    note(Some("Prepared"));
+                    note(action_word(a));
+                }
                 Trigger::Spend { what, on_success, on_failure, .. } => {
                     note(Some(match what {
                         crate::piece::Resource::Mana => "Attuned",

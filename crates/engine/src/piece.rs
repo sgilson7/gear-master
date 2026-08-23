@@ -466,6 +466,13 @@ pub enum Trigger {
     /// same rows as this one, activates. Rewards lining gear up across the
     /// five grids rather than only within one.
     OnAlignedActivate(Action),
+    /// Fires once, before the first tick of the fight.
+    ///
+    /// Everything else in the game starts a fight at zero - armour, and all
+    /// four pools - and has to earn its way up from there, which means the
+    /// opening seconds of every fight look the same whatever you are wearing.
+    /// This is the gear that shows up already holding something.
+    OnBattleStart(Action),
     /// Spend the **whole** pool, and run `per` once for every `each` points
     /// it found. Nothing at all happens below `each`.
     ///
@@ -516,6 +523,7 @@ impl Trigger {
                 if *same_slot_only { "item in this slot" } else { "item" },
                 action.describe()
             ),
+            Trigger::OnBattleStart(a) => format!("at the start of the fight, {}", a.describe()),
             Trigger::Consume { what, each, per } => format!(
                 "on activation, spend all your {}: per {} spent, {}",
                 what.name(),
@@ -7558,6 +7566,171 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 0,
         price: 999,
     },
+
+    // ---- what you walk in holding -------------------------------------------
+    //
+    // Armour and all four pools start every fight at zero, so the opening
+    // seconds look the same whatever is on the board. These do not: one per
+    // slot per resource family, so no build is shut out of an opening.
+    // Braced before the bell. Everything else in the game starts at nothing.
+    PieceDef {
+        name: "Braced Plating",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Plating,
+        cells: &[(0,0),(1,0),(0,1),(1,1)],
+        base: Stats { armor: 8, ..Stats::health(60) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnBattleStart(Action::GainArmor(90))],
+        quest: None,
+        power_bonus: 0,
+        price: 30,
+    },
+    PieceDef {
+        name: "Standing Start",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Mold,
+        cells: &[(0,0),(1,0),(2,0)],
+        base: Stats { mana: 1, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnBattleStart(Action::GainMana(9))],
+        quest: None,
+        power_bonus: 0,
+        price: 26,
+    },
+    // It arrives having already decided.
+    PieceDef {
+        name: "Opening Grudge",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { rage: 1, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnBattleStart(Action::Gain { what: Resource::Rage, amount: 14 })],
+        quest: None,
+        power_bonus: 0,
+        price: 24,
+    },
+    PieceDef {
+        name: "Vigil Crest",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0,0),(0,1)],
+        base: Stats { faith: 1, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnBattleStart(Action::Gain { what: Resource::Faith, amount: 14 })],
+        quest: None,
+        power_bonus: 0,
+        price: 24,
+    },
+    PieceDef {
+        name: "Seedbed Layer",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        cells: &[(0,0),(1,0),(2,0)],
+        base: Stats { nature: 1, ..Stats::health(45) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnBattleStart(Action::Gain { what: Resource::Nature, amount: 14 })],
+        quest: None,
+        power_bonus: 0,
+        price: 25,
+    },
+    // Said before anyone is ready, which is most of why it lands.
+    PieceDef {
+        name: "First Word",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Spell,
+        cells: &[(0,0),(1,0)],
+        base: Stats { magic_damage: 5, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnBattleStart(Action::Damage {
+            amount: 34,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 27,
+    },
+    // Two thousand miles an hour, and invisible with it.
+    PieceDef {
+        name: "Ambusher's Grip",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Handle,
+        cells: &[(0,0),(0,1),(0,2)],
+        base: Stats { strength: 5, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 2400,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnBattleStart(Action::Curse { kind: CurseKind::Stun, target: Target::Enemy })],
+        quest: None,
+        power_bonus: 0,
+        price: 32,
+    },
+    PieceDef {
+        name: "Bulwark Bead",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0,0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnBattleStart(Action::GainShield(1))],
+        quest: None,
+        power_bonus: 0,
+        price: 28,
+    },
+    PieceDef {
+        name: "Warmed Material",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Material,
+        cells: &[(0,0),(1,0),(0,1),(1,1)],
+        base: Stats { strength: 4, ..Stats::health(50) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnBattleStart(Action::GainEmpowerment(1))],
+        quest: None,
+        power_bonus: 0,
+        price: 31,
+    },
+    // Already grown by the time anyone swings.
+    PieceDef {
+        name: "Deep Roots Base",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Base,
+        cells: &[(0,0),(1,0),(2,0),(0,1),(1,1),(2,1)],
+        base: Stats { nature: 2, ..Stats::health(180) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 5000,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnBattleStart(Action::Grow(40))],
+        quest: None,
+        power_bonus: 0,
+        price: 34,
+    },
 ];
 
 /// Gear that exists only on a boss.
@@ -7683,6 +7856,7 @@ mod tests {
             match t {
                 Trigger::PerAdjacentEmpty(inner) => lands(inner, want),
                 Trigger::Consume { per, .. } => is(per),
+                Trigger::OnBattleStart(a) => is(a),
                 Trigger::OnActivate(a)
                 | Trigger::PerAdjacentItem { action: a, .. }
                 | Trigger::OnAdjacentActivate(a)

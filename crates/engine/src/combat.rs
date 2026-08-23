@@ -3204,6 +3204,29 @@ pub fn simulate_with_class(
     let mut p = start_player.clone();
     let mut e = start_enemy.clone();
     let mut log: Vec<LogEntry> = Vec::new();
+
+    // What each side walks in already holding. Everything else starts a fight
+    // at zero and earns its way up, which makes the opening of every fight
+    // look the same whatever you are wearing; this is the gear that does not.
+    for side in [Side::Player, Side::Enemy] {
+        let opening: Vec<(usize, Action)> = pick(&mut p, &mut e, side)
+            .items
+            .iter()
+            .enumerate()
+            .flat_map(|(i, it)| {
+                it.triggers
+                    .iter()
+                    .filter_map(move |t| match t {
+                        Trigger::OnBattleStart(a) => Some((i, *a)),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        for (idx, action) in opening {
+            apply(&mut p, &mut e, side, action, 0, &mut log, Some(idx));
+        }
+    }
     let mut outcome = Outcome::Stalemate;
     let mut t: u32 = 0;
 
@@ -3729,6 +3752,8 @@ fn activate(
             }
             // Already expanded above; a nested one is not authored.
             Trigger::PerAdjacentEmpty(_) => {}
+            // Fired before the first tick, not on the cooldown.
+            Trigger::OnBattleStart(_) => {}
             // These wait for someone else to act.
             Trigger::OnAdjacentActivate(_)
             | Trigger::OnAlignedActivate(_)
