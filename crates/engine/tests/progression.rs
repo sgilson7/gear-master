@@ -1364,7 +1364,17 @@ fn every_alternate_is_a_finished_creature() {
     for m in ALTERNATES {
         assert!(m.unassembled().is_empty(), "{}: {:?}", m.name, m.unassembled());
         assert!(m.health > 0 && m.bounty > 0, "{} is not finished", m.name);
-        assert!(!m.drops.is_empty(), "{} leaves nothing behind", m.name);
+        // A dungeon floor need not: the dungeon's reward is the class at the
+        // end of it, and only the last floor leaves a trophy.
+        let is_floor = gearmaster_engine::dungeon::DUNGEONS
+            .iter()
+            .any(|d| d.floors.contains(&m.name));
+        let is_last = gearmaster_engine::dungeon::DUNGEONS
+            .iter()
+            .any(|d| d.floors.last() == Some(&m.name));
+        if !is_floor || is_last {
+            assert!(!m.drops.is_empty(), "{} leaves nothing behind", m.name);
+        }
         assert!(
             !LADDER.iter().any(|l| l.name == m.name),
             "{} is on the ladder as well, which makes it reachable twice",
@@ -1572,4 +1582,66 @@ fn undoing_a_purchase_gives_back_the_money() {
     run.undo().expect("a purchase is undoable");
     assert_eq!(run.gold, gold, "the money goes back");
     assert_eq!(run.owned.len(), owned, "and the component is gone again");
+}
+
+
+// ---------------------------------------------------------------- dungeons
+
+/// The crevice only opens for somebody who sold the thing three rungs back,
+/// and walking it out hands over a class no fountain can pour.
+#[test]
+fn the_crevice_opens_only_for_the_seller_and_pays_in_a_class() {
+    use gearmaster_engine::dungeon;
+
+    // Sell at rung three.
+    let mut run = Run::with_all_pieces();
+    run.apply_preset();
+    run.skip_to(2);
+    let ev = run.pending_event().expect("the offer");
+    let deal = ev.choices.iter().find(|c| c.label.contains("DEAL")).unwrap();
+    assert!(run.choice_open(deal));
+    run.take_choice(deal);
+
+    // The door is there at rung ten.
+    run.skip_to(9);
+    let fork = run.pending_event().expect("the shrine");
+    let door = fork.choices.iter().find(|c| c.label.contains("FOLLOW")).unwrap();
+    assert!(run.choice_open(door), "the seller should be let in");
+    run.take_choice(door);
+
+    let d = dungeon::by_id("the-crevice").unwrap();
+    assert_eq!(run.monster().name, d.floors[0], "standing on the first floor");
+    assert_eq!(run.rung, 9, "and the rung has not moved");
+
+    // Walk it. Each floor cleared moves you down, not along.
+    for (i, floor) in d.floors.iter().enumerate() {
+        assert_eq!(run.monster().name, *floor, "floor {}", i + 1);
+        run.force_win();
+        assert_eq!(run.rung, 9, "a floor is not a rung");
+    }
+
+    assert!(run.dungeon.is_none(), "out the other side");
+    assert_eq!(run.monster().name, "Warded Idol", "back at the fight you left");
+    assert!(
+        run.classes.iter().any(|c| c.name == d.reward),
+        "the dungeon should have paid in {}",
+        d.reward
+    );
+}
+
+/// And it stays shut for somebody who kept it.
+#[test]
+fn the_crevice_stays_shut_for_somebody_who_kept_it() {
+    let mut run = Run::with_all_pieces();
+    run.apply_preset();
+    run.skip_to(2);
+    let ev = run.pending_event().expect("the offer");
+    let fight = ev.choices.iter().find(|c| c.label.contains("FIGHT")).unwrap();
+    run.take_choice(fight);
+
+    run.skip_to(9);
+    let fork = run.pending_event().expect("the shrine");
+    let door = fork.choices.iter().find(|c| c.label.contains("FOLLOW")).unwrap();
+    assert!(!run.choice_open(door), "it never came this way");
+    assert!(run.take_choice(door).is_none(), "and it cannot be forced");
 }

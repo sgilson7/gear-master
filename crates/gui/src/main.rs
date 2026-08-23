@@ -7174,7 +7174,12 @@ fn render_panel(
     let mut y = opp_top;
     let m = run.monster();
     ui_text(
-        if run.at_fountain() || run.at_doubling_fountain() {
+        if let Some((d, floor)) = run.dungeon {
+            // A dungeon is not the road, and the panel should not pretend it
+            // is - "rung 10 of 50" while you are three floors under a hamlet
+            // is the sort of thing that reads as a bug.
+            Box::leak(format!("{}  ·  FLOOR {} OF {}", d.name, floor + 1, d.floors.len()).into_boxed_str())
+        } else if run.at_fountain() || run.at_doubling_fountain() {
             words::word("beyond-fountain", "BEYOND THE FOUNTAIN")
         } else {
             words::word("opponent", "NEXT OPPONENT")
@@ -7540,6 +7545,26 @@ async fn main() {
                     _ => format!("{} still stands.", run.monster().name),
                 };
                 if let Some(st) = run.last_settlement.as_ref() {
+                    // A dungeon landing takes the screen, the way a scene does.
+                    if let Some(line) = st.landing {
+                        let won = st.class_won;
+                        run.pending_scene = Some(Box::leak(
+                            match won {
+                                Some(c) => vec![
+                                    words::retell(line),
+                                    format!(
+                                        "You come back up holding a share of it. They call that {}.",
+                                        words::class(c)
+                                    ),
+                                ],
+                                None => vec![words::retell(line)],
+                            }
+                            .into_iter()
+                            .map(|s| Box::leak(s.into_boxed_str()) as &'static str)
+                            .collect::<Vec<_>>()
+                            .into_boxed_slice(),
+                        ));
+                    }
                     // Taking something off a named creature is the best news
                     // there is: it is gear no shop will ever stock.
                     if let Some(drop) = st.dropped {

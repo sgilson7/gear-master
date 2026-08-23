@@ -18,6 +18,9 @@ pub enum Requirement {
     /// at some rotation. Handing something over has to cost you something you
     /// could have used.
     LooseItemOfSize { w: u8, h: u8 },
+    /// A choice taken at an earlier event, by its label. What you did three
+    /// rungs ago is allowed to change what is on offer now.
+    Took(&'static str),
 }
 
 /// What taking a choice does.
@@ -30,6 +33,9 @@ pub enum Outcome {
     /// Skip the fight. The bounty is paid `times` over, and whatever the
     /// requirement named is taken off you.
     BuyOff { times: i32 },
+    /// Walk into a mini dungeon. The rung does not move, so coming out puts
+    /// you back in front of the fight you had not got to.
+    Enter(&'static str),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -113,6 +119,13 @@ pub const EVENTS: &[LadderEvent] = &[
                 unmet: "",
             },
             Choice {
+                label: "FOLLOW THE THING YOU SOLD",
+                blurb: "Three floors, and something at the bottom nobody else can be given.",
+                requires: Requirement::Took("TAKE THE DEAL"),
+                outcome: Outcome::Enter("the-crevice"),
+                unmet: "You kept whatever it wanted, so it never came this way.",
+            },
+            Choice {
                 label: "GO ROUND THE BACK",
                 blurb: "A boss, this early, and it leaves something behind.",
                 requires: Requirement::None,
@@ -133,6 +146,7 @@ impl Requirement {
     pub fn met_by_shape(self, cells: &[(u8, u8)]) -> bool {
         match self {
             Requirement::None => true,
+            Requirement::Took(_) => true, // answered by the run, not the shape
             Requirement::LooseItemOfSize { w, h } => {
                 let (mut mx, mut my) = (0u8, 0u8);
                 for &(x, y) in cells {
@@ -201,6 +215,24 @@ mod tests {
                         "{} names {}, which is not an alternate",
                         e.id,
                         name
+                    );
+                }
+                if let Outcome::Enter(id) = c.outcome {
+                    assert!(
+                        crate::dungeon::by_id(id).is_some(),
+                        "{} opens {}, which is not a dungeon",
+                        e.id,
+                        id
+                    );
+                }
+                // A requirement naming an earlier choice has to name one that
+                // exists, or the door is nailed shut and nothing says so.
+                if let Requirement::Took(label) = c.requires {
+                    assert!(
+                        EVENTS.iter().any(|o| o.choices.iter().any(|k| k.label == label)),
+                        "{} waits on {:?}, which no choice offers",
+                        e.id,
+                        label
                     );
                 }
             }

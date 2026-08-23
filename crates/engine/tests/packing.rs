@@ -685,9 +685,11 @@ fn build_toward(class: &'static gearmaster_engine::class::ClassDef) -> Run {
 #[test]
 #[ignore]
 fn which_classes_are_reachable() {
+    // A dungeon class is not meant to be reachable by building - you go and
+    // get it - so listing it as dead would be reporting the design as a bug.
     println!("\n=== can a real build reach each class? ===");
     let mut dead = Vec::new();
-    for class in CLASSES {
+    for class in CLASSES.iter().filter(|c| !gearmaster_engine::dungeon::is_dungeon_only(c.name)) {
         let run = build_toward(class);
         let fp = run.fingerprint();
         let got = classify(&fp).name;
@@ -1567,15 +1569,19 @@ fn is_narrowed(allow: fn(&'static gearmaster_engine::piece::PieceDef) -> bool) -
 /// Where an alternate stands, so it can be targeted like anything else.
 fn alternate_rung(name: &str) -> usize {
     use gearmaster_engine::event::{Outcome, EVENTS};
-    EVENTS
-        .iter()
-        .find(|e| {
-            e.choices
-                .iter()
-                .any(|c| matches!(c.outcome, Outcome::FightInstead(n) if n == name))
-        })
-        .map(|e| e.at)
-        .unwrap_or(0)
+    if let Some(e) = EVENTS.iter().find(|e| {
+        e.choices.iter().any(|c| matches!(c.outcome, Outcome::FightInstead(n) if n == name))
+    }) {
+        return e.at;
+    }
+    // A dungeon floor is pitched at the rung its door stands on, stepping up a
+    // little with each floor down.
+    for d in gearmaster_engine::dungeon::DUNGEONS {
+        if let Some(i) = d.floors.iter().position(|f| *f == name) {
+            return 9 + i * 2;
+        }
+    }
+    0
 }
 
 /// Print dense boards for every boss and mini-boss, ready to paste.

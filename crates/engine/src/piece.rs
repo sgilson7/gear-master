@@ -7938,6 +7938,23 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 0,
         price: 44,
     },
+
+    // What the old gods were holding, split into pieces on the way out.
+    PieceDef {
+        name: "The Split Wisdom",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats { power: 90, mana: 6, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnAdjacentActivate(Action::GainForking(1))],
+        quest: None,
+        power_bonus: 0,
+        price: 999,
+    },
 ];
 
 /// Gear that exists only on a boss.
@@ -7946,7 +7963,7 @@ pub static CATALOG: &[PieceDef] = &[
 /// against. One absurd chestpiece in the ceiling would quietly deflate the
 /// rating - and so the rarity mark and the price - of every other chestpiece
 /// in the game.
-pub const BOSS_ONLY: &[&str] = &["The Money Jacket", "The Idiot's Gift", "Asker's Monocle", "Toolwright's Grip", "Kaklon's Patent", "Eighth Ray Crown", "Assassin's Hemline", "Handman's Peel", "Gilded Offcuts", "Henpeck's Cell Keys", "The Seeker's Tears", "Tetrahedron Shard"];
+pub const BOSS_ONLY: &[&str] = &["The Money Jacket", "The Split Wisdom", "The Idiot's Gift", "Asker's Monocle", "Toolwright's Grip", "Kaklon's Patent", "Eighth Ray Crown", "Assassin's Hemline", "Handman's Peel", "Gilded Offcuts", "Henpeck's Cell Keys", "The Seeker's Tears", "Tetrahedron Shard"];
 
 /// Is this a piece a player can never own?
 pub fn is_boss_only(name: &str) -> bool {

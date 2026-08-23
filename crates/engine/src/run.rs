@@ -113,6 +113,10 @@ pub struct Settlement {
     /// `None` on an ordinary rung, on anything but a victory, or when there
     /// was no room in the tray to put it.
     pub dropped: Option<&'static str>,
+    /// What the dungeon said on the landing, if a floor was just cleared.
+    pub landing: Option<&'static str>,
+    /// The class a finished dungeon handed over.
+    pub class_won: Option<&'static str>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -182,6 +186,15 @@ pub struct Run {
     pub substitute: Option<&'static MonsterSpec>,
     /// Events already answered, by id, so one is never asked twice.
     pub answered: Vec<&'static str>,
+    /// Choices actually taken, by label, so a later event can ask what you did
+    /// at an earlier one.
+    pub took: Vec<&'static str>,
+    /// The dungeon being walked and which floor, if any. A dungeon stands off
+    /// the road: it never moves the rung, so coming out puts you back in front
+    /// of the fight you had not got to.
+    pub dungeon: Option<(&'static crate::dungeon::Dungeon, usize)>,
+    /// Said on the landing between floors, once.
+    pub pending_landing: Option<&'static str>,
     /// Rerolls bought since the last fight. Resets on settling.
     pub rerolls: u32,
     /// A scene the theme owes you for the fight just settled, waiting to be
@@ -268,6 +281,9 @@ impl Run {
             doubled: None,
             substitute: None,
             answered: Vec::new(),
+            took: Vec::new(),
+            dungeon: None,
+            pending_landing: None,
             rerolls: 0,
             best_rung: 0,
             settled: false,
@@ -345,6 +361,12 @@ impl Run {
         // An event can put something else in front of you. It stands in for
         // the rung rather than adding one, so the road stays the same length
         // whichever way you answered.
+        // A dungeon floor stands in front of everything else.
+        if let Some((d, floor)) = self.dungeon {
+            if let Some(spec) = d.floors.get(floor).and_then(|n| crate::combat::alternate(n)) {
+                return spec;
+            }
+        }
         if let Some(m) = self.substitute {
             return m;
         }
@@ -389,7 +411,11 @@ impl Run {
     /// Can this choice be taken right now?
     pub fn choice_open(&self, c: &crate::event::Choice) -> bool {
         use crate::event::Requirement;
-        c.requires == Requirement::None || !self.offerings(c.requires).is_empty()
+        match c.requires {
+            Requirement::None => true,
+            Requirement::Took(label) => self.took.contains(&label),
+            Requirement::LooseItemOfSize { .. } => !self.offerings(c.requires).is_empty(),
+        }
     }
 
     /// Answer the event in front of you.
@@ -405,11 +431,15 @@ impl Run {
             return None;
         }
         self.answered.push(ev.id);
+        self.took.push(c.label);
         let mut gave = None;
         match c.outcome {
             ChoiceOutcome::FightAsWritten => {}
             ChoiceOutcome::FightInstead(name) => {
                 self.substitute = crate::combat::alternate(name);
+            }
+            ChoiceOutcome::Enter(id) => {
+                self.dungeon = crate::dungeon::by_id(id).map(|d| (d, 0));
             }
             ChoiceOutcome::BuyOff { times } => {
                 if let Some(&id) = self.offerings(c.requires).first() {
@@ -541,9 +571,35 @@ impl Run {
             lives_left: None,
             run_ended: false,
             dropped: None,
+            landing: None,
+            class_won: None,
         };
 
         match outcome {
+            Outcome::Victory if self.dungeon.is_some() => {
+                // A floor cleared moves you down, not along. The rung does not
+                // change, so coming out of a dungeon puts you back in front of
+                // the fight you had not got to.
+                self.wins += 1;
+                let (d, floor) = self.dungeon.expect("just checked");
+                settlement.landing = d.landings.get(floor).copied();
+                self.pending_landing = settlement.landing;
+                if floor + 1 < d.floors.len() {
+                    self.dungeon = Some((d, floor + 1));
+                } else {
+                    // Out the other side, with the thing you went in for.
+                    self.dungeon = None;
+                    if let Some(c) =
+                        crate::class::CLASSES.iter().find(|c| c.name == d.reward)
+                    {
+                        if !self.classes.iter().any(|k| k.name == c.name) {
+                            self.classes.push(c);
+                            settlement.class_won = Some(c.name);
+                        }
+                    }
+                }
+                self.shop.restock(&mut self.rng, false);
+            }
             Outcome::Victory => {
                 self.wins += 1;
                 // A scene is owed for beating this thing, if the theme has one
@@ -582,6 +638,9 @@ impl Run {
             // neither advances the ladder.
             _ => {
                 self.losses += 1;
+                // Losing in a dungeon puts you out of it. The door does not
+                // reopen - you sold the thing that opened it.
+                self.dungeon = None;
                 match self.mode {
                     Mode::Grinder => {
                         // Back to the rung you last cleared, so there is
@@ -638,6 +697,17 @@ impl Run {
     /// leaves the same purse as arriving by the long one.
     ///
     /// Returns the total paid, or `None` if there is nothing to walk to.
+    /// Settle a win without simulating one.
+    ///
+    /// For tests and the ladder picker: what is under test is usually the
+    /// settlement - which floor you move to, what drops - rather than whether
+    /// a particular build could take the fight.
+    pub fn force_win(&mut self) {
+        self.log = Some(crate::combat::CombatLog::won_by_default(self.monster()));
+        self.settled = false;
+        self.settle();
+    }
+
     pub fn skip_to(&mut self, target: usize) -> Option<i32> {
         if self.phase != Phase::Loadout || target <= self.rung || target >= LADDER.len() {
             return None;

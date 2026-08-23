@@ -13,6 +13,7 @@
 
 pub mod class;
 pub mod combat;
+pub mod dungeon;
 pub mod event;
 pub mod curse;
 pub mod loadout;

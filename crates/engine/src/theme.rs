@@ -270,6 +270,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Spellblade", "Katana Psychologist"),  // Henpeck's other job, p. 95
         ("Stormcaller", "Plug Energy Rep"),     // Spike Kaklon's Plug Energy, p. 32
         ("Templar", "Francian Ordinate"),       // the Francians pp. 61-63, ordination p. 75
+        ("Ascendant", "Boyetano, Ascended"),
         ("Wanderer", "Plane Tourist"),          // half-tourist, half-catastrophe
         ("Warpriest", "Acolyte of Dobira"),     // the Master and Baylon, pp. 46-50
         ("Wellspring", "Soda Tycoon"),          // Skink Brink, pp. 4, 7-8, 53
@@ -621,6 +622,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("The Idiot's Gift", "The Blind Idiot's Gift"),
         ("The Money Jacket", "The Money Jacket"),
         ("The Seeker's Tears", "PoopFart's Tears"),
+        ("The Split Wisdom", "Boyetano's Share"),
         ("Third Eye", "Foreston Monocle"),
         ("Thorn Layer", "Wallspider Thorn"),
         ("Thornmail Layer", "Dart-Board Layer"),
@@ -722,6 +724,9 @@ pub static TURTLE_DICK: Theme = Theme {
         ("The Hollow King", "Lord Drabley Henpeck"),
         ("The Curator", "Galapagos Jim"),
         ("The Dreaming Idiot", "The Blind Idiot God"),
+        ("The Long Haul", "The Cork Train"),
+        ("The Reciter", "Head Cork Priest"),
+        ("The Watchers", "The Old Gods"),
         ("Salt Idol", "The Stone Keeper"),
         ("Pale Twin", "The Gamer Grandparents"),
         ("Ruin Hound", "Death-Leopard"),

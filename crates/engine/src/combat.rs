@@ -3006,6 +3006,19 @@ pub struct CombatLog {
 }
 
 impl CombatLog {
+    /// A win with no fight in it. For the ladder picker and for tests, where
+    /// what is under test is the settlement rather than the simulation.
+    pub fn won_by_default(spec: &MonsterSpec) -> CombatLog {
+        CombatLog {
+            player: Combatant::player(Stats::base_character(), &[]),
+            enemy: Combatant::monster_at(spec, Difficulty::Medium),
+            spec: *spec,
+            entries: Vec::new(),
+            outcome: Outcome::Victory,
+            duration_ms: 0,
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.entries.len()
     }
@@ -3220,6 +3233,17 @@ pub fn simulate_with_class(
             crate::class::ClassPower::Consecrate(pct) => start_player.consecrate = pct,
             crate::class::ClassPower::Bloodscent(n) => start_player.bloodscent = n,
             crate::class::ClassPower::Confluence(pct) => start_player.confluence = pct,
+            // Split the wisdom: every item takes a share of the best
+            // multiplier on the board on top of its own. Done here rather than
+            // in the profile because it is a property of the whole board, and
+            // the profile only knows about one item.
+            crate::class::ClassPower::Splintered(pct) => {
+                let best = start_player.items.iter().map(|i| i.power).max().unwrap_or(100);
+                let share = (best - 100).max(0) * pct / 100;
+                for it in &mut start_player.items {
+                    it.power += share;
+                }
+            }
         }
     }
     let start_player = start_player;
@@ -4124,7 +4148,172 @@ pub const ALTERNATES: &[MonsterSpec] = &[
         drops: &["The Idiot's Gift"],
         items: &[2, 2, 2, 3, 2, 2, 3, 2, 4, 3, 3, 2, 5],
     },
+    // ---- Bunko's Cavern, pp. 84-85 ------------------------------------------
+    //
+    // Floor one: the Head Cork Priest of Corrqk's Cavern, reciting the '62
+    // Anticipations to a room of workers kneeling on a floor that cuts.
+    MonsterSpec {
+        name: "The Reciter",
+        health: 430,
+        strength: 14,
+        regen: 2,
+        mind_resist: 25,
+        physical_resist: 14,
+        magic_resist: 20,
+        curse_resist: 30,
+        attacks: &[],
+        gear: &[
+            ("Covenant Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Braced Plating", SlotKind::Helmet, 3, 0, 0),
+            ("Covenant Frame", SlotKind::Helmet, 0, 2, 0),
+            ("Mana Ward", SlotKind::Helmet, 3, 2, 0),
+            ("Vigil Crest", SlotKind::Helmet, 5, 0, 0),
+            ("Bloodbank Base", SlotKind::Chest, 0, 0, 0),
+            ("Split Weave", SlotKind::Chest, 2, 0, 0),
+            ("Hexweave Shroud", SlotKind::Chest, 2, 1, 0),
+            ("Seedbed Layer", SlotKind::Chest, 0, 4, 0),
+            ("Duskweave Material", SlotKind::Gloves, 0, 0, 0),
+            ("Empowering Mold", SlotKind::Gloves, 3, 0, 0),
+            ("Ring of Tides", SlotKind::Gloves, 4, 0, 0),
+            ("Ring of Tides", SlotKind::Gloves, 5, 0, 0),
+            ("Warmed Material", SlotKind::Gloves, 0, 2, 0),
+            ("Empowering Mold", SlotKind::Gloves, 2, 1, 0),
+            ("Ring of Tides", SlotKind::Gloves, 0, 1, 0),
+            ("Ring of Tides", SlotKind::Gloves, 4, 2, 0),
+            ("Duskweave Material", SlotKind::Greaves, 0, 0, 0),
+            ("Standing Start", SlotKind::Greaves, 3, 0, 0),
+            ("Warmed Material", SlotKind::Greaves, 2, 1, 0),
+            ("Striding Mold", SlotKind::Greaves, 4, 1, 0),
+            ("Braced Plating", SlotKind::Greaves, 0, 2, 0),
+            ("Ambusher's Grip", SlotKind::Weapon, 0, 0, 0),
+            ("Cursed Blade", SlotKind::Weapon, 1, 0, 0),
+            ("Empowering Focus", SlotKind::Weapon, 3, 0, 0),
+            ("Empowering Focus", SlotKind::Weapon, 4, 1, 0),
+            ("Ambusher's Grip", SlotKind::Weapon, 2, 2, 0),
+            ("Cursed Blade", SlotKind::Weapon, 3, 2, 0),
+            ("Cursed Blade", SlotKind::Weapon, 0, 3, 0),
+            ("Bulwark Bead", SlotKind::Weapon, 1, 3, 0),
+            ("Bulwark Bead", SlotKind::Weapon, 5, 3, 0),
+        ],
+        gear_offset: 0,
+        bounty: 96,
+        sprite: MonsterSprite::Abbot,
+        rank: Rank::Mini,
+        drops: &[],
+        items: &[2, 3, 2, 2, 4, 4, 2, 3, 4, 5],
+    },
+    // Floor two: the train the dissenters were loaded onto, still running.
+    MonsterSpec {
+        name: "The Long Haul",
+        health: 620,
+        strength: 22,
+        regen: 0,
+        mind_resist: 10,
+        physical_resist: 26,
+        magic_resist: 10,
+        curse_resist: 20,
+        attacks: &[],
+        gear: &[
+            ("Covenant Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Mirrored Visor", SlotKind::Helmet, 3, 0, 0),
+            ("Covenant Frame", SlotKind::Helmet, 0, 2, 0),
+            ("Mana Ward", SlotKind::Helmet, 3, 2, 0),
+            ("Third Eye", SlotKind::Helmet, 0, 1, 0),
+            ("Hexweave Shroud", SlotKind::Chest, 0, 0, 0),
+            ("Aether Layer", SlotKind::Chest, 3, 0, 0),
+            ("Bloodbank Base", SlotKind::Chest, 3, 2, 0),
+            ("Split Weave", SlotKind::Chest, 0, 3, 0),
+            ("Duskweave Material", SlotKind::Gloves, 0, 0, 0),
+            ("Empowering Mold", SlotKind::Gloves, 3, 0, 0),
+            ("Ring of Tides", SlotKind::Gloves, 4, 0, 0),
+            ("Ring of Tides", SlotKind::Gloves, 5, 0, 0),
+            ("Warmed Material", SlotKind::Gloves, 0, 2, 0),
+            ("Rending Mold", SlotKind::Gloves, 2, 2, 0),
+            ("Ring of Tides", SlotKind::Gloves, 0, 1, 0),
+            ("Ironthread Material", SlotKind::Greaves, 0, 0, 0),
+            ("Standing Start", SlotKind::Greaves, 3, 0, 0),
+            ("Duskweave Material", SlotKind::Greaves, 2, 1, 0),
+            ("Standing Start", SlotKind::Greaves, 0, 2, 0),
+            ("Ambusher's Grip", SlotKind::Weapon, 0, 0, 0),
+            ("Cursed Blade", SlotKind::Weapon, 1, 0, 0),
+            ("Cursed Blade", SlotKind::Weapon, 3, 0, 0),
+            ("Bulwark Bead", SlotKind::Weapon, 2, 0, 0),
+            ("Ambusher's Grip", SlotKind::Weapon, 5, 0, 0),
+            ("Cursed Blade", SlotKind::Weapon, 4, 2, 0),
+            ("Grimoire Rack", SlotKind::Weapon, 3, 3, 0),
+        ],
+        gear_offset: 0,
+        bounty: 104,
+        sprite: MonsterSprite::Parliament,
+        rank: Rank::Mini,
+        drops: &[],
+        items: &[2, 3, 2, 2, 4, 3, 2, 2, 4, 3],
+    },
+    // Floor three: the old gods, watching in horror as he ascends.
+    MonsterSpec {
+        name: "The Watchers",
+        health: 880,
+        strength: 20,
+        regen: 6,
+        mind_resist: 45,
+        physical_resist: 24,
+        magic_resist: 34,
+        curse_resist: 45,
+        attacks: &[],
+        gear: &[
+            ("Covenant Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Broken Crown", SlotKind::Helmet, 0, 1, 0),
+            ("Third Eye", SlotKind::Helmet, 3, 0, 0),
+            ("Covenant Frame", SlotKind::Helmet, 1, 3, 0),
+            ("Braced Plating", SlotKind::Helmet, 0, 4, 0),
+            ("Third Eye", SlotKind::Helmet, 3, 4, 0),
+            ("Covenant Frame", SlotKind::Helmet, 2, 5, 0),
+            ("Mana Ward", SlotKind::Helmet, 0, 6, 0),
+            ("Mana Ward", SlotKind::Helmet, 4, 3, 1),
+            ("Bloodbank Base", SlotKind::Chest, 0, 0, 0),
+            ("Seedbed Layer", SlotKind::Chest, 2, 0, 0),
+            ("Bloodbank Base", SlotKind::Chest, 2, 1, 0),
+            ("Seedbed Layer", SlotKind::Chest, 0, 3, 0),
+            ("Bloodbank Base", SlotKind::Chest, 4, 1, 0),
+            ("Seedbed Layer", SlotKind::Chest, 3, 3, 0),
+            ("Aether Layer", SlotKind::Chest, 2, 4, 0),
+            ("Warmed Material", SlotKind::Gloves, 0, 0, 0),
+            ("Empowering Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Seal of the Deep", SlotKind::Gloves, 3, 0, 0),
+            ("Warmed Material", SlotKind::Gloves, 4, 1, 0),
+            ("Hexer's Reckoning", SlotKind::Gloves, 2, 2, 0),
+            ("Warmed Material", SlotKind::Gloves, 0, 2, 0),
+            ("Empowering Mold", SlotKind::Gloves, 0, 4, 0),
+            ("Ring of Tides", SlotKind::Gloves, 1, 4, 0),
+            ("Warding Ring", SlotKind::Gloves, 2, 4, 0),
+            ("Ironthread Material", SlotKind::Greaves, 0, 0, 0),
+            ("Striding Mold", SlotKind::Greaves, 3, 0, 0),
+            ("Ironthread Material", SlotKind::Greaves, 0, 2, 0),
+            ("Striding Mold", SlotKind::Greaves, 2, 1, 0),
+            ("Warmed Material", SlotKind::Greaves, 4, 2, 0),
+            ("Standing Start", SlotKind::Greaves, 2, 4, 0),
+            ("Broken Crown", SlotKind::Greaves, 0, 5, 0),
+            ("Balanced Grip", SlotKind::Weapon, 0, 0, 0),
+            ("Cursed Blade", SlotKind::Weapon, 1, 0, 0),
+            ("Whetstone", SlotKind::Weapon, 2, 0, 0),
+            ("Gravebound Haft", SlotKind::Weapon, 3, 0, 0),
+            ("Cursed Blade", SlotKind::Weapon, 3, 2, 0),
+            ("Balanced Grip", SlotKind::Weapon, 5, 0, 0),
+            ("Cursed Blade", SlotKind::Weapon, 4, 4, 2),
+            ("Balance Weight", SlotKind::Weapon, 2, 5, 0),
+        ],
+        gear_offset: 0,
+        bounty: 150,
+        sprite: MonsterSprite::Choir,
+        rank: Rank::Boss,
+        drops: &["The Split Wisdom"],
+        items: &[3, 3, 3, 2, 2, 3, 3, 2, 4, 2, 2, 3, 3, 2, 3],
+    },
 ];
+
+/// The floors of Bunko's Cavern, pp. 84-85. Authored by the packing tool like
+/// every other named board; the gear lists are pasted from its output.
+pub const CREVICE: &[MonsterSpec] = &[];
 
 /// An alternate by name.
 pub fn alternate(name: &str) -> Option<&'static MonsterSpec> {
