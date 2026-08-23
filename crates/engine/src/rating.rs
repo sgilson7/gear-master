@@ -307,6 +307,13 @@ fn curse_points(kind: crate::curse::CurseKind) -> f32 {
     }
 }
 
+/// What a drain of "everything they have" is priced as holding.
+///
+/// A pool nobody is banking cannot be drained and a pool somebody has built
+/// their whole run around can be enormous; neither is what this gear is for.
+/// Eight is a build that banks deliberately without being about it.
+const DRAINED_ASSUMED: i32 = 8;
+
 /// What one action is worth each time it happens.
 fn action_points(a: &Action) -> f32 {
     match a {
@@ -357,6 +364,19 @@ fn action_points(a: &Action) -> f32 {
         // The other pools are each worth roughly what mana is: all four are
         // banked the same way and all four pay out while merely held.
         Action::Gain { amount, .. } => *amount as f32 * weight::RESOURCE_PS,
+        // Denying a pool is worth about what banking it is worth, plus
+        // whatever the loss is made to hurt for. `amount: 0` takes the lot,
+        // which cannot be priced against a build this function cannot see, so
+        // it is priced at a deep-but-not-absurd pool - the thing it is for.
+        Action::Drain { what, amount, hurt, target } => {
+            let taken = if *amount == 0 { DRAINED_ASSUMED } else { *amount };
+            let v = taken as f32 * pool_weight(*what) + (taken * hurt) as f32 * weight::DAMAGE_PS;
+            if matches!(target, crate::piece::Target::Yourself) {
+                -v
+            } else {
+                v
+            }
+        }
         Action::GainArmor(n) => *n as f32 * weight::ARMOR_PS,
         Action::ReduceCooldown(ms) => *ms as f32 / 1000.0 * weight::HASTE_PS,
         Action::GainEmpowerment(n) => *n as f32 * weight::STACK_PS,

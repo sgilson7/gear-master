@@ -1157,6 +1157,9 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Cursed Blade", SlotKind::Weapon, 1, 0, 0),
             ("Bileglass Vial", SlotKind::Weapon, 2, 0, 0),
             ("Whetstone", SlotKind::Weapon, 4, 0, 0),
+            ("Bone Frame", SlotKind::Helmet, 0, 4, 0),
+            ("Tin Plating", SlotKind::Helmet, 3, 4, 0),
+            ("Tithe Collector", SlotKind::Helmet, 1, 5, 0),
         ],
         gear_offset: 0,
         bounty: 107,
@@ -1276,6 +1279,8 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
             ("Balance Weight", SlotKind::Weapon, 2, 0, 0),
             ("Quickening Charm", SlotKind::Weapon, 4, 0, 0),
+            ("Grove Base", SlotKind::Chest, 0, 6, 0),
+            ("Wrathbreaker", SlotKind::Chest, 3, 6, 0),
         ],
         gear_offset: 0,
         bounty: 134,
@@ -1465,6 +1470,8 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Bileglass Vial", SlotKind::Weapon, 3, 2, 0),
             ("Sunder Haft", SlotKind::Weapon, 5, 0, 0),
             ("Cursed Blade", SlotKind::Weapon, 4, 3, 0),
+            ("Rootwoven Material", SlotKind::Greaves, 3, 0, 0),
+            ("Witherroot", SlotKind::Greaves, 3, 1, 0),
         ],
         gear_offset: 0,
         bounty: 170,
@@ -1540,6 +1547,9 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Blade of Helms", SlotKind::Weapon, 3, 0, 0),
             ("Ruby Inlay", SlotKind::Weapon, 5, 0, 0),
             ("Ruby Inlay", SlotKind::Weapon, 5, 1, 0),
+            ("Oak Handle", SlotKind::Weapon, 3, 2, 0),
+            ("Iron Blade", SlotKind::Weapon, 4, 2, 0),
+            ("Manaflay", SlotKind::Weapon, 2, 5, 0),
         ],
         gear_offset: 0,
         bounty: 188,
@@ -1615,6 +1625,9 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Balance Weight", SlotKind::Weapon, 0, 3, 0),
             ("Ironthread Material", SlotKind::Greaves, 3, 0, 0),
             ("Tempered Sole", SlotKind::Greaves, 3, 1, 0),
+            ("Bone Frame", SlotKind::Helmet, 0, 3, 0),
+            ("Tin Plating", SlotKind::Helmet, 3, 3, 0),
+            ("Tithe Collector", SlotKind::Helmet, 1, 4, 0),
         ],
         gear_offset: 0,
         bounty: 206,
@@ -1751,6 +1764,8 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Blade of Helms", SlotKind::Weapon, 3, 0, 0),
             ("Bileglass Vial", SlotKind::Weapon, 3, 2, 0),
             ("Ruby Inlay", SlotKind::Weapon, 5, 0, 0),
+            ("Grove Base", SlotKind::Chest, 0, 4, 0),
+            ("Wrathbreaker", SlotKind::Chest, 3, 4, 0),
         ],
         gear_offset: 0,
         bounty: 233,
@@ -1827,6 +1842,8 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Sunderer", SlotKind::Weapon, 3, 0, 0),
             ("Bileglass Vial", SlotKind::Weapon, 1, 3, 0),
             ("Bileglass Vial", SlotKind::Weapon, 3, 3, 0),
+            ("Rootwoven Material", SlotKind::Greaves, 3, 0, 0),
+            ("Witherroot", SlotKind::Greaves, 3, 1, 0),
         ],
         gear_offset: 0,
         bounty: 251,
@@ -1903,6 +1920,9 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Kingmaker Hilt", SlotKind::Weapon, 0, 3, 0),
             ("Empowering Focus", SlotKind::Weapon, 4, 0, 0),
             ("Grimoire Rack", SlotKind::Weapon, 5, 1, 0),
+            ("Oak Handle", SlotKind::Weapon, 4, 2, 0),
+            ("Iron Blade", SlotKind::Weapon, 3, 3, 0),
+            ("Manaflay", SlotKind::Weapon, 0, 5, 0),
         ],
         gear_offset: 0,
         bounty: 273,
@@ -1980,6 +2000,9 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Kingmaker Hilt", SlotKind::Weapon, 0, 3, 0),
             ("Empowering Focus", SlotKind::Weapon, 4, 0, 0),
             ("Duelist's Fob", SlotKind::Weapon, 5, 1, 0),
+            ("Bone Frame", SlotKind::Helmet, 3, 2, 0),
+            ("Tin Plating", SlotKind::Helmet, 0, 3, 0),
+            ("Tithe Collector", SlotKind::Helmet, 4, 3, 0),
         ],
         gear_offset: 0,
         bounty: 295,
@@ -2104,6 +2127,8 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Worldsplitter", SlotKind::Weapon, 2, 2, 0),
             ("Grimoire Rack", SlotKind::Weapon, 5, 0, 0),
             ("Grimoire Rack", SlotKind::Weapon, 5, 2, 0),
+            ("Grove Base", SlotKind::Chest, 0, 4, 0),
+            ("Wrathbreaker", SlotKind::Chest, 4, 2, 0),
         ],
         gear_offset: 0,
         bounty: 328,
@@ -3019,6 +3044,8 @@ pub enum Event {
     Activate { side: Side, item: String, index: usize },
     /// Rage, faith or nature banked.
     GainResource { side: Side, what: &'static str, amount: i32, total: i32 },
+    /// A pool taken off someone. `amount` is what was actually there to take.
+    Drained { on: Side, what: &'static str, amount: i32, total: i32 },
     Hit { by: Side, damage: i32, absorbed: i32, target_health: i32, target_armor: i32 },
     /// An item came round and nothing happened - a misfire ate it.
     Misfired { side: Side, item: String },
@@ -3213,6 +3240,14 @@ impl CombatLog {
                 self.who(*on),
                 item,
                 *duration_ms as f32 / 1000.0
+            ),
+            Event::Drained { on, what, amount, total } => format!(
+                "{} {} loses {} {} ({} left)",
+                t,
+                self.who(*on),
+                amount,
+                what,
+                total
             ),
             Event::Cursed { on, kind, duration_ms, stacks } => format!(
                 "{} curse of {}{} on {} for {:.1}s",
@@ -4192,6 +4227,41 @@ fn apply(
                 at_ms: t,
                 event: Event::GainResource { side, what: what.name(), amount, total: now },
             });
+        }
+        Action::Drain { what, amount, hurt, target } => {
+            let on = resolve(target);
+            let c = pick(p, e, on);
+            let have = c.pool(what).max(0);
+            // Zero means the lot. Taking more than they hold is not a debt -
+            // an empty pool is simply empty.
+            let taken = if amount == 0 { have } else { amount.min(have) };
+            if taken > 0 {
+                let left = have - taken;
+                c.set_pool(what, left);
+                log.push(LogEntry {
+                    at_ms: t,
+                    event: Event::Drained { on, what: what.name(), amount: taken, total: left },
+                });
+                if hurt > 0 {
+                    // Priced off what was actually taken, so a dry pool costs
+                    // them nothing and a deep one costs them dearly.
+                    let raw = taken * hurt;
+                    let pierce = pick(p, e, on.other()).magic_pierce;
+                    let c = pick(p, e, on);
+                    let (absorbed, _) = c.take_typed(raw, DamageType::Magic, pierce);
+                    let (hp, ar) = (c.health, c.armor);
+                    log.push(LogEntry {
+                        at_ms: t,
+                        event: Event::Hit {
+                            by: on.other(),
+                            damage: raw,
+                            absorbed,
+                            target_health: hp,
+                            target_armor: ar,
+                        },
+                    });
+                }
+            }
         }
         Action::GainMana(n) => {
             let c = pick(p, e, side);

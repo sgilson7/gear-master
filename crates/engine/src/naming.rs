@@ -174,6 +174,10 @@ fn action_word(a: &Action) -> Option<&'static str> {
     use crate::piece::Target::*;
     Some(match a {
         Action::Gain { .. } => "Brimming",
+        // Named for what it takes, not for what it leaves.
+        Action::Drain { hurt, target: Enemy, .. } if *hurt > 0 => "Bloodletting",
+        Action::Drain { target: Enemy, .. } => "Siphoning",
+        Action::Drain { target: Yourself, .. } => "Squandering",
         Action::Curse { kind: Searing, target: Enemy } => "Searing",
         Action::Curse { kind: Searing, target: Yourself } => "Martyr's",
         Action::Curse { kind: Frost, target: Enemy } => "Rimebound",

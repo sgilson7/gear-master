@@ -930,7 +930,6 @@ fn pack_dense(
 /// one of those. Checking afterwards throws the whole candidate away; checking
 /// here backtracks to a placement further off in the grid that works. Gloves
 /// felt this worst, having the most spare room to be wrong in.
-#[allow(dead_code)]
 fn seat(
     reg: &mut PieceRegistry,
     loadout: &mut Loadout,
@@ -2349,4 +2348,86 @@ fn what_classes_are_worth() {
         println!("   {:?}", m.class.power);
     }
     println!("\n'-' means the class changed nothing at all.\n");
+}
+
+/// Fit one named component into ten creatures that do not have it.
+///
+/// Hand-placing these is how you ship a monster whose new gear silently does
+/// nothing: it lands somewhere legal, joins the nearest core, and quietly
+/// turns a working item into an over-full one that assembles into neither
+/// recipe. Everything the creature already owns is locked first, so the
+/// addition fits around it or is not made at all.
+#[test]
+#[ignore]
+fn author_the_pool_drains() {
+    use gearmaster_engine::combat::{Rank, LADDER};
+
+    // The drain piece, and the smallest legal item that can carry it. A
+    // creature with no room for a four-piece helmet may still have room for a
+    // three-piece one.
+    let carriers: &[(&str, SlotKind, &[&str])] = &[
+        ("Tithe Collector", SlotKind::Helmet, &["Bone Frame", "Tin Plating", "Tithe Collector"]),
+        ("Wrathbreaker", SlotKind::Chest, &["Grove Base", "Wrathbreaker"]),
+        ("Witherroot", SlotKind::Greaves, &["Rootwoven Material", "Witherroot"]),
+        ("Manaflay", SlotKind::Weapon, &["Oak Handle", "Iron Blade", "Manaflay"]),
+    ];
+
+    // Ordinary creatures only - no boss, no mini-boss - and from rung 18 up,
+    // where a player has pools worth taking. Every third one, so the answer is
+    // spread across the back half rather than bunched.
+    let victims: Vec<&'static str> = LADDER
+        .iter()
+        .enumerate()
+        .filter(|(i, m)| *i >= 17 && m.rank == Rank::Ordinary)
+        .map(|(_, m)| m.name)
+        .step_by(2)
+        .take(10)
+        .collect();
+    assert_eq!(victims.len(), 10, "not enough ordinary creatures deep enough to carry these");
+
+    println!("\n=== pool drains, one per creature ===\n");
+    for (n, name) in victims.iter().enumerate() {
+        let m = LADDER.iter().find(|m| m.name == *name).expect("on the ladder");
+        // Rotate through the four so no one pool is the only one answered.
+        let (piece, slot, recipe) = carriers[n % carriers.len()];
+
+        // No locking. Every one of these creatures carries `items: &[]`,
+        // which tells the loader to place the whole board in one go and let
+        // the core-anchoring work it out - so a placement that only holds
+        // because the neighbours were locked is a placement the loader will
+        // not reproduce. `seat` searches under the same rules, and only
+        // returns a spot that leaves *every* item in the slot assembled.
+        let (mut reg, mut loadout) = m.loadout();
+        assert!(
+            m.items.is_empty(),
+            "{name} pins its item boundaries; appending gear needs `items` extended too"
+        );
+        // `loadout_at` locks what it built before handing it back. The loader
+        // does that *after* the whole board is down, so a placement found
+        // against a locked board is one the loader will not reproduce - it
+        // will re-derive from nearest-core with the new pieces already there
+        // and hand a crest to an item that has one.
+        loadout.locks.clear();
+        let before = loadout.report(&reg, slot).items.iter().filter(|i| i.assembled).count();
+
+        let ids: Vec<PieceId> = recipe
+            .iter()
+            .map(|n| reg.alloc(CATALOG.iter().position(|d| d.name == *n).expect(n)))
+            .collect();
+        let Some(spots) = seat(&mut reg, &mut loadout, slot, &ids, 0) else {
+            println!("// {name}: no room for {piece} in {slot:?}");
+            continue;
+        };
+        let after = loadout.report(&reg, slot).items.iter().filter(|i| i.assembled).count();
+        assert_eq!(after, before + 1, "{name}: seating {piece} did not add an item");
+
+        println!("// {name} - {piece}");
+        for (i, &(x, y, rot)) in spots.iter().enumerate() {
+            println!(
+                "            (\"{}\", SlotKind::{:?}, {}, {}, {}),",
+                recipe[i], slot, x, y, rot
+            );
+        }
+        println!();
+    }
 }

@@ -1564,6 +1564,15 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
     fn from_action(a: &Action, out: &mut Vec<&'static str>) { match a {
         Action::Curse { .. } => note("curse", out),
         Action::StunStrongest { .. } => note("stun", out),
+        Action::Drain { what, .. } => note(
+            match what {
+                Resource::Mana => "mana",
+                Resource::Rage => "rage",
+                Resource::Faith => "faith",
+                Resource::Nature => "nature",
+            },
+            out,
+        ),
         Action::GainMana(_) => note("mana", out),
         Action::Gain { what, .. } => note(
             match what {
@@ -2504,6 +2513,23 @@ impl Playback {
             Event::ManaCheck { side, remaining, .. } => {
                 if *side == Side::Player {
                     self.player_mana = *remaining;
+                }
+            }
+            Event::Drained { on, what, total, .. } => {
+                // Pools are shown from the playback's own tally, so the bar
+                // has to follow a drain down as well as a gain up.
+                let pools = match on {
+                    Side::Player => &mut self.player_pools,
+                    Side::Enemy => &mut self.enemy_pools,
+                };
+                match *what {
+                    "rage" => pools[0] = *total,
+                    "faith" => pools[1] = *total,
+                    "nature" => pools[2] = *total,
+                    _ => {}
+                }
+                if *what == "mana" && matches!(on, Side::Player) {
+                    self.player_mana = *total;
                 }
             }
             Event::Stunned { on, index, duration_ms, .. } => {

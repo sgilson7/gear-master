@@ -408,6 +408,14 @@ pub enum Action {
     GainMana(i32),
     /// Bank any of the four pools.
     Gain { what: Resource, amount: i32 },
+    /// Take a pool off the target, and make the loss hurt.
+    ///
+    /// `amount` is how much to take, or 0 for the lot. `hurt` is magic damage
+    /// dealt per point actually taken - so it is worth nothing against an
+    /// empty pool and a great deal against a build that banks deeply. That
+    /// asymmetry is the point: it punishes hoarding rather than punishing
+    /// everyone equally.
+    Drain { what: Resource, amount: i32, hurt: i32, target: Target },
     GainArmor(i32),
     /// Push this item's cooldown forward, so it fires sooner.
     ReduceCooldown(u32),
@@ -448,6 +456,18 @@ impl Action {
             }
             Action::GainMana(n) => format!("gain {} mana", n),
             Action::Gain { what, amount } => format!("gain {} {}", amount, what.name()),
+            Action::Drain { what, amount, hurt, target } => {
+                let take = if *amount == 0 {
+                    format!("all of {}'s {}", target.name(), what.name())
+                } else {
+                    format!("{} {} from {}", amount, what.name(), target.name())
+                };
+                if *hurt > 0 {
+                    format!("drain {} and deal {} magic for each point", take, hurt)
+                } else {
+                    format!("drain {}", take)
+                }
+            }
             Action::GainArmor(n) => format!("gain {} armor", n),
             Action::ReduceCooldown(ms) => {
                 format!("cut {:.1}s off its own cooldown", *ms as f32 / 1000.0)
@@ -7987,6 +8007,205 @@ pub static CATALOG: &[PieceDef] = &[
         quest: None,
         power_bonus: 0,
         price: 34,
+    },
+    // ---- taking a pool off them, one per slot -------------------------
+    //
+    // Every one of these is dead against a build that banks nothing, and a
+    // build that banks nothing is most of the early ladder. They are answers
+    // to a specific problem - the deep-pool caster, the rage engine - which is
+    // why they sit in each slot's optional third kind rather than competing
+    // with the pieces that hold a recipe together.
+    PieceDef {
+        name: "Leech Bead",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        base: Stats { magic_damage: 4, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Drain {
+            what: Resource::Mana,
+            amount: 4,
+            hurt: 0,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 21,
+    },
+    PieceDef {
+        name: "Doubter's Crest",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats { health: 30, curse_resist: 8, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Drain {
+            what: Resource::Faith,
+            amount: 3,
+            hurt: 0,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 23,
+    },
+    PieceDef {
+        name: "Becalming Layer",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        cells: &[(0, 0), (0, 1), (1, 1)],
+        base: Stats { health: 55, physical_resist: 6, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Drain {
+            what: Resource::Rage,
+            amount: 3,
+            hurt: 0,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 24,
+    },
+    PieceDef {
+        name: "Blightfinger",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0, 0)],
+        base: Stats { magic_damage: 5, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Drain {
+            what: Resource::Nature,
+            amount: 3,
+            hurt: 0,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 22,
+    },
+    PieceDef {
+        name: "Sump Sole",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Mold,
+        cells: &[(0, 0), (1, 0), (1, 1)],
+        base: Stats { health: 34, mana: 3, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Takes the lot rather than a slice, which is worth nothing against a
+        // dry pool and decides a fight against a caster who has been saving.
+        triggers: &[Trigger::OnActivate(Action::Drain {
+            what: Resource::Mana,
+            amount: 0,
+            hurt: 0,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 30,
+    },
+    // ---- and the same trick turned on the player ----------------------
+    //
+    // These take the whole pool and charge for it. Against a build that banks
+    // nothing they are a blank; against one that has been saving for a big
+    // spend they are the reason it never gets to make it. Ten creatures carry
+    // one, which is enough that a hoarding build meets the answer without
+    // every fight being about it.
+    PieceDef {
+        name: "Tithe Collector",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats { health: 38, magic_resist: 8, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Drain {
+            what: Resource::Faith,
+            amount: 0,
+            hurt: 3,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 38,
+    },
+    PieceDef {
+        name: "Wrathbreaker",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        cells: &[(0, 0), (1, 0), (0, 1)],
+        base: Stats { health: 62, physical_resist: 7, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Drain {
+            what: Resource::Rage,
+            amount: 0,
+            hurt: 3,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 40,
+    },
+    PieceDef {
+        name: "Witherroot",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Mold,
+        cells: &[(0, 0), (1, 0), (1, 1)],
+        base: Stats { health: 40, magic_damage: 6, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Drain {
+            what: Resource::Nature,
+            amount: 0,
+            hurt: 3,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 39,
+    },
+    PieceDef {
+        name: "Manaflay",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats { magic_damage: 5, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Two a point, not four. At four this out-rated the strongest thing
+        // a boss owns in the same kind, which would have deflated the price of
+        // every weapon accessory in the shop.
+        triggers: &[Trigger::OnActivate(Action::Drain {
+            what: Resource::Mana,
+            amount: 0,
+            hurt: 2,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 30,
     },
 ];
 

@@ -114,7 +114,9 @@
       "Artifact",
       "Bash(bash .claude/skills/gearmaster-gear/scripts/check-parity.sh)",
       "Bash(awk '{s+=$4} END {print s\" passing\"}')",
-      "Bash(awk 'NR>=7300 && NR<=7420 && /^fn |^pub fn /' crates/gui/src/main.rs)"
+      "Bash(awk 'NR>=7300 && NR<=7420 && /^fn |^pub fn /' crates/gui/src/main.rs)",
+      "Bash(grep -n \"Action::Gain { what, amount } =>\" crates/engine/src/rating.rs)",
+      "Bash(grep -n \"Action::Damage { amount, target, .. } =>\" -A 8 crates/engine/src/rating.rs)"
     ]
   }
 }
