@@ -29,14 +29,16 @@ content once the gaps are closed.
 
 ---
 
-## THE CASINO — spec
+## THE CASINO — partial (walk-away branch built)
 
 **Trigger.** The first time you kill something in **under 2 seconds**, while
 you are on **rungs 1–10**. Once per run. If it never happens, the casino never
 happens — this is a reward for building something sharp early, and it should
 be possible to miss it entirely.
 
-The run does not currently record how long the last fight took. It needs to.
+Recorded as `Run::best_fight_ms`. Only a real win counts: a stalemate lasts the
+full clock by definition, and a half-second defeat is not a fight you won
+quickly.
 
 **The scene.** You go in to play. At one of the tables a fight is already
 happening, and nobody is stopping it.
@@ -57,20 +59,20 @@ yet; see *Multi-enemy fights*.
 
 You get the **Gold Chip**: spends fnorp to deal escalating damage per trigger.
 
-> **Open question — what does the Gold Chip spend?**
-> Fnorp is the theme's word for money (reference/turtle-dick.md, p. 28,
-> p. 111), so read literally this spends the **run's gold**, mid-fight. That
-> is a genuinely new channel: nothing in the game currently couples the purse
-> to combat, and an uncapped version would empty it in one fight.
->
-> Recommendation: it does mean gold, because that is the interesting reading
-> and it is what makes a *casino* chip a casino chip. Cap it — a per-fight
-> budget the piece declares, so the worst case is knowable before you equip
-> it. Escalation resets each fight.
->
-> The cheap alternative is that it spends a pool (rage/faith/nature), which is
-> a mechanic that already exists and needs no new plumbing. Flagged rather
-> than decided.
+**Settled: it spends run gold, capped per fight.** Five fnorp a swing, hitting
+four harder every time it pays, stopping at forty a fight. Both the budget and
+the escalation reset when the next fight starts, so the worst it can do to your
+shopping is known before you put it on.
+
+Built as `Trigger::SpendGold { cost, budget, on_success }`, where the payout is
+scaled by how many times it has paid — first at full, second at double, third
+at triple. `Action::scaled` touches outcomes and never costs, so the price
+stays flat while the payout climbs, which is the shape of the thing.
+
+The simulation never touches `Run::gold`. It carries a `purse`, spends out of
+it, and reports `CombatLog::gold_spent`; the run deducts that when the fight
+settles. Looking at a log again must not charge you twice, and there is a test
+that says so.
 
 ---
 
@@ -152,16 +154,26 @@ In dependency order. Each one ends with something playable.
 | # | Milestone | Unblocks | Size |
 |---|---|---|---|
 | 1 | **This document** | everything | done |
-| 2 | **Event triggers and rewards** — `Run::last_fight_ms`, conditional events, `Requirement::Holding`, `Outcome::Give` | 3, 7 | small |
-| 3 | **The casino, walk-away branch** — event fires, scene, Gold Chip | — | small |
+| 2 | **Event triggers and rewards** — `Run::best_fight_ms`, conditional events, `Requirement::Holding`, `Outcome::Give` | 3, 7 | **built** |
+| 3 | **The casino, walk-away branch** — event fires, scene, Gold Chip | — | **built** |
 | 4 | **Multi-enemy fights** — engine party, then the battle screen | 5, 7 | **large** |
 | 5 | **The casino, step-in branch** — 2-at-once, Platinum Chip, loss costs no life | 7 | small once 4 lands |
 | 6 | **Variable slot height** — `SLOT_H` const becomes a per-run figure | 7 | medium |
 | 7 | **The VIP area** — both branches, the five-piece shop, Immense Guilt, Sprocketman's Gratitude | — | medium |
 
-Milestone 3 ships a complete, playable event on its own: the casino exists,
-the trigger works, and one of its two doors opens. Milestone 5 opens the
-other.
+Milestones 2 and 3 are in. The casino exists, opens on a sub-two-second kill
+anywhere in rungs 1–9, and hands over the Gold Chip if you keep out of the
+fight at the third table. Stepping in is written into the prose but is not yet
+a choice you can take: it needs two creatures at once, which is milestone 4.
+
+Both chips are `EVENT_ONLY` — a new exclusion beside `BOSS_ONLY` and the quest
+rewards. A Platinum Chip bought off a shelf is a door key with no door behind
+it.
+
+One thing the build turned up: `at` has to stay unique even though an earned
+event roams, because `event::at` returns the first match and a collision means
+one of the two silently never fires. The casino's deadline moved to rung 9
+(Whisperling) for that reason — rung 10 already has the shrine fork.
 
 Milestone 6 is better than it sounds. `Slot::cells` is already a `Vec` rather
 than a fixed array, so the height is a field waiting to happen — eight sites

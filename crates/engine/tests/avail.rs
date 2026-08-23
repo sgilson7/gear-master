@@ -25,7 +25,13 @@ fn shelf_counts(ensure_weapon: bool, runs: u64, restocks: usize) -> HashMap<&'st
 fn sellable() -> Vec<&'static str> {
     CATALOG
         .iter()
-        .filter(|d| !is_boss_only(d.name) && !is_quest_reward(d.name))
+        .filter(|d| {
+            !is_boss_only(d.name)
+                && !is_quest_reward(d.name)
+                // Event gear is owned, not bought: what it is worth is the
+                // story of how you got it.
+                && !gearmaster_engine::piece::is_event_only(d.name)
+        })
         .map(|d| d.name)
         .collect()
 }

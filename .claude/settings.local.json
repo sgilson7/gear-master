@@ -116,7 +116,9 @@
       "Bash(awk '{s+=$4} END {print s\" passing\"}')",
       "Bash(awk 'NR>=7300 && NR<=7420 && /^fn |^pub fn /' crates/gui/src/main.rs)",
       "Bash(grep -n \"Action::Gain { what, amount } =>\" crates/engine/src/rating.rs)",
-      "Bash(grep -n \"Action::Damage { amount, target, .. } =>\" -A 8 crates/engine/src/rating.rs)"
+      "Bash(grep -n \"Action::Damage { amount, target, .. } =>\" -A 8 crates/engine/src/rating.rs)",
+      "Bash(grep -n \"Trigger::SpendMana { cost, on_success, on_failure }\" -A 22 crates/engine/src/combat.rs)",
+      "Bash(grep -n \"Trigger::SpendMana { cost, on_success, on_failure } => Trigger::SpendMana\" -A 6 crates/engine/src/piece.rs)"
     ]
   }
 }

@@ -1609,6 +1609,10 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
             | Trigger::OnAdjacentActivate(a)
             | Trigger::OnAlignedActivate(a)
             | Trigger::OnOtherCast(a) => from_action(a, &mut out),
+            Trigger::SpendGold { on_success, .. } => {
+                note("fnorp", &mut out);
+                from_action(on_success, &mut out);
+            }
             Trigger::SpendMana { on_success, on_failure, .. } => {
                 note("mana", &mut out);
                 from_action(on_success, &mut out);
@@ -2322,6 +2326,8 @@ struct Playback {
     player_max: i32,
     player_armor: i32,
     player_mana: i32,
+    /// What is left of the run's gold, for gear that spends it mid-fight.
+    purse: i32,
     player_pools: [i32; 3],
     enemy_pools: [i32; 3],
     enemy_hp: i32,
@@ -2411,6 +2417,7 @@ impl Playback {
             player_max: log.player.max_health,
             player_armor: 0,
             player_mana: 0,
+            purse: 0,
             player_pools: [0; 3],
             enemy_pools: [0; 3],
             enemy_hp: log.enemy.health,
@@ -2513,6 +2520,13 @@ impl Playback {
             Event::ManaCheck { side, remaining, .. } => {
                 if *side == Side::Player {
                     self.player_mana = *remaining;
+                }
+            }
+            Event::Spent { side, remaining, .. } => {
+                // The purse is shown on the loadout screen, but a fight that
+                // is eating it should say so while it happens.
+                if matches!(side, Side::Player) {
+                    self.purse = *remaining;
                 }
             }
             Event::Drained { on, what, total, .. } => {
@@ -7135,6 +7149,7 @@ fn trigger_curses(t: &gearmaster_engine::piece::Trigger) -> bool {
         | Trigger::OnAdjacentActivate(a)
         | Trigger::OnAlignedActivate(a)
         | Trigger::OnOtherCast(a) => curses(a),
+        Trigger::SpendGold { on_success, .. } => curses(on_success),
         Trigger::SpendMana { on_success, on_failure, .. }
         | Trigger::Spend { on_success, on_failure, .. } => curses(on_success) || curses(on_failure),
     }

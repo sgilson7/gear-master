@@ -432,6 +432,17 @@ fn trigger_points(t: &Trigger) -> f32 {
             0.66 * action_points(on_success) + 0.34 * action_points(on_failure)
                 - *cost as f32 * pool_weight(*what) * 0.66
         }
+        // Money is not a combat resource, so spending it is not priced like
+        // one: what a fight costs you is a shop decision you make later, and
+        // the rating cannot see the shop. Priced on the payout alone, at the
+        // average escalation the budget allows - which is what the piece is
+        // worth to a player who can afford it, and it is only ever bought by
+        // players who can afford it.
+        Trigger::SpendGold { cost, budget, on_success } => {
+            let times = (budget / (*cost).max(1)).max(1);
+            let average = (times + 1) as f32 / 2.0;
+            action_points(on_success) * average
+        }
         Trigger::SpendMana { cost, on_success, on_failure } => {
             0.66 * action_points(on_success) + 0.34 * action_points(on_failure)
                 - *cost as f32 * weight::MANA_PS * 0.66

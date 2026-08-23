@@ -217,6 +217,10 @@ pub fn qualifiers(reg: &PieceRegistry, pieces: &[PieceId]) -> Vec<&'static str> 
             match t {
                 Trigger::PerAdjacentEmpty(_) => note(Some("Unbounded")),
                 Trigger::Consume { .. } => note(Some("Emptying")),
+                Trigger::SpendGold { on_success, .. } => {
+                    note(Some("Gilded"));
+                    note(action_word(on_success));
+                }
                 Trigger::OnBattleStart(a) => {
                     note(Some("Prepared"));
                     note(action_word(a));

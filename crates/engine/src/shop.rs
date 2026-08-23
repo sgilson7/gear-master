@@ -70,6 +70,7 @@ impl Shop {
             // A quest reward is the far side of a quest. Selling it would make
             // the quest that leads to it pointless.
             .filter(|&i| !crate::piece::is_quest_reward(CATALOG[i].name))
+            .filter(|&i| !crate::piece::is_event_only(CATALOG[i].name))
             .collect();
         rng.shuffle(&mut pool);
         for i in pool {
@@ -133,6 +134,7 @@ impl Shop {
                         && CATALOG[*i].kind == k
                         && !crate::piece::is_boss_only(CATALOG[*i].name)
                         && !crate::piece::is_quest_reward(CATALOG[*i].name)
+                        && !crate::piece::is_event_only(CATALOG[*i].name)
                 };
                 let mut candidates: Vec<usize> = (0..CATALOG.len())
                     .filter(sellable)

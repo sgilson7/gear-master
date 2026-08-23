@@ -519,6 +519,17 @@ pub enum Trigger {
     /// failure case is usually a penalty, so mana income becomes a real
     /// constraint rather than a nice-to-have.
     SpendMana { cost: i32, on_success: Action, on_failure: Action },
+    /// Spend the run's own gold, mid-fight, for an effect that grows every
+    /// time it pays.
+    ///
+    /// The only thing in the game that reaches out of the fight and into the
+    /// purse: what this spends is gone when you get to the shop. `budget` is
+    /// the most it will spend in one fight, so the worst case is knowable
+    /// before you equip it, and both the budget and the escalation reset when
+    /// the next fight starts. `on_success` is scaled by how many times it has
+    /// paid - first payment at full, second at double, third at triple - which
+    /// scales the outcome and never the cost, the same rule item power obeys.
+    SpendGold { cost: i32, budget: i32, on_success: Action },
     /// Spend a banked pool. The mana version predates the others and is kept
     /// as its own variant so every existing component still reads the same.
     Spend { what: Resource, cost: i32, on_success: Action, on_failure: Action },
@@ -586,6 +597,12 @@ impl Trigger {
                 on_success: on_success.scaled(pct),
                 on_failure: on_failure.scaled(pct),
             },
+            // The cost and the budget are costs; only the payout scales.
+            Trigger::SpendGold { cost, budget, on_success } => Trigger::SpendGold {
+                cost,
+                budget,
+                on_success: on_success.scaled(pct),
+            },
             Trigger::Spend { what, cost, on_success, on_failure } => Trigger::Spend {
                 what,
                 cost,
@@ -604,6 +621,13 @@ impl Trigger {
     pub fn describe(&self) -> String {
         match self {
             Trigger::OnActivate(a) => format!("on activation, {}", a.describe()),
+            Trigger::SpendGold { cost, budget, on_success } => format!(
+                "on activation, spend {} fnorp to {} - and again harder each time, \
+                 up to {} fnorp a fight",
+                cost,
+                on_success.describe(),
+                budget
+            ),
             Trigger::SpendMana { cost, on_success, on_failure } => format!(
                 "on activation, spend {} mana: if it works, {}; if not, {}",
                 cost,
@@ -8207,6 +8231,56 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 0,
         price: 30,
     },
+    // ---- the casino chips -------------------------------------------
+    //
+    // Neither is buyable. They come out of the casino or they do not come at
+    // all, which is why they are exempt from the shop - see `EVENT_ONLY`.
+    PieceDef {
+        // `price` is vestigial - `shop_price` derives cost from the rating -
+        // but it may not be zero, and neither chip is on a shelf anyway.
+        name: "Gold Chip",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        base: Stats { magic_damage: 3, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Five fnorp a swing, hitting four harder every time it pays, and it
+        // stops at forty - so the worst it can do to your shopping is known
+        // before you put it on. Both the budget and the escalation reset when
+        // the next fight starts.
+        triggers: &[Trigger::SpendGold {
+            cost: 5,
+            budget: 40,
+            on_success: Action::Damage {
+                amount: 4,
+                kind: crate::combat::DamageType::Magic,
+                target: Target::Enemy,
+            },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "Platinum Chip",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        // Barely a component. It is a key, and it costs you a cell to keep -
+        // which is the whole cost of holding on to it until rung thirty.
+        base: Stats { magic_damage: 2, mana: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
 ];
 
 /// Gear that exists only on a boss.
@@ -8220,6 +8294,18 @@ pub const BOSS_ONLY: &[&str] = &["The Money Jacket", "The Split Wisdom", "The Id
 /// Is this a piece a player can never own?
 pub fn is_boss_only(name: &str) -> bool {
     BOSS_ONLY.contains(&name)
+}
+
+/// Gear that only an event hands out.
+///
+/// Not boss gear: a player can absolutely own these, and is meant to. They are
+/// simply not for sale, because what they are worth is the story of how you
+/// got them - a Platinum Chip bought off a shelf is a door key with no door
+/// behind it.
+pub const EVENT_ONLY: &[&str] = &["Gold Chip", "Platinum Chip"];
+
+pub fn is_event_only(name: &str) -> bool {
+    EVENT_ONLY.contains(&name)
 }
 
 /// Is this piece the far side of somebody's quest?
@@ -8338,6 +8424,7 @@ mod tests {
                 | Trigger::OnAdjacentActivate(a)
                 | Trigger::OnAlignedActivate(a)
                 | Trigger::OnOtherCast(a) => is(a),
+                Trigger::SpendGold { on_success, .. } => is(on_success),
                 Trigger::SpendMana { on_success, on_failure, .. }
                 | Trigger::Spend { on_success, on_failure, .. } => is(on_success) || is(on_failure),
             }

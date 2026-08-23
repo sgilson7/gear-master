@@ -1569,13 +1569,18 @@ impl Run {
 
     /// Simulate the whole fight against `spec` and enter the replay phase.
     pub fn fight(&mut self, spec: &MonsterSpec) -> &CombatLog {
-        let log = crate::combat::simulate_with_class(
+        let log = crate::combat::simulate_with_purse(
             self.player_stats(),
             &self.combat_items(),
             spec,
             self.difficulty,
             &self.effective_classes(),
+            self.gold,
         );
+        // What the fight spent out of the purse is gone whichever way it went.
+        // Charged here rather than inside the simulation, which never touches
+        // the run - a replayed fight must not charge you twice.
+        self.gold = (self.gold - log.gold_spent).max(0);
         self.phase = Phase::Fighting;
         self.settled = false;
         self.log = Some(log);

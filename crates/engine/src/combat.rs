@@ -2566,6 +2566,10 @@ pub struct RunningItem {
     /// How much longer this one item is stopped for. A stun holds a single
     /// item rather than the whole fighter, so it lives here.
     pub stun_ms: u32,
+    /// Run gold this item has spent so far this fight, and how many times it
+    /// has paid. The budget belongs to the item, so the tally does too.
+    pub gold_spent: i32,
+    pub gold_paid: u32,
     /// What this item multiplies its own damage by, in hundredths.
     pub power: i32,
     pub physical_damage: i32,
@@ -2603,6 +2607,8 @@ impl RunningItem {
             cooldown_ms: p.cooldown_ms,
             progress_ms: 0,
             stun_ms: 0,
+            gold_spent: 0,
+            gold_paid: 0,
             physical_damage: p.stats.physical_damage,
             magic_damage: p.stats.magic_damage,
             rage: p.stats.rage,
@@ -2633,6 +2639,8 @@ impl RunningItem {
             cooldown_ms: a.cooldown_ms.max(TICK_MS),
             progress_ms: 0,
             stun_ms: 0,
+            gold_spent: 0,
+            gold_paid: 0,
             physical_damage: a.damage,
             magic_damage: 0,
             rage: 0,
@@ -2694,6 +2702,9 @@ pub struct Combatant {
     pub rage: i32,
     pub faith: i32,
     pub nature: i32,
+    /// Run gold carried into the fight. Only the player has one, and only
+    /// `SpendGold` touches it; what it spends is gone at the shop afterwards.
+    pub purse: i32,
     pub curses: Curses,
     /// Stacks of mana empowerment and mana shield. Both scale off *current*
     /// mana, and both are bought with mana — so stacking them hard drains the
@@ -2815,6 +2826,7 @@ impl Combatant {
             confluence: 0,
             activations: 0,
             curse_resist: stats.curse_resist,
+            purse: 0,
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
@@ -2906,6 +2918,7 @@ impl Combatant {
             confluence: 0,
             activations: 0,
             curse_resist: stats.curse_resist,
+            purse: 0,
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
@@ -3046,6 +3059,9 @@ pub enum Event {
     GainResource { side: Side, what: &'static str, amount: i32, total: i32 },
     /// A pool taken off someone. `amount` is what was actually there to take.
     Drained { on: Side, what: &'static str, amount: i32, total: i32 },
+    /// Run gold spent mid-fight. `remaining` is what is left in the purse,
+    /// which is what you will arrive at the shop with.
+    Spent { side: Side, amount: i32, remaining: i32 },
     Hit { by: Side, damage: i32, absorbed: i32, target_health: i32, target_armor: i32 },
     /// An item came round and nothing happened - a misfire ate it.
     Misfired { side: Side, item: String },
@@ -3115,6 +3131,9 @@ pub struct CombatLog {
     pub entries: Vec<LogEntry>,
     pub outcome: Outcome,
     pub duration_ms: u32,
+    /// Run gold the player spent during the fight. The run deducts it when
+    /// the fight settles - the simulation never touches `Run::gold` itself.
+    pub gold_spent: i32,
 }
 
 impl CombatLog {
@@ -3128,6 +3147,7 @@ impl CombatLog {
             entries: Vec::new(),
             outcome: Outcome::Victory,
             duration_ms: 0,
+            gold_spent: 0,
         }
     }
 
@@ -3241,6 +3261,13 @@ impl CombatLog {
                 item,
                 *duration_ms as f32 / 1000.0
             ),
+            Event::Spent { side, amount, remaining } => format!(
+                "{} {} spends {} fnorp ({} left)",
+                t,
+                self.who(*side),
+                amount,
+                remaining
+            ),
             Event::Drained { on, what, amount, total } => format!(
                 "{} {} loses {} {} ({} left)",
                 t,
@@ -3338,7 +3365,24 @@ pub fn simulate_with_class(
     difficulty: Difficulty,
     classes: &[crate::class::ClassDef],
 ) -> CombatLog {
+    simulate_with_purse(player_stats, profiles, spec, difficulty, classes, 0)
+}
+
+/// The same, with a purse for `SpendGold` to reach into.
+///
+/// Split from `simulate_with_class` rather than added to it because only the
+/// run has a purse: every test and every analysis tool fights without one, and
+/// none of them should have to say so.
+pub fn simulate_with_purse(
+    player_stats: Stats,
+    profiles: &[ItemProfile],
+    spec: &MonsterSpec,
+    difficulty: Difficulty,
+    classes: &[crate::class::ClassDef],
+    purse: i32,
+) -> CombatLog {
     let mut start_player = Combatant::player(player_stats, profiles);
+    start_player.purse = purse;
     // Every class you hold applies at once. The fountains hand out different
     // classes, never the same one twice, so two powers never fight over the
     // same field.
@@ -3529,6 +3573,8 @@ pub fn simulate_with_class(
     }
 
     log.push(LogEntry { at_ms: t, event: Event::End { outcome } });
+    // What the purse lost over the fight, for the run to charge afterwards.
+    let spent_from_purse = purse - p.purse;
     CombatLog {
         player: start_player,
         enemy: start_enemy,
@@ -3536,6 +3582,7 @@ pub fn simulate_with_class(
         entries: log,
         outcome,
         duration_ms: t,
+        gold_spent: spent_from_purse,
     }
 }
 
@@ -3940,6 +3987,35 @@ fn activate(
     for trigger in &firing {
         match *trigger {
             Trigger::OnActivate(action) => apply(p, e, side, action, t, log, Some(idx)),
+            Trigger::SpendGold { cost, budget, on_success } => {
+                let paid = {
+                    let me = pick(p, e, side);
+                    let it = &mut me.items[idx];
+                    // Two ways to come up short, and they are not the same:
+                    // the budget is the promise the piece made, the purse is
+                    // the money you actually have.
+                    if it.gold_spent + cost <= budget && me.purse >= cost {
+                        it.gold_spent += cost;
+                        it.gold_paid += 1;
+                        let times = it.gold_paid;
+                        me.purse -= cost;
+                        Some((times, me.purse))
+                    } else {
+                        None
+                    }
+                };
+                if let Some((times, left)) = paid {
+                    log.push(LogEntry {
+                        at_ms: t,
+                        event: Event::Spent { side, amount: cost, remaining: left },
+                    });
+                    // Harder every time it pays. `scaled` touches outcomes and
+                    // never costs, so the price stays flat while the payout
+                    // climbs - which is the whole shape of the thing.
+                    let grown = on_success.scaled(100 * times as i32);
+                    apply(p, e, side, grown, t, log, Some(idx));
+                }
+            }
             Trigger::SpendMana { cost, on_success, on_failure } => {
                 let paid = {
                     let me = pick(p, e, side);

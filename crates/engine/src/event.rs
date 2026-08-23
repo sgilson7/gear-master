@@ -94,6 +94,40 @@ pub struct LadderEvent {
 }
 
 pub const EVENTS: &[LadderEvent] = &[
+    // Earned, not scheduled: it turns up the moment you have flattened
+    // something inside two seconds, so long as you are still in the shallow
+    // end. Build something sharp early and the door is there; do not, and you
+    // will finish the run without ever knowing the casino was in the game.
+    //
+    // `at` is the deadline rather than the address - the last rung it will
+    // still stand on.
+    LadderEvent {
+        id: "the-casino",
+        at: 8,
+        trigger: Trigger::QuickKill { within_ms: 2_000 },
+        expects: "Whisperling",
+        title: "A ROOM WITH NO CLOCKS",
+        prose: &[
+            "Somebody saw what you did to that thing, and somebody told \
+             somebody, and now there is a door in a wall you have walked past \
+             eleven times. Inside: no clocks, no windows, and a carpet chosen \
+             by a man who wanted you to look up.",
+            "You are here to play. You have the fnorp for it and everything.",
+            "At the third table along, two of them have stopped playing and \
+             started on each other, and the room has arranged itself into a \
+             ring the way rooms do. Nobody is stopping it. The staff have gone \
+             very carefully back to counting.",
+        ],
+        choices: &[
+            Choice {
+                label: "Keep out of it",
+                blurb: "Their business. Cash out and take the chip.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("Gold Chip"),
+                unmet: "",
+            },
+        ],
+    },
     // Stands on the rung *after* Henpeck, which is where you are once he is
     // down. The theme's cutscene has already played by then - he has told you
     // he sold them, and told you twice - so this is the moment after that,
@@ -255,6 +289,12 @@ mod tests {
         }
     }
 
+    /// `at` has to stay unique even though an earned event roams.
+    ///
+    /// `event::at` returns the *first* match, so two events that can both be
+    /// standing on one rung means one of them silently never fires - and an
+    /// earned event that never fires looks exactly like an earned event
+    /// nobody has earned yet.
     #[test]
     fn no_two_events_stand_on_the_same_rung() {
         let mut seen = Vec::new();
