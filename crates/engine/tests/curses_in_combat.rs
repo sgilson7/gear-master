@@ -5,7 +5,7 @@
 //! widely. Frost slowing *one* item and frost slowing *everything the target
 //! owns* are the same `slow_pct` from the outside.
 
-use gearmaster_engine::combat::{simulate_at, Difficulty, Event, Side, LADDER};
+use gearmaster_engine::combat::{simulate_at, CombatLog, Difficulty, Event, Side, LADDER};
 use gearmaster_engine::curse::{CurseKind, FROST_SLOW_CAP_PCT, MISFIRE_FLOOR, STUN_CAP_MS};
 use gearmaster_engine::run::Run;
 
@@ -36,11 +36,24 @@ fn wearing(names: &[&str]) -> Run {
 }
 
 /// Every enemy activation in the log, as (item index, time).
-fn enemy_activations(log: &gearmaster_engine::combat::CombatLog) -> Vec<(usize, u32)> {
+fn enemy_activations(log: &CombatLog) -> Vec<(usize, u32)> {
     log.entries
         .iter()
         .filter_map(|e| match &e.event {
             Event::Activate { side: Side::Enemy, index, .. } => Some((*index, e.at_ms)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Every stun landed on the enemy, as (item index, total duration).
+fn enemy_stuns(log: &CombatLog) -> Vec<(usize, u32)> {
+    log.entries
+        .iter()
+        .filter_map(|e| match &e.event {
+            Event::Stunned { on: Side::Enemy, index, duration_ms, .. } => {
+                Some((*index, *duration_ms))
+            }
             _ => None,
         })
         .collect()
@@ -62,7 +75,7 @@ fn frost_slows_everything_the_target_owns_not_one_item() {
     // takes *longer* to do the same work, so the fight simply runs on and the
     // totals come out equal. Count inside a fixed window instead, where a
     // slower enemy really does get fewer turns.
-    let in_window = |log: &gearmaster_engine::combat::CombatLog| -> Vec<(usize, u32)> {
+    let in_window = |log: &CombatLog| -> Vec<(usize, u32)> {
         enemy_activations(log).into_iter().filter(|(_, t)| *t < WINDOW_MS).collect()
     };
 
@@ -120,19 +133,86 @@ fn frost_slows_everything_the_target_owns_not_one_item() {
     );
 }
 
+/// A caster that reliably fires a stun. Kingsbane wants nine mana to aim; with
+/// none banked it takes its failure branch, which is the ordinary unaimed
+/// curse of stun - and that is what these two want to watch.
+fn a_stunning_caster() -> Run {
+    wearing(&["Archmage's Primer", "Deepwater Ink", "Kingsbane", "Empowering Focus"])
+}
+
 #[test]
-fn a_stun_stops_every_item_for_its_whole_length() {
-    // Driven through Curses rather than a fight, because a stun long enough to
-    // observe needs stacking and no single ladder monster obliges.
-    let mut c = gearmaster_engine::curse::Curses::new();
-    c.apply(CurseKind::Stun, 0);
-    c.apply(CurseKind::Stun, 0);
-    assert!(c.stunned());
-    let left = c.stun_remaining_ms().expect("a stun is up");
-    assert!(left > 0 && left <= STUN_CAP_MS);
-    // Nothing advances while it runs, and it is one figure for the whole
-    // combatant - there is no per-item stun to ask about.
-    assert_eq!(c.slow_pct(), 0, "a stun is not a slow");
+fn a_stun_stops_one_item_and_leaves_the_rest_running() {
+    // The point of the whole change: a side with a stunned item still plays.
+    let run = a_stunning_caster();
+    let stats = run.player_stats();
+    let items = run.combat_items();
+
+    let found = LADDER.iter().find_map(|spec| {
+        let log = simulate_at(stats, &items, spec, Difficulty::Medium);
+        if log.enemy.items.len() < 2 {
+            return None;
+        }
+        let (idx, from, until) = log.entries.iter().find_map(|e| match &e.event {
+            Event::Stunned { on: Side::Enemy, index, duration_ms, .. } => {
+                Some((*index, e.at_ms, e.at_ms + *duration_ms))
+            }
+            _ => None,
+        })?;
+        // While that item is stopped, something else of theirs still fires.
+        let others = enemy_activations(&log)
+            .into_iter()
+            .filter(|(i, t)| *i != idx && *t >= from && *t <= until)
+            .count();
+        if others == 0 {
+            // Nothing else was due in that window; not a failure, just a fight
+            // that cannot answer the question.
+            return None;
+        }
+        Some((idx, others, spec.name))
+    });
+    let (idx, others, name) = found.expect(
+        "no rung landed a stun while another of their items was due - a stun that stopped the \
+         whole side would look exactly like this",
+    );
+    assert!(others > 0, "{name}: item {idx} was stunned and nothing else of theirs fired");
+}
+
+#[test]
+fn every_stun_in_a_fight_names_one_item_and_respects_the_cap() {
+    let run = a_stunning_caster();
+    let stats = run.player_stats();
+    let items = run.combat_items();
+
+    let mut landed = 0usize;
+    let mut hit: Vec<usize> = Vec::new();
+    for spec in LADDER.iter() {
+        let log = simulate_at(stats, &items, spec, Difficulty::Medium);
+        for (idx, duration) in enemy_stuns(&log) {
+            landed += 1;
+            assert!(
+                idx < log.enemy.items.len(),
+                "{}: a stun named item {idx} of {}",
+                spec.name,
+                log.enemy.items.len()
+            );
+            assert!(duration <= STUN_CAP_MS, "{}: a stun ran past the cap: {duration}", spec.name);
+            if !hit.contains(&idx) {
+                hit.push(idx);
+            }
+        }
+        // Unpaid, Kingsbane takes its failure branch, which never aims.
+        assert!(
+            log.entries.iter().all(|e| !matches!(e.event, Event::Stunned { aimed: true, .. })),
+            "{}: an unpaid stun reported itself as aimed",
+            spec.name
+        );
+    }
+    assert!(landed > 0, "no stun landed anywhere on the ladder");
+    assert!(
+        hit.len() >= 2,
+        "every unaimed stun across the whole ladder landed on item {hit:?} - it is meant to \
+         pick without warning. The precise rule is pinned in combat::stun_aim_tests."
+    );
 }
 
 #[test]
@@ -140,12 +220,10 @@ fn the_caps_hold_under_a_pile_of_curses() {
     let mut c = gearmaster_engine::curse::Curses::new();
     for _ in 0..25 {
         c.apply(CurseKind::Frost, 0);
-        c.apply(CurseKind::Stun, 0);
         c.apply(CurseKind::Misfire, 0);
         c.apply(CurseKind::Searing, 0);
     }
     assert_eq!(c.slow_pct(), FROST_SLOW_CAP_PCT, "gear never freezes solid");
-    assert_eq!(c.stun_remaining_ms(), Some(STUN_CAP_MS), "a stun chain is not a lock");
     assert_eq!(c.misfire_every(), MISFIRE_FLOOR, "one in two is the worst it gets");
     // Searing is the one with no ceiling, on purpose: it is the only curse
     // whose stacks buy damage rather than denial, and damage already has to

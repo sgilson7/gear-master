@@ -467,6 +467,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Ironthread Material", "Fishing-Line Thread"),
         ("Kaklon's Patent", "Spike Kaklon's Patent"),
         ("Kingmaker Hilt", "Treyway Hilt"),
+        ("Kingsbane", "Steel-Ball Called Shot"),
         ("Kingsblood Ink", "Time Sap"),
         ("Knuckleduster", "Tennis-Racquet Mold"),
         ("Last Rite", "Final Remark"),

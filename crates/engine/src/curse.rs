@@ -17,9 +17,16 @@ pub enum CurseKind {
     Searing,
     /// Slows every one of the target's items by `FROST_SLOW_PCT`.
     Frost,
-    /// Stops the target's gear dead. Nothing of theirs advances at all while
-    /// it lasts, so every cooldown they were part-way through resumes from
-    /// where it stood rather than starting over.
+    /// Stops **one** of the target's items dead. That item's cooldown does not
+    /// advance at all while it lasts, and resumes from where it stood rather
+    /// than starting over.
+    ///
+    /// One item, not all of them. Stopping a whole side was the strongest
+    /// effect in the game by a distance - a stun chain against five items was
+    /// five items' worth of denial for one trigger's price - and no amount of
+    /// pricing fixed that, because the thing being priced was "the enemy does
+    /// not play". Which item it lands on is picked without warning unless the
+    /// trigger names one; see `StunAim` in `combat`.
     Stun,
     /// Every `MISFIRE_EVERY`th activation of theirs does nothing at all.
     ///
@@ -42,8 +49,9 @@ pub const MISFIRE_EVERY: u32 = 3;
 /// Frost is a whole-body slow, not a per-item one, and it never stops the gear
 /// outright: at the cap an item still fires, just at a quarter speed.
 pub const FROST_SLOW_CAP_PCT: i32 = 75;
-/// Stun stacks pile onto the clock rather than refreshing it, so this is what
-/// stops a chain of stuns from being an unbreakable lock.
+/// Stun stacks pile onto one item's clock rather than refreshing it, so this
+/// is what stops a chain of stuns from taking an item out of the fight
+/// altogether.
 pub const STUN_CAP_MS: u32 = 3_600;
 /// However many misfire stacks land, one activation in two is the worst it
 /// gets - the same promise the frost cap makes.
@@ -76,8 +84,8 @@ impl CurseKind {
                 "all of the target's gear runs 50% slower for 1 second, per stack, up to 75%"
             }
             CurseKind::Stun => {
-                "gear stops dead for 1.2 seconds, then carries on from where it stood; \
-                 stacks add up to 3.6 seconds"
+                "one of their items stops dead for 1.2 seconds, then carries on from \
+                 where it stood; stacks add up to 3.6 seconds on that item"
             }
             CurseKind::Misfire => {
                 "one activation in three does nothing, for 6 seconds; two stacks or more \
@@ -86,23 +94,16 @@ impl CurseKind {
         }
     }
 
-    /// Does a second one of these add to the clock, or only refresh it?
+    /// How long this curse lands for on a target with `curse_resist`, rounded
+    /// down to whole ticks so duration maths stays exact.
     ///
-    /// Only stun does. Searing and misfire already get stronger per stack and
-    /// would be oppressive if they also lasted longer for it; frost is a
-    /// one-second flicker whose whole shape is that it keeps being reapplied.
-    /// Stun has neither - a second stun landing during the first is otherwise
-    /// worth nothing at all - so the clock is where its stacks go.
-    fn stacks_extend(self) -> bool {
-        matches!(self, CurseKind::Stun)
-    }
-
-    /// The ceiling on total duration, for the kinds that accumulate one.
-    fn duration_cap_ms(self) -> u32 {
-        match self {
-            CurseKind::Stun => STUN_CAP_MS,
-            _ => u32::MAX,
-        }
+    /// Public because a stun does not go through `Curses::apply` - it is held
+    /// on the item it stopped - but it still answers to resistance the same
+    /// way everything else does.
+    pub fn landing_ms(self, curse_resist: i32) -> u32 {
+        let resist = curse_resist.clamp(0, 100);
+        let scaled = (self.base_duration_ms() as i64 * (100 - resist) as i64 / 100) as u32;
+        scaled / TICK_MS * TICK_MS
     }
 }
 
@@ -151,23 +152,22 @@ impl Curses {
     /// clock, not the slice just added. Reporting the slice meant a refreshed
     /// curse logged "for 10.0s" when eleven were left, and the interface drew
     /// its timer from that number.
+    ///
+    /// Not for stun: a stun belongs to one item rather than to the fighter, so
+    /// it is stored on the item and its duration comes from `landing_ms`.
     pub fn apply(&mut self, kind: CurseKind, curse_resist: i32) -> u32 {
-        let resist = curse_resist.clamp(0, 100);
-        let base = kind.base_duration_ms() as i64;
-        let scaled = (base * (100 - resist) as i64 / 100) as u32;
-        // Round down to whole ticks so duration maths stays exact.
-        let duration = scaled / TICK_MS * TICK_MS;
+        debug_assert!(
+            kind != CurseKind::Stun,
+            "a stun lands on an item, not on the combatant - see StunAim"
+        );
+        let duration = kind.landing_ms(curse_resist);
         if duration == 0 {
             return 0;
         }
         match self.active.iter_mut().find(|c| c.kind == kind) {
             Some(existing) => {
                 existing.stacks += 1;
-                existing.remaining_ms = if kind.stacks_extend() {
-                    (existing.remaining_ms + duration).min(kind.duration_cap_ms())
-                } else {
-                    existing.remaining_ms.max(duration)
-                };
+                existing.remaining_ms = existing.remaining_ms.max(duration);
                 existing.remaining_ms
             }
             None => {
@@ -218,12 +218,6 @@ impl Curses {
         raw.min(FROST_SLOW_CAP_PCT)
     }
 
-    /// Is the gear stopped dead? A stun does not slow anything; it stops
-    /// everything, and what was part-way through stays part-way through.
-    pub fn stunned(&self) -> bool {
-        self.has(CurseKind::Stun)
-    }
-
     /// One activation in how many does a misfire eat? Zero when none is up.
     ///
     /// Each stack past the first tightens the interval by one, down to the
@@ -246,15 +240,6 @@ impl Curses {
             0 => false,
             every => activation % every == 0,
         }
-    }
-
-    /// How much longer the target's gear is stopped for, and how long it was
-    /// stopped for in total. The interface draws its stun meter from this.
-    pub fn stun_remaining_ms(&self) -> Option<u32> {
-        self.active
-            .iter()
-            .find(|c| c.kind == CurseKind::Stun)
-            .map(|c| c.remaining_ms)
     }
 
     pub fn clear(&mut self) {
@@ -341,19 +326,14 @@ mod tests {
     }
 
     #[test]
-    fn stun_stacks_onto_the_clock_rather_than_refreshing_it() {
-        let mut c = Curses::new();
-        assert_eq!(c.apply(CurseKind::Stun, 0), STUN_MS);
-        // A second stun landing while the first runs is worth nothing at all
-        // if it only refreshes - the clock is where its stacks have to go.
-        assert_eq!(c.apply(CurseKind::Stun, 0), STUN_MS * 2);
-        assert_eq!(c.apply(CurseKind::Stun, 0), STUN_MS * 3);
-        assert_eq!(c.stacks_of(CurseKind::Stun), 3);
-        // ...but not for ever.
-        for _ in 0..10 {
-            c.apply(CurseKind::Stun, 0);
-        }
-        assert_eq!(c.stun_remaining_ms(), Some(STUN_CAP_MS), "a stun chain is not a lock");
+    fn a_stun_answers_to_resistance_like_everything_else() {
+        // A stun is held on the item it stopped rather than on the fighter, so
+        // it never reaches `apply` - but resistance still shortens it, and
+        // that is the part worth pinning down here. The stacking and the
+        // choice of item are combat's business; see `curses_in_combat`.
+        assert_eq!(CurseKind::Stun.landing_ms(0), STUN_MS);
+        assert_eq!(CurseKind::Stun.landing_ms(50), STUN_MS / 2);
+        assert_eq!(CurseKind::Stun.landing_ms(100), 0, "fully resisted, never lands");
     }
 
     #[test]

@@ -99,6 +99,11 @@ mod weight {
     /// seconds of denial respectively, and pricing them the same made the two
     /// best curses in the game the two cheapest.
     pub const DENIAL_S: f32 = 13.0;
+    /// What choosing the target multiplies a stun by. Against a five-item
+    /// board a blind stun finds the item that mattered one time in five; this
+    /// is not five, because the other four are not worthless and because a
+    /// price nobody can pay is not a price.
+    pub const AIMED: f32 = 2.4;
     /// A second shaved off a cooldown, per second.
     pub const HASTE_PS: f32 = 9.0;
     /// A stack of empowerment or shield per second. Both scale off held mana,
@@ -289,6 +294,14 @@ fn curse_points(kind: crate::curse::CurseKind) -> f32 {
         // Damage over time rather than denial, and it does not stack.
         CurseKind::Searing => weight::CURSE_PS,
         CurseKind::Frost => secs(FROST_MS) * FROST_SLOW_PCT as f32 / 100.0 * weight::DENIAL_S,
+        // A stun stops one item for its whole length. This figure did not
+        // change when stun stopped being side-wide, and did not need to: the
+        // model has always counted denial in seconds of *one* item's output,
+        // so 1.2 was already what a per-item stun is worth. What it was
+        // underpricing was the old side-wide version. Frost is still measured
+        // that way and still slows everything, so it remains cheap for what it
+        // does - deliberately noted rather than quietly corrected, because
+        // repricing frost moves the cost of a lot of existing gear.
         CurseKind::Stun => secs(STUN_MS) * weight::DENIAL_S,
         CurseKind::Misfire => secs(MISFIRE_MS) / MISFIRE_EVERY as f32 * weight::DENIAL_S,
     }
@@ -300,6 +313,18 @@ fn action_points(a: &Action) -> f32 {
         Action::Curse { kind, target } => {
             let v = curse_points(*kind);
             // A curse on yourself is a cost, not a benefit.
+            if matches!(target, crate::piece::Target::Yourself) {
+                -v
+            } else {
+                v
+            }
+        }
+        // An unaimed stun takes whatever item it catches, so against a full
+        // board it finds the one that mattered about one time in five. Aiming
+        // it is worth more than the stun: what it denies is not 1.2 seconds of
+        // output but 1.2 seconds of *their best* output, every single time.
+        Action::StunStrongest { target } => {
+            let v = curse_points(crate::curse::CurseKind::Stun) * weight::AIMED;
             if matches!(target, crate::piece::Target::Yourself) {
                 -v
             } else {

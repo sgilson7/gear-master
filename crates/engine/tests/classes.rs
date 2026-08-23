@@ -190,7 +190,6 @@ fn a_crystal_ball_casts_two_spells_at_once_by_default() {
 #[test]
 fn an_oracle_stops_their_gear() {
     use gearmaster_engine::combat::{simulate_with_class, Difficulty, Event, Side, LADDER};
-    use gearmaster_engine::curse::CurseKind;
 
     let mut run = Run::with_all_pieces();
     equip(&mut run, "Scrying Orb", SlotKind::Weapon, 0, 0);
@@ -207,12 +206,9 @@ fn an_oracle_stops_their_gear() {
         let log = simulate_with_class(stats, &profiles, tough, Difficulty::Medium, class);
         log.entries
             .iter()
-            .filter(|e| {
-                matches!(
-                    e.event,
-                    Event::Cursed { on: Side::Enemy, kind: CurseKind::Stun, .. }
-                )
-            })
+            // A stun holds an item rather than a fighter, so it has an event
+            // of its own carrying which item it took.
+            .filter(|e| matches!(e.event, Event::Stunned { on: Side::Enemy, .. }))
             .count()
     };
 

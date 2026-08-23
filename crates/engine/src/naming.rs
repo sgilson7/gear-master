@@ -179,6 +179,8 @@ fn action_word(a: &Action) -> Option<&'static str> {
         Action::Curse { kind: Frost, target: Enemy } => "Rimebound",
         Action::Curse { kind: Frost, target: Yourself } => "Frostbitten",
         Action::Curse { kind: Stun, target: Enemy } => "Stilling",
+        Action::StunStrongest { target: Enemy } => "Singling",
+        Action::StunStrongest { target: Yourself } => "Self-Stilling",
         Action::Curse { kind: Stun, target: Yourself } => "Palsied",
         Action::Curse { kind: Misfire, target: Enemy } => "Faltering",
         Action::Curse { kind: Misfire, target: Yourself } => "Cursed",

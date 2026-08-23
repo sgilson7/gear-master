@@ -5,7 +5,6 @@
 use std::collections::HashSet;
 
 use gearmaster_engine::class::Axis;
-use gearmaster_engine::curse::CurseKind;
 use gearmaster_engine::combat::{CombatLog, Event, MonsterSprite, Outcome, Side, LADDER};
 use gearmaster_engine::loadout::{ItemProfile, Loadout, SlotReport};
 use gearmaster_engine::piece::{
@@ -1562,6 +1561,7 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
 
     fn from_action(a: &Action, out: &mut Vec<&'static str>) { match a {
         Action::Curse { .. } => note("curse", out),
+        Action::StunStrongest { .. } => note("stun", out),
         Action::GainMana(_) => note("mana", out),
         Action::Gain { what, .. } => note(
             match what {
@@ -2283,22 +2283,14 @@ impl Drag {
 /// Replays a finished `CombatLog` against wall-clock time. The fight is already
 /// decided in the engine — this only decides what is on screen, so it can be
 /// sped up or skipped without changing the result.
-/// One curse riding on one side, as the replay sees it.
+/// One curse riding on one side, as the replay sees it. Stun is not among
+/// them - it holds an item rather than a fighter, and lives in `player_stuns`.
 #[derive(Clone)]
 struct ActiveCurse {
     /// The engine's key, not the themed word - comparisons are made on it.
     name: &'static str,
-    from_ms: u32,
     until_ms: u32,
     stacks: u32,
-}
-
-impl ActiveCurse {
-    /// How much of the curse is left, 1.0 the moment it lands.
-    fn left(&self, now_ms: u32) -> f32 {
-        let span = self.until_ms.saturating_sub(self.from_ms).max(1);
-        self.until_ms.saturating_sub(now_ms) as f32 / span as f32
-    }
 }
 
 struct Playback {
@@ -2323,6 +2315,10 @@ struct Playback {
     /// stun stacks add to the clock, so no two stuns are the same length.
     player_curses: Vec<ActiveCurse>,
     enemy_curses: Vec<ActiveCurse>,
+    /// Stunned items, as (item index, started, ends). A stun stops one item
+    /// rather than a whole side, so this is per item and not per fighter.
+    player_stuns: Vec<(usize, u32, u32)>,
+    enemy_stuns: Vec<(usize, u32, u32)>,
     lines: Vec<String>,
     flash_player: f64,
     flash_enemy: f64,
@@ -2405,6 +2401,8 @@ impl Playback {
             enemy_armor: 0,
             player_curses: Vec::new(),
             enemy_curses: Vec::new(),
+            player_stuns: Vec::new(),
+            enemy_stuns: Vec::new(),
             lines: Vec::new(),
             flash_player: -10.0,
             flash_enemy: -10.0,
@@ -2500,6 +2498,19 @@ impl Playback {
                     self.player_mana = *remaining;
                 }
             }
+            Event::Stunned { on, index, duration_ms, .. } => {
+                let until = self.now_ms + duration_ms;
+                let list = match on {
+                    Side::Player => &mut self.player_stuns,
+                    Side::Enemy => &mut self.enemy_stuns,
+                };
+                match list.iter_mut().find(|(i, _, _)| i == index) {
+                    // Stacks pile onto that item's clock, so the meter restarts
+                    // full rather than jumping mid-drain.
+                    Some(e) => *e = (*index, self.now_ms, until),
+                    None => list.push((*index, self.now_ms, until)),
+                }
+            }
             Event::Cursed { on, kind, duration_ms, stacks } => {
                 let until = self.now_ms + duration_ms;
                 let list = match on {
@@ -2508,20 +2519,12 @@ impl Playback {
                 };
                 match list.iter_mut().find(|c| c.name == kind.name()) {
                     Some(e) => {
-                        // A stack that lengthens the curse restarts the meter
-                        // from here, so it always reads as full again.
-                        if until > e.until_ms {
-                            e.from_ms = self.now_ms;
-                            e.until_ms = until;
-                        }
+                        e.until_ms = e.until_ms.max(until);
                         e.stacks = *stacks;
                     }
-                    None => list.push(ActiveCurse {
-                        name: kind.name(),
-                        from_ms: self.now_ms,
-                        until_ms: until,
-                        stacks: *stacks,
-                    }),
+                    None => {
+                        list.push(ActiveCurse { name: kind.name(), until_ms: until, stacks: *stacks })
+                    }
                 }
             }
             Event::Burn { side, health, .. } => match side {
@@ -2578,37 +2581,42 @@ impl Playback {
         self.now_ms = self.sim_ms.min(log.duration_ms);
         self.player_curses.retain(|c| c.until_ms > self.now_ms);
         self.enemy_curses.retain(|c| c.until_ms > self.now_ms);
-        // GEARMASTER_STUN=1 keeps a rolling stun on the player, so the meter
-        // can be looked at without hunting the ladder for a fight that lands
-        // one at the moment the screenshot is taken.
-        if std::env::var("GEARMASTER_STUN").is_ok() {
+        self.player_stuns.retain(|(_, _, until)| *until > self.now_ms);
+        self.enemy_stuns.retain(|(_, _, until)| *until > self.now_ms);
+        // GEARMASTER_STUN=<n> keeps a rolling stun on the player's first n
+        // items, so the meter can be looked at without hunting the ladder for
+        // a fight that lands one at the moment the screenshot is taken.
+        if let Some(n) = std::env::var("GEARMASTER_STUN").ok().and_then(|v| v.parse().ok()) {
             let span = 2_400;
             let from = self.now_ms / span * span;
-            self.player_curses.retain(|c| c.name != CurseKind::Stun.name());
-            self.player_curses.push(ActiveCurse {
-                name: CurseKind::Stun.name(),
-                from_ms: from,
-                until_ms: from + span,
-                stacks: 2,
-            });
+            self.player_stuns.clear();
+            for i in 0..n {
+                self.player_stuns.push((i, from, from + span));
+            }
         }
     }
 
 
 
-    /// How much of a stun is left on one side, and how long in milliseconds.
+    /// How much of a stun is left on one item, and how long in milliseconds.
     ///
-    /// A stun stops every one of that side's items, not the one that happened
-    /// to be cursed, so this is a property of the side and every cooldown row
-    /// belonging to it draws the meter.
-    fn stun_of(&self, side: Side) -> Option<(f32, u32)> {
+    /// A stun stops one item rather than a side, so this is asked per row.
+    fn stun_of(&self, side: Side, index: usize) -> Option<(f32, u32)> {
         let list = match side {
-            Side::Player => &self.player_curses,
-            Side::Enemy => &self.enemy_curses,
+            Side::Player => &self.player_stuns,
+            Side::Enemy => &self.enemy_stuns,
         };
-        list.iter()
-            .find(|c| c.name == CurseKind::Stun.name())
-            .map(|c| (c.left(self.now_ms), c.until_ms.saturating_sub(self.now_ms)))
+        list.iter().find(|(i, _, _)| *i == index).map(|&(_, from, until)| {
+            let span = until.saturating_sub(from).max(1);
+            (until.saturating_sub(self.now_ms) as f32 / span as f32, until - self.now_ms)
+        })
+    }
+
+    fn stunned_count(&self, side: Side) -> usize {
+        match side {
+            Side::Player => self.player_stuns.len(),
+            Side::Enemy => self.enemy_stuns.len(),
+        }
     }
 
     fn skip_to_end(&mut self, run: &Run) {
@@ -2622,6 +2630,8 @@ impl Playback {
         self.now_ms = log.duration_ms;
         self.player_curses.clear();
         self.enemy_curses.clear();
+        self.player_stuns.clear();
+        self.enemy_stuns.clear();
     }
 }
 
@@ -4273,26 +4283,31 @@ fn render_battle(
             Side::Enemy,
         ),
     ] {
-        // A stun stops that side's gear outright, so it is the column that is
-        // stunned rather than any one row.
-        let stun = pb.stun_of(side);
-        if stun.is_some() {
-            ui_text(label, g.cd_x, top + 14.0, 13.0, col_dim());
-            let note = "STUNNED";
+        ui_text(label, g.cd_x, top + 14.0, 13.0, col_dim());
+        // A stun takes one item, so the header counts them rather than
+        // declaring the whole side stopped.
+        let stunned = pb.stunned_count(side);
+        if stunned > 0 {
+            let note = if stunned == 1 {
+                "1 ITEM STUNNED".to_string()
+            } else {
+                format!("{} ITEMS STUNNED", stunned)
+            };
             ui_text(
-                note,
-                g.cd_x + g.cd_w - text_width(note, 13.0),
+                &note,
+                g.cd_x + g.cd_w - text_width(&note, 13.0),
                 top + 14.0,
                 13.0,
                 col_stun(),
             );
-        } else {
-            ui_text(label, g.cd_x, top + 14.0, 13.0, col_dim());
         }
         let order = cooldown_order(items);
         let (pitch, shown) = cooldown_fit(order.len(), cooldown_room(&g, top));
         for (row, &i) in order.iter().take(shown).enumerate() {
             let it = &items[i];
+            // `i` is the item's index in its owner's list, which is what the
+            // stun was recorded against - `row` is only where it is drawn.
+            let stun = pb.stun_of(side, i);
             if stun.is_some() {
                 draw_rectangle(
                     g.cd_x - 6.0,

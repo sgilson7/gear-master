@@ -7,7 +7,7 @@
 //! monster always produces the same log, which is what lets the tests assert on
 //! exact numbers and lets the GUI replay a fight it did not simulate.
 
-use crate::curse::{mind_damage_after_resist, CurseKind, Curses, TICK_MS};
+use crate::curse::{mind_damage_after_resist, CurseKind, Curses, STUN_CAP_MS, TICK_MS};
 use crate::loadout::ItemProfile;
 use crate::piece::{Action, Resource, SlotKind, Target, Trigger};
 use crate::stats::Stats;
@@ -2526,7 +2526,11 @@ pub const LADDER: &[MonsterSpec] = &[
 // ----------------------------------------------------------- combatants
 
 /// An item mid-fight: its profile plus how far its cooldown has filled.
-#[derive(Clone, Debug)]
+///
+/// `Default` is here for tests that care about one field - which item a stun
+/// picks depends on `rating` and `stun_ms` and nothing else, and spelling out
+/// thirty irrelevant fields to say so buries the point.
+#[derive(Clone, Debug, Default)]
 pub struct RunningItem {
     pub name: String,
     /// Effectiveness on the shared scale, so the interface can badge it.
@@ -2534,6 +2538,9 @@ pub struct RunningItem {
     pub slot: Option<SlotKind>,
     pub cooldown_ms: u32,
     pub progress_ms: u32,
+    /// How much longer this one item is stopped for. A stun holds a single
+    /// item rather than the whole fighter, so it lives here.
+    pub stun_ms: u32,
     /// What this item multiplies its own damage by, in hundredths.
     pub power: i32,
     pub physical_damage: i32,
@@ -2570,6 +2577,7 @@ impl RunningItem {
             slot: Some(p.slot),
             cooldown_ms: p.cooldown_ms,
             progress_ms: 0,
+            stun_ms: 0,
             physical_damage: p.stats.physical_damage,
             magic_damage: p.stats.magic_damage,
             rage: p.stats.rage,
@@ -2599,6 +2607,7 @@ impl RunningItem {
             slot: None,
             cooldown_ms: a.cooldown_ms.max(TICK_MS),
             progress_ms: 0,
+            stun_ms: 0,
             physical_damage: a.damage,
             magic_damage: 0,
             rage: 0,
@@ -2715,6 +2724,10 @@ pub struct Combatant {
     /// Activations counted for the misfire curse. Counting rather than rolling
     /// keeps the fight deterministic.
     pub misfire_count: u32,
+    /// How many stuns this fighter has taken. Mixed into the choice of which
+    /// item the next one lands on, so a chain of stuns walks across the kit
+    /// instead of hammering one slot.
+    pub stun_count: u32,
     /// The same, for an Oracle's periodic reach at the clock.
     pub untimely_count: u32,
     /// Bloodletter: landing a curse banks this much rage.
@@ -2771,6 +2784,7 @@ impl Combatant {
             cascade: 0,
             consecrate: 0,
             misfire_count: 0,
+            stun_count: 0,
             untimely_count: 0,
             bloodscent: 0,
             confluence: 0,
@@ -2861,6 +2875,7 @@ impl Combatant {
             cascade: 0,
             consecrate: 0,
             misfire_count: 0,
+            stun_count: 0,
             untimely_count: 0,
             bloodscent: 0,
             confluence: 0,
@@ -3021,6 +3036,11 @@ pub enum Event {
     /// `stacks` is the count *after* this one landed, so the interface can
     /// say "curse of searing x3" without keeping its own tally.
     Cursed { on: Side, kind: CurseKind, duration_ms: u32, stacks: u32 },
+    /// A stun stopped one item. Its own event rather than a `Cursed`, because
+    /// a stun rides on an item and the interface needs to know which one:
+    /// `index` is that item's position in its owner's list, and `duration_ms`
+    /// is the whole time it is now stopped for.
+    Stunned { on: Side, index: usize, item: String, duration_ms: u32, aimed: bool },
     /// Damage-over-time landing this tick.
     Burn { side: Side, damage: i32, health: i32 },
     Regen { side: Side, amount: i32, health: i32 },
@@ -3186,6 +3206,14 @@ impl CombatLog {
                     )
                 }
             }
+            Event::Stunned { on, item, duration_ms, aimed, .. } => format!(
+                "{} {}{}'s {} is stunned for {:.1}s",
+                t,
+                if *aimed { "picks out " } else { "" },
+                self.who(*on),
+                item,
+                *duration_ms as f32 / 1000.0
+            ),
             Event::Cursed { on, kind, duration_ms, stacks } => format!(
                 "{} curse of {}{} on {} for {:.1}s",
                 t,
@@ -3420,17 +3448,20 @@ pub fn simulate_with_class(
             for idx in 0..count {
                 let ready = {
                     let c = pick(&mut p, &mut e, side);
-                    // A stun stops the bar dead. Not a slow: nothing advances
-                    // at all, and what was part-way through stays part-way
-                    // through, so it resumes rather than starting over.
-                    if c.curses.stunned() {
+                    // Frost stretches the cooldown by slowing how fast the
+                    // bar fills, rather than by rewriting the cooldown. It is
+                    // a property of the fighter, so it is read before the item.
+                    let slow = c.curses.slow_pct();
+                    let item = &mut c.items[idx];
+                    // A stun stops this item's bar dead. Not a slow: it does
+                    // not advance at all, and what was part-way through stays
+                    // part-way through, so it resumes rather than starting
+                    // over. Only this item - the rest of the kit plays on.
+                    if item.stun_ms > 0 {
+                        item.stun_ms = item.stun_ms.saturating_sub(TICK_MS);
                         false
                     } else {
-                        // Frost stretches the cooldown by slowing how fast the
-                        // bar fills, rather than by rewriting the cooldown.
-                        let slow = c.curses.slow_pct();
                         let step = (TICK_MS as i32 * (100 - slow) / 100).max(1) as u32;
-                        let item = &mut c.items[idx];
                         item.progress_ms += step;
                         if item.progress_ms >= item.cooldown_ms {
                             item.progress_ms -= item.cooldown_ms;
@@ -3501,6 +3532,98 @@ fn check_down(
 }
 
 /// Resolve one item firing: its flat effects, then its triggers in order.
+/// Which item a stun takes out.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum StunAim {
+    /// Whichever one it happens to catch. This is what a plain curse of stun
+    /// does, and not knowing which is most of what keeps it fair.
+    Unaimed,
+    /// The best thing they own, by the same effectiveness rating the shop
+    /// prices gear with. Costs more, and it should - picking the target is
+    /// worth more than the stun.
+    Strongest,
+}
+
+/// Land a stun on one of `victim`'s items and return which, with how long for.
+///
+/// The choice is deterministic, because the whole engine is: every test in the
+/// suite replays a fight and expects the same answer, and a real roll would
+/// end that. It is still unpredictable from the far side of the screen, which
+/// is the property that actually matters - the same trade `Misfire` makes by
+/// counting activations rather than rolling for them.
+///
+/// Nothing lands on an item that is already stopped for longer than this stun
+/// would stop it, when there is a live one to hit instead: a chain of stuns
+/// should spread across the kit, not bury one item.
+fn land_curse(
+    victim: &mut Combatant,
+    on: Side,
+    kind: CurseKind,
+    aim: StunAim,
+    t: u32,
+    log: &mut Vec<LogEntry>,
+) {
+    if kind == CurseKind::Stun {
+        if let Some((index, ms)) = land_stun(victim, aim, t) {
+            let item = victim.items[index].name.clone();
+            let aimed = aim == StunAim::Strongest;
+            log.push(LogEntry {
+                at_ms: t,
+                event: Event::Stunned { on, index, item, duration_ms: ms, aimed },
+            });
+        }
+        return;
+    }
+    let ms = victim.curses.apply(kind, victim.curse_resist);
+    if ms > 0 {
+        let stacks = victim.curses.stacks_of(kind);
+        log.push(LogEntry {
+            at_ms: t,
+            event: Event::Cursed { on, kind, duration_ms: ms, stacks },
+        });
+    }
+}
+
+fn land_stun(victim: &mut Combatant, aim: StunAim, at_ms: u32) -> Option<(usize, u32)> {
+    let duration = CurseKind::Stun.landing_ms(victim.curse_resist);
+    if duration == 0 || victim.items.is_empty() {
+        return None;
+    }
+    victim.stun_count = victim.stun_count.wrapping_add(1);
+
+    let idx = match aim {
+        StunAim::Strongest => victim
+            .items
+            .iter()
+            .enumerate()
+            // Among equals take the one still running: stunning what is
+            // already stopped is the one outcome an aimed stun must not have.
+            .max_by_key(|(_, it)| (it.rating, it.stun_ms == 0))
+            .map(|(i, _)| i)?,
+        StunAim::Unaimed => {
+            let n = victim.items.len();
+            // A cheap integer hash of the fight's own state. Time alone
+            // clusters, because stuns arrive on cooldown boundaries.
+            let mix = (at_ms as u64)
+                .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                .wrapping_add((victim.stun_count as u64).wrapping_mul(0x2545_F491_4F6C_DD1D));
+            let start = (mix >> 33) as usize % n;
+            // Walk from there to the first item that is not already stopped,
+            // falling back to the original pick if every one of them is.
+            (0..n)
+                .map(|k| (start + k) % n)
+                .find(|&i| victim.items[i].stun_ms == 0)
+                .unwrap_or(start)
+        }
+    };
+
+    let item = &mut victim.items[idx];
+    // Stacks pile onto that item's clock rather than refreshing it, so a
+    // second stun landing on the same item is worth something.
+    item.stun_ms = (item.stun_ms + duration).min(STUN_CAP_MS);
+    Some((idx, item.stun_ms))
+}
+
 fn activate(
     p: &mut Combatant,
     e: &mut Combatant,
@@ -3898,15 +4021,7 @@ fn activate(
         if due {
             for kind in [CurseKind::Stun, CurseKind::Misfire] {
                 let victim = pick(p, e, side.other());
-                let resist = victim.curse_resist;
-                let ms = victim.curses.apply(kind, resist);
-                if ms > 0 {
-                    let stacks = victim.curses.stacks_of(kind);
-                    log.push(LogEntry {
-                        at_ms: t,
-                        event: Event::Cursed { on: side.other(), kind, duration_ms: ms, stacks },
-                    });
-                }
+                land_curse(victim, side.other(), kind, StunAim::Unaimed, t, log);
             }
         }
     }
@@ -4026,31 +4141,16 @@ fn apply(
                     CurseKind::Misfire => CurseKind::Stun,
                 };
                 let victim = pick(p, e, side.other());
-                let resist = victim.curse_resist;
-                let ms = victim.curses.apply(other, resist);
-                if ms > 0 {
-                    let stacks = victim.curses.stacks_of(other);
-                    log.push(LogEntry {
-                        at_ms: t,
-                        event: Event::Cursed {
-                            on: side.other(),
-                            kind: other,
-                            duration_ms: ms,
-                            stacks,
-                        },
-                    });
-                }
+                land_curse(victim, side.other(), other, StunAim::Unaimed, t, log);
             }
             let on = resolve(target);
             let c = pick(p, e, on);
-            let duration = c.curses.apply(kind, c.curse_resist);
-            if duration > 0 {
-                let stacks = c.curses.stacks_of(kind);
-                log.push(LogEntry {
-                    at_ms: t,
-                    event: Event::Cursed { on, kind, duration_ms: duration, stacks },
-                });
-            }
+            land_curse(c, on, kind, StunAim::Unaimed, t, log);
+        }
+        Action::StunStrongest { target } => {
+            let on = resolve(target);
+            let c = pick(p, e, on);
+            land_curse(c, on, CurseKind::Stun, StunAim::Strongest, t, log);
         }
         Action::Damage { amount, kind, target } => {
             let on = resolve(target);
@@ -4396,4 +4496,103 @@ pub const CREVICE: &[MonsterSpec] = &[];
 /// An alternate by name.
 pub fn alternate(name: &str) -> Option<&'static MonsterSpec> {
     ALTERNATES.iter().find(|m| m.name == name)
+}
+
+
+#[cfg(test)]
+mod stun_aim_tests {
+    use super::*;
+    use crate::stats::Stats;
+
+    /// A fighter carrying items that differ only in how good they are.
+    fn victim(ratings: &[i32]) -> Combatant {
+        let mut c = Combatant::player(Stats::ZERO, &[]);
+        c.items = ratings
+            .iter()
+            .enumerate()
+            .map(|(i, &rating)| RunningItem {
+                name: format!("item {i}"),
+                rating,
+                cooldown_ms: 1000,
+                ..Default::default()
+            })
+            .collect();
+        c
+    }
+
+    #[test]
+    fn an_aimed_stun_always_takes_the_best_item() {
+        let mut c = victim(&[10, 90, 40, 5]);
+        for t in [0, 700, 1500, 2600] {
+            let (idx, _) = land_stun(&mut c, StunAim::Strongest, t).expect("a stun landed");
+            assert_eq!(idx, 1, "aimed at t={t} and missed the 90-rated item");
+        }
+    }
+
+    #[test]
+    fn an_unaimed_stun_spreads_across_the_kit() {
+        let mut c = victim(&[10, 90, 40, 5]);
+        let mut seen: Vec<usize> = Vec::new();
+        // Four stuns, and nothing is stopped for long enough to still be
+        // stopped when the next one lands.
+        for (n, t) in [0u32, 5_000, 10_000, 15_000].into_iter().enumerate() {
+            for item in &mut c.items {
+                item.stun_ms = 0;
+            }
+            let (idx, _) = land_stun(&mut c, StunAim::Unaimed, t).expect("a stun landed");
+            assert!(idx < 4, "picked item {idx} of four on stun {n}");
+            if !seen.contains(&idx) {
+                seen.push(idx);
+            }
+        }
+        assert!(
+            seen.len() >= 2,
+            "four unaimed stuns all landed on item {seen:?} - it is meant to pick without \
+             warning, not to be predictable"
+        );
+    }
+
+    #[test]
+    fn an_unaimed_stun_prefers_an_item_that_is_still_running() {
+        let mut c = victim(&[10, 20, 30]);
+        c.items[0].stun_ms = 900;
+        c.items[2].stun_ms = 900;
+        // Only item 1 is live, so wherever the hash points it has to end there
+        // - burying an already-stopped item is the one thing this must not do.
+        for t in [0, 350, 900, 1250, 4000] {
+            let (idx, _) = land_stun(&mut c, StunAim::Unaimed, t).expect("a stun landed");
+            assert_eq!(idx, 1, "at t={t} it stunned something already stopped");
+            c.items[1].stun_ms = 0;
+        }
+    }
+
+    #[test]
+    fn stacking_piles_onto_one_clock_and_stops_at_the_cap() {
+        let mut c = victim(&[10, 90]);
+        let base = CurseKind::Stun.landing_ms(0);
+        let (_, first) = land_stun(&mut c, StunAim::Strongest, 0).unwrap();
+        assert_eq!(first, base);
+        let (_, second) = land_stun(&mut c, StunAim::Strongest, 100).unwrap();
+        assert_eq!(second, base * 2, "a second stun on the same item has to add to the clock");
+        for t in 0..20 {
+            land_stun(&mut c, StunAim::Strongest, t * 100);
+        }
+        assert_eq!(c.items[1].stun_ms, STUN_CAP_MS, "a stun chain is not a lock");
+        assert_eq!(c.items[0].stun_ms, 0, "the aimed stun never wandered off its target");
+    }
+
+    #[test]
+    fn a_fully_resistant_target_is_never_stunned() {
+        let mut c = victim(&[10, 90]);
+        c.curse_resist = 100;
+        assert!(land_stun(&mut c, StunAim::Strongest, 0).is_none());
+        assert!(land_stun(&mut c, StunAim::Unaimed, 0).is_none());
+        assert!(c.items.iter().all(|i| i.stun_ms == 0));
+    }
+
+    #[test]
+    fn a_fighter_with_no_items_cannot_be_stunned() {
+        let mut c = victim(&[]);
+        assert!(land_stun(&mut c, StunAim::Unaimed, 0).is_none());
+    }
 }

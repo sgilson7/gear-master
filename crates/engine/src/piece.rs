@@ -397,6 +397,12 @@ impl Resource {
 #[derive(Copy, Clone, Debug)]
 pub enum Action {
     Curse { kind: CurseKind, target: Target },
+    /// A stun that picks its target: the best item the victim owns, by the
+    /// same effectiveness rating the shop prices gear with.
+    ///
+    /// A plain curse of stun takes whatever item it catches, which is most of
+    /// what keeps it fair. Choosing costs more than the stun does.
+    StunStrongest { target: Target },
     Damage { amount: i32, kind: crate::combat::DamageType, target: Target },
     MindDamage { amount: i32, target: Target },
     GainMana(i32),
@@ -430,6 +436,9 @@ impl Action {
         match self {
             Action::Curse { kind, target } => {
                 format!("apply curse of {} to {}", kind.name(), target.name())
+            }
+            Action::StunStrongest { target } => {
+                format!("stun the strongest item {} has", target.name())
             }
             Action::Damage { amount, kind, target } => {
                 format!("deal {} {} to {}", amount, kind.name(), target.name())
@@ -7954,6 +7963,30 @@ pub static CATALOG: &[PieceDef] = &[
         quest: None,
         power_bonus: 0,
         price: 999,
+    },
+    // The aimed stun. Shares Cometfall's footprint and kind on purpose: the
+    // two are the same spell with and without a choice of target, so the
+    // difficulty stepper can swap one for the other.
+    PieceDef {
+        name: "Kingsbane",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Spell,
+        cells: &[(0, 0), (1, 0), (2, 0), (1, 1)],
+        base: Stats { magic_damage: 18, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Pay and you choose; run dry and you take whatever it catches, which
+        // is what a curse of stun does everywhere else in the game.
+        triggers: &[Trigger::SpendMana {
+            cost: 9,
+            on_success: Action::StunStrongest { target: Target::Enemy },
+            on_failure: Action::Curse { kind: CurseKind::Stun, target: Target::Enemy },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 34,
     },
 ];
 
