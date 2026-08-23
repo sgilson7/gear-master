@@ -29,7 +29,7 @@ content once the gaps are closed.
 
 ---
 
-## THE CASINO — partial (walk-away branch built)
+## THE CASINO — built
 
 **Trigger.** The first time you kill something in **under 2 seconds**, while
 you are on **rungs 1–10**. Once per run. If it never happens, the casino never
@@ -45,8 +45,16 @@ happening, and nobody is stopping it.
 
 ### Branch A — step in
 
-You fight **both** creatures at once. This is the feature that does not exist
-yet; see *Multi-enemy fights*.
+You fight **both** creatures at once: **Bone Archer and Frost Wisp**.
+
+Who is at the table is calibrated, not chosen. A complete auto-built board
+beats this pair and loses to the next one up, and a test pins it — because the
+chip is the key to the whole VIP event, so a pair nobody can beat would
+quietly delete a later event rather than making an early one exciting.
+
+The door can open as early as rung one, where a starter board loses badly, and
+that is the tension worth having: step in early and you will probably lose,
+wait and your build is better, but the door shuts at rung nine.
 
 - **Win** → thrown out of the casino, and you keep the **Platinum Chip**.
   The chip is a component, not a token: it sits in your tray taking up space,
@@ -162,7 +170,7 @@ In dependency order. Each one ends with something playable.
 | 2 | **Event triggers and rewards** — `Run::best_fight_ms`, conditional events, `Requirement::Holding`, `Outcome::Give` | 3, 7 | **built** |
 | 3 | **The casino, walk-away branch** — event fires, scene, Gold Chip | — | **built** |
 | 4 | **Multi-enemy fights** — engine party, then the battle screen | 5, 7 | **built** |
-| 5 | **The casino, step-in branch** — 2-at-once, Platinum Chip, loss costs no life | 7 | small once 4 lands |
+| 5 | **The casino, step-in branch** — 2-at-once, Platinum Chip, loss costs no life | 7 | **built** |
 | 6 | **Variable slot height** — `SLOT_H` const becomes a per-run figure | 7 | medium |
 | 7 | **The VIP area** — both branches, the five-piece shop, Immense Guilt, Sprocketman's Gratitude | — | medium |
 
@@ -241,3 +249,22 @@ Layout, for whoever adds a three-creature fight later:
 
 `GEARMASTER_BRAWL=<n>` starts a fight against n creatures, which is the only
 way to see one until milestone 5.
+
+
+---
+
+## A note on measuring difficulty
+
+Recorded because it has now cost two milestones' worth of wrong answers.
+
+Hand-seating a list of piece names to make a test build **does not produce the
+build you meant**. Pieces land at the first free cell scanning row-major, join
+their nearest core, and come out as items that assemble into something else
+entirely. Calibrating the casino table against a hand-picked "sharp" list said
+nothing on the ladder could be beaten — the list had assembled into a six-dps
+weapon, while a two-piece "starter" list managed thirty.
+
+`Run::apply_preset` is the auto-builder the game itself uses and produces a
+board that actually assembles. Anything measuring difficulty should start
+there, or from `pack_dense` in the packing tests, and never from a hand-written
+list of names.
