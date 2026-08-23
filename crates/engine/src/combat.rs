@@ -240,6 +240,19 @@ pub fn stepped_component(name: &str, step: i32) -> &'static str {
     let mut family: Vec<&'static crate::piece::PieceDef> = CATALOG
         .iter()
         .filter(|d| d.kind == here.kind && d.slot == here.slot && d.cells == here.cells)
+        // Never step into gear that belongs to somebody.
+        //
+        // A trophy is off the scale for its slot by design, and stepping does
+        // not know that: it sorts a footprint family by rating and takes the
+        // next one up. On Hard that handed the Padded Base's family Francis's
+        // coat - 2100 health - so the fourth creature on the ladder fought
+        // with 2400 health instead of 475, and forty-five others were doing
+        // the same thing. It was one piece until ten trophies were added, and
+        // then it was everywhere.
+        .filter(|d| !crate::piece::is_boss_only(d.name))
+        // Quest rewards are earned, not stepped into, for the same reason
+        // they are kept off the shelves.
+        .filter(|d| !crate::piece::is_quest_reward(d.name))
         .collect();
     family.sort_by_key(|d| crate::rating::piece_rating(d));
     let Some(at) = family.iter().position(|d| d.name == here.name) else { return here.name };

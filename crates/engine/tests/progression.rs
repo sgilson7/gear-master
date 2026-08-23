@@ -866,6 +866,43 @@ fn boss_gear_belongs_to_exactly_one_monster() {
     }
 }
 
+/// The same, at every difficulty - which is the version that matters.
+///
+/// This test used to read the *written* gear list, and a written list is not
+/// what a creature fights in: `stepped_component` swaps each piece for a
+/// better one of the same footprint, and it did not know to leave the
+/// trophies alone. On Hard it handed forty-six creatures gear belonging to
+/// somebody else, including Francis's coat and its 2100 health, so the fourth
+/// rung on the ladder fought with 2400 health instead of 475. Easy and Medium
+/// step down and sideways, which is why nothing showed until someone played
+/// Hard.
+#[test]
+fn stepping_never_hands_out_somebody_elses_gear() {
+    use gearmaster_engine::combat::Difficulty;
+    use gearmaster_engine::piece::{is_boss_only, is_quest_reward};
+
+    let mut wrong = Vec::new();
+    for d in [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard, Difficulty::Insane] {
+        for m in LADDER {
+            let written: Vec<&str> = m.gear.iter().map(|(n, ..)| *n).collect();
+            for (name, ..) in m.gear_at(d) {
+                if written.contains(&name) {
+                    continue; // authored on purpose; the test above owns that
+                }
+                if is_boss_only(name) || is_quest_reward(name) {
+                    wrong.push(format!("{:?}: {} -> {}", d, m.name, name));
+                }
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} creature(s) stepped into gear that is not theirs: {:?}",
+        wrong.len(),
+        &wrong[..wrong.len().min(6)]
+    );
+}
+
 /// The summit has to actually be a summit: every one of the new creatures
 /// stands above the boss that used to be the top of the ladder.
 #[test]
