@@ -171,6 +171,11 @@ pub struct Run {
     pub classes: Vec<&'static crate::class::ClassDef>,
     /// The class the third fountain doubled, by name. `None` until then.
     pub doubled: Option<&'static str>,
+    /// Standing in for this rung's own creature, because an event put it
+    /// there. Cleared when the rung is left.
+    pub substitute: Option<&'static MonsterSpec>,
+    /// Events already answered, by id, so one is never asked twice.
+    pub answered: Vec<&'static str>,
     /// A scene the theme owes you for the fight just settled, waiting to be
     /// read. Cleared once it has been.
     pub pending_scene: Option<&'static [&'static str]>,
@@ -253,6 +258,8 @@ impl Run {
             lives: ROGUE_LIVES,
             last_settlement: None,
             doubled: None,
+            substitute: None,
+            answered: Vec::new(),
             best_rung: 0,
             settled: false,
             rng,
@@ -310,7 +317,89 @@ impl Run {
 
     /// The monster you are facing now.
     pub fn monster(&self) -> &'static MonsterSpec {
+        // An event can put something else in front of you. It stands in for
+        // the rung rather than adding one, so the road stays the same length
+        // whichever way you answered.
+        if let Some(m) = self.substitute {
+            return m;
+        }
         &LADDER[self.rung.min(LADDER.len() - 1)]
+    }
+
+    // ------------------------------------------------------------ events
+
+    /// The event standing in front of this rung, if there is one and it has
+    /// not been answered.
+    pub fn pending_event(&self) -> Option<&'static crate::event::LadderEvent> {
+        if self.phase != Phase::Loadout || self.at_fountain() || self.at_doubling_fountain() {
+            return None;
+        }
+        crate::event::at(self.rung).filter(|e| !self.answered.contains(&e.id))
+    }
+
+    /// Loose components that would satisfy `req`, as ids.
+    ///
+    /// Loose only: what you are wearing is not on the table. Handing something
+    /// over has to cost you something you could have used.
+    pub fn offerings(&self, req: crate::event::Requirement) -> Vec<PieceId> {
+        use crate::event::Requirement;
+        if req == Requirement::None {
+            return Vec::new();
+        }
+        self.inventory()
+            .into_iter()
+            .filter(|&id| {
+                let cells: Vec<(u8, u8)> = self
+                    .registry
+                    .shape(id)
+                    .cells()
+                    .iter()
+                    .map(|&(x, y)| (x as u8, y as u8))
+                    .collect();
+                req.met_by_shape(&cells)
+            })
+            .collect()
+    }
+
+    /// Can this choice be taken right now?
+    pub fn choice_open(&self, c: &crate::event::Choice) -> bool {
+        use crate::event::Requirement;
+        c.requires == Requirement::None || !self.offerings(c.requires).is_empty()
+    }
+
+    /// Answer the event in front of you.
+    ///
+    /// Returns what it cost, if anything - the component handed over, by name -
+    /// so the interface can say what just happened. Refuses a choice whose
+    /// requirement is not met, so the offer cannot be widened by asking
+    /// differently.
+    pub fn take_choice(&mut self, c: &crate::event::Choice) -> Option<&'static str> {
+        use crate::event::Outcome as ChoiceOutcome;
+        let Some(ev) = self.pending_event() else { return None };
+        if !self.choice_open(c) {
+            return None;
+        }
+        self.answered.push(ev.id);
+        let mut gave = None;
+        match c.outcome {
+            ChoiceOutcome::FightAsWritten => {}
+            ChoiceOutcome::FightInstead(name) => {
+                self.substitute = crate::combat::alternate(name);
+            }
+            ChoiceOutcome::BuyOff { times } => {
+                if let Some(&id) = self.offerings(c.requires).first() {
+                    gave = Some(self.registry.def(id).name);
+                    self.owned.retain(|&o| o != id);
+                }
+                self.gold += LADDER[self.rung.min(LADDER.len() - 1)].bounty * times;
+                // Paid off rather than beaten: the rung is behind you, but it
+                // was never fought, so it is not a win.
+                self.rung += 1;
+                self.best_rung = self.best_rung.max(self.rung);
+                self.shop.restock(&mut self.rng);
+            }
+        }
+        gave
     }
 
     /// True once the ladder has been cleared.
@@ -452,6 +541,8 @@ impl Run {
                 }
                 self.rung += 1;
                 self.best_rung = self.best_rung.max(self.rung);
+                // Whatever stood in for that rung is done standing in.
+                self.substitute = None;
             }
             // A draw or a defeat both mean the thing is still standing, so
             // neither advances the ladder.
@@ -789,6 +880,20 @@ impl Run {
     /// not count against it.
     pub fn tray_full(&self) -> bool {
         self.inventory().len() >= INVENTORY_CAP
+    }
+
+    /// How many fights away the next named creature is, and which kind.
+    ///
+    /// Whichever is closer. A boss two rungs off matters more than a mini-boss
+    /// five off, and the player should be able to see one coming rather than
+    /// walking into fifteen items of gear having spent their gold.
+    pub fn next_named(&self) -> Option<(usize, crate::combat::Rank, &'static str)> {
+        LADDER
+            .iter()
+            .enumerate()
+            .skip(self.rung)
+            .find(|(_, m)| m.rank != crate::combat::Rank::Ordinary)
+            .map(|(i, m)| (i - self.rung, m.rank, m.name))
     }
 
     /// Is the third fountain standing here, and still owed?

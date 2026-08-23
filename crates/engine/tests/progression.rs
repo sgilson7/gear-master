@@ -854,9 +854,12 @@ fn boss_gear_belongs_to_exactly_one_monster() {
     // dropped rather than worn on purpose: each named board is packed to a
     // rating aimed at its rung, and hanging an off-the-scale piece on one
     // would undo that tuning to say something the drop already says.
+    // Alternates count: an event can put one in front of you, so its trophy
+    // is as obtainable as any other.
     for name in gearmaster_engine::piece::BOSS_ONLY {
         let owners: Vec<&str> = LADDER
             .iter()
+            .chain(gearmaster_engine::combat::ALTERNATES.iter())
             .filter(|m| {
                 m.gear.iter().any(|(n, ..)| n == name) || m.drops.contains(name)
             })
@@ -1344,4 +1347,161 @@ fn a_built_items_name_is_as_long_as_its_badge() {
     // And the ladder actually produces more than one tier, or the check above
     // is only testing commons.
     assert!(seen[0] > 0 && seen.iter().skip(1).sum::<usize>() > 0, "tiers seen: {:?}", seen);
+}
+
+
+// ------------------------------------------------------------------ events
+
+/// An alternate is a real fight: it assembles, it has a rank, and it leaves
+/// something behind. It is only "alternate" in that no amount of climbing
+/// reaches it - an event has to put it there.
+#[test]
+fn every_alternate_is_a_finished_creature() {
+    use gearmaster_engine::combat::{Rank, ALTERNATES};
+    use gearmaster_engine::piece::SlotKind;
+
+    assert!(!ALTERNATES.is_empty());
+    for m in ALTERNATES {
+        assert!(m.unassembled().is_empty(), "{}: {:?}", m.name, m.unassembled());
+        assert!(m.health > 0 && m.bounty > 0, "{} is not finished", m.name);
+        assert!(!m.drops.is_empty(), "{} leaves nothing behind", m.name);
+        assert!(
+            !LADDER.iter().any(|l| l.name == m.name),
+            "{} is on the ladder as well, which makes it reachable twice",
+            m.name
+        );
+        // An alternate is held to a boss's weight of gear, but not slot by
+        // slot. The Dreaming Idiot deals nothing but mind damage and every
+        // weapon recipe in the game wants something that hits, so there is
+        // exactly one weapon in the catalogue it can carry. One voice is the
+        // right answer for that creature, not a third orb to make a number up.
+        if m.rank == Rank::Boss {
+            let (reg, lo) = m.loadout();
+            let mut total = 0;
+            for slot in SlotKind::ALL {
+                let n = lo.report(&reg, slot).items.iter().filter(|i| i.assembled).count();
+                assert!(n >= 1, "{} has nothing in the {}", m.name, slot.name());
+                total += n;
+            }
+            assert!(total >= 12, "{} carries only {} items", m.name, total);
+        }
+    }
+}
+
+/// The Dreaming Idiot does no harm you can heal and never swings: mind damage
+/// only, armoured to open, and it grows back what it loses.
+#[test]
+fn the_dreaming_idiot_only_does_the_one_thing() {
+    use gearmaster_engine::combat::alternate;
+    let m = alternate("The Dreaming Idiot").expect("it exists");
+    let (stats, profiles) = m.outfit();
+    let phys: i32 = profiles.iter().map(|p| p.stats.physical_damage).sum();
+    let magic: i32 = profiles.iter().map(|p| p.stats.magic_damage).sum();
+    let mind: i32 = profiles.iter().map(|p| p.stats.mind).sum();
+    assert_eq!(stats.strength, 0, "it never swings");
+    assert_eq!(phys, 0, "no physical damage");
+    assert_eq!(magic, 0, "no magic damage");
+    assert!(mind > 0, "but it does get into your head");
+    assert!(stats.nature > 0 || profiles.iter().any(|p| p.stats.nature > 0), "and it grows");
+}
+
+/// The fork at the shrine is a choice, not a detour: taking the alternate
+/// leaves the road the same length.
+#[test]
+fn taking_an_alternate_does_not_lengthen_the_road() {
+    use gearmaster_engine::event;
+
+    let mut run = Run::with_all_pieces();
+    run.skip_to(9);
+    let ev = run.pending_event().expect("the shrine fork stands here");
+    assert_eq!(ev.id, "the-shrine-fork");
+    assert_eq!(run.monster().name, "Warded Idol");
+
+    let round_the_back = ev.choices.iter().find(|c| c.label.contains("ROUND")).unwrap();
+    run.take_choice(round_the_back);
+    assert_eq!(run.monster().name, "The Dreaming Idiot", "it stands in for the rung");
+    assert_eq!(run.rung, 9, "and the rung has not moved");
+    assert!(run.pending_event().is_none(), "and it is not asked twice");
+    let _ = event::EVENTS;
+}
+
+/// The other kind of event: hand something over, skip the fight, take double.
+#[test]
+fn buying_off_a_rung_costs_a_component_and_pays_twice() {
+    let mut run = Run::with_all_pieces();
+    run.skip_to(2);
+    let ev = run.pending_event().expect("the offer stands here");
+    assert_eq!(ev.expects, run.monster().name);
+
+    let deal = ev.choices.iter().find(|c| c.label.contains("DEAL")).unwrap();
+    assert!(run.choice_open(deal), "with the whole catalogue owned there is a 2x2");
+    let bounty = run.monster().bounty;
+    let gold = run.gold;
+    let held = run.inventory().len();
+    let wins_before = run.wins;
+
+    let gave = run.take_choice(deal).expect("it takes something");
+    assert_eq!(run.gold, gold + bounty * 2, "twice the bounty");
+    assert_eq!(run.inventory().len(), held - 1, "and one component lighter");
+    assert_eq!(run.rung, 3, "the rung is behind you");
+    assert_eq!(run.wins, wins_before, "but it was never a win");
+    // What it took really was square.
+    let d = gearmaster_engine::piece::CATALOG.iter().find(|c| c.name == gave).unwrap();
+    assert_eq!(d.cells.len(), 4, "{} is not a 2x2", gave);
+}
+
+/// An empty tray cannot take the deal, and the door is still open.
+#[test]
+fn an_empty_tray_can_still_get_past_the_offer() {
+    let mut run = Run::new();
+    run.skip_to(2);
+    let ev = run.pending_event().expect("the offer stands here");
+    let deal = ev.choices.iter().find(|c| c.label.contains("DEAL")).unwrap();
+    assert!(!run.choice_open(deal), "nothing square to give");
+    assert!(run.take_choice(deal).is_none(), "and it cannot be taken anyway");
+    assert!(run.pending_event().is_some(), "so the event is still standing");
+
+    let fight = ev.choices.iter().find(|c| c.label.contains("FIGHT")).unwrap();
+    assert!(run.choice_open(fight));
+    run.take_choice(fight);
+    assert!(run.pending_event().is_none());
+    assert_eq!(run.monster().name, ev.expects, "and the rung is as written");
+}
+
+
+/// You should be able to see a named fight coming rather than walking into
+/// fifteen items of gear having just spent everything.
+#[test]
+fn the_next_named_fight_is_visible_from_a_distance() {
+    use gearmaster_engine::combat::Rank;
+    let mut run = Run::new();
+
+    run.skip_to(0);
+    let (away, rank, name) = run.next_named().expect("there is one ahead");
+    assert_eq!(name, "Whisperling");
+    assert_eq!(rank, Rank::Mini);
+    assert_eq!(away, 8, "eight fights from rung one to rung nine");
+
+    // Standing on one, it is zero away and it is that one.
+    run.skip_to(8);
+    assert_eq!(run.next_named().map(|(a, _, n)| (a, n)), Some((0, "Whisperling")));
+
+    // Past the last of them there is nothing left to warn about.
+    run.skip_to(LADDER.len() - 1);
+    assert!(run.next_named().is_none() || run.next_named().unwrap().0 == 0);
+
+    // And it always reports the *closer* of the two kinds.
+    for rung in 0..LADDER.len() {
+        let mut r = Run::new();
+        r.skip_to(rung);
+        if let Some((away, _, name)) = r.next_named() {
+            let expect = LADDER
+                .iter()
+                .skip(rung)
+                .position(|m| m.rank != Rank::Ordinary)
+                .expect("there was one");
+            assert_eq!(away, expect, "at rung {}", rung + 1);
+            assert_eq!(name, LADDER[rung + expect].name);
+        }
+    }
 }

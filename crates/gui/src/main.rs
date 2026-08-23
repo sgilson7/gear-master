@@ -599,6 +599,31 @@ fn draw_monster(x: f32, y: f32, sz: f32, sprite: MonsterSprite, c: Color, dark: 
             draw_circle(fx(0.44), fy(0.32), sz * 0.035, dark);
             draw_circle(fx(0.56), fy(0.32), sz * 0.035, dark);
         }
+        MonsterSprite::Idiot => {
+            // Armoured the way a seed is armoured: a closed husk with
+            // something coiled inside it, and the shut eye that gives it the
+            // name. It is asleep. It is not asleep about you.
+            draw_poly(fx(0.5), fy(0.54), 8, sz * 0.34, 22.5, c);
+            draw_poly_lines(fx(0.5), fy(0.54), 8, sz * 0.42, 22.5, t, c);
+            // the coil
+            for k in 0..3 {
+                let rr = sz * (0.10 + k as f32 * 0.07);
+                draw_circle_lines(fx(0.5), fy(0.54), rr, t * 0.7, dark);
+            }
+            // the shut eye, lying across it
+            draw_line(fx(0.34), fy(0.50), fx(0.66), fy(0.50), t * 1.4, dark);
+            draw_triangle(
+                Vec2::new(fx(0.40), fy(0.50)),
+                Vec2::new(fx(0.60), fy(0.50)),
+                Vec2::new(fx(0.50), fy(0.44)),
+                dark,
+            );
+            // roots, which is how it gets it back
+            for k in 0..4 {
+                let ox = 0.26 + k as f32 * 0.16;
+                draw_line(fx(ox), fy(0.86), fx(0.5), fy(0.78), t * 0.8, c);
+            }
+        }
         MonsterSprite::Curator => {
             // A display case with something still in it, and the small figure
             // beside it holding the watch. He collects planes; the exhibits
@@ -4799,6 +4824,86 @@ const GLOSSARY: &[(&str, &str)] = &[
 /// What the fountain will hand over, as cards you choose between.
 ///
 /// Returns the class chosen, if one was.
+/// An event standing in front of a rung: some prose and a row of choices.
+///
+/// One screen for all of them. An event is data - `EVENTS` in the engine - so
+/// adding one is adding an entry there, and this draws whatever is in it.
+/// Returns the choice clicked.
+fn render_event(
+    run: &Run,
+    ev: &'static gearmaster_engine::event::LadderEvent,
+    mx: f32,
+    my: f32,
+) -> Option<&'static gearmaster_engine::event::Choice> {
+    let pad = 70.0;
+    let h = 520.0;
+    let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, LOGICAL_W - 2.0 * pad, h);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
+    ui_text(&words::retell(ev.title), r.x + 28.0, r.y + 42.0, 24.0, col_gold());
+
+    let mut y = r.y + 78.0;
+    for para in ev.prose {
+        for l in wrap_px(&words::retell(para), r.w - 56.0, 15.0) {
+            ui_text(&l, r.x + 28.0, y, 15.0, Color::from_rgba(198, 200, 218, 255));
+            y += 20.0;
+        }
+        y += 10.0;
+    }
+
+    let n = ev.choices.len().max(1);
+    let gap = 18.0;
+    let cw = (r.w - 56.0 - (n - 1) as f32 * gap) / n as f32;
+    let top = r.y + r.h - 150.0;
+    let mut chosen = None;
+    for (i, c) in ev.choices.iter().enumerate() {
+        let cell = Rect::new(r.x + 28.0 + i as f32 * (cw + gap), top, cw, 120.0);
+        let open = run.choice_open(c);
+        let hot = open && cell.contains(Vec2::new(mx, my));
+        draw_rectangle(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { Color::from_rgba(46, 42, 30, 255) } else { Color::from_rgba(26, 26, 38, 255) },
+        );
+        draw_rectangle_lines(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { 2.5 } else { 1.5 },
+            if hot {
+                col_gold()
+            } else if open {
+                Color::from_rgba(64, 64, 88, 255)
+            } else {
+                Color::from_rgba(52, 40, 40, 255)
+            },
+        );
+        let mut cy = cell.y + 28.0;
+        ui_text(
+            &words::retell(c.label),
+            cell.x + 14.0,
+            cy,
+            18.0,
+            if open { col_gold() } else { col_dim() },
+        );
+        cy += 22.0;
+        // A shut door always says why it is shut.
+        let text = if open { c.blurb } else { c.unmet };
+        for l in wrap_px(&words::retell(text), cell.w - 28.0, 13.0) {
+            ui_text(&l, cell.x + 14.0, cy, 13.0, if open { col_ok() } else { col_bad() });
+            cy += 16.0;
+        }
+        if open && is_mouse_button_pressed(MouseButton::Left) && cell.contains(Vec2::new(mx, my)) {
+            chosen = Some(c);
+        }
+    }
+    chosen
+}
+
 /// The third fountain: it takes a title you already hold and doubles it.
 ///
 /// Deliberately not the same screen as the other two. Those hand over
@@ -6823,6 +6928,34 @@ fn render_panel(
         col_dim(),
     );
     y += 16.0;
+    // How far off the next named fight is, and which kind. A boss carries
+    // fifteen items of gear and a mini-boss ten; walking into one having just
+    // spent everything is the kind of surprise that reads as unfairness rather
+    // than as difficulty.
+    if let Some((away, rank, name)) = run.next_named() {
+        use gearmaster_engine::combat::Rank;
+        let what = match rank {
+            Rank::Boss => words::word("boss", "BOSS"),
+            _ => words::word("miniboss", "MINI-BOSS"),
+        };
+        let line = match away {
+            0 => format!("{} - {}", what, words::monster(name)),
+            1 => format!("{} next fight: {}", what, words::monster(name)),
+            n => format!("{} in {} fights: {}", what, n, words::monster(name)),
+        };
+        let col = match (rank, away) {
+            (Rank::Boss, 0..=1) => col_bad(),
+            (_, 0..=1) => col_gold(),
+            (Rank::Boss, _) => Color::from_rgba(214, 150, 130, 255),
+            _ => col_dim(),
+        };
+        // Stops short of the silhouette, which starts at PANEL_W - 78 and
+        // hangs down over these lines.
+        let room = PANEL_W - 108.0;
+        let size = fitting_size(&line, room, &[13.0, 12.0, 11.0, 10.0]);
+        draw_capped(&line, x + 20.0, y, room, size, col, 1);
+        y += 16.0;
+    }
     // What the theme has to say about this one - why it is in your way, or
     // why it is not. The superbosses at the top are marked here as optional
     // rather than as the plot.
@@ -7405,6 +7538,35 @@ async fn main() {
             let go = render_scene(scene, mx, my);
             if is_mouse_button_pressed(MouseButton::Left) && go.contains(Vec2::new(mx, my)) {
                 run.pending_scene = None;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
+        }
+
+        // An event sits over everything while it is being answered, the same
+        // way a fountain does.
+        if let Some(ev) = run.pending_event() {
+            if let Some(c) = render_event(&run, ev, mx, my) {
+                let gave = run.take_choice(c);
+                message = match gave {
+                    Some(name) => format!(
+                        "You hand over the {}. It counts it out twice.",
+                        words::piece(name)
+                    ),
+                    None => format!("{}.", words::retell(c.label)),
+                };
             }
             #[cfg(not(target_arch = "wasm32"))]
             {

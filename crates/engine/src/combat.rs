@@ -123,6 +123,7 @@ pub enum MonsterSprite {
     Cantor,
     Ember,
     Curator,
+    Idiot,
     Rimefather,
     Slag,
     Obsidian,
@@ -4007,4 +4008,80 @@ fn apply(
             log.push(LogEntry { at_ms: t, event: Event::Hastened { side, item: name, by_ms: ms } });
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Alternates: creatures that are not on the ladder.
+//
+// An alternate stands in for a rung rather than adding one, so choosing to
+// fight it does not lengthen the road. The ladder stays fifty long whichever
+// way you go.
+
+/// Creatures an event can put in front of you instead of the rung's own.
+pub const ALTERNATES: &[MonsterSpec] = &[
+    // The thing Nibbalonius will one day swallow, met early and still whole.
+    // Armoured to start, regrows what it loses, and does no harm you can heal:
+    // every point it takes off you it takes off your maximum.
+    MonsterSpec {
+        name: "The Dreaming Idiot",
+        health: 520,
+        strength: 0,
+        regen: 2,
+        mind_resist: 40,
+        physical_resist: 22,
+        magic_resist: 22,
+        curse_resist: 45,
+        attacks: &[],
+        gear: &[
+            ("Covenant Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Warded Plating", SlotKind::Helmet, 3, 0, 0),
+            ("Covenant Frame", SlotKind::Helmet, 0, 2, 0),
+            ("Bulwark Plating", SlotKind::Helmet, 3, 2, 0),
+            ("Covenant Frame", SlotKind::Helmet, 0, 4, 0),
+            ("Braced Plating", SlotKind::Helmet, 3, 4, 0),
+            ("Hexweave Shroud", SlotKind::Chest, 0, 0, 0),
+            ("Seedbed Layer", SlotKind::Chest, 3, 0, 0),
+            ("Seedbed Layer", SlotKind::Chest, 3, 1, 0),
+            ("Deep Roots Base", SlotKind::Chest, 3, 2, 0),
+            ("Seedbed Layer", SlotKind::Chest, 0, 3, 0),
+            ("Hexweave Shroud", SlotKind::Chest, 0, 4, 0),
+            ("Seedbed Layer", SlotKind::Chest, 3, 4, 0),
+            ("Duskweave Material", SlotKind::Gloves, 0, 0, 0),
+            ("Empowering Mold", SlotKind::Gloves, 3, 0, 0),
+            ("Tithe Ring", SlotKind::Gloves, 4, 0, 0),
+            ("Duskweave Material", SlotKind::Gloves, 0, 2, 0),
+            ("Empowering Mold", SlotKind::Gloves, 3, 2, 0),
+            ("Duskweave Material", SlotKind::Gloves, 0, 4, 0),
+            ("Channeling Mold", SlotKind::Gloves, 3, 4, 0),
+            ("Ring of Tides", SlotKind::Gloves, 0, 3, 0),
+            ("Tithe Ring", SlotKind::Gloves, 2, 3, 0),
+            ("Duskweave Material", SlotKind::Greaves, 0, 0, 0),
+            ("Standing Start", SlotKind::Greaves, 3, 0, 0),
+            ("Mana Ward", SlotKind::Greaves, 2, 1, 0),
+            ("Duskweave Material", SlotKind::Greaves, 0, 2, 0),
+            ("Striding Mold", SlotKind::Greaves, 2, 3, 0),
+            ("Braced Plating", SlotKind::Greaves, 4, 2, 0),
+            ("Duskweave Material", SlotKind::Greaves, 0, 4, 0),
+            ("Striding Mold", SlotKind::Greaves, 2, 5, 0),
+            // One voice. A creature that deals nothing but mind damage has
+            // exactly one weapon in it: the orb-and-Unmaking build is the whole
+            // of what the catalogue offers that does no other kind of harm.
+            ("Grovemind Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Siphon", SlotKind::Weapon, 3, 0, 0),
+            ("Siphon", SlotKind::Weapon, 4, 0, 0),
+            ("Siphon", SlotKind::Weapon, 5, 0, 0),
+            ("Rootwork Alignment", SlotKind::Weapon, 0, 2, 0),
+        ],
+        gear_offset: 0,
+        bounty: 140,
+        sprite: MonsterSprite::Idiot,
+        rank: Rank::Boss,
+        drops: &["The Idiot's Gift"],
+        items: &[2, 2, 2, 3, 2, 2, 3, 2, 4, 3, 3, 2, 5],
+    },
+];
+
+/// An alternate by name.
+pub fn alternate(name: &str) -> Option<&'static MonsterSpec> {
+    ALTERNATES.iter().find(|m| m.name == name)
 }

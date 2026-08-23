@@ -614,6 +614,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Tetrahedron Shard", "Nibbalonius's Tetrahedron"),
         ("The Empty Crown", "The Empty Throne"),
         ("The Growing Weight", "The Growing Stone"),
+        ("The Idiot's Gift", "The Blind Idiot's Gift"),
         ("The Money Jacket", "The Money Jacket"),
         ("The Seeker's Tears", "PoopFart's Tears"),
         ("Third Eye", "Foreston Monocle"),
@@ -715,6 +716,7 @@ pub static TURTLE_DICK: Theme = Theme {
         // Your jailer. Beating him is the end of the first act.
         ("The Hollow King", "Lord Drabley Henpeck"),
         ("The Curator", "Galapagos Jim"),
+        ("The Dreaming Idiot", "The Blind Idiot God"),
         ("Salt Idol", "The Stone Keeper"),
         ("Pale Twin", "The Gamer Grandparents"),
         ("Ruin Hound", "Death-Leopard"),
@@ -771,6 +773,8 @@ pub static TURTLE_DICK: Theme = Theme {
         ("fountain-blurb", "It has read your gear. Drink what it saw in you, or one of the two you came \
                             closest to, or whatever is at the bottom of the bottle."),
         ("fountain-waiting", "THE SODA LABYRINTH IS OPEN"),
+        ("boss", "BIG ONE"),
+        ("miniboss", "NOT-SO-BIG ONE"),
         ("deep-fountain", "THE BOTTOM OF THE LABYRINTH"),
         ("deep-fountain-blurb", "Nothing new down here. It only knows how to give you more of \
                                  whatever you already are."),
@@ -1139,12 +1143,15 @@ mod tests {
     /// table is a rung that quietly keeps its old name. This catches that.
     #[test]
     fn every_themed_monster_names_a_real_one() {
-        use crate::combat::LADDER;
+        use crate::combat::{ALTERNATES, LADDER};
         for t in THEMES {
             for (canonical, themed) in t.monsters {
                 assert!(
-                    LADDER.iter().any(|m| m.name == *canonical),
-                    "{} renames {:?} -> {:?}, but no such creature is on the ladder",
+                    LADDER
+                        .iter()
+                        .chain(ALTERNATES.iter())
+                        .any(|m| m.name == *canonical),
+                    "{} renames {:?} -> {:?}, but there is no such creature",
                     t.id,
                     canonical,
                     themed

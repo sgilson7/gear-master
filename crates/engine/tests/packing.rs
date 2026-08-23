@@ -1442,6 +1442,7 @@ fn pack_locked(
     want: usize,
     seed: u64,
     target_per_item: i32,
+    allow: fn(&'static gearmaster_engine::piece::PieceDef) -> bool,
 ) -> Option<(Vec<(&'static str, u8, u8, u8)>, i32, Vec<usize>)> {
     let mut reg = PieceRegistry::new();
     let mut loadout = Loadout::new();
@@ -1455,7 +1456,29 @@ fn pack_locked(
     // nine came out rating 1954 against rung thirteen's 83, which is not
     // difficulty, it is a wall. The target comes from what the creatures
     // either side of it are wearing.
-    let pool: Vec<&(i32, Vec<&'static str>)> = cached_singles(slot).iter().collect();
+    // A creature can be a particular sort of creature. Without this the tool
+    // packs whatever rates nearest the target, which gave a thing that was
+    // supposed to only get into your head a weapon and seventeen strength.
+    //
+    // The filter runs over the *whole* candidate list, not the cached spread.
+    // Filtering the cache gave zero weapons out of five hundred: the cache is
+    // the top by rating, the top by density and the bottom, and every quiet
+    // book-and-ink weapon sits in the middle where none of those three look.
+    let owned: Vec<(i32, Vec<&'static str>)>;
+    let pool: Vec<&(i32, Vec<&'static str>)> = if is_narrowed(allow) {
+        owned = candidates(slot)
+            .into_iter()
+            .filter(|(_, names)| {
+                names.iter().all(|n| CATALOG.iter().find(|d| d.name == *n).is_some_and(allow))
+            })
+            .collect();
+        owned.iter().collect()
+    } else {
+        cached_singles(slot).iter().collect()
+    };
+    if pool.is_empty() {
+        return None;
+    }
 
     let mut rng = seed | 1;
     let mut next = || {
@@ -1534,6 +1557,27 @@ fn pack_locked(
     Some((out, rating, sizes))
 }
 
+/// Is this filter actually narrowing anything? A creature with no restriction
+/// uses the cached spread, which is the fast path and the one nearly every
+/// board takes.
+fn is_narrowed(allow: fn(&'static gearmaster_engine::piece::PieceDef) -> bool) -> bool {
+    CATALOG.iter().any(|d| !allow(d))
+}
+
+/// Where an alternate stands, so it can be targeted like anything else.
+fn alternate_rung(name: &str) -> usize {
+    use gearmaster_engine::event::{Outcome, EVENTS};
+    EVENTS
+        .iter()
+        .find(|e| {
+            e.choices
+                .iter()
+                .any(|c| matches!(c.outcome, Outcome::FightInstead(n) if n == name))
+        })
+        .map(|e| e.at)
+        .unwrap_or(0)
+}
+
 /// Print dense boards for every boss and mini-boss, ready to paste.
 #[test]
 #[ignore]
@@ -1562,8 +1606,36 @@ fn author_the_named_fights() {
         })
         .collect();
 
-    for (idx, m) in LADDER.iter().enumerate().filter(|(_, m)| m.rank != Rank::Ordinary) {
+    // Alternates too - they are named fights that happen to be off the road,
+    // and hand-placing one is how the Dreaming Idiot ended up with a board
+    // that assembled into nothing.
+    let named: Vec<(usize, &'static gearmaster_engine::combat::MonsterSpec)> = LADDER
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| m.rank != Rank::Ordinary)
+        .chain(
+            gearmaster_engine::combat::ALTERNATES
+                .iter()
+                .map(|m| (alternate_rung(m.name), m)),
+        )
+        .collect();
+    for (idx, m) in named {
         let want = m.rank.min_items_per_slot();
+        // What this one is allowed to be made of.
+        let allow: fn(&'static gearmaster_engine::piece::PieceDef) -> bool =
+            if m.name == "The Dreaming Idiot" {
+                // Mind and growth only: it never swings and it deals nothing
+                // that can be healed back.
+                |d| {
+                    d.base.strength == 0
+                        && d.base.physical_damage == 0
+                        && d.base.magic_damage == 0
+                        && d.base.rage == 0
+                        && !format!("{:?}", d.triggers).contains("Damage {")
+                }
+            } else {
+                |_| true
+            };
         // The nearest ordinary rung on either side, averaged.
         let mut near: Vec<(usize, i32)> = ordinary.clone();
         near.sort_by_key(|(i, _)| (*i as i64 - idx as i64).abs());
@@ -1578,11 +1650,20 @@ fn author_the_named_fights() {
         println!("        gear: &[");
         for slot in SlotKind::ALL {
             let mut best: Option<(Vec<(&'static str, u8, u8, u8)>, i32, Vec<usize>)> = None;
+            // As many as will go. A creature narrowed to one kind of harm may
+            // simply not have three weapons in it - the Dreaming Idiot deals
+            // nothing but mind damage, and every weapon recipe in the game
+            // wants something that hits. One voice is the right answer there,
+            // not a fourth helmet pretending to be a weapon.
+            let mut want = want;
+            while want > 1 && pack_locked(slot, want, 1, target_per_item, allow).is_none() {
+                want -= 1;
+            }
             for seed in 0..6u64 {
                 let s = seed
                     .wrapping_mul(0x9E37_79B9)
                     .wrapping_add(m.name.bytes().map(|b| b as u64).sum::<u64>());
-                if let Some(got) = pack_locked(slot, want, s, target_per_item) {
+                if let Some(got) = pack_locked(slot, want, s, target_per_item, allow) {
                     let want_slot = total_target / 5;
                     let closer = best
                         .as_ref()
@@ -1608,3 +1689,27 @@ fn author_the_named_fights() {
     }
 }
 
+
+#[test]
+#[ignore]
+fn author_the_idiots_weapon() {
+    // One voice. A creature that deals nothing but mind damage has exactly one
+    // weapon in it, and the orb-and-Unmaking build is the whole of what the
+    // catalogue offers that does no other kind of harm.
+    for names in [
+        vec!["Grovemind Orb", "Siphon", "Siphon", "Siphon", "Rootwork Alignment"],
+        vec!["Scrying Orb", "Unmaking", "Unmaking", "Verdant Alignment"],
+        vec!["Pocket Grimoire", "Hollow Ink", "Siphon"],
+    ] {
+        match pack(SlotKind::Weapon, &names) {
+            Some(p) => {
+                println!("// {:?}", names);
+                for (n, x, y, r) in &p {
+                    println!("            (\"{}\", SlotKind::Weapon, {}, {}, {}),", n, x, y, r);
+                }
+                println!("            // items: {}", p.len());
+            }
+            None => println!("// {:?} does not pack", names),
+        }
+    }
+}
