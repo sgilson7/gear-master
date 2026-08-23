@@ -1,0 +1,549 @@
+<title>The Rung 21 Wall</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+:root{
+  --ground:#EBEEED; --surface:#F6F8F7; --sunk:#E1E6E4;
+  --ink:#14181A; --ink-2:#38474A; --steel:#5A6A6D; --rule:#C9D2CF;
+  --verdigris:#1B7A64; --rust:#A63B20; --amber:#96690D;
+  --verdigris-w:#D3E6E0; --rust-w:#EEDAD3; --amber-w:#EFE4CB;
+  --shadow:rgba(20,24,26,.09);
+  --col:66ch; --wide:1080px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0F1413; --surface:#161C1B; --sunk:#0A0E0D;
+    --ink:#E5EAE8; --ink-2:#AFBEBB; --steel:#8A9C99; --rule:#2A3533;
+    --verdigris:#57C4A7; --rust:#E4795A; --amber:#D8A83C;
+    --verdigris-w:#173A33; --rust-w:#3B1D14; --amber-w:#3A2E10;
+    --shadow:rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0F1413; --surface:#161C1B; --sunk:#0A0E0D;
+  --ink:#E5EAE8; --ink-2:#AFBEBB; --steel:#8A9C99; --rule:#2A3533;
+  --verdigris:#57C4A7; --rust:#E4795A; --amber:#D8A83C;
+  --verdigris-w:#173A33; --rust-w:#3B1D14; --amber-w:#3A2E10;
+  --shadow:rgba(0,0,0,.5);
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--ground); color:var(--ink);
+  font-family:"IBM Plex Serif",Georgia,"Times New Roman",serif;
+  font-size:17px; line-height:1.65;
+  margin:0; padding:0 24px 96px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--wide); margin:0 auto}
+.col{max-width:var(--col)}
+
+h1,h2,h3,.eyebrow,.chip,.tag,th,.num,code{
+  font-family:"IBM Plex Sans Condensed","Helvetica Neue",Arial,sans-serif;
+}
+h1{
+  font-size:clamp(2.6rem,7vw,4.4rem); line-height:.98; font-weight:700;
+  letter-spacing:-.02em; margin:0; text-wrap:balance;
+}
+h2{
+  font-size:1.6rem; font-weight:700; letter-spacing:-.01em;
+  margin:0; text-wrap:balance;
+}
+h3{font-size:1.06rem; font-weight:600; margin:0; letter-spacing:.005em}
+p{margin:0}
+a{color:var(--verdigris)}
+a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--verdigris); outline-offset:3px}
+
+.eyebrow{
+  font-size:.72rem; font-weight:600; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--steel);
+}
+
+/* ---- masthead ---- */
+header.mast{
+  border-bottom:2px solid var(--ink);
+  padding:56px 0 20px; margin-bottom:40px;
+  display:flex; flex-direction:column; gap:20px;
+}
+.mast .lede{
+  font-size:1.2rem; line-height:1.55; color:var(--ink-2); max-width:60ch;
+}
+.mast .lede strong{color:var(--ink); font-weight:600}
+.runmeta{
+  display:flex; flex-wrap:wrap; gap:0 32px; row-gap:8px;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:.78rem; color:var(--steel);
+  border-top:1px solid var(--rule); padding-top:16px;
+}
+.runmeta b{color:var(--ink); font-weight:500}
+
+/* ---- generic section ---- */
+section{margin:0 0 64px}
+.shead{
+  display:flex; align-items:baseline; gap:16px;
+  border-bottom:1px solid var(--rule); padding-bottom:10px; margin-bottom:24px;
+}
+.shead .eyebrow{margin-left:auto}
+.stack{display:flex; flex-direction:column; gap:16px}
+
+/* ---- findings ---- */
+.findings{display:flex; flex-direction:column; gap:2px}
+.finding{
+  background:var(--surface); border-left:4px solid var(--steel);
+  padding:20px 24px; display:grid; gap:10px;
+  grid-template-columns:1fr auto; align-items:start;
+}
+.finding.sev-crit{border-left-color:var(--rust)}
+.finding.sev-high{border-left-color:var(--amber)}
+.finding.sev-med{border-left-color:var(--verdigris)}
+.finding h3{grid-column:1}
+.finding p{grid-column:1/-1; color:var(--ink-2); max-width:72ch}
+.finding .num{
+  grid-column:2; grid-row:1;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:1.5rem; font-weight:600; letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+.sev-crit .num{color:var(--rust)}
+.sev-high .num{color:var(--amber)}
+.sev-med .num{color:var(--verdigris)}
+.chip{
+  display:inline-block; font-size:.66rem; font-weight:600;
+  letter-spacing:.12em; text-transform:uppercase;
+  padding:3px 8px; border-radius:2px; vertical-align:.18em; margin-right:10px;
+}
+.sev-crit .chip{background:var(--rust-w); color:var(--rust)}
+.sev-high .chip{background:var(--amber-w); color:var(--amber)}
+.sev-med .chip{background:var(--verdigris-w); color:var(--verdigris)}
+
+/* ---- ladder chart ---- */
+.scroller{overflow-x:auto; padding-bottom:4px}
+.ladder{min-width:660px; font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.78rem}
+.lhead,.lrow{
+  display:grid;
+  grid-template-columns:34px minmax(150px,1fr) 62px minmax(220px,2fr) 74px 20px;
+  gap:12px; align-items:center;
+}
+.lhead{
+  color:var(--steel); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase;
+  padding-bottom:8px; border-bottom:1px solid var(--rule); margin-bottom:4px;
+}
+.lrow{padding:2px 0; border-bottom:1px solid transparent}
+.lrow:hover{background:var(--surface)}
+.lr-n{color:var(--steel); text-align:right; font-variant-numeric:tabular-nums}
+.lr-name{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.lr-hp,.lr-m{text-align:right; font-variant-numeric:tabular-nums; color:var(--ink-2)}
+.lr-o{font-weight:600; text-align:center}
+.lr-track{position:relative; height:15px}
+.axis{position:absolute; left:50%; top:0; bottom:0; width:1px; background:var(--rule)}
+.bar{position:absolute; top:2px; bottom:2px; border-radius:1px}
+.bar-pos{left:50%}
+.bar-neg{right:50%}
+.o-v .bar,.o-v.lr-o{color:var(--verdigris)} .o-v .bar{background:var(--verdigris)}
+.o-d .bar,.o-d.lr-o{color:var(--rust)} .o-d .bar{background:var(--rust)}
+.o-s .bar,.o-s.lr-o{color:var(--amber)} .o-s .bar{background:var(--amber)}
+.lrow.o-s{background:var(--amber-w)}
+.tag{
+  font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; font-weight:600;
+  padding:1px 5px; border-radius:2px; color:var(--steel); border:1px solid var(--rule);
+}
+.legend{
+  display:flex; flex-wrap:wrap; gap:8px 22px; margin-top:16px;
+  font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.74rem; color:var(--steel);
+}
+.legend span{display:flex; align-items:center; gap:7px}
+.sw{width:11px; height:11px; border-radius:2px; flex:none}
+
+/* ---- tables ---- */
+table{
+  border-collapse:collapse; width:100%; min-width:560px;
+  font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.78rem;
+  font-variant-numeric:tabular-nums;
+}
+caption{
+  text-align:left; color:var(--steel); font-size:.78rem;
+  font-family:"IBM Plex Mono",ui-monospace,monospace; padding-bottom:10px;
+}
+th{
+  text-align:right; font-size:.66rem; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--steel); font-weight:600; padding:0 12px 8px 0;
+  border-bottom:1px solid var(--rule); white-space:nowrap;
+}
+th:first-child,td:first-child{text-align:left; padding-left:0}
+td{padding:5px 12px 5px 0; text-align:right; border-bottom:1px solid var(--sunk)}
+tbody tr:hover{background:var(--surface)}
+td.pos{color:var(--verdigris)} td.neg{color:var(--rust)} td.nil{color:var(--steel)}
+td.name{white-space:nowrap}
+.note{color:var(--steel); font-size:.82rem; font-family:"IBM Plex Mono",ui-monospace,monospace; margin-top:12px}
+
+/* ---- recommendations ---- */
+ol.recs{margin:0; padding:0; list-style:none; counter-reset:rec; display:flex; flex-direction:column; gap:20px}
+ol.recs li{
+  counter-increment:rec; display:grid; grid-template-columns:auto 1fr; gap:18px;
+  padding-bottom:20px; border-bottom:1px solid var(--rule);
+}
+ol.recs li:last-child{border-bottom:0}
+ol.recs li::before{
+  content:counter(rec,decimal-leading-zero);
+  font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.8rem; font-weight:500;
+  color:var(--steel); padding-top:.28em;
+}
+ol.recs h3{margin-bottom:6px}
+ol.recs p{color:var(--ink-2); max-width:70ch}
+
+/* ---- repro ---- */
+.repro{background:var(--sunk); padding:24px 26px; display:flex; flex-direction:column; gap:14px}
+.repro code{
+  font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.76rem;
+  display:block; overflow-x:auto; white-space:pre; color:var(--ink);
+  padding:9px 12px; background:var(--surface); border-left:2px solid var(--steel);
+}
+.repro p{color:var(--ink-2); font-size:.94rem}
+
+footer{border-top:2px solid var(--ink); padding-top:18px; color:var(--steel);
+  font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.74rem}
+
+@media (max-width:640px){
+  body{font-size:16px; padding:0 16px 64px}
+  .finding{grid-template-columns:1fr}
+  .finding .num{grid-column:1; grid-row:auto}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
+</style>
+
+<div class="wrap">
+<header class="mast">
+  <span class="eyebrow">Gear Master &middot; balance run &middot; 23 August 2026</span>
+  <h1>The Rung 21 Wall</h1>
+  <p class="lede">A board packed as tightly as the solver can manage, from the whole catalogue,
+  with unlimited gold, wins every rung to 20 and then stops. <strong>Rungs 29 to 50 are
+  unreachable</strong> &mdash; and four of the eight rungs it does fail are lost to the
+  sixty-second clock while thousands of health ahead.</p>
+  <div class="runmeta">
+    <span><b>1&times;</b> Medium difficulty</span>
+    <span><b>50</b> rungs, each fought fresh</span>
+    <span><b>21</b> profile runs</span>
+    <span><b>1,473</b> single-item swaps</span>
+    <span><b>7</b> build profiles &middot; <b>3</b> seeds</span>
+  </div>
+</header>
+
+<section>
+  <div class="shead"><h2>What the run found</h2><span class="eyebrow">five findings</span></div>
+  <div class="findings">
+
+    <div class="finding sev-crit">
+      <h3><span class="chip">Critical</span>The clock is an invisible loss condition</h3>
+      <span class="num">8 / 50</span>
+      <p>Eight rungs end in a stalemate at the sixty-second cap, and a stalemate costs a run life
+      exactly as dying does. Four of them are lost from far ahead: rung 21 with the player
+      <b>+7,779</b> health up, rung 32 at +3,336, rung 27 at +1,229, rung 39 at +979. There is
+      nothing on screen that tells a player a clock is running, so this reads as the game taking
+      a win away for no stated reason.</p>
+    </div>
+
+    <div class="finding sev-crit">
+      <h3><span class="chip">Critical</span>The ladder outruns the catalogue at rung 21</h3>
+      <span class="num">r28</span>
+      <p>The deepest win any profile manages is rung 28, and no profile wins anything past rung 32.
+      That is with perfect packing, infinite money and every component in the game available at
+      once &mdash; conditions no real run enjoys. Monster health climbs 1,580 &rarr; 9,400 across
+      rungs 20 to 50, a six-fold rise; gear alone has no answer that scales with it.</p>
+    </div>
+
+    <div class="finding sev-high">
+      <h3><span class="chip">High</span>How much you pack beats what you pack</h3>
+      <span class="num">1,383 / 1,473</span>
+      <p>Swap any single item into an otherwise fixed board at rung 20 and it wins: 322 of 322
+      helmets, 287 of 287 chestpieces, 252 of 252 gloves. Only the weapon slot can lose the fight,
+      and only 35 of 348 times. The gap between the best and worst item in a slot is consistently
+      smaller than the gain from fitting one more item &mdash; so the shop is a weak decision and
+      the grid is the whole game.</p>
+    </div>
+
+    <div class="finding sev-high">
+      <h3><span class="chip">High</span>Two fountain choices are downgrades</h3>
+      <span class="num">&minus;2,461</span>
+      <p>Measured one at a time against the same board, Bloodletter costs 2,461 health at rung 25
+      and Archmage costs 1,192. Juggernaut, Druid, Spellblade and Wanderer are all mildly negative
+      through the mid game. Geomancer changes nothing at any rung tested &mdash; Resonance acts on
+      casts, and the board the fingerprint offered it to is a martial one that never casts.</p>
+    </div>
+
+    <div class="finding sev-med">
+      <h3><span class="chip">Medium</span>Damage does not predict depth</h3>
+      <span class="num">10 dps &rarr; r32</span>
+      <p>The dense packer carries 183 dps and reaches rung 28. The per-second packer carries 87 and
+      reaches 32. A non-assembler profile &mdash; a deliberately incompetent build with 10 dps and
+      six items &mdash; wins 27 fights, more than the optimiser's 23. Survival and tempo decide the
+      ladder; damage is close to noise.</p>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>The ladder, rung by rung</h2><span class="eyebrow">dense-packed board, 1&times;</span></div>
+  <p class="col" style="color:var(--ink-2); margin-bottom:24px">Margin is health left on your side
+  minus health left on theirs, at the moment the fight ends. Bars share one scale, so the lengths
+  are comparable across the whole ladder. The first twenty rungs are never in doubt; from rung 21
+  the board is either killed or timed out, with three isolated wins at 23, 25 and 28 where the
+  monster happens to be softer than its neighbours.</p>
+  <div class="scroller">
+  <div class="ladder">
+    <div class="lhead">
+      <span style="text-align:right">#</span><span>monster</span>
+      <span style="text-align:right">health</span><span style="text-align:center">margin</span>
+      <span style="text-align:right">&nbsp;</span><span>&nbsp;</span>
+    </div>
+<div class="lrow o-v"><span class="lr-n">1</span><span class="lr-name">Cave Rat</span><span class="lr-hp">55</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:8.63%"></span></span><span class="lr-m">+2,590</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">2</span><span class="lr-name">Bog Toad</span><span class="lr-hp">110</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:8.63%"></span></span><span class="lr-m">+2,590</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">3</span><span class="lr-name">Bone Archer</span><span class="lr-hp">120</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:8.63%"></span></span><span class="lr-m">+2,590</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">4</span><span class="lr-name">Rust Golem</span><span class="lr-hp">300</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:9.77%"></span></span><span class="lr-m">+2,931</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">5</span><span class="lr-name">Frost Wisp</span><span class="lr-hp">150</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:8.62%"></span></span><span class="lr-m">+2,587</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">6</span><span class="lr-name">Plague Hound</span><span class="lr-hp">190</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:8.63%"></span></span><span class="lr-m">+2,590</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">7</span><span class="lr-name">The Iron Warden</span><span class="lr-hp">340</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:11.63%"></span></span><span class="lr-m">+3,488</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">8</span><span class="lr-name">Iron Sentinel</span><span class="lr-hp">240</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:9.77%"></span></span><span class="lr-m">+2,931</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">9</span><span class="lr-name">Whisperling</span><span class="lr-hp">160</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:9.69%"></span></span><span class="lr-m">+2,907</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">10</span><span class="lr-name">Warded Idol</span><span class="lr-hp">280</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:9.77%"></span></span><span class="lr-m">+2,931</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">11</span><span class="lr-name">Mirror Fiend</span><span class="lr-hp">250</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:8.61%"></span></span><span class="lr-m">+2,583</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">12</span><span class="lr-name">Rust Colossus</span><span class="lr-hp">800</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:12.61%"></span></span><span class="lr-m">+3,783</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">13</span><span class="lr-name">Ashen Marshal</span><span class="lr-hp">930</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:11.61%"></span></span><span class="lr-m">+3,484</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">14</span><span class="lr-name">Grave Chorus</span><span class="lr-hp">1,060</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:8.29%"></span></span><span class="lr-m">+2,487</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">15</span><span class="lr-name">The Hollow King <span class="tag tag-boss">boss</span></span><span class="lr-hp">400</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:6.98%"></span></span><span class="lr-m">+2,094</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">16</span><span class="lr-name">The Curator <span class="tag tag-mini">mini</span></span><span class="lr-hp">640</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:9.73%"></span></span><span class="lr-m">+2,919</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">17</span><span class="lr-name">Salt Idol</span><span class="lr-hp">1,190</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:14.16%"></span></span><span class="lr-m">+4,249</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">18</span><span class="lr-name">Pale Twin</span><span class="lr-hp">1,320</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:16.63%"></span></span><span class="lr-m">+4,990</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">19</span><span class="lr-name">Ruin Hound</span><span class="lr-hp">1,450</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:21.03%"></span></span><span class="lr-m">+6,308</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-v"><span class="lr-n">20</span><span class="lr-name">Bone Cantor</span><span class="lr-hp">1,580</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:15.61%"></span></span><span class="lr-m">+4,682</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-s"><span class="lr-n">21</span><span class="lr-name">Ember Wisp</span><span class="lr-hp">1,710</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-s" style="width:25.93%"></span></span><span class="lr-m">+7,779</span><span class="lr-o o-s">S</span></div>
+<div class="lrow o-d"><span class="lr-n">22</span><span class="lr-name">Slag Warden <span class="tag tag-boss">boss</span></span><span class="lr-hp">1,840</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:6.11%"></span></span><span class="lr-m">-1,832</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-v"><span class="lr-n">23</span><span class="lr-name">The Gearwright</span><span class="lr-hp">720</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:5.05%"></span></span><span class="lr-m">+1,515</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-d"><span class="lr-n">24</span><span class="lr-name">Crowned Hollow</span><span class="lr-hp">1,970</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:1.47%"></span></span><span class="lr-m">-442</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-v"><span class="lr-n">25</span><span class="lr-name">Cog Priest <span class="tag tag-mini">mini</span></span><span class="lr-hp">2,100</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:22.66%"></span></span><span class="lr-m">+6,798</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-s"><span class="lr-n">26</span><span class="lr-name">Mire Behemoth</span><span class="lr-hp">2,230</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-s" style="width:0.18%"></span></span><span class="lr-m">-54</span><span class="lr-o o-s">S</span></div>
+<div class="lrow o-s"><span class="lr-n">27</span><span class="lr-name">Vermin Sovereign</span><span class="lr-hp">2,360</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-s" style="width:4.10%"></span></span><span class="lr-m">+1,229</span><span class="lr-o o-s">S</span></div>
+<div class="lrow o-v"><span class="lr-n">28</span><span class="lr-name">Obsidian Colossus</span><span class="lr-hp">2,490</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-v" style="width:7.37%"></span></span><span class="lr-m">+2,211</span><span class="lr-o o-v">V</span></div>
+<div class="lrow o-d"><span class="lr-n">29</span><span class="lr-name">Null Sentinel</span><span class="lr-hp">2,620</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:13.12%"></span></span><span class="lr-m">-3,937</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-d"><span class="lr-n">30</span><span class="lr-name">Silence <span class="tag tag-mini">mini</span></span><span class="lr-hp">2,750</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:13.07%"></span></span><span class="lr-m">-3,921</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-d"><span class="lr-n">31</span><span class="lr-name">Weeping Idol</span><span class="lr-hp">2,880</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:8.49%"></span></span><span class="lr-m">-2,547</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-s"><span class="lr-n">32</span><span class="lr-name">The Long Mirror</span><span class="lr-hp">3,010</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-s" style="width:11.12%"></span></span><span class="lr-m">+3,336</span><span class="lr-o o-s">S</span></div>
+<div class="lrow o-d"><span class="lr-n">33</span><span class="lr-name">Iron Abbot</span><span class="lr-hp">3,140</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:15.73%"></span></span><span class="lr-m">-4,720</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-d"><span class="lr-n">34</span><span class="lr-name">The Last Gearwright <span class="tag tag-mini">mini</span></span><span class="lr-hp">3,270</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:16.25%"></span></span><span class="lr-m">-4,874</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-d"><span class="lr-n">35</span><span class="lr-name">Rimefather</span><span class="lr-hp">3,480</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:16.49%"></span></span><span class="lr-m">-4,947</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-d"><span class="lr-n">36</span><span class="lr-name">The Tallow Saint</span><span class="lr-hp">3,690</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:16.22%"></span></span><span class="lr-m">-4,865</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-d"><span class="lr-n">37</span><span class="lr-name">Hollowmarch</span><span class="lr-hp">3,910</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:17.65%"></span></span><span class="lr-m">-5,295</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-d"><span class="lr-n">38</span><span class="lr-name">The Iron Choir</span><span class="lr-hp">4,140</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:19.15%"></span></span><span class="lr-m">-5,745</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-s"><span class="lr-n">39</span><span class="lr-name">Gallowglass</span><span class="lr-hp">4,380</span><span class="lr-track"><span class="axis"></span><span class="bar bar-pos o-s" style="width:3.26%"></span></span><span class="lr-m">+979</span><span class="lr-o o-s">S</span></div>
+<div class="lrow o-s"><span class="lr-n">40</span><span class="lr-name">The Rust Parliament</span><span class="lr-hp">4,640</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-s" style="width:10.90%"></span></span><span class="lr-m">-3,271</span><span class="lr-o o-s">S</span></div>
+<div class="lrow o-s"><span class="lr-n">41</span><span class="lr-name">Sootmother</span><span class="lr-hp">4,910</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-s" style="width:14.00%"></span></span><span class="lr-m">-4,201</span><span class="lr-o o-s">S</span></div>
+<div class="lrow o-d"><span class="lr-n">42</span><span class="lr-name">The Quiet Hour <span class="tag tag-mini">mini</span></span><span class="lr-hp">5,190</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:23.77%"></span></span><span class="lr-m">-7,130</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-s"><span class="lr-n">43</span><span class="lr-name">Verdigris</span><span class="lr-hp">5,490</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-s" style="width:9.03%"></span></span><span class="lr-m">-2,709</span><span class="lr-o o-s">S</span></div>
+<div class="lrow o-d"><span class="lr-n">44</span><span class="lr-name">The Drowned Court</span><span class="lr-hp">5,810</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:23.93%"></span></span><span class="lr-m">-7,180</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-d"><span class="lr-n">45</span><span class="lr-name">Anvilheart <span class="tag tag-mini">mini</span></span><span class="lr-hp">6,150</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:24.77%"></span></span><span class="lr-m">-7,430</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-d"><span class="lr-n">46</span><span class="lr-name">The Salt Wedding</span><span class="lr-hp">6,510</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:25.62%"></span></span><span class="lr-m">-7,685</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-d"><span class="lr-n">47</span><span class="lr-name">Nine of Ashes</span><span class="lr-hp">6,890</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:32.66%"></span></span><span class="lr-m">-9,797</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-d"><span class="lr-n">48</span><span class="lr-name">The Last Light <span class="tag tag-mini">mini</span></span><span class="lr-hp">7,290</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:29.18%"></span></span><span class="lr-m">-8,755</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-d"><span class="lr-n">49</span><span class="lr-name">Gilt</span><span class="lr-hp">7,720</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:49.62%"></span></span><span class="lr-m">-14,887</span><span class="lr-o o-d">D</span></div>
+<div class="lrow o-d"><span class="lr-n">50</span><span class="lr-name">Francis <span class="tag tag-boss">boss</span></span><span class="lr-hp">9,400</span><span class="lr-track"><span class="axis"></span><span class="bar bar-neg o-d" style="width:41.43%"></span></span><span class="lr-m">-12,430</span><span class="lr-o o-d">D</span></div>
+  </div>
+  </div>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--verdigris)"></i>V &mdash; victory (23)</span>
+    <span><i class="sw" style="background:var(--rust)"></i>D &mdash; killed (19)</span>
+    <span><i class="sw" style="background:var(--amber)"></i>S &mdash; ran out of clock (8)</span>
+    <span>bar scale: half-width = 15,000 health</span>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>How far each kind of player gets</h2><span class="eyebrow">50 rungs, fought fresh</span></div>
+  <div class="scroller">
+  <table>
+    <caption>Every rung fought from full health with a fixed board. "First loss" is the wall; a later
+    "last win" means the wall is a spike rather than a ceiling.</caption>
+    <thead><tr>
+      <th>profile</th><th>seed</th><th>items</th><th>dps</th>
+      <th>first loss</th><th>last win</th><th>rungs won</th>
+    </tr></thead>
+    <tbody>
+      <tr><td class="name">random builder</td><td>1</td><td>10</td><td>40</td><td class="neg">r26</td><td>r32</td><td>28</td></tr>
+      <tr><td class="name">random builder</td><td>29</td><td>10</td><td>56</td><td class="neg">r14</td><td>r25</td><td>21</td></tr>
+      <tr><td class="name">random builder</td><td>77</td><td>10</td><td>150</td><td class="neg">r26</td><td>r28</td><td>27</td></tr>
+      <tr><td class="name">non-assembler</td><td>1</td><td>6</td><td>10</td><td class="neg">r24</td><td>r32</td><td>27</td></tr>
+      <tr><td class="name">non-assembler</td><td>29</td><td>7</td><td>35</td><td class="neg">r7</td><td>r25</td><td>12</td></tr>
+      <tr><td class="name">non-assembler</td><td>77</td><td>4</td><td>0</td><td class="neg">r2</td><td>r25</td><td>6</td></tr>
+      <tr><td class="name">grinder (fast)</td><td>1&ndash;77</td><td>10</td><td>60</td><td class="neg">r21</td><td>r28</td><td>25</td></tr>
+      <tr><td class="name">optimiser (best)</td><td>1&ndash;77</td><td>10</td><td>43</td><td class="neg">r21</td><td>r25</td><td>23</td></tr>
+      <tr><td class="name">packer (dense)</td><td>1&ndash;77</td><td>9</td><td>183</td><td class="neg">r21</td><td>r28</td><td>23</td></tr>
+      <tr><td class="name">packer (per cell)</td><td>1&ndash;77</td><td>12</td><td>38</td><td class="neg">r7</td><td>r23</td><td>14</td></tr>
+      <tr><td class="name">packer (per sec)</td><td>1&ndash;77</td><td>8</td><td>87</td><td class="neg">r22</td><td>r32</td><td>26</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">The five non-random profiles are deterministic, so their three seeds agree exactly.
+  Packing by worth-per-cell is a trap: it fields the most items of any profile and wins the fewest.</p>
+</section>
+
+<section>
+  <div class="shead"><h2>What each class is worth</h2><span class="eyebrow">held alone, same board</span></div>
+  <div class="scroller">
+  <table>
+    <caption>Change in margin against the classless board, one class at a time. A dash means the
+    class changed nothing at all.</caption>
+    <thead><tr>
+      <th>class</th><th>power</th><th>r15</th><th>r20</th><th>r25</th><th>r30</th><th>r35</th>
+    </tr></thead>
+    <tbody>
+      <tr><td class="name">(none)</td><td class="name nil">baseline</td><td class="nil">2,094</td><td class="nil">4,682</td><td class="nil">6,798</td><td class="nil">&minus;3,921</td><td class="nil">&minus;4,947</td></tr>
+      <tr><td class="name">Duelist</td><td class="name nil">Riposte(250)</td><td class="pos">+622</td><td class="pos">+1,259</td><td class="neg">&minus;24</td><td class="pos">+587</td><td class="pos">+766</td></tr>
+      <tr><td class="name">Stormcaller</td><td class="name nil">Cascade(120)</td><td class="pos">+197</td><td class="pos">+943</td><td class="pos">+226</td><td class="pos">+561</td><td class="pos">+2,749</td></tr>
+      <tr><td class="name">Bulwark</td><td class="name nil">Bastion(35)</td><td class="pos">+63</td><td class="pos">+419</td><td class="nil">&ndash;</td><td class="nil">&ndash;</td><td class="nil">&ndash;</td></tr>
+      <tr><td class="name">Chronomancer</td><td class="name nil">SlowTime(5)</td><td class="pos">+82</td><td class="pos">+419</td><td class="nil">&ndash;</td><td class="neg">&minus;4</td><td class="neg">&minus;8</td></tr>
+      <tr><td class="name">Warpriest</td><td class="name nil">Consecrate(40)</td><td class="pos">+10</td><td class="pos">+220</td><td class="nil">&ndash;</td><td class="nil">&ndash;</td><td class="nil">&ndash;</td></tr>
+      <tr><td class="name">Spellblade</td><td class="name nil">Transmute(50)</td><td class="pos">+22</td><td class="neg">&minus;207</td><td class="neg">&minus;504</td><td class="pos">+169</td><td class="pos">+681</td></tr>
+      <tr><td class="name">Druid</td><td class="name nil">Overflowing(2)</td><td class="nil">&ndash;</td><td class="neg">&minus;186</td><td class="neg">&minus;616</td><td class="pos">+32</td><td class="pos">+115</td></tr>
+      <tr><td class="name">Juggernaut</td><td class="name nil">Momentum(2)</td><td class="nil">&ndash;</td><td class="neg">&minus;211</td><td class="neg">&minus;1,015</td><td class="pos">+46</td><td class="pos">+157</td></tr>
+      <tr><td class="name">Wanderer</td><td class="name nil">Adaptable(1)</td><td class="pos">+11</td><td class="neg">&minus;119</td><td class="neg">&minus;1,027</td><td class="pos">+71</td><td class="pos">+291</td></tr>
+      <tr><td class="name">Archmage</td><td class="name nil">Echo(3)</td><td class="nil">&ndash;</td><td class="neg">&minus;137</td><td class="neg">&minus;1,192</td><td class="pos">+107</td><td class="pos">+509</td></tr>
+      <tr><td class="name">Bloodletter</td><td class="name nil">Bloodscent(3)</td><td class="pos">+11</td><td class="neg">&minus;318</td><td class="neg">&minus;2,461</td><td class="pos">+271</td><td class="pos">+1,045</td></tr>
+      <tr><td class="name">Geomancer</td><td class="name nil">Resonance(2)</td><td class="nil">&ndash;</td><td class="nil">&ndash;</td><td class="nil">&ndash;</td><td class="nil">&ndash;</td><td class="nil">&ndash;</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Ordered by usefulness. The board is martial, so every cast-facing power reads low
+  here &mdash; but the fingerprint offered all twelve to this board, which is the finding.</p>
+</section>
+
+<section>
+  <div class="shead"><h2>Gear that is an outlier</h2><span class="eyebrow">1,473 swaps at rung 20</span></div>
+  <div class="col stack" style="margin-bottom:28px">
+    <p style="color:var(--ink-2)">Each candidate item was swapped into an otherwise fixed
+    dense-packed board and the fight re-run, so what is measured is the item's own contribution
+    rather than the board's. Four components turn up again and again in the best twenty-five of
+    their slot &mdash; between them they account for most of what an optimal board is made of.</p>
+  </div>
+  <div class="scroller">
+  <table style="min-width:420px">
+    <caption>Appearances in the best 25 items of a slot, out of 125 places.</caption>
+    <thead><tr><th>component</th><th>appearances</th><th>share</th></tr></thead>
+    <tbody>
+      <tr><td class="name">The Growing Weight</td><td>47</td><td class="neg">38%</td></tr>
+      <tr><td class="name">Gluttonous Fang</td><td>44</td><td class="neg">35%</td></tr>
+      <tr><td class="name">Warplate Greave</td><td>40</td><td class="neg">32%</td></tr>
+      <tr><td class="name">Unshod Signet</td><td>37</td><td class="neg">30%</td></tr>
+      <tr><td class="name">Stonewall Frame</td><td>25</td><td>20%</td></tr>
+      <tr><td class="name">Godsteel Plating</td><td>23</td><td>18%</td></tr>
+      <tr><td class="name">The Empty Crown</td><td>15</td><td>12%</td></tr>
+      <tr><td class="name">Consecrated Plating</td><td>14</td><td>11%</td></tr>
+      <tr><td class="name">Bulwark Base</td><td>14</td><td>11%</td></tr>
+      <tr><td class="name">Deeprooted Sole</td><td>14</td><td>11%</td></tr>
+      <tr><td class="name">Bulwark Bead</td><td>14</td><td>11%</td></tr>
+      <tr><td class="name">Lonely Plating</td><td>13</td><td>10%</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Gluttonous Fang is stronger than 35% suggests: it appears <b>twice</b> in almost
+  every top weapon, so it is closer to a fixed cost of building a good weapon than a choice.</p>
+
+  <div class="stack" style="margin-top:36px">
+    <h3>Three specific pieces worth a look</h3>
+    <div class="findings">
+      <div class="finding sev-crit">
+        <h3>Kingmaker Hilt</h3><span class="num">0 / 35</span>
+        <p>Every weapon that fails at rung 20 is built on this handle &mdash; 35 losses out of 348
+        weapons measured, and all of them Kingmaker. It is not obviously weak: at 16 strength and
+        25 power it lands the biggest single hit of any handle tested. Something about the way it
+        pays for that is costing the fight, and it is reproducible enough to bisect.</p>
+      </div>
+      <div class="finding sev-high">
+        <h3>The Growing Weight</h3><span class="num">&times;3 stacks</span>
+        <p>The best chestpieces are simply this piece repeated: <span style="font-family:'IBM Plex Mono',monospace; font-size:.85em">Bulwark
+        Base + The Growing Weight &times;3</span> scores 4,286. A component that is best used three
+        times over is not a decision, and it prices as though it were one.</p>
+      </div>
+      <div class="finding sev-med">
+        <h3>Ossuary Frame + Lonely Plating</h3><span class="num">93g</span>
+        <p>The cheapest winning helmet in the game at 93 gold, scoring 1,173 where the best helmet
+        scores 5,416 at 295. Three times the price buys four and a half times the work, so the
+        curve is honest here &mdash; this one is a bargain rather than a break, and useful as the
+        reference point the others are priced against.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>What to change</h2><span class="eyebrow">in order of leverage</span></div>
+  <ol class="recs">
+    <li><div>
+      <h3>Settle the clock on health, not on nothing</h3>
+      <p>A sixty-second stalemate currently costs a run life. Award the win to whoever holds the
+      larger share of their maximum health when the cap lands, and the four rungs lost from
+      thousands ahead become wins. If the cap must stay punitive, put a visible timer on the
+      screen &mdash; a hidden rule that takes a won fight away is the worst version of this.</p>
+    </div></li>
+    <li><div>
+      <h3>Flatten the back half of the ladder</h3>
+      <p>Health runs 1,580 at rung 20 to 9,400 at rung 50 while the best possible board is flat.
+      Either bend that curve down, or give the player a multiplicative source of scaling in the
+      back half &mdash; boss drops and doubled classes are the obvious levers and are already
+      built. Rungs 29 to 50 are currently content nobody can see.</p>
+    </div></li>
+    <li><div>
+      <h3>Make the shop a decision again</h3>
+      <p>Every helmet, chestpiece and glove in the game wins the rung-20 fight. If item choice is
+      meant to matter, the spread within a slot has to be wider than the value of one more item
+      &mdash; either widen the spread or shrink the grid so packing stops being free.</p>
+    </div></li>
+    <li><div>
+      <h3>Never offer a class that cannot help</h3>
+      <p>Geomancer moved nothing at any rung on a martial board, and Bloodletter and Archmage were
+      actively negative in the mid game. Gate the fountain's offers on whether the build can use
+      the power &mdash; the fingerprint already knows enough to tell.</p>
+    </div></li>
+    <li><div>
+      <h3>Reprice the four components every build contains</h3>
+      <p>The Growing Weight, Gluttonous Fang, Warplate Greave and Unshod Signet appear in roughly a
+      third of all optimal items each. That is fine if they are meant to be staples and wrong if
+      they are meant to be choices; either way the rating model does not currently know they are
+      special.</p>
+    </div></li>
+    <li><div>
+      <h3>Find out what Kingmaker Hilt is doing</h3>
+      <p>It has the highest per-hit damage of any handle and is the only handle that loses. Both
+      cannot stay true.</p>
+    </div></li>
+  </ol>
+</section>
+
+<section>
+  <div class="shead"><h2>How this was measured</h2><span class="eyebrow">and what it does not cover</span></div>
+  <div class="repro">
+    <p>Four ignored reports in <code style="display:inline; padding:1px 5px; background:var(--surface)">crates/engine/tests/packing.rs</code>, all at Medium (1&times;):</p>
+    <code>cargo test --release -p gearmaster-engine --test packing -- --ignored --nocapture \
+  how_far_each_profile_gets     # 50 rungs x 7 profiles x 3 seeds, ~5 min
+  ladder_curve                  # margin and outcome per rung
+  find_outlier_gear             # 1,473 single-item swaps at rung 20
+  what_classes_are_worth        # each class alone, at five rungs</code>
+    <p><b>Caveats that matter.</b> Every profile fights all fifty rungs with one fixed board and no
+    progression &mdash; no shopping between fights, no boss drops, no fountains except in the class
+    report, where they are held one at a time. A real run has all of those, so these numbers are a
+    floor on what is reachable, not a ceiling. They are also all Grinder mode, and all classless
+    except where stated.</p>
+    <p><b>One correction worth recording.</b> An earlier pass of this analysis measured margin from
+    <code style="display:inline; padding:1px 5px; background:var(--surface)">CombatLog::player</code>,
+    which holds the combatant as it <i>started</i> &mdash; the interface lays the two boards out
+    from it. That made margin a constant per rung that no fight could move, and produced a smooth,
+    convincing curve along with the conclusion that all twelve classes changed nothing at any of
+    fifty rungs. Every number above is read from the fight's own events instead, and two
+    regression tests now guard the mistake.</p>
+  </div>
+</section>
+
+<footer>
+  Gear Master &middot; balance run of 23 August 2026 &middot; commit 3965e40 &middot;
+  1&times; Medium &middot; 50 rungs
+</footer>
+</div>
