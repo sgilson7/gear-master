@@ -2714,6 +2714,9 @@ pub struct Combatant {
     /// armour counts this much. Percentages; 0 and 100 mean "as written".
     pub slower_pct: i32,
     pub armour_pct: i32,
+    /// Set by Longhauler: everything runs this much faster for every second
+    /// the fight has been going, capped at twice speed.
+    pub haste_per_s: i32,
     pub curses: Curses,
     /// Stacks of mana empowerment and mana shield. Both scale off *current*
     /// mana, and both are bought with mana — so stacking them hard drains the
@@ -2840,6 +2843,7 @@ impl Combatant {
             no_regen: false,
             slower_pct: 0,
             armour_pct: 100,
+            haste_per_s: 0,
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
@@ -2936,6 +2940,7 @@ impl Combatant {
             no_regen: false,
             slower_pct: 0,
             armour_pct: 100,
+            haste_per_s: 0,
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
@@ -3470,6 +3475,9 @@ pub fn simulate_party(
                 start_player.slower_pct = slower;
                 start_player.armour_pct = armour;
             }
+            crate::class::ClassPower::Longhaul { per_second } => {
+                start_player.haste_per_s = per_second;
+            }
             crate::class::ClassPower::Reprisal(n) => start_player.reprisal = n,
             crate::class::ClassPower::Riposte(ms) => start_player.riposte = ms,
             crate::class::ClassPower::Momentum(n) => start_player.momentum = n,
@@ -3629,6 +3637,9 @@ pub fn simulate_party(
                     // a property of the fighter, so it is read before the item.
                     let slow = c.curses.slow_pct();
                     let slower = c.slower_pct;
+                    // The long haul: everything winds up as the fight drags,
+                    // to twice speed and no further.
+                    let haste = (c.haste_per_s * (t / 1000) as i32).clamp(0, 100);
                     let item = &mut c.items[idx];
                     // A stun stops this item's bar dead. Not a slow: it does
                     // not advance at all, and what was part-way through stays
@@ -3638,7 +3649,9 @@ pub fn simulate_party(
                         item.stun_ms = item.stun_ms.saturating_sub(TICK_MS);
                         false
                     } else {
-                        let step = (TICK_MS as i32 * (100 - slow) / 100 * (100 - slower) / 100)
+                        let step = (TICK_MS as i32 * (100 - slow) / 100 * (100 - slower) / 100
+                            * (100 + haste)
+                            / 100)
                             .max(1) as u32;
                         item.progress_ms += step;
                         if item.progress_ms >= item.cooldown_ms {

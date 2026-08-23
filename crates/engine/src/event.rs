@@ -181,6 +181,43 @@ pub static THE_BACK_ROOM: Brawl = Brawl {
 };
 
 pub const EVENTS: &[LadderEvent] = &[
+    // The pay-off for having asked rather than taken. Always stands here, so a
+    // player who took Trundle at the roadside sees what the other answer was
+    // worth - and a player who never met the cart at all learns there was one.
+    LadderEvent {
+        id: "where-it-was-going",
+        at: 21,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Slag Warden",
+        title: "IT GOT THERE",
+        prose: &[
+            "You are twelve rungs and some weeks further on, and there it is: \
+             the same shape, the same cart, the same unhurried business of \
+             being somewhere it was not before.",
+            "It has arrived. Whatever it was going to do, it has done, and it \
+             is now doing the next thing, which appears to be resting in a way \
+             that is indistinguishable from what it was doing before.",
+            "It remembers you. It does not seem surprised that you took longer \
+             to get here than it did.",
+        ],
+        choices: &[
+            Choice {
+                label: "Take the pace with you",
+                blurb: "Nothing starts fast. Everything finishes.",
+                requires: Requirement::Took("Ask how it manages"),
+                outcome: Outcome::Claim("Longhauler"),
+                unmet: "you never asked it anything - it has nothing to tell you",
+            },
+            Choice {
+                label: "Leave it to it",
+                blurb: "It has earned the rest more than you have.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
     // Always stands here, whether or not you can go in. A door you cannot
     // open still tells you there was a door, and a player who skipped the
     // casino learns the casino existed - which is the whole reason the chip

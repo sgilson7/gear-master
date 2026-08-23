@@ -267,6 +267,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Hexweaver", "Funnel Sergeant"),       // army-issue Funny funnels, p. 78
         ("Immense Guilt", "Henpeck's Accomplice"),
         ("Juggernaut", "Multicity Commuter"),   // 1.79 trillion residents, pp. 70-73
+        ("Longhauler", "Thrumbus Finisher"),
         ("Oracle", "Galapagos Timekeeper"),     // Galapagos Jim, time traveller, pp. 89-90
         ("Spellblade", "Katana Psychologist"),  // Henpeck's other job, p. 95
         ("Stormcaller", "Plug Energy Rep"),     // Spike Kaklon's Plug Energy, p. 32

@@ -110,13 +110,18 @@ fn play(
 ///
 /// Not a build assembled for this test - it is the owner's own winning run,
 /// seventy-five pieces at ninety-seven percent of the cells, read back out of
-/// `share::A_WINNING_RUN`. Nothing about it is seeded: it is quick enough to
-/// open the casino because it is genuinely quick.
-fn a_sharp_run() -> Run {
+/// `share::A_WINNING_RUN`. Nothing about it is ever seeded.
+///
+/// Which door it finds is decided by the setting it is played on, and that is
+/// the neatest thing about it: on Medium its quickest shallow win is 1600ms
+/// and it walks into the casino; on Hard the same board takes 3200ms at best
+/// and 14400ms at worst, so the casino is shut and the road is open instead.
+/// One build, two chains, nothing arranged.
+fn the_winning_board(difficulty: Difficulty) -> Run {
     let shared = gearmaster_engine::share::import(gearmaster_engine::share::A_WINNING_RUN)
         .expect("the winning code still reads");
     let mut run = Run::new();
-    run.difficulty = Difficulty::Medium;
+    run.difficulty = difficulty;
     run.mode = Mode::Grinder;
     run.gold = 500;
     run.loadout.grow(shared.extra_rows);
@@ -141,12 +146,23 @@ fn a_sharp_run() -> Run {
     run
 }
 
+fn a_sharp_run() -> Run {
+    the_winning_board(Difficulty::Medium)
+}
+
 /// A run whose fights genuinely run long. Nothing is seeded: a complete board
 /// on Medium takes well over ten seconds in the shallow end all by itself.
 fn a_blunt_run() -> Run {
     let mut run = a_run(Difficulty::Medium);
     run.rung = 1;
     run
+}
+
+/// The same winning board, on a setting where it grinds. Its quickest shallow
+/// win is 3200ms - past the casino's three-second bar - and its slowest is
+/// 14400ms, which is what opens the road instead.
+fn a_grinding_run() -> Run {
+    the_winning_board(Difficulty::Hard)
 }
 
 #[test]
@@ -278,4 +294,231 @@ fn no_event_can_strand_a_run() {
             e.id
         );
     }
+}
+
+
+// ---------------------------------------------------------------- follow-ups
+
+/// The winning board, all the way to the room behind the velvet rope.
+#[test]
+fn the_winning_board_reaches_the_vip_area_with_a_chip_it_won() {
+    let mut run = a_sharp_run();
+    let vip = EVENTS.iter().find(|e| e.id == "the-vip-area").expect("authored");
+
+    // Step in at the casino; the chip is what the table is worth.
+    let t = play(&mut run, vip.at, |c| matches!(c.outcome, ChoiceOutcome::Step(_)));
+    assert!(t.events.contains(&"the-casino"), "never found the casino: {:?}", t.events);
+    assert!(
+        run.owned.iter().any(|&i| run.registry.def(i).name == "Platinum Chip"),
+        "reached rung {} without winning the table: events {:?}, choices {:?}",
+        t.reached + 1,
+        t.events,
+        t.choices
+    );
+    assert_eq!(run.rung, vip.at, "stalled at rung {} short of the rope", run.rung + 1);
+
+    // And the door opens, because the chip is in the tray.
+    let ev = run.pending_event().expect("the VIP area stands here");
+    assert_eq!(ev.id, "the-vip-area");
+    let gated: Vec<_> = ev
+        .choices
+        .iter()
+        .filter(|c| !matches!(c.outcome, ChoiceOutcome::FightAsWritten))
+        .collect();
+    for c in &gated {
+        assert!(run.choice_open(c), "{} stayed shut for a run holding the chip", c.label);
+    }
+}
+
+/// Both branches of the VIP area, walked from rung one.
+#[test]
+fn both_vip_branches_can_be_taken_by_the_winning_board() {
+    for want_deal in [true, false] {
+        let mut run = a_sharp_run();
+        let vip = EVENTS.iter().find(|e| e.id == "the-vip-area").expect("authored");
+        play(&mut run, vip.at, |c| matches!(c.outcome, ChoiceOutcome::Step(_)));
+        assert_eq!(run.rung, vip.at, "did not reach the rope");
+
+        let rows = run.loadout.rows();
+        // The offer is checked the moment it is made. It lasts until the next
+        // fight settles and the shop turns over, which is one shopping window
+        // - the same one any other event leaves you standing in.
+        if want_deal {
+            let ev = run.pending_event().expect("the rope is here");
+            let deal = ev
+                .choices
+                .iter()
+                .find(|c| matches!(c.outcome, ChoiceOutcome::Stock { .. }))
+                .expect("the bargain");
+            run.take_choice(deal);
+            assert!(
+                run.shop.stock_defs().iter().all(|d| gearmaster_engine::piece::is_vip_only(d.name)),
+                "the shelves hold something that was not on the table: {:?}",
+                run.shop.stock_defs().iter().map(|d| d.name).collect::<Vec<_>>()
+            );
+            assert_eq!(run.shop.stock_defs().len(), 5, "five things were laid out");
+        }
+        let t = play(&mut run, vip.at + 2, |c| {
+            if want_deal {
+                matches!(c.outcome, ChoiceOutcome::Stock { .. })
+            } else {
+                matches!(c.outcome, ChoiceOutcome::Step(_))
+            }
+        });
+        assert!(
+            t.events.contains(&"the-vip-area") || want_deal,
+            "the rope never came up"
+        );
+
+        if want_deal {
+            assert!(
+                run.classes.iter().any(|c| c.name == "Immense Guilt"),
+                "kept cover and felt nothing"
+            );
+        } else {
+            // Won or lost, the run came out the other side and carried on.
+            assert!(run.brawl.is_none(), "still stuck in the back room");
+            assert!(
+                run.loadout.rows() >= rows,
+                "the boards shrank on the way out"
+            );
+        }
+    }
+}
+
+/// The same board on a harder setting takes the road, and the road pays out
+/// twelve rungs later.
+#[test]
+fn the_winning_board_can_walk_the_road_and_collect_on_it() {
+    let mut run = a_grinding_run();
+    let follow = EVENTS.iter().find(|e| e.id == "where-it-was-going").expect("authored");
+
+    // Ask rather than take: the whole point of the free branch.
+    let t = play(&mut run, follow.at, |c| c.label.starts_with("Ask"));
+    assert!(
+        t.events.contains(&"the-long-way"),
+        "the road never came up: reached rung {}, events {:?}, slowest win {:?}ms",
+        t.reached + 1,
+        t.events,
+        run.worst_fight_ms
+    );
+    assert!(
+        !t.events.contains(&"the-casino"),
+        "this board was offered the casino on Hard: best win {:?}ms",
+        run.best_fight_ms
+    );
+    assert!(run.took.iter().any(|l| l.starts_with("Ask")), "nothing was remembered");
+    assert_eq!(run.rung, follow.at, "stalled at rung {} short of the pay-off", run.rung + 1);
+
+    // Twelve rungs on, it is there, and it has something for you.
+    let ev = run.pending_event().expect("the cart is here");
+    assert_eq!(ev.id, "where-it-was-going");
+    let claim = ev
+        .choices
+        .iter()
+        .find(|c| matches!(c.outcome, ChoiceOutcome::Claim("Longhauler")))
+        .expect("the pay-off is a choice");
+    assert!(run.choice_open(claim), "asked, got there, and the door was shut anyway");
+    run.take_choice(claim);
+    assert!(run.classes.iter().any(|c| c.name == "Longhauler"));
+}
+
+#[test]
+fn taking_trundle_shuts_the_pay_off_but_not_the_door() {
+    // A run that took the class never asked the question, so the follow-up
+    // stands there and tells it so - and must still be passable.
+    //
+    // Placed at the rung rather than walked to it: a trundling run cannot get
+    // this far, which is its own finding and has its own test below.
+    let mut run = a_grinding_run();
+    let follow = EVENTS.iter().find(|e| e.id == "where-it-was-going").expect("authored");
+    run.rung = follow.at;
+    run.took.push("Walk with it a while");
+
+    let ev = run.pending_event().expect("the cart is here either way");
+    assert_eq!(ev.id, "where-it-was-going");
+    let claim = ev
+        .choices
+        .iter()
+        .find(|c| matches!(c.outcome, ChoiceOutcome::Claim("Longhauler")))
+        .expect("authored");
+    assert!(!run.choice_open(claim), "collected on a question it never asked");
+    assert!(!claim.unmet.is_empty(), "shut without saying why");
+    assert!(ev.choices.iter().any(|c| run.choice_open(c)), "no way past");
+}
+
+/// What Trundle costs, measured on the board that cleared the game.
+///
+/// The same run reaches the pay-off twelve rungs later if it asks, and stops
+/// nine rungs short of it if it takes the class instead. Half the activations
+/// for the same wall is not a trade at the deep end - it is a tax, and this is
+/// the size of it. Recorded rather than asserted at a number, so a retune
+/// shows up here as a change rather than a failure.
+#[test]
+fn trundle_costs_a_run_most_of_the_road() {
+    let follow = EVENTS.iter().find(|e| e.id == "where-it-was-going").expect("authored");
+
+    let mut asked = a_grinding_run();
+    play(&mut asked, follow.at, |c| c.label.starts_with("Ask"));
+
+    let mut took = a_grinding_run();
+    play(&mut took, follow.at, |c| matches!(c.outcome, ChoiceOutcome::Claim("Trundle")));
+
+    println!(
+        "the same board: rung {} having asked, rung {} having taken Trundle",
+        asked.rung + 1,
+        took.rung + 1
+    );
+    assert!(
+        took.rung < asked.rung,
+        "Trundle is supposed to be a real cost and this run did not feel it"
+    );
+}
+
+#[test]
+fn longhaul_winds_up_as_the_fight_drags() {
+    use gearmaster_engine::class::{ClassPower, CLASSES};
+    use gearmaster_engine::combat::simulate_with_class;
+
+    // The winning board, because the whole point is a fight that goes on and
+    // an auto-built one does not live that long this deep.
+    let run = the_winning_board(Difficulty::Medium);
+    let (stats, items) = (run.player_stats(), run.combat_items());
+    let long = *CLASSES.iter().find(|c| c.name == "Longhauler").expect("authored");
+    assert!(matches!(long.power, ClassPower::Longhaul { .. }));
+
+    // A deep rung, because the whole point is a fight that goes on.
+    //
+    // Measured as "more swings, sooner" rather than "more swings in a window":
+    // a hauler finishes the same fight faster, so any window with a fixed end
+    // runs past the end of its fight and counts the difference backwards. The
+    // first attempt at this test read 35 against 40 and looked like a broken
+    // class; it was a fight that had already been won.
+    let spec = gearmaster_engine::combat::LADDER[24];
+    let read = |classes: &[gearmaster_engine::class::ClassDef]| -> (usize, u32) {
+        let log = simulate_with_class(stats, &items, &spec, Difficulty::Medium, classes);
+        let acts = log
+            .entries
+            .iter()
+            .filter(|e| {
+                matches!(e.event, gearmaster_engine::combat::Event::Activate {
+                    side: gearmaster_engine::combat::Side::Player,
+                    ..
+                })
+            })
+            .count();
+        (acts, log.duration_ms)
+    };
+    let (plain, plain_ms) = read(&[]);
+    let (hauled, hauled_ms) = read(&[long]);
+
+    assert!(plain > 0, "the control never swung; this proves nothing");
+    assert!(
+        hauled > plain,
+        "a long-hauler got {hauled} swings out of the same fight against {plain}"
+    );
+    assert!(
+        hauled_ms < plain_ms,
+        "a long-hauler took {hauled_ms}ms where the same board took {plain_ms}ms"
+    );
 }

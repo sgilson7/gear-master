@@ -368,6 +368,13 @@ pub enum ClassPower {
     Bastion(i32),
     /// Landing a curse lands `n` more of the other kind alongside it.
     Contagion(u32),
+    /// Everything runs `per_second` percent faster for every second the fight
+    /// has been going, up to twice speed.
+    ///
+    /// The mirror of `Trundle`, and the pay-off for having asked rather than
+    /// taken: a build that cannot win in the first ten seconds gets better the
+    /// longer it is asked to keep going.
+    Longhaul { per_second: i32 },
     /// Everything runs `slower` percent slower, and every scrap of armour you
     /// pick up counts `armour` percent.
     ///
@@ -434,6 +441,9 @@ impl ClassPower {
             // Doubling the slowdown as well as the armour would not be the
             // same bargain twice - it would be a different and much worse one.
             Trundle { .. } => return None,
+            // Earned on the road, and doubling it would make the back half of
+            // every fight a formality.
+            Longhaul { .. } => return None,
             Standing(s) => Standing(s + s),
             Leeching(p) => Leeching(p * 2),
             Bastion(p) => Bastion(p * 2),
@@ -472,6 +482,9 @@ impl ClassPower {
             ClassPower::Guilt => "you cannot heal".to_string(),
             ClassPower::Trundle { slower, armour } => {
                 format!("{}% slower, {}% armour", slower, armour)
+            }
+            ClassPower::Longhaul { per_second } => {
+                format!("{}% faster a second, to 2x", per_second)
             }
             ClassPower::Standing(s) => s.summary(),
             ClassPower::SlowTime(n) => format!("damage arrives over {}s", n),
@@ -513,6 +526,12 @@ impl ClassPower {
             ClassPower::Guilt => "Your regeneration is 0 a second for the rest of the run. \
                  Not slowed - stopped, whatever your gear says it heals for."
                 .to_string(),
+            ClassPower::Longhaul { per_second } => format!(
+                "Everything you own runs {}% faster for every second the fight has been \
+                 going, up to twice speed. A fight you cannot finish quickly is a fight \
+                 you finish anyway.",
+                per_second
+            ),
             ClassPower::Trundle { slower, armour } => format!(
                 "Every cooldown you own runs {}% slower, and every point of armour you gain \
                  counts {}%. Half the turns, twice the wall - which is a different game, not \
@@ -656,6 +675,12 @@ pub static CLASSES: &[ClassDef] = &[
         blurb: "Rage, and something heavy to spend it on.",
         requires: &[(Axis::Wrath, 40), (Axis::Brutality, 40)],
         power: ClassPower::Leeching(12),
+    },
+    ClassDef {
+        name: "Longhauler",
+        blurb: "It got where it was going. So will you.",
+        requires: &[],
+        power: ClassPower::Longhaul { per_second: 4 },
     },
     ClassDef {
         // Claimed on the road, never poured: `is_earned` keeps it out of the

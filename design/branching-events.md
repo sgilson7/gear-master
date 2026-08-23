@@ -318,3 +318,54 @@ fountain, and nothing said why. Immense Guilt would have made it worse.
 `Run::poured` counts only classes a fountain actually gave — `!is_earned` —
 and a test now guards it. Same shape as the third-fountain bug: a schedule
 keyed on a count, and something quietly adding to the count.
+
+
+---
+
+## THE ROAD — built
+
+Two doors in the shallow end, and they are the same question asked twice: how
+is this run actually going?
+
+**The casino** opens on a win under three seconds, rungs 2 to 9. **The long
+way** opens on a win over ten seconds in the same window. Answering the casino
+shuts the long way for good - taking it was already a statement about the run,
+and nobody gets asked both.
+
+At the roadside: *ask how it manages* and you get nothing but a note; *walk
+with it a while* and you get **Trundle**. Twelve rungs later the cart has
+arrived, and a run that asked can claim **Longhauler** - everything runs 4%
+faster for every second the fight has been going, up to twice speed. A run
+that took Trundle instead sees the door and is told why it is shut.
+
+### The two classes are a real fork, and the numbers say which way
+
+| | Trundle | Longhauler |
+|---|---|---|
+| Cooldowns | 50% slower | up to 2x faster, over 25s |
+| Armour | doubled per plate | unchanged |
+| Armour per second | **unchanged** | unchanged |
+| Damage per second | **halved** | up to doubled |
+
+Measured on the board that cleared the game, at Hard: a run that **asked**
+reaches rung 22 and collects. The same board that **took Trundle** stops at
+rung 13. Nine rungs is what the class costs, and it is a tax rather than a
+trade - half the activations for the same wall buys nothing at the deep end.
+
+That is worth a decision rather than a silent nerf. Options, if it wants
+rebalancing: double the armour *without* slowing armour-granting items; or cut
+the slowdown to 25% and keep the doubling; or leave it as the trap it is and
+let the follow-up be the reward for not taking it, which is arguably the
+design as written.
+
+### Walking it
+
+`tests/two_runs.rs` plays both chains with the owner's own winning board, and
+which door it finds is decided by the setting rather than by anything seeded:
+
+- **Medium** - quickest shallow win 1600ms, so the casino opens. Step in, win
+  the table, carry the Platinum Chip to rung 30, and both VIP branches open.
+- **Hard** - the same board manages 3200ms at best, past the three-second bar,
+  and 14400ms at worst. The casino is shut and the road is open instead.
+
+One build, two chains, nothing arranged.
