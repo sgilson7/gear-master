@@ -4451,11 +4451,15 @@ fn item_summary_lines_plain(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> 
             format!("costs {} mana a cast", gearmaster_engine::combat::SPELL_MANA_COST)
         });
     }
-    if p.power_bonus != 0 {
+    // The item's whole multiplier, once. It used to name only the ink's
+    // share, which said nothing about what the item actually multiplies by -
+    // and everything above is already multiplied, so the figure has to be the
+    // total or the card contradicts itself.
+    if p.power != 100 {
         acts.push(format!(
-            "x{}.{:02} from the ink bound into it",
-            p.power_bonus / 100,
-            p.power_bonus.abs() % 100
+            "everything above is already x{}.{:02} - this item's own power",
+            p.power / 100,
+            p.power.abs() % 100
         ));
     }
     let nothing = hit == 0 && acts.is_empty() && conditional.is_empty();
@@ -8961,11 +8965,44 @@ mod tooltip_tests {
         let (run, p) = inked_spell();
         let lines = item_summary_lines(&p, &run);
         let body: Vec<&str> = lines.iter().map(|(s, _)| s.as_str()).collect();
-        assert!(body.iter().any(|l| l.trim() == "2 faith"), "{:?}", body);
+        // A bare "<n> faith" line, whatever n works out to once the item's
+        // own power is on it - the point is that it reads as a stat rather
+        // than as trigger text.
+        let stat_line = body
+            .iter()
+            .find(|l| {
+                let t = l.trim();
+                t.ends_with(" faith") && t.split(' ').next().is_some_and(|n| n.parse::<i32>().is_ok())
+            })
+            .copied()
+            .unwrap_or_else(|| panic!("no plain faith line in {:?}", body));
+        let n: i32 = stat_line.trim().split(' ').next().unwrap().parse().unwrap();
+        assert!(n > 0, "the faith line reads {:?}", stat_line);
         assert!(
-            !body.iter().any(|l| l.contains("gain 2 faith")),
+            !body.iter().any(|l| l.contains(&format!("on activation, gain {} faith", n))),
             "the plain gain is still wearing trigger clothes: {:?}",
             body
+        );
+    }
+
+    /// The card names the item's whole multiplier, not the ink's share of it,
+    /// and everything it quotes already has that multiplier applied.
+    #[test]
+    fn the_card_names_the_items_own_power() {
+        let (run, p) = inked_spell();
+        assert!(p.power > 100, "the fixture should carry power");
+        let lines = item_summary_lines(&p, &run);
+        let joined: String = lines.iter().map(|(s, _)| s.clone()).collect::<Vec<_>>().join(" ");
+        assert!(
+            joined.contains(&format!("x{}.{:02}", p.power / 100, p.power % 100)),
+            "the card does not name the item's power of {}: {:?}",
+            p.power,
+            joined
+        );
+        assert!(
+            !joined.contains("from the ink bound into it"),
+            "the card still names only the ink's share: {:?}",
+            joined
         );
     }
 

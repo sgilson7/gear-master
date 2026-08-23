@@ -3543,16 +3543,20 @@ fn activate(
             let me = pick(p, e, side);
             (me.held_bonus().physical_damage, me.physical_pierce, me.magic_pierce)
         };
-        let mult = |flat: i32| -> i32 {
-            ((flat as i64) * (item.power + empower) as i64 / 100).max(0) as i32
-        };
-        let physical = mult(item.physical_damage + rage + strength);
+        // The item's own numbers already carry its power - it was applied
+        // when the profile was built, so the card and the fight agree. What
+        // the wearer brings does not, so it picks the multiplier up here.
+        let mult = |flat: i32| -> i32 { ((flat as i64) * (100 + empower) as i64 / 100).max(0) as i32 };
+        let from_wearer =
+            (((rage + strength) as i64 * item.power as i64) / 100).max(0) as i32;
+        let physical = mult(item.physical_damage + from_wearer);
         // Transmute: part of the iron lands again as magic.
         let transmute = pick(p, e, side).transmute;
         let magic = mult(item.magic_damage) + physical * transmute / 100;
         // Momentum: the longer the fight runs, the harder you swing.
         let momentum = pick(p, e, side).momentum * (t / 1000) as i32;
-        let physical = physical + mult(momentum);
+        let physical =
+            physical + mult((((momentum as i64) * item.power as i64) / 100) as i32);
         // A fork copies the cast, and only a cast: a blade swings once
         // however many stacks are up.
         let forks = if item.casts.is_empty() { 0 } else { pick(p, e, side).forking };

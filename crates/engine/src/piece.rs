@@ -451,6 +451,36 @@ impl Action {
     }
 }
 
+impl Action {
+    /// This action with its numbers multiplied by `pct` hundredths.
+    ///
+    /// Outcomes only. What a trigger *costs* is never scaled: a piece that
+    /// spends four mana spends four mana whatever multiplier the item is
+    /// carrying, or power would quietly price a build out of its own gear.
+    pub fn scaled(self, pct: i32) -> Action {
+        let m = |v: i32| ((v as i64 * pct as i64) / 100) as i32;
+        match self {
+            Action::Damage { amount, kind, target } => {
+                Action::Damage { amount: m(amount), kind, target }
+            }
+            Action::MindDamage { amount, target } => {
+                Action::MindDamage { amount: m(amount), target }
+            }
+            Action::GainMana(n) => Action::GainMana(m(n)),
+            Action::Gain { what, amount } => Action::Gain { what, amount: m(amount) },
+            Action::GainArmor(n) => Action::GainArmor(m(n)),
+            Action::Grow(n) => Action::Grow(m(n)),
+            Action::ReduceCooldown(ms) => {
+                Action::ReduceCooldown(((ms as i64 * pct as i64) / 100) as u32)
+            }
+            // Stacks and curses are not quantities of anything - a stack is a
+            // stack and a curse is a curse - so a multiplier has nothing to
+            // multiply.
+            other => other,
+        }
+    }
+}
+
 /// Fires every time the item this piece belongs to activates.
 #[derive(Copy, Clone, Debug)]
 pub enum Trigger {
@@ -509,6 +539,39 @@ pub enum Trigger {
 }
 
 impl Trigger {
+    /// This trigger with its outcomes multiplied and its costs left alone.
+    pub fn scaled(self, pct: i32) -> Trigger {
+        match self {
+            Trigger::OnActivate(a) => Trigger::OnActivate(a.scaled(pct)),
+            Trigger::OnBattleStart(a) => Trigger::OnBattleStart(a.scaled(pct)),
+            Trigger::OnAdjacentActivate(a) => Trigger::OnAdjacentActivate(a.scaled(pct)),
+            Trigger::OnAlignedActivate(a) => Trigger::OnAlignedActivate(a.scaled(pct)),
+            Trigger::OnOtherCast(a) => Trigger::OnOtherCast(a.scaled(pct)),
+            Trigger::PerAdjacentItem { action, same_slot_only } => Trigger::PerAdjacentItem {
+                action: action.scaled(pct),
+                same_slot_only,
+            },
+            // The cost stays where it is; only what it buys grows.
+            Trigger::SpendMana { cost, on_success, on_failure } => Trigger::SpendMana {
+                cost,
+                on_success: on_success.scaled(pct),
+                on_failure: on_failure.scaled(pct),
+            },
+            Trigger::Spend { what, cost, on_success, on_failure } => Trigger::Spend {
+                what,
+                cost,
+                on_success: on_success.scaled(pct),
+                on_failure: on_failure.scaled(pct),
+            },
+            Trigger::Consume { what, each, per } => {
+                Trigger::Consume { what, each, per: per.scaled(pct) }
+            }
+            // A repeat wraps a static trigger, so it cannot be rewritten in
+            // place. It is expanded before dispatch and scaled there.
+            Trigger::PerAdjacentEmpty(inner) => Trigger::PerAdjacentEmpty(inner),
+        }
+    }
+
     pub fn describe(&self) -> String {
         match self {
             Trigger::OnActivate(a) => format!("on activation, {}", a.describe()),

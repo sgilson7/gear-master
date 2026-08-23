@@ -611,7 +611,7 @@ impl Loadout {
             let core = item.pieces.iter().copied().find(|&p| reg.def(p).kind.is_core());
             let cooldown_ms = item_cooldown_ms(reg, &item.pieces, *kind);
 
-            let triggers: Vec<Trigger> = item
+            let raw_triggers: Vec<Trigger> = item
                 .pieces
                 .iter()
                 .flat_map(|&p| reg.def(p).triggers.iter().copied())
@@ -658,11 +658,21 @@ impl Loadout {
             // them - what it grants standing, what it does per activation, and
             // every spell it casts.
             let times = multipliers[i];
-            let scaled_stats = item.stats.times(times);
+            // And then the item's own power on top, which multiplies its
+            // numbers and what its triggers pay out - but never what they
+            // cost. Baked in here rather than at the point of use, so combat,
+            // the card and the rating are all reading the same figures.
+            let scaled_stats = item.stats.times(times).powered(power);
             let casts: Vec<Cast> = casts
                 .into_iter()
-                .map(|c| Cast { stats: c.stats.times(times), ..c })
+                .map(|c| Cast {
+                    stats: c.stats.times(times).powered(power),
+                    triggers: c.triggers.into_iter().map(|t| t.scaled(power)).collect(),
+                    ..c
+                })
                 .collect();
+            let triggers: Vec<Trigger> =
+                raw_triggers.into_iter().map(|t| t.scaled(power)).collect();
 
             out.push(ItemProfile {
                 sigil_seed: item_hash(self.name_seed, reg, slot, &item.pieces),

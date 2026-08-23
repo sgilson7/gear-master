@@ -600,3 +600,76 @@ fn a_blade_does_not_fork() {
         );
     }
 }
+
+
+/// Power multiplies what a trigger pays out and never what it costs.
+///
+/// A piece that spends four mana spends four mana whatever multiplier its item
+/// is carrying - otherwise power would quietly price a build out of its own
+/// gear, and the stronger the item the less usable it became.
+#[test]
+fn power_multiplies_outcomes_and_leaves_costs_alone() {
+    use gearmaster_engine::piece::{Action, Trigger};
+
+    let t = Trigger::SpendMana {
+        cost: 4,
+        on_success: Action::GainArmor(30),
+        on_failure: Action::GainMana(2),
+    };
+    match t.scaled(250) {
+        Trigger::SpendMana { cost, on_success, on_failure } => {
+            assert_eq!(cost, 4, "the cost must not move");
+            assert!(matches!(on_success, Action::GainArmor(75)), "{:?}", on_success);
+            assert!(matches!(on_failure, Action::GainMana(5)), "{:?}", on_failure);
+        }
+        other => panic!("{:?}", other),
+    }
+
+    // The same for the pooled kind, and for emptying a reserve: `each` is how
+    // much it takes per payout, which is a cost too.
+    let c = Trigger::Consume {
+        what: gearmaster_engine::piece::Resource::Faith,
+        each: 6,
+        per: Action::MindDamage { amount: 10, target: gearmaster_engine::piece::Target::Enemy },
+    };
+    match c.scaled(200) {
+        Trigger::Consume { each, per, .. } => {
+            assert_eq!(each, 6, "the handful must not grow");
+            assert!(matches!(per, Action::MindDamage { amount: 20, .. }), "{:?}", per);
+        }
+        other => panic!("{:?}", other),
+    }
+}
+
+/// And it multiplies every number on the item, not only a weapon's damage.
+#[test]
+fn power_reaches_armour_and_pools_not_just_damage() {
+    use gearmaster_engine::piece::SlotKind;
+    use gearmaster_engine::run::Run;
+
+    // Crown of the Deep carries power and sits in a helmet, which never swings.
+    let armour_of = |with_power: bool| -> (i32, i32) {
+        let mut run = Run::with_all_pieces();
+        equip(&mut run, "Steel Frame", SlotKind::Helmet, 0, 0);
+        equip(&mut run, "Mana Ward", SlotKind::Helmet, 0, 2);
+        if with_power {
+            equip(&mut run, "Crown of the Deep", SlotKind::Helmet, 3, 0);
+        }
+        assert_eq!(run.report(SlotKind::Helmet).assembled_count(), 1, "fixture");
+        let p = run
+            .combat_items()
+            .into_iter()
+            .find(|i| i.slot == SlotKind::Helmet)
+            .expect("a helmet");
+        (p.power, p.stats.armor)
+    };
+    let (plain_power, plain_armor) = armour_of(false);
+    let (powered, powered_armor) = armour_of(true);
+    assert!(powered > plain_power, "the crown should raise the item's power");
+    assert!(
+        powered_armor > plain_armor,
+        "power should reach a helmet's armour: {} vs {}",
+        powered_armor,
+        plain_armor
+    );
+}

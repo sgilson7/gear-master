@@ -281,6 +281,34 @@ impl Stats {
         out
     }
 
+    /// Everything this contributes, multiplied by `pct` hundredths.
+    ///
+    /// What an item's own power does to its own numbers. `power` itself is
+    /// left alone - it is the multiplier, not a thing being multiplied - and
+    /// so are the percentage stats, which are already proportions and would
+    /// mean nothing scaled: a piece with 40% resistance and a 3x multiplier
+    /// does not resist 120% of anything.
+    pub fn powered(self, pct: i32) -> Stats {
+        if pct == 100 {
+            return self;
+        }
+        let m = |v: i32| ((v as i64 * pct as i64) / 100) as i32;
+        Stats {
+            health: m(self.health),
+            strength: m(self.strength),
+            regen: m(self.regen),
+            physical_damage: m(self.physical_damage),
+            magic_damage: m(self.magic_damage),
+            armor: m(self.armor),
+            mana: m(self.mana),
+            mind: m(self.mind),
+            rage: m(self.rage),
+            faith: m(self.faith),
+            nature: m(self.nature),
+            ..self
+        }
+    }
+
     /// Damage per attack: strength scaled by the weapon multiplier.
     /// `power` is in hundredths, so this is `strength * power / 100`.
     pub fn damage_per_attack(&self) -> i32 {

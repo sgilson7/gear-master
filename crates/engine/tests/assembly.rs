@@ -1188,13 +1188,18 @@ fn an_alignment_colours_every_spell_in_the_ball() {
     let after = after.iter().find(|i| i.casts.len() > 1).expect("an orb");
     assert_eq!(after.casts.len(), 2, "still two casts, not three");
 
-    for (i, c) in after.casts.iter().enumerate() {
-        assert_eq!(
-            c.stats.mana,
-            mana_before[i] + 2,
-            "every spell gained the alignment's mana, not just one"
-        );
-    }
+    // Every spell gained, and gained the same - which is the point of an
+    // alignment. Not by exactly two: the alignment also carries power, and an
+    // item's power multiplies its own numbers, so what reaches each cast is
+    // the alignment's mana with the ball's multiplier already on it.
+    let gained: Vec<i32> =
+        after.casts.iter().enumerate().map(|(i, c)| c.stats.mana - mana_before[i]).collect();
+    assert!(gained.iter().all(|g| *g > 0), "no spell gained anything: {:?}", gained);
+    assert!(
+        gained.windows(2).all(|w| w[0] == w[1]),
+        "the alignment reached one spell and not the others: {:?}",
+        gained
+    );
 }
 
 /// A spell that answers its siblings pays out when one of them is cast, which
