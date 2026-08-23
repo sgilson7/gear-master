@@ -109,6 +109,15 @@ fn slot_of(i: u32) -> SlotKind {
 }
 
 /// Write a run down.
+/// A run that cleared the whole ladder, shared by the game's owner.
+///
+/// Kept here as a fixture rather than in one test file, because it is the only
+/// high-end board in the project that a human actually built: seventy-five
+/// pieces across five boards at ninety-seven percent of the cells, which is
+/// roughly twice what the packing solver manages. Anything that needs to know
+/// what a finished build looks like should start here.
+pub const A_WINNING_RUN: &str = "1-1J-1J-2-72W-1-2-2-0-2B-1H400-1D831-7441-10W15-13036-GM0C-B03D-M81G-1GR3J-740Q-1GG2R-11C4R-A0G3-HCH0-144H4-18M4-14RK9-1CGC-1K4MD-1JGGG-148GM-A0KN-158MR-KMGY-1HN00-16D11-KD20-FD41-6104-1AD34-17D08-16129-8X48-1813F-250H-1A15G-494M-2X0R-992R-16X5S-1FS0W-1FN4W-111G2-85J1-185M1-10NN1-18HG4-119J8-15XM8-85GC-HNJH-KHMG-5SGN-HSMN-BDGS-1E9KR-DJ00-X611-DA20-Y233-YE40-XP51-1KY18-WP48-YJ1C-YT2C-1JT0G-K61G-XY1H-1H23H-YA3M-XP4Q-XT5N-X62R-GY0X";
+
 pub fn export(run: &Run) -> String {
     let mut vals: Vec<u32> = vec![VERSION, run.rung as u32, run.wins, run.losses, run.gold.max(0) as u32];
     // Theme and classes by index, so the code carries no words of its own.
@@ -154,9 +163,15 @@ pub fn import(code: &str) -> Option<Shared> {
     let vals = decode(code.trim())?;
     let mut it = vals.into_iter();
     let mut next = || it.next();
-    if next()? != VERSION {
+    // Version 1 codes are still read. They were shared before the board could
+    // be more than eight rows tall, so they carry no row count and pack `x`
+    // into four bits and `y` into three - the other way round from now. Codes
+    // people have already saved are not ours to invalidate.
+    let version = next()?;
+    if version == 0 || version > VERSION {
         return None;
     }
+    let v1 = version == 1;
     let rung = next()? as usize;
     let wins = next()?;
     let losses = next()?;
@@ -165,7 +180,7 @@ pub fn import(code: &str) -> Option<Shared> {
         .get(next()? as usize)
         .map(|t| t.id.to_string())
         .unwrap_or_else(|| "plain".into());
-    let extra_rows = next()? as u8;
+    let extra_rows = if v1 { 0 } else { next()? as u8 };
     let n_classes = next()?;
     let mut classes = Vec::new();
     for _ in 0..n_classes {
@@ -176,11 +191,16 @@ pub fn import(code: &str) -> Option<Shared> {
     let mut placed = Vec::new();
     for _ in 0..n_placed {
         let v = next()?;
+        let (x, y) = if v1 {
+            (((v >> 5) & 15) as u8, ((v >> 2) & 7) as u8)
+        } else {
+            (((v >> 6) & 7) as u8, ((v >> 2) & 15) as u8)
+        };
         placed.push((
             (v >> 12) as usize,
             slot_of((v >> 9) & 7),
-            ((v >> 6) & 7) as u8,
-            ((v >> 2) & 15) as u8,
+            x,
+            y,
             (v & 3) as u8,
         ));
     }
@@ -237,7 +257,11 @@ mod tests {
         // no pieces. Spelled out rather than round-tripped, so a change to the
         // format has to be noticed here too.
         assert!(import("2-0-0-0-0-0-0-0-0").is_some(), "an empty board is still a run");
-        assert!(import("1-0-0-0-0-0-0-0").is_none(), "a version 1 code is not a version 2 one");
+        // A version 1 code still reads: it has one field fewer and packs its
+        // coordinates the other way round, and codes people saved before the
+        // boards could grow are not ours to invalidate.
+        assert!(import("1-0-0-0-0-0-0-0").is_some(), "a version 1 code stopped reading");
+        assert!(import("3-0-0-0-0-0-0-0-0").is_none(), "a version from the future");
     }
 
     #[test]
