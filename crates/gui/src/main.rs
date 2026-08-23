@@ -2849,7 +2849,36 @@ fn render_slot_items(
         let mine: Vec<&ItemProfile> = profiles.iter().filter(|p| p.slot == view.kind).collect();
         for (i, p) in mine.iter().enumerate() {
             if i == STRIP_ROWS && mine.len() > STRIP_ROWS {
-                ui_text(&format!("+{} more", mine.len() - i), ox + 4.0, y + 13.0, 12.0, col_dim());
+                // The overflow says how many and, on hover, what they are.
+                // A count with no way to read it is worse than no count.
+                let rest = &mine[i..];
+                let row = Rect::new(ox, y, gw, STRIP_ROW_H);
+                let hot = row.contains(Vec2::new(mx, my));
+                if hot {
+                    draw_rectangle(row.x, row.y, row.w, row.h, Color::from_rgba(255, 255, 255, 18));
+                }
+                ui_text(
+                    &format!("+{} more", rest.len()),
+                    ox + 4.0,
+                    y + 13.0,
+                    12.0,
+                    if hot { col_gold() } else { col_dim() },
+                );
+                let hidden: Vec<(String, Color)> = rest
+                    .iter()
+                    .map(|p| {
+                        (
+                            format!(
+                                "{}   {:.2}s   {}",
+                                words::retell(&p.name),
+                                p.cooldown_ms as f32 / 1000.0,
+                                Rarity::of(p.rating).name()
+                            ),
+                            WHITE,
+                        )
+                    })
+                    .collect();
+                hover.over_tip(row, mx, my, || Tip::plain(hidden.clone()));
                 y += STRIP_ROW_H;
                 break;
             }
@@ -3978,6 +4007,9 @@ fn render_battle(
     my: f32,
 ) {
     let Some(log) = run.log.as_ref() else { return };
+    // Painted at the very end, so nothing this pass draws afterwards lands on
+    // top of it. The battle screen has no `Hover` to leave a request in.
+    let mut deferred: Option<Vec<(String, Color)>> = None;
     let g = battle_geom(pb.done);
     let gh = SLOT_H as f32 * MINI_CELL;
     let reports = run.reports();
@@ -4137,13 +4169,35 @@ fn render_battle(
             );
         }
         if shown < order.len() {
+            let ry = top + 30.0 + shown as f32 * pitch;
+            let row = Rect::new(g.cd_x, ry, g.cd_w, 20.0);
+            let hot = row.contains(Vec2::new(mx, my));
             ui_text(
                 &format!("+ {} more", order.len() - shown),
                 g.cd_x + 32.0,
-                top + 30.0 + shown as f32 * pitch + 12.0,
+                ry + 12.0,
                 13.0,
-                col_dim(),
+                if hot { col_gold() } else { col_dim() },
             );
+            // What the list could not fit, on hover.
+            if hot {
+                deferred = Some(
+                    order[shown..]
+                        .iter()
+                        .filter_map(|&i| items.get(i))
+                        .map(|it| {
+                            (
+                                format!(
+                                    "{}   every {:.2}s",
+                                    words::retell(&it.name),
+                                    it.cooldown_ms as f32 / 1000.0
+                                ),
+                                WHITE,
+                            )
+                        })
+                        .collect(),
+                );
+            }
         }
     }
 
@@ -4272,6 +4326,10 @@ fn render_battle(
             }
         }
     }
+
+    if let Some(l) = deferred {
+        draw_tip(&Tip::plain(l), mx, my);
+    }
 }
 
 /// Everything one assembled item is worth: what it adds to you all the time,
@@ -4283,6 +4341,35 @@ fn render_item_summary(p: &ItemProfile, run: &Run, mx: f32, my: f32) {
 
 /// The body of that card, so the loadout screen can show the same thing in a
 /// hover of its own rather than keeping a second, worse description in sync.
+/// What kind of harm a hit is made of, when it is made of more than one.
+///
+/// A single figure says how hard it hits and nothing about what it hits with,
+/// which matters: physical and magic answer to different resistances, and a
+/// build that is half of each is a different proposition from one that is all
+/// of either. Silent when it is only one kind - there is nothing to break down.
+fn damage_breakdown(p: &ItemProfile, strength: i32) -> String {
+    // Strength rides with the physical half, the same way it does in a swing.
+    let phys = p.stats.physical_damage + if p.slot == SlotKind::Weapon { strength } else { 0 };
+    let magic = p.stats.magic_damage;
+    let parts: Vec<String> = [(phys, "physical"), (magic, "magic")]
+        .into_iter()
+        .filter(|(v, _)| *v > 0)
+        .map(|(v, n)| {
+            // Through the item's multiplier, so the parts add up to the total
+            // printed beside them.
+            format!("{} {}", (v as i64 * p.power as i64 / 100) as i32, n)
+        })
+        .collect();
+    match parts.len() {
+        0 => String::new(),
+        // One kind: name it, because "hits for 61" says how hard and nothing
+        // about what answers it.
+        1 => format!(" {}", parts[0].split_once(' ').map(|(_, k)| k).unwrap_or("")),
+        // Several: the total is already printed, so this is the split.
+        _ => format!(" ({})", parts.join(" + ")),
+    }
+}
+
 fn item_summary_lines(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> {
     // Everything this card says is the engine's vocabulary, so the whole
     // thing is re-told at the end rather than word by word as it is built.
@@ -4368,7 +4455,13 @@ fn item_summary_lines_plain(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> 
         // one - so a crystal ball looked like less than half of what it does.
         if p.casts.is_empty() {
             lines.push((
-                format!("  hits for {}  ({}.{} a second)", hit, dps / 1000, (dps % 1000) / 100),
+                format!(
+                    "  hits for {}{}  ({}.{} a second)",
+                    hit,
+                    damage_breakdown(p, total.strength),
+                    dps / 1000,
+                    (dps % 1000) / 100
+                ),
                 Color::from_rgba(240, 210, 190, 255),
             ));
         } else {
@@ -4378,8 +4471,9 @@ fn item_summary_lines_plain(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> 
             let paid_dps = dps * EMPOWERED_CAST_PCT as i64 / 100;
             lines.push((
                 format!(
-                    "  casts for {} paid, {} unpaid  ({}.{} a second paid)",
+                    "  casts for {}{} paid, {} unpaid  ({}.{} a second paid)",
                     paid,
+                    damage_breakdown(p, total.strength),
                     weak,
                     paid_dps / 1000,
                     (paid_dps % 1000) / 100
@@ -7134,11 +7228,24 @@ fn render_panel(
         let held: Vec<&str> = run.classes.iter().map(|c| c.name).collect();
         let next = outlook.iter().find(|m| m.eligible && !held.contains(&m.class.name));
         if let Some(best) = next {
-            if fits(y, 18.0) {
-                ui_text("it would give you", x + 20.0, y, 12.0, col_dim());
-                let title = words::class(best.class.name);
-                let w = text_width(title, 16.0);
-                ui_text(title, x + PANEL_W - 20.0 - w, y, 16.0, col_gold());
+            // The label on the left and the name on the right, unless they
+            // would meet. A long themed title - "Grand Calculator", "Galapagos
+            // Timekeeper" - printed straight through "it would give you", so
+            // the two share a line only when both actually fit on it.
+            let title = words::class(best.class.name);
+            let label = "it would give you";
+            let lw = text_width(label, 12.0);
+            let tw = text_width(title, 16.0);
+            let both = lw + tw + 16.0 <= PANEL_W - 40.0;
+            if both && fits(y, 18.0) {
+                ui_text(label, x + 20.0, y, 12.0, col_dim());
+                ui_text(title, x + PANEL_W - 20.0 - tw, y, 16.0, col_gold());
+                y += 18.0;
+            } else if fits(y, 34.0) {
+                ui_text(label, x + 20.0, y, 12.0, col_dim());
+                y += 16.0;
+                let size = fitting_size(title, PANEL_W - 40.0, &[16.0, 15.0, 14.0, 13.0]);
+                draw_capped(title, x + 20.0, y, PANEL_W - 40.0, size, col_gold(), 1);
                 y += 18.0;
             }
         }
@@ -7408,7 +7515,12 @@ async fn main() {
                 .copied()
                 .find(|&i| run.registry.def(i).name == name && !run.is_equipped(i))
                 .expect("unknown or already-placed component");
-            run.equip(id, slot, xs.parse().unwrap(), ys.parse().unwrap()).expect("fits");
+            let (px, py) = (xs.parse().unwrap(), ys.parse().unwrap());
+            if let Err(e) = run.equip(id, slot, px, py) {
+                // A debug hook, but aborting with "fits" tells you nothing
+                // about which entry was wrong or why.
+                panic!("GEARMASTER_PLACE: {} at {} {},{}: {}", name, slot.name(), px, py, e);
+            }
         }
     }
     // GEARMASTER_PIN=0,3 pins shelves, so the pinned state can be inspected.
@@ -9082,6 +9194,51 @@ mod tooltip_tests {
             shown,
             inked * WEAK_CAST_PCT / 100
         );
+    }
+
+    /// A hit says what kind of harm it is. One kind is named; a mixed weapon
+    /// shows the split beside the total, because physical and magic answer to
+    /// different resistances and "hits for 80" says nothing about which.
+    #[test]
+    fn a_hit_says_what_kind_of_damage_it_is() {
+        use gearmaster_engine::piece::SlotKind;
+        use gearmaster_engine::run::Run;
+
+        let build = |names: &[(&str, u8, u8)]| -> Run {
+            let mut run = Run::with_all_pieces();
+            for &(name, x, y) in names {
+                let id = run
+                    .owned
+                    .iter()
+                    .copied()
+                    .find(|&i| run.registry.def(i).name == name)
+                    .expect("piece exists");
+                run.equip(id, SlotKind::Weapon, x, y).expect("it fits");
+            }
+            run
+        };
+        let run = build(&[("Oak Handle", 0, 0), ("Iron Blade", 1, 0)]);
+        let p = run.combat_items().into_iter().next().expect("a weapon");
+        let lines = item_summary_lines(&p, &run);
+        let hit = lines
+            .iter()
+            .find(|(s, _)| s.contains("hits for"))
+            .map(|(s, _)| s.clone())
+            .expect("it hits");
+        assert!(hit.contains("physical"), "a plain blade should name its damage: {:?}", hit);
+
+        // And a mixed one shows the parts.
+        let mixed = build(&[("Oak Handle", 0, 0), ("Iron Blade", 1, 0), ("Hexbolt", 2, 0)]);
+        let m = mixed.combat_items().into_iter().next().expect("a weapon");
+        assert!(m.stats.physical_damage > 0 && m.stats.magic_damage > 0, "fixture is mixed");
+        let lines = item_summary_lines(&m, &mixed);
+        let hit = lines
+            .iter()
+            .find(|(s, _)| s.contains("hits for"))
+            .map(|(s, _)| s.clone())
+            .expect("it hits");
+        assert!(hit.contains(" + "), "a mixed weapon should show the split: {:?}", hit);
+        assert!(hit.contains("physical") && hit.contains("magic"), "{:?}", hit);
     }
 
     /// And it must not still be quoting only the weak branch, which read as
