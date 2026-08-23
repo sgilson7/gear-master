@@ -4271,11 +4271,28 @@ fn render_mini_board(
     accent: Color,
     shakes: &Shakes,
 ) {
-    let gw = SLOT_W as f32 * MINI_CELL;
-    let gh = SLOT_H as f32 * MINI_CELL;
+    render_mini_board_at(x0, y0, MINI_CELL, MINI_GAP, reg, loadout, reports, accent, shakes)
+}
+
+/// The same, at whatever scale it has been given. Two boards only fit across
+/// the screen at a smaller cell than a duel uses.
+#[allow(clippy::too_many_arguments)]
+fn render_mini_board_at(
+    x0: f32,
+    y0: f32,
+    cell: f32,
+    slot_gap: f32,
+    reg: &PieceRegistry,
+    loadout: &Loadout,
+    reports: &[SlotReport],
+    accent: Color,
+    shakes: &Shakes,
+) {
+    let gw = SLOT_W as f32 * cell;
+    let gh = SLOT_H as f32 * cell;
 
     for (i, &kind) in SlotKind::ALL.iter().enumerate() {
-        let gx = x0 + i as f32 * (gw + MINI_GAP);
+        let gx = x0 + i as f32 * (gw + slot_gap);
         let slot = loadout.slot(kind);
         let report = &reports[kind.index()];
         let live = report.assembled_count() > 0;
@@ -4289,9 +4306,9 @@ fn render_mini_board(
         );
         for cy in 0..SLOT_H {
             for cx in 0..SLOT_W {
-                let (px, py) = (gx + cx as f32 * MINI_CELL, y0 + cy as f32 * MINI_CELL);
+                let (px, py) = (gx + cx as f32 * cell, y0 + cy as f32 * cell);
                 let c = if (cx + cy) % 2 == 0 { col_cell_a() } else { col_cell_b() };
-                draw_rectangle(px, py, MINI_CELL, MINI_CELL, c);
+                draw_rectangle(px, py, cell, cell, c);
             }
         }
 
@@ -4302,9 +4319,9 @@ fn render_mini_board(
             let (dx, dy) = shakes.get(&id).copied().unwrap_or((0.0, 0.0));
             draw_shape(
                 &shape,
-                gx + ax as f32 * MINI_CELL + dx,
-                y0 + ay as f32 * MINI_CELL + dy,
-                MINI_CELL,
+                gx + ax as f32 * cell + dx,
+                y0 + ay as f32 * cell + dy,
+                cell,
                 def,
                 Some(kind),
                 1.0,
@@ -4327,20 +4344,20 @@ fn render_mini_board(
                 .unwrap_or((0.0, 0.0));
             for &(cx, cy) in &cells {
                 let (px, py) = (
-                    gx + cx as f32 * MINI_CELL + odx,
-                    y0 + cy as f32 * MINI_CELL + ody,
+                    gx + cx as f32 * cell + odx,
+                    y0 + cy as f32 * cell + ody,
                 );
                 if cy == 0 || !cells.contains(&(cx, cy - 1)) {
-                    draw_line(px, py, px + MINI_CELL, py, 2.0, outline);
+                    draw_line(px, py, px + cell, py, 2.0, outline);
                 }
                 if cy + 1 >= SLOT_H || !cells.contains(&(cx, cy + 1)) {
-                    draw_line(px, py + MINI_CELL, px + MINI_CELL, py + MINI_CELL, 2.0, outline);
+                    draw_line(px, py + cell, px + cell, py + cell, 2.0, outline);
                 }
                 if cx == 0 || !cells.contains(&(cx - 1, cy)) {
-                    draw_line(px, py, px, py + MINI_CELL, 2.0, outline);
+                    draw_line(px, py, px, py + cell, 2.0, outline);
                 }
                 if cx + 1 >= SLOT_W || !cells.contains(&(cx + 1, cy)) {
-                    draw_line(px + MINI_CELL, py, px + MINI_CELL, py + MINI_CELL, 2.0, outline);
+                    draw_line(px + cell, py, px + cell, py + cell, 2.0, outline);
                 }
             }
         }

@@ -110,7 +110,7 @@ also means the grid stops being a constant, which is its own milestone.
 
 ---
 
-## Multi-enemy fights
+## Multi-enemy fights — partial (engine built, screen pending)
 
 The expensive one, and the reason it gets a milestone of its own rather than
 being folded into the casino.
@@ -132,8 +132,13 @@ opponents anyway.
 
 - `simulate` takes `&[MonsterSpec]` rather than `&MonsterSpec`.
 - Internally `player: Combatant`, `foes: Vec<Combatant>`.
-- The player's single-target damage goes to the **first living foe**, front to
-  back. Deterministic, readable, and it makes ordering a design lever.
+- **The aim rotates: every blow moves it along.** This replaced an earlier
+  front-to-back rule, and the reason matters. Focusing the front one down
+  makes a brawl a *queue* — kill the first thing and the incoming damage
+  halves, so the back half of the fight is easier than the front. Spreading
+  means both of them are hitting you until nearly the end, which is what makes
+  two of something worse than one of something twice the size. There is a test
+  that asserts exactly that.
 - Every foe acts independently against the player.
 - Victory when every foe is down.
 - Events that name a combatant gain a `who: u8`, defaulting to 0, so every
@@ -156,7 +161,7 @@ In dependency order. Each one ends with something playable.
 | 1 | **This document** | everything | done |
 | 2 | **Event triggers and rewards** — `Run::best_fight_ms`, conditional events, `Requirement::Holding`, `Outcome::Give` | 3, 7 | **built** |
 | 3 | **The casino, walk-away branch** — event fires, scene, Gold Chip | — | **built** |
-| 4 | **Multi-enemy fights** — engine party, then the battle screen | 5, 7 | **large** |
+| 4 | **Multi-enemy fights** — engine party, then the battle screen | 5, 7 | **engine built**, screen pending |
 | 5 | **The casino, step-in branch** — 2-at-once, Platinum Chip, loss costs no life | 7 | small once 4 lands |
 | 6 | **Variable slot height** — `SLOT_H` const becomes a per-run figure | 7 | medium |
 | 7 | **The VIP area** — both branches, the five-piece shop, Immense Guilt, Sprocketman's Gratitude | — | medium |
@@ -194,3 +199,34 @@ of the game is written at: the Crimper crunches, and nobody is described being
 crunched. The horror is that they are *made to work*, endlessly, for someone
 else's amusement — which is the book's own joke about the Great Gear Cave, and
 lands harder than anything explicit would.
+
+
+---
+
+## What the multi-enemy refactor actually cost
+
+Recorded because the estimate was right about the shape and wrong about the
+proportions.
+
+`LogEntry` gained **one** `who` field rather than each of the twenty-odd
+`Event` variants that name a side gaining one. That works because the player is
+always singular: an entry is about a foe either way — the one acting, or the
+one being acted upon — and there is never a third party. That single decision
+is most of why the engine half came in small.
+
+The trap was the targeting hook. The first attempt rotated the aim inside
+`Action::Damage`, which looked complete and was not: a weapon's own swing never
+goes through there, it lands `item.physical_damage` directly in `activate`. Two
+identical toads came out of a "spread" fight on 240 and 97. Each repetition of
+a swing now aims afresh and takes its own line in the log, which is also more
+honest than folding an echo and its original into one number was.
+
+**Still to do:** `Playback` is built from paired fields — `enemy_hp`,
+`enemy_reg`, `enemy_loadout`, `enemy_reports`, `enemy_profiles`,
+`enemy_schedule`, `enemy_curses`, `enemy_stuns`, `enemy_pools` and the rest,
+73 uses in all. They want to become a `Vec<FoeView>` indexed by `LogEntry::who`.
+`render_mini_board_at` already takes a cell size, because two boards only fit
+across the screen at a smaller one than a duel uses.
+
+Nothing can start a brawl in-game until milestone 5 anyway, so the engine
+landing ahead of the screen leaves nothing broken - only unreachable.
