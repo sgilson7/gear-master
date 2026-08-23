@@ -160,11 +160,14 @@ fn window_conf() -> Conf {
 struct SlotView {
     kind: SlotKind,
     origin: (f32, f32),
+    /// How many rows this grid has. A run can be given more, so this is
+    /// carried rather than read off a constant.
+    rows: u8,
 }
 
 impl SlotView {
     fn size(&self) -> (f32, f32) {
-        (SLOT_W as f32 * SLOT_CELL, SLOT_H as f32 * SLOT_CELL)
+        (SLOT_W as f32 * SLOT_CELL, self.rows as f32 * SLOT_CELL)
     }
 
     fn contains(&self, x: f32, y: f32) -> bool {
@@ -181,7 +184,7 @@ impl SlotView {
     fn hit(&self, mx: f32, my: f32) -> Option<(u8, u8)> {
         let gx = ((mx - self.origin.0) / SLOT_CELL).floor() as i32;
         let gy = ((my - self.origin.1) / SLOT_CELL).floor() as i32;
-        if !(0..SLOT_W as i32).contains(&gx) || !(0..SLOT_H as i32).contains(&gy) {
+        if !(0..SLOT_W as i32).contains(&gx) || !(0..self.rows as i32).contains(&gy) {
             return None;
         }
         Some((gx as u8, gy as u8))
@@ -229,9 +232,9 @@ struct Bands {
     inv_h: f32,
 }
 
-fn bands(worn: usize) -> Bands {
+fn bands(worn: usize, rows: u8) -> Bands {
     let panel_x = LOGICAL_W - PANEL_W;
-    let gh = SLOT_H as f32 * SLOT_CELL;
+    let gh = rows as f32 * SLOT_CELL;
     let total = (panel_x - 48.0).max(100.0);
     // Each slot lists its own items, so the band is as tall as the fullest one
     // rather than as tall as the whole loadout. One more row for "unfinished".
@@ -256,7 +259,8 @@ impl Layout {
     fn build(run: &Run, worn: usize) -> Self {
         let panel_x = LOGICAL_W - PANEL_W;
         let gw = SLOT_W as f32 * SLOT_CELL;
-        let b = bands(worn);
+        let rows = run.loadout.rows();
+        let b = bands(worn, rows);
         let x0 = b.x0;
 
         let slots = SlotKind::ALL
@@ -265,6 +269,7 @@ impl Layout {
             .map(|(i, &kind)| SlotView {
                 kind,
                 origin: (x0 + i as f32 * (gw + SLOT_GAP), SLOT_TOP),
+                rows,
             })
             .collect();
 
@@ -2782,7 +2787,7 @@ fn render_item_outlines(view: &SlotView, run: &Run, report: &SlotReport) {
         for &(x, y) in &cells {
             let (px, py) = view.cell_origin(x, y);
             let up = y > 0 && cells.contains(&(x, y - 1));
-            let down = y + 1 < SLOT_H && cells.contains(&(x, y + 1));
+            let down = y + 1 < view.rows && cells.contains(&(x, y + 1));
             let left = x > 0 && cells.contains(&(x - 1, y));
             let right = x + 1 < SLOT_W && cells.contains(&(x + 1, y));
             if !up {
@@ -2872,7 +2877,7 @@ fn render_slots(
         };
         draw_rectangle(ox - 3.0, oy - 3.0, gw + 6.0, gh + 6.0, border);
 
-        for gy in 0..SLOT_H {
+        for gy in 0..view.rows {
             for gx in 0..SLOT_W {
                 let (cx, cy) = view.cell_origin(gx, gy);
                 let c = if (gx + gy) % 2 == 0 { col_cell_a() } else { col_cell_b() };
@@ -4342,8 +4347,9 @@ fn render_mini_board_at(
     accent: Color,
     shakes: &Shakes,
 ) {
+    let rows = loadout.rows();
     let gw = SLOT_W as f32 * cell;
-    let gh = SLOT_H as f32 * cell;
+    let gh = rows as f32 * cell;
 
     for (i, &kind) in SlotKind::ALL.iter().enumerate() {
         let gx = x0 + i as f32 * (gw + slot_gap);
@@ -4358,7 +4364,7 @@ fn render_mini_board_at(
             gh + 4.0,
             if live { accent } else { Color::from_rgba(58, 58, 76, 255) },
         );
-        for cy in 0..SLOT_H {
+        for cy in 0..rows {
             for cx in 0..SLOT_W {
                 let (px, py) = (gx + cx as f32 * cell, y0 + cy as f32 * cell);
                 let c = if (cx + cy) % 2 == 0 { col_cell_a() } else { col_cell_b() };
@@ -4404,7 +4410,7 @@ fn render_mini_board_at(
                 if cy == 0 || !cells.contains(&(cx, cy - 1)) {
                     draw_line(px, py, px + cell, py, 2.0, outline);
                 }
-                if cy + 1 >= SLOT_H || !cells.contains(&(cx, cy + 1)) {
+                if cy + 1 >= rows || !cells.contains(&(cx, cy + 1)) {
                     draw_line(px, py + cell, px + cell, py + cell, 2.0, outline);
                 }
                 if cx == 0 || !cells.contains(&(cx - 1, cy)) {
@@ -5614,7 +5620,7 @@ fn render_tools(
             // buttons rather than to the width, or five of them at full width
             // are taller than the drawer.
             let room_h = (r.y + r.h - 74.0) - iy - 14.0;
-            let by_h = room_h / SLOT_H as f32;
+            let by_h = room_h / lo.rows() as f32;
             let by_w = (r.w - 56.0 - 4.0 * 10.0) / 5.0 / SLOT_W as f32;
             let cell = by_h.min(by_w);
             let bw = cell * SLOT_W as f32;
@@ -5657,9 +5663,10 @@ fn render_share_board(
     w: f32,
 ) {
     let cell = w / SLOT_W as f32;
-    draw_rectangle(x, y, w, cell * SLOT_H as f32, Color::from_rgba(24, 24, 34, 255));
+    let rows = lo.rows();
+    draw_rectangle(x, y, w, cell * rows as f32, Color::from_rgba(24, 24, 34, 255));
     let slot = lo.slot(kind);
-    for gy in 0..SLOT_H {
+    for gy in 0..rows {
         for gx in 0..SLOT_W {
             let Some(id) = slot.get(gx, gy) else { continue };
             let c = slot_color(kind, kind_luminance(reg.def(id).kind));
@@ -5672,8 +5679,8 @@ fn render_share_board(
             );
         }
     }
-    draw_rectangle_lines(x, y, w, cell * SLOT_H as f32, 1.0, Color::from_rgba(70, 70, 95, 255));
-    ui_text(kind.name(), x, y + cell * SLOT_H as f32 + 12.0, 10.0, col_dim());
+    draw_rectangle_lines(x, y, w, cell * rows as f32, 1.0, Color::from_rgba(70, 70, 95, 255));
+    ui_text(kind.name(), x, y + cell * rows as f32 + 12.0, 10.0, col_dim());
 }
 
 /// An event standing in front of a rung: some prose and a row of choices.
@@ -8148,6 +8155,11 @@ async fn main() {
             run.rung = n;
         }
     }
+    // GEARMASTER_ROWS=<n> gives the boards n extra rows, for looking at what
+    // a grown board does to the layout.
+    if let Some(n) = std::env::var("GEARMASTER_ROWS").ok().and_then(|v| v.parse::<u8>().ok()) {
+        run.grow_boards(n);
+    }
     // GEARMASTER_QUICK=<ms> pretends the run has already won a fight that
     // fast, which is what earns the casino.
     if let Some(ms) = std::env::var("GEARMASTER_QUICK").ok().and_then(|v| v.parse().ok()) {
@@ -8427,7 +8439,7 @@ async fn main() {
                 let ok = pieces.iter().all(|&(p, dx, dy)| {
                     let (x, y) = (ax as u32 + dx as u32, ay as u32 + dy as u32);
                     x < SLOT_W as u32
-                        && y < SLOT_H as u32
+                        && y < run.loadout.rows() as u32
                         && run.can_equip(p, kind, x as u8, y as u8).is_ok()
                 });
                 let view = layout.view(kind);
@@ -9181,13 +9193,13 @@ mod tests {
     use super::*;
 
     fn view() -> SlotView {
-        SlotView { kind: SlotKind::Weapon, origin: (137.5, 112.0) }
+        SlotView { kind: SlotKind::Weapon, origin: (137.5, 112.0), rows: SLOT_H }
     }
 
     #[test]
     fn every_cell_round_trips_from_grid_to_pixels_and_back() {
         let v = view();
-        for gy in 0..SLOT_H {
+        for gy in 0..v.rows {
             for gx in 0..SLOT_W {
                 let (px, py) = v.cell_origin(gx, gy);
                 // Anywhere inside the cell must resolve back to that cell.
@@ -9243,7 +9255,7 @@ mod tests {
     #[test]
     fn the_drop_probe_recovers_the_anchor_a_piece_was_grabbed_from() {
         let v = view();
-        for gy in 0..SLOT_H {
+        for gy in 0..v.rows {
             for gx in 0..SLOT_W {
                 let (px, py) = v.cell_origin(gx, gy);
                 // Grabbed exactly at the anchor's top-left, so grab == (0, 0).
@@ -9624,7 +9636,7 @@ mod radar_tests {
     /// so this is what stops a change to the side panel quietly breaking it.
     #[test]
     fn the_boards_line_up_with_the_shop() {
-        let b = bands(0);
+        let b = bands(0, SLOT_H);
         let gw = SLOT_W as f32 * SLOT_CELL;
         let boards = 5.0 * gw + 4.0 * SLOT_GAP;
         assert!(
@@ -9641,7 +9653,7 @@ mod radar_tests {
     #[test]
     fn the_shop_and_tray_still_fit_under_the_boards() {
         for worn in [0usize, 2, 4, 8] {
-            let b = bands(worn);
+            let b = bands(worn, SLOT_H);
             let board_bottom = SLOT_TOP + SLOT_H as f32 * SLOT_CELL;
             assert!(b.strip_y > board_bottom, "shop overlaps the boards at {} items", worn);
             assert!(

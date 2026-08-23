@@ -3,6 +3,8 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use crate::piece::{PieceId, PieceRegistry, SlotKind};
 
 pub const SLOT_W: u8 = 6;
+/// How tall a grid starts. It is no longer how tall a grid *is*: a run can be
+/// given more rows, and `Slot::rows` is the figure that decides anything.
 pub const SLOT_H: u8 = 8;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -30,26 +32,46 @@ impl std::fmt::Display for PlaceError {
 #[derive(Clone, Debug)]
 pub struct Slot {
     pub kind: SlotKind,
+    /// How many rows this grid has. Starts at `SLOT_H` and can be grown.
+    rows: u8,
     cells: Vec<Option<PieceId>>,
 }
 
 impl Slot {
     pub fn new(kind: SlotKind) -> Self {
-        Self { kind, cells: vec![None; SLOT_W as usize * SLOT_H as usize] }
+        Self::with_rows(kind, SLOT_H)
+    }
+
+    pub fn with_rows(kind: SlotKind, rows: u8) -> Self {
+        Self { kind, rows, cells: vec![None; SLOT_W as usize * rows as usize] }
+    }
+
+    pub fn rows(&self) -> u8 {
+        self.rows
+    }
+
+    /// Add rows to the bottom, keeping everything where it is.
+    ///
+    /// Cells are stored row-major, so new rows are new indices on the end and
+    /// every existing one keeps its address. Growing a board a player has
+    /// already filled must not move a single piece, and this is why it cannot.
+    pub fn grow(&mut self, by: u8) {
+        self.rows += by;
+        self.cells.resize(SLOT_W as usize * self.rows as usize, None);
     }
 
     #[inline]
-    fn idx(x: u8, y: u8) -> usize {
-        debug_assert!(x < SLOT_W && y < SLOT_H);
+    fn idx(&self, x: u8, y: u8) -> usize {
+        debug_assert!(x < SLOT_W && y < self.rows);
         y as usize * SLOT_W as usize + x as usize
     }
 
-    pub fn in_bounds(x: i32, y: i32) -> bool {
-        x >= 0 && y >= 0 && x < SLOT_W as i32 && y < SLOT_H as i32
+    pub fn in_bounds(&self, x: i32, y: i32) -> bool {
+        x >= 0 && y >= 0 && x < SLOT_W as i32 && y < self.rows as i32
     }
 
     pub fn get(&self, x: u8, y: u8) -> Option<PieceId> {
-        self.cells[Self::idx(x, y)]
+        self.cells[self.idx(x, y)]
     }
 
     pub fn is_empty(&self) -> bool {
@@ -74,7 +96,7 @@ impl Slot {
     /// piece was placed at.
     pub fn anchor_of(&self, id: PieceId) -> Option<(u8, u8)> {
         let mut anchor: Option<(u8, u8)> = None;
-        for y in 0..SLOT_H {
+        for y in 0..self.rows {
             for x in 0..SLOT_W {
                 if self.get(x, y) == Some(id) {
                     anchor = Some(match anchor {
@@ -108,7 +130,7 @@ impl Slot {
         }
         for &(dx, dy) in reg.shape(id).cells() {
             let (nx, ny) = (ax as i32 + dx as i32, ay as i32 + dy as i32);
-            if !Self::in_bounds(nx, ny) {
+            if !self.in_bounds(nx, ny) {
                 return Err(PlaceError::OutOfBounds);
             }
             match self.get(nx as u8, ny as u8) {
@@ -124,8 +146,8 @@ impl Slot {
     pub fn place(&mut self, reg: &PieceRegistry, id: PieceId, ax: u8, ay: u8) {
         for &(dx, dy) in reg.shape(id).cells() {
             let (nx, ny) = (ax as i32 + dx as i32, ay as i32 + dy as i32);
-            if Self::in_bounds(nx, ny) {
-                let i = Self::idx(nx as u8, ny as u8);
+            if self.in_bounds(nx, ny) {
+                let i = self.idx(nx as u8, ny as u8);
                 self.cells[i] = Some(id);
             }
         }
@@ -150,7 +172,7 @@ impl Slot {
     /// this returns — it must never work out fit for itself.
     pub fn legal_anchors(&self, reg: &PieceRegistry, id: PieceId) -> Vec<(u8, u8)> {
         let mut out = Vec::new();
-        for y in 0..SLOT_H {
+        for y in 0..self.rows {
             for x in 0..SLOT_W {
                 if self.can_place(reg, id, x, y).is_ok() {
                     out.push((x, y));
@@ -163,7 +185,7 @@ impl Slot {
     /// Every cell `id` occupies.
     pub fn cells_of(&self, id: PieceId) -> Vec<(u8, u8)> {
         let mut out = Vec::new();
-        for y in 0..SLOT_H {
+        for y in 0..self.rows {
             for x in 0..SLOT_W {
                 if self.get(x, y) == Some(id) {
                     out.push((x, y));
@@ -174,12 +196,12 @@ impl Slot {
     }
 
     /// The four orthogonal neighbours of `(x, y)` that lie inside the grid.
-    fn orthogonal(x: u8, y: u8) -> Vec<(u8, u8)> {
+    fn orthogonal(&self, x: u8, y: u8) -> Vec<(u8, u8)> {
         [(0i32, -1i32), (0, 1), (-1, 0), (1, 0)]
             .iter()
             .filter_map(|&(dx, dy)| {
                 let (nx, ny) = (x as i32 + dx, y as i32 + dy);
-                Self::in_bounds(nx, ny).then_some((nx as u8, ny as u8))
+                self.in_bounds(nx, ny).then_some((nx as u8, ny as u8))
             })
             .collect()
     }
@@ -188,7 +210,7 @@ impl Slot {
     pub fn neighbors_of(&self, id: PieceId) -> Vec<PieceId> {
         let mut out: Vec<PieceId> = Vec::new();
         for (x, y) in self.cells_of(id) {
-            for (nx, ny) in Self::orthogonal(x, y) {
+            for (nx, ny) in self.orthogonal(x, y) {
                 if let Some(other) = self.get(nx, ny) {
                     if other != id && !out.contains(&other) {
                         out.push(other);
@@ -205,7 +227,7 @@ impl Slot {
     pub fn empty_neighbor_cells(&self, id: PieceId) -> usize {
         let mut seen: HashSet<(u8, u8)> = HashSet::new();
         for (x, y) in self.cells_of(id) {
-            for (nx, ny) in Self::orthogonal(x, y) {
+            for (nx, ny) in self.orthogonal(x, y) {
                 if self.get(nx, ny).is_none() {
                     seen.insert((nx, ny));
                 }
@@ -226,7 +248,7 @@ impl Slot {
         let own: HashSet<(u8, u8)> = pieces.iter().flat_map(|&p| self.cells_of(p)).collect();
         let mut seen: HashSet<(u8, u8)> = HashSet::new();
         for &(x, y) in &own {
-            for (nx, ny) in Self::orthogonal(x, y) {
+            for (nx, ny) in self.orthogonal(x, y) {
                 if self.get(nx, ny).is_none() {
                     seen.insert((nx, ny));
                 }
@@ -251,7 +273,7 @@ impl Slot {
         let mut visited: HashSet<(u8, u8)> = HashSet::new();
         let mut groups = Vec::new();
 
-        for y in 0..SLOT_H {
+        for y in 0..self.rows {
             for x in 0..SLOT_W {
                 if self.get(x, y).is_none() || visited.contains(&(x, y)) {
                     continue;
@@ -274,7 +296,7 @@ impl Slot {
                             }
                         }
                     }
-                    for (nx, ny) in Self::orthogonal(cx, cy) {
+                    for (nx, ny) in self.orthogonal(cx, cy) {
                         if self.get(nx, ny).is_some() && visited.insert((nx, ny)) {
                             queue.push_back((nx, ny));
                         }
@@ -427,6 +449,6 @@ impl Slot {
             b.iter().flat_map(|&p| self.cells_of(p)).collect();
         a.iter()
             .flat_map(|&p| self.cells_of(p))
-            .any(|(x, y)| Self::orthogonal(x, y).iter().any(|c| b_cells.contains(c)))
+            .any(|(x, y)| self.orthogonal(x, y).iter().any(|c| b_cells.contains(c)))
     }
 }

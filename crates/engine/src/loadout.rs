@@ -284,6 +284,22 @@ impl Loadout {
         }
     }
 
+    /// Add rows to every grid, keeping everything where it is.
+    ///
+    /// All five together, because the thing that grants this grants it to the
+    /// whole board - a run where one slot is taller than the others would be a
+    /// different game, and a much more confusing one.
+    pub fn grow(&mut self, by: u8) {
+        for s in self.slots.iter_mut() {
+            s.grow(by);
+        }
+    }
+
+    /// How tall these grids are. Every slot is the same height.
+    pub fn rows(&self) -> u8 {
+        self.slots.first().map(|s| s.rows()).unwrap_or(crate::slot::SLOT_H)
+    }
+
     pub fn slot(&self, kind: SlotKind) -> &Slot {
         &self.slots[kind.index()]
     }

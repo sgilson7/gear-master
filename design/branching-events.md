@@ -113,8 +113,16 @@ Two hard creatures are guarding them. Win and you get **Sprocketman's
 Gratitude**: **one more row in every slot**.
 
 That is a 6×8 grid becoming 6×9 — 30 more cells across the five boards, which
-is the single largest power swing any item in the game has ever granted. It
-also means the grid stops being a constant, which is its own milestone.
+is the single largest power swing any item in the game has ever granted.
+
+The grid stops being a constant (milestone 6, built). `Slot` carries its own
+`rows`; `Loadout::grow` and `Run::grow_boards` add to all five at once, because
+a run where one slot is taller than the others would be a different game and a
+much more confusing one. `SLOT_H` is now only how tall a grid *starts*.
+
+Rows are only ever added, never removed, and that is deliberate: what grants
+them is `EVENT_ONLY` and cannot be sold, so there is no way to end up with
+pieces sitting in a row that is about to stop existing.
 
 ---
 
@@ -171,7 +179,7 @@ In dependency order. Each one ends with something playable.
 | 3 | **The casino, walk-away branch** — event fires, scene, Gold Chip | — | **built** |
 | 4 | **Multi-enemy fights** — engine party, then the battle screen | 5, 7 | **built** |
 | 5 | **The casino, step-in branch** — 2-at-once, Platinum Chip, loss costs no life | 7 | **built** |
-| 6 | **Variable slot height** — `SLOT_H` const becomes a per-run figure | 7 | medium |
+| 6 | **Variable slot height** — `SLOT_H` const becomes a per-run figure | 7 | **built** |
 | 7 | **The VIP area** — both branches, the five-piece shop, Immense Guilt, Sprocketman's Gratitude | — | medium |
 
 Milestones 2 and 3 are in. The casino exists, opens on a sub-two-second kill
@@ -268,3 +276,23 @@ weapon, while a two-piece "starter" list managed thirty.
 board that actually assembles. Anything measuring difficulty should start
 there, or from `pack_dense` in the packing tests, and never from a hand-written
 list of names.
+
+
+---
+
+## Two things that would have shipped silently broken
+
+Both from milestone 6, both invisible until a board was actually nine rows tall.
+
+**The share code packed `y` into three bits.** Fine forever while every board
+was eight rows; the moment one was nine, row eight overflowed into the column
+field and the piece came back somewhere else entirely - not dropped, *moved*.
+`y` now takes four bits and `x` three, which is the right way round: six
+columns need three bits, and sixteen rows is room to spare. The format version
+went to 2 and carries the row count, because a reader that assumed eight would
+drop everything below that line without saying so.
+
+**`equip_locked_at` checked `y >= SLOT_H` directly** rather than asking the
+board how tall it was, so a locked item could not be placed in the new row even
+though a loose piece could. Worth remembering that the constant is now only a
+starting height: anything comparing against it is asking the wrong question.

@@ -10,7 +10,7 @@ use crate::piece::{all_def_indices, PieceId, PieceRegistry, QuestTrack, SlotKind
 pub const STARTER_KIT: &[&str] = &["Oak Handle", "Iron Blade"];
 
 
-use crate::slot::{PlaceError, SLOT_H, SLOT_W};
+use crate::slot::{PlaceError, SLOT_W};
 use crate::rng::Rng;
 use crate::shop::{Shop, REROLL_COST, STARTING_GOLD};
 use crate::stats::Stats;
@@ -193,6 +193,11 @@ pub struct Run {
     /// beside the rung rather than on it: whichever way it goes, the rung's
     /// own creature is still there afterwards.
     pub brawl: Option<&'static crate::event::Brawl>,
+    /// Extra rows this run has been given, on top of the eight every grid
+    /// starts with. Only ever goes up: what grants them cannot be sold, so
+    /// there is no way to end up with pieces sitting in a row that is about
+    /// to stop existing.
+    pub extra_rows: u8,
     /// The quickest win this run has managed, in milliseconds. Events that are
     /// earned rather than scheduled read it - see `event::Trigger`.
     pub best_fight_ms: Option<u32>,
@@ -295,6 +300,7 @@ impl Run {
             substitute: None,
             answered: Vec::new(),
             brawl: None,
+            extra_rows: 0,
             best_fight_ms: None,
             took: Vec::new(),
             dungeon: None,
@@ -918,7 +924,7 @@ impl Run {
         // drop would leave the item scattered across the grid.
         for &(p, dx, dy) in &shape {
             let (x, y) = (ax as u32 + dx as u32, ay as u32 + dy as u32);
-            if x >= SLOT_W as u32 || y >= SLOT_H as u32 {
+            if x >= SLOT_W as u32 || y >= self.loadout.rows() as u32 {
                 return Err(RuleError::Place(PlaceError::OutOfBounds));
             }
             self.loadout.can_place(&self.registry, p, kind, x as u8, y as u8)?;
@@ -1385,6 +1391,16 @@ impl Run {
 
     /// Grant one more loss before the run ends. Rogue counts them down; in
     /// Grinder there is nothing to count, and the choice says so.
+    /// Give every grid another row, for good.
+    ///
+    /// Thirty more cells across the five boards, which is the largest thing
+    /// any one reward hands out - and it hands out *room*, which is worth
+    /// whatever the player is clever enough to put in it.
+    pub fn grow_boards(&mut self, by: u8) {
+        self.extra_rows += by;
+        self.loadout.grow(by);
+    }
+
     pub fn grant_life(&mut self) {
         self.extra_lives += 1;
         self.lives += 1;
