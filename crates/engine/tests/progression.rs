@@ -1211,3 +1211,75 @@ fn the_plain_theme_never_interrupts() {
         run.back_to_loadout();
     }
 }
+
+
+/// The badge on the board, the badge on the cooldown bar, and the length of
+/// the name are all one number. They were three: `report` rated an item at the
+/// slot's default cadence and `combat_items` rated it at its own, so anything
+/// carrying a speed bonus came out a tier apart depending on which you asked -
+/// which is how a legendary ends up with a three-word name.
+#[test]
+fn an_items_rarity_reads_the_same_everywhere() {
+    use gearmaster_engine::piece::SlotKind;
+    use gearmaster_engine::rating::Rarity;
+
+    let mut disagreed = Vec::new();
+    for m in LADDER {
+        let (reg, lo) = m.loadout();
+        let profiles = lo.combat_items(&reg);
+        for slot in SlotKind::ALL {
+            for it in lo.report(&reg, slot).items.iter().filter(|i| i.assembled) {
+                let Some(p) = profiles.iter().find(|p| p.pieces == it.pieces) else { continue };
+                if Rarity::of(it.rating) != Rarity::of(p.rating) {
+                    disagreed.push(format!(
+                        "{} {}: board {:?}({}) vs combat {:?}({})",
+                        m.name,
+                        slot.name(),
+                        Rarity::of(it.rating),
+                        it.rating,
+                        Rarity::of(p.rating),
+                        p.rating
+                    ));
+                }
+            }
+        }
+    }
+    assert!(disagreed.is_empty(), "{} items disagree: {:?}", disagreed.len(), &disagreed[..disagreed.len().min(5)]);
+}
+
+/// And the name is as long as the badge says. Three words common, four rare,
+/// five epic, six legendary - checked on gear the game actually builds rather
+/// than on the generator in isolation, which was always right.
+#[test]
+fn a_built_items_name_is_as_long_as_its_badge() {
+    use gearmaster_engine::piece::SlotKind;
+    use gearmaster_engine::rating::Rarity;
+
+    let want = |r: Rarity| match r {
+        Rarity::Common => 3,
+        Rarity::Rare => 4,
+        Rarity::Epic => 5,
+        Rarity::Legendary => 6,
+    };
+    let mut seen = [0usize; 4];
+    for m in LADDER {
+        let (reg, lo) = m.loadout();
+        for slot in SlotKind::ALL {
+            for it in lo.report(&reg, slot).items.iter().filter(|i| i.assembled) {
+                let r = Rarity::of(it.rating);
+                seen[r.marks()] += 1;
+                assert_eq!(
+                    it.name.full.split_whitespace().count(),
+                    want(r),
+                    "{:?} {:?} should be {} words",
+                    r,
+                    it.name.full,
+                    want(r)
+                );
+            }
+        }
+    }
+    // And the ladder actually produces more than one tier, or the check above
+    // is only testing commons.
+    assert!(seen[0] > 0 && seen.iter().skip(1).sum::<usize>() > 0, "tiers seen: {:?}", seen);
+}

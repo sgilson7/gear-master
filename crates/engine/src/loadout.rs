@@ -180,6 +180,27 @@ pub struct LockedItem {
     pub offsets: Vec<(u8, u8)>,
 }
 
+/// How fast an item actually runs: its core's cadence, quickened by every
+/// speed bonus its pieces carry.
+///
+/// One function because there used to be two answers. `combat_items` worked it
+/// out properly and `report` passed zero, so an item's rating - and therefore
+/// its rarity, and therefore how many words its name got - was computed
+/// against the slot's default cadence rather than its own. Twelve percent of
+/// the items in the game came out a whole tier apart depending on which one
+/// you asked, which is how a legendary ended up with a three-word name.
+pub fn item_cooldown_ms(reg: &PieceRegistry, pieces: &[PieceId], kind: SlotKind) -> u32 {
+    let core = pieces.iter().copied().find(|&p| reg.def(p).kind.is_core());
+    let base = core
+        .map(|c| {
+            let d = reg.def(c).cooldown_ms;
+            if d == 0 { default_cooldown_ms(kind) } else { d }
+        })
+        .unwrap_or_else(|| default_cooldown_ms(kind));
+    let speed = (100 + pieces.iter().map(|&p| reg.def(p).speed_bonus).sum::<i32>()).max(10);
+    ((base as i64 * 100 / speed as i64) as u32).max(TICK_MS)
+}
+
 /// Fix every assembled item in one slot where it stands.
 ///
 /// What locking buys, and why a monster's board uses it: an unlocked item
@@ -446,8 +467,15 @@ impl Loadout {
             slot_total += item_stats;
             // A name grows with what the item is worth, so the rating has to
             // be in hand before the name is made.
-            let rating =
-                if assembled[gi] { crate::rating::item_rating(reg, group, 0, slot.kind) } else { 0 };
+            // At the cadence it will actually run at, not the slot's default.
+            // Passing zero here is what made a quickened item's name disagree
+            // with its own badge.
+            let rating = if assembled[gi] {
+                let cd = item_cooldown_ms(reg, group, slot.kind);
+                crate::rating::item_rating(reg, group, cd, slot.kind)
+            } else {
+                0
+            };
             items.push(GearItem {
                 name: name_item(
                     self.name_seed,
@@ -569,16 +597,7 @@ impl Loadout {
             }
 
             let core = item.pieces.iter().copied().find(|&p| reg.def(p).kind.is_core());
-            let base_cd = core
-                .map(|c| {
-                    let d = reg.def(c).cooldown_ms;
-                    if d == 0 { default_cooldown_ms(*kind) } else { d }
-                })
-                .unwrap_or_else(|| default_cooldown_ms(*kind));
-            let speed: i32 =
-                100 + item.pieces.iter().map(|&p| reg.def(p).speed_bonus).sum::<i32>();
-            let speed = speed.max(10);
-            let cooldown_ms = ((base_cd as i64 * 100 / speed as i64) as u32).max(TICK_MS);
+            let cooldown_ms = item_cooldown_ms(reg, &item.pieces, *kind);
 
             let triggers: Vec<Trigger> = item
                 .pieces
