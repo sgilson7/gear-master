@@ -104,7 +104,14 @@
       "Bash(pkill -f \"packing-.*balance_report\")",
       "Bash(pkill -f \"balance_report\")",
       "Bash(git stash *)",
-      "Bash(git diff *)"
+      "Bash(git diff *)",
+      "Bash(grep -n \"    Ember,$\" crates/engine/src/combat.rs)",
+      "Bash(awk 'NR<4144 && /^fn |^#\\\\[allow/ {l=NR\": \"$0} END{}' crates/gui/src/main.rs)",
+      "Bash(awk -F: '$1 < 4144')",
+      "Bash(awk 'NR>4060 && /^}/ {print NR\": \"$0; exit}' crates/gui/src/main.rs)",
+      "Bash(PACK_TRACE=1 cargo test --release -p gearmaster-engine --test packing -- --ignored --nocapture trace_one_slot)",
+      "Bash(WEAR_TRACE=1 cargo test --release -p gearmaster-engine --test packing -- --ignored --nocapture show_profile_packing)",
+      "Artifact"
     ]
   }
 }

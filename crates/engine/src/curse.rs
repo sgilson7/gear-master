@@ -39,6 +39,16 @@ pub const STUN_MS: u32 = 1_200;
 pub const MISFIRE_MS: u32 = 6_000;
 pub const MISFIRE_EVERY: u32 = 3;
 
+/// Frost is a whole-body slow, not a per-item one, and it never stops the gear
+/// outright: at the cap an item still fires, just at a quarter speed.
+pub const FROST_SLOW_CAP_PCT: i32 = 75;
+/// Stun stacks pile onto the clock rather than refreshing it, so this is what
+/// stops a chain of stuns from being an unbreakable lock.
+pub const STUN_CAP_MS: u32 = 3_600;
+/// However many misfire stacks land, one activation in two is the worst it
+/// gets - the same promise the frost cap makes.
+pub const MISFIRE_FLOOR: u32 = 2;
+
 impl CurseKind {
     pub fn name(self) -> &'static str {
         match self {
@@ -61,10 +71,37 @@ impl CurseKind {
 
     pub fn describe(self) -> &'static str {
         match self {
-            CurseKind::Searing => "10 damage a second for 10 seconds",
-            CurseKind::Frost => "gear runs 50% slower for 1 second",
-            CurseKind::Stun => "gear stops dead for 1.2 seconds, then carries on from where it stood",
-            CurseKind::Misfire => "one activation in three does nothing, for 6 seconds",
+            CurseKind::Searing => "10 damage a second for 10 seconds, per stack",
+            CurseKind::Frost => {
+                "all of the target's gear runs 50% slower for 1 second, per stack, up to 75%"
+            }
+            CurseKind::Stun => {
+                "gear stops dead for 1.2 seconds, then carries on from where it stood; \
+                 stacks add up to 3.6 seconds"
+            }
+            CurseKind::Misfire => {
+                "one activation in three does nothing, for 6 seconds; two stacks or more \
+                 makes it one in two"
+            }
+        }
+    }
+
+    /// Does a second one of these add to the clock, or only refresh it?
+    ///
+    /// Only stun does. Searing and misfire already get stronger per stack and
+    /// would be oppressive if they also lasted longer for it; frost is a
+    /// one-second flicker whose whole shape is that it keeps being reapplied.
+    /// Stun has neither - a second stun landing during the first is otherwise
+    /// worth nothing at all - so the clock is where its stacks go.
+    fn stacks_extend(self) -> bool {
+        matches!(self, CurseKind::Stun)
+    }
+
+    /// The ceiling on total duration, for the kinds that accumulate one.
+    fn duration_cap_ms(self) -> u32 {
+        match self {
+            CurseKind::Stun => STUN_CAP_MS,
+            _ => u32::MAX,
         }
     }
 }
@@ -108,8 +145,12 @@ impl Curses {
     /// Apply `kind` to a target with `curse_resist` percent resistance.
     ///
     /// Resistance shortens the curse; at 100 it lands for no time at all and
-    /// is dropped entirely. Returns the duration that actually stuck, so the
-    /// combat log can report what happened rather than what was intended.
+    /// is dropped entirely.
+    ///
+    /// Returns how long the curse will now run for - the *total* left on the
+    /// clock, not the slice just added. Reporting the slice meant a refreshed
+    /// curse logged "for 10.0s" when eleven were left, and the interface drew
+    /// its timer from that number.
     pub fn apply(&mut self, kind: CurseKind, curse_resist: i32) -> u32 {
         let resist = curse_resist.clamp(0, 100);
         let base = kind.base_duration_ms() as i64;
@@ -122,11 +163,18 @@ impl Curses {
         match self.active.iter_mut().find(|c| c.kind == kind) {
             Some(existing) => {
                 existing.stacks += 1;
-                existing.remaining_ms = existing.remaining_ms.max(duration);
+                existing.remaining_ms = if kind.stacks_extend() {
+                    (existing.remaining_ms + duration).min(kind.duration_cap_ms())
+                } else {
+                    existing.remaining_ms.max(duration)
+                };
+                existing.remaining_ms
             }
-            None => self.active.push(Curse { kind, remaining_ms: duration, stacks: 1 }),
+            None => {
+                self.active.push(Curse { kind, remaining_ms: duration, stacks: 1 });
+                duration
+            }
         }
-        duration
     }
 
     /// Advance every curse by one tick and drop the expired ones.
@@ -152,8 +200,12 @@ impl Curses {
             .sum()
     }
 
-    /// How much slower this combatant's items run, as a percentage. Frost
-    /// stacks add up but can never stop the gear completely.
+    /// How much slower this combatant's items run, as a percentage.
+    ///
+    /// Frost is a whole-body slow: this figure applies to every item the
+    /// combatant owns, not to the one that happened to be cursed. Stacks add
+    /// up, capped so the gear is never stopped outright - a stun is the thing
+    /// that stops gear, and the two should not be able to become each other.
     pub fn slow_pct(&self) -> i32 {
         let raw: i32 = self
             .active
@@ -163,7 +215,7 @@ impl Curses {
                 CurseKind::Searing | CurseKind::Stun | CurseKind::Misfire => 0,
             })
             .sum();
-        raw.min(90)
+        raw.min(FROST_SLOW_CAP_PCT)
     }
 
     /// Is the gear stopped dead? A stun does not slow anything; it stops
@@ -172,12 +224,37 @@ impl Curses {
         self.has(CurseKind::Stun)
     }
 
+    /// One activation in how many does a misfire eat? Zero when none is up.
+    ///
+    /// Each stack past the first tightens the interval by one, down to the
+    /// floor. Without this a second misfire landing on top of the first was
+    /// worth nothing whatever - the only curse where a stack bought the caster
+    /// nothing at all.
+    pub fn misfire_every(&self) -> u32 {
+        match self.stacks_of(CurseKind::Misfire) {
+            0 => 0,
+            n => MISFIRE_EVERY.saturating_sub(n - 1).max(MISFIRE_FLOOR),
+        }
+    }
+
     /// Is this activation one of the ones a misfire eats?
     ///
     /// Counted rather than rolled: the combat engine is deterministic and the
     /// whole test suite depends on a fight replaying identically.
     pub fn misfires(&self, activation: u32) -> bool {
-        self.has(CurseKind::Misfire) && activation % MISFIRE_EVERY == 0
+        match self.misfire_every() {
+            0 => false,
+            every => activation % every == 0,
+        }
+    }
+
+    /// How much longer the target's gear is stopped for, and how long it was
+    /// stopped for in total. The interface draws its stun meter from this.
+    pub fn stun_remaining_ms(&self) -> Option<u32> {
+        self.active
+            .iter()
+            .find(|c| c.kind == CurseKind::Stun)
+            .map(|c| c.remaining_ms)
     }
 
     pub fn clear(&mut self) {
@@ -253,10 +330,58 @@ mod tests {
     #[test]
     fn frost_stacks_but_never_freezes_gear_solid() {
         let mut c = Curses::new();
+        assert_eq!(c.apply(CurseKind::Frost, 0), FROST_MS);
+        assert_eq!(c.slow_pct(), 50, "one stack, half speed");
+        c.apply(CurseKind::Frost, 0);
+        assert_eq!(c.slow_pct(), 75, "two stacks reach the cap");
         for _ in 0..10 {
             c.apply(CurseKind::Frost, 0);
         }
-        assert_eq!(c.slow_pct(), 90, "capped, so items always still fire");
+        assert_eq!(c.slow_pct(), FROST_SLOW_CAP_PCT, "capped, so items always still fire");
+    }
+
+    #[test]
+    fn stun_stacks_onto_the_clock_rather_than_refreshing_it() {
+        let mut c = Curses::new();
+        assert_eq!(c.apply(CurseKind::Stun, 0), STUN_MS);
+        // A second stun landing while the first runs is worth nothing at all
+        // if it only refreshes - the clock is where its stacks have to go.
+        assert_eq!(c.apply(CurseKind::Stun, 0), STUN_MS * 2);
+        assert_eq!(c.apply(CurseKind::Stun, 0), STUN_MS * 3);
+        assert_eq!(c.stacks_of(CurseKind::Stun), 3);
+        // ...but not for ever.
+        for _ in 0..10 {
+            c.apply(CurseKind::Stun, 0);
+        }
+        assert_eq!(c.stun_remaining_ms(), Some(STUN_CAP_MS), "a stun chain is not a lock");
+    }
+
+    #[test]
+    fn misfire_stacks_tighten_the_interval() {
+        let mut c = Curses::new();
+        assert_eq!(c.misfire_every(), 0, "nothing up, nothing eaten");
+        c.apply(CurseKind::Misfire, 0);
+        assert_eq!(c.misfire_every(), MISFIRE_EVERY, "one in three");
+        c.apply(CurseKind::Misfire, 0);
+        assert_eq!(c.misfire_every(), 2, "one in two");
+        for _ in 0..10 {
+            c.apply(CurseKind::Misfire, 0);
+        }
+        assert_eq!(c.misfire_every(), MISFIRE_FLOOR, "never worse than one in two");
+        // Which is to say the gear always still does something.
+        assert!(!c.misfires(1), "an odd activation always gets through");
+    }
+
+    #[test]
+    fn a_refreshed_curse_reports_what_is_left_not_what_was_added() {
+        let mut c = Curses::new();
+        c.apply(CurseKind::Searing, 0);
+        for _ in 0..20 {
+            c.tick(); // a second gone, nine left
+        }
+        // Reapplying refreshes to the full ten, and that is what gets reported
+        // - the interface draws its timer from this number.
+        assert_eq!(c.apply(CurseKind::Searing, 0), SEARING_MS);
     }
 
     #[test]

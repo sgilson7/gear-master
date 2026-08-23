@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 
 use gearmaster_engine::class::Axis;
+use gearmaster_engine::curse::CurseKind;
 use gearmaster_engine::combat::{CombatLog, Event, MonsterSprite, Outcome, Side, LADDER};
 use gearmaster_engine::loadout::{ItemProfile, Loadout, SlotReport};
 use gearmaster_engine::piece::{
@@ -2282,6 +2283,24 @@ impl Drag {
 /// Replays a finished `CombatLog` against wall-clock time. The fight is already
 /// decided in the engine — this only decides what is on screen, so it can be
 /// sped up or skipped without changing the result.
+/// One curse riding on one side, as the replay sees it.
+#[derive(Clone)]
+struct ActiveCurse {
+    /// The engine's key, not the themed word - comparisons are made on it.
+    name: &'static str,
+    from_ms: u32,
+    until_ms: u32,
+    stacks: u32,
+}
+
+impl ActiveCurse {
+    /// How much of the curse is left, 1.0 the moment it lands.
+    fn left(&self, now_ms: u32) -> f32 {
+        let span = self.until_ms.saturating_sub(self.from_ms).max(1);
+        self.until_ms.saturating_sub(now_ms) as f32 / span as f32
+    }
+}
+
 struct Playback {
     /// Wall-clock reading at the last advance, and simulated time accumulated
     /// so far. Accumulating rather than deriving from a start instant is what
@@ -2299,9 +2318,11 @@ struct Playback {
     enemy_hp: i32,
     enemy_max: i32,
     enemy_armor: i32,
-    /// Curses on each side, as (name, when it runs out in sim-ms).
-    player_curses: Vec<(&'static str, u32)>,
-    enemy_curses: Vec<(&'static str, u32)>,
+    /// Curses on each side. The start is kept as well as the end because the
+    /// stun meter fills against the whole span, not against a fixed 1.2s -
+    /// stun stacks add to the clock, so no two stuns are the same length.
+    player_curses: Vec<ActiveCurse>,
+    enemy_curses: Vec<ActiveCurse>,
     lines: Vec<String>,
     flash_player: f64,
     flash_enemy: f64,
@@ -2479,15 +2500,28 @@ impl Playback {
                     self.player_mana = *remaining;
                 }
             }
-            Event::Cursed { on, kind, duration_ms } => {
-                let entry_pair = (kind.name(), self.now_ms + duration_ms);
+            Event::Cursed { on, kind, duration_ms, stacks } => {
+                let until = self.now_ms + duration_ms;
                 let list = match on {
                     Side::Player => &mut self.player_curses,
                     Side::Enemy => &mut self.enemy_curses,
                 };
-                match list.iter_mut().find(|c| c.0 == entry_pair.0) {
-                    Some(existing) => existing.1 = existing.1.max(entry_pair.1),
-                    None => list.push(entry_pair),
+                match list.iter_mut().find(|c| c.name == kind.name()) {
+                    Some(e) => {
+                        // A stack that lengthens the curse restarts the meter
+                        // from here, so it always reads as full again.
+                        if until > e.until_ms {
+                            e.from_ms = self.now_ms;
+                            e.until_ms = until;
+                        }
+                        e.stacks = *stacks;
+                    }
+                    None => list.push(ActiveCurse {
+                        name: kind.name(),
+                        from_ms: self.now_ms,
+                        until_ms: until,
+                        stacks: *stacks,
+                    }),
                 }
             }
             Event::Burn { side, health, .. } => match side {
@@ -2542,11 +2576,40 @@ impl Playback {
             self.cursor += 1;
         }
         self.now_ms = self.sim_ms.min(log.duration_ms);
-        self.player_curses.retain(|c| c.1 > self.now_ms);
-        self.enemy_curses.retain(|c| c.1 > self.now_ms);
+        self.player_curses.retain(|c| c.until_ms > self.now_ms);
+        self.enemy_curses.retain(|c| c.until_ms > self.now_ms);
+        // GEARMASTER_STUN=1 keeps a rolling stun on the player, so the meter
+        // can be looked at without hunting the ladder for a fight that lands
+        // one at the moment the screenshot is taken.
+        if std::env::var("GEARMASTER_STUN").is_ok() {
+            let span = 2_400;
+            let from = self.now_ms / span * span;
+            self.player_curses.retain(|c| c.name != CurseKind::Stun.name());
+            self.player_curses.push(ActiveCurse {
+                name: CurseKind::Stun.name(),
+                from_ms: from,
+                until_ms: from + span,
+                stacks: 2,
+            });
+        }
     }
 
 
+
+    /// How much of a stun is left on one side, and how long in milliseconds.
+    ///
+    /// A stun stops every one of that side's items, not the one that happened
+    /// to be cursed, so this is a property of the side and every cooldown row
+    /// belonging to it draws the meter.
+    fn stun_of(&self, side: Side) -> Option<(f32, u32)> {
+        let list = match side {
+            Side::Player => &self.player_curses,
+            Side::Enemy => &self.enemy_curses,
+        };
+        list.iter()
+            .find(|c| c.name == CurseKind::Stun.name())
+            .map(|c| (c.left(self.now_ms), c.until_ms.saturating_sub(self.now_ms)))
+    }
 
     fn skip_to_end(&mut self, run: &Run) {
         let Some(log) = run.log.as_ref() else { return };
@@ -3531,6 +3594,44 @@ fn armor_bar(x: f32, y: f32, w: f32, h: f32, armor: i32, max: i32) {
 /// One item's cooldown bar: name, a filling track, and the interval it is
 /// actually running at. Flashes on the frame it fires.
 #[allow(clippy::too_many_arguments)]
+/// The colour a stun owns. Nothing else on the battle screen uses it, which is
+/// most of what makes the meter readable at a glance.
+fn col_stun() -> Color {
+    Color::from_rgba(252, 205, 88, 255)
+}
+
+/// The stun meter: the same bar space as a cooldown, read the other way round.
+///
+/// A cooldown grows from the left as its item approaches firing. A stun does
+/// the reverse - it starts full and retreats to the right as it wears off - so
+/// the two can never be mistaken for one another even in the corner of your
+/// eye. The ribbon undulates while the stun is live and flattens out as it
+/// ends, which is the part you notice from across the screen; a straight bar
+/// draining is just a cooldown running backwards.
+fn draw_stun_bar(track_x: f32, y: f32, track_w: f32, h: f32, left: f32, t: f64) {
+    let left = left.clamp(0.0, 1.0);
+    draw_rectangle(track_x, y, track_w, h, Color::from_rgba(46, 36, 12, 255));
+
+    let fill_w = track_w * left;
+    let fill_x = track_x + track_w - fill_w;
+    // Slice thin enough that the wave reads as a curve rather than a staircase.
+    let step: f32 = 3.0;
+    let right = track_x + track_w;
+    let mut sx = fill_x;
+    while sx < right {
+        let sw = step.min(right - sx);
+        let u = (sx - track_x) / track_w.max(1.0);
+        // The wave travels along the bar, and its amplitude fades with the
+        // stun - so "nearly over" is legible without reading the number.
+        let amp = h * 0.34 * left;
+        let wave = (u * 20.0 - t as f32 * 8.0).sin() * amp;
+        let hh = (h - wave.abs()).max(2.0);
+        draw_rectangle(sx, y + (h - hh) * 0.5, sw, hh, col_stun());
+        sx += step;
+    }
+    draw_rectangle_lines(track_x, y, track_w, h, 1.0, Color::from_rgba(158, 126, 40, 255));
+}
+
 fn render_cooldown_row(
     x: f32,
     y: f32,
@@ -3543,6 +3644,9 @@ fn render_cooldown_row(
     now_ms: u32,
     tint: Color,
     rarity: Rarity,
+    // `stun` is set while this item's owner is stunned: how much of the stun
+    // is left, and how long that is. Every row on a stunned side gets it.
+    stun: Option<(f32, u32)>,
 ) {
     let icon = 24.0;
     let label_w = 232.0;
@@ -3558,8 +3662,20 @@ fn render_cooldown_row(
         .map(|&t| now_ms.saturating_sub(t) < 180)
         .unwrap_or(false);
 
-    let fg = if just_fired { WHITE } else { Color::from_rgba(178, 180, 200, 255) };
-    draw_item_sigil(x, y - 5.0, icon, slot, sigil_seed, if just_fired { WHITE } else { tint });
+    // A stunned row owns the whole row's colour, not just its bar: the sigil
+    // and the name go amber too, so "this cannot advance" is one glance rather
+    // than a bar you have to go and read.
+    let fg = match (stun.is_some(), just_fired) {
+        (true, _) => col_stun(),
+        (false, true) => WHITE,
+        (false, false) => Color::from_rgba(178, 180, 200, 255),
+    };
+    let sigil_col = match (stun.is_some(), just_fired) {
+        (true, _) => col_stun(),
+        (false, true) => WHITE,
+        (false, false) => tint,
+    };
+    draw_item_sigil(x, y - 5.0, icon, slot, sigil_seed, sigil_col);
     // Names are procedurally generated, so their length is not something the
     // layout can assume; shrink rather than run into the bar.
     let name_x = x + icon + 8.0;
@@ -3568,6 +3684,21 @@ fn render_cooldown_row(
     let size = fitting_size(name, track_x - name_x - pips_w - 12.0, &[15.0, 14.0, 13.0, 12.0, 11.0]);
     ui_text(name, name_x, y + 12.0, size, fg);
     draw_rarity_pips(name_x + text_width(name, size) + 6.0, y + 7.0, rarity, 1.0);
+
+    // The stun meter takes the cooldown's place rather than sitting beside it.
+    // While a stun is up the cooldown is not advancing at all, so drawing it
+    // would be drawing a lie - a bar frozen part-way with no reason on screen.
+    if let Some((left, left_ms)) = stun {
+        draw_stun_bar(track_x, y, track_w, h, left, get_time());
+        ui_text(
+            &format!("{:.1}s", left_ms as f32 / 1000.0),
+            track_x + track_w + 8.0,
+            y + 12.0,
+            12.0,
+            col_stun(),
+        );
+        return;
+    }
 
     draw_rectangle(track_x, y, track_w, h, Color::from_rgba(26, 26, 38, 255));
     let p = bar_progress(schedule, cooldown_ms, now_ms).clamp(0.0, 1.0);
@@ -4124,13 +4255,14 @@ fn render_battle(
     let d_w = text_width(&rung, 14.0);
     ui_text(&rung, g.cd_x + g.cd_w - d_w, g.player_board_y - 12.0, 14.0, col_dim());
 
-    for (label, items, sched, top, tint) in [
+    for (label, items, sched, top, tint, side) in [
         (
             "YOUR COOLDOWNS",
             &log.player.items,
             &pb.player_schedule,
             g.player_board_y,
             col_you(),
+            Side::Player,
         ),
         (
             "THEIR COOLDOWNS",
@@ -4138,13 +4270,38 @@ fn render_battle(
             &pb.enemy_schedule,
             g.enemy_board_y,
             col_foe(),
+            Side::Enemy,
         ),
     ] {
-        ui_text(label, g.cd_x, top + 14.0, 13.0, col_dim());
+        // A stun stops that side's gear outright, so it is the column that is
+        // stunned rather than any one row.
+        let stun = pb.stun_of(side);
+        if stun.is_some() {
+            ui_text(label, g.cd_x, top + 14.0, 13.0, col_dim());
+            let note = "STUNNED";
+            ui_text(
+                note,
+                g.cd_x + g.cd_w - text_width(note, 13.0),
+                top + 14.0,
+                13.0,
+                col_stun(),
+            );
+        } else {
+            ui_text(label, g.cd_x, top + 14.0, 13.0, col_dim());
+        }
         let order = cooldown_order(items);
         let (pitch, shown) = cooldown_fit(order.len(), cooldown_room(&g, top));
         for (row, &i) in order.iter().take(shown).enumerate() {
             let it = &items[i];
+            if stun.is_some() {
+                draw_rectangle(
+                    g.cd_x - 6.0,
+                    top + 25.0 + row as f32 * pitch,
+                    g.cd_w + 12.0,
+                    pitch - 2.0,
+                    Color::from_rgba(252, 205, 88, 22),
+                );
+            }
             if cooldown_row_rect(&g, top, row, pitch).contains(Vec2::new(mx, my)) {
                 draw_rectangle(
                     g.cd_x - 6.0,
@@ -4166,6 +4323,7 @@ fn render_battle(
                 pb.now_ms,
                 tint,
                 Rarity::of(it.rating),
+                stun,
             );
         }
         if shown < order.len() {
@@ -4934,9 +5092,10 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("MIND DAMAGE", "Lowers your MAXIMUM health rather than your current, so regeneration can never win it back."),
     ("MIND RESIST", "Percent cut to incoming mind damage."),
     ("CURSE", "A timed effect landed on either fighter - yourself included."),
-    ("  SEARING", "10 damage a second, for 10 seconds."),
-    ("  FROST", "The target's gear runs 50% slower, for 1 second."),
+    ("  SEARING", "10 damage a second, for 10 seconds. Stacks burn together, so a second one landing doubles the rate."),
+    ("  FROST", "ALL of the target's gear runs 50% slower, for 1 second - not just the item that was hit. Stacks add up to 75%, and never past it: frost slows gear, it never stops it."),
     ("CURSE RESIST", "Shortens curses landed on you. At 100% they never land."),
+    ("STACKS", "Landing the same curse again while it is still up. Searing burns faster, frost slows harder, misfire eats more, and stun lasts longer - each up to its own ceiling. The count sits beside the curse's name on the bar."),
     (
         "MANA EMPOWERMENT",
         "Each stack adds 0.05x weapon power per point of mana you are STILL \
@@ -4964,8 +5123,8 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("GROWING", "A few pieces raise your maximum health every time they fire, and you keep it - the health won in one fight is health you start the next one with, for the rest of the run. That is what makes them the dearest things in the shop. A stalemate banks nothing: surviving the clock would otherwise be the most profitable thing you could do."),
     ("STANDING ALONE", "Some gear multiplies every number on its item, but only while that item is alone - nothing else finished sharing its rows, or nothing overlapping it once the five grids are laid on top of one another. The multipliers are large and the conditions are easy to break by accident. That is the trade."),
     ("CASTING", "Every spell has two strengths. Paid for, it lands in full; with no mana to spend it still goes off, but at less than half. A build that runs dry gets weaker rather than stopping, so mana income is the difference between a spell that works and one that merely happens."),
-    ("STUN", "Their gear stops dead. Not slowed - stopped, and a cooldown part-way through resumes from where it stood rather than starting over."),
-    ("MISFIRE", "One activation in three does nothing at all. The cooldown comes round, and nothing comes of it."),
+    ("STUN", "ALL of their gear stops dead. Not slowed - stopped, and a cooldown part-way through resumes from where it stood rather than starting over. A stunned item shows an amber stun meter in place of its cooldown bar, running the other way and settling as it wears off. Stacks add to the clock, up to 3.6 seconds."),
+    ("MISFIRE", "One activation in three does nothing at all. The cooldown comes round, and nothing comes of it. Two stacks or more makes it one in two, which is as bad as it gets."),
     ("BOOK", "The core of a spell, the way a handle is the core of a weapon. It sets how often the spell casts, and binds exactly one spell."),
     ("INK", "Multiplies the cast it is bound into, and only that one - ink never touches your own weapon power. Stronger inks want paying for."),
     ("CRYSTAL BALL", "The other kind of spell core. It holds two or three spells and casts a different one each time it comes round, where a book casts its one every time."),
@@ -6528,7 +6687,7 @@ fn render_battle_side(
     empower: u32,
     shield: u32,
     fork: u32,
-    curses: &[(&'static str, u32)],
+    curses: &[ActiveCurse],
     // Rage, faith and nature, in that order.
     pools: [i32; 3],
     flash: f64,
@@ -6616,9 +6775,13 @@ fn render_battle_side(
             false,
         ));
     }
-    for (kind, _) in curses {
+    for c in curses {
         chips.push((
-            format!("curse of {}", words::retell(kind)),
+            if c.stacks > 1 {
+                format!("curse of {} x{}", words::retell(c.name), c.stacks)
+            } else {
+                format!("curse of {}", words::retell(c.name))
+            },
             Color::from_rgba(240, 190, 240, 255),
             true,
         ));

@@ -3018,7 +3018,9 @@ pub enum Event {
     ManaCheck { side: Side, cost: i32, paid: bool, remaining: i32 },
     /// A spend against rage, faith or nature.
     ResourceCheck { side: Side, what: &'static str, cost: i32, paid: bool, remaining: i32 },
-    Cursed { on: Side, kind: CurseKind, duration_ms: u32 },
+    /// `stacks` is the count *after* this one landed, so the interface can
+    /// say "curse of searing x3" without keeping its own tally.
+    Cursed { on: Side, kind: CurseKind, duration_ms: u32, stacks: u32 },
     /// Damage-over-time landing this tick.
     Burn { side: Side, damage: i32, health: i32 },
     Regen { side: Side, amount: i32, health: i32 },
@@ -3184,10 +3186,11 @@ impl CombatLog {
                     )
                 }
             }
-            Event::Cursed { on, kind, duration_ms } => format!(
-                "{} curse of {} on {} for {:.1}s",
+            Event::Cursed { on, kind, duration_ms, stacks } => format!(
+                "{} curse of {}{} on {} for {:.1}s",
                 t,
                 kind.name(),
+                if *stacks > 1 { format!(" x{}", stacks) } else { String::new() },
                 self.who(*on),
                 *duration_ms as f32 / 1000.0
             ),
@@ -3898,9 +3901,10 @@ fn activate(
                 let resist = victim.curse_resist;
                 let ms = victim.curses.apply(kind, resist);
                 if ms > 0 {
+                    let stacks = victim.curses.stacks_of(kind);
                     log.push(LogEntry {
                         at_ms: t,
-                        event: Event::Cursed { on: side.other(), kind, duration_ms: ms },
+                        event: Event::Cursed { on: side.other(), kind, duration_ms: ms, stacks },
                     });
                 }
             }
@@ -4025,9 +4029,15 @@ fn apply(
                 let resist = victim.curse_resist;
                 let ms = victim.curses.apply(other, resist);
                 if ms > 0 {
+                    let stacks = victim.curses.stacks_of(other);
                     log.push(LogEntry {
                         at_ms: t,
-                        event: Event::Cursed { on: side.other(), kind: other, duration_ms: ms },
+                        event: Event::Cursed {
+                            on: side.other(),
+                            kind: other,
+                            duration_ms: ms,
+                            stacks,
+                        },
                     });
                 }
             }
@@ -4035,7 +4045,11 @@ fn apply(
             let c = pick(p, e, on);
             let duration = c.curses.apply(kind, c.curse_resist);
             if duration > 0 {
-                log.push(LogEntry { at_ms: t, event: Event::Cursed { on, kind, duration_ms: duration } });
+                let stacks = c.curses.stacks_of(kind);
+                log.push(LogEntry {
+                    at_ms: t,
+                    event: Event::Cursed { on, kind, duration_ms: duration, stacks },
+                });
             }
         }
         Action::Damage { amount, kind, target } => {

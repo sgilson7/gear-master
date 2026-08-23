@@ -304,7 +304,7 @@ fn searing_burns_the_enemy_over_time() {
         .entries
         .iter()
         .find_map(|e| match e.event {
-            Event::Cursed { on: Side::Enemy, kind: CurseKind::Searing, duration_ms } => {
+            Event::Cursed { on: Side::Enemy, kind: CurseKind::Searing, duration_ms, .. } => {
                 Some((e.at_ms, duration_ms))
             }
             _ => None,
@@ -356,7 +356,7 @@ fn curse_resistance_shortens_the_burn() {
         .entries
         .iter()
         .find_map(|e| match e.event {
-            Event::Cursed { on: Side::Enemy, kind: CurseKind::Searing, duration_ms } => {
+            Event::Cursed { on: Side::Enemy, kind: CurseKind::Searing, duration_ms, .. } => {
                 Some((e.at_ms, duration_ms))
             }
             _ => None,
