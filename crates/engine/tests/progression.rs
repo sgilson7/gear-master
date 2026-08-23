@@ -175,6 +175,13 @@ fn a_named_kill_leaves_its_gear_behind() {
     // A build strong enough to take a rung-9 mini-boss, put in front of one.
     let mut run = Run::with_all_pieces();
     run.apply_preset();
+    // `with_all_pieces` owns the whole catalogue, which is a tray several
+    // hundred deep - and a full tray suppresses the drop, correctly. Keep only
+    // what is actually being worn so there is somewhere to put the trophy.
+    let worn: Vec<_> = run.owned.iter().copied().filter(|id| !run.inventory().contains(id)).collect();
+    run.owned = worn;
+    assert!(run.inventory().is_empty(), "the tray should be clear");
+
     run.skip_to(8);
     assert_eq!(run.monster().name, "Whisperling");
     assert_eq!(run.monster().rank, Rank::Mini);
@@ -192,6 +199,24 @@ fn a_named_kill_leaves_its_gear_behind() {
     let name = s.dropped.expect("a mini-boss should leave something");
     assert!(is_boss_only(name), "{} should be gear no shop sells", name);
     assert_eq!(run.inventory().len(), before + 1, "and it should be in the tray");
+}
+
+/// A full tray means no drop, and it stays that way rather than binning the
+/// trophy silently or blowing past the cap.
+#[test]
+fn a_full_tray_turns_a_trophy_away() {
+    use gearmaster_engine::run::INVENTORY_CAP;
+
+    let mut run = Run::with_all_pieces(); // every piece owned: the tray is enormous
+    run.apply_preset();
+    assert!(run.inventory().len() >= INVENTORY_CAP, "the fixture needs a full tray");
+    run.skip_to(8);
+    let before = run.inventory().len();
+    run.fight_next();
+    run.settle();
+    let s = run.last_settlement.as_ref().expect("a fight settles");
+    assert!(s.dropped.is_none(), "a full tray takes nothing");
+    assert_eq!(run.inventory().len(), before, "and nothing was added anyway");
 }
 
 /// An ordinary rung leaves nothing behind, however many times you clear it.

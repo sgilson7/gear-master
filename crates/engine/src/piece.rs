@@ -7504,7 +7504,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Ring,
         cells: &[(0,0)],
-        base: Stats { strength: 44, mana: 10, curse_resist: 55, physical_pierce: 35, ..Stats::ZERO },
+        base: Stats { strength: 52, mana: 12, curse_resist: 60, physical_pierce: 45, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,

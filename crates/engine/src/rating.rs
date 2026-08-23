@@ -89,6 +89,16 @@ mod weight {
     /// A curse landed per second. Searing is a burn, frost is a slow; both are
     /// worth appreciably more than a point of damage.
     pub const CURSE_PS: f32 = 14.0;
+    /// What a second of the other side's gear being stopped is worth.
+    ///
+    /// Curses were all priced at `CURSE_PS`, whichever one they were. That was
+    /// survivable while only searing and frost existed; nineteen pieces now
+    /// land stun or misfire, and those deny output rather than dealing damage.
+    /// Frost is half a second of slow, a stun is 1.2 seconds of nothing, and a
+    /// misfire is a third of six seconds - so they are worth 0.5, 1.2 and 2.0
+    /// seconds of denial respectively, and pricing them the same made the two
+    /// best curses in the game the two cheapest.
+    pub const DENIAL_S: f32 = 13.0;
     /// A second shaved off a cooldown, per second.
     pub const HASTE_PS: f32 = 9.0;
     /// A stack of empowerment or shield per second. Both scale off held mana,
@@ -99,6 +109,17 @@ mod weight {
     /// Speed is a percentage on the whole item, so it is scored against
     /// whatever the item is already worth rather than on its own.
     pub const SPEED_PCT: f32 = 0.006;
+
+    /// What a spell's printed payload is actually worth, once the two
+    /// intensities are taken into account.
+    ///
+    /// A cast lands at `EMPOWERED_CAST_PCT` when it is paid for and
+    /// `WEAK_CAST_PCT` when it is not, and the same two-thirds assumption the
+    /// spending triggers use applies here: mana income is finite. The scale
+    /// used the printed number, which is neither. Spells were the one kind of
+    /// gear whose rating did not describe what it does.
+    pub const CAST_INTENSITY: f32 = 0.66 * (crate::combat::EMPOWERED_CAST_PCT as f32 / 100.0)
+        + 0.34 * (crate::combat::WEAK_CAST_PCT as f32 / 100.0);
 }
 
 /// How many seconds of growth a growing piece is rated for.
@@ -250,15 +271,33 @@ fn held_points(s: &Stats, rate: f32) -> f32 {
     banked_per_fight * weight::HELD_SHARE * weight::HELD_PER_POINT
 }
 
+/// What one curse is worth, by what it actually does.
+///
+/// Searing keeps `CURSE_PS` so nothing that was already balanced against it
+/// moves. The other three are priced on how much of the other side's output
+/// they take away, in seconds, from the durations in `curse.rs`.
+fn curse_points(kind: crate::curse::CurseKind) -> f32 {
+    use crate::curse::{CurseKind, FROST_MS, FROST_SLOW_PCT, MISFIRE_EVERY, MISFIRE_MS, STUN_MS};
+    let secs = |ms: u32| ms as f32 / 1000.0;
+    match kind {
+        // Damage over time rather than denial, and it does not stack.
+        CurseKind::Searing => weight::CURSE_PS,
+        CurseKind::Frost => secs(FROST_MS) * FROST_SLOW_PCT as f32 / 100.0 * weight::DENIAL_S,
+        CurseKind::Stun => secs(STUN_MS) * weight::DENIAL_S,
+        CurseKind::Misfire => secs(MISFIRE_MS) / MISFIRE_EVERY as f32 * weight::DENIAL_S,
+    }
+}
+
 /// What one action is worth each time it happens.
 fn action_points(a: &Action) -> f32 {
     match a {
-        Action::Curse { target, .. } => {
+        Action::Curse { kind, target } => {
+            let v = curse_points(*kind);
             // A curse on yourself is a cost, not a benefit.
             if matches!(target, crate::piece::Target::Yourself) {
-                -weight::CURSE_PS
+                -v
             } else {
-                weight::CURSE_PS
+                v
             }
         }
         // Growth is worth what it will have granted, and it is never given
@@ -415,8 +454,15 @@ fn piece_points(def: &PieceDef, cooldown_ms: u32) -> f32 {
     let cd = if cooldown_ms == 0 { default_cooldown_ms(def.slot) } else { cooldown_ms };
     let rate = 1000.0 / cd.max(1) as f32;
 
+    // A spell's payload is the thing that gets cast, so it is the thing the
+    // two intensities scale. Everything else on the piece is not.
+    let intensity = if def.kind == crate::piece::PieceKind::Spell {
+        weight::CAST_INTENSITY
+    } else {
+        1.0
+    };
     let mut points = standing_points(&def.base)
-        + activated_points(&def.base, rate)
+        + activated_points(&def.base, rate) * intensity
         + held_points(&def.base, rate)
         + def.power_bonus as f32 * weight::POWER_BONUS;
     if let Some(adj) = def.adjacency {
@@ -428,8 +474,14 @@ fn piece_points(def: &PieceDef, cooldown_ms: u32) -> f32 {
     for t in def.triggers {
         points += trigger_points(t) * rate;
     }
-    // Speed lifts everything the item does, so it is a percentage of the rest.
-    points += points.abs() * def.speed_bonus as f32 * weight::SPEED_PCT;
+    // Speed lifts everything the item does - but only score it here when the
+    // caller could not. Given a real cooldown, the item's speed is already in
+    // `rate` and every per-second figure above; adding a percentage on top
+    // would be counting it twice. Zero means "not placed yet", which is the
+    // shop card, and there the bonus is all the information there is.
+    if cooldown_ms == 0 {
+        points += points.abs() * def.speed_bonus as f32 * weight::SPEED_PCT;
+    }
     points
 }
 
@@ -642,6 +694,46 @@ mod tests {
             best_faith >= 25,
             "the best faith piece in the game rates {}, which is noise",
             best_faith
+        );
+    }
+
+    /// The two curses that stop the other side's gear are worth more than the
+    /// one that slows it, and all four used to cost the same. Nineteen pieces
+    /// carry stun or misfire now, so pricing them as interchangeable made the
+    /// two best curses in the game the two cheapest.
+    #[test]
+    fn a_curse_is_priced_by_what_it_does() {
+        use crate::curse::CurseKind;
+        let frost = curse_points(CurseKind::Frost);
+        let stun = curse_points(CurseKind::Stun);
+        let misfire = curse_points(CurseKind::Misfire);
+        assert!(stun > frost * 2.0, "a stun is worth more than two frosts: {} vs {}", stun, frost);
+        assert!(misfire > stun, "a misfire denies more than a stun: {} vs {}", misfire, stun);
+    }
+
+    /// Speed must not be counted twice. Given the cadence an item actually
+    /// runs at, its speed is already in every per-second figure; the
+    /// percentage on top is only for a piece nobody has placed yet.
+    #[test]
+    fn speed_is_counted_once() {
+        let fast = CATALOG
+            .iter()
+            .filter(|d| d.speed_bonus > 30 && !crate::piece::is_boss_only(d.name))
+            .max_by_key(|d| d.speed_bonus)
+            .expect("something in the game is quick");
+        let cd = default_cooldown_ms(fast.slot);
+        // Rated at its own slot's default cadence, explicitly, against rated
+        // with "work it out yourself". The first has speed in the rate; the
+        // second does not and adds the percentage instead. They must not both
+        // apply, so the explicit one is the lower of the two.
+        let explicit = piece_rating_at(fast, cd);
+        let implicit = piece_rating_at(fast, 0);
+        assert!(
+            explicit < implicit,
+            "{}: {} at its real cadence vs {} unplaced - speed is being counted twice",
+            fast.name,
+            explicit,
+            implicit
         );
     }
 
