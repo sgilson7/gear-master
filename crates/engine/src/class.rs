@@ -378,9 +378,14 @@ pub enum ClassPower {
     /// Everything runs `slower` percent slower, and every scrap of armour you
     /// pick up counts `armour` percent.
     ///
-    /// A trade rather than a gift, and the only class that changes the shape
-    /// of a fight rather than its numbers: half as many activations, twice the
-    /// wall. A build that was winning on tempo will hate it.
+    /// A trade rather than a gift, and the only class that changes the shape of
+    /// a fight rather than its numbers.
+    ///
+    /// The slowdown started at fifty percent, which made it a tax rather than
+    /// a trade: half the activations for plates worth double left armour per
+    /// second exactly where it was and halved everything else. At twenty-five
+    /// it buys about half again as much armour for a quarter less of
+    /// everything, which is a decision.
     Trundle { slower: i32, armour: i32 },
     /// You do not heal. Regeneration on your gear stops working, for good.
     ///
@@ -688,7 +693,7 @@ pub static CLASSES: &[ClassDef] = &[
         name: "Trundle",
         blurb: "You learned the pace. Nothing hurries; nothing breaks.",
         requires: &[],
-        power: ClassPower::Trundle { slower: 50, armour: 200 },
+        power: ClassPower::Trundle { slower: 25, armour: 200 },
     },
     ClassDef {
         // Not on offer anywhere: `is_earned` keeps it out of the fountain

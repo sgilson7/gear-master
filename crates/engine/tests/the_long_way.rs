@@ -126,20 +126,17 @@ fn a_trundling_run() -> Run {
 }
 
 #[test]
-fn trundle_halves_the_turns_and_doubles_the_wall() {
+fn trundle_slows_the_turns_and_doubles_the_wall() {
     let run = a_trundling_run();
     let (stats, items) = (run.player_stats(), run.combat_items());
     let trundle = *CLASSES.iter().find(|c| c.name == "Trundle").expect("authored");
     let ClassPower::Trundle { slower, armour } = trundle.power else {
         panic!("Trundle is not a Trundle");
     };
-    assert_eq!((slower, armour), (50, 200));
+    assert_eq!((slower, armour), (25, 200));
 
     // A shallow rung, where the build survives long enough either way for its
-    // armour to come round. Deeper in, the trundled run dies before its
-    // slowest plate fires and there is nothing to compare - which is a real
-    // property of the class, not a measurement problem, but it is not what
-    // this test is about.
+    // armour to come round.
     let spec = LADDER[2];
     let read = |classes: &[gearmaster_engine::class::ClassDef]| -> (usize, Vec<i32>, u32) {
         let log = simulate_with_class(stats, &items, &spec, Difficulty::Medium, classes);
@@ -169,23 +166,23 @@ fn trundle_halves_the_turns_and_doubles_the_wall() {
         plates.iter().map(|a| a * 2).collect::<Vec<_>>(),
         "armour is not doubled"
     );
-    // And it takes exactly twice as long to do the same work.
+    // And the same work takes a third again as long, not twice.
     assert_eq!(slow_acts, acts, "the same activations should still happen, just later");
     assert!(
-        slow_ms >= ms * 2 - 200,
-        "the fight should take about twice as long: {slow_ms}ms against {ms}ms"
+        slow_ms > ms && slow_ms < ms * 2,
+        "a quarter slower should stretch the fight, not double it: {slow_ms}ms against {ms}ms"
     );
 }
 
-/// What the trade actually works out to, written down because it is not what
-/// it looks like.
+/// What the trade works out to, now that it is one.
 ///
-/// Half the activations, each plate worth double, means armour *per second* is
-/// unchanged - while damage per second is halved. Trundle is a slower run at
-/// the same wall, not a tougher one. Recorded as a test so that if the numbers
-/// are ever retuned, whoever does it sees what the old ones came to.
+/// At a fifty percent slowdown it was not: half the activations for plates
+/// worth double left armour per second exactly where it was and halved
+/// everything else, which is a tax wearing a trade's clothes. At twenty-five
+/// the wall goes up by about half while damage comes down by about a quarter -
+/// a decision, and one a build that is being out-damaged might well make.
 #[test]
-fn trundle_leaves_the_wall_where_it_was_and_halves_everything_else() {
+fn trundle_buys_wall_with_tempo() {
     let run = a_trundling_run();
     let (stats, items) = (run.player_stats(), run.combat_items());
     let trundle = *CLASSES.iter().find(|c| c.name == "Trundle").expect("authored");
@@ -214,13 +211,20 @@ fn trundle_leaves_the_wall_where_it_was_and_halves_everything_else() {
 
     let (armour, damage) = per_second(&[]);
     let (slow_armour, slow_damage) = per_second(&[trundle]);
-    assert!(
-        (slow_armour - armour).abs() < armour * 0.2,
-        "armour per second moved: {slow_armour:.1} against {armour:.1}"
+    println!(
+        "trundle: armour/s {armour:.1} -> {slow_armour:.1}, damage/s {damage:.1} -> {slow_damage:.1}"
     );
     assert!(
-        slow_damage < damage * 0.7,
-        "damage per second should be roughly halved: {slow_damage:.1} against {damage:.1}"
+        slow_armour > armour * 1.2,
+        "the wall barely moved: {slow_armour:.1} against {armour:.1} a second"
+    );
+    assert!(
+        slow_damage < damage,
+        "it should still cost tempo: {slow_damage:.1} against {damage:.1} a second"
+    );
+    assert!(
+        slow_damage > damage * 0.6,
+        "a quarter slower should not halve the damage: {slow_damage:.1} against {damage:.1}"
     );
 }
 

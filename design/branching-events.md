@@ -342,21 +342,26 @@ that took Trundle instead sees the door and is told why it is shut.
 
 | | Trundle | Longhauler |
 |---|---|---|
-| Cooldowns | 50% slower | up to 2x faster, over 25s |
+| Cooldowns | 25% slower | up to 2x faster, over 25s |
 | Armour | doubled per plate | unchanged |
-| Armour per second | **unchanged** | unchanged |
-| Damage per second | **halved** | up to doubled |
+| Armour per second | **12.7 → 18.7** (+47%) | unchanged |
+| Damage per second | **40.7 → 30.0** (−26%) | up to doubled |
 
-Measured on the board that cleared the game, at Hard: a run that **asked**
-reaches rung 22 and collects. The same board that **took Trundle** stops at
-rung 13. Nine rungs is what the class costs, and it is a tax rather than a
-trade - half the activations for the same wall buys nothing at the deep end.
+The slowdown was 50% and has been cut to 25%. At fifty it was a tax wearing a
+trade's clothes: half the activations for plates worth double left armour per
+second *exactly where it was* and halved everything else. At twenty-five the
+wall genuinely goes up.
 
-That is worth a decision rather than a silent nerf. Options, if it wants
-rebalancing: double the armour *without* slowing armour-granting items; or cut
-the slowdown to 25% and keep the doubling; or leave it as the trap it is and
-let the follow-up be the reward for not taking it, which is arguably the
-design as written.
+**And it still costs rungs, for a reason that is not the class.** On the board
+that cleared the game, at Hard: a run that asked reaches rung 22; the same
+board having taken Trundle stalls at rung 14 — on a **stalemate at sixty
+seconds**. It survives the full clock and cannot finish.
+
+That is the binding constraint, and it is the one the balance report opened
+with. Armour buys survival, survival is not victory, and a stalemate costs a
+life exactly like a defeat. **No defensive option can be good while the clock
+scores a draw as a loss** — which makes "settle the clock on health share"
+worth more than any amount of tuning Trundle.
 
 ### Walking it
 

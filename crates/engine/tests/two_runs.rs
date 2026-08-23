@@ -449,11 +449,18 @@ fn taking_trundle_shuts_the_pay_off_but_not_the_door() {
 
 /// What Trundle costs, measured on the board that cleared the game.
 ///
-/// The same run reaches the pay-off twelve rungs later if it asks, and stops
-/// nine rungs short of it if it takes the class instead. Half the activations
-/// for the same wall is not a trade at the deep end - it is a tax, and this is
-/// the size of it. Recorded rather than asserted at a number, so a retune
-/// shows up here as a change rather than a failure.
+/// Fight by fight it is a fair trade at twenty-five percent: about half again
+/// as much armour for about a quarter less damage. Over a run it still costs
+/// rungs, and the reason is the clock rather than the class.
+///
+/// A trundling board on Hard stalls at rung fourteen on a *stalemate* - it
+/// survives the full sixty seconds and cannot finish. Armour buys survival,
+/// survival is not victory, and a stalemate costs a life exactly like a
+/// defeat. Any defensive option runs into that wall; it is the same finding
+/// the balance report opened with.
+///
+/// Recorded rather than asserted at a number, so a retune shows up here as a
+/// change rather than a failure.
 #[test]
 fn trundle_costs_a_run_most_of_the_road() {
     let follow = EVENTS.iter().find(|e| e.id == "where-it-was-going").expect("authored");
