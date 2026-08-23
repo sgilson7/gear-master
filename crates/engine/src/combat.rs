@@ -348,6 +348,41 @@ impl MonsterSpec {
         stats.curse_resist += self.curse_resist;
         stats.physical_resist += self.physical_resist;
         stats.magic_resist += self.magic_resist;
+
+        // Past a point on the road, everything knows how to get through
+        // armour, and past a further point it knows how to shrug off somebody
+        // else's piercing.
+        //
+        // A rule rather than fifty hand-set numbers. Half the deep ladder was
+        // swinging for two hundred physical with no piercing at all, so a
+        // player who stacked one resistance simply stopped being hit - and the
+        // defence triangle, which is most of what the late catalogue is about,
+        // did nothing from either side. Written here so it stays true when the
+        // ladder is renumbered, which has happened three times.
+        let depth = LADDER.iter().position(|m| m.name == self.name).map(|i| i + 1);
+        if let Some(rung) = depth {
+            if rung > PIERCE_FROM {
+                // Enough to matter against a build that has committed to one
+                // resistance, and never enough to make committing pointless.
+                let p = (15 + (rung - PIERCE_FROM) as i32 * 2).min(55);
+                // Relevant to what it actually deals: there is no sense
+                // piercing magic resistance with a club.
+                let phys: i32 =
+                    stats.physical_damage + stats.strength + stats.rage;
+                let magic: i32 = stats.magic_damage;
+                if phys > 0 {
+                    stats.physical_pierce += p;
+                }
+                if magic > 0 {
+                    stats.magic_pierce += p;
+                }
+            }
+            if rung > HARDEN_FROM {
+                let h = (10 + (rung - HARDEN_FROM) as i32 * 2).min(45);
+                stats.physical_harden += h;
+                stats.magic_harden += h;
+            }
+        }
         (stats, loadout.combat_items(&reg))
     }
 
@@ -575,6 +610,11 @@ pub const EMPOWERED_CAST_PCT: i32 = 200;
 /// Two, always. A class can raise it; nothing lowers it.
 pub const BALL_VOICES: u32 = 2;
 
+/// The rung past which everything on the road pierces, and past which it also
+/// hardens. Both are exclusive: rung 30 does not, rung 31 does.
+pub const PIERCE_FROM: usize = 30;
+pub const HARDEN_FROM: usize = 40;
+
 pub const LADDER: &[MonsterSpec] = &[
     MonsterSpec {
         name: "Cave Rat",
@@ -609,6 +649,8 @@ pub const LADDER: &[MonsterSpec] = &[
         gear: &[
             ("Oak Handle", SlotKind::Weapon, 0, 0, 0),
             ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+            ("Bloodbank Base", SlotKind::Chest, 0, 0, 0),
+            ("Seedbed Layer", SlotKind::Chest, 2, 0, 0),
         ],
         gear_offset: 0,
         bounty: 8,
@@ -749,6 +791,8 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Thornmail Layer", SlotKind::Chest, 0, 5, 0),
             ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
             ("Serrated Edge", SlotKind::Weapon, 1, 0, 0),
+            ("Warded Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Mana Ward", SlotKind::Helmet, 2, 0, 0),
         ],
         gear_offset: 0,
         bounty: 24,
@@ -880,6 +924,8 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Apprentice's Primer", SlotKind::Weapon, 0, 0, 0),
             ("Bloodletter's Ink", SlotKind::Weapon, 2, 0, 0),
             ("Warding Sigil", SlotKind::Weapon, 4, 0, 0),
+            ("Duskweave Material", SlotKind::Gloves, 2, 1, 0),
+            ("Empowering Mold", SlotKind::Gloves, 2, 2, 0),
         ],
         gear_offset: 0,
         bounty: 44,
@@ -945,6 +991,8 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Bloodrage Grip", SlotKind::Weapon, 0, 0, 0),
             ("Cursed Blade", SlotKind::Weapon, 1, 0, 0),
             ("Fury Sigil", SlotKind::Weapon, 2, 0, 0),
+            ("Ashen Material", SlotKind::Gloves, 4, 0, 0),
+            ("Spiked Vambrace", SlotKind::Gloves, 3, 2, 0),
         ],
         gear_offset: 0,
         bounty: 80,
@@ -1415,6 +1463,8 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Blade of Helms", SlotKind::Weapon, 3, 0, 0),
             ("Bileglass Vial", SlotKind::Weapon, 1, 2, 0),
             ("Bileglass Vial", SlotKind::Weapon, 3, 2, 0),
+            ("Sunder Haft", SlotKind::Weapon, 5, 0, 0),
+            ("Cursed Blade", SlotKind::Weapon, 4, 3, 0),
         ],
         gear_offset: 0,
         bounty: 170,
@@ -1451,6 +1501,8 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Blade of Helms", SlotKind::Weapon, 2, 0, 0),
             ("Whetstone", SlotKind::Weapon, 4, 0, 0),
             ("Whetstone", SlotKind::Weapon, 5, 0, 0),
+            ("Rimeguard Base", SlotKind::Chest, 0, 4, 0),
+            ("Seedbed Layer", SlotKind::Chest, 3, 4, 0),
         ],
         gear_offset: 0,
         bounty: 179,
@@ -1561,6 +1613,8 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Sunderer", SlotKind::Weapon, 2, 0, 0),
             ("Bloodrage Grip", SlotKind::Weapon, 4, 0, 0),
             ("Balance Weight", SlotKind::Weapon, 0, 3, 0),
+            ("Ironthread Material", SlotKind::Greaves, 3, 0, 0),
+            ("Tempered Sole", SlotKind::Greaves, 3, 1, 0),
         ],
         gear_offset: 0,
         bounty: 206,
@@ -1734,6 +1788,8 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Sunderer", SlotKind::Weapon, 3, 0, 0),
             ("Whetstone", SlotKind::Weapon, 5, 0, 0),
             ("Fury Sigil", SlotKind::Weapon, 5, 1, 0),
+            ("Chapel Frame", SlotKind::Helmet, 0, 4, 0),
+            ("Warded Plating", SlotKind::Helmet, 3, 4, 0),
         ],
         gear_offset: 0,
         bounty: 242,
@@ -2087,6 +2143,8 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Kingmaker Hilt", SlotKind::Weapon, 0, 3, 0),
             ("Chain Coil", SlotKind::Weapon, 4, 0, 0),
             ("Grimoire Rack", SlotKind::Weapon, 5, 0, 0),
+            ("Bastion Base", SlotKind::Chest, 3, 4, 0),
+            ("Aether Layer", SlotKind::Chest, 1, 5, 0),
         ],
         gear_offset: 0,
         bounty: 339,
@@ -2213,6 +2271,8 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Kingmaker Hilt", SlotKind::Weapon, 0, 3, 0),
             ("Grimoire Rack", SlotKind::Weapon, 4, 0, 0),
             ("Grimoire Rack", SlotKind::Weapon, 5, 0, 0),
+            ("Ossuary Frame", SlotKind::Helmet, 0, 3, 0),
+            ("Lonely Plating", SlotKind::Helmet, 2, 4, 0),
         ],
         gear_offset: 0,
         bounty: 372,
@@ -2853,9 +2913,12 @@ impl Combatant {
         Stats {
             // Fury sharpens the blade.
             physical_damage: rage,
-            // Conviction turns aside both kinds of harm.
-            physical_resist: (faith * 2).min(40),
-            magic_resist: (faith * 2).min(40),
+            // Conviction turns aside both kinds of harm, and no longer stops
+            // at forty percent. The cap meant a faith build hit a ceiling it
+            // could not see and everything banked past it was dead weight -
+            // which is the opposite of what a pool is for.
+            physical_resist: faith * 2,
+            magic_resist: faith * 2,
             // Growth knits you back together.
             regen: nature,
             ..Stats::ZERO
@@ -3237,6 +3300,7 @@ pub fn simulate_with_class(
             // multiplier on the board on top of its own. Done here rather than
             // in the profile because it is a property of the whole board, and
             // the profile only knows about one item.
+            crate::class::ClassPower::Avenged(n) => start_player.rage += n,
             crate::class::ClassPower::Splintered(pct) => {
                 let best = start_player.items.iter().map(|i| i.power).max().unwrap_or(100);
                 let share = (best - 100).max(0) * pct / 100;

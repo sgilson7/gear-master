@@ -195,6 +195,9 @@ pub struct Run {
     pub dungeon: Option<(&'static crate::dungeon::Dungeon, usize)>,
     /// Said on the landing between floors, once.
     pub pending_landing: Option<&'static str>,
+    /// Losses this run may take beyond the mode's own allowance. Earned, not
+    /// given: there is exactly one place to pick one up.
+    pub extra_lives: u32,
     /// Rerolls bought since the last fight. Resets on settling.
     pub rerolls: u32,
     /// A scene the theme owes you for the fight just settled, waiting to be
@@ -284,6 +287,7 @@ impl Run {
             took: Vec::new(),
             dungeon: None,
             pending_landing: None,
+            extra_lives: 0,
             rerolls: 0,
             best_rung: 0,
             settled: false,
@@ -437,6 +441,14 @@ impl Run {
             ChoiceOutcome::FightAsWritten => {}
             ChoiceOutcome::FightInstead(name) => {
                 self.substitute = crate::combat::alternate(name);
+            }
+            ChoiceOutcome::Spare => self.grant_life(),
+            ChoiceOutcome::Claim(name) => {
+                if let Some(c) = crate::class::CLASSES.iter().find(|c| c.name == name) {
+                    if !self.classes.iter().any(|k| k.name == c.name) {
+                        self.classes.push(c);
+                    }
+                }
             }
             ChoiceOutcome::Enter(id) => {
                 self.dungeon = crate::dungeon::by_id(id).map(|d| (d, 0));
@@ -1296,6 +1308,13 @@ impl Run {
             Mode::Grinder => None,
             Mode::Rogue => Some(self.lives),
         }
+    }
+
+    /// Grant one more loss before the run ends. Rogue counts them down; in
+    /// Grinder there is nothing to count, and the choice says so.
+    pub fn grant_life(&mut self) {
+        self.extra_lives += 1;
+        self.lives += 1;
     }
 
     /// Components not currently in a slot, in stable order.

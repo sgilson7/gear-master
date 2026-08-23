@@ -397,6 +397,8 @@ pub enum ClassPower {
     /// Every item takes `pct` of the best multiplier on the board on top of
     /// its own - the wisdom, split into pieces and handed round.
     Splintered(i32),
+    /// Start every fight already holding `n` rage. You came in angry.
+    Avenged(i32),
 }
 
 impl ClassPower {
@@ -421,6 +423,7 @@ impl ClassPower {
             Bloodscent(n) => Bloodscent(n * 2),
             Confluence(p) => Confluence(p * 2),
             Splintered(p) => Splintered(p * 2),
+            Avenged(n) => Avenged(n * 2),
             // Twice as often, which for these means halving the interval.
             Echo(n) => Echo((n / 2).max(2)),
             Untimely(n) => Untimely((n / 2).max(2)),
@@ -467,6 +470,7 @@ impl ClassPower {
             ClassPower::Splintered(pct) => {
                 format!("every item shares {}% of the best", pct)
             }
+            ClassPower::Avenged(n) => format!("start every fight with {} fury", n),
             ClassPower::Adaptable(n) => format!("every act banks {} of all four pools", n),
         }
     }
@@ -554,6 +558,12 @@ impl ClassPower {
                 "whenever you spend one pool, {}% of what you spent is paid into each of the \
                  other three",
                 pct
+            ),
+            ClassPower::Avenged(n) => format!(
+                "you start every fight already holding {} rage - which is {} physical damage \
+                 on every swing before anything has happened, and a pool to spend besides",
+                n,
+                n
             ),
             ClassPower::Splintered(pct) => format!(
                 "whatever the strongest item on your board multiplies by, every other item \
@@ -707,6 +717,13 @@ pub static CLASSES: &[ClassDef] = &[
         requires: &[],
         power: ClassPower::Splintered(50),
     },
+    // Only from the man himself, and only from finishing him.
+    ClassDef {
+        name: "Avenged",
+        blurb: "You did not come here to talk.",
+        requires: &[],
+        power: ClassPower::Avenged(2),
+    },
     ClassDef {
         name: "Wanderer",
         blurb: "No particular commitment to anything, and a little of everything.",
@@ -736,12 +753,30 @@ pub struct Match {
 /// build is; the rest follow, ordered by how close they are. That second half
 /// is what makes the outcome predictable: the player can see what they nearly
 /// have and go and get it.
+/// Is this class handed over rather than qualified for?
+///
+/// A dungeon reward or an event's spoils. Nothing you build points at one -
+/// you go and get it, or you make the choice that earns it - so they are kept
+/// out of the ranking entirely and a fountain can never pour one. They are
+/// also the only classes allowed to ask for nothing, which is what the floor
+/// class does, so every invariant about requirements has to know about them.
+pub fn is_earned(name: &str) -> bool {
+    if crate::dungeon::is_dungeon_only(name) {
+        return true;
+    }
+    crate::event::EVENTS.iter().any(|e| {
+        e.choices
+            .iter()
+            .any(|c| matches!(c.outcome, crate::event::Outcome::Claim(n) if n == name))
+    })
+}
+
 pub fn rank(fp: &Fingerprint) -> Vec<Match> {
     let mut out: Vec<Match> = CLASSES
         .iter()
         // A dungeon class is not something a build can qualify for. Nothing
         // you wear points at it: you go and get it, or you never have it.
-        .filter(|c| !crate::dungeon::is_dungeon_only(c.name))
+        .filter(|c| !is_earned(c.name))
         .map(|class| {
             let detail: Vec<(Axis, i32, i32)> =
                 class.requires.iter().map(|&(a, need)| (a, need, fp.get(a))).collect();
@@ -845,7 +880,7 @@ mod tests {
         // it. They are kept out of `rank`, so a fountain can never pour one.
         let floor: Vec<&str> = CLASSES
             .iter()
-            .filter(|c| c.requires.is_empty() && !crate::dungeon::is_dungeon_only(c.name))
+            .filter(|c| c.requires.is_empty() && !is_earned(c.name))
             .map(|c| c.name)
             .collect();
         assert_eq!(floor, vec!["Wanderer"], "exactly one class should be the fallback");
@@ -855,7 +890,7 @@ mod tests {
     /// A dungeon class must be unreachable by any amount of building, or the
     /// dungeon is not the only way to it.
     #[test]
-    fn a_fountain_can_never_pour_a_dungeon_class() {
+    fn a_fountain_can_never_pour_an_earned_class() {
         let mut scores: Vec<(Axis, i32)> = Vec::new();
         for c in CLASSES {
             for &(a, _) in c.requires {
@@ -864,13 +899,9 @@ mod tests {
         }
         let fp = Fingerprint { scores };
         for m in rank(&fp) {
-            assert!(
-                !crate::dungeon::is_dungeon_only(m.class.name),
-                "{} turned up in the ranking",
-                m.class.name
-            );
+            assert!(!is_earned(m.class.name), "{} turned up in the ranking", m.class.name);
         }
-        assert!(!crate::dungeon::is_dungeon_only(classify(&fp).name));
+        assert!(!is_earned(classify(&fp).name));
     }
 
     #[test]

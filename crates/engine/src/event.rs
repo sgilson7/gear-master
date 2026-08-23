@@ -36,6 +36,10 @@ pub enum Outcome {
     /// Walk into a mini dungeon. The rung does not move, so coming out puts
     /// you back in front of the fight you had not got to.
     Enter(&'static str),
+    /// One more loss before the run ends.
+    Spare,
+    /// A class handed over on the spot, which no fountain offers.
+    Claim(&'static str),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -65,6 +69,41 @@ pub struct LadderEvent {
 }
 
 pub const EVENTS: &[LadderEvent] = &[
+    // Stands on the rung *after* Henpeck, which is where you are once he is
+    // down. The theme's cutscene has already played by then - he has told you
+    // he sold them, and told you twice - so this is the moment after that,
+    // with him still on the floor and still talking.
+    LadderEvent {
+        id: "what-to-do-with-henpeck",
+        at: 15,
+        expects: "The Curator",
+        title: "HE IS STILL TALKING",
+        prose: &[
+            "Lord Drabley Henpeck is not dead, and is not especially worried \
+             about becoming dead, which between the two of you is the more \
+             annoying fact.",
+            "He has more. He has names, and routes, and the shape of what was \
+             done, and he will trade all of it for the obvious thing. He is \
+             enjoying this. He has been enjoying it since he hit the floor.",
+            "Or you can stop him enjoying it.",
+        ],
+        choices: &[
+            Choice {
+                label: "LET HIM TALK",
+                blurb: "What he knows is worth a life. One more loss before the run ends.",
+                requires: Requirement::None,
+                outcome: Outcome::Spare,
+                unmet: "",
+            },
+            Choice {
+                label: "FINISH IT",
+                blurb: "Nothing he says is worth this. You walk on angry, and stay angry.",
+                requires: Requirement::None,
+                outcome: Outcome::Claim("Avenged"),
+                unmet: "",
+            },
+        ],
+    },
     LadderEvent {
         id: "the-toads-offer",
         at: 2,
@@ -214,6 +253,19 @@ mod tests {
                         crate::combat::alternate(name).is_some(),
                         "{} names {}, which is not an alternate",
                         e.id,
+                        name
+                    );
+                }
+                if let Outcome::Claim(name) = c.outcome {
+                    let class = crate::class::CLASSES
+                        .iter()
+                        .find(|k| k.name == name)
+                        .unwrap_or_else(|| panic!("{} claims {}, no such class", e.id, name));
+                    // Claimed, not qualified for - so nothing you build can
+                    // reach it and a fountain must never offer it.
+                    assert!(
+                        class.requires.is_empty(),
+                        "{} is claimable but also has requirements, so a fountain could pour it",
                         name
                     );
                 }

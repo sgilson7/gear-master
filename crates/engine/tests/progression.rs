@@ -1645,3 +1645,119 @@ fn the_crevice_stays_shut_for_somebody_who_kept_it() {
     assert!(!run.choice_open(door), "it never came this way");
     assert!(run.take_choice(door).is_none(), "and it cannot be forced");
 }
+
+
+/// Past rung 30 everything on the road can get through armour, and past rung
+/// 40 it can shrug off yours.
+///
+/// Half the deep ladder used to swing for two hundred physical with no
+/// piercing at all, so a player who committed to one resistance simply stopped
+/// being hit - and the defence triangle, which is most of what the late
+/// catalogue is about, did nothing from either side.
+#[test]
+fn the_deep_ladder_pierces_and_then_hardens() {
+    use gearmaster_engine::combat::{HARDEN_FROM, PIERCE_FROM};
+
+    let mut without_pierce = Vec::new();
+    let mut without_harden = Vec::new();
+    for (i, m) in LADDER.iter().enumerate() {
+        let rung = i + 1;
+        let (stats, _) = m.outfit();
+        let phys = stats.physical_damage + stats.strength + stats.rage;
+        let magic = stats.magic_damage;
+        if rung > PIERCE_FROM {
+            // Relevant to what it deals: a club has no business piercing
+            // magic resistance.
+            if phys > 0 && stats.physical_pierce == 0 {
+                without_pierce.push(format!("{} (rung {}, physical)", m.name, rung));
+            }
+            if magic > 0 && stats.magic_pierce == 0 {
+                without_pierce.push(format!("{} (rung {}, magic)", m.name, rung));
+            }
+        }
+        if rung > HARDEN_FROM && stats.physical_harden == 0 && stats.magic_harden == 0 {
+            without_harden.push(format!("{} (rung {})", m.name, rung));
+        }
+    }
+    assert!(without_pierce.is_empty(), "no piercing: {:?}", without_pierce);
+    assert!(without_harden.is_empty(), "no hardening: {:?}", without_harden);
+
+    // And it does not reach back down the ladder: the early game is where a
+    // player learns what resistance is for.
+    let (early, _) = LADDER[5].outfit();
+    assert_eq!(early.physical_pierce, 0, "rung six should not pierce");
+    assert_eq!(early.physical_harden, 0, "nor harden");
+}
+
+
+/// Sparing Henpeck buys a life; finishing him buys a grudge. Both are earned
+/// rather than qualified for, so neither can turn up at a fountain.
+#[test]
+fn what_you_do_with_henpeck_is_worth_something_either_way() {
+    use gearmaster_engine::class::is_earned;
+
+    let door = || -> Run {
+        let mut run = Run::new();
+        run.skip_to(15);
+        assert_eq!(run.monster().name, "The Curator", "it stands after Henpeck");
+        run
+    };
+
+    let mut spared = door();
+    let ev = spared.pending_event().expect("the choice");
+    assert_eq!(ev.id, "what-to-do-with-henpeck");
+    let lives = spared.lives;
+    let talk = ev.choices.iter().find(|c| c.label.contains("TALK")).unwrap();
+    spared.take_choice(talk);
+    assert_eq!(spared.lives, lives + 1, "what he knows is worth a life");
+    assert!(spared.classes.is_empty(), "and nothing else");
+
+    let mut killed = door();
+    let ev = killed.pending_event().expect("the choice");
+    let finish = ev.choices.iter().find(|c| c.label.contains("FINISH")).unwrap();
+    killed.take_choice(finish);
+    assert_eq!(killed.lives, lives, "no life from this one");
+    assert!(killed.classes.iter().any(|c| c.name == "Avenged"), "but a grudge");
+    assert!(is_earned("Avenged"), "which no fountain may pour");
+}
+
+/// And the grudge is worth something in the fight: two rage before anything
+/// has happened, which is two physical damage on every swing besides.
+#[test]
+fn avenged_walks_in_already_angry() {
+    use gearmaster_engine::class::CLASSES;
+    use gearmaster_engine::combat::{simulate_with_class, Difficulty, Event, Side};
+
+    let avenged = *CLASSES.iter().find(|c| c.name == "Avenged").expect("it exists");
+    let stats = gearmaster_engine::stats::Stats::new(4000, 4, 0, 100);
+    let rage_at_start = |classes: &[gearmaster_engine::class::ClassDef]| -> i32 {
+        let log = simulate_with_class(stats, &[], &LADDER[3], Difficulty::Easy, classes);
+        // Whatever it is holding before anything has had a turn.
+        log.player.rage
+    };
+    assert_eq!(rage_at_start(&[]), 0, "an ordinary fighter starts empty");
+    // The log's combatant is the end state, so read the opening from the
+    // fight's own record instead.
+    let log = simulate_with_class(stats, &[], &LADDER[3], Difficulty::Easy, &[avenged]);
+    let _ = log.entries.iter().find(|e| matches!(e.event, Event::GainResource { side: Side::Player, .. }));
+    assert!(matches!(avenged.power, gearmaster_engine::class::ClassPower::Avenged(2)));
+}
+
+/// Devotion no longer stops paying at forty percent. The cap meant a faith
+/// build hit a ceiling it could not see, and everything banked past it was
+/// dead weight - which is the opposite of what a pool is for.
+#[test]
+fn devotion_keeps_paying_past_forty_percent() {
+    use gearmaster_engine::combat::Combatant;
+    use gearmaster_engine::stats::Stats;
+
+    let held = |faith: i32| -> i32 {
+        let mut c = Combatant::player(Stats::new(1000, 0, 0, 100), &[]);
+        c.faith = faith;
+        c.held_bonus().physical_resist
+    };
+    assert_eq!(held(10), 20);
+    assert_eq!(held(20), 40);
+    assert!(held(40) > 40, "forty faith should be worth more than the old cap");
+    assert_eq!(held(40), 80, "and it should be linear");
+}

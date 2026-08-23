@@ -689,7 +689,7 @@ fn which_classes_are_reachable() {
     // get it - so listing it as dead would be reporting the design as a bug.
     println!("\n=== can a real build reach each class? ===");
     let mut dead = Vec::new();
-    for class in CLASSES.iter().filter(|c| !gearmaster_engine::dungeon::is_dungeon_only(c.name)) {
+    for class in CLASSES.iter().filter(|c| !gearmaster_engine::class::is_earned(c.name)) {
         let run = build_toward(class);
         let fp = run.fingerprint();
         let got = classify(&fp).name;
@@ -1716,6 +1716,104 @@ fn author_the_idiots_weapon() {
                 println!("            // items: {}", p.len());
             }
             None => println!("// {:?} does not pack", names),
+        }
+    }
+}
+
+/// One more assembled item for ten ordinary rungs, each answering something
+/// their build already leans on.
+///
+/// Seated onto the board they already have, with everything on it locked
+/// first, so the addition has to fit round the arrangement rather than
+/// renegotiate it. Hand-placing these is how a board ends up assembling into
+/// nothing.
+#[test]
+#[ignore]
+fn author_the_extra_items() {
+    use gearmaster_engine::combat::LADDER;
+    use gearmaster_engine::piece::PieceDef;
+
+    // (creature, slot to add to, what it should reinforce)
+    let picks: &[(&str, SlotKind, fn(&&'static PieceDef) -> bool)] = &[
+        ("Bog Toad", SlotKind::Chest, |d| d.base.health > 0 || d.base.armor > 0),
+        ("Iron Sentinel", SlotKind::Helmet, |d| d.base.armor > 0 || d.base.physical_resist > 0),
+        // Gloves rather than a second weapon: requiring every piece of a
+        // weapon candidate to be mana or spell forces an orb build, and the
+        // cheapest one that qualified rated 191 at rung twelve.
+        ("Rust Colossus", SlotKind::Gloves, |d| d.base.mana > 0 || d.base.armor > 0),
+        ("Grave Chorus", SlotKind::Gloves, |d| d.base.rage > 0 || d.base.physical_damage > 0),
+        ("Cog Priest", SlotKind::Weapon, |d| d.base.physical_damage > 0 || d.base.strength > 0),
+        ("Mire Behemoth", SlotKind::Chest, |d| d.base.armor > 0 || d.base.health > 0),
+        ("Null Sentinel", SlotKind::Greaves, |d| d.base.armor > 0 || d.base.physical_resist > 0),
+        ("Iron Abbot", SlotKind::Helmet, |d| d.base.faith > 0 || d.base.magic_resist > 0),
+        ("The Quiet Hour", SlotKind::Chest, |d| d.base.armor > 0),
+        ("Anvilheart", SlotKind::Helmet, |d| d.base.armor > 0 || d.base.physical_harden > 0),
+    ];
+
+    for (name, slot, want) in picks {
+        let m = LADDER.iter().find(|m| m.name == *name).expect("on the ladder");
+        let (mut reg, mut loadout) = m.loadout();
+        // Lock what is there. The addition fits round it or not at all.
+        for k in SlotKind::ALL {
+            gearmaster_engine::loadout::lock_assembled_in(&mut loadout, &reg, k);
+        }
+        let before = loadout.report(&reg, *slot).items.iter().filter(|i| i.assembled).count();
+
+        // Modest: one more item, not a second build. Aimed at a third of what
+        // the creature already carries in that slot.
+        let target = loadout
+            .report(&reg, *slot)
+            .items
+            .iter()
+            .filter(|i| i.assembled)
+            .map(|i| i.rating)
+            .max()
+            .unwrap_or(30)
+            / 2;
+
+        let mut best: Option<(i32, Vec<(&'static str, u8, u8, u8)>)> = None;
+        for cand in cached_singles(*slot) {
+            if !cand.1.iter().all(|n| CATALOG.iter().find(|d| d.name == *n).is_some_and(|d| want(&d)))
+            {
+                continue;
+            }
+            if best.as_ref().is_some_and(|(r, _)| (cand.0 - target).abs() >= (*r - target).abs()) {
+                continue;
+            }
+            let ids: Vec<PieceId> = cand
+                .1
+                .iter()
+                .filter_map(|n| CATALOG.iter().position(|d| d.name == *n))
+                .map(|i| reg.alloc(i))
+                .collect();
+            if seat_one_item(&mut reg, &mut loadout, *slot, &ids) {
+                let placed: Vec<(&'static str, u8, u8, u8)> = ids
+                    .iter()
+                    .zip(cand.1.iter())
+                    .map(|(&id, &n)| {
+                        let (x, y) = loadout.slot(*slot).anchor_of(id).unwrap();
+                        (n, x, y, reg.rotation(id))
+                    })
+                    .collect();
+                best = Some((cand.0, placed));
+                for id in &ids {
+                    loadout.slot_mut(*slot).remove(*id);
+                }
+            } else {
+                for id in &ids {
+                    loadout.slot_mut(*slot).remove(*id);
+                }
+            }
+        }
+        match best {
+            Some((r, placed)) => {
+                println!("// {} : +1 {:?} (rating {}, was {} items)", name, slot, r, before);
+                for (n, x, y, rot) in &placed {
+                    println!("            (\"{}\", SlotKind::{:?}, {}, {}, {}),", n, slot, x, y, rot);
+                }
+                println!("// items +{}", placed.len());
+            }
+            None => println!("// {} : nothing fits in {:?}", name, slot),
         }
     }
 }

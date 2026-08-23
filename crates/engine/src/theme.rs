@@ -271,6 +271,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Stormcaller", "Plug Energy Rep"),     // Spike Kaklon's Plug Energy, p. 32
         ("Templar", "Francian Ordinate"),       // the Francians pp. 61-63, ordination p. 75
         ("Ascendant", "Boyetano, Ascended"),
+        ("Avenged", "Sprocket Avenged"),
         ("Wanderer", "Plane Tourist"),          // half-tourist, half-catastrophe
         ("Warpriest", "Acolyte of Dobira"),     // the Master and Baylon, pp. 46-50
         ("Wellspring", "Soda Tycoon"),          // Skink Brink, pp. 4, 7-8, 53
