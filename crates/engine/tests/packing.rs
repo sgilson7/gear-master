@@ -1105,7 +1105,7 @@ fn all_layouts(seeds: &[u64]) -> Vec<Vec<Layout>> {
 fn final_health(log: &gearmaster_engine::combat::CombatLog) -> (i32, i32) {
     use gearmaster_engine::combat::{Event, Side};
     let mut player = log.player.health;
-    let mut enemy = log.enemy.health;
+    let mut enemy = log.enemy().health;
     for e in &log.entries {
         match &e.event {
             Event::Hit { by, target_health, .. } => match by {

@@ -2404,7 +2404,7 @@ fn schedule_for(log: &CombatLog, want: Side, count: usize) -> Vec<Vec<u32>> {
 
 impl Playback {
     fn new(log: &CombatLog, player_profiles: &[ItemProfile], speed: f32) -> Self {
-        let (er, eloadout) = log.spec.loadout();
+        let (er, eloadout) = log.spec().loadout();
         let (er2, eloadout2) = (er.clone(), eloadout.clone());
         let eprof = eloadout.combat_items(&er);
         let pprof = player_profiles.to_vec();
@@ -2420,8 +2420,8 @@ impl Playback {
             purse: 0,
             player_pools: [0; 3],
             enemy_pools: [0; 3],
-            enemy_hp: log.enemy.health,
-            enemy_max: log.enemy.max_health,
+            enemy_hp: log.enemy().health,
+            enemy_max: log.enemy().max_health,
             enemy_armor: 0,
             player_curses: Vec::new(),
             enemy_curses: Vec::new(),
@@ -2439,13 +2439,13 @@ impl Playback {
             enemy_shield: 0,
             enemy_fork: 0,
             player_schedule: schedule_for(log, Side::Player, log.player.items.len()),
-            enemy_schedule: schedule_for(log, Side::Enemy, log.enemy.items.len()),
+            enemy_schedule: schedule_for(log, Side::Enemy, log.enemy().items.len()),
             enemy_reg: er,
             enemy_reports: eloadout.reports(&er2),
             enemy_loadout: eloadout2,
             player_profiles: pprof,
             enemy_profiles: eprof,
-            enemy_attack_count: log.spec.attacks.len(),
+            enemy_attack_count: log.spec().attacks.len(),
         }
     }
 
@@ -4418,7 +4418,7 @@ fn render_battle(
     );
 
     // ---- their half ----
-    let enemy_label = format!("{}'s GEAR", log.enemy.name.to_uppercase());
+    let enemy_label = format!("{}'s GEAR", log.enemy().name.to_uppercase());
     ui_text(
         &enemy_label,
         g.board_x,
@@ -4463,7 +4463,7 @@ fn render_battle(
         g.board_x,
         g.enemy_bar_y,
         g.board_w,
-        &log.enemy.name,
+        &log.enemy().name,
         pb.enemy_hp,
         pb.enemy_max,
         pb.enemy_armor,
@@ -4502,7 +4502,7 @@ fn render_battle(
         ),
         (
             "THEIR COOLDOWNS",
-            &log.enemy.items,
+            &log.enemy().items,
             &pb.enemy_schedule,
             g.enemy_board_y,
             col_foe(),
@@ -4603,7 +4603,7 @@ fn render_battle(
     // The creature itself, in the clear space under its cooldown list. It
     // takes whatever room is left between the last row and the log strip.
     {
-        let below = g.enemy_board_y + 30.0 + log.enemy.items.len() as f32 * 28.0 + 14.0;
+        let below = g.enemy_board_y + 30.0 + log.enemy().items.len() as f32 * 28.0 + 14.0;
         let room = (g.log.y - 16.0) - below;
         // A very heavily geared monster leaves no gap; drop the portrait
         // rather than draw it over the log.
@@ -4613,7 +4613,7 @@ fn render_battle(
                 g.cd_x + (g.cd_w - sz) / 2.0,
                 below + (room - sz).max(0.0) / 2.0,
                 sz,
-                log.spec.sprite,
+                log.spec().sprite,
                 col_foe(),
                 Color::from_rgba(40, 22, 20, 255),
             );
@@ -4708,7 +4708,7 @@ fn render_battle(
         // Hovering a cooldown row explains what that item is worth.
         for (items, top, profiles, offset) in [
             (&log.player.items, g.player_board_y, &pb.player_profiles, 0usize),
-            (&log.enemy.items, g.enemy_board_y, &pb.enemy_profiles, pb.enemy_attack_count),
+            (&log.enemy().items, g.enemy_board_y, &pb.enemy_profiles, pb.enemy_attack_count),
         ] {
             let order = cooldown_order(items);
             let (pitch, shown) = cooldown_fit(order.len(), cooldown_room(&g, top));
@@ -5152,7 +5152,7 @@ impl Series {
 /// The fight is already decided; this is only reading back what happened, so
 /// it can be recomputed whenever the overlay opens rather than carried around.
 fn build_series(log: &CombatLog, side: Side) -> Vec<Series> {
-    let start_hp = if matches!(side, Side::Player) { log.player.max_health } else { log.enemy.max_health };
+    let start_hp = if matches!(side, Side::Player) { log.player.max_health } else { log.enemy().max_health };
     let mut hp = Series::new("health", if matches!(side, Side::Player) { col_you() } else { col_foe() });
     hp.points[0] = (0, start_hp);
     let mut armor = Series::new("armour", pool_color("armor"));
@@ -5234,7 +5234,7 @@ fn render_log_overlay(pb: &Playback, log: &CombatLog, scroll: usize) {
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::from_rgba(110, 110, 145, 255));
     ui_text("COMBAT LOG", r.x + 16.0, r.y + 28.0, 18.0, col_gold());
     ui_text(
-        &format!("{:.1}s  ·  {}", log.duration_ms as f32 / 1000.0, log.enemy.name),
+        &format!("{:.1}s  ·  {}", log.duration_ms as f32 / 1000.0, log.enemy().name),
         r.x + 30.0 + text_width("COMBAT LOG", 18.0),
         r.y + 28.0,
         13.0,
@@ -5246,7 +5246,7 @@ fn render_log_overlay(pb: &Playback, log: &CombatLog, scroll: usize) {
     let gap = 8.0;
     let mut gy = r.y + 46.0;
     for (side, who, tint) in
-        [(Side::Player, "YOU", col_you()), (Side::Enemy, log.enemy.name.as_str(), col_foe())]
+        [(Side::Player, "YOU", col_you()), (Side::Enemy, log.enemy().name.as_str(), col_foe())]
     {
         ui_text(who, r.x + 16.0, gy + 12.0, 13.0, tint);
         let series = build_series(log, side);

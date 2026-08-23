@@ -149,7 +149,7 @@ fn a_stun_stops_one_item_and_leaves_the_rest_running() {
 
     let found = LADDER.iter().find_map(|spec| {
         let log = simulate_at(stats, &items, spec, Difficulty::Medium);
-        if log.enemy.items.len() < 2 {
+        if log.enemy().items.len() < 2 {
             return None;
         }
         let (idx, from, until) = log.entries.iter().find_map(|e| match &e.event {
@@ -190,10 +190,10 @@ fn every_stun_in_a_fight_names_one_item_and_respects_the_cap() {
         for (idx, duration) in enemy_stuns(&log) {
             landed += 1;
             assert!(
-                idx < log.enemy.items.len(),
+                idx < log.enemy().items.len(),
                 "{}: a stun named item {idx} of {}",
                 spec.name,
-                log.enemy.items.len()
+                log.enemy().items.len()
             );
             assert!(duration <= STUN_CAP_MS, "{}: a stun ran past the cap: {duration}", spec.name);
             if !hit.contains(&idx) {

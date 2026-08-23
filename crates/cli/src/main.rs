@@ -189,7 +189,7 @@ fn main() {
                 }
                 println!(
                     "vs {} - {} hp",
-                    log.enemy.name, log.enemy.max_health
+                    log.enemy().name, log.enemy().max_health
                 );
                 println!("{}", "-".repeat(64));
                 for entry in &log.entries {

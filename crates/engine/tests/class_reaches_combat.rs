@@ -20,7 +20,7 @@ use gearmaster_engine::run::Run;
 /// reports full health there.
 fn final_health(log: &CombatLog) -> (i32, i32) {
     let mut player = log.player.health;
-    let mut enemy = log.enemy.health;
+    let mut enemy = log.enemy().health;
     for e in &log.entries {
         match &e.event {
             Event::Hit { by, target_health, .. } => match by {

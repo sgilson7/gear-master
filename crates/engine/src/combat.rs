@@ -2705,6 +2705,9 @@ pub struct Combatant {
     /// Run gold carried into the fight. Only the player has one, and only
     /// `SpendGold` touches it; what it spends is gone at the shop afterwards.
     pub purse: i32,
+    /// Which foe the next single-target attack is aimed at. Only the player
+    /// has one, and it moves along every time an attack lands - see `aim_of`.
+    pub aim: usize,
     pub curses: Curses,
     /// Stacks of mana empowerment and mana shield. Both scale off *current*
     /// mana, and both are bought with mana — so stacking them hard drains the
@@ -2827,6 +2830,7 @@ impl Combatant {
             activations: 0,
             curse_resist: stats.curse_resist,
             purse: 0,
+            aim: 0,
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
@@ -2919,6 +2923,7 @@ impl Combatant {
             activations: 0,
             curse_resist: stats.curse_resist,
             purse: 0,
+            aim: 0,
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
@@ -3102,6 +3107,14 @@ pub enum Event {
 pub struct LogEntry {
     pub at_ms: u32,
     pub event: Event,
+    /// Which foe this entry is about, when the fight has more than one of
+    /// them. Zero in a duel, and zero for anything the player did to himself.
+    ///
+    /// One field here rather than a `who` on each of the twenty-odd `Event`
+    /// variants that name a side. It is unambiguous because the player is
+    /// always singular: when a foe acts this is the actor, when the player
+    /// acts on a foe this is the victim, and there is never a third party.
+    pub who: u8,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -3124,10 +3137,12 @@ impl Outcome {
 #[derive(Clone, Debug)]
 pub struct CombatLog {
     pub player: Combatant,
-    pub enemy: Combatant,
-    /// The monster fought, so the interface can lay its gear out beside yours
-    /// without having to guess which rung the run has moved on to.
-    pub spec: MonsterSpec,
+    /// Everything on the other side, in the order they were written. Almost
+    /// every fight has exactly one; `enemy()` is the shorthand for that case.
+    pub enemies: Vec<Combatant>,
+    /// The monsters fought, so the interface can lay their gear out beside
+    /// yours without having to guess which rung the run has moved on to.
+    pub specs: Vec<MonsterSpec>,
     pub entries: Vec<LogEntry>,
     pub outcome: Outcome,
     pub duration_ms: u32,
@@ -3137,13 +3152,28 @@ pub struct CombatLog {
 }
 
 impl CombatLog {
+    /// The creature you were fighting, when there was only the one - which is
+    /// every fight except the handful an event sets up.
+    pub fn enemy(&self) -> &Combatant {
+        &self.enemies[0]
+    }
+
+    pub fn spec(&self) -> &MonsterSpec {
+        &self.specs[0]
+    }
+
+    /// Is this a fight with more than one thing in it?
+    pub fn is_brawl(&self) -> bool {
+        self.enemies.len() > 1
+    }
+
     /// A win with no fight in it. For the ladder picker and for tests, where
     /// what is under test is the settlement rather than the simulation.
     pub fn won_by_default(spec: &MonsterSpec) -> CombatLog {
         CombatLog {
             player: Combatant::player(Stats::base_character(), &[]),
-            enemy: Combatant::monster_at(spec, Difficulty::Medium),
-            spec: *spec,
+            enemies: vec![Combatant::monster_at(spec, Difficulty::Medium)],
+            specs: vec![*spec],
             entries: Vec::new(),
             outcome: Outcome::Victory,
             duration_ms: 0,
@@ -3161,7 +3191,7 @@ impl CombatLog {
     fn who(&self, s: Side) -> &str {
         match s {
             Side::Player => &self.player.name,
-            Side::Enemy => &self.enemy.name,
+            Side::Enemy => &self.enemy().name,
         }
     }
 
@@ -3381,6 +3411,23 @@ pub fn simulate_with_purse(
     classes: &[crate::class::ClassDef],
     purse: i32,
 ) -> CombatLog {
+    simulate_party(player_stats, profiles, std::slice::from_ref(spec), difficulty, classes, purse)
+}
+
+/// Fight everything in `specs` at once.
+///
+/// The player's single-target attacks land on whoever is at the front - the
+/// first of them still standing - and every one of them acts against you
+/// independently. It is over when all of them are down, or you are.
+pub fn simulate_party(
+    player_stats: Stats,
+    profiles: &[ItemProfile],
+    specs: &[MonsterSpec],
+    difficulty: Difficulty,
+    classes: &[crate::class::ClassDef],
+    purse: i32,
+) -> CombatLog {
+    assert!(!specs.is_empty(), "a fight needs something to fight");
     let mut start_player = Combatant::player(player_stats, profiles);
     start_player.purse = purse;
     // Every class you hold applies at once. The fountains hand out different
@@ -3421,16 +3468,25 @@ pub fn simulate_with_purse(
         }
     }
     let start_player = start_player;
-    let start_enemy = Combatant::monster_at(spec, difficulty);
+    let start_enemies: Vec<Combatant> =
+        specs.iter().map(|m| Combatant::monster_at(m, difficulty)).collect();
     let mut p = start_player.clone();
-    let mut e = start_enemy.clone();
+    let mut foes: Vec<Combatant> = start_enemies.clone();
     let mut log: Vec<LogEntry> = Vec::new();
+    // Reported once each, as they go down.
+    let mut fallen: Vec<usize> = Vec::new();
+
+    // Everyone in the fight, player first, so the loops below read the same
+    // whether there is one thing across the table or three.
+    let everyone = |foes: &[Combatant]| -> Vec<Ref> {
+        std::iter::once(Ref::PLAYER).chain((0..foes.len()).map(Ref::foe)).collect()
+    };
 
     // What each side walks in already holding. Everything else starts a fight
     // at zero and earns its way up, which makes the opening of every fight
     // look the same whatever you are wearing; this is the gear that does not.
-    for side in [Side::Player, Side::Enemy] {
-        let opening: Vec<(usize, Action)> = pick(&mut p, &mut e, side)
+    for me in everyone(&foes) {
+        let opening: Vec<(usize, Action)> = pick(&mut p, &mut foes, me)
             .items
             .iter()
             .enumerate()
@@ -3445,7 +3501,7 @@ pub fn simulate_with_purse(
             })
             .collect();
         for (idx, action) in opening {
-            apply(&mut p, &mut e, side, action, 0, &mut log, Some(idx));
+            apply(&mut p, &mut foes, me, action, 0, &mut log, Some(idx));
         }
     }
     let mut outcome = Outcome::Stalemate;
@@ -3455,7 +3511,7 @@ pub fn simulate_with_purse(
         t += TICK_MS;
 
         // 0. Slow time: whatever was queued arrives a slice at a time.
-        for c in [&mut p, &mut e] {
+        for c in std::iter::once(&mut p).chain(foes.iter_mut()) {
             if c.pending.is_empty() {
                 continue;
             }
@@ -3481,8 +3537,10 @@ pub fn simulate_with_purse(
         }
 
         // 1. Damage over time, then healing.
-        for side in [Side::Player, Side::Enemy] {
-            let c = pick(&mut p, &mut e, side);
+        for me in everyone(&foes) {
+            let side = me.side;
+            let who = me.who as u8;
+            let c = pick(&mut p, &mut foes, me);
             c.dot_milli += c.curses.dot_millidamage_per_tick();
             let whole = c.dot_milli / 1000;
             if whole > 0 {
@@ -3497,7 +3555,7 @@ pub fn simulate_with_purse(
                 let (dmg, hp) = (c.burn_acc, c.health);
                 c.burn_acc = 0;
                 c.burn_timer = 0;
-                log.push(LogEntry { at_ms: t, event: Event::Burn { side, damage: dmg, health: hp } });
+                log.push(LogEntry { who, at_ms: t, event: Event::Burn { side, damage: dmg, health: hp } });
             }
             if c.regen > 0 && c.health < c.max_health {
                 c.regen_milli += c.regen * TICK_MS as i32;
@@ -3507,26 +3565,37 @@ pub fn simulate_with_purse(
                     c.health += heal;
                     let hp = c.health;
                     log.push(LogEntry {
+                        who,
                         at_ms: t,
                         event: Event::Regen { side, amount: heal, health: hp },
                     });
                 }
             }
         }
-        if check_down(&p, &e, t, &mut log, &mut outcome) {
+        if check_down(&p, &foes, t, &mut log, &mut outcome, &mut fallen) {
             break 'fight;
         }
 
         // 2. Curse timers.
         p.curses.tick();
-        e.curses.tick();
+        for f in foes.iter_mut() {
+            f.curses.tick();
+        }
 
         // 3. Cooldowns and activations.
-        for side in [Side::Player, Side::Enemy] {
-            let count = pick(&mut p, &mut e, side).items.len();
+        //
+        // A foe that is already down does not get a turn, but the loop still
+        // walks past it: the living ones keep their own item order, which is
+        // what makes a fight replay identically.
+        for me in everyone(&foes) {
+            let side = me.side;
+            if pick(&mut p, &mut foes, me).is_down() {
+                continue;
+            }
+            let count = pick(&mut p, &mut foes, me).items.len();
             for idx in 0..count {
                 let ready = {
-                    let c = pick(&mut p, &mut e, side);
+                    let c = pick(&mut p, &mut foes, me);
                     // Frost stretches the cooldown by slowing how fast the
                     // bar fills, rather than by rewriting the cooldown. It is
                     // a property of the fighter, so it is read before the item.
@@ -3554,17 +3623,22 @@ pub fn simulate_with_purse(
                     // A misfire eats the activation itself: the cooldown has
                     // already come round, and nothing comes of it.
                     let fizzled = {
-                        let c = pick(&mut p, &mut e, side);
+                        let c = pick(&mut p, &mut foes, me);
                         c.misfire_count = c.misfire_count.wrapping_add(1);
                         c.curses.misfires(c.misfire_count)
                     };
                     if fizzled {
-                        let name = pick(&mut p, &mut e, side).items[idx].name.clone();
-                        log.push(LogEntry { at_ms: t, event: Event::Misfired { side, item: name } });
+                        let name = pick(&mut p, &mut foes, me).items[idx].name.clone();
+                        let front = aim_of(&foes, p.aim);
+                        log.push(LogEntry {
+                            who: me.logged_as(front),
+                            at_ms: t,
+                            event: Event::Misfired { side, item: name },
+                        });
                         continue;
                     }
-                    activate(&mut p, &mut e, side, idx, t, &mut log);
-                    if check_down(&p, &e, t, &mut log, &mut outcome) {
+                    activate(&mut p, &mut foes, me, idx, t, &mut log);
+                    if check_down(&p, &foes, t, &mut log, &mut outcome, &mut fallen) {
                         break 'fight;
                     }
                 }
@@ -3572,13 +3646,13 @@ pub fn simulate_with_purse(
         }
     }
 
-    log.push(LogEntry { at_ms: t, event: Event::End { outcome } });
+    log.push(LogEntry { who: 0, at_ms: t, event: Event::End { outcome } });
     // What the purse lost over the fight, for the run to charge afterwards.
     let spent_from_purse = purse - p.purse;
     CombatLog {
         player: start_player,
-        enemy: start_enemy,
-        spec: *spec,
+        enemies: start_enemies,
+        specs: specs.to_vec(),
         entries: log,
         outcome,
         duration_ms: t,
@@ -3586,27 +3660,94 @@ pub fn simulate_with_purse(
     }
 }
 
-fn pick<'a>(p: &'a mut Combatant, e: &'a mut Combatant, side: Side) -> &'a mut Combatant {
-    match side {
+/// One combatant in a fight: the player, or the nth foe.
+///
+/// `Side` stays two-valued because the *rules* are two-sided - you and them -
+/// and only the far side can have more than one body in it. This pairs the
+/// side with which body, and is what every helper threads instead of a bare
+/// `Side`.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+struct Ref {
+    side: Side,
+    who: usize,
+}
+
+impl Ref {
+    const PLAYER: Ref = Ref { side: Side::Player, who: 0 };
+
+    fn foe(who: usize) -> Ref {
+        Ref { side: Side::Enemy, who }
+    }
+
+    /// The far side of this exchange. For a foe that is always the player;
+    /// for the player it is whoever is at the front of the queue.
+    fn other(self, front: usize) -> Ref {
+        match self.side {
+            Side::Player => Ref::foe(front),
+            Side::Enemy => Ref::PLAYER,
+        }
+    }
+
+    /// What the log records this entry as being about. The player is always
+    /// singular, so an entry is about a foe either way: the one acting, or the
+    /// one being acted upon.
+    fn logged_as(self, front: usize) -> u8 {
+        match self.side {
+            Side::Player => front as u8,
+            Side::Enemy => self.who as u8,
+        }
+    }
+}
+
+/// Whoever the player's next single-target attack lands on.
+///
+/// Every attack moves the aim along, so a brawl is whittled down at roughly
+/// one rate rather than one at a time. That matters for what a two-creature
+/// fight *is*: focusing the front one down would make a brawl a queue, where
+/// killing the first thing halves the incoming damage and the second half of
+/// the fight is easier than the first. Spreading it means both of them are
+/// hitting you until nearly the end, which is what makes two of something
+/// worse than one of something twice the size.
+///
+/// Skips anything already down, and never gets stuck: if they are all down
+/// the fight is over before this is asked again.
+fn aim_of(foes: &[Combatant], cursor: usize) -> usize {
+    let n = foes.len();
+    (0..n)
+        .map(|k| (cursor + k) % n)
+        .find(|&i| !foes[i].is_down())
+        .unwrap_or(0)
+}
+
+fn pick<'a>(p: &'a mut Combatant, foes: &'a mut [Combatant], r: Ref) -> &'a mut Combatant {
+    match r.side {
         Side::Player => p,
-        Side::Enemy => e,
+        Side::Enemy => &mut foes[r.who.min(foes.len().saturating_sub(1))],
     }
 }
 
 fn check_down(
     p: &Combatant,
-    e: &Combatant,
+    foes: &[Combatant],
     t: u32,
     log: &mut Vec<LogEntry>,
     outcome: &mut Outcome,
+    fallen: &mut Vec<usize>,
 ) -> bool {
-    if e.is_down() {
-        log.push(LogEntry { at_ms: t, event: Event::Fell { side: Side::Enemy } });
+    // Each foe is reported the once, as it goes down, so a brawl reads like a
+    // brawl rather than announcing the same corpse every tick.
+    for (i, f) in foes.iter().enumerate() {
+        if f.is_down() && !fallen.contains(&i) {
+            fallen.push(i);
+            log.push(LogEntry { who: i as u8, at_ms: t, event: Event::Fell { side: Side::Enemy } });
+        }
+    }
+    if foes.iter().all(|f| f.is_down()) {
         *outcome = Outcome::Victory;
         return true;
     }
     if p.is_down() {
-        log.push(LogEntry { at_ms: t, event: Event::Fell { side: Side::Player } });
+        log.push(LogEntry { who: 0, at_ms: t, event: Event::Fell { side: Side::Player } });
         *outcome = Outcome::Defeat;
         return true;
     }
@@ -3639,17 +3780,20 @@ pub enum StunAim {
 /// should spread across the kit, not bury one item.
 fn land_curse(
     victim: &mut Combatant,
-    on: Side,
+    on: Ref,
     kind: CurseKind,
     aim: StunAim,
     t: u32,
     log: &mut Vec<LogEntry>,
 ) {
+    let who = on.who as u8;
+    let on = on.side;
     if kind == CurseKind::Stun {
         if let Some((index, ms)) = land_stun(victim, aim, t) {
             let item = victim.items[index].name.clone();
             let aimed = aim == StunAim::Strongest;
             log.push(LogEntry {
+                who,
                 at_ms: t,
                 event: Event::Stunned { on, index, item, duration_ms: ms, aimed },
             });
@@ -3660,6 +3804,7 @@ fn land_curse(
     if ms > 0 {
         let stacks = victim.curses.stacks_of(kind);
         log.push(LogEntry {
+            who,
             at_ms: t,
             event: Event::Cursed { on, kind, duration_ms: ms, stacks },
         });
@@ -3708,13 +3853,17 @@ fn land_stun(victim: &mut Combatant, aim: StunAim, at_ms: u32) -> Option<(usize,
 
 fn activate(
     p: &mut Combatant,
-    e: &mut Combatant,
-    side: Side,
+    foes: &mut Vec<Combatant>,
+    me: Ref,
     idx: usize,
     t: u32,
     log: &mut Vec<LogEntry>,
 ) {
-    let mut item = pick(p, e, side).items[idx].clone();
+    let front = aim_of(foes, p.aim);
+    let side = me.side;
+    // Taken before the local rebindings below shadow `me` with a combatant.
+    let who = me.logged_as(front);
+    let mut item = pick(p, foes, me).items[idx].clone();
 
     // A spell swaps in the payload whose turn it is. A book has bound one and
     // casts it every time; a crystal ball cycles through the two or three it
@@ -3722,7 +3871,7 @@ fn activate(
     // round. The index lives on the combatant's copy, not this clone.
     // Echo: every nth activation runs its payload a second time.
     let echoes = {
-        let me = pick(p, e, side);
+        let me = pick(p, foes, me);
         me.activations += 1;
         me.echo_every > 0 && me.activations % me.echo_every == 0
     };
@@ -3774,7 +3923,7 @@ fn activate(
             item.mana += also.stats.mana;
             item.triggers.extend(also.triggers.iter().copied());
         }
-        pick(p, e, side).items[idx].cast_index = (which + 1) % n;
+        pick(p, foes, me).items[idx].cast_index = (which + 1) % n;
 
         // A spell has two intensities. Paid for, it lands in full; unpaid, it
         // still goes off but weakly. Mana stops being a thing some gear
@@ -3785,7 +3934,7 @@ fn activate(
         // be the committed choice, and charging it twice for being one would
         // undo that.
         let paid = {
-            let me = pick(p, e, side);
+            let me = pick(p, foes, me);
             if me.mana >= SPELL_MANA_COST {
                 me.mana -= SPELL_MANA_COST;
                 true
@@ -3802,14 +3951,16 @@ fn activate(
         ] {
             *v = *v * scale / 100;
         }
-        let remaining = pick(p, e, side).mana;
+        let remaining = pick(p, foes, me).mana;
         log.push(LogEntry {
+            who,
             at_ms: t,
             event: Event::Cast { side, paid, cost: SPELL_MANA_COST, remaining },
         });
     }
 
     log.push(LogEntry {
+        who,
         at_ms: t,
         event: Event::Activate {
             side,
@@ -3830,13 +3981,13 @@ fn activate(
         // bought with mana, at five hundredths a stack a point, and it applies
         // to whatever is swinging.
         let (strength, empower) = {
-            let me = pick(p, e, side);
+            let me = pick(p, foes, me);
             (me.strength, me.empowerment as i32 * 5 * me.mana.max(0))
         };
         // The wearer's power, plus whatever ink is bound into this item alone.
         // Rage held sharpens the physical half.
         let (rage, phys_pierce, magic_pierce) = {
-            let me = pick(p, e, side);
+            let me = pick(p, foes, me);
             (me.held_bonus().physical_damage, me.physical_pierce, me.magic_pierce)
         };
         // The item's own numbers already carry its power - it was applied
@@ -3847,23 +3998,29 @@ fn activate(
             (((rage + strength) as i64 * item.power as i64) / 100).max(0) as i32;
         let physical = mult(item.physical_damage + from_wearer);
         // Transmute: part of the iron lands again as magic.
-        let transmute = pick(p, e, side).transmute;
+        let transmute = pick(p, foes, me).transmute;
         let magic = mult(item.magic_damage) + physical * transmute / 100;
         // Momentum: the longer the fight runs, the harder you swing.
-        let momentum = pick(p, e, side).momentum * (t / 1000) as i32;
+        let momentum = pick(p, foes, me).momentum * (t / 1000) as i32;
         let physical =
             physical + mult((((momentum as i64) * item.power as i64) / 100) as i32);
         // A fork copies the cast, and only a cast: a blade swings once
         // however many stacks are up.
-        let forks = if item.casts.is_empty() { 0 } else { pick(p, e, side).forking };
+        let forks = if item.casts.is_empty() { 0 } else { pick(p, foes, me).forking };
         let reps: u32 = if echoes { 2 } else { 1 } * (1 + forks);
 
         // The log reports the swing, not what survived the defences: a hit
         // that is turned aside completely still has to show up, or a player
         // stacking resistance sees nothing happening at all.
         let swing = physical + magic;
-        let mut absorbed_total = 0;
+        // One blow per repetition, each aimed afresh. An echo or a fork is
+        // another attack, so it takes the next one along - and a line of its
+        // own in the log, which is also more honest about what happened than
+        // folding two blows into one number was.
         for _ in 0..reps {
+            let aim = aim_of(foes, p.aim);
+            let at = me.other(aim);
+            let mut absorbed_total = 0;
             for (amount, kind, pierce) in [
                 (physical, DamageType::Physical, phys_pierce),
                 (magic, DamageType::Magic, magic_pierce),
@@ -3871,44 +4028,50 @@ fn activate(
                 if amount <= 0 {
                     continue;
                 }
-                let target = pick(p, e, side.other());
+                let target = pick(p, foes, at);
                 let (absorbed, _) = target.take_typed(amount, kind, pierce);
                 absorbed_total += absorbed;
             }
+            if swing > 0 {
+                let target = pick(p, foes, at);
+                let (hp, ar) = (target.health, target.armor);
+                log.push(LogEntry {
+                    who: me.logged_as(aim),
+                    at_ms: t,
+                    event: Event::Hit {
+                        by: side,
+                        damage: swing,
+                        absorbed: absorbed_total,
+                        target_health: hp,
+                        target_armor: ar,
+                    },
+                });
+            }
+            // Next blow goes to the next one along.
+            if me.side == Side::Player && foes.len() > 1 {
+                p.aim = aim + 1;
+            }
         }
         // Leeching: a share of what you dealt comes back.
-        let leech = pick(p, e, side).leech;
+        let leech = pick(p, foes, me).leech;
         if leech > 0 && swing > 0 {
-            let me = pick(p, e, side);
+            let me = pick(p, foes, me);
             let back = (swing * reps as i32) * leech / 100;
             me.health = (me.health + back).min(me.max_health);
-        }
-        if swing > 0 {
-            let target = pick(p, e, side.other());
-            let (hp, ar) = (target.health, target.armor);
-            log.push(LogEntry {
-                at_ms: t,
-                event: Event::Hit {
-                    by: side,
-                    damage: swing,
-                    absorbed: absorbed_total,
-                    target_health: hp,
-                    target_armor: ar,
-                },
-            });
         }
     }
 
     if let Some(kind) = item.curse {
-        apply(p, e, side, Action::Curse { kind, target: Target::Enemy }, t, log, Some(idx));
+        apply(p, foes, me, Action::Curse { kind, target: Target::Enemy }, t, log, Some(idx));
     }
 
     if item.mind > 0 {
-        let target = pick(p, e, side.other());
+        let target = pick(p, foes, me.other(front));
         let dealt = target.take_mind(item.mind);
         let mh = target.max_health;
         if dealt > 0 {
             log.push(LogEntry {
+                who,
                 at_ms: t,
                 event: Event::MindHit { by: side, amount: dealt, target_max_health: mh },
             });
@@ -3916,25 +4079,26 @@ fn activate(
     }
 
     if item.armor > 0 {
-        let me = pick(p, e, side);
+        let me = pick(p, foes, me);
         me.armor += item.armor;
         let total = me.armor;
         log.push(LogEntry {
+            who,
             at_ms: t,
             event: Event::GainArmor { side, amount: item.armor, total },
         });
     }
 
     if item.mana > 0 {
-        let me = pick(p, e, side);
+        let me = pick(p, foes, me);
         me.mana += item.mana;
         let total = me.mana;
-        log.push(LogEntry { at_ms: t, event: Event::GainMana { side, amount: item.mana, total } });
+        log.push(LogEntry { who, at_ms: t, event: Event::GainMana { side, amount: item.mana, total } });
     }
 
-    let banked = pick(p, e, side).adaptable;
+    let banked = pick(p, foes, me).adaptable;
     if banked > 0 {
-        let me = pick(p, e, side);
+        let me = pick(p, foes, me);
         me.mana += banked;
         me.rage += banked;
         me.faith += banked;
@@ -3942,9 +4106,9 @@ fn activate(
     }
     // Riposte: watching them act gives your own gear a nudge.
     {
-        let ms = pick(p, e, side.other()).riposte;
+        let ms = pick(p, foes, me.other(front)).riposte;
         if ms > 0 {
-            for it in &mut pick(p, e, side.other()).items {
+            for it in &mut pick(p, foes, me.other(front)).items {
                 it.progress_ms += ms;
             }
         }
@@ -3952,7 +4116,7 @@ fn activate(
 
     for (amount, label) in [(item.rage, "rage"), (item.faith, "faith"), (item.nature, "nature")] {
         if amount > 0 {
-            let me = pick(p, e, side);
+            let me = pick(p, foes, me);
             match label {
                 "rage" => me.rage += amount,
                 "faith" => me.faith += amount,
@@ -3964,6 +4128,7 @@ fn activate(
                 _ => me.nature,
             };
             log.push(LogEntry {
+                who,
                 at_ms: t,
                 event: Event::GainResource { side, what: label, amount, total },
             });
@@ -3986,10 +4151,10 @@ fn activate(
 
     for trigger in &firing {
         match *trigger {
-            Trigger::OnActivate(action) => apply(p, e, side, action, t, log, Some(idx)),
+            Trigger::OnActivate(action) => apply(p, foes, me, action, t, log, Some(idx)),
             Trigger::SpendGold { cost, budget, on_success } => {
                 let paid = {
-                    let me = pick(p, e, side);
+                    let me = pick(p, foes, me);
                     let it = &mut me.items[idx];
                     // Two ways to come up short, and they are not the same:
                     // the budget is the promise the piece made, the purse is
@@ -4006,6 +4171,7 @@ fn activate(
                 };
                 if let Some((times, left)) = paid {
                     log.push(LogEntry {
+                        who,
                         at_ms: t,
                         event: Event::Spent { side, amount: cost, remaining: left },
                     });
@@ -4013,12 +4179,12 @@ fn activate(
                     // never costs, so the price stays flat while the payout
                     // climbs - which is the whole shape of the thing.
                     let grown = on_success.scaled(100 * times as i32);
-                    apply(p, e, side, grown, t, log, Some(idx));
+                    apply(p, foes, me, grown, t, log, Some(idx));
                 }
             }
             Trigger::SpendMana { cost, on_success, on_failure } => {
                 let paid = {
-                    let me = pick(p, e, side);
+                    let me = pick(p, foes, me);
                     if me.mana >= cost {
                         me.mana -= cost;
                         true
@@ -4026,19 +4192,20 @@ fn activate(
                         false
                     }
                 };
-                let remaining = pick(p, e, side).mana;
+                let remaining = pick(p, foes, me).mana;
                 log.push(LogEntry {
+                    who,
                     at_ms: t,
                     event: Event::ManaCheck { side, cost, paid, remaining },
                 });
-                apply(p, e, side, if paid { on_success } else { on_failure }, t, log, Some(idx));
+                apply(p, foes, me, if paid { on_success } else { on_failure }, t, log, Some(idx));
             }
             Trigger::Consume { what, each, per } => {
                 // Takes the whole pool and pays out by the handful. The
                 // remainder below one handful is spent too - the trigger is
                 // "empty your reserve", not "spend a multiple of `each`".
                 let (held, times) = {
-                    let me = pick(p, e, side);
+                    let me = pick(p, foes, me);
                     let held = me.pool(what).max(0);
                     let times = held / each.max(1);
                     if times > 0 {
@@ -4061,6 +4228,7 @@ fn activate(
                 };
                 if times > 0 {
                     log.push(LogEntry {
+                        who,
                         at_ms: t,
                         event: Event::ResourceCheck {
                             side,
@@ -4071,13 +4239,13 @@ fn activate(
                         },
                     });
                     for _ in 0..times {
-                        apply(p, e, side, per, t, log, Some(idx));
+                        apply(p, foes, me, per, t, log, Some(idx));
                     }
                 }
             }
             Trigger::Spend { what, cost, on_success, on_failure } => {
                 let paid = {
-                    let me = pick(p, e, side);
+                    let me = pick(p, foes, me);
                     let held = me.pool(what);
                     if held >= cost {
                         me.set_pool(what, held - cost);
@@ -4098,16 +4266,17 @@ fn activate(
                         false
                     }
                 };
-                let remaining = pick(p, e, side).pool(what);
+                let remaining = pick(p, foes, me).pool(what);
                 log.push(LogEntry {
+                    who,
                     at_ms: t,
                     event: Event::ResourceCheck { side, what: what.name(), cost, paid, remaining },
                 });
-                apply(p, e, side, if paid { on_success } else { on_failure }, t, log, Some(idx));
+                apply(p, foes, me, if paid { on_success } else { on_failure }, t, log, Some(idx));
             }
             Trigger::PerAdjacentItem { action, same_slot_only: _ } => {
                 for _ in 0..item.adjacent_assembled_same_slot {
-                    apply(p, e, side, action, t, log, Some(idx));
+                    apply(p, foes, me, action, t, log, Some(idx));
                 }
             }
             // Already expanded above; a nested one is not authored.
@@ -4122,26 +4291,26 @@ fn activate(
     }
 
     // Untimely: an Oracle reaches past the gear and at the clock behind it.
-    let untimely = pick(p, e, side).untimely;
+    let untimely = pick(p, foes, me).untimely;
     if untimely > 0 {
         let due = {
-            let me = pick(p, e, side);
+            let me = pick(p, foes, me);
             me.untimely_count = me.untimely_count.wrapping_add(1);
             me.untimely_count % untimely == 0
         };
         if due {
             for kind in [CurseKind::Stun, CurseKind::Misfire] {
-                let victim = pick(p, e, side.other());
-                land_curse(victim, side.other(), kind, StunAim::Unaimed, t, log);
+                let victim = pick(p, foes, me.other(front));
+                land_curse(victim, me.other(front), kind, StunAim::Unaimed, t, log);
             }
         }
     }
 
     // Cascade: everything else moves a little closer to firing. Never the item
     // that just went off, or a single fast item would wind itself up forever.
-    let cascade = pick(p, e, side).cascade;
+    let cascade = pick(p, foes, me).cascade;
     if cascade > 0 {
-        let me = pick(p, e, side);
+        let me = pick(p, foes, me);
         for (i, it) in me.items.iter_mut().enumerate() {
             if i != idx {
                 it.progress_ms =
@@ -4152,25 +4321,25 @@ fn activate(
 
     // Finally, let the neighbours react. A reaction never emits an activation
     // of its own, so two items that react to each other cannot loop.
-    notify_reactors(p, e, side, idx, t, log);
+    notify_reactors(p, foes, me, idx, t, log);
 }
 
 /// Run every reaction owed to `actor_idx` firing.
 fn notify_reactors(
     p: &mut Combatant,
-    e: &mut Combatant,
-    side: Side,
+    foes: &mut Vec<Combatant>,
+    me: Ref,
     actor_idx: usize,
     t: u32,
     log: &mut Vec<LogEntry>,
 ) {
-    let count = pick(p, e, side).items.len();
+    let count = pick(p, foes, me).items.len();
     for j in 0..count {
         if j == actor_idx {
             continue;
         }
         let (touches, lines_up, triggers) = {
-            let c = pick(p, e, side);
+            let c = pick(p, foes, me);
             let it = &c.items[j];
             (
                 it.adjacent_items.contains(&actor_idx),
@@ -4181,15 +4350,15 @@ fn notify_reactors(
         // Resonance doubles the answer, not the question: a reaction still
         // never emits an activation, so two items answering each other cannot
         // loop however loud it gets.
-        let times = pick(p, e, side).resonance.max(1);
+        let times = pick(p, foes, me).resonance.max(1);
         for tr in &triggers {
             for _ in 0..times {
                 match *tr {
                     Trigger::OnAdjacentActivate(a) if touches => {
-                        apply(p, e, side, a, t, log, Some(j))
+                        apply(p, foes, me, a, t, log, Some(j))
                     }
                     Trigger::OnAlignedActivate(a) if lines_up => {
-                        apply(p, e, side, a, t, log, Some(j))
+                        apply(p, foes, me, a, t, log, Some(j))
                     }
                     _ => {}
                 }
@@ -4202,30 +4371,35 @@ fn notify_reactors(
 /// the item itself rather than on a combatant.
 fn apply(
     p: &mut Combatant,
-    e: &mut Combatant,
-    side: Side,
+    foes: &mut Vec<Combatant>,
+    me: Ref,
     action: Action,
     t: u32,
     log: &mut Vec<LogEntry>,
     owner: Option<usize>,
 ) {
+    let front = aim_of(foes, p.aim);
+    let side = me.side;
+    // Taken before any local rebinding shadows `me` with a combatant.
+    let who = me.logged_as(front);
     // `Target::Yourself` means the side that owns the item, not the item's
     // victim — several strong items pay for themselves this way.
     let resolve = |target: Target| match target {
-        Target::Enemy => side.other(),
-        Target::Yourself => side,
+        Target::Enemy => me.other(front),
+        Target::Yourself => me,
     };
 
     match action {
         Action::Curse { kind, target } => {
             // Bloodscent: what you rot, you feed on.
             if matches!(target, Target::Enemy) {
-                let gain = pick(p, e, side).bloodscent;
+                let gain = pick(p, foes, me).bloodscent;
                 if gain > 0 {
-                    let me = pick(p, e, side);
+                    let me = pick(p, foes, me);
                     let total = me.pool(Resource::Rage) + gain;
                     me.set_pool(Resource::Rage, total);
                     log.push(LogEntry {
+                        who,
                         at_ms: t,
                         event: Event::GainResource {
                             side,
@@ -4238,7 +4412,7 @@ fn apply(
             }
             // Contagion: landing one brings the other along.
             let spread = if matches!(target, Target::Enemy) {
-                pick(p, e, side).contagion
+                pick(p, foes, me).contagion
             } else {
                 0
             };
@@ -4251,31 +4425,37 @@ fn apply(
                     CurseKind::Stun => CurseKind::Misfire,
                     CurseKind::Misfire => CurseKind::Stun,
                 };
-                let victim = pick(p, e, side.other());
-                land_curse(victim, side.other(), other, StunAim::Unaimed, t, log);
+                let victim = pick(p, foes, me.other(front));
+                land_curse(victim, me.other(front), other, StunAim::Unaimed, t, log);
             }
             let on = resolve(target);
-            let c = pick(p, e, on);
+            let c = pick(p, foes, on);
             land_curse(c, on, kind, StunAim::Unaimed, t, log);
         }
         Action::StunStrongest { target } => {
             let on = resolve(target);
-            let c = pick(p, e, on);
+            let c = pick(p, foes, on);
             land_curse(c, on, CurseKind::Stun, StunAim::Strongest, t, log);
         }
         Action::Damage { amount, kind, target } => {
             let on = resolve(target);
+            // Next swing goes to the next one along. Done before the hit
+            // resolves so a payload that lands twice still spreads.
+            if me.side == Side::Player && on.side == Side::Enemy && foes.len() > 1 {
+                p.aim = front + 1;
+            }
             let pierce = match kind {
-                DamageType::Physical => pick(p, e, on.other()).physical_pierce,
-                DamageType::Magic => pick(p, e, on.other()).magic_pierce,
+                DamageType::Physical => pick(p, foes, on.other(front)).physical_pierce,
+                DamageType::Magic => pick(p, foes, on.other(front)).magic_pierce,
             };
-            let c = pick(p, e, on);
+            let c = pick(p, foes, on);
             let (absorbed, _) = c.take_typed(amount, kind, pierce);
             let (hp, ar) = (c.health, c.armor);
             log.push(LogEntry {
+                who,
                 at_ms: t,
                 event: Event::Hit {
-                    by: on.other(),
+                    by: on.other(front).side,
                     damage: amount,
                     absorbed,
                     target_health: hp,
@@ -4285,28 +4465,30 @@ fn apply(
         }
         Action::MindDamage { amount, target } => {
             let on = resolve(target);
-            let c = pick(p, e, on);
+            let c = pick(p, foes, on);
             let dealt = c.take_mind(amount);
             let mh = c.max_health;
             if dealt > 0 {
                 log.push(LogEntry {
+                    who,
                     at_ms: t,
-                    event: Event::MindHit { by: on.other(), amount: dealt, target_max_health: mh },
+                    event: Event::MindHit { by: on.other(front).side, amount: dealt, target_max_health: mh },
                 });
             }
         }
         Action::Gain { what, amount } => {
-            let me = pick(p, e, side);
+            let me = pick(p, foes, me);
             let now = me.pool(what) + amount;
             me.set_pool(what, now);
             log.push(LogEntry {
+                who,
                 at_ms: t,
                 event: Event::GainResource { side, what: what.name(), amount, total: now },
             });
         }
         Action::Drain { what, amount, hurt, target } => {
             let on = resolve(target);
-            let c = pick(p, e, on);
+            let c = pick(p, foes, on);
             let have = c.pool(what).max(0);
             // Zero means the lot. Taking more than they hold is not a debt -
             // an empty pool is simply empty.
@@ -4315,21 +4497,28 @@ fn apply(
                 let left = have - taken;
                 c.set_pool(what, left);
                 log.push(LogEntry {
+                    who,
                     at_ms: t,
-                    event: Event::Drained { on, what: what.name(), amount: taken, total: left },
+                    event: Event::Drained {
+                            on: on.side,
+                            what: what.name(),
+                            amount: taken,
+                            total: left,
+                        },
                 });
                 if hurt > 0 {
                     // Priced off what was actually taken, so a dry pool costs
                     // them nothing and a deep one costs them dearly.
                     let raw = taken * hurt;
-                    let pierce = pick(p, e, on.other()).magic_pierce;
-                    let c = pick(p, e, on);
+                    let pierce = pick(p, foes, on.other(front)).magic_pierce;
+                    let c = pick(p, foes, on);
                     let (absorbed, _) = c.take_typed(raw, DamageType::Magic, pierce);
                     let (hp, ar) = (c.health, c.armor);
                     log.push(LogEntry {
+                        who,
                         at_ms: t,
                         event: Event::Hit {
-                            by: on.other(),
+                            by: on.other(front).side,
                             damage: raw,
                             absorbed,
                             target_health: hp,
@@ -4340,23 +4529,23 @@ fn apply(
             }
         }
         Action::GainMana(n) => {
-            let c = pick(p, e, side);
+            let c = pick(p, foes, me);
             c.mana += n;
             let total = c.mana;
-            log.push(LogEntry { at_ms: t, event: Event::GainMana { side, amount: n, total } });
+            log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::GainMana { side, amount: n, total } });
         }
         Action::Grow(n) => {
             // Maximum health up, and the new room filled - growing into a gap
             // you then have to heal would make it useless in the fight that is
             // actually happening.
-            let c = pick(p, e, side);
+            let c = pick(p, foes, me);
             c.max_health += n;
             c.health += n;
             let total = c.max_health;
-            log.push(LogEntry { at_ms: t, event: Event::Grew { side, amount: n, total } });
+            log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::Grew { side, amount: n, total } });
         }
         Action::GainArmor(n) => {
-            let c = pick(p, e, side);
+            let c = pick(p, foes, me);
             // Consecrate: faith held makes the wall worth more. Gated on
             // actually holding some, so it rewards banking rather than being a
             // flat bonus wearing a name.
@@ -4367,38 +4556,39 @@ fn apply(
             };
             c.armor += n;
             let total = c.armor;
-            log.push(LogEntry { at_ms: t, event: Event::GainArmor { side, amount: n, total } });
+            log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::GainArmor { side, amount: n, total } });
         }
         Action::GainEmpowerment(n) => {
-            let c = pick(p, e, side);
+            let c = pick(p, foes, me);
             c.empowerment += n;
             let (total, bonus) = (c.empowerment, c.effective_power() - c.power);
             log.push(LogEntry {
+                who,
                 at_ms: t,
                 event: Event::Empowered { side, total, power_bonus: bonus },
             });
         }
         Action::GainShield(n) => {
-            let c = pick(p, e, side);
+            let c = pick(p, foes, me);
             c.shield += n;
             let (total, reduction) = (c.shield, c.damage_reduction());
-            log.push(LogEntry { at_ms: t, event: Event::Shielded { side, total, reduction } });
+            log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::Shielded { side, total, reduction } });
         }
         Action::GainForking(n) => {
-            let c = pick(p, e, side);
+            let c = pick(p, foes, me);
             c.forking += n;
             let total = c.forking;
-            log.push(LogEntry { at_ms: t, event: Event::Forking { side, total } });
+            log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::Forking { side, total } });
         }
         Action::ReduceCooldown(ms) => {
             let Some(idx) = owner else { return };
-            let c = pick(p, e, side);
+            let c = pick(p, foes, me);
             let Some(it) = c.items.get_mut(idx) else { return };
             // Push the bar forward rather than shortening the cooldown, so the
             // effect is "fires sooner once" and cannot stack into a free item.
             it.progress_ms = (it.progress_ms + ms).min(it.cooldown_ms.saturating_sub(1));
             let name = it.name.clone();
-            log.push(LogEntry { at_ms: t, event: Event::Hastened { side, item: name, by_ms: ms } });
+            log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::Hastened { side, item: name, by_ms: ms } });
         }
     }
 }
