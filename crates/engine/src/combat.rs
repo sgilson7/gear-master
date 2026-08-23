@@ -2710,6 +2710,10 @@ pub struct Combatant {
     pub aim: usize,
     /// Set by Immense Guilt: regeneration does nothing at all.
     pub no_regen: bool,
+    /// Set by Trundle: everything runs this much slower, and every point of
+    /// armour counts this much. Percentages; 0 and 100 mean "as written".
+    pub slower_pct: i32,
+    pub armour_pct: i32,
     pub curses: Curses,
     /// Stacks of mana empowerment and mana shield. Both scale off *current*
     /// mana, and both are bought with mana — so stacking them hard drains the
@@ -2834,6 +2838,8 @@ impl Combatant {
             purse: 0,
             aim: 0,
             no_regen: false,
+            slower_pct: 0,
+            armour_pct: 100,
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
@@ -2928,6 +2934,8 @@ impl Combatant {
             purse: 0,
             aim: 0,
             no_regen: false,
+            slower_pct: 0,
+            armour_pct: 100,
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
@@ -2949,6 +2957,17 @@ impl Combatant {
     /// gives it up, which is the whole tension: a hoarded pool is a standing
     /// bonus, and a spent one is a burst.
     /// One of the four banked pools, by name.
+    /// Take on armour, counting whatever Trundle makes a point worth.
+    ///
+    /// Every route to armour goes through here. It used to be four separate
+    /// `armor +=` sites, which is three chances to add a multiplier and one
+    /// chance to forget.
+    pub fn gain_armor(&mut self, n: i32) -> i32 {
+        let got = (n as i64 * self.armour_pct as i64 / 100) as i32;
+        self.armor += got;
+        got
+    }
+
     pub fn pool(&self, what: crate::piece::Resource) -> i32 {
         use crate::piece::Resource::*;
         match what {
@@ -3031,7 +3050,7 @@ impl Combatant {
         self.health -= through;
         // A wall that rebuilds itself under fire.
         if self.bastion > 0 && absorbed > 0 {
-            self.armor += absorbed * self.bastion / 100;
+            self.gain_armor(absorbed * self.bastion / 100);
         }
         // Being ground down is itself a resource.
         if self.reprisal > 0 {
@@ -3447,6 +3466,10 @@ pub fn simulate_party(
             crate::class::ClassPower::Bastion(pct) => start_player.bastion = pct,
             crate::class::ClassPower::Contagion(n) => start_player.contagion = n,
             crate::class::ClassPower::Guilt => start_player.no_regen = true,
+            crate::class::ClassPower::Trundle { slower, armour } => {
+                start_player.slower_pct = slower;
+                start_player.armour_pct = armour;
+            }
             crate::class::ClassPower::Reprisal(n) => start_player.reprisal = n,
             crate::class::ClassPower::Riposte(ms) => start_player.riposte = ms,
             crate::class::ClassPower::Momentum(n) => start_player.momentum = n,
@@ -3605,6 +3628,7 @@ pub fn simulate_party(
                     // bar fills, rather than by rewriting the cooldown. It is
                     // a property of the fighter, so it is read before the item.
                     let slow = c.curses.slow_pct();
+                    let slower = c.slower_pct;
                     let item = &mut c.items[idx];
                     // A stun stops this item's bar dead. Not a slow: it does
                     // not advance at all, and what was part-way through stays
@@ -3614,7 +3638,8 @@ pub fn simulate_party(
                         item.stun_ms = item.stun_ms.saturating_sub(TICK_MS);
                         false
                     } else {
-                        let step = (TICK_MS as i32 * (100 - slow) / 100).max(1) as u32;
+                        let step = (TICK_MS as i32 * (100 - slow) / 100 * (100 - slower) / 100)
+                            .max(1) as u32;
                         item.progress_ms += step;
                         if item.progress_ms >= item.cooldown_ms {
                             item.progress_ms -= item.cooldown_ms;
@@ -4085,12 +4110,12 @@ fn activate(
 
     if item.armor > 0 {
         let me = pick(p, foes, me);
-        me.armor += item.armor;
+        let got = me.gain_armor(item.armor);
         let total = me.armor;
         log.push(LogEntry {
             who,
             at_ms: t,
-            event: Event::GainArmor { side, amount: item.armor, total },
+            event: Event::GainArmor { side, amount: got, total },
         });
     }
 
@@ -4559,7 +4584,7 @@ fn apply(
             } else {
                 n
             };
-            c.armor += n;
+            let n = c.gain_armor(n);
             let total = c.armor;
             log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::GainArmor { side, amount: n, total } });
         }

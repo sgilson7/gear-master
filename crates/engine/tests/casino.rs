@@ -17,7 +17,7 @@ fn casino() -> &'static gearmaster_engine::event::LadderEvent {
 fn the_casino_opens_for_a_quick_kill_and_hands_over_a_chip() {
     let mut run = Run::with_all_pieces();
     run.rung = 4;
-    run.best_fight_ms = Some(1_500);
+    run.best_fight_ms = Some(2_500);
 
     let ev = run.pending_event().expect("a fast kill in the shallow end opens the door");
     assert_eq!(ev.id, "the-casino");
@@ -151,10 +151,22 @@ fn a_penniless_build_still_swings() {
 
 #[test]
 fn the_casino_stands_on_a_rung_nothing_else_claims() {
-    // `event::at` returns the first match, so a collision means one of the two
-    // silently never fires.
+    use gearmaster_engine::event::Trigger;
+    // `event::at` returns the first match. Two *scheduled* events on one rung
+    // means one silently never fires; two earned ones sharing a deadline is
+    // fine and deliberate - they roam, and which is asked is settled by the
+    // order they are written in and by `blocked_by`.
     let at = casino().at;
-    assert_eq!(EVENTS.iter().filter(|e| e.at == at).count(), 1);
+    assert_eq!(
+        EVENTS.iter().filter(|e| e.at == at && matches!(e.trigger, Trigger::Rung)).count(),
+        0,
+        "something scheduled stands on the casino's last rung and would shadow it"
+    );
+    // And when both doors are earned, the casino is the one asked.
+    let casino_at = EVENTS.iter().position(|e| e.id == "the-casino").expect("authored");
+    let long_at = EVENTS.iter().position(|e| e.id == "the-long-way").expect("authored");
+    assert!(casino_at < long_at, "the long way is written first and would be asked first");
+
     assert!(at < 10, "the casino is meant to be a shallow-end door, not a mid-run one");
     assert_eq!(LADDER[at].name, casino().expects);
 }
@@ -166,7 +178,7 @@ fn chips(run: &Run, name: &str) -> usize {
 /// The step-in branch: both of them at once.
 fn step_in(run: &mut Run) {
     run.rung = 4;
-    run.best_fight_ms = Some(1_500);
+    run.best_fight_ms = Some(2_500);
     let ev = run.pending_event().expect("the casino is open");
     let step = ev
         .choices
@@ -283,4 +295,40 @@ fn a_complete_board_can_actually_win_the_table() {
         "a complete board lost to the third table - the Platinum Chip is now \
          unreachable, and with it the VIP area"
     );
+}
+
+
+#[test]
+fn the_door_is_shut_on_rung_one_however_fast_you_were() {
+    // Flattening the Cave Rat is not a demonstration of anything, and a door
+    // that opens before you have built anything makes the first real decision
+    // of the run a coin toss.
+    let mut run = Run::with_all_pieces();
+    run.best_fight_ms = Some(200);
+    run.rung = 0;
+    assert!(
+        run.pending_event().map(|e| e.id) != Some("the-casino"),
+        "the casino opened on the first rung"
+    );
+    run.rung = 1;
+    assert_eq!(
+        run.pending_event().map(|e| e.id),
+        Some("the-casino"),
+        "rung two is the first rung it should open on"
+    );
+}
+
+#[test]
+fn three_seconds_is_the_line() {
+    let mut run = Run::with_all_pieces();
+    run.rung = 4;
+    for (ms, open) in [(2_999u32, true), (3_000, false), (3_500, false)] {
+        run.best_fight_ms = Some(ms);
+        assert_eq!(
+            run.pending_event().map(|e| e.id) == Some("the-casino"),
+            open,
+            "a {ms}ms win should {} the door",
+            if open { "open" } else { "leave shut" }
+        );
+    }
 }

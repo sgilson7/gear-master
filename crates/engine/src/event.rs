@@ -91,6 +91,13 @@ pub struct Choice {
     pub unmet: &'static str,
 }
 
+/// The rungs the two shallow-end doors watch, as indices.
+///
+/// A fight outside this is not evidence about the early game, and letting one
+/// count meant a Grinder knocked back from rung eleven could open a door with
+/// a fight it won on the way up.
+pub const SHALLOW: std::ops::RangeInclusive<usize> = 1..=9;
+
 /// What has to be true before an event will stand in front of you.
 ///
 /// Most events are pinned to a rung and that is the whole condition. Some are
@@ -100,9 +107,25 @@ pub struct Choice {
 pub enum Trigger {
     /// Stands on `at`, every run, no questions.
     Rung,
-    /// Stands on the next rung at or before `at`, but only once you have won a
-    /// fight in under `within_ms`. Miss the window and it never fires.
-    QuickKill { within_ms: u32 },
+    /// Turns up once the run has won a fight in under `within_ms`, anywhere
+    /// from rung `from` up to and including `at`. Miss the window and it never
+    /// fires.
+    QuickKill { within_ms: u32, from: usize },
+    /// The other side of the same coin: a win that took *longer* than
+    /// `over_ms`. The shallow end has two doors and they are the same
+    /// question asked twice - how is this build actually going?
+    SlowKill { over_ms: u32, from: usize },
+}
+
+impl Trigger {
+    /// The first rung an earned event can appear on. Scheduled ones stand on
+    /// exactly one rung, so it is that.
+    pub fn from(self) -> usize {
+        match self {
+            Trigger::Rung => 0,
+            Trigger::QuickKill { from, .. } | Trigger::SlowKill { from, .. } => from,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -114,6 +137,12 @@ pub struct LadderEvent {
     pub at: usize,
     /// What has to be true for it to appear at all.
     pub trigger: Trigger,
+    /// Ids that shut this one for good once they have been answered.
+    ///
+    /// The two shallow-end doors are alternatives, not a pair: taking the
+    /// casino is a statement about the run, and having made it you do not also
+    /// get asked the opposite question.
+    pub blocked_by: &'static [&'static str],
     /// The creature whose rung this is - checked against the ladder so a
     /// renumbering cannot leave an event pointing at the wrong fight.
     pub expects: &'static str,
@@ -160,6 +189,7 @@ pub const EVENTS: &[LadderEvent] = &[
         id: "the-vip-area",
         at: 29,
         trigger: Trigger::Rung,
+        blocked_by: &[],
         expects: "Silence",
         title: "MEMBERS AND GUESTS",
         prose: &[
@@ -218,7 +248,11 @@ pub const EVENTS: &[LadderEvent] = &[
     LadderEvent {
         id: "the-casino",
         at: 8,
-        trigger: Trigger::QuickKill { within_ms: 2_000 },
+        // Rung two at the earliest: flattening the Cave Rat is not a
+        // demonstration of anything, and the door being open before you have
+        // built anything makes the first real decision of the run a coin toss.
+        trigger: Trigger::QuickKill { within_ms: 3_000, from: 1 },
+        blocked_by: &[],
         expects: "Whisperling",
         title: "A ROOM WITH NO CLOCKS",
         prose: &[
@@ -249,6 +283,43 @@ pub const EVENTS: &[LadderEvent] = &[
             },
         ],
     },
+    // The other shallow-end door, and the opposite question. Shut for good if
+    // you took the casino: that was already an answer about how this run is
+    // going, and nobody gets asked both.
+    LadderEvent {
+        id: "the-long-way",
+        at: 8,
+        trigger: Trigger::SlowKill { over_ms: 10_000, from: 1 },
+        blocked_by: &["the-casino"],
+        expects: "Whisperling",
+        title: "SOMETHING IN THE ROAD",
+        prose: &[
+            "That last one took a while. You got there. It took a while.",
+            "There is a shape in the road ahead that has taken longer: a \
+             cart, or what a cart becomes after enough seasons of not being \
+             moved. Something is under it, and has been under it for a good \
+             deal longer than you have been walking.",
+            "It is not stuck. It is going somewhere. It is going somewhere at \
+             a pace that makes stuck look hasty, and it has clearly given the \
+             matter more thought than you have given anything.",
+        ],
+        choices: &[
+            Choice {
+                label: "Ask how it manages",
+                blurb: "Nothing now. It says to look for it again later on.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+            Choice {
+                label: "Walk with it a while",
+                blurb: "Learn the pace. Everything slows; everything holds.",
+                requires: Requirement::None,
+                outcome: Outcome::Claim("Trundle"),
+                unmet: "",
+            },
+        ],
+    },
     // Stands on the rung *after* Henpeck, which is where you are once he is
     // down. The theme's cutscene has already played by then - he has told you
     // he sold them, and told you twice - so this is the moment after that,
@@ -257,6 +328,7 @@ pub const EVENTS: &[LadderEvent] = &[
         id: "what-to-do-with-henpeck",
         at: 15,
         trigger: Trigger::Rung,
+        blocked_by: &[],
         expects: "The Curator",
         title: "HE IS STILL TALKING",
         prose: &[
@@ -289,6 +361,7 @@ pub const EVENTS: &[LadderEvent] = &[
         id: "the-toads-offer",
         at: 2,
         trigger: Trigger::Rung,
+        blocked_by: &[],
         expects: "Bone Archer",
         title: "IT WOULD RATHER NOT",
         prose: &[
@@ -320,6 +393,7 @@ pub const EVENTS: &[LadderEvent] = &[
         id: "the-shrine-fork",
         at: 9,
         trigger: Trigger::Rung,
+        blocked_by: &[],
         expects: "Warded Idol",
         title: "TWO THINGS IN THE SHRINE",
         prose: &[
@@ -364,11 +438,24 @@ pub const EVENTS: &[LadderEvent] = &[
 /// `best_fight_ms` is the quickest win the run has had, or `None` if it has
 /// not won one yet. An earned event fires on the first rung after it qualifies
 /// rather than on a fixed one, so it turns up when you have earned it.
-pub fn at(rung: usize, best_fight_ms: Option<u32>) -> Option<&'static LadderEvent> {
-    EVENTS.iter().find(|e| match e.trigger {
-        Trigger::Rung => e.at == rung,
-        Trigger::QuickKill { within_ms } => {
-            rung <= e.at && best_fight_ms.is_some_and(|ms| ms <= within_ms)
+pub fn at(
+    rung: usize,
+    best_fight_ms: Option<u32>,
+    worst_fight_ms: Option<u32>,
+    answered: &[&'static str],
+) -> Option<&'static LadderEvent> {
+    EVENTS.iter().find(|e| {
+        if e.blocked_by.iter().any(|id| answered.contains(id)) {
+            return false;
+        }
+        match e.trigger {
+            Trigger::Rung => e.at == rung,
+            Trigger::QuickKill { within_ms, from } => {
+                (from..=e.at).contains(&rung) && best_fight_ms.is_some_and(|ms| ms < within_ms)
+            }
+            Trigger::SlowKill { over_ms, from } => {
+                (from..=e.at).contains(&rung) && worst_fight_ms.is_some_and(|ms| ms > over_ms)
+            }
         }
     })
 }
@@ -410,18 +497,46 @@ mod tests {
         }
     }
 
-    /// `at` has to stay unique even though an earned event roams.
+    /// A scheduled event has a rung to itself.
     ///
-    /// `event::at` returns the *first* match, so two events that can both be
-    /// standing on one rung means one of them silently never fires - and an
-    /// earned event that never fires looks exactly like an earned event
-    /// nobody has earned yet.
+    /// `event::at` returns the *first* match, so two events that both stand on
+    /// one rung means one of them silently never fires. Earned events are the
+    /// exception and have to be: they roam a window rather than standing
+    /// anywhere, several can be open at once, and which one is asked is
+    /// settled by the order they are written in and by `blocked_by`. That is
+    /// deliberate - the casino comes first, so a run that earned both doors is
+    /// offered the casino and answering it shuts the other.
     #[test]
-    fn no_two_events_stand_on_the_same_rung() {
+    fn no_two_scheduled_events_stand_on_the_same_rung() {
         let mut seen = Vec::new();
-        for e in EVENTS {
+        for e in EVENTS.iter().filter(|e| matches!(e.trigger, Trigger::Rung)) {
             assert!(!seen.contains(&e.at), "two events on rung {}", e.at + 1);
             seen.push(e.at);
+        }
+    }
+
+    /// A scheduled event standing inside an earned one's window has to be
+    /// written after it, or `find` returns the scheduled one every time and
+    /// the earned window is quietly shorter than it says.
+    #[test]
+    fn nothing_scheduled_shadows_an_earned_window() {
+        for (i, earned) in EVENTS.iter().enumerate() {
+            if matches!(earned.trigger, Trigger::Rung) {
+                continue;
+            }
+            let window = earned.trigger.from()..=earned.at;
+            for (j, sched) in EVENTS.iter().enumerate() {
+                if !matches!(sched.trigger, Trigger::Rung) || !window.contains(&sched.at) {
+                    continue;
+                }
+                assert!(
+                    j > i,
+                    "{} stands on rung {} inside {}'s window and is written first",
+                    sched.id,
+                    sched.at + 1,
+                    earned.id
+                );
+            }
         }
     }
 

@@ -33,18 +33,24 @@ fn an_earned_event_needs_the_thing_that_earns_it() {
     }
     for id in earned {
         let e = EVENTS.iter().find(|e| e.id == id).expect("just listed");
-        let Trigger::QuickKill { within_ms } = e.trigger else { continue };
+        let Trigger::QuickKill { within_ms, from } = e.trigger else { continue };
         assert!(within_ms > 0, "{id}: a window of zero can never be met");
 
         // Inside the window and quick enough: it stands in front of you.
         let mut run = Run::with_all_pieces();
         run.rung = e.at;
-        run.best_fight_ms = Some(within_ms);
+        run.best_fight_ms = Some(within_ms - 1);
         assert_eq!(
             run.pending_event().map(|p| p.id),
             Some(id),
             "{id}: earned it and it did not turn up"
         );
+
+        // Quick enough, but before the window opens.
+        if from > 0 {
+            run.rung = from - 1;
+            assert!(run.pending_event().map(|p| p.id) != Some(id), "{id}: turned up too early");
+        }
 
         // Quick enough, but past the last rung it stands on.
         run.rung = e.at + 1;
@@ -52,7 +58,7 @@ fn an_earned_event_needs_the_thing_that_earns_it() {
 
         // Inside the window, never quick enough.
         run.rung = e.at;
-        run.best_fight_ms = Some(within_ms + 1);
+        run.best_fight_ms = Some(within_ms);
         assert!(
             run.pending_event().map(|p| p.id) != Some(id),
             "{id}: turned up without being earned"
@@ -66,7 +72,7 @@ fn an_earned_event_needs_the_thing_that_earns_it() {
 
 #[test]
 fn holding_a_component_opens_a_door_without_spending_it() {
-    let mut run = Run::with_all_pieces();
+    let run = Run::with_all_pieces();
     let name = run.registry.def(run.owned[0]).name;
     let before = run.owned.len();
 
@@ -120,20 +126,29 @@ fn the_quickest_win_is_what_gets_remembered() {
         }
     }
 
+    // Only wins inside the shallow window count - rung one is deliberately
+    // outside it, so a fight there must not be what the doors are judged on.
     let mut seen: Vec<u32> = Vec::new();
     for rung in 0..6usize {
         run.rung = rung;
         let outcome = run.fight_next().outcome;
         let ms = run.log.as_ref().map(|l| l.duration_ms).unwrap_or(0);
-        if outcome == gearmaster_engine::combat::Outcome::Victory {
+        if outcome == gearmaster_engine::combat::Outcome::Victory
+            && gearmaster_engine::event::SHALLOW.contains(&rung)
+        {
             seen.push(ms);
         }
         run.settle();
     }
-    assert!(!seen.is_empty(), "won nothing in six rungs of the shallow end");
+    assert!(!seen.is_empty(), "won nothing in the shallow end");
     assert_eq!(
         run.best_fight_ms,
         seen.iter().copied().min(),
         "the run should remember its quickest win, not its latest"
+    );
+    assert_eq!(
+        run.worst_fight_ms,
+        seen.iter().copied().max(),
+        "the run should remember its slowest win too - the other door reads it"
     );
 }

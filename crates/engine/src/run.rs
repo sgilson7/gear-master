@@ -201,9 +201,11 @@ pub struct Run {
     /// there is no way to end up with pieces sitting in a row that is about
     /// to stop existing.
     pub extra_rows: u8,
-    /// The quickest win this run has managed, in milliseconds. Events that are
-    /// earned rather than scheduled read it - see `event::Trigger`.
+    /// The quickest and slowest wins this run has managed in the shallow end,
+    /// in milliseconds. The two earned doors of the early game read them - see
+    /// `event::Trigger`.
     pub best_fight_ms: Option<u32>,
+    pub worst_fight_ms: Option<u32>,
     /// Choices actually taken, by label, so a later event can ask what you did
     /// at an earlier one.
     pub took: Vec<&'static str>,
@@ -305,6 +307,7 @@ impl Run {
             brawl: None,
             extra_rows: 0,
             best_fight_ms: None,
+            worst_fight_ms: None,
             took: Vec::new(),
             dungeon: None,
             pending_landing: None,
@@ -406,7 +409,7 @@ impl Run {
         if self.phase != Phase::Loadout || self.at_fountain() || self.at_doubling_fountain() {
             return None;
         }
-        crate::event::at(self.rung, self.best_fight_ms)
+        crate::event::at(self.rung, self.best_fight_ms, self.worst_fight_ms, &self.answered)
             .filter(|e| !self.answered.contains(&e.id))
     }
 
@@ -673,13 +676,18 @@ impl Run {
             rows_won: 0,
         };
 
-        // The quickest win the run has had, which is what earns the casino.
+        // How fast, and how slow, the shallow end went. The two doors of the
+        // early game are decided by these.
+        //
         // Only a real win counts: a stalemate lasts the full clock by
-        // definition, and a defeat that ended in half a second is not a fight
-        // you won quickly.
-        if outcome == Outcome::Victory {
+        // definition, so counting one would hand out the slow door for free,
+        // and a defeat that ended in half a second is not a fight you won
+        // quickly. Only the shallow end counts either - a fight further up is
+        // not evidence about the early game.
+        if outcome == Outcome::Victory && crate::event::SHALLOW.contains(&self.rung) {
             if let Some(ms) = self.log.as_ref().map(|l| l.duration_ms) {
                 self.best_fight_ms = Some(self.best_fight_ms.map_or(ms, |b| b.min(ms)));
+                self.worst_fight_ms = Some(self.worst_fight_ms.map_or(ms, |w| w.max(ms)));
             }
         }
 

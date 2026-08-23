@@ -368,6 +368,13 @@ pub enum ClassPower {
     Bastion(i32),
     /// Landing a curse lands `n` more of the other kind alongside it.
     Contagion(u32),
+    /// Everything runs `slower` percent slower, and every scrap of armour you
+    /// pick up counts `armour` percent.
+    ///
+    /// A trade rather than a gift, and the only class that changes the shape
+    /// of a fight rather than its numbers: half as many activations, twice the
+    /// wall. A build that was winning on tempo will hate it.
+    Trundle { slower: i32, armour: i32 },
     /// You do not heal. Regeneration on your gear stops working, for good.
     ///
     /// The only power in the game that is purely a cost, and it is meant to
@@ -424,6 +431,9 @@ impl ClassPower {
         }
         Some(match self {
             Guilt => return None,
+            // Doubling the slowdown as well as the armour would not be the
+            // same bargain twice - it would be a different and much worse one.
+            Trundle { .. } => return None,
             Standing(s) => Standing(s + s),
             Leeching(p) => Leeching(p * 2),
             Bastion(p) => Bastion(p * 2),
@@ -460,6 +470,9 @@ impl ClassPower {
     pub fn short(self) -> String {
         match self {
             ClassPower::Guilt => "you cannot heal".to_string(),
+            ClassPower::Trundle { slower, armour } => {
+                format!("{}% slower, {}% armour", slower, armour)
+            }
             ClassPower::Standing(s) => s.summary(),
             ClassPower::SlowTime(n) => format!("damage arrives over {}s", n),
             ClassPower::Leeching(pct) => format!("{}% of damage dealt heals you", pct),
@@ -500,6 +513,12 @@ impl ClassPower {
             ClassPower::Guilt => "Your regeneration is 0 a second for the rest of the run. \
                  Not slowed - stopped, whatever your gear says it heals for."
                 .to_string(),
+            ClassPower::Trundle { slower, armour } => format!(
+                "Every cooldown you own runs {}% slower, and every point of armour you gain \
+                 counts {}%. Half the turns, twice the wall - which is a different game, not \
+                 a better one.",
+                slower, armour
+            ),
             ClassPower::Standing(s) => s.summary(),
             ClassPower::SlowTime(n) => format!(
                 "damage against you arrives in slices over {}s instead of all at once, so \
@@ -637,6 +656,14 @@ pub static CLASSES: &[ClassDef] = &[
         blurb: "Rage, and something heavy to spend it on.",
         requires: &[(Axis::Wrath, 40), (Axis::Brutality, 40)],
         power: ClassPower::Leeching(12),
+    },
+    ClassDef {
+        // Claimed on the road, never poured: `is_earned` keeps it out of the
+        // fountain ranking the same way the dungeon classes are kept out.
+        name: "Trundle",
+        blurb: "You learned the pace. Nothing hurries; nothing breaks.",
+        requires: &[],
+        power: ClassPower::Trundle { slower: 50, armour: 200 },
     },
     ClassDef {
         // Not on offer anywhere: `is_earned` keeps it out of the fountain

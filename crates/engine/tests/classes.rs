@@ -412,7 +412,7 @@ fn the_deep_fountain_doubles_something_you_already_are() {
 /// would give you one would be a lie.
 #[test]
 fn the_deep_fountain_never_offers_what_it_cannot_give() {
-    use gearmaster_engine::class::{ClassPower, CLASSES};
+    use gearmaster_engine::class::CLASSES;
     use gearmaster_engine::run::Run;
     for c in CLASSES {
         let mut run = Run::new();

@@ -2070,7 +2070,7 @@ fn author_the_extra_items() {
 fn find_outlier_gear() {
     use gearmaster_engine::combat::{Difficulty, Outcome, LADDER};
     use gearmaster_engine::rating::shop_price;
-    use gearmaster_engine::run::{Mode, Run};
+    use gearmaster_engine::run::Mode;
 
     // The rung the packed profiles clear but only just, so a better item can
     // show as a wider win and a worse one as a loss. Anything they crush or
@@ -2225,7 +2225,7 @@ fn find_outlier_gear() {
 #[ignore]
 fn ladder_curve() {
     use gearmaster_engine::combat::{Difficulty, Outcome, LADDER};
-    use gearmaster_engine::run::{Mode, Run};
+    use gearmaster_engine::run::Mode;
 
     let boards: Vec<(&str, Layout)> = vec![
         ("dense", SlotKind::ALL.iter().map(|&s| (s, pack_dense(s, |d| d.rating))).collect()),
@@ -2285,8 +2285,8 @@ fn ladder_curve() {
 #[test]
 #[ignore]
 fn what_classes_are_worth() {
-    use gearmaster_engine::combat::{Difficulty, Outcome, LADDER};
-    use gearmaster_engine::run::{Mode, Run};
+    use gearmaster_engine::combat::Difficulty;
+    use gearmaster_engine::run::Mode;
 
     let layout: Layout =
         SlotKind::ALL.iter().map(|&s| (s, pack_dense(s, |d| d.rating))).collect();

@@ -271,6 +271,9 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Spellblade", "Katana Psychologist"),  // Henpeck's other job, p. 95
         ("Stormcaller", "Plug Energy Rep"),     // Spike Kaklon's Plug Energy, p. 32
         ("Templar", "Francian Ordinate"),       // the Francians pp. 61-63, ordination p. 75
+        // The bottom rung of the theme's speed ladder, from the 45th Annual
+        // Thrumbus Race - which is exactly what this is.
+        ("Trundle", "Slow Trundler"),
         ("Ascendant", "Boyetano, Ascended"),
         ("Avenged", "Sprocket Avenged"),
         ("Wanderer", "Plane Tourist"),          // half-tourist, half-catastrophe

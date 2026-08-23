@@ -5,7 +5,7 @@
 //! straight past a door that is meant to be locked. Anything testing the lock
 //! has to start from a run that has genuinely never been to the casino.
 
-use gearmaster_engine::combat::{Difficulty, Outcome, LADDER};
+use gearmaster_engine::combat::{Difficulty, LADDER};
 use gearmaster_engine::event::{Outcome as ChoiceOutcome, EVENTS};
 use gearmaster_engine::piece::{is_off_the_scale, SlotKind, CATALOG, VIP_ONLY};
 use gearmaster_engine::run::{Mode, Run};
