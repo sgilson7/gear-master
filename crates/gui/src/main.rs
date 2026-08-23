@@ -3415,6 +3415,54 @@ fn hp_bar(x: f32, y: f32, w: f32, h: f32, hp: i32, max: i32, color: Color) {
     centered_text(&label, x + w / 2.0, y + h / 2.0 + 6.0, 17.0, WHITE);
 }
 
+/// Armour, on the same scale and at the same size as the health bar above it.
+///
+/// The two read as a pair because they are the same measurement: a full armour
+/// bar means as much armour as you have health, and a pixel means the same
+/// number of points in both. It used to be half the height and to clamp at
+/// full, so every amount from "exactly enough" to "four times over" drew an
+/// identical bar and the difference between them was invisible.
+///
+/// Past full it wraps. Each complete bar is another layer, drawn darker than
+/// the one under it, so depth reads as depth without a number to parse.
+fn armor_bar(x: f32, y: f32, w: f32, h: f32, armor: i32, max: i32) {
+    /// The base coat, and how much of it survives each layer down.
+    fn shade(layer: u32) -> Color {
+        let f = 0.72f32.powi(layer.min(5) as i32);
+        Color::from_rgba(
+            (150.0 * f) as u8 + 18,
+            (172.0 * f) as u8 + 20,
+            (214.0 * f) as u8 + 26,
+            255,
+        )
+    }
+    draw_rectangle(x, y, w, h, Color::from_rgba(30, 30, 42, 255));
+    let max = max.max(1);
+    if armor > 0 {
+        let full = (armor / max) as u32;
+        let rest = (armor % max) as f32 / max as f32;
+        // The last completed layer fills the track; the remainder goes over it
+        // one shade darker.
+        if full > 0 {
+            draw_rectangle(x, y, w, h, shade(full - 1));
+        }
+        if rest > 0.0 {
+            draw_rectangle(x, y, w * rest, h, shade(full));
+        }
+    }
+    draw_rectangle_lines(x, y, w, h, 2.0, Color::from_rgba(80, 80, 105, 255));
+    if armor > 0 {
+        // Only worth the words once there is something to say; an empty track
+        // reading "0 / 400" is noise on a screen that is already busy.
+        let label = if armor > max {
+            format!("{} armour  ({:.1}x)", armor, armor as f32 / max as f32)
+        } else {
+            format!("{} armour", armor)
+        };
+        centered_text(&label, x + w / 2.0, y + h / 2.0 + 5.0, 14.0, WHITE);
+    }
+}
+
 /// One item's cooldown bar: name, a filling track, and the interval it is
 /// actually running at. Flashes on the frame it fires.
 #[allow(clippy::too_many_arguments)]
@@ -6050,16 +6098,15 @@ fn render_battle_side(
         },
     );
     hp_bar(x, y, w, 30.0, hp, max, tint);
+    // Twenty rather than thirty. The two read as a pair at this height, and
+    // twenty is the most there is room for: the next board's label starts at
+    // y+74 and the pool marks have to fit between.
+    armor_bar(x, y + 32.0, w, 20.0, armor, max);
 
-    draw_rectangle(x, y + 34.0, w, 14.0, Color::from_rgba(30, 30, 42, 255));
-    if armor > 0 {
-        let frac = ((armor as f32) / (max.max(1) as f32)).clamp(0.0, 1.0);
-        draw_rectangle(x, y + 34.0, w * frac, 14.0, Color::from_rgba(150, 170, 210, 255));
-    }
-    draw_rectangle_lines(x, y + 34.0, w, 14.0, 1.0, Color::from_rgba(80, 80, 105, 255));
-
-    // Armour and the four pools, each behind its own mark rather than a row of
-    // words - during a fight these change constantly and want reading fast.
+    // The pools, each behind its own mark rather than a row of words - during
+    // a fight these change constantly and want reading fast. Armour keeps its
+    // mark here too even though the bar is labelled, because this row is where
+    // the eye goes for a number.
     let mut gx = x;
     let gy = y + 56.0;
     for (which, value) in [("armor", Some(armor)), ("mana", mana)]
@@ -7278,6 +7325,46 @@ async fn main() {
                     }
                 }
             }
+        }
+
+        // GEARMASTER_BARS=1 draws the health and armour pair at a spread of
+        // values. Armour past a full bar wraps into darker layers, and a real
+        // fight almost never gets there - the preset peaks at an eighth of a
+        // bar - so without this the layering is a thing you can write and
+        // never once look at.
+        if std::env::var("GEARMASTER_BARS").is_ok() {
+            draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(14, 14, 22, 255));
+            let max = 400;
+            let gutter = 300.0;
+            let w = LOGICAL_W - gutter - 40.0;
+            for (i, armor) in [0, 60, 200, 400, 520, 800, 1000, 1600, 2400].iter().enumerate() {
+                let y = 60.0 + i as f32 * 96.0;
+                ui_text(&format!("{} armour", armor), 24.0, y + 4.0, 16.0, LIGHTGRAY);
+                ui_text(&format!("of {} health", max), 24.0, y + 24.0, 13.0, col_dim());
+                ui_text(
+                    &format!("{:.2} bars", *armor as f32 / max as f32),
+                    24.0,
+                    y + 44.0,
+                    13.0,
+                    col_gold(),
+                );
+                hp_bar(gutter, y - 22.0, w, 30.0, max, max, col_ok());
+                armor_bar(gutter, y + 10.0, w, 20.0, *armor, max);
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
         }
 
         // GEARMASTER_SPRITES=1 lays every creature out in a grid. Sprites are
