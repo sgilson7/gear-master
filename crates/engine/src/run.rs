@@ -1593,6 +1593,27 @@ impl Run {
         self.fight(&spec)
     }
 
+    /// Fight several things at once, on the rung you are standing on.
+    ///
+    /// The rung does not move and the bounty is the rung's, not the sum: a
+    /// brawl is an event putting two creatures in front of you, not two rungs
+    /// collapsed into one.
+    pub fn fight_party(&mut self, specs: &[crate::combat::MonsterSpec]) -> &CombatLog {
+        let log = crate::combat::simulate_party(
+            self.player_stats(),
+            &self.combat_items(),
+            specs,
+            self.difficulty,
+            &self.effective_classes(),
+            self.gold,
+        );
+        self.gold = (self.gold - log.gold_spent).max(0);
+        self.phase = Phase::Fighting;
+        self.settled = false;
+        self.log = Some(log);
+        self.log.as_ref().expect("just set")
+    }
+
     /// Simulate against the original opponent, ladder position ignored.
     pub fn begin_fight(&mut self) -> &CombatLog {
         self.forget_undo();

@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use gearmaster_engine::class::Axis;
 use gearmaster_engine::combat::{
-    CombatLog, Event, MonsterSpec, MonsterSprite, Outcome, Side, LADDER,
+    CombatLog, Event, MonsterSpec, MonsterSprite, Outcome, RunningItem, Side, LADDER,
 };
 use gearmaster_engine::loadout::{ItemProfile, Loadout, SlotReport};
 use gearmaster_engine::piece::{
@@ -2314,6 +2314,35 @@ struct ActiveCurse {
     effect: String,
 }
 
+/// Everything the replay tracks about one foe.
+///
+/// A brawl has more than one of these; a duel has exactly one, and every
+/// reader that only ever wanted the one goes through `foe()`. The paired
+/// `enemy_*` fields this replaced could not have held a second creature at
+/// all, which is most of what made the battle screen a duel-only screen.
+struct FoeView {
+    hp: i32,
+    max: i32,
+    armor: i32,
+    pools: [i32; 3],
+    curses: Vec<ActiveCurse>,
+    /// Stunned items, as (item index, started, ends).
+    stuns: Vec<(usize, u32, u32)>,
+    empower: u32,
+    shield: u32,
+    fork: u32,
+    flash: f64,
+    schedule: Vec<Vec<u32>>,
+    /// This creature's gear, laid out once when the fight starts.
+    reg: PieceRegistry,
+    loadout: Loadout,
+    reports: Vec<SlotReport>,
+    /// Full profiles, for the hover summaries. A monster's item list puts its
+    /// innate attacks first, so its profiles start `attack_count` in.
+    profiles: Vec<ItemProfile>,
+    attack_count: usize,
+}
+
 struct Playback {
     /// Wall-clock reading at the last advance, and simulated time accumulated
     /// so far. Accumulating rather than deriving from a start instant is what
@@ -2329,46 +2358,40 @@ struct Playback {
     /// What is left of the run's gold, for gear that spends it mid-fight.
     purse: i32,
     player_pools: [i32; 3],
-    enemy_pools: [i32; 3],
-    enemy_hp: i32,
-    enemy_max: i32,
-    enemy_armor: i32,
-    /// Curses on each side. The start is kept as well as the end because the
+    /// Curses on the player. The start is kept as well as the end because the
     /// stun meter fills against the whole span, not against a fixed 1.2s -
     /// stun stacks add to the clock, so no two stuns are the same length.
     player_curses: Vec<ActiveCurse>,
-    enemy_curses: Vec<ActiveCurse>,
     /// Stunned items, as (item index, started, ends). A stun stops one item
     /// rather than a whole side, so this is per item and not per fighter.
     player_stuns: Vec<(usize, u32, u32)>,
-    enemy_stuns: Vec<(usize, u32, u32)>,
     lines: Vec<String>,
     flash_player: f64,
-    flash_enemy: f64,
     now_ms: u32,
     done: bool,
     player_empower: u32,
     player_shield: u32,
     player_fork: u32,
-    enemy_empower: u32,
-    enemy_shield: u32,
-    enemy_fork: u32,
-    /// When each item fired, indexed the same way as the combatant's item
-    /// list. Cooldown bars are drawn straight from these, which is why a
-    /// frost-slowed item's bar visibly crawls: the gap between two real
-    /// activations *is* the slowdown, so nothing here has to know what frost
-    /// does.
+    /// When each of the player's items fired, indexed the same way as the
+    /// combatant's item list. Cooldown bars are drawn straight from these,
+    /// which is why a frost-slowed item's bar visibly crawls: the gap between
+    /// two real activations *is* the slowdown, so nothing here has to know
+    /// what frost does.
     player_schedule: Vec<Vec<u32>>,
-    enemy_schedule: Vec<Vec<u32>>,
-    /// The enemy's gear, laid out once when the fight starts.
-    enemy_reg: PieceRegistry,
-    enemy_loadout: Loadout,
-    enemy_reports: Vec<SlotReport>,
-    /// Full profiles, for the hover summaries. A monster's item list puts its
-    /// innate attacks first, so its profiles start `enemy_attack_count` in.
     player_profiles: Vec<ItemProfile>,
-    enemy_profiles: Vec<ItemProfile>,
-    enemy_attack_count: usize,
+    /// Everything on the other side, indexed the way `LogEntry::who` is.
+    foes: Vec<FoeView>,
+}
+
+impl Playback {
+    fn foe_mut(&mut self, who: u8) -> &mut FoeView {
+        let i = (who as usize).min(self.foes.len() - 1);
+        &mut self.foes[i]
+    }
+
+    fn is_brawl(&self) -> bool {
+        self.foes.len() > 1
+    }
 }
 
 /// How full an item's bar is at `now_ms`, from the times it actually fired.
@@ -2388,11 +2411,15 @@ fn bar_progress(schedule: &[u32], cooldown_ms: u32, now_ms: u32) -> f32 {
 }
 
 /// Collect every activation time per item index for one side.
-fn schedule_for(log: &CombatLog, want: Side, count: usize) -> Vec<Vec<u32>> {
+/// When each of one combatant's items fired.
+///
+/// `who` matters now: in a brawl both foes log their activations as
+/// `Side::Enemy`, and only the entry's foe index tells them apart.
+fn schedule_for(log: &CombatLog, want: Side, who: u8, count: usize) -> Vec<Vec<u32>> {
     let mut out = vec![Vec::new(); count];
     for e in &log.entries {
         if let Event::Activate { side, index, .. } = &e.event {
-            if *side == want {
+            if *side == want && (want == Side::Player || e.who == who) {
                 if let Some(slot) = out.get_mut(*index) {
                     slot.push(e.at_ms);
                 }
@@ -2404,9 +2431,35 @@ fn schedule_for(log: &CombatLog, want: Side, count: usize) -> Vec<Vec<u32>> {
 
 impl Playback {
     fn new(log: &CombatLog, player_profiles: &[ItemProfile], speed: f32) -> Self {
-        let (er, eloadout) = log.spec().loadout();
-        let (er2, eloadout2) = (er.clone(), eloadout.clone());
-        let eprof = eloadout.combat_items(&er);
+        let foes: Vec<FoeView> = log
+            .specs
+            .iter()
+            .zip(log.enemies.iter())
+            .enumerate()
+            .map(|(i, (spec, body))| {
+                let (reg, loadout) = spec.loadout();
+                let reports = loadout.reports(&reg);
+                let profiles = loadout.combat_items(&reg);
+                FoeView {
+                    hp: body.health,
+                    max: body.max_health,
+                    armor: 0,
+                    pools: [0; 3],
+                    curses: Vec::new(),
+                    stuns: Vec::new(),
+                    empower: 0,
+                    shield: 0,
+                    fork: 0,
+                    flash: -10.0,
+                    schedule: schedule_for(log, Side::Enemy, i as u8, body.items.len()),
+                    reg,
+                    loadout,
+                    reports,
+                    profiles,
+                    attack_count: spec.attacks.len(),
+                }
+            })
+            .collect();
         let pprof = player_profiles.to_vec();
         Playback {
             last_wall: get_time(),
@@ -2419,39 +2472,26 @@ impl Playback {
             player_mana: 0,
             purse: 0,
             player_pools: [0; 3],
-            enemy_pools: [0; 3],
-            enemy_hp: log.enemy().health,
-            enemy_max: log.enemy().max_health,
-            enemy_armor: 0,
             player_curses: Vec::new(),
-            enemy_curses: Vec::new(),
             player_stuns: Vec::new(),
-            enemy_stuns: Vec::new(),
             lines: Vec::new(),
             flash_player: -10.0,
-            flash_enemy: -10.0,
             now_ms: 0,
             done: false,
             player_empower: 0,
             player_shield: 0,
             player_fork: 0,
-            enemy_empower: 0,
-            enemy_shield: 0,
-            enemy_fork: 0,
-            player_schedule: schedule_for(log, Side::Player, log.player.items.len()),
-            enemy_schedule: schedule_for(log, Side::Enemy, log.enemy().items.len()),
-            enemy_reg: er,
-            enemy_reports: eloadout.reports(&er2),
-            enemy_loadout: eloadout2,
+            player_schedule: schedule_for(log, Side::Player, 0, log.player.items.len()),
             player_profiles: pprof,
-            enemy_profiles: eprof,
-            enemy_attack_count: log.spec().attacks.len(),
+            foes,
         }
     }
 
     fn apply(&mut self, log: &CombatLog, index: usize) {
         let entry = &log.entries[index];
         let now = get_time();
+        // Which foe this entry is about. In a duel it is always the one.
+        let who = entry.who;
         match &entry.event {
             Event::Activate { .. } => return, // shown as a bar, not a log line
             // Worth a line: an item coming round and doing nothing is the sort
@@ -2460,7 +2500,7 @@ impl Playback {
             // Growth changes the bar itself, not just what is in it.
             Event::Grew { side, total, .. } => match side {
                 Side::Player => self.player_max = *total,
-                Side::Enemy => self.enemy_max = *total,
+                Side::Enemy => self.foe_mut(who).max = *total,
             },
             // Keeps the mana read-out honest: a cast spends from the same pool
             // everything else banks into.
@@ -2468,7 +2508,7 @@ impl Playback {
                 let pools = if matches!(side, Side::Player) {
                     &mut self.player_pools
                 } else {
-                    &mut self.enemy_pools
+                    &mut self.foe_mut(who).pools
                 };
                 if let Some(i) = pool_index("mana") {
                     pools[i] = *remaining;
@@ -2477,22 +2517,22 @@ impl Playback {
             Event::ResourceCheck { side, what, remaining, .. } => {
                 if let Some(i) = pool_index(what) {
                     let pools =
-                        if matches!(side, Side::Player) { &mut self.player_pools } else { &mut self.enemy_pools };
+                        if matches!(side, Side::Player) { &mut self.player_pools } else { &mut self.foe_mut(who).pools };
                     pools[i] = *remaining;
                 }
             }
             Event::GainResource { side, what, total, .. } => {
                 if let Some(i) = pool_index(what) {
                     let pools =
-                        if matches!(side, Side::Player) { &mut self.player_pools } else { &mut self.enemy_pools };
+                        if matches!(side, Side::Player) { &mut self.player_pools } else { &mut self.foe_mut(who).pools };
                     pools[i] = *total;
                 }
             }
             Event::Hit { by, target_health, target_armor, .. } => match by {
                 Side::Player => {
-                    self.enemy_hp = (*target_health).max(0);
-                    self.enemy_armor = *target_armor;
-                    self.flash_enemy = now;
+                    self.foe_mut(who).hp = (*target_health).max(0);
+                    self.foe_mut(who).armor = *target_armor;
+                    self.foe_mut(who).flash = now;
                 }
                 Side::Enemy => {
                     self.player_hp = (*target_health).max(0);
@@ -2501,7 +2541,7 @@ impl Playback {
                 }
             },
             Event::MindHit { by, target_max_health, .. } => match by {
-                Side::Player => self.enemy_max = *target_max_health,
+                Side::Player => self.foe_mut(who).max = *target_max_health,
                 Side::Enemy => {
                     self.player_max = *target_max_health;
                     self.player_hp = self.player_hp.min(self.player_max);
@@ -2510,7 +2550,7 @@ impl Playback {
             },
             Event::GainArmor { side, total, .. } => match side {
                 Side::Player => self.player_armor = *total,
-                Side::Enemy => self.enemy_armor = *total,
+                Side::Enemy => self.foe_mut(who).armor = *total,
             },
             Event::GainMana { side, total, .. } => {
                 if *side == Side::Player {
@@ -2534,7 +2574,7 @@ impl Playback {
                 // has to follow a drain down as well as a gain up.
                 let pools = match on {
                     Side::Player => &mut self.player_pools,
-                    Side::Enemy => &mut self.enemy_pools,
+                    Side::Enemy => &mut self.foe_mut(who).pools,
                 };
                 match *what {
                     "rage" => pools[0] = *total,
@@ -2547,25 +2587,26 @@ impl Playback {
                 }
             }
             Event::Stunned { on, index, duration_ms, .. } => {
-                let until = self.now_ms + duration_ms;
+                let now_ms = self.now_ms;
+                let until = now_ms + duration_ms;
                 let list = match on {
                     Side::Player => &mut self.player_stuns,
-                    Side::Enemy => &mut self.enemy_stuns,
+                    Side::Enemy => &mut self.foe_mut(who).stuns,
                 };
                 match list.iter_mut().find(|(i, _, _)| i == index) {
                     // Stacks pile onto that item's clock, so the meter restarts
                     // full rather than jumping mid-drain.
-                    Some(e) => *e = (*index, self.now_ms, until),
-                    None => list.push((*index, self.now_ms, until)),
+                    Some(e) => *e = (*index, now_ms, until),
+                    None => list.push((*index, now_ms, until)),
                 }
             }
             Event::Cursed { on, kind, duration_ms, stacks } => {
                 let until = self.now_ms + duration_ms;
+                let effect = kind.effect_at(*stacks);
                 let list = match on {
                     Side::Player => &mut self.player_curses,
-                    Side::Enemy => &mut self.enemy_curses,
+                    Side::Enemy => &mut self.foe_mut(who).curses,
                 };
-                let effect = kind.effect_at(*stacks);
                 match list.iter_mut().find(|c| c.name == kind.name()) {
                     Some(e) => {
                         e.until_ms = e.until_ms.max(until);
@@ -2582,7 +2623,7 @@ impl Playback {
             }
             Event::Burn { side, health, .. } => match side {
                 Side::Player => self.player_hp = (*health).max(0),
-                Side::Enemy => self.enemy_hp = (*health).max(0),
+                Side::Enemy => self.foe_mut(who).hp = (*health).max(0),
             },
             Event::Regen { side, health, .. } => {
                 if *side == Side::Player {
@@ -2594,21 +2635,21 @@ impl Playback {
                 if *side == Side::Player {
                     self.player_empower = *total;
                 } else {
-                    self.enemy_empower = *total;
+                    self.foe_mut(who).empower = *total;
                 }
             }
             Event::Shielded { side, total, .. } => {
                 if *side == Side::Player {
                     self.player_shield = *total;
                 } else {
-                    self.enemy_shield = *total;
+                    self.foe_mut(who).shield = *total;
                 }
             }
             Event::Forking { side, total } => {
                 if *side == Side::Player {
                     self.player_fork = *total;
                 } else {
-                    self.enemy_fork = *total;
+                    self.foe_mut(who).fork = *total;
                 }
             }
             Event::Hastened { .. } => {}
@@ -2632,10 +2673,13 @@ impl Playback {
             self.cursor += 1;
         }
         self.now_ms = self.sim_ms.min(log.duration_ms);
-        self.player_curses.retain(|c| c.until_ms > self.now_ms);
-        self.enemy_curses.retain(|c| c.until_ms > self.now_ms);
-        self.player_stuns.retain(|(_, _, until)| *until > self.now_ms);
-        self.enemy_stuns.retain(|(_, _, until)| *until > self.now_ms);
+        let now = self.now_ms;
+        self.player_curses.retain(|c| c.until_ms > now);
+        self.player_stuns.retain(|(_, _, until)| *until > now);
+        for f in self.foes.iter_mut() {
+            f.curses.retain(|c| c.until_ms > now);
+            f.stuns.retain(|(_, _, until)| *until > now);
+        }
         // GEARMASTER_STUN=<n> keeps a rolling stun on the player's first n
         // items, so the meter can be looked at without hunting the ladder for
         // a fight that lands one at the moment the screenshot is taken.
@@ -2654,10 +2698,10 @@ impl Playback {
     /// How much of a stun is left on one item, and how long in milliseconds.
     ///
     /// A stun stops one item rather than a side, so this is asked per row.
-    fn stun_of(&self, side: Side, index: usize) -> Option<(f32, u32)> {
+    fn stun_of(&self, side: Side, who: usize, index: usize) -> Option<(f32, u32)> {
         let list = match side {
             Side::Player => &self.player_stuns,
-            Side::Enemy => &self.enemy_stuns,
+            Side::Enemy => &self.foes[who.min(self.foes.len() - 1)].stuns,
         };
         list.iter().find(|(i, _, _)| *i == index).map(|&(_, from, until)| {
             let span = until.saturating_sub(from).max(1);
@@ -2665,10 +2709,10 @@ impl Playback {
         })
     }
 
-    fn stunned_count(&self, side: Side) -> usize {
+    fn stunned_count(&self, side: Side, who: usize) -> usize {
         match side {
             Side::Player => self.player_stuns.len(),
-            Side::Enemy => self.enemy_stuns.len(),
+            Side::Enemy => self.foes[who.min(self.foes.len() - 1)].stuns.len(),
         }
     }
 
@@ -2682,9 +2726,11 @@ impl Playback {
         self.sim_ms = log.duration_ms;
         self.now_ms = log.duration_ms;
         self.player_curses.clear();
-        self.enemy_curses.clear();
         self.player_stuns.clear();
-        self.enemy_stuns.clear();
+        for f in self.foes.iter_mut() {
+            f.curses.clear();
+            f.stuns.clear();
+        }
     }
 }
 
@@ -3973,7 +4019,6 @@ struct BattleGeom {
     player_board_y: f32,
     enemy_board_y: f32,
     player_bar_y: f32,
-    enemy_bar_y: f32,
     cd_x: f32,
     cd_w: f32,
     log: Rect,
@@ -3989,8 +4034,8 @@ struct BattleGeom {
 fn battle_geom(done: bool) -> BattleGeom {
     let board_x = 24.0;
     let board_w = mini_board_width();
-    let gh = SLOT_H as f32 * MINI_CELL;
 
+    let gh = SLOT_H as f32 * MINI_CELL;
     let player_board_y = 46.0;
     let player_bar_y = player_board_y + gh + 42.0;
     let enemy_board_y = player_bar_y + 100.0;
@@ -4018,7 +4063,6 @@ fn battle_geom(done: bool) -> BattleGeom {
         player_board_y,
         enemy_board_y,
         player_bar_y,
-        enemy_bar_y,
         cd_x,
         cd_w,
         log,
@@ -4393,7 +4437,6 @@ fn render_battle(
     // top of it. The battle screen has no `Hover` to leave a request in.
     let mut deferred: Option<Vec<(String, Color)>> = None;
     let g = battle_geom(pb.done);
-    let gh = SLOT_H as f32 * MINI_CELL;
     let reports = run.reports();
 
     // ---- your half ----
@@ -4435,65 +4478,80 @@ fn render_battle(
     );
 
     // ---- their half ----
-    let enemy_label = format!("{}'s GEAR", log.enemy().name.to_uppercase());
-    ui_text(
-        &enemy_label,
-        g.board_x,
-        g.enemy_board_y - 12.0,
-        18.0,
-        col_foe(),
-    );
-    if pb.enemy_loadout.slots.iter().all(|s| s.is_empty()) {
-        draw_rectangle_lines(
-            g.board_x,
-            g.enemy_board_y,
-            g.board_w,
-            gh,
-            2.0,
-            Color::from_rgba(70, 54, 54, 255),
-        );
-        centered_text(
-            "no gear - it just has teeth",
-            g.board_x + g.board_w / 2.0,
-            g.enemy_board_y + gh / 2.0,
-            18.0,
-            col_dim(),
-        );
-    } else {
-        let enemy_shakes = shake_offsets(
-            &pb.enemy_profiles,
-            &pb.enemy_schedule,
-            pb.enemy_attack_count,
+    //
+    // One creature gets the whole width. Two share it, at a smaller cell -
+    // five 6x8 grids side by side is already most of the screen, so two sets
+    // of them only fit by shrinking. Everything else about the half is the
+    // same for both, which is why it is a loop rather than two branches.
+    let n = pb.foes.len().max(1);
+    let (cell, sgap) = if n > 1 { (15.0, 7.0) } else { (MINI_CELL, MINI_GAP) };
+    let set_w = 5.0 * (SLOT_W as f32 * cell) + 4.0 * sgap;
+    let between = if n > 1 { (g.board_w - 2.0 * set_w).max(16.0) } else { 0.0 };
+    let foe_gh = SLOT_H as f32 * cell;
+
+    for (i, foe) in pb.foes.iter().enumerate() {
+        let fx = g.board_x + i as f32 * (set_w + between);
+        // The spec carries the canonical name, which is what the theme is
+        // keyed on; the body carries the health.
+        let canonical = log.specs.get(i).map(|m| m.name).unwrap_or("?");
+        let name = words::monster(canonical);
+        let label = format!("{}'s GEAR", name.to_uppercase());
+        let size = fitting_size(&label, set_w - 8.0, &[18.0, 16.0, 14.0, 12.0]);
+        ui_text(&label, fx, g.enemy_board_y - 12.0, size, col_foe());
+
+        if foe.loadout.slots.iter().all(|s| s.is_empty()) {
+            draw_rectangle_lines(
+                fx,
+                g.enemy_board_y,
+                set_w,
+                foe_gh,
+                2.0,
+                Color::from_rgba(70, 54, 54, 255),
+            );
+            centered_text(
+                "no gear - it just has teeth",
+                fx + set_w / 2.0,
+                g.enemy_board_y + foe_gh / 2.0,
+                if n > 1 { 14.0 } else { 18.0 },
+                col_dim(),
+            );
+        } else {
+            let shakes =
+                shake_offsets(&foe.profiles, &foe.schedule, foe.attack_count, pb.now_ms);
+            render_mini_board_at(
+                fx,
+                g.enemy_board_y,
+                cell,
+                sgap,
+                &foe.reg,
+                &foe.loadout,
+                &foe.reports,
+                col_foe_dim(),
+                &shakes,
+            );
+        }
+        render_battle_side(
+            fx,
+            // Clear of the slot captions the board prints under itself.
+            // Those sit a fixed distance below the grid whatever the cell
+            // size, so a smaller board needs more clearance, not less.
+            g.enemy_board_y + foe_gh + if n > 1 { 60.0 } else { 42.0 },
+            set_w,
+            &name,
+            foe.hp,
+            foe.max,
+            foe.armor,
+            None,
+            foe.empower,
+            foe.shield,
+            foe.fork,
+            &foe.curses,
             pb.now_ms,
-        );
-        render_mini_board(
-            g.board_x,
-            g.enemy_board_y,
-            &pb.enemy_reg,
-            &pb.enemy_loadout,
-            &pb.enemy_reports,
-            col_foe_dim(),
-            &enemy_shakes,
+            foe.pools,
+            foe.flash,
+            col_foe(),
         );
     }
-    render_battle_side(
-        g.board_x,
-        g.enemy_bar_y,
-        g.board_w,
-        &log.enemy().name,
-        pb.enemy_hp,
-        pb.enemy_max,
-        pb.enemy_armor,
-        None,
-        pb.enemy_empower,
-        pb.enemy_shield,
-        pb.enemy_fork,
-        &pb.enemy_curses,
-        pb.now_ms,
-        pb.enemy_pools,
-        pb.flash_enemy,
-        col_foe(),
-    );
 
     // ---- right column: clock, then each side's cooldowns beside its board ----
     let cx = g.cd_x + g.cd_w / 2.0;
@@ -4508,28 +4566,41 @@ fn render_battle(
     let d_w = text_width(&rung, 14.0);
     ui_text(&rung, g.cd_x + g.cd_w - d_w, g.player_board_y - 12.0, 14.0, col_dim());
 
-    for (label, items, sched, top, tint, side) in [
-        (
-            "YOUR COOLDOWNS",
+    // Your column, then one per creature. In a brawl the two share the space
+    // the single enemy column had, which is why the header names them: "THEIR
+    // COOLDOWNS" is no answer when there are two of them.
+    let mut columns: Vec<(String, &Vec<RunningItem>, &Vec<Vec<u32>>, f32, Color, Side, usize)> =
+        vec![(
+            words::word("your-cooldowns", "YOUR COOLDOWNS").to_string(),
             &log.player.items,
             &pb.player_schedule,
             g.player_board_y,
             col_you(),
             Side::Player,
-        ),
-        (
-            "THEIR COOLDOWNS",
-            &log.enemy().items,
-            &pb.enemy_schedule,
-            g.enemy_board_y,
-            col_foe(),
-            Side::Enemy,
-        ),
-    ] {
+            0,
+        )];
+    {
+        let n = pb.foes.len().max(1);
+        let room = (LOGICAL_H - g.enemy_board_y - 150.0).max(60.0);
+        for (i, foe) in pb.foes.iter().enumerate() {
+            let canonical = log.specs.get(i).map(|m| m.name).unwrap_or("?");
+            let label = if n > 1 {
+                words::monster(canonical).to_uppercase()
+            } else {
+                words::word("their-cooldowns", "THEIR COOLDOWNS").to_string()
+            };
+            let top = g.enemy_board_y + i as f32 * (room / n as f32);
+            let items = log.enemies.get(i).map(|e| &e.items).unwrap_or(&log.player.items);
+            columns.push((label, items, &foe.schedule, top, col_foe(), Side::Enemy, i));
+        }
+    }
+
+    for (label, items, sched, top, tint, side, who) in columns {
+        let label = label.as_str();
         ui_text(label, g.cd_x, top + 14.0, 13.0, col_dim());
         // A stun takes one item, so the header counts them rather than
         // declaring the whole side stopped.
-        let stunned = pb.stunned_count(side);
+        let stunned = pb.stunned_count(side, who);
         if stunned > 0 {
             let note = if stunned == 1 {
                 "1 ITEM STUNNED".to_string()
@@ -4550,7 +4621,7 @@ fn render_battle(
             let it = &items[i];
             // `i` is the item's index in its owner's list, which is what the
             // stun was recorded against - `row` is only where it is drawn.
-            let stun = pb.stun_of(side, i);
+            let stun = pb.stun_of(side, who, i);
             if stun.is_some() {
                 draw_rectangle(
                     g.cd_x - 6.0,
@@ -4619,7 +4690,7 @@ fn render_battle(
 
     // The creature itself, in the clear space under its cooldown list. It
     // takes whatever room is left between the last row and the log strip.
-    {
+    if !pb.is_brawl() {
         let below = g.enemy_board_y + 30.0 + log.enemy().items.len() as f32 * 28.0 + 14.0;
         let room = (g.log.y - 16.0) - below;
         // A very heavily geared monster leaves no gap; drop the portrait
@@ -4722,11 +4793,20 @@ fn render_battle(
     if log_expanded {
         render_log_overlay(pb, log, log_scroll);
     } else {
-        // Hovering a cooldown row explains what that item is worth.
-        for (items, top, profiles, offset) in [
-            (&log.player.items, g.player_board_y, &pb.player_profiles, 0usize),
-            (&log.enemy().items, g.enemy_board_y, &pb.enemy_profiles, pb.enemy_attack_count),
-        ] {
+        // Hovering a cooldown row explains what that item is worth. Same
+        // columns the bars were drawn in, so the hover lands where you look.
+        let mut hoverable: Vec<(&Vec<RunningItem>, f32, &Vec<ItemProfile>, usize)> =
+            vec![(&log.player.items, g.player_board_y, &pb.player_profiles, 0usize)];
+        {
+            let n = pb.foes.len().max(1);
+            let room = (LOGICAL_H - g.enemy_board_y - 150.0).max(60.0);
+            for (i, foe) in pb.foes.iter().enumerate() {
+                let items = log.enemies.get(i).map(|e| &e.items).unwrap_or(&log.player.items);
+                let top = g.enemy_board_y + i as f32 * (room / n as f32);
+                hoverable.push((items, top, &foe.profiles, foe.attack_count));
+            }
+        }
+        for (items, top, profiles, offset) in hoverable {
             let order = cooldown_order(items);
             let (pitch, shown) = cooldown_fit(order.len(), cooldown_room(&g, top));
             for (row, &i) in order.iter().take(shown).enumerate() {
@@ -8058,7 +8138,19 @@ async fn main() {
             run.rung = n;
         }
     }
-    if std::env::var("GEARMASTER_FIGHT").is_ok() {
+    // GEARMASTER_BRAWL=<n> starts the fight against n creatures at once, so
+    // the two-board layout can be looked at before an event exists that sets
+    // one up.
+    if let Some(n) = std::env::var("GEARMASTER_BRAWL").ok().and_then(|v| v.parse::<usize>().ok()) {
+        let here = run.rung.min(LADDER.len() - 1);
+        let specs: Vec<_> =
+            (0..n.max(1)).map(|k| LADDER[(here + k * 3) % LADDER.len()]).collect();
+        pb = Some({
+            let profiles = run.combat_items();
+            Playback::new(run.fight_party(&specs), &profiles, playback_speed)
+        });
+        settled = false;
+    } else if std::env::var("GEARMASTER_FIGHT").is_ok() {
         pb = Some({
                     let profiles = run.combat_items();
                     Playback::new(run.fight_next(), &profiles, playback_speed)

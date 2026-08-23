@@ -110,7 +110,7 @@ also means the grid stops being a constant, which is its own milestone.
 
 ---
 
-## Multi-enemy fights — partial (engine built, screen pending)
+## Multi-enemy fights — built
 
 The expensive one, and the reason it gets a milestone of its own rather than
 being folded into the casino.
@@ -161,7 +161,7 @@ In dependency order. Each one ends with something playable.
 | 1 | **This document** | everything | done |
 | 2 | **Event triggers and rewards** — `Run::best_fight_ms`, conditional events, `Requirement::Holding`, `Outcome::Give` | 3, 7 | **built** |
 | 3 | **The casino, walk-away branch** — event fires, scene, Gold Chip | — | **built** |
-| 4 | **Multi-enemy fights** — engine party, then the battle screen | 5, 7 | **engine built**, screen pending |
+| 4 | **Multi-enemy fights** — engine party, then the battle screen | 5, 7 | **built** |
 | 5 | **The casino, step-in branch** — 2-at-once, Platinum Chip, loss costs no life | 7 | small once 4 lands |
 | 6 | **Variable slot height** — `SLOT_H` const becomes a per-run figure | 7 | medium |
 | 7 | **The VIP area** — both branches, the five-piece shop, Immense Guilt, Sprocketman's Gratitude | — | medium |
@@ -221,12 +221,23 @@ identical toads came out of a "spread" fight on 240 and 97. Each repetition of
 a swing now aims afresh and takes its own line in the log, which is also more
 honest than folding an echo and its original into one number was.
 
-**Still to do:** `Playback` is built from paired fields — `enemy_hp`,
-`enemy_reg`, `enemy_loadout`, `enemy_reports`, `enemy_profiles`,
-`enemy_schedule`, `enemy_curses`, `enemy_stuns`, `enemy_pools` and the rest,
-73 uses in all. They want to become a `Vec<FoeView>` indexed by `LogEntry::who`.
-`render_mini_board_at` already takes a cell size, because two boards only fit
-across the screen at a smaller one than a duel uses.
+The screen went the same way: `Playback`'s paired `enemy_*` fields became a
+`Vec<FoeView>` indexed by `LogEntry::who`. That indexing is the whole reason
+the log carries a foe index at all — without it both creatures log their
+activations as `Side::Enemy` and nothing can tell their cooldown bars apart.
 
-Nothing can start a brawl in-game until milestone 5 anyway, so the engine
-landing ahead of the screen leaves nothing broken - only unreachable.
+Layout, for whoever adds a three-creature fight later:
+
+- Two board-sets only fit across the screen at a **15px cell** against the
+  duel's 32, so `render_mini_board_at` takes the cell size and the gap.
+- Each foe's health bar hangs off **its own** board, not off a fixed
+  `enemy_bar_y` — a brawl's boards are 120px tall rather than 256, and the
+  captions the board prints under itself need more clearance at a smaller
+  cell, not less.
+- The cooldown column becomes one section per creature, headed by its name:
+  "THEIR COOLDOWNS" is no answer when there are two of them.
+- The portrait is a duel thing. In a brawl the space under the cooldowns is
+  the second creature's column.
+
+`GEARMASTER_BRAWL=<n>` starts a fight against n creatures, which is the only
+way to see one until milestone 5.
