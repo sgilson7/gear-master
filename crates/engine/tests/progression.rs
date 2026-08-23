@@ -164,6 +164,56 @@ fn selling_refunds_half_and_strips_the_piece_off() {
 /// to lock items is that a 6x8 grid turns out to hold three of them - it just
 /// could not find the arrangement while every item was free to steal from its
 /// neighbours.
+/// Beating a named creature takes its gear off it. That is the only way any
+/// of it is ever obtainable: every trophy is barred from the shop and is off
+/// the scale for its slot, which is the point of beating the thing.
+#[test]
+fn a_named_kill_leaves_its_gear_behind() {
+    use gearmaster_engine::combat::Rank;
+    use gearmaster_engine::piece::is_boss_only;
+
+    // A build strong enough to take a rung-9 mini-boss, put in front of one.
+    let mut run = Run::with_all_pieces();
+    run.apply_preset();
+    run.skip_to(8);
+    assert_eq!(run.monster().name, "Whisperling");
+    assert_eq!(run.monster().rank, Rank::Mini);
+
+    let before = run.inventory().len();
+    let outcome = run.fight_next().outcome;
+    run.settle();
+    let s = run.last_settlement.as_ref().expect("a fight settles");
+    if outcome != Outcome::Victory {
+        // The point of this test is the settlement, not whether the preset can
+        // win; if it lost, nothing should have dropped.
+        assert!(s.dropped.is_none(), "a fight that was not won drops nothing");
+        return;
+    }
+    let name = s.dropped.expect("a mini-boss should leave something");
+    assert!(is_boss_only(name), "{} should be gear no shop sells", name);
+    assert_eq!(run.inventory().len(), before + 1, "and it should be in the tray");
+}
+
+/// An ordinary rung leaves nothing behind, however many times you clear it.
+#[test]
+fn an_ordinary_rung_drops_nothing() {
+    use gearmaster_engine::combat::Rank;
+    for m in LADDER.iter().filter(|m| m.rank == Rank::Ordinary) {
+        assert!(m.drops.is_empty(), "{} is not named but drops {:?}", m.name, m.drops);
+    }
+    for m in LADDER.iter().filter(|m| m.rank != Rank::Ordinary) {
+        assert!(!m.drops.is_empty(), "{} is named and drops nothing", m.name);
+        for d in m.drops {
+            assert!(
+                gearmaster_engine::piece::is_boss_only(d),
+                "{} drops {}, which a shop would sell you anyway",
+                m.name,
+                d
+            );
+        }
+    }
+}
+
 #[test]
 fn the_named_fights_pack_their_boards() {
     use gearmaster_engine::combat::Rank;
@@ -775,13 +825,19 @@ fn francis_is_wearing_the_money_jacket() {
 /// no longer boss gear.
 #[test]
 fn boss_gear_belongs_to_exactly_one_monster() {
+    // Worn or dropped - either way, exactly one creature. The trophies are
+    // dropped rather than worn on purpose: each named board is packed to a
+    // rating aimed at its rung, and hanging an off-the-scale piece on one
+    // would undo that tuning to say something the drop already says.
     for name in gearmaster_engine::piece::BOSS_ONLY {
-        let wearers: Vec<&str> = LADDER
+        let owners: Vec<&str> = LADDER
             .iter()
-            .filter(|m| m.gear.iter().any(|(n, ..)| n == name))
+            .filter(|m| {
+                m.gear.iter().any(|(n, ..)| n == name) || m.drops.contains(name)
+            })
             .map(|m| m.name)
             .collect();
-        assert_eq!(wearers.len(), 1, "{} is worn by {:?}", name, wearers);
+        assert_eq!(owners.len(), 1, "{} belongs to {:?}", name, owners);
     }
 }
 

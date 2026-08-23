@@ -7378,6 +7378,186 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 0,
         price: 24,
     },
+
+    // ---- trophies -----------------------------------------------------------
+    //
+    // One per named fight, dropped by the thing that was wearing it. All of it
+    // is BOSS_ONLY: off the scale for its slot on purpose, kept out of the
+    // shop, out of the slot ceiling, and out of the absurdity check.
+    // It asks. You answer whether you meant to or not.
+    PieceDef {
+        name: "Asker's Monocle",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0,0),(1,0)],
+        base: Stats { mind: 26, mind_resist: 45, mana: 7, magic_pierce: 30, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::MindDamage { amount: 18, target: Target::Enemy })],
+        quest: None,
+        power_bonus: 0,
+        price: 999,
+    },
+    PieceDef {
+        name: "Toolwright's Grip",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Handle,
+        cells: &[(0,0),(0,1),(0,2),(0,3)],
+        base: Stats { strength: 30, physical_pierce: 30, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 1500,
+        speed_bonus: 40,
+        triggers: &[Trigger::OnActivate(Action::ReduceCooldown(400))],
+        quest: None,
+        power_bonus: 0,
+        price: 999,
+    },
+    // Everything you build is, it turns out, a licensing matter.
+    PieceDef {
+        name: "Kaklon's Patent",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0,0),(0,1)],
+        base: Stats { power: 90, mana: 5, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 25,
+        triggers: &[Trigger::OnAdjacentActivate(Action::GainEmpowerment(1))],
+        quest: None,
+        power_bonus: 0,
+        price: 999,
+    },
+    PieceDef {
+        name: "Eighth Ray Crown",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0,0),(1,0),(2,0),(0,1),(2,1),(0,2),(2,2)],
+        base: Stats { health: 900, faith: 6, magic_resist: 34, armor: 40, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3600,
+        speed_bonus: 0,
+        triggers: &[Trigger::Consume {
+            what: Resource::Faith,
+            each: 5,
+            per: Action::GainShield(1),
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 999,
+    },
+    // Summoned by a claim nobody checked.
+    PieceDef {
+        name: "Assassin's Hemline",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        cells: &[(0,0),(1,0),(2,0),(3,0)],
+        base: Stats { physical_pierce: 45, magic_pierce: 45, strength: 22, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 60,
+        triggers: &[Trigger::OnActivate(Action::Curse { kind: CurseKind::Misfire, target: Target::Enemy })],
+        quest: None,
+        power_bonus: 0,
+        price: 999,
+    },
+    // The oldest goof there is, and it has never once failed.
+    PieceDef {
+        name: "Handman's Peel",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Damaging,
+        cells: &[(0,0),(1,0),(1,1)],
+        base: Stats { magic_damage: 88, magic_pierce: 55, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Curse { kind: CurseKind::Stun, target: Target::Enemy })],
+        quest: None,
+        power_bonus: 0,
+        price: 999,
+    },
+    // Not the jacket. The offcuts, which are still worth more than you are.
+    PieceDef {
+        name: "Gilded Offcuts",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Material,
+        cells: &[(0,0),(1,0),(0,1),(1,1),(0,2),(1,2)],
+        base: Stats { health: 1200, armor: 60, physical_resist: 34, magic_resist: 34, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::GainArmor(48))],
+        quest: None,
+        power_bonus: 0,
+        price: 999,
+    },
+    // They do not fit anything. You keep them anyway.
+    PieceDef {
+        name: "Henpeck's Cell Keys",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0,0)],
+        base: Stats { strength: 44, mana: 10, curse_resist: 55, physical_pierce: 35, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::SpendMana {
+            cost: 4,
+            on_success: Action::Curse { kind: CurseKind::Stun, target: Target::Enemy },
+            on_failure: Action::GainMana(3),
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 999,
+    },
+    // He was looking for something. He is still looking.
+    PieceDef {
+        name: "The Seeker's Tears",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Orb,
+        cells: &[(0,0),(1,0),(0,1),(1,1)],
+        base: Stats { mana: 14, magic_damage: 38, magic_pierce: 45, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 2000,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnOtherCast(Action::Damage {
+            amount: 40,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 999,
+    },
+    // He is adrift on it between the planes, and cannot ascend while Francis lives.
+    PieceDef {
+        name: "Tetrahedron Shard",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Alignment,
+        cells: &[(0,0),(1,0),(0,1),(1,1)],
+        base: Stats { mana: 7, rage: 4, faith: 4, nature: 4, mind: 10, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::PerAdjacentEmpty(&Trigger::OnActivate(Action::Damage {
+            amount: 14,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        }))],
+        quest: None,
+        power_bonus: 0,
+        price: 999,
+    },
 ];
 
 /// Gear that exists only on a boss.
@@ -7386,7 +7566,7 @@ pub static CATALOG: &[PieceDef] = &[
 /// against. One absurd chestpiece in the ceiling would quietly deflate the
 /// rating - and so the rarity mark and the price - of every other chestpiece
 /// in the game.
-pub const BOSS_ONLY: &[&str] = &["The Money Jacket"];
+pub const BOSS_ONLY: &[&str] = &["The Money Jacket", "Asker's Monocle", "Toolwright's Grip", "Kaklon's Patent", "Eighth Ray Crown", "Assassin's Hemline", "Handman's Peel", "Gilded Offcuts", "Henpeck's Cell Keys", "The Seeker's Tears", "Tetrahedron Shard"];
 
 /// Is this a piece a player can never own?
 pub fn is_boss_only(name: &str) -> bool {

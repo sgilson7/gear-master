@@ -287,7 +287,14 @@ fn a_paid_cast_lands_about_twice_what_an_unpaid_one_does() {
 fn an_orb_out_damages_a_book_for_the_room_it_costs() {
     use gearmaster_engine::piece::{PieceKind, CATALOG};
     let power = |kind: PieceKind| -> Vec<i32> {
-        CATALOG.iter().filter(|d| d.kind == kind).map(|d| d.power_bonus).collect()
+        CATALOG
+            .iter()
+            .filter(|d| d.kind == kind)
+            // Boss trophies are off the scale on purpose and are priced by
+            // nothing; they carry their weight in stats, not in multipliers.
+            .filter(|d| !gearmaster_engine::piece::is_boss_only(d.name))
+            .map(|d| d.power_bonus)
+            .collect()
     };
     for kind in [PieceKind::Orb, PieceKind::Alignment] {
         let p = power(kind);

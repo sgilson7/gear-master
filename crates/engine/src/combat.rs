@@ -789,7 +789,7 @@ pub const LADDER: &[MonsterSpec] = &[
         bounty: 26,
     sprite: MonsterSprite::Wraith,
         rank: Rank::Mini,
-        drops: &[],
+        drops: &["Asker's Monocle"],
         items: &[3, 3, 2, 4, 3, 2, 2, 2, 4, 4],
     },
     MonsterSpec {
@@ -1001,7 +1001,7 @@ pub const LADDER: &[MonsterSpec] = &[
         bounty: 89,
     sprite: MonsterSprite::King,
         rank: Rank::Boss,
-        drops: &[],
+        drops: &["Henpeck's Cell Keys"],
         items: &[3, 3, 2, 2, 4, 2, 4, 4, 4, 2, 2, 2, 3, 4, 4],
     },
     // The buyer Henpeck names as he goes down. The player has been buying
@@ -1183,7 +1183,7 @@ pub const LADDER: &[MonsterSpec] = &[
         bounty: 125,
         sprite: MonsterSprite::Cantor,
         rank: Rank::Mini,
-        drops: &[],
+        drops: &["Toolwright's Grip"],
         items: &[2, 3, 2, 2, 4, 4, 2, 3, 4, 2],
     },
     MonsterSpec {
@@ -1312,7 +1312,7 @@ pub const LADDER: &[MonsterSpec] = &[
         bounty: 152,
         sprite: MonsterSprite::Gearwright,
         rank: Rank::Mini,
-        drops: &[],
+        drops: &["Kaklon's Patent"],
         items: &[4, 3, 3, 3, 4, 4, 3, 3, 5, 5],
     },
     // ---- past the Gearwright ----
@@ -1370,7 +1370,7 @@ pub const LADDER: &[MonsterSpec] = &[
         bounty: 161,
         sprite: MonsterSprite::Crown,
         rank: Rank::Mini,
-        drops: &[],
+        drops: &["Eighth Ray Crown"],
         items: &[3, 4, 2, 3, 4, 3, 3, 3, 4, 4],
     },
     MonsterSpec {
@@ -1651,7 +1651,7 @@ pub const LADDER: &[MonsterSpec] = &[
         bounty: 224,
         sprite: MonsterSprite::Weeping,
         rank: Rank::Boss,
-        drops: &[],
+        drops: &["The Seeker's Tears"],
         items: &[3, 2, 3, 3, 2, 3, 4, 3, 2, 2, 2, 2, 4, 4, 3],
     },
     MonsterSpec {
@@ -1963,7 +1963,7 @@ pub const LADDER: &[MonsterSpec] = &[
         bounty: 306,
         sprite: MonsterSprite::Gallows,
         rank: Rank::Mini,
-        drops: &[],
+        drops: &["Assassin's Hemline"],
         items: &[3, 2, 3, 2, 4, 4, 2, 3, 3, 3],
     },
     MonsterSpec {
@@ -2126,7 +2126,7 @@ pub const LADDER: &[MonsterSpec] = &[
         bounty: 350,
         sprite: MonsterSprite::Verdigris,
         rank: Rank::Mini,
-        drops: &[],
+        drops: &["Handman's Peel"],
         items: &[3, 3, 2, 3, 4, 4, 2, 3, 2, 3],
     },
     MonsterSpec {
@@ -2313,7 +2313,7 @@ pub const LADDER: &[MonsterSpec] = &[
         bounty: 394,
         sprite: MonsterSprite::Ashes,
         rank: Rank::Boss,
-        drops: &[],
+        drops: &["Tetrahedron Shard"],
         items: &[3, 4, 4, 4, 3, 3, 4, 3, 4, 3, 3, 3, 4, 3, 3],
     },
     MonsterSpec {
@@ -2406,7 +2406,7 @@ pub const LADDER: &[MonsterSpec] = &[
         bounty: 416,
         sprite: MonsterSprite::Gilt,
         rank: Rank::Mini,
-        drops: &[],
+        drops: &["Gilded Offcuts"],
         items: &[3, 3, 3, 4, 4, 4, 3, 3, 4, 4],
     },
     // The top of the ladder. Everything above the Gearwright wears the best

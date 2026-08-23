@@ -6975,6 +6975,14 @@ async fn main() {
                     _ => format!("{} still stands.", run.monster().name),
                 };
                 if let Some(st) = run.last_settlement.as_ref() {
+                    // Taking something off a named creature is the best news
+                    // there is: it is gear no shop will ever stock.
+                    if let Some(drop) = st.dropped {
+                        message = format!(
+                            "You take the {} off it. Nothing sells one.",
+                            words::piece(drop)
+                        );
+                    }
                     // A transformation is the more interesting news, so it
                     // takes the line.
                     if let Some(q) = st.quests_done.first() {

@@ -103,6 +103,10 @@ pub struct Settlement {
     pub lives_left: Option<u32>,
     /// The Rogue run ran out of lives and has been wiped back to the start.
     pub run_ended: bool,
+    /// A trophy taken off a named creature - gear no shop will ever sell.
+    /// `None` on an ordinary rung, on anything but a victory, or when there
+    /// was no room in the tray to put it.
+    pub dropped: Option<&'static str>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -410,6 +414,7 @@ impl Run {
             quests_done: self.award_quests(),
             lives_left: None,
             run_ended: false,
+            dropped: None,
         };
 
         match outcome {
@@ -422,6 +427,24 @@ impl Run {
                     if let Some(scene) = self.theme.cutscene(beaten) {
                         self.seen_scenes.push(beaten);
                         self.pending_scene = Some(scene);
+                    }
+                }
+                // A named creature leaves something behind. It is the only
+                // way any of this gear is ever obtainable: it is barred from
+                // the shop, and it is off the scale for its slot on purpose.
+                //
+                // No room in the tray means no drop, and it says so rather
+                // than silently binning it - twelve is the cap, and a player
+                // who wants the trophy can make space and beat the thing
+                // again.
+                let spec = &LADDER[self.rung.min(LADDER.len() - 1)];
+                if !spec.drops.is_empty() && self.inventory().len() < INVENTORY_CAP {
+                    let pick = self.rng.below(spec.drops.len());
+                    let name = spec.drops[pick];
+                    if let Some(def) = crate::piece::CATALOG.iter().position(|d| d.name == name) {
+                        let id = self.registry.alloc(def);
+                        self.owned.push(id);
+                        settlement.dropped = Some(name);
                     }
                 }
                 self.rung += 1;
