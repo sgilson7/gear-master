@@ -4304,7 +4304,7 @@ fn render_battle(
 
     // The full transcript is an overlay, so it never pushes the boards around.
     if log_expanded {
-        render_log_overlay(pb, log);
+        render_log_overlay(pb, log, log_scroll);
     } else {
         // Hovering a cooldown row explains what that item is worth.
         for (items, top, profiles, offset) in [
@@ -4827,7 +4827,7 @@ fn draw_series(r: Rect, s: &Series, duration_ms: u32) {
 
 /// The full transcript: what each side's stats did over the fight, and the
 /// blow-by-blow underneath, grouped by whatever set each exchange off.
-fn render_log_overlay(pb: &Playback, log: &CombatLog) {
+fn render_log_overlay(pb: &Playback, log: &CombatLog, scroll: usize) {
     let pad = 60.0;
     let r = Rect::new(pad, pad, LOGICAL_W - 2.0 * pad, LOGICAL_H - 2.0 * pad - 40.0);
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 226));
@@ -4869,8 +4869,12 @@ fn render_log_overlay(pb: &Playback, log: &CombatLog) {
 
     let lh = line_h(13.0);
     let visible = (((r.y + r.h - list_top - 12.0) / lh) as usize).max(1);
-    let start = log.entries.len().saturating_sub(visible);
-    for (i, e) in log.entries[start..].iter().enumerate() {
+    // The list is pinned to the newest line; scrolling walks that anchor back
+    // up, and cannot walk past the top.
+    let newest = log.entries.len().saturating_sub(visible);
+    let start = newest.saturating_sub(scroll.min(newest));
+    let end = (start + visible).min(log.entries.len());
+    for (i, e) in log.entries[start..end].iter().enumerate() {
         // Who did it, and whether it is the thing that fired or a consequence
         // of it - an activation names its item and sits proud of the rest.
         let (indent, colour) = match &e.event {
@@ -4900,6 +4904,18 @@ fn render_log_overlay(pb: &Playback, log: &CombatLog) {
             13.0,
             colour,
         );
+    }
+    // Say where in the log you are, so a wheel that does nothing reads as
+    // "already at the end" rather than "broken".
+    if log.entries.len() > visible {
+        let note = format!(
+            "{}-{} of {}   wheel or up/down to scroll{}",
+            start + 1,
+            end,
+            log.entries.len(),
+            if scroll > 0 { "   END to jump to the end" } else { "" },
+        );
+        ui_text(&note, r.x + r.w - 16.0 - text_width(&note, 12.0), r.y + 28.0, 12.0, col_dim());
     }
     let _ = pb;
 }
@@ -7448,7 +7464,11 @@ async fn main() {
         .as_deref()
         .and_then(gearmaster_engine::share::import);
     // Lines back from the newest the battle log is holding at. Zero follows.
-    let mut log_scroll: usize = 0;
+    // GEARMASTER_LOG_SCROLL=<n> starts the log scrolled back, so a screenshot
+    // can show a scrolled state - there is no way to send a wheel event to a
+    // headless capture.
+    let mut log_scroll: usize =
+        std::env::var("GEARMASTER_LOG_SCROLL").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
     // Kept between fights, and settable before one starts.
     let mut playback_speed = DEFAULT_SPEED;
     let mut glossary_open = std::env::var("GEARMASTER_GLOSSARY").is_ok();
@@ -7778,14 +7798,39 @@ async fn main() {
         let mut hover = Hover::default();
         if run.phase == Phase::Fighting {
             if let Some(p) = pb.as_ref() {
-                // The wheel scrolls the log back, but only while the pointer
-                // is over it - otherwise it fights the shop and the tray.
+                // The wheel scrolls the log back. With the full log open that
+                // is the only thing on screen, so the whole window scrolls;
+                // with just the inline strip, only the strip does, or the
+                // wheel would fight the shop and the tray behind it.
+                //
+                // The keys are here because a trackpad's wheel delta arrives
+                // as a fraction on some machines and a scroll that needs a
+                // flick of exactly the right size is a scroll that does not
+                // work.
                 {
                     let g = battle_geom(p.done);
-                    let over = g.log.contains(Vec2::new(mx, my));
+                    let over = log_expanded || g.log.contains(Vec2::new(mx, my));
                     let (_, wheel) = mouse_wheel();
+                    let mut step = 0isize;
                     if over && wheel != 0.0 {
-                        let step = if wheel > 0.0 { 3isize } else { -3 };
+                        step += if wheel > 0.0 { 3 } else { -3 };
+                    }
+                    if is_key_pressed(KeyCode::Up) {
+                        step += 3;
+                    }
+                    if is_key_pressed(KeyCode::Down) {
+                        step -= 3;
+                    }
+                    if is_key_pressed(KeyCode::PageUp) {
+                        step += 12;
+                    }
+                    if is_key_pressed(KeyCode::PageDown) {
+                        step -= 12;
+                    }
+                    if is_key_pressed(KeyCode::End) {
+                        log_scroll = 0;
+                    }
+                    if step != 0 {
                         log_scroll = (log_scroll as isize + step).max(0) as usize;
                     }
                 }

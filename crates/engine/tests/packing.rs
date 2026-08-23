@@ -6,7 +6,7 @@
 //! `cargo test -p gearmaster-engine --test packing -- --ignored --nocapture`
 //! prints gear tuples ready to paste into `LADDER`.
 
-use gearmaster_engine::loadout::Loadout;
+use gearmaster_engine::loadout::{lock_assembled_in, Loadout};
 use gearmaster_engine::piece::{PieceId, PieceKind, PieceRegistry, SlotKind, Trigger, CATALOG};
 use gearmaster_engine::slot::{SLOT_H, SLOT_W};
 
@@ -819,22 +819,27 @@ impl Profile {
     }
 }
 
-/// Fill a grid until nothing else will go in.
+/// Fill a grid until nothing else will go in, **locking as it goes**.
 ///
 /// The other profiles hand the packer a fixed shopping list and take whatever
 /// layout it finds, which caps a slot at one or two items however much room is
 /// left over. A player does not build that way - they keep dropping things in
-/// until the grid is full. This adds items one at a time, keeping whatever
-/// still lets every item in the slot assemble, and stops when nothing fits.
-fn pack_dense(slot: SlotKind, rank: impl Fn(&PieceDefRef) -> i32) -> Vec<(&'static str, u8, u8, u8)> {
+/// until the grid is full.
+///
+/// Locking is what makes the difference between a tidy grid and a full one. An
+/// unlocked item re-derives its recipe from scratch every time a neighbour
+/// lands, because pieces join their *nearest core*; so a new item dropped
+/// alongside an old one can steal its pieces and break both. Without locks the
+/// only safe placements are ones with a moat around them, and a 48-cell grid
+/// runs out of moats after two or three items. Locking an item freezes its
+/// membership, so the next item may sit flush against it - which is how the
+/// player's friends fit six items in a slot, and now how these profiles do.
+fn pack_dense(
+    slot: SlotKind,
+    rank: impl Fn(&PieceDefRef) -> i32,
+) -> Vec<Vec<(&'static str, u8, u8, u8)>> {
     let mut ranked: Vec<(i32, Vec<&'static str>)> = candidates(slot)
         .into_iter()
-        .filter(|(_, names)| {
-            // A run owns one of each, so a layout wanting two of something
-            // cannot be worn.
-            let mut seen: Vec<&str> = Vec::new();
-            names.iter().all(|n| if seen.contains(n) { false } else { seen.push(n); true })
-        })
         .map(|(r, names)| {
             let cells: i32 = names
                 .iter()
@@ -844,12 +849,34 @@ fn pack_dense(slot: SlotKind, rank: impl Fn(&PieceDefRef) -> i32) -> Vec<(&'stat
             (rank(&PieceDefRef { rating: r, cells, cooldown_ms }), names)
         })
         .collect();
+    // Rank order alone is not a pool you can pack out of. For the plain
+    // `Packer` the top of that list is the biggest, best items, so the first
+    // one lands and nothing else in the pool will fit beside it - the profile
+    // ends up wearing exactly one item per slot and calling it dense. Merge in
+    // the same list ordered by worth *per cell* so there is small filler to go
+    // in the gaps, and keep the big-first order for what gets tried first.
+    let by_cells = |names: &[&'static str]| -> i32 {
+        names
+            .iter()
+            .map(|n| CATALOG.iter().find(|c| c.name == *n).unwrap().cells.len() as i32)
+            .sum::<i32>()
+            .max(1)
+    };
     ranked.sort_by_key(|(r, _)| std::cmp::Reverse(*r));
-    ranked.truncate(90);
+    let mut pool: Vec<(i32, Vec<&'static str>)> = ranked.iter().take(140).cloned().collect();
+    ranked.sort_by_key(|(r, n)| std::cmp::Reverse(*r * 100 / by_cells(n)));
+    for c in ranked.into_iter().take(140) {
+        if !pool.iter().any(|(_, n)| *n == c.1) {
+            pool.push(c);
+        }
+    }
+    // Big first, then whatever still fits.
+    pool.sort_by_key(|(r, _)| std::cmp::Reverse(*r));
+    let ranked = pool;
 
     let mut reg = PieceRegistry::new();
     let mut loadout = Loadout::new();
-    let mut placed: Vec<(&'static str, u8, u8, u8)> = Vec::new();
+    let mut placed: Vec<Vec<(&'static str, u8, u8, u8)>> = Vec::new();
     let mut used: Vec<&'static str> = Vec::new();
 
     // Keep going until a whole pass adds nothing.
@@ -864,12 +891,24 @@ fn pack_dense(slot: SlotKind, rank: impl Fn(&PieceDefRef) -> i32) -> Vec<(&'stat
                 .iter()
                 .map(|n| reg.alloc(CATALOG.iter().position(|c| c.name == *n).unwrap()))
                 .collect();
-            // `seat` only returns a placement that leaves every item in the
-            // slot assembled, so anything it hands back is keepable.
-            if let Some(spots) = seat(&mut reg, &mut loadout, slot, &ids, 0) {
-                for (i, &(x, y, rot)) in spots.iter().enumerate() {
-                    placed.push((names[i], x, y, rot));
+            // `seat_one_item` only returns true when these pieces landed as one
+            // assembled item, and everything already down is locked, so nothing
+            // it does can break what came before.
+            if seat_one_item(&mut reg, &mut loadout, slot, &ids) {
+                let g = loadout.slot(slot);
+                // One inner vec per item. The boundary cannot be recovered
+                // later: a prefix of a five-piece spell is very often a legal
+                // three-piece spell, so anything that re-derives the split by
+                // watching for "assembled" locks in the wrong place and the
+                // rest of the slot merges into one dead blob.
+                let mut item: Vec<(&'static str, u8, u8, u8)> = Vec::new();
+                for (i, &id) in ids.iter().enumerate() {
+                    let (x, y) = g.anchor_of(id).unwrap();
+                    item.push((names[i], x, y, reg.rotation(id)));
                 }
+                placed.push(item);
+                // Freeze it before looking for the next one.
+                lock_assembled_in(&mut loadout, &reg, slot);
                 used.extend(names.iter().copied());
                 added = true;
                 break 'candidate;
@@ -891,6 +930,7 @@ fn pack_dense(slot: SlotKind, rank: impl Fn(&PieceDefRef) -> i32) -> Vec<(&'stat
 /// one of those. Checking afterwards throws the whole candidate away; checking
 /// here backtracks to a placement further off in the grid that works. Gloves
 /// felt this worst, having the most spare room to be wrong in.
+#[allow(dead_code)]
 fn seat(
     reg: &mut PieceRegistry,
     loadout: &mut Loadout,
@@ -962,7 +1002,11 @@ fn cached_candidates(slot: SlotKind) -> &'static [(i32, Vec<&'static str>)] {
     &all[slot.index()]
 }
 
-fn choose(profile: Profile, slot: SlotKind, seed: u64) -> Option<Vec<(&'static str, u8, u8, u8)>> {
+fn choose(
+    profile: Profile,
+    slot: SlotKind,
+    seed: u64,
+) -> Option<Vec<Vec<(&'static str, u8, u8, u8)>>> {
     use gearmaster_engine::rating::piece_rating;
     match profile {
         Profile::Packer => return Some(pack_dense(slot, |d| d.rating)),
@@ -1009,14 +1053,13 @@ fn choose(profile: Profile, slot: SlotKind, seed: u64) -> Option<Vec<(&'static s
             // The non-assembler turns things. Most of it stops fitting its
             // recipe, which is the point of the profile.
             if matches!(profile, Profile::NonAssembler) {
-                return Some(
-                    p.into_iter()
-                        .enumerate()
-                        .map(|(i, (n, x, y, _))| (n, x, y, ((seed as u8) + i as u8) % 4))
-                        .collect(),
-                );
+                return Some(vec![p
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, (n, x, y, _))| (n, x, y, ((seed as u8) + i as u8) % 4))
+                    .collect()]);
             }
-            return Some(p);
+            return Some(vec![p]);
         }
     }
     None
@@ -1028,7 +1071,7 @@ fn choose(profile: Profile, slot: SlotKind, seed: u64) -> Option<Vec<(&'static s
 const BREAKPOINTS: [usize; 5] = [0, 8, 16, 24, 32];
 
 /// One profile's board, packed once.
-type Layout = Vec<(SlotKind, Vec<(&'static str, u8, u8, u8)>)>;
+type Layout = Vec<(SlotKind, Vec<Vec<(&'static str, u8, u8, u8)>>)>;
 
 /// Packing a 6x8 grid with backtracking is the expensive part, and a profile's
 /// board does not change with the difficulty it is thrown at - only the fights
@@ -1040,40 +1083,97 @@ fn all_layouts(seeds: &[u64]) -> Vec<Vec<Layout>> {
             seeds
                 .iter()
                 .map(|&seed| {
-                    SlotKind::ALL
-                        .iter()
-                        .filter_map(|&slot| {
-                            choose(profile, slot, seed + slot.index() as u64).map(|p| (slot, p))
-                        })
-                        .collect()
+                    let mut out: Layout = Vec::new();
+                    for slot in SlotKind::ALL {
+                        if let Some(items) = choose(profile, slot, seed + slot.index() as u64) {
+                            out.push((slot, items));
+                        }
+                    }
+                    out
                 })
                 .collect()
         })
         .collect()
 }
 
-/// Wear a prepared board and see which breakpoints it can beat.
-fn play_layout(layout: &Layout, difficulty: Difficulty) -> Vec<bool> {
-    use gearmaster_engine::combat::Outcome;
-    use gearmaster_engine::run::{Mode, Run};
+/// Put a prepared board on, **locking each item as it lands**.
+///
+/// This has to mirror `pack_dense` exactly or the numbers are fiction. The
+/// packer seats an item, locks it, and seats the next one flush against it;
+/// replaying that without the locks lets the core-anchoring re-derive from
+/// scratch, and the tightly-packed board collapses into a couple of merged
+/// blobs that assemble into nothing. A ten-piece weapon slot reading as two
+/// items was this, not a balance result.
+///
+/// The layout carries the packer's own item boundaries, so this only has to
+/// place each item's pieces and lock before starting the next one.
+fn wear_layout(layout: &Layout) -> gearmaster_engine::run::Run {
+    use gearmaster_engine::run::Run;
     let mut run = Run::with_all_pieces();
-    run.difficulty = difficulty;
-    run.mode = Mode::Grinder;
-    for (slot, placed) in layout {
-        for (name, x, y, rot) in placed {
-            if let Some(id) = run
-                .owned
-                .iter()
-                .copied()
-                .find(|&i| run.registry.def(i).name == *name && !run.is_equipped(i))
-            {
+    for (slot, items) in layout {
+        for item in items {
+            let mut landed: Vec<PieceId> = Vec::new();
+            for (name, x, y, rot) in item {
+                // Buy another if every copy is already worn. The shop restocks
+                // and nothing stops a player owning two Lonely Platings, so a
+                // recipe that wants a piece twice - or a second slot that wants
+                // what the helmet took - is a real build, not an illegal one.
+                // Dropping those pieces instead is what made a ten-piece weapon
+                // arrive as three.
+                let id = match run
+                    .owned
+                    .iter()
+                    .copied()
+                    .find(|&i| run.registry.def(i).name == *name && !run.is_equipped(i))
+                {
+                    Some(id) => id,
+                    None => {
+                        let Some(d) = CATALOG.iter().position(|c| c.name == *name) else {
+                            continue;
+                        };
+                        let id = run.registry.alloc(d);
+                        run.owned.push(id);
+                        id
+                    }
+                };
                 run.registry.set_rotation(id, *rot);
                 // A turned piece may no longer fit. That is the non-assembler
                 // profile working, not a failure.
-                let _ = run.equip(id, *slot, *x, *y);
+                match run.equip(id, *slot, *x, *y) {
+                    Ok(_) => landed.push(id),
+                    Err(e) => {
+                        if std::env::var("WEAR_TRACE").is_ok() {
+                            println!(
+                                "      {:?} {:<22} ({},{}) rot {} REFUSED {:?}",
+                                slot, name, x, y, rot, e
+                            );
+                        }
+                    }
+                }
+            }
+            // Lock it if it came out whole, so the next item can sit flush
+            // against it instead of stealing its pieces.
+            let whole = landed.first().and_then(|&p| {
+                run.report(*slot)
+                    .items
+                    .into_iter()
+                    .find(|it| it.assembled && it.pieces.contains(&p))
+            });
+            if let Some(it) = whole {
+                run.toggle_lock_item(it.pieces[0]);
             }
         }
     }
+    run
+}
+
+/// Wear a prepared board and see which breakpoints it can beat.
+fn play_layout(layout: &Layout, difficulty: Difficulty) -> Vec<bool> {
+    use gearmaster_engine::combat::Outcome;
+    use gearmaster_engine::run::Mode;
+    let mut run = wear_layout(layout);
+    run.difficulty = difficulty;
+    run.mode = Mode::Grinder;
     BREAKPOINTS
         .iter()
         .map(|&rung| {
@@ -1088,21 +1188,7 @@ fn play_layout(layout: &Layout, difficulty: Difficulty) -> Vec<bool> {
 /// What a prepared board is worth, so the report can say *why* a profile
 /// stalls rather than only that it did.
 fn layout_summary(layout: &Layout) -> (usize, i32) {
-    use gearmaster_engine::run::Run;
-    let mut run = Run::with_all_pieces();
-    for (slot, placed) in layout {
-        for (name, x, y, rot) in placed {
-            if let Some(id) = run
-                .owned
-                .iter()
-                .copied()
-                .find(|&i| run.registry.def(i).name == *name && !run.is_equipped(i))
-            {
-                run.registry.set_rotation(id, *rot);
-                let _ = run.equip(id, *slot, *x, *y);
-            }
-        }
-    }
+    let run = wear_layout(layout);
     let items = run.combat_items();
     let stats = run.player_stats();
     let dps: i64 = items.iter().map(|i| i.dps_milli(stats.strength)).sum();
@@ -1158,6 +1244,124 @@ fn balance_report() {
     }
 }
 
+/// What each profile actually manages to wear, slot by slot.
+///
+/// The headline number in the balance reports is one integer, which is not
+/// enough to tell "this build is weak" from "this build is one item". Print
+/// the boards themselves so an under-packed profile is visible as a packing
+/// bug rather than read as a balance result.
+#[test]
+#[ignore]
+fn show_profile_packing() {
+    let seeds = [1u64];
+    let layouts = all_layouts(&seeds);
+    println!("\n=== what each profile wears ===");
+    for (pi, &profile) in Profile::ALL.iter().enumerate() {
+        let l = &layouts[pi][0];
+        let (items, dps) = layout_summary(l);
+        println!("\n{}  -  {} items, {} dps", profile.name(), items, dps);
+        let run = wear_layout(l);
+        for (slot, wanted) in l {
+            let cells: usize = wanted
+                .iter()
+                .flatten()
+                .map(|(n, ..)| CATALOG.iter().find(|c| c.name == *n).unwrap().cells.len())
+                .sum();
+            let pieces: usize = wanted.iter().map(|it| it.len()).sum();
+            let rep = run.report(*slot);
+            let built: Vec<String> = rep
+                .items
+                .iter()
+                .map(|it| format!("{}{}", it.pieces.len(), if it.assembled { "p" } else { "X" }))
+                .collect();
+            let on_board: usize = rep.items.iter().map(|it| it.pieces.len()).sum();
+            println!(
+                "  {:<9} {:>2}/{} cells, {:>2} of {:>2} pieces landed, wanted {} items -> [{}]",
+                format!("{:?}", slot),
+                cells,
+                CELLS,
+                on_board,
+                pieces,
+                wanted.len(),
+                built.join(" ")
+            );
+        }
+    }
+    println!();
+}
+
+/// Walk each profile up the whole ladder at 1x and say where it stops.
+///
+/// `balance_report` samples five rungs, which answers "is the curve roughly
+/// right" but not "how far does this build actually get" - the question you
+/// ask when you want to know whether the game ends too early or never ends.
+/// This fights every rung in order and prints the first loss, the last win,
+/// and how many of the 50 fell over.
+#[test]
+#[ignore]
+fn how_far_each_profile_gets() {
+    use gearmaster_engine::combat::{Difficulty, Outcome, LADDER};
+    use gearmaster_engine::run::Mode;
+
+    let seeds = [1u64, 29, 77];
+    let layouts = all_layouts(&seeds);
+
+    println!("\n=== how far each profile gets at 1x (medium) ===");
+    println!("every rung fought fresh, in order. 'first loss' is the wall;");
+    println!("'last win' past it means the wall is a spike, not a ceiling.\n");
+    print!(
+        "{:<18}{:>5}{:>7}{:>7}{:>11}{:>10}{:>8}",
+        "profile", "seed", "items", "dps", "first loss", "last win", "won"
+    );
+    println!("   losses up to the wall");
+
+    for (pi, &profile) in Profile::ALL.iter().enumerate() {
+        for (si, &seed) in seeds.iter().enumerate() {
+            let l = &layouts[pi][si];
+            let (items, dps) = layout_summary(l);
+
+            let mut run = wear_layout(l);
+            run.difficulty = Difficulty::Medium;
+            run.mode = Mode::Grinder;
+
+            let mut lost: Vec<usize> = Vec::new();
+            let mut last_win: Option<usize> = None;
+            for rung in 0..LADDER.len() {
+                run.rung = rung;
+                let won = run.fight_next().outcome == Outcome::Victory;
+                run.back_to_loadout();
+                if won {
+                    last_win = Some(rung);
+                } else {
+                    lost.push(rung);
+                }
+            }
+            let first_loss =
+                lost.first().map(|r| format!("r{}", r + 1)).unwrap_or_else(|| "never".into());
+            let last_win =
+                last_win.map(|r| format!("r{}", r + 1)).unwrap_or_else(|| "none".into());
+            let names: Vec<String> = lost
+                .iter()
+                .take(8)
+                .map(|&r| format!("r{} {}", r + 1, LADDER[r].name))
+                .collect();
+            println!(
+                "{:<18}{:>5}{:>7}{:>7}{:>11}{:>10}{:>8}   {}{}",
+                profile.name(),
+                seed,
+                items,
+                dps,
+                first_loss,
+                last_win,
+                LADDER.len() - lost.len(),
+                names.join(", "),
+                if lost.len() > 8 { ", ..." } else { "" },
+            );
+        }
+    }
+    println!();
+}
+
 #[test]
 #[ignore]
 fn show_gear_by_difficulty() {
@@ -1211,13 +1415,14 @@ fn how_dense_is_dense() {
         let by_worth = pack_dense(slot, |d| d.rating);
         let by_cell = pack_dense(slot, |d| d.rating * 100 / d.cells.max(1));
         let by_sec = pack_dense(slot, |d| d.rating * 1000 / d.cooldown_ms.max(1));
-        let cells = |p: &[(&'static str, u8, u8, u8)]| -> usize {
+        let cells = |p: &[Vec<(&'static str, u8, u8, u8)>]| -> usize {
             p.iter()
+                .flatten()
                 .map(|(n, ..)| CATALOG.iter().find(|c| c.name == *n).unwrap().cells.len())
                 .sum()
         };
-        let names = |p: &[(&'static str, u8, u8, u8)]| -> Vec<&str> {
-            let mut v: Vec<&str> = p.iter().map(|(n, ..)| *n).collect();
+        let names = |p: &[Vec<(&'static str, u8, u8, u8)>]| -> Vec<&str> {
+            let mut v: Vec<&str> = p.iter().flatten().map(|(n, ..)| *n).collect();
             v.sort();
             v
         };
