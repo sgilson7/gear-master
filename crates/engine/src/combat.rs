@@ -3158,7 +3158,7 @@ pub fn simulate_with_class(
     profiles: &[ItemProfile],
     spec: &MonsterSpec,
     difficulty: Difficulty,
-    classes: &[&'static crate::class::ClassDef],
+    classes: &[crate::class::ClassDef],
 ) -> CombatLog {
     let mut start_player = Combatant::player(player_stats, profiles);
     // Every class you hold applies at once. The fountains hand out different

@@ -4750,6 +4750,101 @@ const GLOSSARY: &[(&str, &str)] = &[
 /// What the fountain will hand over, as cards you choose between.
 ///
 /// Returns the class chosen, if one was.
+/// The third fountain: it takes a title you already hold and doubles it.
+///
+/// Deliberately not the same screen as the other two. Those hand over
+/// something new and the question is which; this one asks which of the things
+/// you already are you want to be twice as much of, which is a different
+/// question and should not look like the same one.
+fn render_doubling_fountain(
+    run: &Run,
+    mx: f32,
+    my: f32,
+) -> Option<&'static gearmaster_engine::class::ClassDef> {
+    let offer = run.doubling_offer();
+    let pad = 70.0;
+    let h = 470.0;
+    let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, LOGICAL_W - 2.0 * pad, h);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(20, 16, 30, 252));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
+    ui_text(
+        words::word("deep-fountain", "THE DEEP FOUNTAIN"),
+        r.x + 28.0,
+        r.y + 42.0,
+        24.0,
+        col_gold(),
+    );
+    ui_text(
+        words::word(
+            "deep-fountain-blurb",
+            "Nothing new down here. It only knows how to give you more of what you already are.",
+        ),
+        r.x + 28.0,
+        r.y + 68.0,
+        13.0,
+        col_dim(),
+    );
+
+    let n = offer.len().max(1);
+    let gap = 18.0;
+    let cw = ((r.w - 56.0 - (n - 1) as f32 * gap) / n as f32).min(460.0);
+    let top = r.y + 100.0;
+    let ch = r.h - 100.0 - 40.0;
+    let mut chosen = None;
+
+    for (i, c) in offer.iter().enumerate() {
+        let cell = Rect::new(r.x + 28.0 + i as f32 * (cw + gap), top, cw, ch);
+        let hot = cell.contains(Vec2::new(mx, my));
+        draw_rectangle(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { Color::from_rgba(46, 42, 30, 255) } else { Color::from_rgba(26, 26, 38, 255) },
+        );
+        draw_rectangle_lines(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { 2.5 } else { 1.5 },
+            if hot { col_gold() } else { Color::from_rgba(64, 64, 88, 255) },
+        );
+        let mut y = cell.y + 30.0;
+        ui_text("TWICE OVER", cell.x + 14.0, y, 11.0, col_dim());
+        y += 24.0;
+        let title = words::class(c.name);
+        let size = fitting_size(title, cell.w - 28.0, &[22.0, 20.0, 18.0, 16.0]);
+        ui_text(title, cell.x + 14.0, y, size, col_gold());
+        y += 26.0;
+        // Both readings, so the trade is on the card rather than in the
+        // player's head.
+        ui_text("now", cell.x + 14.0, y, 11.0, col_dim());
+        y += 15.0;
+        for l in wrap_px(&words::retell(&c.power.describe()), cell.w - 28.0, 12.0) {
+            ui_text(&l, cell.x + 14.0, y, 12.0, Color::from_rgba(170, 172, 190, 255));
+            y += 15.0;
+        }
+        y += 10.0;
+        ui_text("after", cell.x + 14.0, y, 11.0, col_dim());
+        y += 15.0;
+        if let Some(doubled) = c.power.doubled() {
+            for l in wrap_px(&words::retell(&doubled.describe()), cell.w - 28.0, 12.0) {
+                ui_text(&l, cell.x + 14.0, y, 12.0, col_ok());
+                y += 15.0;
+            }
+        }
+
+        let take = Rect::new(cell.x + 14.0, cell.y + cell.h - 46.0, cell.w - 28.0, 34.0);
+        button(take, words::word("fountain-take", "DRINK"), true, mx, my);
+        if is_mouse_button_pressed(MouseButton::Left) && take.contains(Vec2::new(mx, my)) {
+            chosen = Some(*c);
+        }
+    }
+    chosen
+}
+
 fn render_fountain(run: &Run, mx: f32, my: f32) -> Option<&'static gearmaster_engine::class::ClassDef> {
     let offer = run.fountain_offer();
     // Sized to what is in a card rather than to the viewport: four cards with
@@ -6554,7 +6649,7 @@ fn render_panel(
     {
         hover.class_card = true;
     }
-    let at_fountain = run.at_fountain();
+    let at_fountain = run.at_fountain() || run.at_doubling_fountain();
     if !run.classes.is_empty() {
         ui_text(
             if run.classes.len() > 1 {
@@ -6647,7 +6742,7 @@ fn render_panel(
     let mut y = opp_top;
     let m = run.monster();
     ui_text(
-        if run.at_fountain() {
+        if run.at_fountain() || run.at_doubling_fountain() {
             words::word("beyond-fountain", "BEYOND THE FOUNTAIN")
         } else {
             words::word("opponent", "NEXT OPPONENT")
@@ -6738,7 +6833,7 @@ fn render_panel(
     let r = button_rects(layout.panel_x);
     button(
         r[0],
-        if run.at_fountain() {
+        if run.at_fountain() || run.at_doubling_fountain() {
             words::word("fountain-take-btn", "DRINK FROM THE FOUNTAIN")
         } else {
             words::word("begin-fight", "BEGIN FIGHT")
@@ -7240,10 +7335,22 @@ async fn main() {
 
         // The fountain sits over everything while it is being answered.
         if fountain_open {
-            if let Some(c) = render_fountain(&run, mx, my) {
+            if run.at_doubling_fountain() {
+                if let Some(c) = render_doubling_fountain(&run, mx, my) {
+                    let name = c.name;
+                    if run.double_class(c) {
+                        fountain_open = false;
+                        message = format!(
+                            "You drink, and there is twice as much {} in you.",
+                            words::class(name)
+                        );
+                    }
+                }
+            } else if let Some(c) = render_fountain(&run, mx, my) {
                 if let Some(taken) = run.drink_choosing(c) {
                     fountain_open = false;
-                    message = format!("You drink, and it names you {}.", taken.name);
+                    message =
+                        format!("You drink, and it names you {}.", words::class(taken.name));
                 }
             }
             #[cfg(not(target_arch = "wasm32"))]
@@ -7391,7 +7498,7 @@ async fn main() {
                 message = format!("Playback at {}x.", speed_label(playback_speed));
             }
         } else {
-            if clicked_button(0) && run.at_fountain() {
+            if clicked_button(0) && (run.at_fountain() || run.at_doubling_fountain()) {
                 // Not a fight, and not automatic: the fountain offers, and the
                 // choosing is yours.
                 fountain_open = true;

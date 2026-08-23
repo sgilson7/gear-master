@@ -740,7 +740,7 @@ fn slow_time_spreads_a_hit_instead_of_stopping_it() {
 
     let stats = Stats::new(400, 0, 0, 100);
     let plain = simulate_with_class(stats, &[], &LADDER[6], Difficulty::Easy, &[]);
-    let slowed = simulate_with_class(stats, &[], &LADDER[6], Difficulty::Easy, &[&CHRONO]);
+    let slowed = simulate_with_class(stats, &[], &LADDER[6], Difficulty::Easy, &[CHRONO]);
 
     // The swing is still logged either way - slow time changes when it lands,
     // not whether it happened.

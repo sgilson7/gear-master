@@ -761,6 +761,9 @@ pub static TURTLE_DICK: Theme = Theme {
         ("fountain-blurb", "It has read your gear. Drink what it saw in you, or one of the two you came \
                             closest to, or whatever is at the bottom of the bottle."),
         ("fountain-waiting", "THE SODA LABYRINTH IS OPEN"),
+        ("deep-fountain", "THE BOTTOM OF THE LABYRINTH"),
+        ("deep-fountain-blurb", "Nothing new down here. It only knows how to give you more of \
+                                 whatever you already are."),
         ("fountain-take", "DRINK"),
         ("class", "TITLE"),
         ("classes", "TITLES"),

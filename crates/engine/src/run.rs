@@ -169,6 +169,8 @@ pub struct Run {
     /// The classes the fountains have given you, in the order taken. Every
     /// one of their powers applies at once.
     pub classes: Vec<&'static crate::class::ClassDef>,
+    /// The class the third fountain doubled, by name. `None` until then.
+    pub doubled: Option<&'static str>,
     /// A scene the theme owes you for the fight just settled, waiting to be
     /// read. Cleared once it has been.
     pub pending_scene: Option<&'static [&'static str]>,
@@ -250,6 +252,7 @@ impl Run {
             grown_health: 0,
             lives: ROGUE_LIVES,
             last_settlement: None,
+            doubled: None,
             best_rung: 0,
             settled: false,
             rng,
@@ -774,10 +777,60 @@ impl Run {
     /// adds to the first rather than replacing it.
     pub const FOUNTAINS: &'static [usize] = &[7, 14];
 
+    /// The rung the third fountain stands on - in front of the third boss.
+    ///
+    /// A different thing from the other two. Those hand over a class you do
+    /// not hold; this one takes a class you already have and doubles it. By
+    /// the third boss a build has stopped being a collection of ideas and
+    /// become one idea, and this is where the game agrees with that.
+    pub const DOUBLING_FOUNTAIN: usize = 46;
+
     /// Is the tray at its limit? Loose pieces only - what you are wearing does
     /// not count against it.
     pub fn tray_full(&self) -> bool {
         self.inventory().len() >= INVENTORY_CAP
+    }
+
+    /// Is the third fountain standing here, and still owed?
+    pub fn at_doubling_fountain(&self) -> bool {
+        self.rung == Self::DOUBLING_FOUNTAIN
+            && self.doubled.is_none()
+            && !self.doubling_offer().is_empty()
+    }
+
+    /// Which of the classes you hold this fountain could double.
+    ///
+    /// Not all of them: a power that is a switch rather than a number has no
+    /// second helping, and the fountain does not offer what it cannot give.
+    pub fn doubling_offer(&self) -> Vec<&'static crate::class::ClassDef> {
+        self.classes.iter().copied().filter(|c| c.power.doubled().is_some()).collect()
+    }
+
+    /// Drink from it. Refuses anything it is not offering.
+    pub fn double_class(&mut self, choice: &'static crate::class::ClassDef) -> bool {
+        if self.doubled.is_some() || !self.doubling_offer().iter().any(|c| c.name == choice.name) {
+            return false;
+        }
+        self.doubled = Some(choice.name);
+        self.shop.restock(&mut self.rng);
+        true
+    }
+
+    /// Every class you hold, with the doubled one already doubled - what a
+    /// fight actually runs on.
+    pub fn effective_classes(&self) -> Vec<crate::class::ClassDef> {
+        self.classes
+            .iter()
+            .map(|c| {
+                let mut c = **c;
+                if self.doubled == Some(c.name) {
+                    if let Some(p) = c.power.doubled() {
+                        c.power = p;
+                    }
+                }
+                c
+            })
+            .collect()
     }
 
     /// Is the next thing on the ladder a fountain?
@@ -1232,7 +1285,9 @@ impl Run {
     pub fn player_stats(&self) -> Stats {
         let mut base = self.raw_player_stats();
         base.health += self.grown_health;
-        for c in &self.classes {
+        // Effective, not held: a doubled Standing has to actually be double
+        // on the character sheet, not only inside the fight.
+        for c in self.effective_classes() {
             if let crate::class::ClassPower::Standing(bonus) = c.power {
                 base += bonus;
             }
@@ -1256,7 +1311,7 @@ impl Run {
             &self.combat_items(),
             spec,
             self.difficulty,
-            &self.classes,
+            &self.effective_classes(),
         );
         self.phase = Phase::Fighting;
         self.settled = false;

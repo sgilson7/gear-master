@@ -396,6 +396,36 @@ pub enum ClassPower {
 }
 
 impl ClassPower {
+    /// This power, twice as strong - what the third fountain hands out.
+    ///
+    /// `None` where there is no sensible second helping. Five of the
+    /// seventeen are switches rather than numbers: damage either arrives
+    /// spread or it does not, curses either land in pairs or they do not, a
+    /// reaction either fires twice or it does not. Doubling those would mean
+    /// inventing a mechanic rather than turning a dial, so the fountain does
+    /// not offer them - and it says nothing it does not do.
+    pub fn doubled(self) -> Option<ClassPower> {
+        use ClassPower::*;
+        Some(match self {
+            Standing(s) => Standing(s + s),
+            Leeching(p) => Leeching(p * 2),
+            Bastion(p) => Bastion(p * 2),
+            Reprisal(n) => Reprisal(n * 2),
+            Riposte(ms) => Riposte(ms * 2),
+            Momentum(n) => Momentum(n * 2),
+            Transmute(p) => Transmute(p * 2),
+            Cascade(ms) => Cascade(ms * 2),
+            Consecrate(p) => Consecrate(p * 2),
+            Bloodscent(n) => Bloodscent(n * 2),
+            Confluence(p) => Confluence(p * 2),
+            // Twice as often, which for these means halving the interval.
+            Echo(n) => Echo((n / 2).max(2)),
+            Untimely(n) => Untimely((n / 2).max(2)),
+            SlowTime | Contagion | Resonance | Adaptable | Overflowing => return None,
+        })
+    }
+
+
     /// A few words for the side panel, where there is one line and it must
     /// not shrink to nothing. The full sentence lives in `describe`, which is
     /// what the glossary and the hover card show.

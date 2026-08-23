@@ -148,7 +148,7 @@ fn a_crystal_ball_casts_two_spells_at_once_by_default() {
     let mut stats = run.player_stats();
     stats.health = 100_000;
 
-    let hits = |class: &[&'static gearmaster_engine::class::ClassDef]| -> i32 {
+    let hits = |class: &[gearmaster_engine::class::ClassDef]| -> i32 {
         let log =
             simulate_with_class(stats, &profiles, &LADDER[0], Difficulty::Medium, class);
         log.entries
@@ -203,7 +203,7 @@ fn an_oracle_stops_their_gear() {
     // A deep monster, not a rat: an Oracle needs four activations to reach the
     // clock and a rat does not last four activations.
     let tough = &LADDER[30];
-    let stuns = |class: &[&'static gearmaster_engine::class::ClassDef]| -> usize {
+    let stuns = |class: &[gearmaster_engine::class::ClassDef]| -> usize {
         let log = simulate_with_class(stats, &profiles, tough, Difficulty::Medium, class);
         log.entries
             .iter()
@@ -217,8 +217,10 @@ fn an_oracle_stops_their_gear() {
     };
 
     let oracle = CLASSES.iter().find(|c| c.name == "Oracle").expect("Oracle exists");
-    assert_eq!(stuns(&[]), 0, "nothing else in the game lands a stun");
-    assert!(stuns(&[oracle]) > 0, "an Oracle should be stopping their gear");
+    // Not "nothing else in the game lands a stun" any more - nineteen pieces
+    // do. This build is not carrying one, which is the control.
+    assert_eq!(stuns(&[]), 0, "this build has no other source of stun");
+    assert!(stuns(&[*oracle]) > 0, "an Oracle should be stopping their gear");
 }
 
 /// Bloodscent: what a Bloodletter rots, it feeds on.
@@ -235,7 +237,7 @@ fn bloodscent_banks_rage_when_a_curse_lands() {
     let mut stats = run.player_stats();
     stats.health = 100_000;
 
-    let rage = |class: &[&'static gearmaster_engine::class::ClassDef]| -> i32 {
+    let rage = |class: &[gearmaster_engine::class::ClassDef]| -> i32 {
         let log =
             simulate_with_class(stats, &profiles, &LADDER[0], Difficulty::Medium, class);
         log.entries
@@ -247,7 +249,7 @@ fn bloodscent_banks_rage_when_a_curse_lands() {
     };
 
     let bl = CLASSES.iter().find(|c| c.name == "Bloodletter").expect("Bloodletter exists");
-    assert!(rage(&[bl]) > rage(&[]), "curses should have banked rage");
+    assert!(rage(&[*bl]) > rage(&[]), "curses should have banked rage");
 }
 
 // ------------------------------------------------------- what they say
@@ -374,5 +376,63 @@ fn the_wildcard_is_the_same_every_time_you_look() {
     for _ in 0..5 {
         let again: Vec<&str> = run.fountain_offer().iter().map(|c| c.name).collect();
         assert_eq!(first, again, "the offer moved while it was being read");
+    }
+}
+
+
+// ------------------------------------------------- the third fountain
+
+/// The third fountain does not hand over a new title. It takes one you hold
+/// and gives you twice as much of it.
+#[test]
+fn the_deep_fountain_doubles_something_you_already_are() {
+    use gearmaster_engine::class::{ClassPower, CLASSES};
+    use gearmaster_engine::run::Run;
+
+    let mut run = Run::new();
+    let bl = CLASSES.iter().find(|c| c.name == "Bloodletter").expect("exists");
+    run.classes.push(bl);
+    let before = match run.effective_classes()[0].power {
+        ClassPower::Bloodscent(n) => n,
+        other => panic!("expected Bloodscent, got {:?}", other),
+    };
+
+    // It only stands at its own rung, and only once.
+    run.skip_to(Run::DOUBLING_FOUNTAIN);
+    assert!(run.at_doubling_fountain(), "it should be standing here");
+    assert!(run.double_class(bl), "and it should take the offer");
+    assert!(!run.at_doubling_fountain(), "and then be gone");
+    assert!(!run.double_class(bl), "and refuse a second helping");
+
+    let after = match run.effective_classes()[0].power {
+        ClassPower::Bloodscent(n) => n,
+        other => panic!("expected Bloodscent, got {:?}", other),
+    };
+    assert_eq!(after, before * 2, "twice as much");
+}
+
+/// It offers only what it can actually double. A power that is a switch
+/// rather than a number has no second helping, and the fountain saying it
+/// would give you one would be a lie.
+#[test]
+fn the_deep_fountain_never_offers_what_it_cannot_give() {
+    use gearmaster_engine::class::{ClassPower, CLASSES};
+    use gearmaster_engine::run::Run;
+    for c in CLASSES {
+        let mut run = Run::new();
+        run.classes.push(c);
+        let offered = !run.doubling_offer().is_empty();
+        assert_eq!(
+            offered,
+            c.power.doubled().is_some(),
+            "{} is offered={} but doubles={}",
+            c.name,
+            offered,
+            c.power.doubled().is_some()
+        );
+    }
+    // And the switches stay switches.
+    for p in [ClassPower::SlowTime, ClassPower::Contagion, ClassPower::Resonance] {
+        assert!(p.doubled().is_none(), "{:?} has no second helping", p);
     }
 }
