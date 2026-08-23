@@ -431,8 +431,55 @@ fn the_deep_fountain_never_offers_what_it_cannot_give() {
             c.power.doubled().is_some()
         );
     }
-    // And the switches stay switches.
-    for p in [ClassPower::SlowTime, ClassPower::Contagion, ClassPower::Resonance] {
-        assert!(p.doubled().is_none(), "{:?} has no second helping", p);
+    // Every one of them doubles now. Five used to be switches with nothing to
+    // turn, and the fountain quietly did not appear for a player holding two
+    // of those - which is how the third fountain came to be "not working".
+    for c in CLASSES {
+        assert!(
+            c.power.doubled().is_some(),
+            "{} cannot be doubled, so the fountain would skip a player holding it",
+            c.name
+        );
     }
+}
+
+
+/// Walk a whole run and meet all three fountains.
+///
+/// The third one used to be reachable only if you happened to be holding a
+/// class whose power was a number. Five of the seventeen were switches, and a
+/// player who drank Geomancer and Wanderer - which is what the preset build
+/// reads as - simply never saw it, with nothing on screen to say why.
+#[test]
+fn a_whole_run_meets_every_fountain() {
+    use gearmaster_engine::run::Run;
+
+    let mut run = Run::with_all_pieces();
+    run.apply_preset();
+    let mut drank = 0;
+    let mut doubled = false;
+    for _ in 0..80 {
+        if run.at_fountain() {
+            let offer = run.fountain_offer();
+            assert!(!offer.is_empty(), "a fountain with nothing in it");
+            run.drink_choosing(offer[0]).expect("it should pour");
+            drank += 1;
+            continue;
+        }
+        if run.at_doubling_fountain() {
+            let offer = run.doubling_offer();
+            assert!(!offer.is_empty(), "a deep fountain with nothing in it");
+            assert!(run.double_class(offer[0]), "it should pour");
+            doubled = true;
+            continue;
+        }
+        if run.rung + 1 >= gearmaster_engine::combat::LADDER.len() {
+            break;
+        }
+        run.skip_to(run.rung + 1);
+    }
+    assert_eq!(drank, 2, "both class fountains");
+    assert!(doubled, "and the deep one");
+    assert_eq!(run.classes.len(), 2);
+    assert!(run.doubled.is_some());
 }

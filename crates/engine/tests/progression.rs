@@ -760,7 +760,7 @@ fn slow_time_spreads_a_hit_instead_of_stopping_it() {
         name: "Test Chronomancer",
         blurb: "",
         requires: &[],
-        power: ClassPower::SlowTime,
+        power: ClassPower::SlowTime(5),
     };
 
     let stats = Stats::new(400, 0, 0, 100);

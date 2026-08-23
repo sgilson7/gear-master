@@ -26,7 +26,7 @@ pub struct Shop {
 impl Shop {
     pub fn new(rng: &mut Rng) -> Self {
         let mut shop = Shop { stock: Vec::new(), locked: Vec::new(), previous: Vec::new() };
-        shop.restock(rng);
+        shop.restock(rng, true);
         shop
     }
 
@@ -38,7 +38,18 @@ impl Shop {
     /// that guarantee an unlucky roll could leave you unable to build any
     /// weapon at all, and a player with no weapon cannot win a fight to earn
     /// the gold to reroll out of it.
-    pub fn restock(&mut self, rng: &mut Rng) {
+    /// Refill the shelves.
+    ///
+    /// `ensure_weapon` asks for a stock that can build one from scratch. It is
+    /// only true when the player has no assembled weapon, and that matters: a
+    /// random six shelves almost never contains a whole recipe on its own, so
+    /// forcing it every time meant two or three of the six were weapon parts
+    /// for ever. Handles and blades turned up 680 times each across two
+    /// hundred runs against 100 for everything else - seven times
+    /// over-represented, on the one surface where a player meets the
+    /// catalogue, and a standing argument for martial weapons over the other
+    /// two recipes.
+    pub fn restock(&mut self, rng: &mut Rng, ensure_weapon: bool) {
         // Whatever is pinned stays exactly where it is, and a restock fills
         // the rest of the shelves around it.
         let kept: Vec<(usize, usize)> = self
@@ -52,38 +63,6 @@ impl Shop {
         let fresh = |i: &usize| !outgoing.contains(i) && !held.contains(i);
 
         let mut chosen: Vec<usize> = held.clone();
-        for want in [PieceKind::Handle, PieceKind::Damaging] {
-            if chosen.iter().any(|&i| CATALOG[i].slot == SlotKind::Weapon && CATALOG[i].kind == want)
-            {
-                continue;
-            }
-            // The same two exclusions as the general pool. The guaranteed
-            // handle and damaging piece come through here rather than there,
-            // so a quest reward that happened to be a damaging piece walked
-            // straight past the filter and onto a shelf.
-            let sellable = |i: &usize| {
-                CATALOG[*i].slot == SlotKind::Weapon
-                    && CATALOG[*i].kind == want
-                    && !crate::piece::is_boss_only(CATALOG[*i].name)
-                    && !crate::piece::is_quest_reward(CATALOG[*i].name)
-            };
-            let mut candidates: Vec<usize> = (0..CATALOG.len())
-                .filter(sellable)
-                .filter(|i| fresh(i) && !chosen.contains(i))
-                .collect();
-            // If everything of this kind was on the last shelf, allow a repeat
-            // rather than break the guarantee.
-            if candidates.is_empty() {
-                candidates = (0..CATALOG.len())
-                    .filter(sellable)
-                    .filter(|i| !chosen.contains(i))
-                    .collect();
-            }
-            rng.shuffle(&mut candidates);
-            if let Some(&pick) = candidates.first() {
-                chosen.push(pick);
-            }
-        }
 
         let mut pool: Vec<usize> = (0..CATALOG.len())
             .filter(|i| fresh(i) && !chosen.contains(i))
@@ -99,6 +78,87 @@ impl Shop {
             }
             chosen.push(i);
         }
+        // Enough to build *a* weapon - repaired afterwards rather than
+        // reserved up front.
+        //
+        // Two of the six shelves used to be held back for a handle and a
+        // damaging piece, every restock, for ever. There are only twenty-odd
+        // of each, so across two hundred runs they turned up 680 times each
+        // against 100 for everything else: seven times over-represented, on
+        // the one surface where the player is supposed to meet the catalogue.
+        // It also quietly argued for martial weapons by putting their parts in
+        // front of you and nobody else's.
+        //
+        // Weapon components are two fifths of the catalogue, so a full shelf
+        // can nearly always build something on its own. This only steps in
+        // when it cannot, which is rare enough that the shelves stay honest.
+        const RECIPES: [&[PieceKind]; 3] = [
+            &[PieceKind::Handle, PieceKind::Damaging],
+            &[PieceKind::Book, PieceKind::Ink, PieceKind::Spell],
+            &[PieceKind::Orb, PieceKind::Spell],
+        ];
+        let buildable = |have: &[usize]| {
+            RECIPES.iter().any(|r| {
+                r.iter().all(|&k| {
+                    have.iter().any(|&i| CATALOG[i].slot == SlotKind::Weapon && CATALOG[i].kind == k)
+                })
+            })
+        };
+        if ensure_weapon && !buildable(&chosen) {
+            // Whichever recipe is closest to done, so the repair disturbs the
+            // fewest shelves.
+            let mut best: Option<(usize, &[PieceKind])> = None;
+            for r in RECIPES {
+                let missing = r
+                    .iter()
+                    .filter(|&&k| {
+                        !chosen
+                            .iter()
+                            .any(|&i| CATALOG[i].slot == SlotKind::Weapon && CATALOG[i].kind == k)
+                    })
+                    .count();
+                if best.as_ref().is_none_or(|(m, _)| missing < *m) {
+                    best = Some((missing, r));
+                }
+            }
+            for &k in best.expect("there are recipes").1 {
+                if chosen.iter().any(|&i| CATALOG[i].slot == SlotKind::Weapon && CATALOG[i].kind == k)
+                {
+                    continue;
+                }
+                // The same exclusions as the general pool: a repair must not
+                // put boss gear or a quest reward on a shelf.
+                let sellable = |i: &usize| {
+                    CATALOG[*i].slot == SlotKind::Weapon
+                        && CATALOG[*i].kind == k
+                        && !crate::piece::is_boss_only(CATALOG[*i].name)
+                        && !crate::piece::is_quest_reward(CATALOG[*i].name)
+                };
+                let mut candidates: Vec<usize> = (0..CATALOG.len())
+                    .filter(sellable)
+                    .filter(|i| fresh(i) && !chosen.contains(i))
+                    .collect();
+                // A repeat is better than a shop you cannot build a weapon
+                // from, but only once nothing fresh is left.
+                if candidates.is_empty() {
+                    candidates =
+                        (0..CATALOG.len()).filter(sellable).filter(|i| !chosen.contains(i)).collect();
+                }
+                rng.shuffle(&mut candidates);
+                let Some(&pick) = candidates.first() else { continue };
+                // Take the shelf of something unpinned rather than growing the
+                // shop past its size.
+                let victim = chosen
+                    .iter()
+                    .position(|c| !held.contains(c) && CATALOG[*c].slot != SlotKind::Weapon);
+                match victim {
+                    Some(at) => chosen[at] = pick,
+                    None if chosen.len() < SHOP_SIZE => chosen.push(pick),
+                    None => {}
+                }
+            }
+        }
+
         rng.shuffle(&mut chosen);
 
         // Put the pinned ones back on the shelves they were pinned to.
@@ -130,6 +190,11 @@ impl Shop {
         self.locked.contains(&slot)
     }
 
+
+    /// Everything currently on the shelves.
+    pub fn stock_defs(&self) -> Vec<&'static PieceDef> {
+        self.stock.iter().map(|&i| &CATALOG[i]).collect()
+    }
 
     pub fn def(&self, slot: usize) -> Option<&'static PieceDef> {
         self.stock.get(slot).map(|&i| &CATALOG[i])
@@ -189,7 +254,7 @@ mod tests {
         let mut shop = Shop::new(&mut rng);
         for _ in 0..10 {
             let before = shop.stock.clone();
-            shop.restock(&mut rng);
+            shop.restock(&mut rng, true);
             for item in &shop.stock {
                 assert!(!before.contains(item), "{:?} was on the shelf already", item);
             }
@@ -209,19 +274,22 @@ mod tests {
 
     #[test]
     fn every_stock_can_build_a_weapon() {
+        // Any of the three recipes will do. Insisting on the martial one every
+        // restock is what made handles and blades seven times more common on
+        // the shelves than anything else in the game.
         let mut rng = Rng::new(31);
         let mut shop = Shop::new(&mut rng);
-        for round in 0..40 {
-            let has_handle = shop
-                .stock
-                .iter()
-                .any(|&i| CATALOG[i].kind == PieceKind::Handle);
-            let has_damage = shop
-                .stock
-                .iter()
-                .any(|&i| CATALOG[i].kind == PieceKind::Damaging);
-            assert!(has_handle && has_damage, "round {} cannot build a weapon", round);
-            shop.restock(&mut rng);
+        for round in 0..60 {
+            let has = |k: PieceKind| shop.stock.iter().any(|&i| CATALOG[i].kind == k);
+            let martial = has(PieceKind::Handle) && has(PieceKind::Damaging);
+            let bound = has(PieceKind::Book) && has(PieceKind::Ink) && has(PieceKind::Spell);
+            let ball = has(PieceKind::Orb) && has(PieceKind::Spell);
+            assert!(
+                martial || bound || ball,
+                "round {} cannot build a weapon of any kind",
+                round
+            );
+            shop.restock(&mut rng, true);
         }
     }
 
@@ -234,7 +302,7 @@ mod tests {
         assert!(shop.is_locked(2));
 
         for _ in 0..8 {
-            shop.restock(&mut rng);
+            shop.restock(&mut rng, true);
             assert_eq!(shop.stock[2], kept, "the pinned shelf should not turn over");
             assert_eq!(shop.stock.len(), SHOP_SIZE);
         }
@@ -243,7 +311,7 @@ mod tests {
         assert!(!shop.toggle_lock(2));
         let mut moved = false;
         for _ in 0..8 {
-            shop.restock(&mut rng);
+            shop.restock(&mut rng, true);
             if shop.stock[2] != kept {
                 moved = true;
                 break;

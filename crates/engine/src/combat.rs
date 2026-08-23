@@ -2609,9 +2609,11 @@ pub struct Combatant {
     /// portion has left. Empty for everyone else.
     pending: Vec<(i32, u32)>,
     /// Whether incoming damage is queued rather than taken at once.
-    pub slow_time: bool,
+    /// Seconds damage is spread over. Zero means it lands at once.
+    pub slow_time: u32,
     /// Held resources count double.
-    pub overflowing: bool,
+    /// How many times a held pool counts. One is ordinary.
+    pub overflowing: i32,
     /// Percent of damage dealt that comes back as health.
     pub leech: i32,
     /// Every nth activation fires twice. Zero means never.
@@ -2619,7 +2621,8 @@ pub struct Combatant {
     /// Percent of absorbed damage handed back as armour.
     pub bastion: i32,
     /// Curses landed bring the other kind with them.
-    pub contagion: bool,
+    /// Extra curses dragged in alongside each one landed.
+    pub contagion: u32,
     /// Faith banked whenever a hit lands on you.
     pub reprisal: i32,
     /// Milliseconds every enemy activation gives back to your cooldowns.
@@ -2627,11 +2630,13 @@ pub struct Combatant {
     /// Strength gained per second the fight has run.
     pub momentum: i32,
     /// Reactions fire twice.
-    pub resonance: bool,
+    /// How many times a reaction pays out. One is ordinary.
+    pub resonance: u32,
     /// Percent of physical damage that lands again as magic.
     pub transmute: i32,
     /// Every activation banks one of each pool.
-    pub adaptable: bool,
+    /// Of each pool banked per activation. Zero is ordinary.
+    pub adaptable: i32,
     /// Oracle: every this-many-th activation lands the two curses that work on
     /// time - a stun and a misfire.
     pub untimely: u32,
@@ -2684,18 +2689,18 @@ impl Combatant {
             faith: 0,
             nature: 0,
             pending: Vec::new(),
-            slow_time: false,
-            overflowing: false,
+            slow_time: 0,
+            overflowing: 1,
             leech: 0,
             echo_every: 0,
             bastion: 0,
-            contagion: false,
+            contagion: 0,
             reprisal: 0,
             riposte: 0,
             momentum: 0,
-            resonance: false,
+            resonance: 1,
             transmute: 0,
-            adaptable: false,
+            adaptable: 0,
             untimely: 0,
             cascade: 0,
             consecrate: 0,
@@ -2773,18 +2778,18 @@ impl Combatant {
             faith: 0,
             nature: 0,
             pending: Vec::new(),
-            slow_time: false,
-            overflowing: false,
+            slow_time: 0,
+            overflowing: 1,
             leech: 0,
             echo_every: 0,
             bastion: 0,
-            contagion: false,
+            contagion: 0,
             reprisal: 0,
             riposte: 0,
             momentum: 0,
-            resonance: false,
+            resonance: 1,
             transmute: 0,
-            adaptable: false,
+            adaptable: 0,
             untimely: 0,
             cascade: 0,
             consecrate: 0,
@@ -2835,7 +2840,7 @@ impl Combatant {
     }
 
     pub fn held_bonus(&self) -> Stats {
-        let m = if self.overflowing { 2 } else { 1 };
+        let m = self.overflowing.max(1);
         let (rage, faith, nature) = (self.rage * m, self.faith * m, self.nature * m);
         Stats {
             // Fury sharpens the blade.
@@ -2881,10 +2886,10 @@ impl Combatant {
         if amount <= 0 {
             return (0, 0);
         }
-        if self.slow_time {
-            // Nothing lands now. It arrives in slices over the next five
+        if self.slow_time > 0 {
+            // Nothing lands now. It arrives in slices over the next few
             // seconds, which is time for armour and regeneration to answer.
-            self.pending.push((amount, SLOW_TIME_MS));
+            self.pending.push((amount, self.slow_time * 1000));
             return (0, 0);
         }
         let absorbed = amount.min(self.armor.max(0));
@@ -3180,19 +3185,19 @@ pub fn simulate_with_class(
     // same field.
     for c in classes {
         match c.power {
-            crate::class::ClassPower::SlowTime => start_player.slow_time = true,
-            crate::class::ClassPower::Overflowing => start_player.overflowing = true,
+            crate::class::ClassPower::SlowTime(n) => start_player.slow_time = n,
+            crate::class::ClassPower::Overflowing(n) => start_player.overflowing = n,
             crate::class::ClassPower::Leeching(pct) => start_player.leech = pct,
             crate::class::ClassPower::Standing(_) => {}
             crate::class::ClassPower::Echo(n) => start_player.echo_every = n,
             crate::class::ClassPower::Bastion(pct) => start_player.bastion = pct,
-            crate::class::ClassPower::Contagion => start_player.contagion = true,
+            crate::class::ClassPower::Contagion(n) => start_player.contagion = n,
             crate::class::ClassPower::Reprisal(n) => start_player.reprisal = n,
             crate::class::ClassPower::Riposte(ms) => start_player.riposte = ms,
             crate::class::ClassPower::Momentum(n) => start_player.momentum = n,
-            crate::class::ClassPower::Resonance => start_player.resonance = true,
+            crate::class::ClassPower::Resonance(n) => start_player.resonance = n,
             crate::class::ClassPower::Transmute(pct) => start_player.transmute = pct,
-            crate::class::ClassPower::Adaptable => start_player.adaptable = true,
+            crate::class::ClassPower::Adaptable(n) => start_player.adaptable = n,
             crate::class::ClassPower::Untimely(n) => start_player.untimely = n,
             crate::class::ClassPower::Cascade(ms) => start_player.cascade = ms,
             crate::class::ClassPower::Consecrate(pct) => start_player.consecrate = pct,
@@ -3603,12 +3608,13 @@ fn activate(
         log.push(LogEntry { at_ms: t, event: Event::GainMana { side, amount: item.mana, total } });
     }
 
-    if pick(p, e, side).adaptable {
+    let banked = pick(p, e, side).adaptable;
+    if banked > 0 {
         let me = pick(p, e, side);
-        me.mana += 1;
-        me.rage += 1;
-        me.faith += 1;
-        me.nature += 1;
+        me.mana += banked;
+        me.rage += banked;
+        me.faith += banked;
+        me.nature += banked;
     }
     // Riposte: watching them act gives your own gear a nudge.
     {
@@ -3829,7 +3835,7 @@ fn notify_reactors(
         // Resonance doubles the answer, not the question: a reaction still
         // never emits an activation, so two items answering each other cannot
         // loop however loud it gets.
-        let times = if pick(p, e, side).resonance { 2 } else { 1 };
+        let times = pick(p, e, side).resonance.max(1);
         for tr in &triggers {
             for _ in 0..times {
                 match *tr {
@@ -3885,7 +3891,12 @@ fn apply(
                 }
             }
             // Contagion: landing one brings the other along.
-            if matches!(target, Target::Enemy) && pick(p, e, side).contagion {
+            let spread = if matches!(target, Target::Enemy) {
+                pick(p, e, side).contagion
+            } else {
+                0
+            };
+            for _ in 0..spread {
                 // Contagion pairs a curse with its opposite number: heat and
                 // cold, stopped and unreliable.
                 let other = match kind {

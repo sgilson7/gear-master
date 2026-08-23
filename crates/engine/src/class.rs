@@ -353,20 +353,20 @@ pub enum ClassPower {
     /// A standing bonus, applied once before the fight. Kept for the floor
     /// class, which is meant to be unremarkable.
     Standing(Stats),
-    /// Damage arrives spread over five seconds instead of all at once, which
+    /// Damage arrives spread over `n` seconds instead of all at once, which
     /// gives regeneration and armour time to answer it.
-    SlowTime,
+    SlowTime(u32),
     /// A share of the damage you deal comes back as health, in percent.
     Leeching(i32),
-    /// Every point of a resource you are holding is worth double.
-    Overflowing,
+    /// Every point of a resource you are holding counts `n` times.
+    Overflowing(i32),
     /// Every `n`th activation fires its payload twice.
     Echo(u32),
     /// A share of what your armour absorbs is handed straight back as armour,
     /// so a wall keeps rebuilding itself under fire.
     Bastion(i32),
-    /// Landing a curse lands the other kind alongside it.
-    Contagion,
+    /// Landing a curse lands `n` more of the other kind alongside it.
+    Contagion(u32),
     /// Taking a hit banks faith, so being ground down is itself a resource.
     Reprisal(i32),
     /// Every enemy activation pushes all of your cooldowns forward by `ms`.
@@ -374,12 +374,12 @@ pub enum ClassPower {
     /// Strength climbs by `per_sec` for every second the fight lasts.
     Momentum(i32),
     /// Reactions - the triggers that answer a neighbour or an aligned item -
-    /// fire twice.
-    Resonance,
+    /// fire `n` times.
+    Resonance(u32),
     /// A share of your physical damage lands again as magic, in percent.
     Transmute(i32),
-    /// Every activation banks one of each of the four pools.
-    Adaptable,
+    /// Every activation banks `n` of each of the four pools.
+    Adaptable(i32),
     /// Every `n`th activation of yours stops their gear dead and leaves it
     /// misfiring. The only way anyone gets at the two curses that work on time
     /// rather than on flesh.
@@ -399,12 +399,10 @@ pub enum ClassPower {
 impl ClassPower {
     /// This power, twice as strong - what the third fountain hands out.
     ///
-    /// `None` where there is no sensible second helping. Five of the
-    /// seventeen are switches rather than numbers: damage either arrives
-    /// spread or it does not, curses either land in pairs or they do not, a
-    /// reaction either fires twice or it does not. Doubling those would mean
-    /// inventing a mechanic rather than turning a dial, so the fountain does
-    /// not offer them - and it says nothing it does not do.
+    /// Every power doubles. Five of them used to be switches with nothing to
+    /// turn, and the fountain simply did not offer those - which meant a
+    /// player holding two of them never saw the third fountain at all, and
+    /// nothing told them why. They all carry a number now.
     pub fn doubled(self) -> Option<ClassPower> {
         use ClassPower::*;
         Some(match self {
@@ -422,7 +420,16 @@ impl ClassPower {
             // Twice as often, which for these means halving the interval.
             Echo(n) => Echo((n / 2).max(2)),
             Untimely(n) => Untimely((n / 2).max(2)),
-            SlowTime | Contagion | Resonance | Adaptable | Overflowing => return None,
+            // The five that used to be switches rather than numbers. They
+            // carry one now, because a fountain that cannot double what you
+            // happen to be holding does not appear at all - and it did not say
+            // so. A player who drank Geomancer and Wanderer simply never met
+            // the third fountain.
+            SlowTime(n) => SlowTime(n * 2),
+            Contagion(n) => Contagion(n + 1),
+            Resonance(n) => Resonance(n + 1),
+            Adaptable(n) => Adaptable(n * 2),
+            Overflowing(n) => Overflowing(n + 1),
         })
     }
 
@@ -433,18 +440,18 @@ impl ClassPower {
     pub fn short(self) -> String {
         match self {
             ClassPower::Standing(s) => s.summary(),
-            ClassPower::SlowTime => "damage arrives over 5s".into(),
+            ClassPower::SlowTime(n) => format!("damage arrives over {}s", n),
             ClassPower::Leeching(pct) => format!("{}% of damage dealt heals you", pct),
-            ClassPower::Overflowing => "rage, faith and nature count twice".into(),
+            ClassPower::Overflowing(n) => format!("rage, faith and nature count {} times", n),
             ClassPower::Echo(n) => format!("every {}rd activation fires twice", n),
             ClassPower::Bastion(pct) => format!("armour returns {}% of what it soaks", pct),
-            ClassPower::Contagion => "curses land in pairs".into(),
+            ClassPower::Contagion(n) => format!("每 curse brings {} more", n).replace("每", "every"),
             ClassPower::Reprisal(n) => format!("being hit banks {} faith", n),
             ClassPower::Riposte(ms) => {
                 format!("their every act speeds you {:.2}s", ms as f32 / 1000.0)
             }
             ClassPower::Momentum(n) => format!("+{} strength a second elapsed", n),
-            ClassPower::Resonance => "reactions pay out twice".into(),
+            ClassPower::Resonance(n) => format!("reactions pay out {} times", n),
             ClassPower::Transmute(pct) => format!("{}% of iron lands again as magic", pct),
             ClassPower::Untimely(n) => format!("every {}th act stops their gear", n),
             ClassPower::Cascade(ms) => {
@@ -453,7 +460,7 @@ impl ClassPower {
             ClassPower::Consecrate(pct) => format!("holding faith: {}% more armour", pct),
             ClassPower::Bloodscent(n) => format!("landing a curse banks {} rage", n),
             ClassPower::Confluence(pct) => format!("spending a pool refunds {}% to each other", pct),
-            ClassPower::Adaptable => "every act banks one of all four pools".into(),
+            ClassPower::Adaptable(n) => format!("every act banks {} of all four pools", n),
         }
     }
 
@@ -466,20 +473,20 @@ impl ClassPower {
     pub fn describe(self) -> String {
         match self {
             ClassPower::Standing(s) => s.summary(),
-            ClassPower::SlowTime => {
-                "damage against you arrives in slices over 5s instead of all at once, so \
-                 regeneration and armour get a chance to answer it"
-                    .into()
-            }
+            ClassPower::SlowTime(n) => format!(
+                "damage against you arrives in slices over {}s instead of all at once, so \
+                 regeneration and armour get a chance to answer it",
+                n
+            ),
             ClassPower::Leeching(pct) => {
                 format!("{}% of the damage you deal comes back to you as health", pct)
             }
-            ClassPower::Overflowing => {
-                "rage, faith and nature count twice while you hold them - so double the \
-                 physical damage from rage, double the resistance from faith, double the \
-                 regeneration from nature"
-                    .into()
-            }
+            ClassPower::Overflowing(n) => format!(
+                "rage, faith and nature count {} times over while you hold them - so {} times \
+                 the physical damage from rage, the resistance from faith and the \
+                 regeneration from nature",
+                n, n
+            ),
             ClassPower::Echo(n) => {
                 format!("every {}rd time one of your items fires, it fires again immediately", n)
             }
@@ -488,11 +495,11 @@ impl ClassPower {
                  fresh armour",
                 pct
             ),
-            ClassPower::Contagion => {
-                "every curse you land brings its opposite with it - searing pulls in frost, \
-                 a stun pulls in a misfire"
-                    .into()
-            }
+            ClassPower::Contagion(n) => format!(
+                "every curse you land brings its opposite with it {} time(s) over - searing \
+                 pulls in frost, a stun pulls in a misfire",
+                n
+            ),
             ClassPower::Reprisal(n) => {
                 format!("every hit that lands on you banks {} faith", n)
             }
@@ -506,11 +513,11 @@ impl ClassPower {
                  you get better at",
                 n
             ),
-            ClassPower::Resonance => {
+            ClassPower::Resonance(n) => format!(
                 "triggers that answer something else - a touching item firing, or one lined \
-                 up across the grids - pay out twice instead of once"
-                    .into()
-            }
+                 up across the grids - pay out {} times instead of once",
+                n
+            ),
             ClassPower::Transmute(pct) => format!(
                 "{}% of every point of physical damage you deal lands a second time as \
                  magic, against their magic defences",
@@ -541,11 +548,11 @@ impl ClassPower {
                  other three",
                 pct
             ),
-            ClassPower::Adaptable => {
-                "every time any of your items fires, you bank one of all four pools at once - \
-                 one mana, one rage, one faith, one nature"
-                    .into()
-            }
+            ClassPower::Adaptable(n) => format!(
+                "every time any of your items fires, you bank {} of all four pools at once - \
+                 {} mana, {} rage, {} faith, {} nature",
+                n, n, n, n, n
+            ),
         }
     }
 }
@@ -577,7 +584,7 @@ pub static CLASSES: &[ClassDef] = &[
             (Axis::Orbits, 45),
             (Axis::MagicIn(SlotKind::Chest), 35),
         ],
-        power: ClassPower::SlowTime,
+        power: ClassPower::SlowTime(5),
     },
     ClassDef {
         name: "Archmage",
@@ -601,13 +608,13 @@ pub static CLASSES: &[ClassDef] = &[
         name: "Hexweaver",
         blurb: "Curses, and the mana to keep landing them.",
         requires: &[(Axis::Malice, 45), (Axis::Attunement, 30)],
-        power: ClassPower::Contagion,
+        power: ClassPower::Contagion(1),
     },
     ClassDef {
         name: "Druid",
         blurb: "Growth banked faster than anything can take it off you.",
         requires: &[(Axis::Growth, 45), (Axis::Ward, 25)],
-        power: ClassPower::Overflowing,
+        power: ClassPower::Overflowing(2),
     },
     ClassDef {
         name: "Templar",
@@ -634,7 +641,7 @@ pub static CLASSES: &[ClassDef] = &[
         // full build, so a single threshold on it caught everything. Paired
         // with mass it means what it says - a lot of gear, densely laid out.
         requires: &[(Axis::Weave, 70), (Axis::Mass, 55)],
-        power: ClassPower::Resonance,
+        power: ClassPower::Resonance(2),
     },
     ClassDef {
         name: "Spellblade",
@@ -684,7 +691,7 @@ pub static CLASSES: &[ClassDef] = &[
         // The floor: something you can always reach, so a fountain is never
         // wasted on a build that matched nothing.
         requires: &[],
-        power: ClassPower::Adaptable,
+        power: ClassPower::Adaptable(1),
     },
 ];
 

@@ -316,6 +316,12 @@ impl Run {
     }
 
     /// The monster you are facing now.
+    /// Is the player without an assembled weapon? The shop guarantees one can
+    /// be built only when the answer is yes.
+    pub fn needs_a_weapon(&self) -> bool {
+        self.report(SlotKind::Weapon).items.iter().all(|i| !i.assembled)
+    }
+
     pub fn monster(&self) -> &'static MonsterSpec {
         // An event can put something else in front of you. It stands in for
         // the rung rather than adding one, so the road stays the same length
@@ -396,7 +402,8 @@ impl Run {
                 // was never fought, so it is not a win.
                 self.rung += 1;
                 self.best_rung = self.best_rung.max(self.rung);
-                self.shop.restock(&mut self.rng);
+                let need = self.needs_a_weapon();
+        self.shop.restock(&mut self.rng, need);
             }
         }
         gave
@@ -435,7 +442,8 @@ impl Run {
             return Err(RuleError::NotEnoughGold { need: REROLL_COST, have: self.gold });
         }
         self.gold -= REROLL_COST;
-        self.shop.restock(&mut self.rng);
+        let need = self.needs_a_weapon();
+        self.shop.restock(&mut self.rng, need);
         Ok(())
     }
 
@@ -569,7 +577,8 @@ impl Run {
         }
 
         // New shelves after every battle, win or lose.
-        self.shop.restock(&mut self.rng);
+        let need = self.needs_a_weapon();
+        self.shop.restock(&mut self.rng, need);
 
         let ended = settlement.run_ended;
         self.last_settlement = Some(settlement);
@@ -615,7 +624,8 @@ impl Run {
         }
         self.gold += paid;
         self.best_rung = self.best_rung.max(self.rung);
-        self.shop.restock(&mut self.rng);
+        let need = self.needs_a_weapon();
+        self.shop.restock(&mut self.rng, need);
         // Quests want a fight to have happened, so a skipped rung does not
         // advance them. Skipping past a quest is the cost of skipping.
         self.last_settlement = None;
@@ -917,7 +927,8 @@ impl Run {
             return false;
         }
         self.doubled = Some(choice.name);
-        self.shop.restock(&mut self.rng);
+        let need = self.needs_a_weapon();
+        self.shop.restock(&mut self.rng, need);
         true
     }
 
@@ -1018,7 +1029,8 @@ impl Run {
             return None;
         }
         self.classes.push(choice);
-        self.shop.restock(&mut self.rng);
+        let need = self.needs_a_weapon();
+        self.shop.restock(&mut self.rng, need);
         Some(choice)
     }
 
@@ -1035,7 +1047,8 @@ impl Run {
         // A fountain is not a fight and does not stand on a rung of its own,
         // so the ladder does not move. The shelves still turn over: drinking
         // is a moment between fights like any other.
-        self.shop.restock(&mut self.rng);
+        let need = self.needs_a_weapon();
+        self.shop.restock(&mut self.rng, need);
         class
     }
 
