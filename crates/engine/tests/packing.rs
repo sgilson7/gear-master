@@ -1103,7 +1103,7 @@ fn layout_summary(layout: &Layout) -> (usize, i32) {
     }
     let items = run.combat_items();
     let stats = run.player_stats();
-    let dps: i64 = items.iter().map(|i| i.dps_milli(stats.strength, stats.power)).sum();
+    let dps: i64 = items.iter().map(|i| i.dps_milli(stats.strength)).sum();
     (items.len(), (dps / 1000) as i32)
 }
 

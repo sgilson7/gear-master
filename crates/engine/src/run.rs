@@ -78,6 +78,12 @@ pub const INVENTORY_CAP: usize = 12;
 struct BoardSnapshot {
     loadout: Loadout,
     registry: PieceRegistry,
+    /// What you owned and what you had. Buying and selling are board changes
+    /// too, and undo used to restore the grids without them: sell a piece and
+    /// undo it and the piece came back to the board while the money stayed in
+    /// your pocket and the component stayed out of your bag.
+    owned: Vec<PieceId>,
+    gold: i32,
     /// What the change was, so the interface can say what it undid.
     label: String,
 }
@@ -176,6 +182,8 @@ pub struct Run {
     pub substitute: Option<&'static MonsterSpec>,
     /// Events already answered, by id, so one is never asked twice.
     pub answered: Vec<&'static str>,
+    /// Rerolls bought since the last fight. Resets on settling.
+    pub rerolls: u32,
     /// A scene the theme owes you for the fight just settled, waiting to be
     /// read. Cleared once it has been.
     pub pending_scene: Option<&'static [&'static str]>,
@@ -260,6 +268,7 @@ impl Run {
             doubled: None,
             substitute: None,
             answered: Vec::new(),
+            rerolls: 0,
             best_rung: 0,
             settled: false,
             rng,
@@ -316,6 +325,16 @@ impl Run {
     }
 
     /// The monster you are facing now.
+    /// What the next reroll costs.
+    ///
+    /// Doubling, from one: 1, 2, 4, 8. A flat price meant a player with money
+    /// could simply keep asking until the shelves said what they wanted, which
+    /// made the shop a formality rather than a decision. It resets after every
+    /// fight, so the pressure is inside a single visit and never carries.
+    pub fn reroll_cost(&self) -> i32 {
+        REROLL_COST << self.rerolls.min(16)
+    }
+
     /// Is the player without an assembled weapon? The shop guarantees one can
     /// be built only when the answer is yes.
     pub fn needs_a_weapon(&self) -> bool {
@@ -426,6 +445,7 @@ impl Run {
         if self.inventory().len() >= INVENTORY_CAP {
             return Err(RuleError::TrayFull);
         }
+        self.remember("buying");
         let def = self.shop.take(slot).ok_or(RuleError::NothingThere)?;
         self.gold -= price;
         let id = self.registry.alloc(def);
@@ -438,10 +458,12 @@ impl Run {
         if self.phase != Phase::Loadout {
             return Err(RuleError::LoadoutLocked);
         }
-        if self.gold < REROLL_COST {
-            return Err(RuleError::NotEnoughGold { need: REROLL_COST, have: self.gold });
+        let cost = self.reroll_cost();
+        if self.gold < cost {
+            return Err(RuleError::NotEnoughGold { need: cost, have: self.gold });
         }
-        self.gold -= REROLL_COST;
+        self.gold -= cost;
+        self.rerolls += 1;
         let need = self.needs_a_weapon();
         self.shop.restock(&mut self.rng, need);
         Ok(())
@@ -454,6 +476,7 @@ impl Run {
             return Err(RuleError::LoadoutLocked);
         }
         let refund = crate::rating::resale_price(self.registry.def(id));
+        self.remember(format!("selling {}", self.registry.def(id).name));
         self.loadout.remove_anywhere(id);
         self.owned.retain(|&o| o != id);
         // Selling a piece out of a locked item ends the lock: what is left is
@@ -478,6 +501,9 @@ impl Run {
         }
         let outcome = self.log.as_ref()?.outcome;
         self.settled = true;
+        // A fresh shop is a fresh price. The escalation is meant to bite
+        // inside one visit, not to follow you up the ladder.
+        self.rerolls = 0;
 
         // Whatever your gear grew, you keep - win or lose. The work was done
         // either way, and a piece that only paid on a win would be worth
@@ -1161,6 +1187,8 @@ impl Run {
         self.undo_stack.push(BoardSnapshot {
             loadout: self.loadout.clone(),
             registry: self.registry.clone(),
+            owned: self.owned.clone(),
+            gold: self.gold,
             label: what.into(),
         });
         if self.undo_stack.len() > UNDO_DEPTH {
@@ -1176,6 +1204,8 @@ impl Run {
         let snap = self.undo_stack.pop()?;
         self.loadout = snap.loadout;
         self.registry = snap.registry;
+        self.owned = snap.owned;
+        self.gold = snap.gold;
         Some(snap.label)
     }
 

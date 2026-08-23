@@ -1505,3 +1505,71 @@ fn the_next_named_fight_is_visible_from_a_distance() {
         }
     }
 }
+
+
+/// Rerolling doubles, and forgets after every fight.
+///
+/// A flat price meant anyone with money could keep asking until the shelves
+/// said what they wanted, which made the shop a formality.
+#[test]
+fn rerolling_costs_more_each_time_and_resets_after_a_fight() {
+    let mut run = Run::new();
+    run.gold = 1000;
+    let mut paid = Vec::new();
+    for _ in 0..4 {
+        let before = run.gold;
+        run.reroll().expect("affordable");
+        paid.push(before - run.gold);
+    }
+    assert_eq!(paid, vec![1, 2, 4, 8], "it doubles from one");
+
+    run.fight_next();
+    run.settle();
+    assert_eq!(run.reroll_cost(), 1, "and a new shop is a new price");
+}
+
+/// Undo has to take back the whole change, not just the grids. Selling used
+/// not to be remembered at all, and the snapshot carried no gold and no
+/// ownership - so undoing a sale put the piece back on the board while the
+/// money stayed spent and the component stayed out of your bag.
+#[test]
+fn undoing_a_sale_gives_back_the_piece_and_takes_back_the_money() {
+    use gearmaster_engine::piece::SlotKind;
+
+    let mut run = Run::with_all_pieces();
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    let id = run
+        .loadout
+        .slot(SlotKind::Weapon)
+        .pieces()
+        .first()
+        .copied()
+        .expect("it is on the board");
+
+    let gold = run.gold;
+    let owned = run.owned.len();
+    let refund = run.sell(id).expect("it sells");
+    assert_eq!(run.gold, gold + refund);
+    assert_eq!(run.owned.len(), owned - 1, "and it left the bag");
+
+    run.undo().expect("a sale is undoable");
+    assert_eq!(run.gold, gold, "the money goes back");
+    assert_eq!(run.owned.len(), owned, "and so does the component");
+    assert!(run.loadout.slot(SlotKind::Weapon).contains(id), "back on the board too");
+}
+
+/// The same for buying.
+#[test]
+fn undoing_a_purchase_gives_back_the_money() {
+    let mut run = Run::new();
+    run.gold = 500;
+    let gold = run.gold;
+    let owned = run.owned.len();
+    run.buy(0).expect("something is on the shelf");
+    assert!(run.gold < gold);
+    assert_eq!(run.owned.len(), owned + 1);
+
+    run.undo().expect("a purchase is undoable");
+    assert_eq!(run.gold, gold, "the money goes back");
+    assert_eq!(run.owned.len(), owned, "and the component is gone again");
+}

@@ -373,12 +373,12 @@ fn show_stats(run: &Run) {
     println!("  health   {}", s.health);
     println!("  strength {}", s.strength);
     println!("  regen    {}/turn", s.regen);
-    println!("  power    {}.{:02}x", s.power / 100, s.power % 100);
+    // Power is per weapon now, so it is printed on each item rather than here.
     let items = run.combat_items();
-    let dps: i64 = items.iter().map(|i| i.dps_milli(s.strength, s.power)).sum();
+    let dps: i64 = items.iter().map(|i| i.dps_milli(s.strength)).sum();
     println!("  damage   {}.{} per second across every weapon", dps / 1000, (dps % 1000) / 100);
     for it in &items {
-        let hit = it.hit_for(s.strength, s.power);
+        let hit = it.hit_for(s.strength);
         if hit > 0 {
             println!(
                 "             {} hits {} every {:.2}s",

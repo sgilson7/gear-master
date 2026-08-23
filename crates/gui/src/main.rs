@@ -15,7 +15,6 @@ use gearmaster_engine::rating::{resale_price, shop_price, Rarity};
 use gearmaster_engine::combat::Difficulty;
 use gearmaster_engine::run::{Mode, ROGUE_LIVES};
 use gearmaster_engine::run::{Phase, Run};
-use gearmaster_engine::shop::REROLL_COST;
 use gearmaster_engine::shape::Shape;
 use gearmaster_engine::slot::{SLOT_H, SLOT_W};
 use macroquad::prelude::*;
@@ -2909,8 +2908,8 @@ fn coins(n: i32) -> String {
     }
 }
 
-fn reroll_label() -> String {
-    format!("{} {}", words::word("reroll", "REROLL"), coins(REROLL_COST))
+fn reroll_label(cost: i32) -> String {
+    format!("{} {}", words::word("reroll", "REROLL"), coins(cost))
 }
 
 fn shop_cards_x(shop: Rect) -> f32 {
@@ -2920,7 +2919,9 @@ fn shop_cards_x(shop: Rect) -> f32 {
 /// Where the reroll button sits inside the shop strip. Sized to its label so
 /// the text cannot outgrow the box.
 fn reroll_rect(shop: Rect) -> Rect {
-    let w = text_width(&reroll_label(), 18.0) + 26.0;
+    // Sized to the dearest it gets, so the button does not grow under the
+    // cursor as the price doubles.
+    let w = text_width(&reroll_label(8), 18.0) + 26.0;
     Rect::new(shop.x + 12.0, shop.y + 78.0, w, 34.0)
 }
 
@@ -2948,13 +2949,8 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
         WHITE,
     );
     ui_text(words::word("buy-hint", "click to buy"), r.x + 14.0, r.y + 68.0, 12.0, col_dim());
-    button(
-        reroll_rect(r),
-        &reroll_label(),
-        run.gold >= REROLL_COST,
-        mx,
-        my,
-    );
+    let cost = run.reroll_cost();
+    button(reroll_rect(r), &reroll_label(cost), run.gold >= cost, mx, my);
 
     for card in &layout.shop_cards {
         let def = card.def;
@@ -3955,7 +3951,17 @@ fn render_mini_board(
 /// The whole battle screen, filling the window: your board above, theirs
 /// below, cooldowns down the right, a quiet log strip and the controls at the
 /// foot. Pressing SHOW FULL LOG overlays the complete transcript.
-fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32) {
+/// `log_scroll` is how many lines back from the newest the panel is showing.
+/// Zero follows the fight; anything else holds still while it runs.
+#[allow(clippy::too_many_arguments)]
+fn render_battle(
+    run: &Run,
+    pb: &Playback,
+    log_expanded: bool,
+    log_scroll: usize,
+    mx: f32,
+    my: f32,
+) {
     let Some(log) = run.log.as_ref() else { return };
     let g = battle_geom(pb.done);
     let gh = SLOT_H as f32 * MINI_CELL;
@@ -4150,9 +4156,13 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.5, Color::from_rgba(56, 56, 76, 255));
     let lh = line_h(14.0);
     let visible = (((r.h - 12.0) / lh) as usize).max(1);
-    let start = pb.lines.len().saturating_sub(visible);
-    for (i, line) in pb.lines[start..].iter().enumerate() {
-        let is_last = start + i == pb.lines.len() - 1;
+    // Scrolled back from the newest line, clamped so it can never run off
+    // either end of what there is.
+    let newest = pb.lines.len().saturating_sub(visible);
+    let start = newest.saturating_sub(log_scroll.min(newest));
+    let end = (start + visible).min(pb.lines.len());
+    for (i, line) in pb.lines[start..end].iter().enumerate() {
+        let is_last = start + i + 1 == pb.lines.len();
         ui_text(
             line,
             r.x + 14.0,
@@ -4160,6 +4170,13 @@ fn render_battle(run: &Run, pb: &Playback, log_expanded: bool, mx: f32, my: f32)
             14.0,
             if is_last { WHITE } else { Color::from_rgba(128, 130, 150, 255) },
         );
+    }
+    // Say so when it is not following, or a player who scrolled up and forgot
+    // thinks the fight has stopped.
+    if start < newest {
+        let held = format!("{} lines back  ·  scroll down to follow", newest - start);
+        let w = text_width(&held, 12.0);
+        ui_text(&held, r.x + r.w - w - 14.0, r.y + r.h - 8.0, 12.0, col_gold());
     }
 
     if pb.done {
@@ -4324,13 +4341,9 @@ fn item_summary_lines_plain(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> 
         format!("IN COMBAT - every {:.2}s", p.cooldown_ms as f32 / 1000.0),
         Color::from_rgba(240, 190, 140, 255),
     ));
-    // Ink bound into this item multiplies this item, so the figure has to
-    // include it: combat does. Without it a well-inked spell read as though it
-    // hit for a third of what it actually lands.
-    let power = total.power + p.power_bonus;
-    let hit = p.hit_for(total.strength, power);
+    let hit = p.hit_for(total.strength);
     if hit > 0 {
-        let dps = p.dps_milli(total.strength, power);
+        let dps = p.dps_milli(total.strength);
         lines.push((
             format!("  hits for {}  ({}.{} a second)", hit, dps / 1000, (dps % 1000) / 100),
             Color::from_rgba(240, 210, 190, 255),
@@ -6615,11 +6628,10 @@ fn render_panel(
         ),
         ("Strength", format!("{}", stats.strength), Color::from_rgba(240, 170, 120, 255)),
         ("Regen", format!("{}/turn", stats.regen), Color::from_rgba(140, 200, 240, 255)),
-        (
-            "Weapon power",
-            format!("{}.{:02}x", stats.power / 100, stats.power % 100),
-            col_gold(),
-        ),
+        // No global weapon power line any more. Power belongs to the item
+        // carrying it, so one figure here would be the sum of five slots'
+        // worth of a multiplier that never applies together - which is exactly
+        // the thing that was sending damage through the roof.
     ] {
         ui_text(label, x + 20.0, y, 16.0, LIGHTGRAY);
         let d_w = text_width(&value, 16.0);
@@ -6631,7 +6643,7 @@ fn render_panel(
     let items = run.combat_items();
     let dps_milli: i64 = items
         .iter()
-        .map(|i| i.dps_milli(stats.strength, stats.power))
+        .map(|i| i.dps_milli(stats.strength))
         .sum();
     ui_text("Damage / second", x + 20.0, y, 17.0, WHITE);
     let label = format!("{}.{}", dps_milli / 1000, (dps_milli % 1000) / 100);
@@ -7049,6 +7061,8 @@ async fn main() {
     let mut settled = false;
     // The combat log is a quiet strip unless you ask to see all of it.
     let mut log_expanded = std::env::var("GEARMASTER_LOG").is_ok();
+    // Lines back from the newest the battle log is holding at. Zero follows.
+    let mut log_scroll: usize = 0;
     // Kept between fights, and settable before one starts.
     let mut playback_speed = DEFAULT_SPEED;
     let mut glossary_open = std::env::var("GEARMASTER_GLOSSARY").is_ok();
@@ -7353,7 +7367,18 @@ async fn main() {
         let mut hover = Hover::default();
         if run.phase == Phase::Fighting {
             if let Some(p) = pb.as_ref() {
-                render_battle(&run, p, log_expanded, mx, my);
+                // The wheel scrolls the log back, but only while the pointer
+                // is over it - otherwise it fights the shop and the tray.
+                {
+                    let g = battle_geom(p.done);
+                    let over = g.log.contains(Vec2::new(mx, my));
+                    let (_, wheel) = mouse_wheel();
+                    if over && wheel != 0.0 {
+                        let step = if wheel > 0.0 { 3isize } else { -3 };
+                        log_scroll = (log_scroll as isize + step).max(0) as usize;
+                    }
+                }
+                render_battle(&run, p, log_expanded, log_scroll, mx, my);
             }
         } else {
             render_slots(&layout, &run, &reports, &drag, &mut hover, mx, my);
@@ -7738,6 +7763,8 @@ async fn main() {
                     let profiles = run.combat_items();
                     Playback::new(run.fight_next(), &profiles, playback_speed)
                 });
+                // A new fight follows itself again.
+                log_scroll = 0;
                 settled = false;
             } else if hit(3) {
                 log_expanded = !log_expanded;
@@ -7758,6 +7785,8 @@ async fn main() {
                     let profiles = run.combat_items();
                     Playback::new(run.fight_next(), &profiles, playback_speed)
                 });
+                // A new fight follows itself again.
+                log_scroll = 0;
                 settled = false;
                 message = "Fight in progress.".to_string();
             } else if clicked_button(1) {
@@ -8225,6 +8254,7 @@ mod tests {
             triggers: Vec::new(),
             adjacent_assembled_same_slot: 0,
         open_cells: 0,
+        power: 100,
         rating: 0,
         power_bonus: 0,
         casts: Vec::new(),
@@ -8636,9 +8666,16 @@ mod tooltip_tests {
     fn the_card_counts_the_ink_bound_into_the_item() {
         let (run, p) = inked_spell();
         assert!(p.power_bonus > 0, "the fixture should be inked");
-        let with = p.hit_for(run.player_stats().strength, run.player_stats().power + p.power_bonus);
-        let without = p.hit_for(run.player_stats().strength, run.player_stats().power);
-        assert!(with > without, "ink should raise the figure");
+        // The ink is inside the item's own multiplier now, rather than being
+        // added to the wearer's at the call site.
+        assert!(
+            p.power >= 100 + p.power_bonus,
+            "the item's multiplier should carry its ink: {} vs {}",
+            p.power,
+            p.power_bonus
+        );
+        let inked = p.hit_for(run.player_stats().strength);
+        assert!(inked > 0, "and it should be hitting for something");
 
         let lines = item_summary_lines(&p, &run);
         let shown = lines
@@ -8646,6 +8683,6 @@ mod tooltip_tests {
             .find(|(s, _)| s.contains("hits for"))
             .map(|(s, _)| s.clone())
             .expect("it hits for something");
-        assert!(shown.contains(&with.to_string()), "card shows {:?}, combat lands {}", shown, with);
+        assert!(shown.contains(&inked.to_string()), "card shows {:?}, combat lands {}", shown, inked);
     }
 }

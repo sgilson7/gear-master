@@ -27,6 +27,7 @@ fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfi
         triggers: Vec::new(),
         adjacent_assembled_same_slot: 0,
         open_cells: 0,
+        power: 100,
         rating: 0,
         power_bonus: 0,
         casts: Vec::new(),
@@ -528,4 +529,74 @@ fn the_same_loadout_always_produces_the_same_fight() {
     assert_eq!(first.outcome, second.outcome);
     assert_eq!(first.entries.len(), second.entries.len());
     assert_eq!(RUST_GOLEM.bounty, 10, "and the bounty is part of the spec");
+}
+
+
+// ------------------------------------------------- power belongs to its item
+
+/// Power on a helmet must not multiply the weapon.
+///
+/// It used to: `power` was summed across the whole build and applied to every
+/// swing, so five slots of it compounded into one blade and damage went
+/// through the roof. Strength is the only stat that reaches across a build now.
+#[test]
+fn power_in_another_slot_does_not_reach_the_weapon() {
+    use gearmaster_engine::piece::SlotKind;
+    use gearmaster_engine::run::Run;
+
+    let build = |with_powered_helmet: bool| -> i32 {
+        let mut run = Run::with_all_pieces();
+        equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+        equip(&mut run, "Iron Blade", SlotKind::Weapon, 1, 0);
+        if with_powered_helmet {
+            // Crown of the Deep carries power: 25.
+            equip(&mut run, "Steel Frame", SlotKind::Helmet, 0, 0);
+            equip(&mut run, "Iron Plating", SlotKind::Helmet, 0, 2);
+            equip(&mut run, "Crown of the Deep", SlotKind::Helmet, 3, 0);
+            assert_eq!(run.report(SlotKind::Helmet).assembled_count(), 1, "fixture");
+        }
+        let stats = run.player_stats();
+        run.combat_items()
+            .iter()
+            .filter(|i| i.slot == SlotKind::Weapon)
+            .map(|i| i.hit_for(stats.strength))
+            .sum()
+    };
+    assert_eq!(
+        build(true),
+        build(false),
+        "a powered helmet changed what the weapon hits for"
+    );
+}
+
+/// And power on the weapon itself still does.
+#[test]
+fn power_on_the_weapon_still_multiplies_it() {
+    use gearmaster_engine::piece::SlotKind;
+    use gearmaster_engine::run::Run;
+
+    let mut plain = Run::with_all_pieces();
+    equip(&mut plain, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut plain, "Iron Blade", SlotKind::Weapon, 1, 0);
+
+    let mut inked = Run::with_all_pieces();
+    equip(&mut inked, "Leaden Tome", SlotKind::Weapon, 0, 0);
+    equip(&mut inked, "Soot Ink", SlotKind::Weapon, 3, 0);
+    equip(&mut inked, "Emberburst", SlotKind::Weapon, 3, 1);
+    assert_eq!(inked.report(SlotKind::Weapon).assembled_count(), 1, "fixture");
+
+    let p = plain.combat_items().into_iter().find(|i| i.slot == SlotKind::Weapon).unwrap();
+    let k = inked.combat_items().into_iter().find(|i| i.slot == SlotKind::Weapon).unwrap();
+    // An item's multiplier is one, plus every point of power its own pieces
+    // carry, plus its ink - and nothing from any other slot.
+    let own = |run: &Run, prof: &gearmaster_engine::loadout::ItemProfile| -> i32 {
+        100 + prof
+            .pieces
+            .iter()
+            .map(|&id| run.registry.def(id).base.power + run.registry.def(id).power_bonus)
+            .sum::<i32>()
+    };
+    assert_eq!(p.power, own(&plain, &p), "martial weapon carries its handle and blade");
+    assert_eq!(k.power, own(&inked, &k), "the book carries its ink");
+    assert!(k.power > p.power, "an inked book beats a plain blade: {} vs {}", k.power, p.power);
 }

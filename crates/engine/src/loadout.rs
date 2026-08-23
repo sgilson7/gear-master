@@ -48,6 +48,16 @@ pub struct ItemProfile {
     /// Hundredths of weapon power that apply to THIS item alone - what the
     /// ink in a spell is worth. Never reaches the wearer's own total.
     pub power_bonus: i32,
+    /// What this item multiplies its own damage by, in hundredths. 100 is
+    /// plain.
+    ///
+    /// Every point of power on every piece of the item, plus its ink, and
+    /// nothing from anywhere else. Power used to be a wearer stat: a helmet
+    /// with power on it multiplied the *weapon*, so a build could stack power
+    /// in five slots at once and the same blade would hit for many times what
+    /// it does here. Strength is the stat that reaches across the build now,
+    /// and it is the only one.
+    pub power: i32,
     /// For a spell, the payloads it cycles through. A book has one and casts
     /// it every time; a crystal ball has two or three and casts a different
     /// one each time it comes round. Empty for ordinary gear, which carries
@@ -67,23 +77,25 @@ impl ItemProfile {
     /// What one swing of this item lands for, given the wearer's totals.
     /// Only weapons deal damage; everything else activates for armour, mana
     /// or curses.
-    pub fn hit_for(&self, strength: i32, power: i32) -> i32 {
+    /// Takes strength because strength is the one stat that reaches across a
+    /// build. The multiplier is the item's own.
+    pub fn hit_for(&self, strength: i32) -> i32 {
         if self.slot != SlotKind::Weapon {
             return 0;
         }
         (((self.stats.physical_damage + self.stats.magic_damage + strength) as i64
-            * power as i64)
+            * self.power as i64)
             / 100)
             .max(0) as i32
     }
 
     /// Damage a second, in thousandths, so a slow heavy weapon and a fast
     /// light one can be compared without floating point.
-    pub fn dps_milli(&self, strength: i32, power: i32) -> i64 {
+    pub fn dps_milli(&self, strength: i32) -> i64 {
         if self.cooldown_ms == 0 {
             return 0;
         }
-        self.hit_for(strength, power) as i64 * 1000 * 1000 / self.cooldown_ms as i64
+        self.hit_for(strength) as i64 * 1000 * 1000 / self.cooldown_ms as i64
     }
 }
 
@@ -607,6 +619,9 @@ impl Loadout {
 
             // Ink scales the cast it is bound into rather than the wearer.
             let power_bonus: i32 = item.pieces.iter().map(|&p| reg.def(p).power_bonus).sum();
+            // And so does power, now. Base is a plain multiple of one.
+            let power: i32 =
+                100 + item.pieces.iter().map(|&p| reg.def(p).base.power).sum::<i32>() + power_bonus;
 
             // Every spell in the item is one payload. A book has bound one,
             // an orb several; ordinary gear has none and keeps carrying its
@@ -664,6 +679,7 @@ impl Loadout {
                 stats: scaled_stats,
                 triggers,
                 power_bonus,
+                power,
                 casts,
                 rating: crate::rating::item_rating(reg, &item.pieces, cooldown_ms, *kind),
             });

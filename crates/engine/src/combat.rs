@@ -2474,6 +2474,8 @@ pub struct RunningItem {
     pub slot: Option<SlotKind>,
     pub cooldown_ms: u32,
     pub progress_ms: u32,
+    /// What this item multiplies its own damage by, in hundredths.
+    pub power: i32,
     pub physical_damage: i32,
     pub magic_damage: i32,
     pub mind: i32,
@@ -2519,6 +2521,7 @@ impl RunningItem {
             triggers: p.triggers.clone(),
             adjacent_assembled_same_slot: p.adjacent_assembled_same_slot,
             open_cells: p.open_cells,
+            power: p.power,
             adjacent_items: p.adjacent_items.clone(),
             aligned_items: p.aligned_items.clone(),
             curse: None,
@@ -2547,6 +2550,7 @@ impl RunningItem {
             triggers: Vec::new(),
             adjacent_assembled_same_slot: 0,
             open_cells: 0,
+            power: 100,
             adjacent_items: Vec::new(),
             aligned_items: Vec::new(),
             curse: a.curse,
@@ -3512,9 +3516,13 @@ fn activate(
     // have no slot and always count as weapons.
     let is_weapon = item.slot.map(|s| s == SlotKind::Weapon).unwrap_or(true);
     if is_weapon {
-        let (strength, power) = {
+        // Strength reaches every weapon; power does not reach past the one
+        // carrying it. Empowerment is the exception and is meant to be: it is
+        // bought with mana, at five hundredths a stack a point, and it applies
+        // to whatever is swinging.
+        let (strength, empower) = {
             let me = pick(p, e, side);
-            (me.strength, me.effective_power())
+            (me.strength, me.empowerment as i32 * 5 * me.mana.max(0))
         };
         // The wearer's power, plus whatever ink is bound into this item alone.
         // Rage held sharpens the physical half.
@@ -3523,7 +3531,7 @@ fn activate(
             (me.held_bonus().physical_damage, me.physical_pierce, me.magic_pierce)
         };
         let mult = |flat: i32| -> i32 {
-            ((flat as i64) * (power + item.power_bonus) as i64 / 100).max(0) as i32
+            ((flat as i64) * (item.power + empower) as i64 / 100).max(0) as i32
         };
         let physical = mult(item.physical_damage + rage + strength);
         // Transmute: part of the iron lands again as magic.
