@@ -113,7 +113,8 @@
       "Bash(WEAR_TRACE=1 cargo test --release -p gearmaster-engine --test packing -- --ignored --nocapture show_profile_packing)",
       "Artifact",
       "Bash(bash .claude/skills/gearmaster-gear/scripts/check-parity.sh)",
-      "Bash(awk '{s+=$4} END {print s\" passing\"}')"
+      "Bash(awk '{s+=$4} END {print s\" passing\"}')",
+      "Bash(awk 'NR>=7300 && NR<=7420 && /^fn |^pub fn /' crates/gui/src/main.rs)"
     ]
   }
 }

@@ -57,6 +57,19 @@ pub const STUN_CAP_MS: u32 = 3_600;
 /// gets - the same promise the frost cap makes.
 pub const MISFIRE_FLOOR: u32 = 2;
 
+/// How much slower gear runs under `stacks` of frost.
+pub fn frost_slow_pct(stacks: u32) -> i32 {
+    (FROST_SLOW_PCT * stacks as i32).min(FROST_SLOW_CAP_PCT)
+}
+
+/// One activation in how many a misfire eats under `stacks`. Zero for none.
+pub fn misfire_interval(stacks: u32) -> u32 {
+    match stacks {
+        0 => 0,
+        n => MISFIRE_EVERY.saturating_sub(n - 1).max(MISFIRE_FLOOR),
+    }
+}
+
 impl CurseKind {
     pub fn name(self) -> &'static str {
         match self {
@@ -91,6 +104,22 @@ impl CurseKind {
                 "one activation in three does nothing, for 6 seconds; two stacks or more \
                  makes it one in two"
             }
+        }
+    }
+
+    /// What `stacks` of this curse currently work out to, in the fewest words
+    /// that are still a number: "30/s", "-75%", "1 in 2".
+    ///
+    /// The interface used to say only that you were cursed, which is the one
+    /// thing you can already see. These come from the same constants the
+    /// simulation reads, so the chip cannot drift from the fight.
+    pub fn effect_at(self, stacks: u32) -> String {
+        let n = stacks.max(1);
+        match self {
+            CurseKind::Searing => format!("{}/s", SEARING_DPS * n as i32),
+            CurseKind::Frost => format!("-{}%", frost_slow_pct(n)),
+            CurseKind::Stun => "stopped".to_string(),
+            CurseKind::Misfire => format!("1 in {}", misfire_interval(n)),
         }
     }
 
@@ -207,15 +236,7 @@ impl Curses {
     /// up, capped so the gear is never stopped outright - a stun is the thing
     /// that stops gear, and the two should not be able to become each other.
     pub fn slow_pct(&self) -> i32 {
-        let raw: i32 = self
-            .active
-            .iter()
-            .map(|c| match c.kind {
-                CurseKind::Frost => FROST_SLOW_PCT * c.stacks as i32,
-                CurseKind::Searing | CurseKind::Stun | CurseKind::Misfire => 0,
-            })
-            .sum();
-        raw.min(FROST_SLOW_CAP_PCT)
+        frost_slow_pct(self.stacks_of(CurseKind::Frost))
     }
 
     /// One activation in how many does a misfire eat? Zero when none is up.
@@ -225,10 +246,7 @@ impl Curses {
     /// worth nothing whatever - the only curse where a stack bought the caster
     /// nothing at all.
     pub fn misfire_every(&self) -> u32 {
-        match self.stacks_of(CurseKind::Misfire) {
-            0 => 0,
-            n => MISFIRE_EVERY.saturating_sub(n - 1).max(MISFIRE_FLOOR),
-        }
+        misfire_interval(self.stacks_of(CurseKind::Misfire))
     }
 
     /// Is this activation one of the ones a misfire eats?

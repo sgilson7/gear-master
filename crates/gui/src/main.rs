@@ -5,7 +5,9 @@
 use std::collections::HashSet;
 
 use gearmaster_engine::class::Axis;
-use gearmaster_engine::combat::{CombatLog, Event, MonsterSprite, Outcome, Side, LADDER};
+use gearmaster_engine::combat::{
+    CombatLog, Event, MonsterSpec, MonsterSprite, Outcome, Side, LADDER,
+};
 use gearmaster_engine::loadout::{ItemProfile, Loadout, SlotReport};
 use gearmaster_engine::piece::{
     default_cooldown_ms, Action, PieceDef, PieceId, PieceKind, PieceRegistry, Resource, SlotKind,
@@ -2209,6 +2211,9 @@ struct Hover {
     /// Set when the cursor is over the class block. Drawn after everything
     /// else, like a tooltip, but it is a chart rather than lines of text.
     class_card: bool,
+    /// Set when the cursor is over the next opponent. Same idea, but big
+    /// enough that it wants the whole board area rather than a tooltip frame.
+    enemy_card: bool,
 }
 
 impl Hover {
@@ -2291,6 +2296,9 @@ struct ActiveCurse {
     name: &'static str,
     until_ms: u32,
     stacks: u32,
+    /// What this many stacks work out to right now, worked out by the engine
+    /// from the same constants the fight reads.
+    effect: String,
 }
 
 struct Playback {
@@ -2517,14 +2525,19 @@ impl Playback {
                     Side::Player => &mut self.player_curses,
                     Side::Enemy => &mut self.enemy_curses,
                 };
+                let effect = kind.effect_at(*stacks);
                 match list.iter_mut().find(|c| c.name == kind.name()) {
                     Some(e) => {
                         e.until_ms = e.until_ms.max(until);
                         e.stacks = *stacks;
+                        e.effect = effect;
                     }
-                    None => {
-                        list.push(ActiveCurse { name: kind.name(), until_ms: until, stacks: *stacks })
-                    }
+                    None => list.push(ActiveCurse {
+                        name: kind.name(),
+                        until_ms: until,
+                        stacks: *stacks,
+                        effect,
+                    }),
                 }
             }
             Event::Burn { side, health, .. } => match side {
@@ -3736,6 +3749,177 @@ fn render_cooldown_row(
     );
 }
 
+/// How many of the enemy's items the preview lists before counting the rest.
+const ITEMS_SHOWN: usize = 8;
+
+/// What the next fight is bringing, drawn over the loadout screen.
+///
+/// The shop is a decision you cannot make well without this. Piercing beats
+/// resistance and hardening beats piercing, so "should I buy the warded plate
+/// or the sunder haft" has a right answer that depends entirely on what is
+/// waiting - and until now the only way to find out was to lose to it once.
+///
+/// Their gear is built with the same `loadout_at` the fight uses, at the run's
+/// own difficulty, so this is not an approximation of the enemy: it is the
+/// enemy.
+fn render_enemy_preview(r: Rect, spec: &MonsterSpec, difficulty: Difficulty, rung: usize) {
+    let (reg, loadout) = spec.loadout_at(difficulty);
+    let reports = loadout.reports(&reg);
+    let (stats, profiles) = spec.outfit_at(difficulty);
+
+    // Sized to its contents rather than to the space available. A panel that
+    // takes the whole screen to show six lines and a board reads as a bug, and
+    // the loadout underneath is worth leaving visible.
+    let shown = profiles.len().min(ITEMS_SHOWN);
+    let content_h = 54.0
+        + 18.0
+        + 16.0
+        + 34.0
+        + 26.0
+        + 18.0
+        + shown as f32 * STRIP_ROW_H
+        + if profiles.len() > shown { 20.0 } else { 8.0 }
+        + SLOT_H as f32 * MINI_CELL
+        + 44.0;
+    let r = Rect::new(r.x, r.y, r.w, content_h);
+
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(14, 12, 18, 250));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::from_rgba(150, 90, 78, 255));
+
+    let mname = words::monster(spec.name);
+    ui_text(mname, r.x + 18.0, r.y + 28.0, 20.0, Color::from_rgba(235, 145, 122, 255));
+    let sub = format!(
+        "rung {} of {}   {} hp   {} strength   {} regen/s",
+        rung + 1,
+        LADDER.len(),
+        stats.health,
+        stats.strength,
+        stats.regen
+    );
+    ui_text(&sub, r.x + 26.0 + text_width(mname, 20.0), r.y + 28.0, 13.0, col_dim());
+
+    // ---- the defence triangle, which is the whole reason to look ----
+    let mut y = r.y + 54.0;
+    ui_text(
+        words::word("their-defences", "WHAT THEY ANSWER TO"),
+        r.x + 18.0,
+        y,
+        12.0,
+        col_dim(),
+    );
+    y += 18.0;
+    // Fixed offsets, not fractions of the panel: the panel is as wide as five
+    // boards and these are three short numbers, so a third of it each put the
+    // headings a hand's width from the figures under them.
+    let c1 = r.x + 150.0;
+    let c2 = r.x + 240.0;
+    let c3 = r.x + 330.0;
+    // Piercing is only worth buying against resistance, and hardening only
+    // against piercing, so the three are read together or not at all.
+    let rows: [(&str, i32, i32, i32); 2] = [
+        (
+            words::word("physical", "PHYSICAL"),
+            stats.physical_resist,
+            stats.physical_pierce,
+            stats.physical_harden,
+        ),
+        (
+            words::word("magic", "MAGIC"),
+            stats.magic_resist,
+            stats.magic_pierce,
+            stats.magic_harden,
+        ),
+    ];
+    ui_text("resist", c1, y, 11.0, col_dim());
+    ui_text("pierce", c2, y, 11.0, col_dim());
+    ui_text("harden", c3, y, 11.0, col_dim());
+    y += 16.0;
+    for (label, resist, pierce, harden) in rows {
+        ui_text(label, r.x + 18.0, y, 13.0, Color::from_rgba(200, 200, 220, 255));
+        // A zero is worth drawing dim rather than leaving out: "they have no
+        // hardening" is a thing you want to be able to see at a glance.
+        let cell = |v: i32, at: f32| {
+            let t = format!("{}%", v);
+            ui_text(
+                &t,
+                at,
+                y,
+                13.0,
+                if v == 0 { Color::from_rgba(96, 96, 116, 255) } else { WHITE },
+            );
+        };
+        cell(resist, c1);
+        cell(pierce, c2);
+        cell(harden, c3);
+        y += 17.0;
+    }
+    let extra = format!(
+        "{} {}%    {} {}%",
+        words::word("mind-resist", "MIND RESIST"),
+        stats.mind_resist,
+        words::word("curse-resist", "CURSE RESIST"),
+        stats.curse_resist
+    );
+    ui_text(&extra, r.x + 18.0, y + 2.0, 12.0, col_dim());
+    y += 24.0;
+
+    // ---- what they will actually be swinging ----
+    ui_text(
+        words::word("their-gear", "WHAT THEY BRING"),
+        r.x + 18.0,
+        y,
+        12.0,
+        col_dim(),
+    );
+    y += 18.0;
+    for (i, p) in profiles.iter().take(ITEMS_SHOWN).enumerate() {
+        let ly = y + i as f32 * STRIP_ROW_H;
+        let name = words::retell(&p.name);
+        let size = fitting_size(&name, 250.0, &[13.0, 12.0, 11.0]);
+        ui_text(&name, r.x + 26.0, ly, size, Color::from_rgba(214, 200, 200, 255));
+        let cd = if p.cooldown_ms == 0 {
+            "-".to_string()
+        } else {
+            format!("every {:.1}s", p.cooldown_ms as f32 / 1000.0)
+        };
+        ui_text(&cd, r.x + 290.0, ly, 12.0, col_dim());
+        let hit = p.hit_for(stats.strength);
+        let what = if hit > 0 {
+            format!("hits for {}", hit)
+        } else if p.stats.armor > 0 {
+            format!("+{} armour", p.stats.armor)
+        } else {
+            String::new()
+        };
+        ui_text(&what, r.x + 400.0, ly, 12.0, Color::from_rgba(200, 170, 150, 255));
+    }
+    if profiles.len() > shown {
+        ui_text(
+            &format!("+ {} more", profiles.len() - shown),
+            r.x + 26.0,
+            y + shown as f32 * STRIP_ROW_H,
+            12.0,
+            col_dim(),
+        );
+        y += 20.0;
+    } else {
+        y += 8.0;
+    }
+    y += shown as f32 * STRIP_ROW_H;
+
+    // ---- their board, drawn exactly as the fight will show it ----
+    let bw = 5.0 * (SLOT_W as f32 * MINI_CELL) + 4.0 * MINI_GAP;
+    render_mini_board(
+        r.x + (r.w - bw) / 2.0,
+        y,
+        &reg,
+        &loadout,
+        &reports,
+        col_foe_dim(),
+        &Shakes::new(),
+    );
+}
+
 /// Geometry of the battle screen. Rendering and hit-testing both go through
 /// this, so the buttons are always exactly where they are drawn.
 ///
@@ -4187,6 +4371,7 @@ fn render_battle(
         pb.player_shield,
         pb.player_fork,
         &pb.player_curses,
+        pb.now_ms,
         pb.player_pools,
         pb.flash_player,
         col_you(),
@@ -4247,6 +4432,7 @@ fn render_battle(
         pb.enemy_shield,
         pb.enemy_fork,
         &pb.enemy_curses,
+        pb.now_ms,
         pb.enemy_pools,
         pb.flash_enemy,
         col_foe(),
@@ -6703,6 +6889,8 @@ fn render_battle_side(
     shield: u32,
     fork: u32,
     curses: &[ActiveCurse],
+    // Playback clock, so a curse chip can count itself down.
+    now_ms: u32,
     // Rage, faith and nature, in that order.
     pools: [i32; 3],
     flash: f64,
@@ -6791,12 +6979,19 @@ fn render_battle_side(
         ));
     }
     for c in curses {
+        // Not just "you are cursed" - which is the one thing already obvious
+        // from the chip being there. Stacks, what they currently work out to,
+        // and how long is left.
+        let stacks = if c.stacks > 1 { format!(" x{}", c.stacks) } else { String::new() };
+        let left = c.until_ms.saturating_sub(now_ms);
         chips.push((
-            if c.stacks > 1 {
-                format!("curse of {} x{}", words::retell(c.name), c.stacks)
-            } else {
-                format!("curse of {}", words::retell(c.name))
-            },
+            format!(
+                "{}{} {} {:.0}s",
+                words::retell(c.name),
+                stacks,
+                c.effect,
+                (left as f32 / 1000.0).ceil()
+            ),
             Color::from_rgba(240, 190, 240, 255),
             true,
         ));
@@ -7474,6 +7669,15 @@ fn render_panel(
 
     let mut y = opp_top;
     let m = run.monster();
+    // The whole opponent header opens the preview. Not the sprite alone: a
+    // 62px target for the most useful panel on the screen is a target nobody
+    // finds.
+    let opp_card = Rect::new(x, opp_top - 16.0, PANEL_W, 58.0);
+    let opp_hot = opp_card.contains(Vec2::new(mx, my)) && !run.at_fountain();
+    if opp_hot {
+        hover.enemy_card = true;
+        draw_rectangle(opp_card.x, opp_card.y, opp_card.w, opp_card.h, Color::from_rgba(255, 255, 255, 12));
+    }
     ui_text(
         if let Some((d, floor)) = run.dungeon {
             // A dungeon is not the road, and the panel should not pretend it
@@ -7490,6 +7694,18 @@ fn render_panel(
         14.0,
         col_dim(),
     );
+    // On the label row, which has room. Anywhere lower collides with the
+    // mini-boss warning.
+    if !opp_hot {
+        let hint = words::word("inspect-hint", "hover for their board");
+        ui_text(
+            hint,
+            x + PANEL_W - 20.0 - text_width(hint, 11.0),
+            y,
+            11.0,
+            Color::from_rgba(112, 112, 134, 255),
+        );
+    }
     y += 20.0;
     draw_monster(
         x + PANEL_W - 78.0,
@@ -7509,7 +7725,7 @@ fn render_panel(
         x + 20.0,
         y,
         13.0,
-        col_dim(),
+        if opp_hot { Color::from_rgba(190, 190, 210, 255) } else { col_dim() },
     );
     y += 16.0;
     // How far off the next named fight is, and which kind. A boss carries
@@ -8085,7 +8301,13 @@ async fn main() {
         // Tooltip for whatever is under the cursor (never while dragging).
         // A request left by a render pass wins: those regions are the panel
         // and the strips around each board, which nothing else claims.
-        if matches!(drag, Drag::None) && hover.class_card {
+        if matches!(drag, Drag::None) && hover.enemy_card {
+            // Left of the side panel, so the panel it was opened from stays
+            // uncovered - a preview that hides its own hover target flickers.
+            let spec = *run.monster();
+            let w = layout.panel_x - 48.0;
+            render_enemy_preview(Rect::new(24.0, 40.0, w, 0.0), &spec, run.difficulty, run.rung);
+        } else if matches!(drag, Drag::None) && hover.class_card {
             render_class_card(&run, mx, my);
         } else if let (Drag::None, Some(tip)) = (&drag, hover.tip.take()) {
             draw_tip(&tip, mx, my);
