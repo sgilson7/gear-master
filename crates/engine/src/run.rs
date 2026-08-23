@@ -117,6 +117,9 @@ pub struct Settlement {
     pub landing: Option<&'static str>,
     /// The class a finished dungeon handed over.
     pub class_won: Option<&'static str>,
+    /// The component an event's fight handed over, on a win. Separate from
+    /// `dropped`, which is a trophy off a named creature.
+    pub won_item: Option<&'static str>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -186,6 +189,10 @@ pub struct Run {
     pub substitute: Option<&'static MonsterSpec>,
     /// Events already answered, by id, so one is never asked twice.
     pub answered: Vec<&'static str>,
+    /// A fight an event has arranged, waiting to be walked into. It stands
+    /// beside the rung rather than on it: whichever way it goes, the rung's
+    /// own creature is still there afterwards.
+    pub brawl: Option<&'static crate::event::Brawl>,
     /// The quickest win this run has managed, in milliseconds. Events that are
     /// earned rather than scheduled read it - see `event::Trigger`.
     pub best_fight_ms: Option<u32>,
@@ -287,6 +294,7 @@ impl Run {
             doubled: None,
             substitute: None,
             answered: Vec::new(),
+            brawl: None,
             best_fight_ms: None,
             took: Vec::new(),
             dungeon: None,
@@ -453,6 +461,9 @@ impl Run {
                 self.substitute = crate::combat::alternate(name);
             }
             ChoiceOutcome::Spare => self.grant_life(),
+            ChoiceOutcome::Step(b) => {
+                self.brawl = Some(b);
+            }
             ChoiceOutcome::Give(name) => {
                 if let Some(d) = crate::piece::CATALOG.iter().position(|d| d.name == name) {
                     let id = self.registry.alloc(d);
@@ -588,6 +599,41 @@ impl Run {
             .unwrap_or(0);
         self.grown_health += grew;
 
+        // A fight an event arranged is settled on its own terms and never
+        // touches the ladder: it is a detour, so whatever the rung was going
+        // to hand you is still waiting when it is over - including its bounty,
+        // which is why this one pays nothing.
+        if let Some(b) = self.brawl.take() {
+            let mut settlement = Settlement {
+                outcome,
+                reward: 0,
+                knocked_back: false,
+                quests_done: self.award_quests(),
+                lives_left: None,
+                run_ended: false,
+                dropped: None,
+                landing: None,
+                class_won: None,
+                won_item: None,
+            };
+            if outcome == Outcome::Victory {
+                self.wins += 1;
+                if let Some(d) = crate::piece::CATALOG.iter().position(|d| d.name == b.win) {
+                    let id = self.registry.alloc(d);
+                    self.owned.push(id);
+                    settlement.won_item = Some(b.win);
+                }
+            } else if !b.forgiving {
+                self.losses += 1;
+            }
+            self.phase = Phase::Loadout;
+            self.log = None;
+            self.last_settlement = Some(settlement);
+            let need = self.needs_a_weapon();
+            self.shop.restock(&mut self.rng, need);
+            return Some(0);
+        }
+
         let bounty = self.monster().bounty;
         self.gold += bounty;
 
@@ -601,6 +647,7 @@ impl Run {
             dropped: None,
             landing: None,
             class_won: None,
+            won_item: None,
         };
 
         // The quickest win the run has had, which is what earns the casino.
@@ -1591,6 +1638,14 @@ impl Run {
     pub fn fight_next(&mut self) -> &CombatLog {
         let spec = *self.monster();
         self.fight(&spec)
+    }
+
+    /// The creatures an event has put in front of you, if any.
+    pub fn pending_brawl(&self) -> Option<Vec<crate::combat::MonsterSpec>> {
+        let b = self.brawl?;
+        let specs: Vec<_> =
+            b.with.iter().filter_map(|n| crate::combat::creature(n)).copied().collect();
+        (specs.len() == b.with.len()).then_some(specs)
     }
 
     /// Fight several things at once, on the rung you are standing on.

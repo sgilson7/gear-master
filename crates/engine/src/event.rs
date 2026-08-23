@@ -27,6 +27,25 @@ pub enum Requirement {
     Holding(&'static str),
 }
 
+/// A fight an event sets up, against however many creatures it likes.
+///
+/// It is not a rung. The ladder does not move whichever way it goes, because
+/// an event putting two creatures in front of you is a detour and not a step -
+/// whatever the rung was going to hand you is still waiting afterwards.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub struct Brawl {
+    /// Everything across the table, by name.
+    pub with: &'static [&'static str],
+    /// The component you keep if you win. Empty for a fight worth nothing.
+    pub win: &'static str,
+    /// Whether losing costs you a life.
+    ///
+    /// The casino does not: a branch that punishes you for taking the
+    /// interesting option is a branch nobody takes twice. What you lose by
+    /// losing is the thing you would have won.
+    pub forgiving: bool,
+}
+
 /// What taking a choice does.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Outcome {
@@ -48,6 +67,8 @@ pub enum Outcome {
     /// where it takes up room like anything else - a reward you have to find
     /// space for is a reward you have to think about.
     Give(&'static str),
+    /// Step into a fight the event has arranged. See `Brawl`.
+    Step(&'static Brawl),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -93,6 +114,23 @@ pub struct LadderEvent {
     pub choices: &'static [Choice],
 }
 
+/// The two at the third table, and what stepping between them is worth.
+///
+/// Calibrated against a complete auto-built board, which beats this pair and
+/// loses to the next one up. That is the line to hold: the chip is the key to
+/// the whole VIP event, so a pair nobody can beat would quietly delete a later
+/// event rather than making an early one exciting.
+///
+/// The casino can open as early as rung one, where a starter board loses this
+/// badly - and that is the tension worth having. Step in early and you will
+/// probably lose; wait and your build is better, but the door shuts at rung
+/// nine. Losing costs nothing either way.
+pub static TABLE_THREE: Brawl = Brawl {
+    with: &["Bone Archer", "Frost Wisp"],
+    win: "Platinum Chip",
+    forgiving: true,
+};
+
 pub const EVENTS: &[LadderEvent] = &[
     // Earned, not scheduled: it turns up the moment you have flattened
     // something inside two seconds, so long as you are still in the shallow
@@ -119,6 +157,13 @@ pub const EVENTS: &[LadderEvent] = &[
              very carefully back to counting.",
         ],
         choices: &[
+            Choice {
+                label: "Step in",
+                blurb: "Both of them. Win and they will remember you.",
+                requires: Requirement::None,
+                outcome: Outcome::Step(&TABLE_THREE),
+                unmet: "",
+            },
             Choice {
                 label: "Keep out of it",
                 blurb: "Their business. Cash out and take the chip.",

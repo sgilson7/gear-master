@@ -4834,6 +4834,15 @@ pub fn alternate(name: &str) -> Option<&'static MonsterSpec> {
     ALTERNATES.iter().find(|m| m.name == name)
 }
 
+/// Any creature in the game by name, wherever it is written.
+///
+/// `alternate` only knows the ones written specially for events. An event that
+/// wants two creatures off the ladder itself - a pair of gamblers who are also
+/// rungs twelve and thirteen - needs to find those too.
+pub fn creature(name: &str) -> Option<&'static MonsterSpec> {
+    LADDER.iter().find(|m| m.name == name).or_else(|| alternate(name))
+}
+
 
 #[cfg(test)]
 mod stun_aim_tests {

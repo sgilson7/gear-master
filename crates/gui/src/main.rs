@@ -2415,6 +2415,16 @@ fn bar_progress(schedule: &[u32], cooldown_ms: u32, now_ms: u32) -> f32 {
 ///
 /// `who` matters now: in a brawl both foes log their activations as
 /// `Side::Enemy`, and only the entry's foe index tells them apart.
+/// Start whatever fight is next: the rung's own creature, or the party an
+/// event has put in front of you.
+fn begin_next_fight(run: &mut Run, speed: f32) -> Playback {
+    let profiles = run.combat_items();
+    match run.pending_brawl() {
+        Some(specs) => Playback::new(run.fight_party(&specs), &profiles, speed),
+        None => Playback::new(run.fight_next(), &profiles, speed),
+    }
+}
+
 fn schedule_for(log: &CombatLog, want: Side, who: u8, count: usize) -> Vec<Vec<u32>> {
     let mut out = vec![Vec::new(); count];
     for e in &log.entries {
@@ -8138,6 +8148,11 @@ async fn main() {
             run.rung = n;
         }
     }
+    // GEARMASTER_QUICK=<ms> pretends the run has already won a fight that
+    // fast, which is what earns the casino.
+    if let Some(ms) = std::env::var("GEARMASTER_QUICK").ok().and_then(|v| v.parse().ok()) {
+        run.best_fight_ms = Some(ms);
+    }
     // GEARMASTER_BRAWL=<n> starts the fight against n creatures at once, so
     // the two-board layout can be looked at before an event exists that sets
     // one up.
@@ -8151,10 +8166,7 @@ async fn main() {
         });
         settled = false;
     } else if std::env::var("GEARMASTER_FIGHT").is_ok() {
-        pb = Some({
-                    let profiles = run.combat_items();
-                    Playback::new(run.fight_next(), &profiles, playback_speed)
-                });
+        pb = Some(begin_next_fight(&mut run, playback_speed));
         message = "Fight in progress.".to_string();
     }
     // Screenshot capture is a desktop-only debugging aid: the browser build has
@@ -8240,6 +8252,22 @@ async fn main() {
                             .collect::<Vec<_>>()
                             .into_boxed_slice(),
                         ));
+                    }
+                    // What a fight an event arranged was worth. Losing one of
+                    // those is worth saying too, because it costs nothing and
+                    // a player who does not know that will not risk it again.
+                    if let Some(won) = st.won_item {
+                        message = format!(
+                            "Thrown out on your ear, holding the {}.",
+                            words::piece(won)
+                        );
+                    } else if st.reward == 0
+                        && st.outcome != Outcome::Victory
+                        && st.quests_done.is_empty()
+                        && st.dropped.is_none()
+                    {
+                        message =
+                            "Thrown out on your ear. It cost you nothing but the chip.".to_string();
                     }
                     // Taking something off a named creature is the best news
                     // there is: it is gear no shop will ever stock.
@@ -8815,10 +8843,7 @@ async fn main() {
                     p.skip_to_end(&run);
                 }
             } else if hit(2) {
-                pb = Some({
-                    let profiles = run.combat_items();
-                    Playback::new(run.fight_next(), &profiles, playback_speed)
-                });
+                pb = Some(begin_next_fight(&mut run, playback_speed));
                 // A new fight follows itself again.
                 log_scroll = 0;
                 settled = false;
@@ -8837,10 +8862,7 @@ async fn main() {
                 // choosing is yours.
                 fountain_open = true;
             } else if clicked_button(0) {
-                pb = Some({
-                    let profiles = run.combat_items();
-                    Playback::new(run.fight_next(), &profiles, playback_speed)
-                });
+                pb = Some(begin_next_fight(&mut run, playback_speed));
                 // A new fight follows itself again.
                 log_scroll = 0;
                 settled = false;

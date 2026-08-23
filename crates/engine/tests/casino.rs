@@ -4,7 +4,7 @@
 //! whose condition nothing can meet, and a piece that reaches out of the fight
 //! into the purse and either never pays or never stops.
 
-use gearmaster_engine::combat::{Difficulty, Event, Side, LADDER};
+use gearmaster_engine::combat::{Difficulty, Event, Outcome, Side, LADDER};
 use gearmaster_engine::event::{Outcome as ChoiceOutcome, EVENTS};
 use gearmaster_engine::piece::CATALOG;
 use gearmaster_engine::run::{Mode, Run};
@@ -157,4 +157,130 @@ fn the_casino_stands_on_a_rung_nothing_else_claims() {
     assert_eq!(EVENTS.iter().filter(|e| e.at == at).count(), 1);
     assert!(at < 10, "the casino is meant to be a shallow-end door, not a mid-run one");
     assert_eq!(LADDER[at].name, casino().expects);
+}
+
+fn chips(run: &Run, name: &str) -> usize {
+    run.owned.iter().filter(|&&i| run.registry.def(i).name == name).count()
+}
+
+/// The step-in branch: both of them at once.
+fn step_in(run: &mut Run) {
+    run.rung = 4;
+    run.best_fight_ms = Some(1_500);
+    let ev = run.pending_event().expect("the casino is open");
+    let step = ev
+        .choices
+        .iter()
+        .find(|c| matches!(c.outcome, ChoiceOutcome::Step(_)))
+        .expect("stepping in is a choice you can take");
+    run.take_choice(step);
+}
+
+#[test]
+fn stepping_in_puts_both_of_them_in_front_of_you() {
+    let mut run = Run::with_all_pieces();
+    step_in(&mut run);
+
+    let specs = run.pending_brawl().expect("two creatures were arranged");
+    assert_eq!(specs.len(), 2, "the third table has two people at it");
+    // Both have to resolve, or the fight silently becomes a duel.
+    let names: Vec<&str> = specs.iter().map(|m| m.name).collect();
+    assert_eq!(names, vec!["Bone Archer", "Frost Wisp"]);
+
+    let log = run.fight_party(&specs);
+    assert_eq!(log.enemies.len(), 2, "the fight only had one of them in it");
+    assert!(log.is_brawl());
+}
+
+#[test]
+fn winning_at_the_table_is_worth_the_platinum_chip() {
+    let mut run = Run::with_all_pieces();
+    step_in(&mut run);
+    let rung_before = run.rung;
+    let gold_before = run.gold;
+    // A delta, not a count: `with_all_pieces` starts holding one of
+    // everything, the Platinum Chip included.
+    let before = chips(&run, "Platinum Chip");
+
+    // Settled as a win, whatever the simulation would have said - what is
+    // under test is the settlement.
+    run.force_win();
+    run.settle();
+
+    assert_eq!(
+        chips(&run, "Platinum Chip"),
+        before + 1,
+        "won the table and walked out without the chip"
+    );
+    assert_eq!(run.rung, rung_before, "a detour moved the ladder");
+    assert_eq!(run.gold, gold_before, "a detour paid a bounty");
+    assert!(run.brawl.is_none(), "the table is still set");
+    assert_eq!(run.last_settlement.as_ref().and_then(|s| s.won_item), Some("Platinum Chip"));
+}
+
+#[test]
+fn losing_at_the_table_costs_nothing_at_all() {
+    let mut run = Run::with_all_pieces();
+    run.mode = Mode::Rogue;
+    step_in(&mut run);
+    let (rung, losses, lives) = (run.rung, run.losses, run.extra_lives);
+    let before = chips(&run, "Platinum Chip");
+
+    // A real fight, with nothing on: the point is what a loss costs, so it
+    // has to actually be one.
+    let specs = run.pending_brawl().expect("arranged");
+    let outcome = run.fight_party(&specs).outcome;
+    assert_ne!(outcome, Outcome::Victory, "a naked build won; this proves nothing");
+    run.settle();
+
+    assert_eq!(run.losses, losses, "a forgiving fight took a life");
+    assert_eq!(run.extra_lives, lives);
+    assert_eq!(run.rung, rung, "a loss at the table knocked the ladder back");
+    assert!(run.brawl.is_none());
+    assert_eq!(chips(&run, "Platinum Chip"), before, "lost the fight and got the chip anyway");
+}
+
+#[test]
+fn the_rungs_own_creature_is_still_waiting_afterwards() {
+    let mut run = Run::with_all_pieces();
+    step_in(&mut run);
+    let expected = run.monster().name;
+    run.force_win();
+    run.settle();
+
+    // No brawl pending any more, so the next fight is the rung's.
+    assert!(run.pending_brawl().is_none());
+    assert_eq!(run.monster().name, expected, "the detour ate the rung's fight");
+}
+
+#[test]
+fn you_only_get_asked_once() {
+    let mut run = Run::with_all_pieces();
+    step_in(&mut run);
+    assert!(run.pending_event().is_none(), "the casino asked again after stepping in");
+    run.force_win();
+    run.settle();
+    assert!(run.pending_event().is_none(), "the casino reopened after the fight");
+}
+
+#[test]
+fn a_complete_board_can_actually_win_the_table() {
+    // The chip is the key to the whole VIP event, so a pair nobody can beat
+    // would not make the casino exciting - it would quietly delete a later
+    // event. This is the floor: a plain auto-built board, which is worse than
+    // what a player who earned the casino is carrying.
+    let mut run = Run::with_all_pieces();
+    run.difficulty = Difficulty::Medium;
+    run.mode = Mode::Grinder;
+    run.apply_preset();
+    run.brawl = Some(&gearmaster_engine::event::TABLE_THREE);
+
+    let specs = run.pending_brawl().expect("the table is set");
+    let log = run.fight_party(&specs);
+    assert_eq!(
+        log.outcome,
+        Outcome::Victory,
+        "a complete board lost to the third table - the Platinum Chip is now \
+         unreachable, and with it the VIP area"
+    );
 }
