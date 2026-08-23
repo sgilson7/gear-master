@@ -1,0 +1,184 @@
+# Branching events
+
+The living design document for events that remember what you did. One event
+per section; each names its trigger, its branches, and what each branch hands
+you. Code follows this document, not the other way round — when they disagree,
+this is the bug report.
+
+Status legend: **spec** (written, not built) · **built** (in the game) ·
+**partial** (some branches live).
+
+---
+
+## The shape of the thing
+
+The existing framework (`crates/engine/src/event.rs`) already does most of
+this. An event stands in front of a rung, asks a question, and never resolves
+itself. What it does *not* yet do:
+
+| Needed | Have | Gap |
+|---|---|---|
+| Fire on a condition, not a fixed rung | `at: usize` | No conditional trigger |
+| Require an item you are carrying | `LooseItemOfSize { w, h }` | Not by name |
+| Hand you a component | `Claim` gives a class | No `Give` for gear |
+| Open a curated shop | — | New outcome + screen |
+| Fight two creatures at once | 1v1 only | See *Multi-enemy* below |
+
+Those gaps are the milestones, not the events. The events themselves are
+content once the gaps are closed.
+
+---
+
+## THE CASINO — spec
+
+**Trigger.** The first time you kill something in **under 2 seconds**, while
+you are on **rungs 1–10**. Once per run. If it never happens, the casino never
+happens — this is a reward for building something sharp early, and it should
+be possible to miss it entirely.
+
+The run does not currently record how long the last fight took. It needs to.
+
+**The scene.** You go in to play. At one of the tables a fight is already
+happening, and nobody is stopping it.
+
+### Branch A — step in
+
+You fight **both** creatures at once. This is the feature that does not exist
+yet; see *Multi-enemy fights*.
+
+- **Win** → thrown out of the casino, and you keep the **Platinum Chip**.
+  The chip is a component, not a token: it sits in your tray taking up space,
+  and it is the key to the VIP event at rung ~30.
+- **Lose** → thrown out, **no life lost**, back on the normal chain exactly
+  where you were. A branch that punishes you for taking the interesting option
+  is a branch nobody takes twice.
+
+### Branch B — stay out of it
+
+You get the **Gold Chip**: spends fnorp to deal escalating damage per trigger.
+
+> **Open question — what does the Gold Chip spend?**
+> Fnorp is the theme's word for money (reference/turtle-dick.md, p. 28,
+> p. 111), so read literally this spends the **run's gold**, mid-fight. That
+> is a genuinely new channel: nothing in the game currently couples the purse
+> to combat, and an uncapped version would empty it in one fight.
+>
+> Recommendation: it does mean gold, because that is the interesting reading
+> and it is what makes a *casino* chip a casino chip. Cap it — a per-fight
+> budget the piece declares, so the worst case is knowable before you equip
+> it. Escalation resets each fight.
+>
+> The cheap alternative is that it spends a pool (rage/faith/nature), which is
+> a mechanic that already exists and needs no new plumbing. Flagged rather
+> than decided.
+
+---
+
+## THE VIP AREA — spec
+
+**Trigger.** Rung ~30. **Always shown.** You can only go in holding the
+Platinum Chip; without it the door is described and closed, so a player who
+skipped the casino learns the casino exists.
+
+**The scene.** Sprocketmen, being made to do heinous things.
+
+### Branch A — keep your cover
+
+You get a **shop of five extraordinary pieces**, and the class **Immense
+Guilt**: you cannot regenerate health, for the rest of the run.
+
+Two notes for whoever builds it:
+
+- Those five pieces must be **exempt from the slot ceiling**, the way
+  `BOSS_ONLY` is. `slot_ceiling` is the best possible item in a slot and every
+  rating is a fraction of it — drop five outliers into the ordinary catalogue
+  and every price in those slots deflates. This has bitten before.
+- Immense Guilt is the first class that is purely a cost. The class system
+  takes it fine (it is one more `ClassPower` among 43), but the fountain
+  ranking must never *offer* it.
+
+### Branch B — get them out
+
+Two hard creatures are guarding them. Win and you get **Sprocketman's
+Gratitude**: **one more row in every slot**.
+
+That is a 6×8 grid becoming 6×9 — 30 more cells across the five boards, which
+is the single largest power swing any item in the game has ever granted. It
+also means the grid stops being a constant, which is its own milestone.
+
+---
+
+## Multi-enemy fights
+
+The expensive one, and the reason it gets a milestone of its own rather than
+being folded into the casino.
+
+The rules barely care: `Side` is a two-variant enum with `other()`, one
+accessor `pick(p, e, side)`, and one `for side in [Player, Enemy]` loop —
+thirteen uses across the whole engine. The *presentation* is where the cost
+is. `Playback` is built entirely out of paired fields — `player_hp`/`enemy_hp`,
+`player_schedule`/`enemy_schedule`, `enemy_reg`, `enemy_loadout`,
+`enemy_reports`, `enemy_profiles` — and the battle screen draws exactly two
+boards, two health bars and two cooldown columns. Forty uses of `Side` live
+there.
+
+**Merging the two creatures into one is not an option.** Two monsters' gear
+does not fit in five 6×8 grids, and pooled health would not read as two
+opponents anyway.
+
+**Proposed design.** Keep `Side` binary for the rules; make the enemy a party.
+
+- `simulate` takes `&[MonsterSpec]` rather than `&MonsterSpec`.
+- Internally `player: Combatant`, `foes: Vec<Combatant>`.
+- The player's single-target damage goes to the **first living foe**, front to
+  back. Deterministic, readable, and it makes ordering a design lever.
+- Every foe acts independently against the player.
+- Victory when every foe is down.
+- Events that name a combatant gain a `who: u8`, defaulting to 0, so every
+  existing log reader keeps working for 1v1.
+- The battle screen splits the enemy half into two narrower boards when
+  `foes.len() > 1`.
+
+The `who: u8` addition is mechanical but wide — it touches every event
+construction site. Worth doing once, properly, because every future "fight two
+things" event is free afterwards.
+
+---
+
+## Milestones
+
+In dependency order. Each one ends with something playable.
+
+| # | Milestone | Unblocks | Size |
+|---|---|---|---|
+| 1 | **This document** | everything | done |
+| 2 | **Event triggers and rewards** — `Run::last_fight_ms`, conditional events, `Requirement::Holding`, `Outcome::Give` | 3, 7 | small |
+| 3 | **The casino, walk-away branch** — event fires, scene, Gold Chip | — | small |
+| 4 | **Multi-enemy fights** — engine party, then the battle screen | 5, 7 | **large** |
+| 5 | **The casino, step-in branch** — 2-at-once, Platinum Chip, loss costs no life | 7 | small once 4 lands |
+| 6 | **Variable slot height** — `SLOT_H` const becomes a per-run figure | 7 | medium |
+| 7 | **The VIP area** — both branches, the five-piece shop, Immense Guilt, Sprocketman's Gratitude | — | medium |
+
+Milestone 3 ships a complete, playable event on its own: the casino exists,
+the trigger works, and one of its two doors opens. Milestone 5 opens the
+other.
+
+Milestone 6 is better than it sounds. `Slot::cells` is already a `Vec` rather
+than a fixed array, so the height is a field waiting to happen — eight sites
+in `slot.rs`, two in `run.rs`, the board layout in the interface, and the
+packing tools. The share-code format stores `y` as a value and does not care.
+
+---
+
+## Content charter
+
+Unchanged, and it constrains the VIP area specifically. Crude names are in
+(Big Yomp, PoopFart). Still out: sexual and anatomical content, drugs, alcohol
+and smoking, slur-adjacent coinages, and every real public figure. Violence
+stays cartoon-grade.
+
+"Sprocketmen being made to do heinous things" is written at the level the rest
+of the game is written at: the Crimper crunches, and nobody is described being
+crunched. The horror is that they are *made to work*, endlessly, for someone
+else's amusement — which is the book's own joke about the Great Gear Cave, and
+lands harder than anything explicit would.

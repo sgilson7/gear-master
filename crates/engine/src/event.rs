@@ -21,6 +21,10 @@ pub enum Requirement {
     /// A choice taken at an earlier event, by its label. What you did three
     /// rungs ago is allowed to change what is on offer now.
     Took(&'static str),
+    /// A named component, anywhere you own it - worn or loose. Unlike
+    /// `LooseItemOfSize` this is not handed over: the door opens because you
+    /// have the key, and you keep the key.
+    Holding(&'static str),
 }
 
 /// What taking a choice does.
@@ -40,6 +44,10 @@ pub enum Outcome {
     Spare,
     /// A class handed over on the spot, which no fountain offers.
     Claim(&'static str),
+    /// A component handed over on the spot. It arrives loose, in the tray,
+    /// where it takes up room like anything else - a reward you have to find
+    /// space for is a reward you have to think about.
+    Give(&'static str),
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -54,12 +62,29 @@ pub struct Choice {
     pub unmet: &'static str,
 }
 
+/// What has to be true before an event will stand in front of you.
+///
+/// Most events are pinned to a rung and that is the whole condition. Some are
+/// earned: the casino opens because of something you did, not because of where
+/// you are, and if you never do it the casino never happens.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Trigger {
+    /// Stands on `at`, every run, no questions.
+    Rung,
+    /// Stands on the next rung at or before `at`, but only once you have won a
+    /// fight in under `within_ms`. Miss the window and it never fires.
+    QuickKill { within_ms: u32 },
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct LadderEvent {
     /// Stable id, so a run can remember it has answered this one.
     pub id: &'static str,
-    /// Rung index it stands on.
+    /// Rung index it stands on - or, for an earned event, the last rung it
+    /// will still stand on.
     pub at: usize,
+    /// What has to be true for it to appear at all.
+    pub trigger: Trigger,
     /// The creature whose rung this is - checked against the ladder so a
     /// renumbering cannot leave an event pointing at the wrong fight.
     pub expects: &'static str,
@@ -76,6 +101,7 @@ pub const EVENTS: &[LadderEvent] = &[
     LadderEvent {
         id: "what-to-do-with-henpeck",
         at: 15,
+        trigger: Trigger::Rung,
         expects: "The Curator",
         title: "HE IS STILL TALKING",
         prose: &[
@@ -107,6 +133,7 @@ pub const EVENTS: &[LadderEvent] = &[
     LadderEvent {
         id: "the-toads-offer",
         at: 2,
+        trigger: Trigger::Rung,
         expects: "Bone Archer",
         title: "IT WOULD RATHER NOT",
         prose: &[
@@ -137,6 +164,7 @@ pub const EVENTS: &[LadderEvent] = &[
     LadderEvent {
         id: "the-shrine-fork",
         at: 9,
+        trigger: Trigger::Rung,
         expects: "Warded Idol",
         title: "TWO THINGS IN THE SHRINE",
         prose: &[
@@ -176,8 +204,18 @@ pub const EVENTS: &[LadderEvent] = &[
 ];
 
 /// The event standing on `rung`, if there is one.
-pub fn at(rung: usize) -> Option<&'static LadderEvent> {
-    EVENTS.iter().find(|e| e.at == rung)
+/// The event standing on `rung`, given what the run has managed so far.
+///
+/// `best_fight_ms` is the quickest win the run has had, or `None` if it has
+/// not won one yet. An earned event fires on the first rung after it qualifies
+/// rather than on a fixed one, so it turns up when you have earned it.
+pub fn at(rung: usize, best_fight_ms: Option<u32>) -> Option<&'static LadderEvent> {
+    EVENTS.iter().find(|e| match e.trigger {
+        Trigger::Rung => e.at == rung,
+        Trigger::QuickKill { within_ms } => {
+            rung <= e.at && best_fight_ms.is_some_and(|ms| ms <= within_ms)
+        }
+    })
 }
 
 impl Requirement {
@@ -185,7 +223,8 @@ impl Requirement {
     pub fn met_by_shape(self, cells: &[(u8, u8)]) -> bool {
         match self {
             Requirement::None => true,
-            Requirement::Took(_) => true, // answered by the run, not the shape
+            // Both of these are answered by the run rather than by a shape.
+            Requirement::Took(_) | Requirement::Holding(_) => true,
             Requirement::LooseItemOfSize { w, h } => {
                 let (mut mx, mut my) = (0u8, 0u8);
                 for &(x, y) in cells {

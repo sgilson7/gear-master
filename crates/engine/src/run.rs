@@ -186,6 +186,9 @@ pub struct Run {
     pub substitute: Option<&'static MonsterSpec>,
     /// Events already answered, by id, so one is never asked twice.
     pub answered: Vec<&'static str>,
+    /// The quickest win this run has managed, in milliseconds. Events that are
+    /// earned rather than scheduled read it - see `event::Trigger`.
+    pub best_fight_ms: Option<u32>,
     /// Choices actually taken, by label, so a later event can ask what you did
     /// at an earlier one.
     pub took: Vec<&'static str>,
@@ -284,6 +287,7 @@ impl Run {
             doubled: None,
             substitute: None,
             answered: Vec::new(),
+            best_fight_ms: None,
             took: Vec::new(),
             dungeon: None,
             pending_landing: None,
@@ -385,7 +389,8 @@ impl Run {
         if self.phase != Phase::Loadout || self.at_fountain() || self.at_doubling_fountain() {
             return None;
         }
-        crate::event::at(self.rung).filter(|e| !self.answered.contains(&e.id))
+        crate::event::at(self.rung, self.best_fight_ms)
+            .filter(|e| !self.answered.contains(&e.id))
     }
 
     /// Loose components that would satisfy `req`, as ids.
@@ -418,6 +423,11 @@ impl Run {
         match c.requires {
             Requirement::None => true,
             Requirement::Took(label) => self.took.contains(&label),
+            // Worn or loose, both count: a key you have built into a helmet is
+            // still a key you have.
+            Requirement::Holding(name) => {
+                self.owned.iter().any(|&id| self.registry.def(id).name == name)
+            }
             Requirement::LooseItemOfSize { .. } => !self.offerings(c.requires).is_empty(),
         }
     }
@@ -443,6 +453,12 @@ impl Run {
                 self.substitute = crate::combat::alternate(name);
             }
             ChoiceOutcome::Spare => self.grant_life(),
+            ChoiceOutcome::Give(name) => {
+                if let Some(d) = crate::piece::CATALOG.iter().position(|d| d.name == name) {
+                    let id = self.registry.alloc(d);
+                    self.owned.push(id);
+                }
+            }
             ChoiceOutcome::Claim(name) => {
                 if let Some(c) = crate::class::CLASSES.iter().find(|c| c.name == name) {
                     if !self.classes.iter().any(|k| k.name == c.name) {
@@ -586,6 +602,16 @@ impl Run {
             landing: None,
             class_won: None,
         };
+
+        // The quickest win the run has had, which is what earns the casino.
+        // Only a real win counts: a stalemate lasts the full clock by
+        // definition, and a defeat that ended in half a second is not a fight
+        // you won quickly.
+        if outcome == Outcome::Victory {
+            if let Some(ms) = self.log.as_ref().map(|l| l.duration_ms) {
+                self.best_fight_ms = Some(self.best_fight_ms.map_or(ms, |b| b.min(ms)));
+            }
+        }
 
         match outcome {
             Outcome::Victory if self.dungeon.is_some() => {
