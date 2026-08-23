@@ -21,6 +21,7 @@ pub mod piece;
 pub mod rating;
 pub mod rng;
 pub mod run;
+pub mod share;
 pub mod shop;
 pub mod shape;
 pub mod slot;

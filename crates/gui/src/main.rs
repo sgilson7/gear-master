@@ -4837,6 +4837,180 @@ const GLOSSARY: &[(&str, &str)] = &[
 /// What the fountain will hand over, as cards you choose between.
 ///
 /// Returns the class chosen, if one was.
+/// The tools drawer: a screenshot, and a run written down.
+///
+/// The code is the interesting half. It says what somebody built and how far
+/// they got, in a string short enough to paste into a message, so a build can
+/// be sent to somebody else and looked at rather than described.
+///
+/// Returns which button was pressed, if any.
+fn render_tools(
+    run: &Run,
+    code: &str,
+    imported: Option<&gearmaster_engine::share::Shared>,
+    mx: f32,
+    my: f32,
+) -> Option<&'static str> {
+    let pad = 120.0;
+    let h = 470.0;
+    let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, LOGICAL_W - 2.0 * pad, h);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
+    ui_text("TOOLS", r.x + 28.0, r.y + 42.0, 24.0, col_gold());
+    ui_text("Esc to close", r.x + 28.0, r.y + 64.0, 12.0, col_dim());
+
+    let mut y = r.y + 100.0;
+    ui_text("THIS RUN, WRITTEN DOWN", r.x + 28.0, y, 13.0, col_dim());
+    y += 22.0;
+    // Broken to a width rather than word-wrapped: a code is one long token
+    // with no spaces in it, so `wrap_px` has nothing to break on and the line
+    // simply ran off the right-hand edge. The whole thing has to be readable -
+    // reading it off the screen is the fallback where there is no clipboard.
+    let per_line = {
+        let mut n = 8usize;
+        while n < code.len() && text_width(&code[..n], 15.0) < r.w - 56.0 {
+            n += 1;
+        }
+        n.saturating_sub(1).max(8)
+    };
+    for chunk in code.as_bytes().chunks(per_line) {
+        let l = String::from_utf8_lossy(chunk).to_string();
+        ui_text(&l, r.x + 28.0, y, 15.0, Color::from_rgba(210, 212, 230, 255));
+        y += 19.0;
+    }
+    y += 6.0;
+    ui_text(
+        &format!(
+            "rung {}  ·  {} won  ·  {} lost",
+            run.rung + 1,
+            run.wins,
+            run.losses
+        ),
+        r.x + 28.0,
+        y,
+        12.0,
+        col_dim(),
+    );
+
+    // What was pasted in, if anything.
+    let mut iy = r.y + 250.0;
+    ui_text("PASTED IN", r.x + 28.0, iy, 13.0, col_dim());
+    iy += 22.0;
+    match imported {
+        None => {
+            ui_text(
+                "Nothing yet. Copy a friend's code, then press READ CLIPBOARD.",
+                r.x + 28.0,
+                iy,
+                13.0,
+                col_dim(),
+            );
+        }
+        Some(sh) => {
+            let (reg, lo) = sh.loadout();
+            let items: usize = SlotKind::ALL
+                .iter()
+                .map(|k| lo.report(&reg, *k).items.iter().filter(|i| i.assembled).count())
+                .sum();
+            ui_text(
+                &format!(
+                    "rung {}  ·  {} won  ·  {} components in {} finished items",
+                    sh.rung + 1,
+                    sh.wins,
+                    sh.placed.len(),
+                    items
+                ),
+                r.x + 28.0,
+                iy,
+                14.0,
+                col_ok(),
+            );
+            iy += 20.0;
+            // The shared code carries class names as owned strings, so match
+            // them back to the real ones before asking the theme.
+            let titles: Vec<String> = sh
+                .classes
+                .iter()
+                .map(|c| {
+                    gearmaster_engine::class::CLASSES
+                        .iter()
+                        .find(|k| k.name == c)
+                        .map(|k| words::class(k.name).to_string())
+                        .unwrap_or_else(|| c.clone())
+                })
+                .collect();
+            if !titles.is_empty() {
+                ui_text(&titles.join(", "), r.x + 28.0, iy, 13.0, col_gold());
+                iy += 20.0;
+            }
+            // The boards themselves, because the point of a shared code is
+            // seeing how somebody packed. Sized to the room left above the
+            // buttons rather than to the width, or five of them at full width
+            // are taller than the drawer.
+            let room_h = (r.y + r.h - 74.0) - iy - 14.0;
+            let by_h = room_h / SLOT_H as f32;
+            let by_w = (r.w - 56.0 - 4.0 * 10.0) / 5.0 / SLOT_W as f32;
+            let cell = by_h.min(by_w);
+            let bw = cell * SLOT_W as f32;
+            for (i, kind) in SlotKind::ALL.iter().enumerate() {
+                let bx = r.x + 28.0 + i as f32 * (bw + 10.0);
+                render_share_board(&reg, &lo, *kind, bx, iy, bw);
+            }
+        }
+    }
+
+    let bw = 220.0;
+    let by = r.y + r.h - 58.0;
+    let mut hit = None;
+    for (i, (id, label)) in
+        [("shot", "SCREENSHOT"), ("copy", "COPY CODE"), ("paste", "READ CLIPBOARD")]
+            .iter()
+            .enumerate()
+    {
+        let b = Rect::new(r.x + 28.0 + i as f32 * (bw + 12.0), by, bw, 38.0);
+        button(b, label, true, mx, my);
+        if is_mouse_button_pressed(MouseButton::Left) && b.contains(Vec2::new(mx, my)) {
+            hit = Some(*id);
+        }
+    }
+    let close = Rect::new(r.x + r.w - 140.0, by, 120.0, 38.0);
+    button(close, "CLOSE", true, mx, my);
+    if is_mouse_button_pressed(MouseButton::Left) && close.contains(Vec2::new(mx, my)) {
+        hit = Some("close");
+    }
+    hit
+}
+
+/// One shared board, drawn small enough that five fit in a row.
+fn render_share_board(
+    reg: &gearmaster_engine::piece::PieceRegistry,
+    lo: &gearmaster_engine::loadout::Loadout,
+    kind: SlotKind,
+    x: f32,
+    y: f32,
+    w: f32,
+) {
+    let cell = w / SLOT_W as f32;
+    draw_rectangle(x, y, w, cell * SLOT_H as f32, Color::from_rgba(24, 24, 34, 255));
+    let slot = lo.slot(kind);
+    for gy in 0..SLOT_H {
+        for gx in 0..SLOT_W {
+            let Some(id) = slot.get(gx, gy) else { continue };
+            let c = slot_color(kind, kind_luminance(reg.def(id).kind));
+            draw_rectangle(
+                x + gx as f32 * cell,
+                y + gy as f32 * cell,
+                cell - 1.0,
+                cell - 1.0,
+                c,
+            );
+        }
+    }
+    draw_rectangle_lines(x, y, w, cell * SLOT_H as f32, 1.0, Color::from_rgba(70, 70, 95, 255));
+    ui_text(kind.name(), x, y + cell * SLOT_H as f32 + 12.0, 10.0, col_dim());
+}
+
 /// An event standing in front of a rung: some prose and a row of choices.
 ///
 /// One screen for all of them. An event is data - `EVENTS` in the engine - so
@@ -7047,7 +7221,7 @@ fn render_panel(
     }
     button(r[3], "CLEAR ALL", true, mx, my);
     button(r[4], words::word("glossary", "WHAT THE WORDS MEAN"), true, mx, my);
-    button(r[5], "F12", true, mx, my);
+    button(r[5], "TOOLS", true, mx, my);
 }
 
 // ================================================================= main
@@ -7061,6 +7235,14 @@ async fn main() {
     let mut settled = false;
     // The combat log is a quiet strip unless you ask to see all of it.
     let mut log_expanded = std::env::var("GEARMASTER_LOG").is_ok();
+    let mut tools_open = std::env::var("GEARMASTER_TOOLS").is_ok();
+    // GEARMASTER_PASTE=<code> loads a shared run at startup. The clipboard is
+    // not readable before the window has focus, so this is the only way to put
+    // somebody else's board on screen without a pair of hands.
+    let mut imported: Option<gearmaster_engine::share::Shared> = std::env::var("GEARMASTER_PASTE")
+        .ok()
+        .as_deref()
+        .and_then(gearmaster_engine::share::import);
     // Lines back from the newest the battle log is holding at. Zero follows.
     let mut log_scroll: usize = 0;
     // Kept between fights, and settable before one starts.
@@ -7580,6 +7762,56 @@ async fn main() {
             continue;
         }
 
+        // The tools drawer sits over everything, like the fountain and the
+        // glossary do.
+        if tools_open {
+            let code = gearmaster_engine::share::export(&run);
+            match render_tools(&run, &code, imported.as_ref(), mx, my) {
+                Some("close") => tools_open = false,
+                Some("copy") => {
+                    miniquad::window::clipboard_set(&code);
+                    message = "Run code copied. Paste it to a friend.".into();
+                }
+                Some("paste") => {
+                    let got = miniquad::window::clipboard_get().unwrap_or_default();
+                    match gearmaster_engine::share::import(&got) {
+                        Some(sh) => {
+                            message = format!("Read a run from rung {}.", sh.rung + 1);
+                            imported = Some(sh);
+                        }
+                        None => message = "That is not a run code.".into(),
+                    }
+                }
+                Some("shot") => {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let path =
+                            format!("/tmp/gearmaster-{}.png", (get_time() * 1000.0) as u64);
+                        get_screen_data().export_png(&path);
+                        message = format!("Saved {}", path);
+                    }
+                }
+                _ => {}
+            }
+            if is_key_pressed(KeyCode::Escape) {
+                tools_open = false;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
+        }
+
         // An event sits over everything while it is being answered, the same
         // way a fountain does.
         if let Some(ev) = run.pending_event() {
@@ -7804,6 +8036,8 @@ async fn main() {
                 message = "Cleared. Every slot is empty again. UNDO puts it back.".to_string();
             } else if clicked_button(4) {
                 glossary_open = true;
+            } else if clicked_button(5) {
+                tools_open = true;
             }
         }
 
