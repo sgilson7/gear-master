@@ -1096,6 +1096,37 @@ fn all_layouts(seeds: &[u64]) -> Vec<Vec<Layout>> {
         .collect()
 }
 
+/// Health on both sides when the fight ended.
+///
+/// `CombatLog::player` and `::enemy` are the combatants as they *started* -
+/// the interface uses them to lay the two boards out side by side - so reading
+/// health off them tells you the pre-fight number and nothing else. A build
+/// that lost at rung 41 still reports full health there. The end state has to
+/// come from the events.
+fn final_health(log: &gearmaster_engine::combat::CombatLog) -> (i32, i32) {
+    use gearmaster_engine::combat::{Event, Side};
+    let mut player = log.player.health;
+    let mut enemy = log.enemy.health;
+    for e in &log.entries {
+        match &e.event {
+            Event::Hit { by, target_health, .. } => match by {
+                Side::Player => enemy = *target_health,
+                Side::Enemy => player = *target_health,
+            },
+            Event::Burn { side, health, .. } | Event::Regen { side, health, .. } => match side {
+                Side::Player => player = *health,
+                Side::Enemy => enemy = *health,
+            },
+            Event::Fell { side } => match side {
+                Side::Player => player = 0,
+                Side::Enemy => enemy = 0,
+            },
+            _ => {}
+        }
+    }
+    (player, enemy)
+}
+
 /// Put a prepared board on, **locking each item as it lands**.
 ///
 /// This has to mirror `pack_dense` exactly or the numbers are fiction. The
@@ -2021,4 +2052,301 @@ fn author_the_extra_items() {
             None => println!("// {} : nothing fits in {:?}", name, slot),
         }
     }
+}
+
+
+/// What each item is actually worth in a fight, against what it costs.
+///
+/// The rating is a *model* of worth and the shop price is derived from it, so
+/// nothing in the pricing path can tell you when the model is wrong. This
+/// measures instead: swap one item into an otherwise fixed board, fight a
+/// fixed opponent, and see what changed.
+///
+/// The board has to be fixed and complete. Measuring an item on a bare board
+/// only measures survivability - a lone weapon dies before its first swing and
+/// scores nothing, while any helmet racks up armour - which says everything
+/// about the experiment and nothing about the gear.
+#[test]
+#[ignore]
+fn find_outlier_gear() {
+    use gearmaster_engine::combat::{Difficulty, Outcome, LADDER};
+    use gearmaster_engine::rating::shop_price;
+    use gearmaster_engine::run::{Mode, Run};
+
+    // The rung the packed profiles clear but only just, so a better item can
+    // show as a wider win and a worse one as a loss. Anything they crush or
+    // cannot touch measures nothing.
+    let target = LADDER[19];
+
+    let baseline: Vec<(SlotKind, Vec<Vec<(&'static str, u8, u8, u8)>>)> =
+        SlotKind::ALL.iter().map(|&s| (s, pack_dense(s, |d| d.rating))).collect();
+
+    let run_board = |layout: &Layout| -> (bool, i32) {
+        let mut run = wear_layout(layout);
+        run.difficulty = Difficulty::Medium;
+        run.mode = Mode::Grinder;
+        let log = run.fight(&target);
+        let won = log.outcome == Outcome::Victory;
+        // One scalar for "how comfortably": what you had left minus what they
+        // had left. Positive is a win with room, negative is a loss.
+        let (ph, eh) = final_health(log);
+        (won, ph - eh)
+    };
+
+    let base_layout: Layout = baseline.clone();
+    let (base_won, base_margin) = run_board(&base_layout);
+
+    struct Row {
+        slot: SlotKind,
+        names: Vec<&'static str>,
+        price: i32,
+        margin: i32,
+        won: bool,
+    }
+    let mut rows: Vec<Row> = Vec::new();
+
+    for slot in SlotKind::ALL {
+        let mut all = candidates(slot);
+        let cells = |names: &[&'static str]| -> i32 {
+            names
+                .iter()
+                .map(|n| CATALOG.iter().find(|c| c.name == *n).unwrap().cells.len() as i32)
+                .sum::<i32>()
+                .max(1)
+        };
+        let mut sample: Vec<Vec<&'static str>> =
+            all.iter().take(200).map(|(_, n)| n.clone()).collect();
+        all.sort_by_key(|(r, n)| std::cmp::Reverse(*r * 100 / cells(n)));
+        for (_, n) in all.into_iter().take(200) {
+            if !sample.contains(&n) {
+                sample.push(n);
+            }
+        }
+
+        for names in sample {
+            let Some(placed) = pack(slot, &names) else { continue };
+            // Everything else stays exactly as the baseline had it.
+            let layout: Layout = baseline
+                .iter()
+                .map(|(s, items)| {
+                    if *s == slot { (*s, vec![placed.clone()]) } else { (*s, items.clone()) }
+                })
+                .collect();
+            let (won, margin) = run_board(&layout);
+            let price: i32 = names
+                .iter()
+                .map(|n| shop_price(CATALOG.iter().find(|c| c.name == *n).unwrap()))
+                .sum();
+            rows.push(Row { slot, names, price: price.max(1), margin, won });
+        }
+    }
+
+    println!("\n=== what gear is worth against what it costs ===");
+    println!("one item swapped into an otherwise fixed dense-packed board,");
+    println!("fought against {} (rung 20) at 1x.", target.name);
+    println!("margin = your health left minus theirs; the whole board without");
+    println!("any swap scores {} ({}).", base_margin, if base_won { "win" } else { "loss" });
+    println!("{} items measured.\n", rows.len());
+
+    let show = |label: &str, rows: &[&Row]| {
+        println!("\n{}", label);
+        println!("{:<11}{:>7}{:>9}{:>7}   {}", "slot", "price", "margin", "won", "item");
+        for r in rows {
+            println!(
+                "{:<11}{:>7}{:>9}{:>7}   {}",
+                r.slot.name(),
+                r.price,
+                r.margin,
+                if r.won { "yes" } else { "-" },
+                r.names.join(" + ")
+            );
+        }
+    };
+
+    for slot in SlotKind::ALL {
+        let mut v: Vec<&Row> = rows.iter().filter(|r| r.slot == slot).collect();
+        if v.is_empty() {
+            continue;
+        }
+        v.sort_by_key(|r| std::cmp::Reverse(r.margin));
+        let wins = v.iter().filter(|r| r.won).count();
+        println!(
+            "\n---- {} : {} measured, {} of them win, best {} worst {} ----",
+            slot.name(),
+            v.len(),
+            wins,
+            v[0].margin,
+            v[v.len() - 1].margin
+        );
+        let best: Vec<&Row> = v.iter().take(8).copied().collect();
+        show("strongest", &best);
+        // Cheap and still winning is the real outlier: it is what a player
+        // finds by accident and then never takes off.
+        let mut cheap: Vec<&Row> = v.iter().filter(|r| r.won && r.price <= 120).copied().collect();
+        cheap.sort_by_key(|r| std::cmp::Reverse(r.margin * 100 / r.price.max(1)));
+        if !cheap.is_empty() {
+            show("best value under 120g", &cheap.into_iter().take(8).collect::<Vec<_>>());
+        }
+        let mut dear: Vec<&Row> = v.iter().filter(|r| !r.won && r.price >= 250).copied().collect();
+        dear.sort_by_key(|r| r.margin);
+        if !dear.is_empty() {
+            show("expensive and still losing", &dear.into_iter().take(8).collect::<Vec<_>>());
+        }
+    }
+
+    // Which components keep turning up at the top of their slot.
+    let mut tally: Vec<(&'static str, usize)> = Vec::new();
+    for slot in SlotKind::ALL {
+        let mut v: Vec<&Row> = rows.iter().filter(|r| r.slot == slot).collect();
+        v.sort_by_key(|r| std::cmp::Reverse(r.margin));
+        for r in v.iter().take(25) {
+            for n in &r.names {
+                match tally.iter_mut().find(|(m, _)| m == n) {
+                    Some((_, c)) => *c += 1,
+                    None => tally.push((n, 1)),
+                }
+            }
+        }
+    }
+    tally.sort_by_key(|(_, c)| std::cmp::Reverse(*c));
+    println!("\ncomponents appearing most often in the best 25 of their slot:");
+    for (n, c) in tally.iter().take(25) {
+        println!("  {:>3}x  {}", c, n);
+    }
+    println!();
+}
+
+/// The shape of the ladder: how comfortably one fixed board takes each rung.
+///
+/// Win/loss alone cannot tell a wall from a cliff. A rung that is lost by two
+/// points is tuned; one lost by four thousand is a different game starting
+/// without warning. Printing the margin per rung shows which is which, and
+/// where the steps are.
+#[test]
+#[ignore]
+fn ladder_curve() {
+    use gearmaster_engine::combat::{Difficulty, Outcome, LADDER};
+    use gearmaster_engine::run::{Mode, Run};
+
+    let boards: Vec<(&str, Layout)> = vec![
+        ("dense", SlotKind::ALL.iter().map(|&s| (s, pack_dense(s, |d| d.rating))).collect()),
+        (
+            "per sec",
+            SlotKind::ALL
+                .iter()
+                .map(|&s| (s, pack_dense(s, |d| d.rating * 1000 / d.cooldown_ms.max(1))))
+                .collect(),
+        ),
+    ];
+
+    println!("\n=== how the ladder feels to a packed board ===");
+    println!("margin = your health left minus theirs, at 1x.");
+    println!("a big negative jump between neighbours is a cliff, not a curve.\n");
+    print!("{:<4}{:<22}{:>8}", "rung", "monster", "health");
+    for (name, _) in &boards {
+        print!("{:>12}", *name);
+    }
+    println!();
+
+    let mut prev: Vec<i32> = vec![0; boards.len()];
+    for (i, spec) in LADDER.iter().enumerate() {
+        print!("{:<4}{:<22}{:>8}", i + 1, spec.name, spec.health);
+        for (bi, (_, layout)) in boards.iter().enumerate() {
+            let mut run = wear_layout(layout);
+            run.difficulty = Difficulty::Medium;
+            run.mode = Mode::Grinder;
+            run.rung = i;
+            let log = run.fight_next();
+            let (ph, eh) = final_health(log);
+            let m = ph - eh;
+            // A stalemate is the 60-second clock, and it costs a run life
+            // exactly like dying does - so a fight can be lost from thousands
+            // of health ahead. Worth telling apart from being killed.
+            let mark = match log.outcome {
+                Outcome::Victory => " ",
+                Outcome::Defeat => "D",
+                Outcome::Stalemate => "S",
+            };
+            let step = m - prev[bi];
+            prev[bi] = m;
+            print!("{:>12}", format!("{}{}{}", m, mark, if step < -1500 { "!" } else { "" }));
+        }
+        println!();
+    }
+        println!("\nD = killed, S = ran out of clock (also costs a life), ! = a drop of 1500+ from the rung before.\n");
+}
+
+/// How much of the ladder the fountains are carrying.
+///
+/// `ladder_curve` fights classless, because a profile never visits a fountain.
+/// That is half the run's scaling left out, so the flat ceiling it reports is
+/// a floor rather than a verdict. This gives the same board the classes it
+/// would actually qualify for and walks the ladder again - the gap between the
+/// two lines is what the fountains are worth.
+#[test]
+#[ignore]
+fn what_classes_are_worth() {
+    use gearmaster_engine::combat::{Difficulty, Outcome, LADDER};
+    use gearmaster_engine::run::{Mode, Run};
+
+    let layout: Layout =
+        SlotKind::ALL.iter().map(|&s| (s, pack_dense(s, |d| d.rating))).collect();
+
+    // What this board is actually offered at a fountain, best first.
+    let outlook = {
+        let run = wear_layout(&layout);
+        run.class_outlook()
+    };
+    let offered: Vec<&'static str> =
+        outlook.iter().filter(|m| m.eligible).map(|m| m.class.name).collect();
+    println!("\n=== what the fountains are worth ===");
+    println!("the dense board qualifies for: {}", if offered.is_empty() {
+        "nothing".to_string()
+    } else {
+        offered.join(", ")
+    });
+
+    // Each class on its own, so a dead one is visible as a dead one. Taking
+    // the first three the fingerprint offers hid this completely: they were
+    // all cast powers on a board that casts nothing, and the margin came out
+    // identical to the unit at all fifty rungs.
+    let at = [14usize, 19, 24, 29, 34];
+    print!("\n{:<16}", "class");
+    for r in at {
+        print!("{:>10}", format!("r{}", r + 1));
+    }
+    println!("   power");
+
+    let mut base = Vec::new();
+    for &r in &at {
+        let mut run = wear_layout(&layout);
+        run.difficulty = Difficulty::Medium;
+        run.mode = Mode::Grinder;
+        run.rung = r;
+        let log = run.fight_next();
+        let (ph, eh) = final_health(log);
+        base.push(ph - eh);
+    }
+    print!("{:<16}", "(none)");
+    for m in &base {
+        print!("{:>10}", m);
+    }
+    println!();
+
+    for m in outlook.iter().filter(|m| m.eligible) {
+        print!("{:<16}", m.class.name);
+        for (i, &r) in at.iter().enumerate() {
+            let mut run = wear_layout(&layout);
+            run.difficulty = Difficulty::Medium;
+            run.mode = Mode::Grinder;
+            run.classes.push(m.class);
+            run.rung = r;
+            let log = run.fight_next();
+            let (ph, eh) = final_health(log);
+            let d = (ph - eh) - base[i];
+            print!("{:>10}", if d == 0 { "-".to_string() } else { format!("{:+}", d) });
+        }
+        println!("   {:?}", m.class.power);
+    }
+    println!("\n'-' means the class changed nothing at all.\n");
 }
