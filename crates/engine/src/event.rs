@@ -38,6 +38,8 @@ pub struct Brawl {
     pub with: &'static [&'static str],
     /// The component you keep if you win. Empty for a fight worth nothing.
     pub win: &'static str,
+    /// Rows added to every grid on a win, on top of the component.
+    pub and_grow: u8,
     /// Whether losing costs you a life.
     ///
     /// The casino does not: a branch that punishes you for taking the
@@ -69,6 +71,12 @@ pub enum Outcome {
     Give(&'static str),
     /// Step into a fight the event has arranged. See `Brawl`.
     Step(&'static Brawl),
+    /// Put these on the shelves, and hand over what agreeing to them costs.
+    ///
+    /// The shop is emptied and restocked with exactly `shelves`, which is how
+    /// a curated offer works without needing a screen of its own: you walk out
+    /// and the shop is different. `class` is the price of the arrangement.
+    Stock { shelves: &'static [&'static str], class: &'static str },
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -128,10 +136,78 @@ pub struct LadderEvent {
 pub static TABLE_THREE: Brawl = Brawl {
     with: &["Bone Archer", "Frost Wisp"],
     win: "Platinum Chip",
+    and_grow: 0,
     forgiving: true,
 };
 
+/// The two standing over the sprocketmen in the back room.
+///
+/// Not forgiving. The casino's table is a bet you can walk away from; this is
+/// a decision about somebody else, and it costs what losing costs.
+pub static THE_BACK_ROOM: Brawl = Brawl {
+    with: &["Obsidian Colossus", "Vermin Sovereign"],
+    win: "Sprocketman's Gratitude",
+    and_grow: 1,
+    forgiving: false,
+};
+
 pub const EVENTS: &[LadderEvent] = &[
+    // Always stands here, whether or not you can go in. A door you cannot
+    // open still tells you there was a door, and a player who skipped the
+    // casino learns the casino existed - which is the whole reason the chip
+    // is worth carrying thirty rungs.
+    LadderEvent {
+        id: "the-vip-area",
+        at: 29,
+        trigger: Trigger::Rung,
+        expects: "Silence",
+        title: "MEMBERS AND GUESTS",
+        prose: &[
+            "The rope is velvet and the man behind it is not. He looks at you \
+             the way a lock looks at a key: with no opinion at all until the \
+             right thing is presented.",
+            "Behind him, down a corridor lit the colour of weak tea, something \
+             is running. Not machinery. You know what machinery sounds like - \
+             you were mined out of a cave full of it. This is the sound gear-folk \
+             make when they have been at it a very long time and are not \
+             expected to stop.",
+            "There are five things on a table down there that nobody sells. He \
+             would be delighted to show you. He is watching your face while he \
+             says it.",
+        ],
+        choices: &[
+            Choice {
+                label: "Keep your face still",
+                blurb: "Look at the table. Do not look down the corridor.",
+                requires: Requirement::Holding("Platinum Chip"),
+                outcome: Outcome::Stock {
+                    shelves: &[
+                        "Overseer's Circlet",
+                        "Foreman's Harness",
+                        "Tallykeeper's Weave",
+                        "Treadmill Sole",
+                        "Quota Edge",
+                    ],
+                    class: "Immense Guilt",
+                },
+                unmet: "the rope does not move - members only",
+            },
+            Choice {
+                label: "Get them out",
+                blurb: "Two of them are paid to stop you. This one costs.",
+                requires: Requirement::Holding("Platinum Chip"),
+                outcome: Outcome::Step(&THE_BACK_ROOM),
+                unmet: "the rope does not move - members only",
+            },
+            Choice {
+                label: "Walk on",
+                blurb: "Whatever that is, it is behind a rope and you are not.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
     // Earned, not scheduled: it turns up the moment you have flattened
     // something inside two seconds, so long as you are still in the shallow
     // end. Build something sharp early and the door is there; do not, and you

@@ -24,6 +24,20 @@ pub struct Shop {
 }
 
 impl Shop {
+    /// Put exactly these on the shelves and nothing else.
+    ///
+    /// For an offer that is not a shop's own choosing - somebody has laid five
+    /// things out for you, and a reroll would be missing the point. Pins are
+    /// cleared with everything else: what was on the shelf is gone.
+    pub fn stock_exactly(&mut self, names: &[&str]) {
+        self.locked.clear();
+        self.previous = std::mem::take(&mut self.stock);
+        self.stock = names
+            .iter()
+            .filter_map(|n| CATALOG.iter().position(|d| d.name == *n))
+            .collect();
+    }
+
     pub fn new(rng: &mut Rng) -> Self {
         let mut shop = Shop { stock: Vec::new(), locked: Vec::new(), previous: Vec::new() };
         shop.restock(rng, true);

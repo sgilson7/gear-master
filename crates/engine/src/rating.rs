@@ -173,7 +173,7 @@ fn slot_ceiling(slot: SlotKind) -> f32 {
                         // `fits`, not `slot ==`: shared materials and plating
                         // are wearable here even though they are filed
                         // elsewhere, and a ceiling blind to them is too low.
-                        .filter(|d| d.fits(s) && d.kind == kind && !crate::piece::is_boss_only(d.name))
+                        .filter(|d| d.fits(s) && d.kind == kind && !crate::piece::is_off_the_scale(d.name))
                         .map(|d| piece_points(d, 0))
                         .collect();
                     best.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
@@ -680,7 +680,11 @@ mod tests {
             for &(kind, min, max) in *recipe {
                 let mut v: Vec<i32> = CATALOG
                     .iter()
-                    .filter(|d| d.fits(slot) && d.kind == kind && !crate::piece::is_boss_only(d.name))
+                    .filter(|d| {
+                        d.fits(slot)
+                            && d.kind == kind
+                            && !crate::piece::is_off_the_scale(d.name)
+                    })
                     .map(|d| piece_rating_in(d, slot, 0).round() as i32)
                     .collect();
                 v.sort_unstable();
@@ -844,7 +848,12 @@ mod tests {
             let d = CATALOG.iter().find(|c| c.name == *name).expect("boss gear exists");
             let best = CATALOG
                 .iter()
-                .filter(|c| c.slot == d.slot && c.kind == d.kind && !crate::piece::is_boss_only(c.name))
+                // Everything off the scale, not just boss gear: a VIP piece
+                // is meant to out-rate the shop too, and comparing a trophy
+                // against one would be comparing two exemptions.
+                .filter(|c| {
+                    c.slot == d.slot && c.kind == d.kind && !crate::piece::is_off_the_scale(c.name)
+                })
                 .map(piece_rating)
                 .max()
                 .unwrap_or(0);

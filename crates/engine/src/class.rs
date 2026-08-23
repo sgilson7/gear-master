@@ -368,6 +368,12 @@ pub enum ClassPower {
     Bastion(i32),
     /// Landing a curse lands `n` more of the other kind alongside it.
     Contagion(u32),
+    /// You do not heal. Regeneration on your gear stops working, for good.
+    ///
+    /// The only power in the game that is purely a cost, and it is meant to
+    /// be: it is what you carry out of the VIP area for keeping your mouth
+    /// shut. Nothing offers it - see `is_earned`.
+    Guilt,
     /// Taking a hit banks faith, so being ground down is itself a resource.
     Reprisal(i32),
     /// Every enemy activation pushes all of your cooldowns forward by `ms`.
@@ -411,7 +417,13 @@ impl ClassPower {
     /// nothing told them why. They all carry a number now.
     pub fn doubled(self) -> Option<ClassPower> {
         use ClassPower::*;
+        // Guilt has no number to double, and doubling a cost would be a
+        // fountain offering to make your run worse. It is not doublable.
+        if matches!(self, Guilt) {
+            return None;
+        }
         Some(match self {
+            Guilt => return None,
             Standing(s) => Standing(s + s),
             Leeching(p) => Leeching(p * 2),
             Bastion(p) => Bastion(p * 2),
@@ -447,6 +459,7 @@ impl ClassPower {
     /// what the glossary and the hover card show.
     pub fn short(self) -> String {
         match self {
+            ClassPower::Guilt => "you cannot heal".to_string(),
             ClassPower::Standing(s) => s.summary(),
             ClassPower::SlowTime(n) => format!("damage arrives over {}s", n),
             ClassPower::Leeching(pct) => format!("{}% of damage dealt heals you", pct),
@@ -484,6 +497,9 @@ impl ClassPower {
     /// rule that was never written. Name the numbers and the condition.
     pub fn describe(self) -> String {
         match self {
+            ClassPower::Guilt => "Your regeneration is 0 a second for the rest of the run. \
+                 Not slowed - stopped, whatever your gear says it heals for."
+                .to_string(),
             ClassPower::Standing(s) => s.summary(),
             ClassPower::SlowTime(n) => format!(
                 "damage against you arrives in slices over {}s instead of all at once, so \
@@ -621,6 +637,15 @@ pub static CLASSES: &[ClassDef] = &[
         blurb: "Rage, and something heavy to spend it on.",
         requires: &[(Axis::Wrath, 40), (Axis::Brutality, 40)],
         power: ClassPower::Leeching(12),
+    },
+    ClassDef {
+        // Not on offer anywhere: `is_earned` keeps it out of the fountain
+        // ranking, and the only way to hold it is to have walked past what
+        // was going on in the back room.
+        name: "Immense Guilt",
+        blurb: "You saw. You said nothing. Nothing heals after that.",
+        requires: &[],
+        power: ClassPower::Guilt,
     },
     ClassDef {
         name: "Bulwark",
@@ -766,9 +791,13 @@ pub fn is_earned(name: &str) -> bool {
         return true;
     }
     crate::event::EVENTS.iter().any(|e| {
-        e.choices
-            .iter()
-            .any(|c| matches!(c.outcome, crate::event::Outcome::Claim(n) if n == name))
+        e.choices.iter().any(|c| match c.outcome {
+            crate::event::Outcome::Claim(n) => n == name,
+            // A class that comes bundled with a bargain is no more on offer
+            // at a fountain than one you claim outright.
+            crate::event::Outcome::Stock { class, .. } => class == name,
+            _ => false,
+        })
     })
 }
 

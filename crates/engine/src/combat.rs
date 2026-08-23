@@ -2708,6 +2708,8 @@ pub struct Combatant {
     /// Which foe the next single-target attack is aimed at. Only the player
     /// has one, and it moves along every time an attack lands - see `aim_of`.
     pub aim: usize,
+    /// Set by Immense Guilt: regeneration does nothing at all.
+    pub no_regen: bool,
     pub curses: Curses,
     /// Stacks of mana empowerment and mana shield. Both scale off *current*
     /// mana, and both are bought with mana — so stacking them hard drains the
@@ -2831,6 +2833,7 @@ impl Combatant {
             curse_resist: stats.curse_resist,
             purse: 0,
             aim: 0,
+            no_regen: false,
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
@@ -2924,6 +2927,7 @@ impl Combatant {
             curse_resist: stats.curse_resist,
             purse: 0,
             aim: 0,
+            no_regen: false,
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
@@ -3442,6 +3446,7 @@ pub fn simulate_party(
             crate::class::ClassPower::Echo(n) => start_player.echo_every = n,
             crate::class::ClassPower::Bastion(pct) => start_player.bastion = pct,
             crate::class::ClassPower::Contagion(n) => start_player.contagion = n,
+            crate::class::ClassPower::Guilt => start_player.no_regen = true,
             crate::class::ClassPower::Reprisal(n) => start_player.reprisal = n,
             crate::class::ClassPower::Riposte(ms) => start_player.riposte = ms,
             crate::class::ClassPower::Momentum(n) => start_player.momentum = n,
@@ -3557,7 +3562,7 @@ pub fn simulate_party(
                 c.burn_timer = 0;
                 log.push(LogEntry { who, at_ms: t, event: Event::Burn { side, damage: dmg, health: hp } });
             }
-            if c.regen > 0 && c.health < c.max_health {
+            if c.regen > 0 && c.health < c.max_health && !c.no_regen {
                 c.regen_milli += c.regen * TICK_MS as i32;
                 let heal = (c.regen_milli / 1000).min(c.max_health - c.health);
                 if heal > 0 {

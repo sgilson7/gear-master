@@ -8281,6 +8281,114 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 0,
         price: 1,
     },
+    // ---- behind the velvet rope --------------------------------------
+    //
+    // Five things worth more than anything on an honest shelf, which is the
+    // point: what they cost is not gold. They are exempt from `slot_ceiling`
+    // (see VIP_ONLY), so their numbers do not deflate the price of ordinary
+    // gear in the same slots.
+    PieceDef {
+        name: "Overseer's Circlet",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)],
+        base: Stats {
+            health: 210,
+            physical_resist: 26,
+            magic_resist: 26,
+            mind_resist: 30,
+            ..Stats::ZERO
+        },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3200,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::GainArmor(40))],
+        quest: None,
+        power_bonus: 0,
+        price: 480,
+    },
+    PieceDef {
+        name: "Foreman's Harness",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Base,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1), (0, 2), (1, 2)],
+        base: Stats { health: 420, physical_resist: 20, physical_harden: 30, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 4000,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Grow(18))],
+        quest: None,
+        power_bonus: 0,
+        price: 520,
+    },
+    PieceDef {
+        name: "Tallykeeper's Weave",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Material,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats { health: 120, mana: 10, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 2000,
+        speed_bonus: 30,
+        triggers: &[Trigger::OnActivate(Action::GainForking(1))],
+        quest: None,
+        power_bonus: 0,
+        price: 500,
+    },
+    PieceDef {
+        name: "Treadmill Sole",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Mold,
+        cells: &[(0, 0), (1, 0), (2, 0), (1, 1)],
+        base: Stats { health: 150, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        // A mold is not a core, so it has no cadence of its own to set.
+        cooldown_ms: 0,
+        speed_bonus: 25,
+        triggers: &[Trigger::OnActivate(Action::ReduceCooldown(400))],
+        quest: None,
+        power_bonus: 0,
+        price: 470,
+    },
+    PieceDef {
+        name: "Quota Edge",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Damaging,
+        cells: &[(0, 0), (0, 1), (0, 2)],
+        base: Stats { physical_damage: 88, physical_pierce: 45, strength: 20, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::MindDamage {
+            amount: 6,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 560,
+    },
+    // Not for sale, and not exempt from anything: what it is worth is the
+    // thirty cells it hands you, and those are not on its card.
+    PieceDef {
+        name: "Sprocketman's Gratitude",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats { health: 60, curse_resist: 10, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
 ];
 
 /// Gear that exists only on a boss.
@@ -8302,7 +8410,35 @@ pub fn is_boss_only(name: &str) -> bool {
 /// simply not for sale, because what they are worth is the story of how you
 /// got them - a Platinum Chip bought off a shelf is a door key with no door
 /// behind it.
-pub const EVENT_ONLY: &[&str] = &["Gold Chip", "Platinum Chip"];
+pub const EVENT_ONLY: &[&str] = &[
+    "Gold Chip",
+    "Platinum Chip",
+    "Sprocketman's Gratitude",
+];
+
+/// The five things on the shelves behind the velvet rope.
+///
+/// Off the scale on purpose, and therefore exempt from it: `slot_ceiling` is
+/// the best possible item in a slot and every ordinary rating is a fraction of
+/// it, so five outliers left in the reckoning would deflate the price of
+/// everything else in those slots. Same exemption `BOSS_ONLY` gets, for the
+/// same reason - but these are not boss gear, because you buy them.
+pub const VIP_ONLY: &[&str] = &[
+    "Overseer's Circlet",
+    "Foreman's Harness",
+    "Tallykeeper's Weave",
+    "Treadmill Sole",
+    "Quota Edge",
+];
+
+pub fn is_vip_only(name: &str) -> bool {
+    VIP_ONLY.contains(&name)
+}
+
+/// Is this piece kept out of the reckoning that prices everything else?
+pub fn is_off_the_scale(name: &str) -> bool {
+    is_boss_only(name) || is_vip_only(name)
+}
 
 pub fn is_event_only(name: &str) -> bool {
     EVENT_ONLY.contains(&name)

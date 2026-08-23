@@ -427,10 +427,19 @@ fn the_deep_fountain_never_offers_what_it_cannot_give() {
             c.power.doubled().is_some()
         );
     }
-    // Every one of them doubles now. Five used to be switches with nothing to
-    // turn, and the fountain quietly did not appear for a player holding two
-    // of those - which is how the third fountain came to be "not working".
+    // Every one a fountain can pour doubles. Five used to be switches with
+    // nothing to turn, and the fountain quietly did not appear for a player
+    // holding two of those - which is how the third fountain came to be "not
+    // working".
+    //
+    // An earned class is exempt, and has to be: no fountain offers one, so
+    // holding it cannot be what makes a fountain skip you. Immense Guilt is
+    // the case - doubling a pure cost would be a fountain offering to make
+    // your run worse.
     for c in CLASSES {
+        if gearmaster_engine::class::is_earned(c.name) {
+            continue;
+        }
         assert!(
             c.power.doubled().is_some(),
             "{} cannot be doubled, so the fountain would skip a player holding it",

@@ -8155,6 +8155,16 @@ async fn main() {
             run.rung = n;
         }
     }
+    // GEARMASTER_CHIP=1 puts a Platinum Chip in the tray, which is what opens
+    // the door at rung thirty.
+    if std::env::var("GEARMASTER_CHIP").is_ok() {
+        if let Some(d) =
+            gearmaster_engine::piece::CATALOG.iter().position(|d| d.name == "Platinum Chip")
+        {
+            let id = run.registry.alloc(d);
+            run.owned.push(id);
+        }
+    }
     // GEARMASTER_ROWS=<n> gives the boards n extra rows, for looking at what
     // a grown board does to the layout.
     if let Some(n) = std::env::var("GEARMASTER_ROWS").ok().and_then(|v| v.parse::<u8>().ok()) {

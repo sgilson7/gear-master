@@ -120,6 +120,9 @@ pub struct Settlement {
     /// The component an event's fight handed over, on a win. Separate from
     /// `dropped`, which is a trophy off a named creature.
     pub won_item: Option<&'static str>,
+    /// Rows added to every grid by that win. Nothing else in the game hands
+    /// out room.
+    pub rows_won: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -470,6 +473,14 @@ impl Run {
             ChoiceOutcome::Step(b) => {
                 self.brawl = Some(b);
             }
+            ChoiceOutcome::Stock { shelves, class } => {
+                self.shop.stock_exactly(shelves);
+                if let Some(k) = crate::class::CLASSES.iter().find(|k| k.name == class) {
+                    if !self.classes.iter().any(|held| held.name == k.name) {
+                        self.classes.push(k);
+                    }
+                }
+            }
             ChoiceOutcome::Give(name) => {
                 if let Some(d) = crate::piece::CATALOG.iter().position(|d| d.name == name) {
                     let id = self.registry.alloc(d);
@@ -621,6 +632,7 @@ impl Run {
                 landing: None,
                 class_won: None,
                 won_item: None,
+                rows_won: 0,
             };
             if outcome == Outcome::Victory {
                 self.wins += 1;
@@ -628,6 +640,10 @@ impl Run {
                     let id = self.registry.alloc(d);
                     self.owned.push(id);
                     settlement.won_item = Some(b.win);
+                }
+                if b.and_grow > 0 {
+                    self.grow_boards(b.and_grow);
+                    settlement.rows_won = b.and_grow;
                 }
             } else if !b.forgiving {
                 self.losses += 1;
@@ -654,6 +670,7 @@ impl Run {
             landing: None,
             class_won: None,
             won_item: None,
+            rows_won: 0,
         };
 
         // The quickest win the run has had, which is what earns the casino.
@@ -1142,13 +1159,24 @@ impl Run {
     /// move you up, so the creature at that rung is still there to be fought
     /// afterwards. Advancing past it - which is what this used to do - quietly
     /// deleted a monster from every run.
+    /// How many classes a fountain has actually given you.
+    ///
+    /// Not `classes.len()`: a dungeon reward and the bargain in the back room
+    /// are classes too, and counting them advanced the fountain schedule past
+    /// a fountain the player had not been to. A run that cleared the crevice
+    /// before rung fourteen simply never saw the second one, and nothing said
+    /// why - the same shape of bug as the third fountain not appearing.
+    fn poured(&self) -> usize {
+        self.classes.iter().filter(|c| !crate::class::is_earned(c.name)).count()
+    }
+
     pub fn at_fountain(&self) -> bool {
-        Self::FOUNTAINS.get(self.classes.len()) == Some(&self.rung)
+        Self::FOUNTAINS.get(self.poured()) == Some(&self.rung)
     }
 
     /// The rung the next fountain stands on, if there is one left.
     pub fn next_fountain(&self) -> Option<usize> {
-        Self::FOUNTAINS.get(self.classes.len()).copied()
+        Self::FOUNTAINS.get(self.poured()).copied()
     }
 
     /// Measure the build as it stands. What the fountain will read, and what

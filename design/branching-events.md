@@ -84,11 +84,16 @@ that says so.
 
 ---
 
-## THE VIP AREA — spec
+## THE VIP AREA — built
 
-**Trigger.** Rung ~30. **Always shown.** You can only go in holding the
-Platinum Chip; without it the door is described and closed, so a player who
-skipped the casino learns the casino exists.
+**Trigger.** Rung 30 (Silence). **Always shown.** You can only go in holding
+the Platinum Chip; without it both branches grey out reading *the rope does not
+move - members only*, so a player who skipped the casino learns the casino
+existed. There is always a third way past.
+
+The five on the table go straight onto the shop's shelves - `Outcome::Stock`
+empties it and puts exactly those there - which is a curated offer without
+needing a screen of its own: you walk out and the shop is different.
 
 **The scene.** Sprocketmen, being made to do heinous things.
 
@@ -97,15 +102,14 @@ skipped the casino learns the casino exists.
 You get a **shop of five extraordinary pieces**, and the class **Immense
 Guilt**: you cannot regenerate health, for the rest of the run.
 
-Two notes for whoever builds it:
+Both notes held up:
 
-- Those five pieces must be **exempt from the slot ceiling**, the way
-  `BOSS_ONLY` is. `slot_ceiling` is the best possible item in a slot and every
-  rating is a fraction of it — drop five outliers into the ordinary catalogue
-  and every price in those slots deflates. This has bitten before.
-- Immense Guilt is the first class that is purely a cost. The class system
-  takes it fine (it is one more `ClassPower` among 43), but the fountain
-  ranking must never *offer* it.
+- The five are `VIP_ONLY` and exempt from the slot ceiling. `is_off_the_scale`
+  is now the predicate `slot_ceiling` filters on, covering boss gear and these
+  together — one exemption with two lists rather than two rules.
+- Immense Guilt is the first class that is purely a cost. `is_earned` keeps it
+  out of the fountain ranking, and it is not doublable: doubling a cost would
+  be a fountain offering to make your run worse.
 
 ### Branch B — get them out
 
@@ -180,7 +184,7 @@ In dependency order. Each one ends with something playable.
 | 4 | **Multi-enemy fights** — engine party, then the battle screen | 5, 7 | **built** |
 | 5 | **The casino, step-in branch** — 2-at-once, Platinum Chip, loss costs no life | 7 | **built** |
 | 6 | **Variable slot height** — `SLOT_H` const becomes a per-run figure | 7 | **built** |
-| 7 | **The VIP area** — both branches, the five-piece shop, Immense Guilt, Sprocketman's Gratitude | — | medium |
+| 7 | **The VIP area** — both branches, the five-piece shop, Immense Guilt, Sprocketman's Gratitude | — | **built** |
 
 Milestones 2 and 3 are in. The casino exists, opens on a sub-two-second kill
 anywhere in rungs 1–9, and hands over the Gold Chip if you keep out of the
@@ -296,3 +300,21 @@ drop everything below that line without saying so.
 board how tall it was, so a locked item could not be placed in the new row even
 though a loose piece could. Worth remembering that the constant is now only a
 starting height: anything comparing against it is asking the wrong question.
+
+
+---
+
+## A fountain bug the VIP area turned up
+
+`at_fountain` counted `classes.len()` — **every** class held, however it was
+come by. Fountains stand at rungs 8 and 15 and are chosen by how many you
+already have, so a class won anywhere else advanced the schedule past a
+fountain the player had not been to.
+
+That was already live before this milestone: the crevice hands out a class
+around rung 10, so a run that cleared the dungeon simply never saw the second
+fountain, and nothing said why. Immense Guilt would have made it worse.
+
+`Run::poured` counts only classes a fountain actually gave — `!is_earned` —
+and a test now guards it. Same shape as the third-fountain bug: a schedule
+keyed on a count, and something quietly adding to the count.

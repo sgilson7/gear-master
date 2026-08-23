@@ -265,6 +265,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Duelist", "Treyway Prince"),          // the claim that summons Mumu Lelonde, p. 18
         ("Geomancer", "Grand Calculator"),      // the Grand Calculation, pp. 61-63
         ("Hexweaver", "Funnel Sergeant"),       // army-issue Funny funnels, p. 78
+        ("Immense Guilt", "Henpeck's Accomplice"),
         ("Juggernaut", "Multicity Commuter"),   // 1.79 trillion residents, pp. 70-73
         ("Oracle", "Galapagos Timekeeper"),     // Galapagos Jim, time traveller, pp. 89-90
         ("Spellblade", "Katana Psychologist"),  // Henpeck's other job, p. 95
@@ -409,6 +410,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Felt Layer", "Velvet Tuft"),
         ("First Word", "Opening Remark"),
         ("Forked Crest", "Two-Roads Crest"),
+        ("Foreman's Harness", "Gear Cave Harness"),
         ("Forking Bead", "Fork-in-the-Road Bead"),
         ("Frostbind", "Nut Freeze"),
         ("Fury Sigil", "Union Grievance"),
@@ -513,6 +515,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Orb of the Nine", "Orb of the Eighth Ray"),
         ("Ossuary Frame", "Cork Wimple"),
         ("Overflow Plate", "Francian Overflow Plate"),
+        ("Overseer's Circlet", "Henpeck's Circlet"),
         ("Overflow Vial", "Soda Labyrinth Phial"),
         ("Padded Base", "Cardboard Base"),
         ("Padded Mold", "Oven-Mitt Mold"),
@@ -532,6 +535,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Quickening Charm", "Time-Sap Drop"),
         ("Quickfinger Mold", "Dart-Thrower's Mold"),
         ("Quickread Folio", "Tactical Haiku"),
+        ("Quota Edge", "Henpeck's Quota"),
         ("Quicksilver Ink", "Exotic Juice"),
         ("Quickstep Mold", "Skip-to-the-Slurpee Sole"),
         ("Quilted Base", "Onigiri Base"),
@@ -607,6 +611,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Sprawling Handwrap", "Gappy's Spare Hand"),
         ("Sprung Sole", "Wallspider Spring"),
         ("Spun Material", "Spun Rice-Silk"),
+        ("Sprocketman's Gratitude", "Sprocketman's Thanks"),
         ("Standing Start", "The Skoogle Start"),
         ("Starfall", "Moonfall"),
         ("Starlit Ink", "Skink Brink's Soft Drink"),
@@ -626,6 +631,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Sympathetic Bloom", "Wextreen Bloom"),
         ("Tarpit Sole", "Brie-Cliff Sole"),
         ("Tempered Sole", "Kiln-Fired Sole"),
+        ("Tallykeeper's Weave", "Deep Chocolate Weave"),
         ("Tetrahedron Shard", "Nibbalonius's Tetrahedron"),
         ("The Empty Crown", "The Empty Throne"),
         ("The Growing Weight", "The Growing Stone"),
@@ -649,6 +655,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Tithe Ring", "Francian Tithe Ring"),
         ("Toolwright's Grip", "Skeleton Tool Wizard's Grip"),
         ("Trailworn Sole", "Pilgrim of Dobira Sole"),
+        ("Treadmill Sole", "Shift-Work Sole"),
         ("Traveller's Codex", "Mrs. Freya's Syllabus"),
         ("Twinned Grip", "Screw-Twister Grip"),
         ("Twinning Mold", "Second-Hand Mold"),
