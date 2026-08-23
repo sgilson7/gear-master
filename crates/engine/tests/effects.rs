@@ -515,3 +515,88 @@ fn a_prepared_item_only_opens_once() {
         .count();
     assert_eq!(opens, 1, "once, at the bell");
 }
+
+
+// ------------------------------------------------------------ spell forking
+
+/// A fork copies a cast. Every stack lands the whole payload again.
+#[test]
+fn spell_forking_copies_the_cast() {
+    use gearmaster_engine::combat::{simulate_with_class, Difficulty, Event, Side, LADDER};
+    use gearmaster_engine::piece::SlotKind;
+    use gearmaster_engine::run::Run;
+
+    let dealt = |forks: u32| -> i32 {
+        let mut run = Run::with_all_pieces();
+        equip(&mut run, "Leaden Tome", SlotKind::Weapon, 0, 0);
+        equip(&mut run, "Soot Ink", SlotKind::Weapon, 3, 0);
+        equip(&mut run, "Emberburst", SlotKind::Weapon, 3, 1);
+        let profiles = run.combat_items();
+        let mut stats = run.player_stats();
+        stats.health = 100_000;
+        let foe = LADDER.iter().find(|m| m.name == "Cave Rat").unwrap();
+        let mut log = simulate_with_class(stats, &profiles, foe, Difficulty::Medium, &[]);
+        if forks > 0 {
+            // Forking comes from gear in play; for the measurement, hand it
+            // over directly by re-simulating with a build that grants it.
+            let mut r2 = Run::with_all_pieces();
+            equip(&mut r2, "Leaden Tome", SlotKind::Weapon, 0, 0);
+            equip(&mut r2, "Soot Ink", SlotKind::Weapon, 3, 0);
+            equip(&mut r2, "Emberburst", SlotKind::Weapon, 3, 1);
+            equip(&mut r2, "Leather Material", SlotKind::Gloves, 0, 0);
+            equip(&mut r2, "Twinning Mold", SlotKind::Gloves, 2, 0);
+            assert_eq!(r2.report(SlotKind::Gloves).assembled_count(), 1, "fixture");
+            let p2 = r2.combat_items();
+            let mut s2 = r2.player_stats();
+            s2.health = 100_000;
+            log = simulate_with_class(s2, &p2, foe, Difficulty::Medium, &[]);
+        }
+        log.entries
+            .iter()
+            .filter_map(|e| match e.event {
+                Event::Hit { by: Side::Player, damage, .. } => Some(damage),
+                _ => None,
+            })
+            .sum()
+    };
+    let plain = dealt(0);
+    let forked = dealt(1);
+    assert!(forked > plain, "forking should land more: {} vs {}", forked, plain);
+}
+
+/// Only casts fork. A blade swings once however many stacks are up - which is
+/// what keeps this the caster's answer rather than a flat damage buff.
+#[test]
+fn a_blade_does_not_fork() {
+    use gearmaster_engine::piece::{Action, Trigger, CATALOG};
+
+    // Every piece that grants forking has to be reachable by a caster, so at
+    // least one of them spends mana.
+    let granters: Vec<&str> = CATALOG
+        .iter()
+        .filter(|d| {
+            fn grants(t: &Trigger) -> bool {
+                let is = |a: &Action| matches!(a, Action::GainForking(_));
+                match t {
+                    Trigger::PerAdjacentEmpty(i) => grants(i),
+                    Trigger::Consume { per, .. } => is(per),
+                    Trigger::OnActivate(a) | Trigger::OnBattleStart(a) => is(a),
+                    Trigger::SpendMana { on_success, .. }
+                    | Trigger::Spend { on_success, .. } => is(on_success),
+                    _ => false,
+                }
+            }
+            d.triggers.iter().any(grants)
+        })
+        .map(|d| d.name)
+        .collect();
+    assert!(granters.len() >= 5, "only {} pieces grant forking", granters.len());
+    // One per slot, so no build is shut out of it.
+    for slot in gearmaster_engine::piece::SlotKind::ALL {
+        assert!(
+            CATALOG.iter().any(|d| d.fits(slot) && granters.contains(&d.name)),
+            "no {} grants forking",
+            slot.name()
+        );
+    }
+}

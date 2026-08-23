@@ -300,7 +300,13 @@ impl Stats {
             parts.push(format!("{:+} regen", self.regen));
         }
         if self.power != 0 {
-            parts.push(format!("{:+}.{:02}x power", self.power / 100, (self.power % 100).abs()));
+            // Power reaches the item carrying it and nothing else, so the
+            // summary says whose it is.
+            parts.push(format!(
+                "{:+}.{:02}x its own power",
+                self.power / 100,
+                (self.power % 100).abs()
+            ));
         }
         if self.armor != 0 {
             parts.push(format!("{:+} armor", self.armor));

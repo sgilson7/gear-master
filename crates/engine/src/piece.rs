@@ -411,6 +411,12 @@ pub enum Action {
     /// Gain stacks of mana shield: each stack cuts 1 point off every incoming
     /// hit per point of mana you are holding, whatever the damage type.
     GainShield(u32),
+    /// Gain stacks of spell forking: every cast lands once more per stack.
+    ///
+    /// Only a spell forks. A blade swings once however many stacks are up -
+    /// which is what makes this the caster's answer to a build that out-swings
+    /// it, rather than a flat damage buff wearing a different name.
+    GainForking(u32),
     /// Raise maximum health by `n` for the rest of the fight, and heal for it.
     ///
     /// The only thing in the game that grows while a fight is running, so a
@@ -439,6 +445,7 @@ impl Action {
             }
             Action::GainEmpowerment(n) => format!("gain {} mana empowerment", n),
             Action::GainShield(n) => format!("gain {} mana shield", n),
+            Action::GainForking(n) => format!("gain {} spell forking", n),
             Action::Grow(n) => format!("gain {} maximum health for the rest of the fight", n),
         }
     }
@@ -7760,6 +7767,113 @@ pub static CATALOG: &[PieceDef] = &[
         quest: None,
         power_bonus: 0,
         price: 999,
+    },
+
+    // ---- spell forking ------------------------------------------------------
+    //
+    // A fork copies a cast, and only a cast - a blade swings once however many
+    // stacks are up. One per slot, each spending a different pool, so a caster
+    // can reach it from whatever their build already banks.
+    // Devotion, spent on saying it twice.
+    PieceDef {
+        name: "Forked Crest",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0,0),(1,0)],
+        base: Stats { faith: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Spend {
+            what: Resource::Faith,
+            cost: 14,
+            on_success: Action::GainForking(1),
+            on_failure: Action::Gain { what: Resource::Faith, amount: 4 },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 40,
+    },
+    // Everything that grows, grows in two directions.
+    PieceDef {
+        name: "Split Weave",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        cells: &[(0,0),(1,0),(2,0)],
+        base: Stats { nature: 2, ..Stats::health(40) },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Spend {
+            what: Resource::Nature,
+            cost: 14,
+            on_success: Action::GainForking(1),
+            on_failure: Action::Gain { what: Resource::Nature, amount: 4 },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 40,
+    },
+    PieceDef {
+        name: "Twinning Mold",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Mold,
+        cells: &[(0,0),(1,0),(0,1)],
+        base: Stats { mana: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::SpendMana {
+            cost: 8,
+            on_success: Action::GainForking(1),
+            on_failure: Action::GainMana(3),
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 42,
+    },
+    PieceDef {
+        name: "Echo Sole",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Mold,
+        cells: &[(0,0),(1,0),(2,0)],
+        base: Stats { rage: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Spend {
+            what: Resource::Rage,
+            cost: 14,
+            on_success: Action::GainForking(1),
+            on_failure: Action::Gain { what: Resource::Rage, amount: 4 },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 40,
+    },
+    // Empty the reserve and every spell in the build says itself again.
+    PieceDef {
+        name: "Forking Bead",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0,0)],
+        base: Stats { mana: 1, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Consume {
+            what: Resource::Mana,
+            each: 10,
+            per: Action::GainForking(1),
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 44,
     },
 ];
 

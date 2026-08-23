@@ -190,6 +190,7 @@ fn action_word(a: &Action) -> Option<&'static str> {
         Action::ReduceCooldown(_) => "Hastening",
         Action::GainEmpowerment(_) => "Empowered",
         Action::GainShield(_) => "Shielded",
+        Action::GainForking(_) => "Forked",
     })
 }
 

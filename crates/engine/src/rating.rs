@@ -105,6 +105,12 @@ mod weight {
     /// so their real worth depends on a build the rating cannot see; this is
     /// the value of a stack in a build that is actually banking mana.
     pub const STACK_PS: f32 = 11.0;
+    /// A stack of spell forking: every cast lands once more.
+    ///
+    /// Worth more than a shield stack because it multiplies a payload rather
+    /// than shaving a hit, and less than it looks because only a caster can
+    /// use one at all - a blade swings once however many stacks are up.
+    pub const FORK_PS: f32 = 26.0;
 
     /// Speed is a percentage on the whole item, so it is scored against
     /// whatever the item is already worth rather than on its own.
@@ -330,6 +336,10 @@ fn action_points(a: &Action) -> f32 {
         Action::ReduceCooldown(ms) => *ms as f32 / 1000.0 * weight::HASTE_PS,
         Action::GainEmpowerment(n) => *n as f32 * weight::STACK_PS,
         Action::GainShield(n) => *n as f32 * weight::STACK_PS,
+        // A fork copies a cast, so a stack is worth roughly what the cast was
+        // - which is more than a shield stack, and only to a build that has
+        // something worth copying.
+        Action::GainForking(n) => *n as f32 * weight::FORK_PS,
     }
 }
 

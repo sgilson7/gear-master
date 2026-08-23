@@ -2606,6 +2606,8 @@ pub struct Combatant {
     /// very pool they multiply. That tension is the point.
     pub empowerment: u32,
     pub shield: u32,
+    /// Stacks of spell forking: every cast lands once more per stack.
+    pub forking: u32,
     pub items: Vec<RunningItem>,
     /// Sub-point accumulators, so 10 damage a second spread over 50ms ticks
     /// loses nothing to rounding.
@@ -2717,6 +2719,7 @@ impl Combatant {
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
+            forking: 0,
             items: profiles.iter().map(RunningItem::from_profile).collect(),
             dot_milli: 0,
             regen_milli: 0,
@@ -2806,6 +2809,7 @@ impl Combatant {
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
+            forking: 0,
             items,
             dot_milli: 0,
             regen_milli: 0,
@@ -2960,6 +2964,8 @@ pub enum Event {
     /// A mana buff gained stacks. `total` is the new stack count.
     Empowered { side: Side, total: u32, power_bonus: i32 },
     Shielded { side: Side, total: u32, reduction: i32 },
+    /// Spell forking gained. Every cast lands once more per stack.
+    Forking { side: Side, total: u32 },
     Fell { side: Side },
     End { outcome: Outcome },
 }
@@ -3133,6 +3139,13 @@ impl CombatLog {
                 total,
                 power_bonus / 100,
                 power_bonus % 100
+            ),
+            Event::Forking { side, total } => format!(
+                "{} {} spell forking x{} (every cast lands {} times)",
+                t,
+                self.who(*side),
+                total,
+                total + 1
             ),
             Event::Shielded { side, total, reduction } => format!(
                 "{} {} mana shield x{} (-{} per hit)",
@@ -3540,7 +3553,10 @@ fn activate(
         // Momentum: the longer the fight runs, the harder you swing.
         let momentum = pick(p, e, side).momentum * (t / 1000) as i32;
         let physical = physical + mult(momentum);
-        let reps = if echoes { 2 } else { 1 };
+        // A fork copies the cast, and only a cast: a blade swings once
+        // however many stacks are up.
+        let forks = if item.casts.is_empty() { 0 } else { pick(p, e, side).forking };
+        let reps: u32 = if echoes { 2 } else { 1 } * (1 + forks);
 
         // The log reports the swing, not what survived the defences: a hit
         // that is turned aside completely still has to show up, or a player
@@ -3564,7 +3580,7 @@ fn activate(
         let leech = pick(p, e, side).leech;
         if leech > 0 && swing > 0 {
             let me = pick(p, e, side);
-            let back = (swing * reps) * leech / 100;
+            let back = (swing * reps as i32) * leech / 100;
             me.health = (me.health + back).min(me.max_health);
         }
         if swing > 0 {
@@ -4015,6 +4031,12 @@ fn apply(
             c.shield += n;
             let (total, reduction) = (c.shield, c.damage_reduction());
             log.push(LogEntry { at_ms: t, event: Event::Shielded { side, total, reduction } });
+        }
+        Action::GainForking(n) => {
+            let c = pick(p, e, side);
+            c.forking += n;
+            let total = c.forking;
+            log.push(LogEntry { at_ms: t, event: Event::Forking { side, total } });
         }
         Action::ReduceCooldown(ms) => {
             let Some(idx) = owner else { return };

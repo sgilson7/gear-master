@@ -1575,7 +1575,9 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
         Action::MindDamage { .. } => note("mind", out),
         Action::Damage { .. } => note("damage", out),
         Action::ReduceCooldown(_) => note("speed", out),
-        Action::GainEmpowerment(_) | Action::GainShield(_) => note("mana", out),
+        Action::GainEmpowerment(_) | Action::GainShield(_) | Action::GainForking(_) => {
+            note("mana", out)
+        }
         Action::Grow(_) => note("health", out),
     } }
     // A repeat carries a trigger, so unwrap it once and read that: a piece
@@ -2307,8 +2309,10 @@ struct Playback {
     done: bool,
     player_empower: u32,
     player_shield: u32,
+    player_fork: u32,
     enemy_empower: u32,
     enemy_shield: u32,
+    enemy_fork: u32,
     /// When each item fired, indexed the same way as the combatant's item
     /// list. Cooldown bars are drawn straight from these, which is why a
     /// frost-slowed item's bar visibly crawls: the gap between two real
@@ -2387,8 +2391,10 @@ impl Playback {
             done: false,
             player_empower: 0,
             player_shield: 0,
+            player_fork: 0,
             enemy_empower: 0,
             enemy_shield: 0,
+            enemy_fork: 0,
             player_schedule: schedule_for(log, Side::Player, log.player.items.len()),
             enemy_schedule: schedule_for(log, Side::Enemy, log.enemy.items.len()),
             enemy_reg: er,
@@ -2506,6 +2512,13 @@ impl Playback {
                     self.player_shield = *total;
                 } else {
                     self.enemy_shield = *total;
+                }
+            }
+            Event::Forking { side, total } => {
+                if *side == Side::Player {
+                    self.player_fork = *total;
+                } else {
+                    self.enemy_fork = *total;
                 }
             }
             Event::Hastened { .. } => {}
@@ -3331,12 +3344,14 @@ fn render_def_tooltip_inner(
             Color::from_rgba(200, 190, 150, 255),
         ));
     }
-    // What an ink is for. It multiplies the one cast it is bound into and
-    // never the wearer, and none of that was on the card at all.
+    // What an ink is for, and now a book or an orb too: it adds to the
+    // multiplier of the one item it is part of and never to the wearer.
+    // Written as "x0.45" it read as though the item ended up at less than
+    // half - it is a bonus on top of a base of one, not a replacement for it.
     if def.power_bonus != 0 {
         lines.push((
             format!(
-                "x{}.{:02} to the item it is part of, and nothing else",
+                "+{}.{:02}x to this item's own multiplier, and nothing else",
                 def.power_bonus / 100,
                 def.power_bonus.abs() % 100
             ),
@@ -3997,6 +4012,7 @@ fn render_battle(
         Some(pb.player_mana),
         pb.player_empower,
         pb.player_shield,
+        pb.player_fork,
         &pb.player_curses,
         pb.player_pools,
         pb.flash_player,
@@ -4056,6 +4072,7 @@ fn render_battle(
         None,
         pb.enemy_empower,
         pb.enemy_shield,
+        pb.enemy_fork,
         &pb.enemy_curses,
         pb.enemy_pools,
         pb.flash_enemy,
@@ -4344,10 +4361,32 @@ fn item_summary_lines_plain(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> 
     let hit = p.hit_for(total.strength);
     if hit > 0 {
         let dps = p.dps_milli(total.strength);
-        lines.push((
-            format!("  hits for {}  ({}.{} a second)", hit, dps / 1000, (dps % 1000) / 100),
-            Color::from_rgba(240, 210, 190, 255),
-        ));
+        // A cast has two intensities and the printed figure is neither of
+        // them: paid it lands at EMPOWERED_CAST_PCT, unpaid at WEAK_CAST_PCT.
+        // The card used to show the bare number and then mention the weak
+        // branch as a footnote, which read as though the number *was* the paid
+        // one - so a crystal ball looked like less than half of what it does.
+        if p.casts.is_empty() {
+            lines.push((
+                format!("  hits for {}  ({}.{} a second)", hit, dps / 1000, (dps % 1000) / 100),
+                Color::from_rgba(240, 210, 190, 255),
+            ));
+        } else {
+            use gearmaster_engine::combat::{EMPOWERED_CAST_PCT, WEAK_CAST_PCT};
+            let paid = hit * EMPOWERED_CAST_PCT / 100;
+            let weak = hit * WEAK_CAST_PCT / 100;
+            let paid_dps = dps * EMPOWERED_CAST_PCT as i64 / 100;
+            lines.push((
+                format!(
+                    "  casts for {} paid, {} unpaid  ({}.{} a second paid)",
+                    paid,
+                    weak,
+                    paid_dps / 1000,
+                    (paid_dps % 1000) / 100
+                ),
+                Color::from_rgba(240, 210, 190, 255),
+            ));
+        }
     }
     // An unconditional pool gain is a stat wearing a trigger's clothes. Fold
     // those into the figures below, so a piece that banks two faith reads
@@ -4398,14 +4437,19 @@ fn item_summary_lines_plain(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> 
             acts.push(format!("{} {}", total, name));
         }
     }
-    // A spell has a price and two outcomes, and the card has to say so - it is
-    // the difference between the figures above and a little under half of them.
+    // What the two figures above cost. One price per activation however many
+    // voices the item has, which is what a crystal ball is for.
     if !p.casts.is_empty() {
-        acts.push(format!(
-            "costs {} mana - without it the spell lands at {}%",
-            gearmaster_engine::combat::SPELL_MANA_COST,
-            gearmaster_engine::combat::WEAK_CAST_PCT
-        ));
+        let voices = p.casts.len();
+        acts.push(if voices > 1 {
+            format!(
+                "costs {} mana an activation, whichever of its {} spells come up",
+                gearmaster_engine::combat::SPELL_MANA_COST,
+                voices
+            )
+        } else {
+            format!("costs {} mana a cast", gearmaster_engine::combat::SPELL_MANA_COST)
+        });
     }
     if p.power_bonus != 0 {
         acts.push(format!(
@@ -6369,6 +6413,7 @@ fn render_battle_side(
     mana: Option<i32>,
     empower: u32,
     shield: u32,
+    fork: u32,
     curses: &[(&'static str, u32)],
     // Rage, faith and nature, in that order.
     pools: [i32; 3],
@@ -6400,7 +6445,7 @@ fn render_battle_side(
     // mark here too even though the bar is labelled, because this row is where
     // the eye goes for a number.
     let mut gx = x;
-    let gy = y + 56.0;
+    let gy = y + 54.0;
     for (which, value) in [("armor", Some(armor)), ("mana", mana)]
         .into_iter()
         .chain(
@@ -6414,38 +6459,81 @@ fn render_battle_side(
         let c = pool_color(which);
         draw_pool_glyph(gx, gy, 15.0, which, c);
         let text = format!("{}", v);
-        ui_text(&text, gx + 19.0, gy + 13.0, 14.0, c);
+        ui_text(&text, gx + 19.0, gy + 12.0, 14.0, c);
         gx += 19.0 + text_width(&text, 14.0) + 16.0;
     }
 
-    let mut label = String::new();
+    // Buffs and curses share the row with the pools rather than starting at a
+    // fixed offset.
+    //
+    // They used to be laid out independently: pools flowed rightward from the
+    // left edge, the two mana buffs were tacked onto the end of that, and the
+    // curses began at x + 210 whatever else was there. Any build with a few
+    // pools banked ran its numbers straight through its own curses, and a
+    // fight with three curses up wrote them over each other.
+    let mut chips: Vec<(String, Color, bool)> = Vec::new();
     if let Some(m) = mana {
-        // Both buffs multiply the mana you are still holding, so show the
-        // figure they currently work out to rather than just the stack count.
+        // Both buffs multiply the mana you are still holding, so show what
+        // they currently work out to rather than just the stack count.
         if empower > 0 {
-            label.push_str(&format!(
-                "   empower x{} (+{}.{:02}x)",
-                empower,
-                empower as i32 * 5 * m / 100,
-                (empower as i32 * 5 * m) % 100
+            chips.push((
+                format!(
+                    "empower x{} (+{}.{:02}x)",
+                    empower,
+                    empower as i32 * 5 * m / 100,
+                    (empower as i32 * 5 * m) % 100
+                ),
+                Color::from_rgba(160, 190, 225, 255),
+                false,
             ));
         }
         if shield > 0 {
-            label.push_str(&format!("   shield x{} (-{})", shield, shield as i32 * m));
+            chips.push((
+                format!("shield x{} (-{})", shield, shield as i32 * m),
+                Color::from_rgba(160, 190, 225, 255),
+                false,
+            ));
         }
     }
-    if !label.is_empty() {
-        ui_text(label.trim(), gx, gy + 13.0, 13.0, Color::from_rgba(160, 190, 225, 255));
+    if fork > 0 {
+        chips.push((
+            format!("forking x{}", fork),
+            Color::from_rgba(210, 170, 240, 255),
+            false,
+        ));
+    }
+    for (kind, _) in curses {
+        chips.push((
+            format!("curse of {}", words::retell(kind)),
+            Color::from_rgba(240, 190, 240, 255),
+            true,
+        ));
     }
 
-    let mut cx = x + 210.0;
-    for (kind, _) in curses {
-        let text = format!("curse of {}", kind);
-        let d_w = text_width(&text, 12.0);
-        draw_rectangle(cx - 5.0, y + 52.0, d_w + 12.0, 22.0, Color::from_rgba(90, 40, 90, 230));
-        ui_text(&text, cx + 1.0, y + 68.0, 12.0, Color::from_rgba(240, 190, 240, 255));
-        cx += d_w + 18.0;
+    // One cursor, one row. Anything that will not fit is counted rather than
+    // drawn on top of what is already there.
+    let size = 12.0;
+    let right = x + w;
+    let mut dropped = 0usize;
+    for (text, col, boxed) in &chips {
+        let tw = text_width(text, size);
+        let need = tw + if *boxed { 18.0 } else { 14.0 };
+        if gx + need > right - 40.0 {
+            dropped += 1;
+            continue;
+        }
+        if *boxed {
+            // Sixteen tall, not nineteen: the next board's label starts at
+            // y+74 and a taller box printed straight through it.
+            draw_rectangle(gx - 4.0, gy, tw + 10.0, 16.0, Color::from_rgba(90, 40, 90, 230));
+        }
+        ui_text(text, gx + 1.0, gy + 12.0, size, *col);
+        gx += need;
     }
+    if dropped > 0 {
+        ui_text(&format!("+{}", dropped), gx + 2.0, gy + 12.0, size, col_dim());
+    }
+
     if hp <= 0 {
         ui_text("DOWN", x + w - 52.0, y - 6.0, 18.0, col_bad());
     }
@@ -8911,12 +8999,41 @@ mod tooltip_tests {
         let inked = p.hit_for(run.player_stats().strength);
         assert!(inked > 0, "and it should be hitting for something");
 
+        // A caster's line reports both intensities, because the printed
+        // number is neither of them.
+        use gearmaster_engine::combat::{EMPOWERED_CAST_PCT, WEAK_CAST_PCT};
         let lines = item_summary_lines(&p, &run);
         let shown = lines
             .iter()
-            .find(|(s, _)| s.contains("hits for"))
+            .find(|(s, _)| s.contains("casts for"))
             .map(|(s, _)| s.clone())
-            .expect("it hits for something");
-        assert!(shown.contains(&inked.to_string()), "card shows {:?}, combat lands {}", shown, inked);
+            .expect("a spell says what it casts for");
+        assert!(
+            shown.contains(&(inked * EMPOWERED_CAST_PCT / 100).to_string()),
+            "card shows {:?}, a paid cast lands {}",
+            shown,
+            inked * EMPOWERED_CAST_PCT / 100
+        );
+        assert!(
+            shown.contains(&(inked * WEAK_CAST_PCT / 100).to_string()),
+            "card shows {:?}, an unpaid cast lands {}",
+            shown,
+            inked * WEAK_CAST_PCT / 100
+        );
+    }
+
+    /// And it must not still be quoting only the weak branch, which read as
+    /// though the printed figure were what a paid cast does.
+    #[test]
+    fn a_casters_card_does_not_quote_the_weak_branch_alone() {
+        let (run, p) = inked_spell();
+        let lines = item_summary_lines(&p, &run);
+        let joined: String = lines.iter().map(|(s, _)| s.clone()).collect::<Vec<_>>().join(" ");
+        assert!(
+            !joined.contains("lands at 45%"),
+            "the card still describes only the unpaid cast: {:?}",
+            joined
+        );
+        assert!(joined.contains("paid"), "and it should name the paid one");
     }
 }
