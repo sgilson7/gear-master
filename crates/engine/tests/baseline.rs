@@ -20,6 +20,7 @@ mod common;
 
 use common::{does, has};
 use gearmaster_engine::class::{ClassDef, ClassPower, CLASSES};
+use gearmaster_engine::curse::CurseKind;
 use gearmaster_engine::combat::{
     simulate_with_class, CombatLog, Difficulty, Event, MonsterSpec, Outcome, Side, LADDER,
 };
@@ -119,6 +120,8 @@ fn attribute(log: &CombatLog) -> Damage {
     // Which item the player last set going. `None` until the first activation,
     // which is the only window in which a hit can go unattributed.
     let mut acting: Option<usize> = None;
+    // Searing curses applied by each slot, which is how burn gets shared out.
+    let mut lit = [0i64; 5];
 
     for e in &log.entries {
         match &e.event {
@@ -138,9 +141,43 @@ fn attribute(log: &CombatLog) -> Damage {
                     d.mind[slot_ix(s)] += *amount as i64;
                 }
             }
+            // Who lit the fire. A curse is applied by whatever last activated,
+            // the same evidence a hit uses.
+            Event::Cursed { on: Side::Enemy, kind: CurseKind::Searing, .. } => {
+                if let Some(Some(sl)) = acting.and_then(|i| log.player.items.get(i)).map(|i| i.slot)
+                {
+                    lit[slot_ix(sl)] += 1;
+                }
+            }
             // A burn is logged against whoever is burning, so the player's
             // burn damage is the one landing on the other side.
-            Event::Burn { side: Side::Enemy, damage, .. } => d.burn += *damage as i64,
+            //
+            // It used to stop there, counted apart and credited to nobody.
+            // That was defensible while a curse was only ever a weapon's, and
+            // wrong the moment a slot is meant to deal its damage *through*
+            // curses: the share would have read 100% weapon on a board whose
+            // boots were doing the killing. Burn is now split across the slots
+            // that lit it, in proportion to how many searing curses each
+            // applied - the burn itself carries no source, so proportion is
+            // the most the log can honestly support.
+            Event::Burn { side: Side::Enemy, damage, .. } => {
+                let total: i64 = lit.iter().sum();
+                if total == 0 {
+                    d.burn += *damage as i64;
+                } else {
+                    let mut handed = 0;
+                    for i in 0..5 {
+                        let share = *damage as i64 * lit[i] / total;
+                        d.by_slot[i] += share;
+                        handed += share;
+                    }
+                    // Integer division loses a point or two; give the
+                    // remainder to the biggest contributor so nothing
+                    // vanishes between the columns.
+                    let biggest = (0..5).max_by_key(|&i| lit[i]).unwrap_or(0);
+                    d.by_slot[biggest] += *damage as i64 - handed;
+                }
+            }
             _ => {}
         }
     }

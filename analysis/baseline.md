@@ -361,3 +361,27 @@ and rung-1 time-to-kill is unchanged for the fifth pull request running.
 work is greaves' two axis quotas and the mechanics still sitting in the wrong
 slot - `health above 15` (30), `Grow` (10), `harden` (8), `speed_bonus` (10),
 `OnBattleStart` (9) - plus the 43 identity mechanics on floating kinds.
+
+### Burn is attributed now, and it changes the reading
+
+The damage share used to count burn apart and credit it to nobody. That was
+defensible while a curse was only ever a weapon's; it is wrong the moment a
+slot is meant to deal its damage *through* curses, which is the design. Burn is
+now split across the slots that lit it, in proportion to how many searing
+curses each applied - the burn event carries no source, so proportion is the
+most the log can honestly support.
+
+Re-reading the same boards with the same catalogue:
+
+| Build | Weapon share, burn unattributed | Weapon share, burn attributed |
+|---|---|---|
+| starter | 100.0% | 100.0% |
+| preset | 100.0% | **97.8%** |
+| owner | 93.1% | **89.6%** |
+| friend | 100.0% | **99.8%** |
+
+Nothing about the game changed between those two columns. Three and a half
+points of the owner's damage were already coming from somewhere other than the
+weapon and the instrument could not see it. Every weapon-share figure recorded
+in this file before this entry is measured the old way and reads about three
+points high on a board that carries curses.
