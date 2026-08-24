@@ -265,13 +265,13 @@ const RULES: &[Rule] = &[
 
     // Gloves - Reaction. The hands answer.
     Rule { what: "OnAdjacentActivate", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
-        budget: 8, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnAdjacentActivate(_))) },
+        budget: 2, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnAdjacentActivate(_))) },
     Rule { what: "PerAdjacentItem", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
-        budget: 2, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::PerAdjacentItem { .. })) },
+        budget: 0, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::PerAdjacentItem { .. })) },
     Rule { what: "Drain", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
-        budget: 8, target: 0, carries: |d| does(d, |a| matches!(a, Action::Drain { .. })) },
+        budget: 6, target: 0, carries: |d| does(d, |a| matches!(a, Action::Drain { .. })) },
     Rule { what: "StunStrongest", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
-        budget: 1, target: 0, carries: |d| does(d, |a| matches!(a, Action::StunStrongest { .. })) },
+        budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::StunStrongest { .. })) },
     Rule { what: "DoubleAdjacentItemStat", home: SlotKind::Gloves, level: Level::Only,
         shared_with: &[], budget: 1, target: 0,
         carries: |d| effect_is(d, |e| matches!(e, EffectKind::DoubleAdjacentItemStat { .. })) },
@@ -398,9 +398,9 @@ const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
     (SlotKind::Chest, "plain flat-stat filler", 16),
     (SlotKind::Chest, "the dearest third interacts", 0),
     (SlotKind::Chest, "pool-spend texture", 0),
-    (SlotKind::Gloves, "expresses its own axis", 41),
+    (SlotKind::Gloves, "expresses its own axis", 38),
     (SlotKind::Gloves, "expresses its bleed axis", 0),
-    (SlotKind::Gloves, "plain flat-stat filler", 22),
+    (SlotKind::Gloves, "plain flat-stat filler", 20),
     (SlotKind::Gloves, "the dearest third interacts", 3),
     (SlotKind::Gloves, "pool-spend texture", 0),
     (SlotKind::Greaves, "expresses its own axis", 15),
@@ -409,7 +409,7 @@ const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
     (SlotKind::Greaves, "the dearest third interacts", 2),
     (SlotKind::Greaves, "pool-spend texture", 0),
     (SlotKind::Weapon, "the dearest third interacts", 0),
-    (SlotKind::Weapon, "pool-spend texture", 14),
+    (SlotKind::Weapon, "pool-spend texture", 13),
 ];
 
 fn budget_for(slot: SlotKind, what: &str) -> usize {

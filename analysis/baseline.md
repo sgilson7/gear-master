@@ -241,3 +241,40 @@ which is one item, manages 0.5. The rewrite spec guessed "about one a second"
 when setting the value of a `Watch` trigger — a board nobody plays.
 `rating.rs` now assumes **two**, which is what a reasonable build gets and the
 standard every other discount in that file is set by.
+
+---
+
+## Drift log
+
+Every entry here is a fight that moved and why. The baseline above is not
+rewritten - it is what the game measured as before the rewrite started, and it
+stays that.
+
+### PR 5 — the weapon's reaction and denial monopolies leave
+
+| Build | Cleared | Median TTK | Weapon share |
+|---|---|---|---|
+| starter | 1/50 → 1/50 | 3.00s → 3.00s | 100.0% → 100.0% |
+| preset | 10/50 → 10/50 | 9.00s → 9.00s | 100.0% → 100.0% |
+| owner | 49/50 → **50/50** | 16.00s → 25.60s | 96.1% → 96.1% |
+| friend | 48/50 → **49/50** | 7.75s → 7.75s | 100.0% → 100.0% |
+
+**Time-to-kill at rungs 1, 10, 25 and 40 did not move at all**, on any of the
+four boards. Criterion 4 - the early game feeling the same - holds exactly
+rather than within its ±20% band.
+
+The owner's median moved because the *set* of cleared rungs grew, not because
+any fight got slower: clearing one more rung adds a long fight to the list the
+median is taken over. No individual fight regressed.
+
+Two boards each clear one rung more than they did. That is monsters getting
+weaker, not players getting stronger: sixteen of the rewritten pieces are worn
+by creatures on the ladder - Manaflay, Quickening Charm, Chain Coil, Cursed
+Blade and Kingsbane among them - and every one of them gave up a monopoly this
+pull request. The gloves pieces that received those monopolies are in the
+catalogue but on nobody's board yet, so the exchange is currently one-sided.
+It stops being one-sided when the shop starts selling the other half.
+
+Weapon damage share did not move on any board, which is the expected result:
+curses, drains and reactions are not damage, and the exodus was never going to
+touch the number the acceptance criterion is about.

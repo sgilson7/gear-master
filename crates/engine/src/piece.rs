@@ -2703,8 +2703,9 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 3200,
         speed_bonus: 0,
-        // Reads off its neighbours: a book in a busy slot casts far more often.
-        triggers: &[Trigger::OnAdjacentActivate(Action::ReduceCooldown(400))],
+        // It used to read off its neighbours, which is the hands' work now. A
+        // plain book, and priced like one.
+        triggers: &[],
         quest: None,
         power_bonus: 0,
         price: 12,
@@ -2876,11 +2877,13 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        // Jumps: worth more the more finished gear it sits against.
-        triggers: &[Trigger::PerAdjacentItem {
-            action: Action::Damage { amount: 6, kind: DamageType::Magic, target: Target::Enemy },
-            same_slot_only: false,
-        }],
+        // Arcs to the next voice in the ball. It used to count the finished
+        // gear around it, which is what a glove does now.
+        triggers: &[Trigger::OnOtherCast(Action::Damage {
+            amount: 6,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 0,
         price: 14,
@@ -2895,8 +2898,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        // Does nothing on its own; it answers whatever fired beside it.
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
+        // Does nothing on its own; it answers whatever else the ball cast.
+        // It used to answer the neighbouring item instead - answering across
+        // the board is the gloves' tense now, and answering inside your own
+        // item is the weapon's.
+        triggers: &[Trigger::OnOtherCast(Action::Damage {
             amount: 7,
             kind: DamageType::Magic,
             target: Target::Enemy,
@@ -3365,10 +3371,12 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         // Doubles the rate of whatever weapon it is built into.
         speed_bonus: 100,
-        triggers: &[Trigger::PerAdjacentItem {
-            action: Action::Curse { kind: CurseKind::Searing, target: Target::Yourself },
-            same_slot_only: true,
-        }],
+        // It burns whoever swings it, once a swing. It used to burn you once
+        // per item packed beside it, which was the hands' way of counting.
+        triggers: &[Trigger::OnActivate(Action::Curse {
+            kind: CurseKind::Searing,
+            target: Target::Yourself,
+        })],
         quest: None,
         power_bonus: 0,
         price: 12,
@@ -3725,7 +3733,8 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::ReduceCooldown(1000))],
+        // Quickens the ball it is set into, not the gear beside it.
+        triggers: &[Trigger::OnOtherCast(Action::ReduceCooldown(1000))],
         quest: None,
         power_bonus: 0,
         price: 9,
@@ -3740,7 +3749,9 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
+        // Follows the cast rather than the neighbour: a chain that whips out
+        // after whatever the ball just threw.
+        triggers: &[Trigger::OnOtherCast(Action::Damage {
             amount: 5,
             kind: DamageType::Physical,
             target: Target::Enemy,
@@ -7723,7 +7734,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 25,
-        triggers: &[Trigger::OnAdjacentActivate(Action::GainEmpowerment(1))],
+        triggers: &[Trigger::OnOtherCast(Action::GainEmpowerment(1))],
         quest: None,
         power_bonus: 0,
         price: 999,
@@ -8169,7 +8180,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::GainForking(1))],
+        triggers: &[Trigger::OnOtherCast(Action::GainForking(1))],
         quest: None,
         power_bonus: 0,
         price: 999,
@@ -8187,13 +8198,15 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        // Pay and you choose; run dry and you take whatever it catches, which
-        // is what a curse of stun does everywhere else in the game.
-        triggers: &[Trigger::SpendMana {
-            cost: 9,
-            on_success: Action::StunStrongest { target: Target::Enemy },
-            on_failure: Action::Curse { kind: CurseKind::Stun, target: Target::Enemy },
-        }],
+        // One of the handful of stuns the weapon keeps. The nine mana it used
+        // to want bought the *aiming* - picking which of their items to stop -
+        // and aiming is the hands' trick now, so there is nothing left to pay
+        // for. What remains is the plain unaimed curse a blade can manage:
+        // it stops something, and it does not get to choose what.
+        triggers: &[Trigger::OnActivate(Action::Curse {
+            kind: CurseKind::Stun,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 0,
         price: 34,
@@ -8215,12 +8228,9 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Drain {
-            what: Resource::Mana,
-            amount: 4,
-            hurt: 0,
-            target: Target::Enemy,
-        })],
+        // Draining is the hands' vocabulary now. What is left is a small
+        // magic bead, and it is priced like one.
+        triggers: &[],
         quest: None,
         power_bonus: 0,
         price: 21,
@@ -8384,15 +8394,9 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        // Two a point, not four. At four this out-rated the strongest thing
-        // a boss owns in the same kind, which would have deflated the price of
-        // every weapon accessory in the shop.
-        triggers: &[Trigger::OnActivate(Action::Drain {
-            what: Resource::Mana,
-            amount: 0,
-            hurt: 2,
-            target: Target::Enemy,
-        })],
+        // It used to strip a pool and charge two damage a point for it. That
+        // is a glove's job now; what is left is the blade without the theft.
+        triggers: &[],
         quest: None,
         power_bonus: 0,
         price: 30,
@@ -8773,6 +8777,160 @@ pub static CATALOG: &[PieceDef] = &[
         quest: None,
         power_bonus: 0,
         price: 1,
+    },
+    // ---- The hands, answering ----
+    //
+    // Where the weapon's reaction and denial games went. Every one of these
+    // carries a mechanic that used to sit on a weapon piece, at the number it
+    // sat there with: moving a monopoly means the game keeps the mechanic and
+    // the weapon stops being the only place to find it.
+    //
+    // On rings and molds, never on a material. A material is one of the two
+    // kinds `PieceDef::fits` lets cross into another grid, so anything
+    // identity-carrying on one would be a gloves mechanic sitting in a greaves
+    // board - which is the whole reason the floating kinds carry no identity.
+    PieceDef {
+        name: "Answering Ring",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0, 0)],
+        base: Stats { strength: 1, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // The hands answer. The smallest possible statement of it.
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
+            amount: 3,
+            kind: DamageType::Physical,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 11,
+    },
+    PieceDef {
+        name: "Mirrorplate Ring",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Mirrorcast's answer, on the hand it belonged on.
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
+            amount: 7,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 14,
+    },
+    PieceDef {
+        name: "Chainlink Mold",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Mold,
+        cells: &[(0, 0), (0, 1), (1, 1)],
+        base: Stats { strength: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
+            amount: 5,
+            kind: DamageType::Physical,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 15,
+    },
+    PieceDef {
+        name: "Storm Signet",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Arc Lightning's jump, counted the hands' way: once for every
+        // finished item standing anywhere on the five boards.
+        triggers: &[Trigger::PerAdjacentItem {
+            action: Action::Damage { amount: 6, kind: DamageType::Magic, target: Target::Enemy },
+            same_slot_only: false,
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 18,
+    },
+    PieceDef {
+        name: "Siphon Ring",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0, 0)],
+        base: Stats { magic_damage: 4, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnAdjacentActivate(Action::Drain {
+            what: Resource::Mana,
+            amount: 4,
+            hurt: 0,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 21,
+    },
+    PieceDef {
+        name: "Flaying Mold",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Mold,
+        cells: &[(0, 0), (1, 0), (0, 1)],
+        base: Stats { magic_damage: 5, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Manaflay's trick: it takes the lot and charges for every point of
+        // it, so it is worth nothing against an empty pool and a great deal
+        // against a build that hoards.
+        triggers: &[Trigger::OnAlignedActivate(Action::Drain {
+            what: Resource::Mana,
+            amount: 0,
+            hurt: 2,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 30,
+    },
+    PieceDef {
+        name: "Throttling Mold",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Mold,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats { strength: 3, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Choosing which item to stop is what a hand can do and a blade
+        // cannot. Pay for the aim; run dry and it takes whatever it catches.
+        triggers: &[Trigger::SpendMana {
+            cost: 9,
+            on_success: Action::StunStrongest { target: Target::Enemy },
+            on_failure: Action::Drain { what: Resource::Mana, amount: 2, hurt: 0, target: Target::Enemy },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 34,
     },
     // ---- Terrain ----
     //
