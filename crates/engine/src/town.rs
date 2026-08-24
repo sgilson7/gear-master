@@ -53,21 +53,23 @@ impl Action {
     pub fn blurb(self) -> &'static str {
         match self {
             Action::Chapel => {
-                "Kneel. A stack of Piety, which starts every fight with a point \
-                 of devotion. Five of them and it becomes something else."
+                "The floor is stone and it cuts. A stack of Piety, which banks \
+                 you a point of devotion before every fight from here on. Five \
+                 stacks and it turns into something else."
             }
             Action::Pub => {
-                "Rumours, sold for gear rather than for money. Each one is a \
-                 condition on an event that will not happen otherwise."
+                "Nobody here takes money. They take what you are carrying, and \
+                 what they give back is a rumour: a condition on a door that \
+                 will not otherwise be there."
             }
             Action::Factory => {
-                "A shift on the line. Twice what the last fight paid, and a \
-                 stack of Tired: three mana of debt at the start of every \
-                 fight from here on."
+                "One shift, and they pay on the hour. Twice what the last fight \
+                 paid, and a stack of Tired: three mana of debt at the start of \
+                 every fight for the rest of the run."
             }
             Action::Shop => {
-                "Five shelves of things the road does not stock. Ordinary \
-                 money, unusual gear."
+                "The man with the cart has five things on it that the road does \
+                 not stock. He does take money, and he does want all of it."
             }
         }
     }
@@ -96,11 +98,16 @@ pub const TOWNS: &[Town] = &[
         after: 6,
         name: "SUMP BOTTOM",
         blurb: &[
-            "The road gives out into standing water and then into a street, \
-             which is the same thing here with buildings on it. Everything is \
-             on stilts and nothing is on the level.",
+            "Sump Bottom is nine buildings on stilts and one that gave up. \
+             The water is at knee height in the street, and the answer here \
+             has been to raise every doorstep by a foot each year rather than \
+             deal with the water, so the doors are all at different heights \
+             and none of them are at yours.",
             "There is a chapel, a pub, a works, and a man selling out of a \
-             cart. You have time for one of them before the water comes up.",
+             cart. The chapel bell rings at a quarter past instead of on the \
+             hour, because the tide moves it, and nobody has the heart to \
+             take that up with anyone.",
+            "You have time for one of them before the water comes up.",
         ],
     },
     Town {
@@ -108,12 +115,16 @@ pub const TOWNS: &[Town] = &[
         after: 17,
         name: "KETTLEWORKS",
         blurb: &[
-            "You can hear it a rung before you can see it. The whole valley is \
-             one shift working and one shift asleep, and the two swap over \
-             without either of them stopping.",
-            "They will take a pair of hands for an hour and pay well for it. \
-             They will also take considerably more than an hour, if you are \
-             not careful about when you put them down.",
+            "You hear Kettleworks a rung before you see it. Two shifts, one \
+             working and one asleep, and they change over without either of \
+             them stopping: the sleeping shift is walked to the line by the \
+             waking shift and shaken awake at the machine.",
+            "There is a board bolted to the gate. It says DAYS SINCE and then \
+             a number, and the number is 0, and somebody has chalked a small \
+             sad face beside it that has been rained on enough to have gone \
+             soft.",
+            "They will take a pair of hands for an hour and pay properly for \
+             it. They will also take considerably more than an hour.",
         ],
     },
     Town {
@@ -121,11 +132,15 @@ pub const TOWNS: &[Town] = &[
         after: 31,
         name: "HIGH WICK",
         blurb: &[
-            "Above the smoke, finally. High Wick is one street on a ridge with \
-             a chapel at one end and a pub at the other, and everybody in it \
-             has come up from somewhere worse.",
-            "Nobody here asks what you are climbing towards. They have all \
-             seen somebody go past on the way to it.",
+            "Above the smoke, finally. High Wick is one street on a ridge: a \
+             chapel at the top end, a pub at the bottom, a works that closed, \
+             and a shop in what used to be the works.",
+            "Everybody here came up from somewhere worse and will tell you \
+             which somewhere if you stand still long enough. There is a wall \
+             of small brass plates in the pub with names on them, and nobody \
+             will explain the wall.",
+            "Nobody asks what you are climbing towards. They have all watched \
+             somebody go past on the way to it.",
         ],
     },
 ];

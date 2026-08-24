@@ -431,6 +431,27 @@ mod words {
     pub fn retell(prose: &str) -> String {
         current().retell(prose)
     }
+
+    /// The same, and then any class named in it swapped for its title in this
+    /// theme.
+    ///
+    /// `retell` cannot do this: it works a whole word at a time, so it could
+    /// never reach "Ticket to Ride", and putting "tired" in the vocabulary
+    /// would rename every tired road and tired arm in the game. Class names
+    /// are matched longest first so "Ticket to Ride" is not eaten as "Ticket".
+    pub fn retell_naming(prose: &str) -> String {
+        let mut out = retell(prose);
+        let mut names: Vec<&'static str> =
+            gearmaster_engine::class::CLASSES.iter().map(|c| c.name).collect();
+        names.sort_by_key(|n| std::cmp::Reverse(n.len()));
+        for n in names {
+            let themed = class(n);
+            if themed != n && out.contains(n) {
+                out = out.replace(n, themed);
+            }
+        }
+        out
+    }
 }
 
 // ============================================================= creatures
@@ -5967,8 +5988,16 @@ fn render_event(
     my: f32,
 ) -> Option<&'static gearmaster_engine::event::Choice> {
     let pad = 70.0;
-    let h = 520.0;
-    let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, LOGICAL_W - 2.0 * pad, h);
+    let w = LOGICAL_W - 2.0 * pad;
+    // Sized to what it actually says. A fixed frame leaves a hand's width of
+    // nothing between the last line and the buttons whenever an event is
+    // brief, and there is no reason for a short scene to look like a long one
+    // with something missing.
+    let lines: usize =
+        ev.prose.iter().map(|p| wrap_px(&words::retell_naming(p), w - 56.0, 15.0).len()).sum();
+    let prose_h = lines as f32 * 20.0 + ev.prose.len() as f32 * 10.0;
+    let h = (78.0 + prose_h + 24.0 + 120.0 + 30.0).clamp(300.0, LOGICAL_H - 40.0);
+    let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, w, h);
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
@@ -5976,7 +6005,7 @@ fn render_event(
 
     let mut y = r.y + 78.0;
     for para in ev.prose {
-        for l in wrap_px(&words::retell(para), r.w - 56.0, 15.0) {
+        for l in wrap_px(&words::retell_naming(para), r.w - 56.0, 15.0) {
             ui_text(&l, r.x + 28.0, y, 15.0, Color::from_rgba(198, 200, 218, 255));
             y += 20.0;
         }
@@ -6024,7 +6053,7 @@ fn render_event(
         cy += 22.0;
         // A shut door always says why it is shut.
         let text = if open { c.blurb } else { c.unmet };
-        for l in wrap_px(&words::retell(text), cell.w - 28.0, 13.0) {
+        for l in wrap_px(&words::retell_naming(text), cell.w - 28.0, 13.0) {
             ui_text(&l, cell.x + 14.0, cy, 13.0, if open { col_ok() } else { col_bad() });
             cy += 16.0;
         }
@@ -6063,7 +6092,7 @@ fn render_town(
 
     let mut y = r.y + 76.0;
     for para in town.blurb {
-        for l in wrap_px(&words::retell(para), r.w - 56.0, 15.0) {
+        for l in wrap_px(&words::retell_naming(para), r.w - 56.0, 15.0) {
             ui_text(&l, r.x + 28.0, y, 15.0, Color::from_rgba(198, 200, 218, 255));
             y += 20.0;
         }
@@ -6097,7 +6126,7 @@ fn render_town(
         let name = words::word(a.key(), a.name());
         ui_text(&name, cell.x + 14.0, cy, 17.0, col_gold());
         cy += 24.0;
-        for l in wrap_px(&words::retell(a.blurb()), cell.w - 28.0, 13.0) {
+        for l in wrap_px(&words::retell_naming(a.blurb()), cell.w - 28.0, 13.0) {
             ui_text(&l, cell.x + 14.0, cy, 13.0, Color::from_rgba(186, 190, 206, 255));
             cy += 16.0;
         }
@@ -6186,7 +6215,11 @@ fn town_note(run: &Run, a: gearmaster_engine::town::Action) -> String {
         }
         Action::Factory => {
             let n = run.stacks_of("Tired");
-            format!("{} now. You would be {} mana down.", run.last_bounty * 2, (n + 1) * 3)
+            words::retell(&format!(
+                "{} now. You would start {} mana down.",
+                run.last_bounty * 2,
+                (n + 1) * 3
+            ))
         }
         Action::Pub => {
             let n = run
@@ -8657,6 +8690,32 @@ async fn main() {
             run.classes.push(c);
         }
         message = format!("Wearing {} classes.", run.classes.len());
+    }
+    // GEARMASTER_EVENT=<id> stands you in front of one, with whatever it
+    // wants to open its doors. Reaching most of them by playing takes twenty
+    // rungs and a specific thing done on one of them.
+    if let Ok(id) = std::env::var("GEARMASTER_EVENT") {
+        if let Some(ev) = gearmaster_engine::event::EVENTS.iter().find(|e| e.id == id) {
+            run.rung = ev.at;
+            // Only the stopwatch this door reads. Two events share rung eight
+            // and setting both hands the casino every time.
+            match ev.trigger {
+                gearmaster_engine::event::Trigger::QuickKill { .. } => {
+                    run.best_fight_ms = Some(1)
+                }
+                gearmaster_engine::event::Trigger::SlowKill { .. } => {
+                    run.worst_fight_ms = Some(600_000)
+                }
+                _ => {}
+            }
+            for name in ["Platinum Chip", "A Word About the Crownwright", "A Word About the Green Ledger"] {
+                if let Some(d) = gearmaster_engine::piece::CATALOG.iter().position(|d| d.name == name) {
+                    let pid = run.registry.alloc(d);
+                    run.owned.push(pid);
+                }
+            }
+            message = format!("Standing in front of {}.", ev.id);
+        }
     }
     // GEARMASTER_TOWN=<n> stands you at the nth town's gate. Getting there by
     // playing means winning six fights first, which is not a way to look at a

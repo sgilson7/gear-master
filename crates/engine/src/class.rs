@@ -712,19 +712,19 @@ pub static CLASSES: &[ClassDef] = &[
     // them off the fountain.
     ClassDef {
         name: "Piety",
-        blurb: "You knelt on a floor that cuts, in a town that is mostly water.",
+        blurb: "You knelt on a stone floor in a town that is mostly water, and it cut, and you stayed down.",
         requires: &[],
         power: ClassPower::Piety { faith: 1 },
     },
     ClassDef {
         name: "Ticket to Ride",
-        blurb: "Five prayers answered at once, by something that was listening after all.",
+        blurb: "Five prayers in, somebody hands you a small printed card and will not say who from.",
         requires: &[],
         power: ClassPower::Ticket { nth: 2 },
     },
     ClassDef {
         name: "Tired",
-        blurb: "You took the shift. They paid you for it, which is the part you remember.",
+        blurb: "You took the shift. They paid on the hour, in full, which is the part you keep telling people.",
         requires: &[],
         power: ClassPower::Tired { mana: 3 },
     },

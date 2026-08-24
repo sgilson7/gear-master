@@ -433,7 +433,7 @@ fn taking_trundle_shuts_the_pay_off_but_not_the_door() {
     let mut run = a_grinding_run();
     let follow = EVENTS.iter().find(|e| e.id == "where-it-was-going").expect("authored");
     run.rung = follow.at;
-    run.took.push("Walk with it a while");
+    run.took.push("Walk with them a while");
 
     let ev = run.pending_event().expect("the cart is here either way");
     assert_eq!(ev.id, "where-it-was-going");

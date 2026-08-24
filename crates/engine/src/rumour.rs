@@ -82,16 +82,18 @@ pub struct Rumour {
 pub static RUMOURS: &[Rumour] = &[
     Rumour {
         name: "A Word About the Crownwright",
-        hint: "They only see people whose heads are already full. Nobody has \
-               ever said what that means and everybody nods along.",
+        hint: "He will not measure a head that has nothing in it. Everybody \
+               in the bar nods along at this and not one of them can tell you \
+               what it means.",
         price: Barter::Kind(PieceKind::Frame),
         opens: "the-crownwright",
         needs: Condition::Crowded { slot: crate::piece::SlotKind::Helmet, under: 10 },
     },
     Rumour {
         name: "A Word About the Green Ledger",
-        hint: "It is a long tally and it wants to be finished. They say the \
-               man who keeps it has been adding up the same column for years.",
+        hint: "There is a man in green ink who has been adding up the same \
+               column since before the bar had a roof. What he is counting, he \
+               is counting about you.",
         price: Barter::Rumour("A Word About the Crownwright"),
         opens: "the-green-ledger",
         needs: Condition::BankedAllRun {

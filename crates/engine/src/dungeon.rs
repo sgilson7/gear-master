@@ -36,29 +36,39 @@ pub const DUNGEONS: &[Dungeon] = &[
         id: "the-crevice",
         name: "THE CREVICE IN THE ROCK",
         blurb: &[
-            "The thing you sold turns up again three rungs later, in the hands of \
-             somebody who should not have it, in a hamlet that is not on any map \
-             you have seen.",
-            "They call it Corrqk's Cavern now. It was Bunko's Cavern when it was \
-             a fishing village, before the Cork came and the boys were put on \
-             trains, and there is one old analyst left in the seed facility who \
-             still prays to the old gods on a floor that cuts his knees.",
-            "He has noticed a purple glint between the Cork and the Unmovable \
-             Rock. He has been waiting for somebody with the shoulders to widen \
-             it.",
+            "The thing you sold turns up three rungs later in the hands of \
+             somebody who should not have it, in a hamlet that is not on any \
+             map you have seen.",
+            "They call it Corrqk's Cavern now. It was Bunko's Cavern when it \
+             was a fishing village, before the Cork came and the boys were \
+             put on trains and the Home for Immature Men was turned into a \
+             Drambus seed facility. There is one old analyst left on the \
+             line. His name is Boyetano and he still prays to the old gods, \
+             on a floor that cuts his knees, which he says helps him \
+             concentrate.",
+            "Boyetano has noticed a purple glint down between the Cork and \
+             the Unmovable Rock. He has been noticing it for six years and \
+             has told nobody, because nobody who works here has the shoulders \
+             to widen a crack in a rock, and he has been very patient about \
+             waiting for somebody who does.",
         ],
         floors: &["The Reciter", "The Long Haul", "The Watchers"],
         landings: &[
-            "The Anticipations stop mid-verse. Behind the pulpit the Cork has \
-             been growing over a crack, the way a lip grows over a bad tooth.",
-            "The train goes over. Whatever was in the cars is loose in the dark \
-             now and does not seem to want anything from you, which is worse.",
-            "The Core is soup and light and something in the middle of it that \
-             is a piece of somewhere else. Boyetano looks at it, and stops \
-             being Boyetano, and there is a moment where he could keep all of \
-             it. He splits it instead, the way he always said he would, and \
-             hands you a share on his way out. Somewhere above, fishing rods \
-             are being cast.",
+            "The Anticipations stop mid-verse. Behind the pulpit, the Cork \
+             has grown out over a crack in the rock the way a lip grows over \
+             a bad tooth. Boyetano gets a bar under it. Boyetano is seventy- \
+             one.",
+            "The train goes over on the bend. Whatever was in the cars is out \
+             in the dark now, and it does not appear to want anything from \
+             you at all, and it does not appear to want anything from \
+             Boyetano either, who keeps walking and does not look at it once.",
+            "The Core is soup and light with a piece of somewhere else \
+             sitting in the middle of it. Boyetano looks at it for a while, \
+             and stops being Boyetano, and there is a moment there where he \
+             could have kept the lot. He splits it instead, the way he always \
+             said he would, and puts your share in your hand on his way past. \
+             Somewhere above you, for the first time in a long time, somebody \
+             is casting a line.",
         ],
         reward: "Ascendant",
     },

@@ -152,3 +152,50 @@ fn the_quickest_win_is_what_gets_remembered() {
         "the run should remember its slowest win too - the other door reads it"
     );
 }
+
+#[test]
+fn every_took_names_a_label_that_exists() {
+    // A choice label is a cross-reference: `Requirement::Took` matches on the
+    // string, and nothing checks the string. Rewriting the prose of an event
+    // and tidying its labels while you are in there silently shuts a door
+    // three rungs later, and the door shuts *quietly* - it just never opens.
+    use gearmaster_engine::event::Requirement;
+    let labels: Vec<&str> =
+        EVENTS.iter().flat_map(|e| e.choices.iter().map(|c| c.label)).collect();
+    for e in EVENTS {
+        for c in e.choices {
+            let Requirement::Took(want) = c.requires else { continue };
+            assert!(
+                labels.contains(&want),
+                "{}'s {:?} waits on somebody having taken {:?}, and no choice in the game \
+                 is called that",
+                e.id,
+                c.label,
+                want
+            );
+        }
+    }
+}
+
+#[test]
+fn a_label_that_is_waited_on_is_unique() {
+    // The other half: two choices with the same label would both satisfy the
+    // same wait, which is a door opening for the wrong answer.
+    use gearmaster_engine::event::Requirement;
+    let waited: Vec<&str> = EVENTS
+        .iter()
+        .flat_map(|e| e.choices.iter())
+        .filter_map(|c| match c.requires {
+            Requirement::Took(l) => Some(l),
+            _ => None,
+        })
+        .collect();
+    for want in waited {
+        let n = EVENTS
+            .iter()
+            .flat_map(|e| e.choices.iter())
+            .filter(|c| c.label == want)
+            .count();
+        assert_eq!(n, 1, "{n} choices are called {want:?}, and something waits on that name");
+    }
+}

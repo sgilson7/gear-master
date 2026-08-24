@@ -200,28 +200,29 @@ pub const EVENTS: &[LadderEvent] = &[
         trigger: Trigger::Whispered { rumour: "A Word About the Crownwright" },
         blocked_by: &[],
         expects: "Bone Cantor",
-        title: "THE CROWNWRIGHT",
+        title: "THE HAT MAN OF KOLOK",
         prose: &[
-            "The workshop is up a stair behind a door that is not a door until \
-             you are looking for it, and the Crownwright does not turn round \
-             when you come in.",
-            "\"Full,\" he says, of your head, without having looked at it. \
-             \"Most of them come up here empty and want me to put something in \
-             it. There is nothing I can do for an empty one.\"",
-            "He does not offer to make you anything. He offers to take a \
-             measurement, which he says is the same thing eventually.",
+            "The Kolok Hatter works out of one room over a fish shop and does \
+             not turn round when you come in, on the grounds that he can hear \
+             how full your head is from where he is sitting.",
+            "\"Full,\" he says. \"Good. Most of them come up those stairs \
+             empty and want me to put something in it. I make hats. I am not \
+             a philanthropist and I am very much not a doctor.\"",
+            "He will not sell you a hat. He will take a measurement, for the \
+             record. The record is a ledger four inches thick that lives \
+             under the bench, and he will not let you look in it.",
         ],
         choices: &[
             Choice {
                 label: "Stand still for it",
-                blurb: "Whatever he is measuring, he is measuring it against something.",
+                blurb: "It takes a minute and he hums the entire way round.",
                 requires: Requirement::None,
                 outcome: Outcome::Give("Crownwright's Measure"),
                 unmet: "",
             },
             Choice {
                 label: "Ask what he made last",
-                blurb: "The answer is on a shelf and the shelf is at head height.",
+                blurb: "It is on the shelf behind him at head height. He has been waiting.",
                 requires: Requirement::None,
                 outcome: Outcome::Claim("Piety"),
                 unmet: "",
@@ -236,26 +237,29 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "The Gearwright",
         title: "THE GREEN LEDGER",
         prose: &[
-            "The tally man has a column that has been open for eleven years and \
-             a hand that has got worse over all of them. He shows you the \
-             figure at the bottom of it without being asked.",
-            "It is a number you recognise, because it is roughly what you have \
-             put into the ground and taken back out of it since you started \
-             climbing. He has been keeping it. He does not say for whom.",
-            "\"Sign it off,\" he says, \"and it is finished, and I can go home. \
-             Or add to it, and it is not, and I cannot.\"",
+            "The tally man has had the same column open for eleven years. He \
+             turns the ledger round so you can read the figure at the bottom. \
+             It is a large number and it is in green ink, because everything \
+             in this ledger is in green ink, including the corrections.",
+            "The figure is roughly what you have put into the ground and \
+             pulled back out of it since the Cave Rat. He has been keeping \
+             count the whole way up, in fives, four strokes and a bar. He \
+             will not say who asked him to.",
+            "\"Sign it off,\" he says, \"and it closes, and I go home, and my \
+             wife has been asking. Or put a line under it and it stays open, \
+             and I do not.\"",
         ],
         choices: &[
             Choice {
                 label: "Close the column",
-                blurb: "He goes home. You keep what was in the drawer under it.",
+                blurb: "He is out of the door before the ink dries. The drawer under it is yours.",
                 requires: Requirement::None,
                 outcome: Outcome::Give("The Green Ledger"),
                 unmet: "",
             },
             Choice {
                 label: "Add your own line",
-                blurb: "Eleven years is not so long. He seems relieved, which is worse.",
+                blurb: "Eleven years is not so long. He says so himself, twice.",
                 requires: Requirement::None,
                 outcome: Outcome::Claim("Longhauler"),
                 unmet: "",
@@ -272,28 +276,28 @@ pub const EVENTS: &[LadderEvent] = &[
         trigger: Trigger::Rung,
         blocked_by: &[],
         expects: "Slag Warden",
-        title: "IT GOT THERE",
+        title: "AHEAD OF SCHEDULE",
         prose: &[
-            "You are twelve rungs and some weeks further on, and there it is: \
-             the same shape, the same cart, the same unhurried business of \
-             being somewhere it was not before.",
-            "It has arrived. Whatever it was going to do, it has done, and it \
-             is now doing the next thing, which appears to be resting in a way \
-             that is indistinguishable from what it was doing before.",
-            "It remembers you. It does not seem surprised that you took longer \
-             to get here than it did.",
+            "Kettleworks, twelve rungs and some weeks on, and there is Gerald \
+             in the yard with the harness off, eating.",
+            "The four tons went in through the doors nine days ago. The man \
+             has been paid, has bought a hat with some of it, and is wearing \
+             the hat. He is extremely pleased that you asked.",
+            "\"Ahead of schedule,\" he says, for the second time in your \
+             acquaintance, and this time he has the docket for it, and makes \
+             you look at the docket.",
         ],
         choices: &[
             Choice {
-                label: "Take the pace with you",
-                blurb: "Nothing starts fast. Everything finishes.",
-                requires: Requirement::Took("Ask how it manages"),
+                label: "Ask him again",
+                blurb: "Whatever he did, he did by not stopping. Nothing starts fast.",
+                requires: Requirement::Took("Ask how he does it"),
                 outcome: Outcome::Claim("Longhauler"),
-                unmet: "you never asked it anything - it has nothing to tell you",
+                unmet: "You never asked him anything on the road, so he has nothing for you at Kettleworks",
             },
             Choice {
-                label: "Leave it to it",
-                blurb: "It has earned the rest more than you have.",
+                label: "Let them eat",
+                blurb: "Gerald has earned that yard more than you have earned this road.",
                 requires: Requirement::None,
                 outcome: Outcome::FightAsWritten,
                 unmet: "",
@@ -312,22 +316,24 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "Silence",
         title: "MEMBERS AND GUESTS",
         prose: &[
-            "The rope is velvet and the man behind it is not. He looks at you \
-             the way a lock looks at a key: with no opinion at all until the \
-             right thing is presented.",
-            "Behind him, down a corridor lit the colour of weak tea, something \
-             is running. Not machinery. You know what machinery sounds like - \
-             you were mined out of a cave full of it. This is the sound gear-folk \
-             make when they have been at it a very long time and are not \
-             expected to stop.",
-            "There are five things on a table down there that nobody sells. He \
-             would be delighted to show you. He is watching your face while he \
-             says it.",
+            "The rope is velvet. The man with the clipboard behind it is \
+             called Merrik, his badge says HOST, and Merrik would very much \
+             like to see the chip.",
+            "Down the corridor behind him, past a door stencilled LINE 3 - \
+             AUTHORISED ONLY, there is a noise. It is the noise gear-folk \
+             make when they have been at something a very long time and \
+             nobody has told them when it stops. You were mined out of a \
+             cave. You know the noise.",
+            "Merrik says there are five items on a table down there that have \
+             never been for sale, and that guests are always welcome, and \
+             that he will need your voice down and your hands where he can \
+             see them. He says the second half in precisely the tone he said \
+             the first.",
         ],
         choices: &[
             Choice {
                 label: "Keep your face still",
-                blurb: "Look at the table. Do not look down the corridor.",
+                blurb: "Look at the table. Do not look down the corridor. Merrik checks.",
                 requires: Requirement::Holding("Platinum Chip"),
                 outcome: Outcome::Stock {
                     shelves: &[
@@ -339,18 +345,18 @@ pub const EVENTS: &[LadderEvent] = &[
                     ],
                     class: "Immense Guilt",
                 },
-                unmet: "the rope does not move - members only",
+                unmet: "Merrik does not move the rope. Merrik has not moved the rope in eleven years",
             },
             Choice {
                 label: "Get them out",
-                blurb: "Two of them are paid to stop you. This one costs.",
+                blurb: "Two of them are paid to stop exactly this. It costs what that costs.",
                 requires: Requirement::Holding("Platinum Chip"),
                 outcome: Outcome::Step(&THE_BACK_ROOM),
-                unmet: "the rope does not move - members only",
+                unmet: "Merrik does not move the rope. Merrik has not moved the rope in eleven years",
             },
             Choice {
                 label: "Walk on",
-                blurb: "Whatever that is, it is behind a rope and you are not.",
+                blurb: "Merrik thanks you for coming and means it, which is the worst of it.",
                 requires: Requirement::None,
                 outcome: Outcome::FightAsWritten,
                 unmet: "",
@@ -373,29 +379,32 @@ pub const EVENTS: &[LadderEvent] = &[
         trigger: Trigger::QuickKill { within_ms: 3_000, from: 1 },
         blocked_by: &[],
         expects: "Whisperling",
-        title: "A ROOM WITH NO CLOCKS",
+        title: "THE GALAPAGOS EMPORIUM",
         prose: &[
-            "Somebody saw what you did to that thing, and somebody told \
-             somebody, and now there is a door in a wall you have walked past \
-             eleven times. Inside: no clocks, no windows, and a carpet chosen \
-             by a man who wanted you to look up.",
-            "You are here to play. You have the fnorp for it and everything.",
-            "At the third table along, two of them have stopped playing and \
-             started on each other, and the room has arranged itself into a \
-             ring the way rooms do. Nobody is stopping it. The staff have gone \
-             very carefully back to counting.",
+            "The Galapagos Emporium takes anybody who can walk in, which is \
+             how you got in. There is a bowl of complimentary Chromatic Rice \
+             by the door and a card over it reading ONE (1) HANDFUL - HONOUR \
+             SYSTEM - WE ARE WATCHING YOU TAKE IT.",
+            "You are here for Kolok Hold-Em, which is Hold-Em except that one \
+             card in the deck is a live gooster and no player may look at it. \
+             You have the fnorp. You have taken your one handful.",
+            "At the third table along, two players have stopped playing Kolok \
+             Hold-Em and started on each other. The room has formed a ring \
+             around it. A woman with a clipboard is working through the ring \
+             taking side bets in a very neat hand, and the dealer is standing \
+             perfectly still with the gooster held out at arm's length.",
         ],
         choices: &[
             Choice {
                 label: "Step in",
-                blurb: "Both of them. Win and they will remember you.",
+                blurb: "Both of them at once. The clipboard will want your name first.",
                 requires: Requirement::None,
                 outcome: Outcome::Step(&TABLE_THREE),
                 unmet: "",
             },
             Choice {
                 label: "Keep out of it",
-                blurb: "Their business. Cash out and take the chip.",
+                blurb: "Not your table. Cash out, and take whatever the window gives you.",
                 requires: Requirement::None,
                 outcome: Outcome::Give("Gold Chip"),
                 unmet: "",
@@ -411,28 +420,32 @@ pub const EVENTS: &[LadderEvent] = &[
         trigger: Trigger::SlowKill { over_ms: 10_000, from: 1 },
         blocked_by: &["the-casino"],
         expects: "Whisperling",
-        title: "SOMETHING IN THE ROAD",
+        title: "GERALD",
         prose: &[
-            "That last one took a while. You got there. It took a while.",
-            "There is a shape in the road ahead that has taken longer: a \
-             cart, or what a cart becomes after enough seasons of not being \
-             moved. Something is under it, and has been under it for a good \
-             deal longer than you have been walking.",
-            "It is not stuck. It is going somewhere. It is going somewhere at \
-             a pace that makes stuck look hasty, and it has clearly given the \
-             matter more thought than you have given anything.",
+            "That last one took eleven seconds. You know it took eleven \
+             seconds because a man at the roadside was counting out loud, and \
+             when you finished he wrote the number in a notebook and said \
+             nothing else about it.",
+            "His cart is ahead of you on the road, pulled by an animal with a \
+             brass plate on its harness. The plate gives the species, which \
+             is Slow Trundler, and the name, which is Gerald, and the top \
+             speed, which is given in metres per hour.",
+            "Gerald is hauling four tons of Deep Chocolate to Kettleworks. \
+             They set off in the spring. The man says they are ahead of \
+             schedule, and shows you the notebook again at a different page, \
+             as though that settles it.",
         ],
         choices: &[
             Choice {
-                label: "Ask how it manages",
-                blurb: "Nothing now. It says to look for it again later on.",
+                label: "Ask how he does it",
+                blurb: "He will not say on the road. He says catch them up when they get there.",
                 requires: Requirement::None,
                 outcome: Outcome::FightAsWritten,
                 unmet: "",
             },
             Choice {
-                label: "Walk with it a while",
-                blurb: "Learn the pace. Everything slows; everything holds.",
+                label: "Walk with them a while",
+                blurb: "Gerald's pace, from here on. Everything slower, every plate worth double.",
                 requires: Requirement::None,
                 outcome: Outcome::Claim("Trundle"),
                 unmet: "",
@@ -451,25 +464,28 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "The Curator",
         title: "HE IS STILL TALKING",
         prose: &[
-            "Lord Drabley Henpeck is not dead, and is not especially worried \
-             about becoming dead, which between the two of you is the more \
-             annoying fact.",
-            "He has more. He has names, and routes, and the shape of what was \
-             done, and he will trade all of it for the obvious thing. He is \
-             enjoying this. He has been enjoying it since he hit the floor.",
-            "Or you can stop him enjoying it.",
+            "Lord Drabley Henpeck is on the floor of his own counting house \
+             with a broken hip and an excellent view of the ceiling, and he \
+             is talking.",
+            "He has been talking since he went down. He has names. He has \
+             routes. He has the clearance order for the Great Gear Cave, \
+             filed correctly, in triplicate, because he is exactly the sort \
+             of man who would. All of it is available for the obvious \
+             consideration.",
+            "He is having a marvellous time. He has asked you twice now \
+             whether you are getting all this.",
         ],
         choices: &[
             Choice {
                 label: "LET HIM TALK",
-                blurb: "What he knows is worth a life. One more loss before the run ends.",
+                blurb: "He wants a witness and a promise. One more loss before the run ends.",
                 requires: Requirement::None,
                 outcome: Outcome::Spare,
                 unmet: "",
             },
             Choice {
                 label: "FINISH IT",
-                blurb: "Nothing he says is worth this. You walk on angry, and stay angry.",
+                blurb: "The triplicate burns with him. You walk on angry and arrive angrier.",
                 requires: Requirement::None,
                 outcome: Outcome::Claim("Avenged"),
                 unmet: "",
@@ -482,26 +498,29 @@ pub const EVENTS: &[LadderEvent] = &[
         trigger: Trigger::Rung,
         blocked_by: &[],
         expects: "Bone Archer",
-        title: "IT WOULD RATHER NOT",
+        title: "TWO BY TWO",
         prose: &[
-            "It has been standing here a while, and it has been thinking.",
-            "It does not especially want to fight you. What it wants is the \
-             square thing in your bag - it will not say why, and it will not \
-             take anything else, and it will not be talked down on the shape.",
-            "It has money. It has, in fact, twice what it is worth, which \
-             suggests it has done this before.",
+            "The Bog Toad has been sitting in this road since before you got \
+             up this morning and has clearly used the time.",
+            "It does not want to fight you. It wants the square thing in your \
+             bag. It says square, it says two by two, it will not be moved on \
+             the shape and it will not say what it is for.",
+            "It counts the fnorp out onto a flat stone while you decide. It \
+             counts out twice what the thing is worth. Then it counts the \
+             whole pile again, gets the same number, and seems mildly \
+             disappointed by that.",
         ],
         choices: &[
             Choice {
                 label: "TAKE THE DEAL",
-                blurb: "Hand over a 2x2 component. No fight, and double the bounty.",
+                blurb: "Hand over a 2x2 component. No fight, and twice the bounty on the stone.",
                 requires: Requirement::LooseItemOfSize { w: 2, h: 2 },
                 outcome: Outcome::BuyOff { times: 2 },
-                unmet: "Nothing square enough in the tray.",
+                unmet: "Nothing two by two in the bag. It checks. It counts the bag.",
             },
             Choice {
                 label: "FIGHT IT ANYWAY",
-                blurb: "It was going to be a fight. Make it one.",
+                blurb: "It was going to be a fight before it was a negotiation.",
                 requires: Requirement::None,
                 outcome: Outcome::FightAsWritten,
                 unmet: "",
@@ -514,35 +533,39 @@ pub const EVENTS: &[LadderEvent] = &[
         trigger: Trigger::Rung,
         blocked_by: &[],
         expects: "Warded Idol",
-        title: "TWO THINGS IN THE SHRINE",
+        title: "THREE THINGS IN THE SHRINE",
         prose: &[
-            "The idol is where the idol always is, warded to the teeth and \
-             entirely willing.",
-            "Behind it, past a gap in the stone that you would swear was not \
-             there a moment ago, something else is asleep. It is armoured like \
-             a seed is armoured. It is not dreaming about you, and you get the \
-             strong impression that it would be worse if it were.",
-            "You can take the idol. Or you can go round the back, and find out \
-             what a thing like that has to say.",
+            "The Warded Idol stands in the shrine the way the Warded Idol \
+             always stands in the shrine: plated to the eyeballs, wound to \
+             the last click, entirely ready for you.",
+            "There is also a hole in the back wall, which was not in the back \
+             wall when you came in. Down the hole is a seed facility, and in \
+             the seed facility is an old analyst named Boyetano who prays on \
+             a floor that cuts his knees. He has been waiting a long while \
+             for somebody with shoulders.",
+            "And there is a third thing behind the altar, asleep, with a \
+             shell on it like a walnut. Nobody who works here will look \
+             straight at it. The idol does not look at it either, and the \
+             idol has no eyes.",
         ],
         choices: &[
             Choice {
                 label: "FIGHT THE IDOL",
-                blurb: "The rung as written.",
+                blurb: "The rung as written. It has been ready since before you were born.",
                 requires: Requirement::None,
                 outcome: Outcome::FightAsWritten,
                 unmet: "",
             },
             Choice {
                 label: "FOLLOW THE THING YOU SOLD",
-                blurb: "Three floors, and something at the bottom nobody else can be given.",
+                blurb: "Three floors down, and Boyetano at the bottom with something to hand over.",
                 requires: Requirement::Took("TAKE THE DEAL"),
                 outcome: Outcome::Enter("the-crevice"),
-                unmet: "You kept whatever it wanted, so it never came this way.",
+                unmet: "You never sold it, so it never came this way, so there is no hole in the wall.",
             },
             Choice {
                 label: "GO ROUND THE BACK",
-                blurb: "A boss, this early, and it leaves something behind.",
+                blurb: "A boss, this early, and it leaves something behind when it stops.",
                 requires: Requirement::None,
                 outcome: Outcome::FightInstead("The Dreaming Idiot"),
                 unmet: "",
