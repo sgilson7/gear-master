@@ -263,7 +263,7 @@ const RULES: &[Rule] = &[
 
     // Chest - Reserve. Outlasting is its offence.
     Rule { what: "Grow", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
-        budget: 11, target: 0, carries: |d| does(d, |a| matches!(a, Action::Grow(_))) },
+        budget: 10, target: 0, carries: |d| does(d, |a| matches!(a, Action::Grow(_))) },
     Rule { what: "harden", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
         budget: 8, target: 0,
         carries: |d| d.base.physical_harden != 0 || d.base.magic_harden != 0 },
@@ -283,7 +283,7 @@ const RULES: &[Rule] = &[
         shared_with: &[], budget: 1, target: 0,
         carries: |d| effect_is(d, |e| matches!(e, EffectKind::DoubleAdjacentItemStat { .. })) },
     Rule { what: "OnAlignedActivate", home: SlotKind::Gloves, level: Level::Mostly(70),
-        shared_with: &[], budget: 2, target: 0,
+        shared_with: &[], budget: 0, target: 0,
         carries: |d| has(d, |t| matches!(t, Trigger::OnAlignedActivate(_))) },
 
     // Greaves - Tempo. Who moves, how often, and first. The weapon keeps its
@@ -292,8 +292,12 @@ const RULES: &[Rule] = &[
         budget: 9, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnBattleStart(_))) },
     Rule { what: "speed_bonus outside the weapon", home: SlotKind::Greaves, level: Level::Only,
         shared_with: &[SlotKind::Weapon], budget: 10, target: 0, carries: |d| d.speed_bonus != 0 },
+    // Gloves share this one. The bleed cycle has the hands bleeding into the
+    // feet, and §3.4 names the piece that does it: a reaction whose payout is
+    // tempo. Barring gloves outright made the slot's own designed bleed
+    // illegal, which is the table being stricter than the cycle it encodes.
     Rule { what: "ReduceCooldown outside the weapon", home: SlotKind::Greaves, level: Level::Only,
-        shared_with: &[SlotKind::Weapon], budget: 0, target: 0,
+        shared_with: &[SlotKind::Weapon, SlotKind::Gloves], budget: 0, target: 0,
         carries: |d| does(d, |a| matches!(a, Action::ReduceCooldown(_))) },
     // Terrain is the body's and the feet's: a thing to stand on, or ground to
     // cross. Nothing is laid under a helmet.
@@ -301,7 +305,7 @@ const RULES: &[Rule] = &[
         shared_with: &[SlotKind::Greaves], budget: 0, target: 0,
         carries: |d| d.kind.is_underlay() },
     Rule { what: "frost, stun and misfire", home: SlotKind::Greaves, level: Level::Mostly(70),
-        shared_with: &[], budget: 9, target: 0,
+        shared_with: &[], budget: 7, target: 0,
         carries: |d| does(d, |a| matches!(a, Action::Curse {
             kind: CurseKind::Frost | CurseKind::Stun | CurseKind::Misfire, .. })) },
 ];
@@ -405,10 +409,10 @@ const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
     (SlotKind::Chest, "plain flat-stat filler", 16),
     (SlotKind::Chest, "the dearest third interacts", 0),
     (SlotKind::Chest, "pool-spend texture", 0),
-    (SlotKind::Gloves, "expresses its own axis", 38),
+    (SlotKind::Gloves, "expresses its own axis", 0),
     (SlotKind::Gloves, "expresses its bleed axis", 0),
-    (SlotKind::Gloves, "plain flat-stat filler", 20),
-    (SlotKind::Gloves, "the dearest third interacts", 3),
+    (SlotKind::Gloves, "plain flat-stat filler", 0),
+    (SlotKind::Gloves, "the dearest third interacts", 0),
     (SlotKind::Gloves, "pool-spend texture", 0),
     (SlotKind::Greaves, "expresses its own axis", 9),
     (SlotKind::Greaves, "expresses its bleed axis", 22),

@@ -301,3 +301,26 @@ Weapon damage share has not moved across five pull requests, and it will not:
 curses, drains and reactions are not damage. Getting the weapon from 96% to the
 target 55-65% is entirely a question of the other four slots learning to deal
 damage of their own, which is the helmet, chest and gloves sweeps.
+
+### PR 7 — the hands answer
+
+| Build | Cleared | Median TTK | Weapon share |
+|---|---|---|---|
+| starter | 1/50 | 3.00s | 100.0% |
+| preset | 11/50 | 8.45s | 100.0% |
+| owner | 50/50 | 25.60s → 24.00s | 96.1% → **92.9%** |
+| friend | 49/50 | 7.75s → **5.55s** | 100.0% |
+
+**The weapon's share moved for the first time in the whole rewrite.** Gloves
+went from 4.1% of the owner's damage at rung 25 to 7.6%, and the weapon gave up
+the difference. Three pull requests of moving curses, drains and reactions did
+not shift this number by a tenth of a point, because none of those are damage.
+Thirty-eight gloves pieces learning to answer their neighbours moved it three
+points in one go.
+
+Rung-1 time-to-kill is unchanged on all four boards, for the third pull request
+running. Criterion 4 holds exactly.
+
+The remaining distance is 92.9% against a target of 55-65%, and the shape of
+the fix is now known rather than guessed: it is helmet, chest and greaves
+learning to deal damage in their own vocabularies, the same way gloves just did.

@@ -162,7 +162,12 @@ fn a_blunt_run() -> Run {
 /// win is 3200ms - past the casino's three-second bar - and its slowest is
 /// 14400ms, which is what opens the road instead.
 fn a_grinding_run() -> Run {
-    the_winning_board(Difficulty::Hard)
+    // Insane, not Hard. This fixture's whole job is to be the board whose
+    // fights run long enough to open the road instead of the casino, and the
+    // gloves sweep moved that line: a board that answers its neighbours kills
+    // fast enough on Hard to earn the casino, which blocks the road by design.
+    // The difficulty is the knob that makes it slow, so the difficulty moved.
+    the_winning_board(Difficulty::Insane)
 }
 
 #[test]
