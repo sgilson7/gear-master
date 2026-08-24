@@ -576,8 +576,14 @@ mod tests {
         let mut seen = std::collections::HashSet::new();
         for x in 0..4u8 {
             for y in 0..4u8 {
+                // Anvil Frame rather than Steel Frame: the helmet sweep gave
+                // Steel Frame a mana trigger, and a trigger beats a stat when
+                // naming - so the fixture stopped being armour-only and every
+                // arrangement came back "Welling". This one is still nothing
+                // but armour, health and hardening, which is what the test is
+                // about.
                 let (reg, slot, ids) =
-                    place(&[("Steel Frame", x, y), ("Iron Plating", x, y + 2)], SlotKind::Helmet);
+                    place(&[("Anvil Frame", x, y), ("Iron Plating", x, y + 2)], SlotKind::Helmet);
                 let n = name_item(77, &reg, &slot, &ids, Rarity::Epic, &PLAIN_NAMING);
                 seen.insert(n.short.split_whitespace().next().unwrap().to_string());
             }

@@ -324,3 +324,22 @@ running. Criterion 4 holds exactly.
 The remaining distance is 92.9% against a target of 55-65%, and the shape of
 the fix is now known rather than guessed: it is helmet, chest and greaves
 learning to deal damage in their own vocabularies, the same way gloves just did.
+
+### PR 8 — the helmet finds its economy
+
+| Build | Cleared | Median TTK | Weapon share |
+|---|---|---|---|
+| starter | 1/50 | 3.00s | 100.0% |
+| preset | 11/50 | 8.45s | 100.0% |
+| owner | 50/50 → 49/50 | 24.00s → 22.40s | 92.9% → 93.1% |
+| friend | 49/50 | 5.55s | 100.0% |
+
+Twenty-four inert helmet frames and crests gained pool income, shields,
+watchers or mind damage. The owner's board gives a rung back: monsters wear
+these frames, and a helmet that banks mana is a monster that casts more.
+
+Rung-1 time-to-kill is unchanged for the fourth pull request running.
+
+Weapon share is flat at 93%. Economy is not damage either - the helmet feeds
+the weapon rather than replacing it, which is what the axis says it should do.
+The two slots left that could move this number are chest and greaves.

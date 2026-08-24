@@ -109,7 +109,14 @@ fn conversion(def: &PieceDef) -> bool {
                 | PieceKind::Book
                 | PieceKind::Orb
         )
-        || does(def, |a| matches!(a, Action::Damage { .. } | Action::GainForking(_)))
+        || does(def, |a| {
+            // Mind damage counts. It is damage - it takes maximum health and
+            // that health does not come back - and §2 names it as exactly the
+            // helmet's bleed into the weapon: mind and magic as cast support.
+            // Leaving it out meant the one slot whose bleed the spec spells
+            // out could not express it.
+            matches!(a, Action::Damage { .. } | Action::GainForking(_) | Action::MindDamage { .. })
+        })
 }
 
 fn economy(def: &PieceDef) -> bool {
@@ -400,10 +407,10 @@ const EVENTUAL_FILLER_PCT: usize = 15;
 /// How far each slot is from each quota today, read off `report_shape`. Lower a
 /// figure in the commit that earns it; never raise one.
 const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
-    (SlotKind::Helmet, "expresses its own axis", 15),
-    (SlotKind::Helmet, "expresses its bleed axis", 11),
-    (SlotKind::Helmet, "plain flat-stat filler", 21),
-    (SlotKind::Helmet, "the dearest third interacts", 5),
+    (SlotKind::Helmet, "expresses its own axis", 3),
+    (SlotKind::Helmet, "expresses its bleed axis", 6),
+    (SlotKind::Helmet, "plain flat-stat filler", 0),
+    (SlotKind::Helmet, "the dearest third interacts", 2),
     (SlotKind::Chest, "expresses its own axis", 0),
     (SlotKind::Chest, "expresses its bleed axis", 5),
     (SlotKind::Chest, "plain flat-stat filler", 16),
