@@ -37,6 +37,21 @@
     cursor: pointer; user-select: none;
   }
   #music header:hover { color: #f0c85a; }
+  /* The volume row stays put when the player is folded away: somebody who has
+     hidden the widget because it is in the way is exactly the person who still
+     wants to turn it down. */
+  #vol-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 10px 8px; font-size: 11px; letter-spacing: 1px; color: #6a6a80;
+  }
+  #mute {
+    background: none; border: 1px solid #3a3a52; border-radius: 3px;
+    color: #8a8aa4; font: inherit; letter-spacing: 1px; cursor: pointer;
+    padding: 2px 7px; min-width: 52px;
+  }
+  #mute:hover { color: #f0c85a; border-color: #f0c85a; }
+  #vol { flex: 1; accent-color: #f0c85a; cursor: pointer; height: 14px; }
+  #vol-read { min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
   #sc { display: block; width: 100%; height: 120px; border: 0; }
 </style>
 </head>
@@ -51,6 +66,12 @@
     <header id="music-toggle"><span>SOUNDTRACK</span><span id="music-caret">fold</span></header>
     <iframe id="sc" allow="autoplay" scrolling="no" frameborder="no"
       src="https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fleefy5%2Fsets%2Fcountless-days-in-ableton&color=%23f0c85a&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false&visual=false"></iframe>
+    <div id="vol-row">
+      <button id="mute" type="button" aria-label="Mute the soundtrack">MUTE</button>
+      <input id="vol" type="range" min="0" max="100" step="1" value="25"
+             aria-label="Soundtrack volume">
+      <span id="vol-read">25</span>
+    </div>
   </div>
 
   <script src="https://w.soundcloud.com/player/api.js"></script>
@@ -82,8 +103,46 @@
       const widget = SC.Widget(document.getElementById("sc"));
       let started = false;
 
+      // Volume, and the reason there is a slider at all.
+      //
+      // setVolume was called once on READY and did not stick: READY fires when
+      // the *widget* is up, which is before the sound is loaded, and the set is
+      // dropped on the floor. The playlist then ran at SoundCloud's default,
+      // which is full. Applying it again on PLAY is what actually takes, and
+      // PLAY fires for every track, so it holds across the whole set.
+      var LEVEL_KEY = "gearmaster.volume";
+      var slider = document.getElementById("vol");
+      var readout = document.getElementById("vol-read");
+      var muteBtn = document.getElementById("mute");
+      var stored = parseInt(window.localStorage.getItem(LEVEL_KEY), 10);
+      // A quiet default. Somebody who wants it loud can say so once and the
+      // page will remember; somebody who does not should never be shouted at.
+      var level = isNaN(stored) ? 25 : Math.min(100, Math.max(0, stored));
+      var muted = false;
+
+      var ready = false;
+      function apply() {
+        slider.value = level;
+        readout.textContent = muted ? "off" : String(level);
+        muteBtn.textContent = muted ? "UNMUTE" : "MUTE";
+        if (!ready) return;
+        widget.setVolume(muted ? 0 : level);
+      }
+
+      slider.addEventListener("input", function () {
+        level = parseInt(slider.value, 10) || 0;
+        muted = false;
+        window.localStorage.setItem(LEVEL_KEY, String(level));
+        apply();
+      });
+      muteBtn.addEventListener("click", function () {
+        muted = !muted;
+        apply();
+      });
+
       widget.bind(SC.Widget.Events.READY, function () {
-        widget.setVolume(60);
+        ready = true;
+        apply();
         widget.getSounds(function (sounds) {
           var last = sounds.length - 1;
           widget.bind(SC.Widget.Events.FINISH, function () {
@@ -101,7 +160,15 @@
         });
       });
 
-      function start() {
+      widget.bind(SC.Widget.Events.PLAY, apply);
+
+      var volRow = document.getElementById("vol-row");
+      function start(e) {
+        // Reaching for the volume is not asking for the music to begin. This
+        // has to be checked here rather than stopped at the row: the listener
+        // is on `window` in the capture phase, so it has already run by the
+        // time the event reaches anything inside the panel.
+        if (e && e.target && volRow.contains(e.target)) return;
         if (started) return;
         started = true;
         widget.play();
