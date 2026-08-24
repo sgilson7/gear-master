@@ -251,8 +251,13 @@ const RULES: &[Rule] = &[
         budget: 0, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnOtherCast(_))) },
     Rule { what: "PerAdjacentEmpty", home: SlotKind::Weapon, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::PerAdjacentEmpty(_))) },
-    // Searing is damage wearing a curse costume, so it stays with the damage.
-    Rule { what: "searing", home: SlotKind::Weapon, level: Level::Mostly(70), shared_with: &[],
+    // Searing is damage wearing a curse costume - and that is why the feet
+    // share it. Frost, stun and misfire deny tempo but deal nothing, so a slot
+    // built only from them can never move a damage share; burn is how a pair
+    // of boots kills something. Pinned weapon-majority before anyone measured
+    // that the weapon was already dealing ninety-six percent of everything.
+    Rule { what: "searing", home: SlotKind::Weapon, level: Level::Mostly(55),
+        shared_with: &[SlotKind::Greaves],
         budget: 0, target: 0,
         carries: |d| does(d, |a| matches!(a, Action::Curse { kind: CurseKind::Searing, .. })) },
 
@@ -312,7 +317,7 @@ const RULES: &[Rule] = &[
         shared_with: &[SlotKind::Greaves], budget: 0, target: 0,
         carries: |d| d.kind.is_underlay() },
     Rule { what: "frost, stun and misfire", home: SlotKind::Greaves, level: Level::Mostly(70),
-        shared_with: &[], budget: 7, target: 0,
+        shared_with: &[], budget: 5, target: 0,
         carries: |d| does(d, |a| matches!(a, Action::Curse {
             kind: CurseKind::Frost | CurseKind::Stun | CurseKind::Misfire, .. })) },
 ];
@@ -421,9 +426,9 @@ const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
     (SlotKind::Gloves, "plain flat-stat filler", 0),
     (SlotKind::Gloves, "the dearest third interacts", 0),
     (SlotKind::Gloves, "pool-spend texture", 0),
-    (SlotKind::Greaves, "expresses its own axis", 9),
+    (SlotKind::Greaves, "expresses its own axis", 1),
     (SlotKind::Greaves, "expresses its bleed axis", 22),
-    (SlotKind::Greaves, "plain flat-stat filler", 5),
+    (SlotKind::Greaves, "plain flat-stat filler", 0),
     (SlotKind::Greaves, "the dearest third interacts", 0),
     (SlotKind::Greaves, "pool-spend texture", 0),
     (SlotKind::Weapon, "the dearest third interacts", 0),

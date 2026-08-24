@@ -385,3 +385,25 @@ points of the owner's damage were already coming from somewhere other than the
 weapon and the instrument could not see it. Every weapon-share figure recorded
 in this file before this entry is measured the old way and reads about three
 points high on a board that carries curses.
+
+### PR 10 — the feet, and Francis repacked to meet them
+
+| Build | Cleared | Median TTK | Weapon share |
+|---|---|---|---|
+| starter | 1/50 | 3.00s | 100.0% |
+| preset | 11/50 | 8.45s | 97.8% → 97.5% |
+| owner | 49/50 | 23.10s → **19.40s** | 89.6% → **83.6%** |
+| friend | 49/50 | 5.55s → 5.45s | 99.8% → 99.7% |
+
+**Six points off the weapon in one pull request**, and the largest single move
+of the rewrite. Greaves deal damage now - through searing, which is the only
+curse that is damage - and the burn attribution added last time is what makes
+it visible. Rung-1 time-to-kill is unchanged for the sixth pull request.
+
+Francis was repacked at band 6 rather than band 0. Arming the greaves armed
+*him* first, because he wears them: at the old band the best board any human
+has built in this project could not beat him on Easy, which is a regression
+rather than a rebalance. Forty-four pieces instead of fifty; the packer's two
+dials are density and power, and this pull request needed the second one down.
+
+Weapon share stands at 83.6% against a target of 55-65%.
