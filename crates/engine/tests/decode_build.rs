@@ -40,3 +40,4 @@ fn decode_the_winning_build() {
     }
     println!("\n{} pieces placed in total", s.placed.len());
 }
+

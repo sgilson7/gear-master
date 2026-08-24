@@ -3,6 +3,7 @@
 //! goes to the engine.
 
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use gearmaster_engine::class::Axis;
 use gearmaster_engine::combat::{
@@ -121,7 +122,18 @@ impl Viewport {
     /// so hit-testing lines up with drawing at any window size.
     fn mouse(&self) -> (f32, f32) {
         // GEARMASTER_MOUSE=x,y pins the cursor in logical coordinates, so a
-        // hover state can be captured in a screenshot.
+        // hover state can be captured in a screenshot. GEARMASTER_MOUSE2 is
+        // where it goes once GEARMASTER_CLICK's frame has passed - the only
+        // way to photograph a thing you have to click and then point at.
+        if FRAME.load(Ordering::Relaxed) > synthetic_click_frame() {
+            if let Ok(v) = std::env::var("GEARMASTER_MOUSE2") {
+                if let Some((a, b)) = v.split_once(',') {
+                    if let (Ok(x), Ok(y)) = (a.trim().parse(), b.trim().parse()) {
+                        return (x, y);
+                    }
+                }
+            }
+        }
         if let Ok(v) = std::env::var("GEARMASTER_MOUSE") {
             if let Some((a, b)) = v.split_once(',') {
                 if let (Ok(x), Ok(y)) = (a.trim().parse(), b.trim().parse()) {
@@ -132,6 +144,21 @@ impl Viewport {
         let (mx, my) = mouse_position();
         ((mx - self.x) / self.scale, (my - self.y) / self.scale)
     }
+}
+
+/// Frames drawn, for the scripted-input hooks below. Nothing in the game reads
+/// it.
+static FRAME: AtomicU32 = AtomicU32::new(0);
+
+/// The frame GEARMASTER_CLICK fires a left press on; `u32::MAX` when unset.
+fn synthetic_click_frame() -> u32 {
+    std::env::var("GEARMASTER_CLICK").ok().and_then(|v| v.parse().ok()).unwrap_or(u32::MAX)
+}
+
+/// A left press this frame, real or scripted.
+fn left_pressed() -> bool {
+    is_mouse_button_pressed(MouseButton::Left)
+        || FRAME.load(Ordering::Relaxed) == synthetic_click_frame()
 }
 
 fn window_conf() -> Conf {
@@ -2215,6 +2242,41 @@ impl Tip {
     }
 }
 
+/// One line of a pinned overflow list, and enough to describe it in full.
+///
+/// A "+3 more" that lists three names answers "how many" and not "what",
+/// which is the question you were asking. Pinning the list lets you hover its
+/// rows, and a row needs to carry the thing itself to do that.
+#[derive(Clone)]
+enum PinnedEntry {
+    Item(ItemProfile),
+    Class(&'static gearmaster_engine::class::ClassDef),
+}
+
+impl PinnedEntry {
+    fn label(&self) -> String {
+        match self {
+            PinnedEntry::Item(p) => words::retell(&p.name),
+            PinnedEntry::Class(c) => words::class(c.name).to_string(),
+        }
+    }
+
+    fn note(&self) -> String {
+        match self {
+            PinnedEntry::Item(p) => format!("{:.2}s   {}", p.cooldown_ms as f32 / 1000.0, Rarity::of(p.rating).name()),
+            PinnedEntry::Class(c) => words::retell(&c.power.short()),
+        }
+    }
+}
+
+/// A list the player has pinned open by clicking a "+ N more".
+#[derive(Clone)]
+struct Pinned {
+    title: String,
+    at: Vec2,
+    entries: Vec<PinnedEntry>,
+}
+
 /// A tooltip some render pass asked for while drawing.
 ///
 /// Tooltips have to be painted after everything else or the panel and the
@@ -2232,6 +2294,9 @@ struct Hover {
     /// Set when the cursor is over the next opponent. Same idea, but big
     /// enough that it wants the whole board area rather than a tooltip frame.
     enemy_card: bool,
+    /// A "+ N more" the cursor is over, and what it is hiding. Clicking pins
+    /// it; until then it is shown as an ordinary tooltip.
+    overflow: Option<Pinned>,
 }
 
 impl Hover {
@@ -3061,21 +3126,13 @@ fn render_slot_items(
                     12.0,
                     if hot { col_gold() } else { col_dim() },
                 );
-                let hidden: Vec<(String, Color)> = rest
-                    .iter()
-                    .map(|p| {
-                        (
-                            format!(
-                                "{}   {:.2}s   {}",
-                                words::retell(&p.name),
-                                p.cooldown_ms as f32 / 1000.0,
-                                Rarity::of(p.rating).name()
-                            ),
-                            WHITE,
-                        )
-                    })
-                    .collect();
-                hover.over_tip(row, mx, my, || Tip::plain(hidden.clone()));
+                if hot {
+                    hover.overflow = Some(Pinned {
+                        title: format!("{} MORE", rest.len()),
+                        at: Vec2::new(ox, y + STRIP_ROW_H + 4.0),
+                        entries: rest.iter().map(|p| PinnedEntry::Item((*p).clone())).collect(),
+                    });
+                }
                 y += STRIP_ROW_H;
                 break;
             }
@@ -3881,7 +3938,7 @@ fn render_enemy_preview(r: Rect, spec: &MonsterSpec, difficulty: Difficulty, run
     // Sized to its contents rather than to the space available. A panel that
     // takes the whole screen to show six lines and a board reads as a bug, and
     // the loadout underneath is worth leaving visible.
-    let shown = profiles.len().min(ITEMS_SHOWN);
+    let shown = profiles.len().div_ceil(2).max(1).min(ITEMS_SHOWN);
     let content_h = 54.0
         + 18.0
         + 16.0
@@ -3889,7 +3946,7 @@ fn render_enemy_preview(r: Rect, spec: &MonsterSpec, difficulty: Difficulty, run
         + 26.0
         + 18.0
         + shown as f32 * STRIP_ROW_H
-        + if profiles.len() > shown { 20.0 } else { 8.0 }
+        + 8.0
         + SLOT_H as f32 * MINI_CELL
         + 44.0;
     let r = Rect::new(r.x, r.y, r.w, content_h);
@@ -3983,40 +4040,32 @@ fn render_enemy_preview(r: Rect, spec: &MonsterSpec, difficulty: Difficulty, run
         col_dim(),
     );
     y += 18.0;
-    for (i, p) in profiles.iter().take(ITEMS_SHOWN).enumerate() {
-        let ly = y + i as f32 * STRIP_ROW_H;
+    // Two columns rather than a cap. This panel is a preview - it exists so you
+    // can shop against what is coming - and "+ 7 more" in the middle of it
+    // withholds exactly the half you would have wanted. There is no room to
+    // hover an overflow here either: the card only lives while the cursor is on
+    // the portrait, so reaching for the list dismisses the list.
+    let per_col = profiles.len().div_ceil(2).max(1);
+    let col_w = (r.w - 36.0) / 2.0;
+    for (i, p) in profiles.iter().enumerate() {
+        let cx = r.x + 26.0 + (i / per_col) as f32 * col_w;
+        let ly = y + (i % per_col) as f32 * STRIP_ROW_H;
         let name = words::retell(&p.name);
-        let size = fitting_size(&name, 250.0, &[13.0, 12.0, 11.0]);
-        ui_text(&name, r.x + 26.0, ly, size, Color::from_rgba(214, 200, 200, 255));
-        let cd = if p.cooldown_ms == 0 {
-            "-".to_string()
-        } else {
-            format!("every {:.1}s", p.cooldown_ms as f32 / 1000.0)
-        };
-        ui_text(&cd, r.x + 290.0, ly, 12.0, col_dim());
+        let size = fitting_size(&name, col_w * 0.56, &[13.0, 12.0, 11.0]);
+        ui_text(&name, cx, ly, size, Color::from_rgba(214, 200, 200, 255));
         let hit = p.hit_for(stats.strength);
         let what = if hit > 0 {
-            format!("hits for {}", hit)
+            format!("hits {}", hit)
         } else if p.stats.armor > 0 {
             format!("+{} armour", p.stats.armor)
+        } else if p.cooldown_ms > 0 {
+            format!("{:.1}s", p.cooldown_ms as f32 / 1000.0)
         } else {
             String::new()
         };
-        ui_text(&what, r.x + 400.0, ly, 12.0, Color::from_rgba(200, 170, 150, 255));
+        draw_capped(&what, cx + col_w * 0.58, ly, col_w * 0.4, 12.0, Color::from_rgba(200, 170, 150, 255), 1);
     }
-    if profiles.len() > shown {
-        ui_text(
-            &format!("+ {} more", profiles.len() - shown),
-            r.x + 26.0,
-            y + shown as f32 * STRIP_ROW_H,
-            12.0,
-            col_dim(),
-        );
-        y += 20.0;
-    } else {
-        y += 8.0;
-    }
-    y += shown as f32 * STRIP_ROW_H;
+    y += shown as f32 * STRIP_ROW_H + 8.0;
 
     // ---- their board, drawn exactly as the fight will show it ----
     let bw = 5.0 * (SLOT_W as f32 * MINI_CELL) + 4.0 * MINI_GAP;
@@ -4286,8 +4335,15 @@ fn cooldown_fit(count: usize, avail: f32) -> (f32, usize) {
 
 /// Room a side's cooldown list has before it would run into whatever is under
 /// it: the enemy's half for the player, the log strip for the enemy.
-fn cooldown_room(g: &BattleGeom, top: f32) -> f32 {
-    let floor = if top < g.enemy_board_y { g.enemy_board_y - 26.0 } else { g.log.y - 16.0 };
+fn cooldown_room(g: &BattleGeom, top: f32, share: f32) -> f32 {
+    // Your column stops above the enemy half. Theirs stops above the log - or,
+    // in a brawl, above the next creature's column: three lists all measuring
+    // their room down to the log is three lists drawn on top of each other.
+    let floor = if top < g.enemy_board_y {
+        g.enemy_board_y - 26.0
+    } else {
+        (g.log.y - 16.0).min(top + share - 8.0)
+    };
     (floor - (top + 30.0)).max(40.0)
 }
 
@@ -4455,13 +4511,11 @@ fn render_battle(
     pb: &Playback,
     log_expanded: bool,
     log_scroll: usize,
+    hover: &mut Hover,
     mx: f32,
     my: f32,
 ) {
     let Some(log) = run.log.as_ref() else { return };
-    // Painted at the very end, so nothing this pass draws afterwards lands on
-    // top of it. The battle screen has no `Hover` to leave a request in.
-    let mut deferred: Option<Vec<(String, Color)>> = None;
     let g = battle_geom(pb.done);
     let reports = run.reports();
 
@@ -4595,16 +4649,30 @@ fn render_battle(
     // Your column, then one per creature. In a brawl the two share the space
     // the single enemy column had, which is why the header names them: "THEIR
     // COOLDOWNS" is no answer when there are two of them.
-    let mut columns: Vec<(String, &Vec<RunningItem>, &Vec<Vec<u32>>, f32, Color, Side, usize)> =
-        vec![(
-            words::word("your-cooldowns", "YOUR COOLDOWNS").to_string(),
-            &log.player.items,
-            &pb.player_schedule,
-            g.player_board_y,
-            col_you(),
-            Side::Player,
-            0,
-        )];
+    #[allow(clippy::type_complexity)]
+    let mut columns: Vec<(
+        String,
+        &Vec<RunningItem>,
+        &Vec<Vec<u32>>,
+        f32,
+        Color,
+        Side,
+        usize,
+        &Vec<ItemProfile>,
+        usize,
+        f32,
+    )> = vec![(
+        words::word("your-cooldowns", "YOUR COOLDOWNS").to_string(),
+        &log.player.items,
+        &pb.player_schedule,
+        g.player_board_y,
+        col_you(),
+        Side::Player,
+        0,
+        &pb.player_profiles,
+        0,
+        f32::MAX,
+    )];
     {
         let n = pb.foes.len().max(1);
         let room = (LOGICAL_H - g.enemy_board_y - 150.0).max(60.0);
@@ -4617,11 +4685,22 @@ fn render_battle(
             };
             let top = g.enemy_board_y + i as f32 * (room / n as f32);
             let items = log.enemies.get(i).map(|e| &e.items).unwrap_or(&log.player.items);
-            columns.push((label, items, &foe.schedule, top, col_foe(), Side::Enemy, i));
+            columns.push((
+                label,
+                items,
+                &foe.schedule,
+                top,
+                col_foe(),
+                Side::Enemy,
+                i,
+                &foe.profiles,
+                foe.attack_count,
+                room / n as f32,
+            ));
         }
     }
 
-    for (label, items, sched, top, tint, side, who) in columns {
+    for (label, items, sched, top, tint, side, who, profiles, offset, share) in columns {
         let label = label.as_str();
         ui_text(label, g.cd_x, top + 14.0, 13.0, col_dim());
         // A stun takes one item, so the header counts them rather than
@@ -4642,7 +4721,7 @@ fn render_battle(
             );
         }
         let order = cooldown_order(items);
-        let (pitch, shown) = cooldown_fit(order.len(), cooldown_room(&g, top));
+        let (pitch, shown) = cooldown_fit(order.len(), cooldown_room(&g, top, share));
         for (row, &i) in order.iter().take(shown).enumerate() {
             let it = &items[i];
             // `i` is the item's index in its owner's list, which is what the
@@ -4692,24 +4771,18 @@ fn render_battle(
                 13.0,
                 if hot { col_gold() } else { col_dim() },
             );
-            // What the list could not fit, on hover.
+            // What the list could not fit, on hover - and held open on click,
+            // because a name and a cooldown is not what the item does.
             if hot {
-                deferred = Some(
-                    order[shown..]
+                hover.overflow = Some(Pinned {
+                    title: format!("{} MORE", order.len() - shown),
+                    at: Vec2::new(g.cd_x, ry + 20.0),
+                    entries: order[shown..]
                         .iter()
-                        .filter_map(|&i| items.get(i))
-                        .map(|it| {
-                            (
-                                format!(
-                                    "{}   every {:.2}s",
-                                    words::retell(&it.name),
-                                    it.cooldown_ms as f32 / 1000.0
-                                ),
-                                WHITE,
-                            )
-                        })
+                        .filter_map(|&i| i.checked_sub(offset).and_then(|j| profiles.get(j)))
+                        .map(|p| PinnedEntry::Item(p.clone()))
                         .collect(),
-                );
+                });
             }
         }
     }
@@ -4821,20 +4894,21 @@ fn render_battle(
     } else {
         // Hovering a cooldown row explains what that item is worth. Same
         // columns the bars were drawn in, so the hover lands where you look.
-        let mut hoverable: Vec<(&Vec<RunningItem>, f32, &Vec<ItemProfile>, usize)> =
-            vec![(&log.player.items, g.player_board_y, &pb.player_profiles, 0usize)];
+        #[allow(clippy::type_complexity)]
+        let mut hoverable: Vec<(&Vec<RunningItem>, f32, &Vec<ItemProfile>, usize, f32)> =
+            vec![(&log.player.items, g.player_board_y, &pb.player_profiles, 0usize, f32::MAX)];
         {
             let n = pb.foes.len().max(1);
             let room = (LOGICAL_H - g.enemy_board_y - 150.0).max(60.0);
             for (i, foe) in pb.foes.iter().enumerate() {
                 let items = log.enemies.get(i).map(|e| &e.items).unwrap_or(&log.player.items);
                 let top = g.enemy_board_y + i as f32 * (room / n as f32);
-                hoverable.push((items, top, &foe.profiles, foe.attack_count));
+                hoverable.push((items, top, &foe.profiles, foe.attack_count, room / n as f32));
             }
         }
-        for (items, top, profiles, offset) in hoverable {
+        for (items, top, profiles, offset, share) in hoverable {
             let order = cooldown_order(items);
-            let (pitch, shown) = cooldown_fit(order.len(), cooldown_room(&g, top));
+            let (pitch, shown) = cooldown_fit(order.len(), cooldown_room(&g, top, share));
             for (row, &i) in order.iter().take(shown).enumerate() {
                 if !cooldown_row_rect(&g, top, row, pitch).contains(Vec2::new(mx, my)) {
                     continue;
@@ -4849,9 +4923,74 @@ fn render_battle(
         }
     }
 
-    if let Some(l) = deferred {
-        draw_tip(&Tip::plain(l), mx, my);
+}
+
+/// The list behind a "+ N more", and a full card for whichever row you point
+/// at.
+///
+/// Returns the panel's rect so the caller can tell a click inside it from a
+/// click that should put it away.
+fn render_pinned(pin: &Pinned, run: &Run, pinned: bool, mx: f32, my: f32) -> Rect {
+    let row_h = 30.0;
+    let w = 300.0;
+    let h = 34.0 + pin.entries.len() as f32 * row_h + 10.0;
+    let x = pin.at.x.min(LOGICAL_W - w - 8.0).max(4.0);
+    let y = pin.at.y.min(LOGICAL_H - h - 8.0).max(4.0);
+
+    draw_rectangle(x, y, w, h, Color::from_rgba(14, 14, 22, 250));
+    draw_rectangle_lines(x, y, w, h, 1.5, if pinned { col_gold() } else { Color::from_rgba(120, 120, 155, 255) });
+    ui_text(&pin.title, x + 12.0, y + 21.0, 13.0, col_gold());
+    if !pinned {
+        let hint = words::word("click-to-pin", "click to hold it open");
+        ui_text(&hint, x + w - 10.0 - text_width(hint, 11.0), y + 21.0, 11.0, col_dim());
     }
+
+    let mut hovered: Option<&PinnedEntry> = None;
+    for (i, e) in pin.entries.iter().enumerate() {
+        let ry = y + 34.0 + i as f32 * row_h;
+        let row = Rect::new(x + 4.0, ry, w - 8.0, row_h - 2.0);
+        // Only a pinned list answers the pointer: an unpinned one is a tooltip
+        // and the cursor is still over the "+ N more" that summoned it.
+        let hot = pinned && row.contains(Vec2::new(mx, my));
+        if hot {
+            draw_rectangle(row.x, row.y, row.w, row.h, Color::from_rgba(255, 255, 255, 20));
+            hovered = Some(e);
+        }
+        if let PinnedEntry::Item(p) = e {
+            draw_item_sigil(x + 10.0, ry + 4.0, 16.0, Some(p.slot), p.sigil_seed, LIGHTGRAY);
+        }
+        let label = e.label();
+        let size = fitting_size(&label, w - 46.0, &[14.0, 13.0, 12.0, 11.0]);
+        ui_text(&label, x + 32.0, ry + 14.0, size, if hot { WHITE } else { LIGHTGRAY });
+        draw_capped(&e.note(), x + 32.0, ry + 26.0, w - 44.0, 11.0, col_dim(), 1);
+    }
+
+    // The card for whatever is under the pointer, beside the list rather than
+    // under it, so the list stays readable while you read the card. Whichever
+    // side of the list has room takes it - the class band is pinned to the
+    // right edge, so "always to the right" puts the card off the screen.
+    if let Some(e) = hovered {
+        let card_w = 420.0;
+        let at = if x + w + 12.0 + card_w <= LOGICAL_W {
+            Vec2::new(x + w + 12.0, my)
+        } else {
+            Vec2::new((x - card_w - 12.0).max(4.0), my)
+        };
+        match e {
+            PinnedEntry::Item(p) => render_item_summary(p, run, at.x, at.y),
+            PinnedEntry::Class(c) => {
+                let mut lines = vec![
+                    (words::class(c.name).to_string(), col_gold()),
+                    (String::new(), WHITE),
+                ];
+                for l in wrap_px(&words::retell(&c.power.describe()), card_w - 40.0, 14.0) {
+                    lines.push((l, LIGHTGRAY));
+                }
+                draw_tooltip(&lines, at.x, at.y);
+            }
+        }
+    }
+    Rect::new(x, y, w, h)
 }
 
 /// Everything one assembled item is worth: what it adds to you all the time,
@@ -7743,7 +7882,13 @@ fn render_panel(
             col_dim(),
         );
         y += 22.0;
-        for c in &run.classes {
+        // The band below this is pinned, so a long list has to stop somewhere.
+        // Two lines each, and one line held back for the "+ N more" that says
+        // where the rest went. Classes stack now - Piety and Tired both do -
+        // so "however many there are" is no longer a small number.
+        let room = ((opp_top - 26.0 - y) / 36.0).floor().max(1.0) as usize;
+        let show = if run.classes.len() > room { room.saturating_sub(1).max(1) } else { run.classes.len() };
+        for c in run.classes.iter().take(show) {
             ui_text(words::class(c.name), x + 20.0, y, 19.0, col_gold());
             y += 18.0;
             // The band is pinned, so the text shrinks to fit rather than being
@@ -7753,6 +7898,23 @@ fn render_panel(
             let size = fitting_size(&text, PANEL_W - 48.0, &[13.0, 12.0, 11.0, 10.0]);
             draw_capped(&text, x + 24.0, y, PANEL_W - 48.0, size, LIGHTGRAY, 1);
             y += 18.0;
+        }
+        if show < run.classes.len() {
+            let rest = &run.classes[show..];
+            let row = Rect::new(x + 16.0, y - 4.0, PANEL_W - 32.0, 20.0);
+            let hot = row.contains(Vec2::new(mx, my));
+            ui_text(&format!("+{} more", rest.len()), x + 20.0, y + 10.0, 13.0, if hot { col_gold() } else { col_dim() });
+            if hot {
+                // Wins over the class chart: a cursor on this line is asking
+                // about these, not about the fountain schedule behind them.
+                hover.class_card = false;
+                hover.overflow = Some(Pinned {
+                    title: format!("{} MORE", rest.len()),
+                    at: Vec2::new(x - 312.0, y),
+                    entries: rest.iter().map(|c| PinnedEntry::Class(*c)).collect(),
+                });
+            }
+            y += 24.0;
         }
     }
     // Everything below is pinned, so this block has a hard ceiling: it must
@@ -8014,12 +8176,19 @@ async fn main() {
     let mut settled = false;
     // The combat log is a quiet strip unless you ask to see all of it.
     let mut log_expanded = std::env::var("GEARMASTER_LOG").is_ok();
+    // A "+ N more" the player has clicked to hold open. Outlives the frame it
+    // was opened in - that is the whole point of it.
+    let mut pinned: Option<Pinned> = None;
     let mut tools_open = std::env::var("GEARMASTER_TOOLS").is_ok();
     // GEARMASTER_PASTE=<code> loads a shared run at startup. The clipboard is
     // not readable before the window has focus, so this is the only way to put
     // somebody else's board on screen without a pair of hands.
+    // GEARMASTER_PASTE=win is shorthand for the winning board, which is the
+    // one worth looking at when the question is "what does a full slot do to
+    // this screen".
     let mut imported: Option<gearmaster_engine::share::Shared> = std::env::var("GEARMASTER_PASTE")
         .ok()
+        .map(|c| if c == "win" { gearmaster_engine::share::A_WINNING_RUN.to_string() } else { c })
         .as_deref()
         .and_then(gearmaster_engine::share::import);
     // Lines back from the newest the battle log is holding at. Zero follows.
@@ -8156,6 +8325,31 @@ async fn main() {
     // Debug hooks so this window can be inspected without a human at the
     // keyboard: GEARMASTER_PRESET=1 starts geared up, GEARMASTER_FIGHT=1 opens
     // mid-bout, and GEARMASTER_SHOT=<path> captures a frame and exits.
+    // GEARMASTER_WIN=1 wears the board that cleared the game - the only way to
+    // get a slot full enough to see what a crowded strip does to the screen.
+    if std::env::var("GEARMASTER_WIN").is_ok() {
+        if let Some(sh) = gearmaster_engine::share::import(gearmaster_engine::share::A_WINNING_RUN) {
+            run.loadout.grow(sh.extra_rows);
+            for (def, slot, x, y, rot) in &sh.placed {
+                let id = run.registry.alloc(*def);
+                run.owned.push(id);
+                run.registry.set_rotation(id, *rot);
+                if run.equip(id, *slot, *x, *y).is_err() {
+                    run.owned.pop();
+                }
+            }
+        }
+        message = "Wearing the winning board.".to_string();
+    }
+    // GEARMASTER_CLASSES=<n> hands over the first n classes in the book. The
+    // panel's class band is the one place a list can push another list off the
+    // screen, and no ordinary run reaches enough of them to see it happen.
+    if let Ok(n) = std::env::var("GEARMASTER_CLASSES").unwrap_or_default().parse::<usize>() {
+        for c in gearmaster_engine::class::CLASSES.iter().take(n) {
+            run.classes.push(c);
+        }
+        message = format!("Wearing {} classes.", run.classes.len());
+    }
     if std::env::var("GEARMASTER_PRESET").is_ok() {
         run.apply_preset();
         message = "Auto-built a complete loadout - every bonus is lit.".to_string();
@@ -8400,6 +8594,9 @@ async fn main() {
         // ---------------------------------------------------- render
         // Tooltips requested while drawing; painted after everything else.
         let mut hover = Hover::default();
+        // Set when a click lands on a pinned list, so the handlers further
+        // down do not also read it as a click on the board behind it.
+        let mut click_taken = false;
         if run.phase == Phase::Fighting {
             if let Some(p) = pb.as_ref() {
                 // The wheel scrolls the log back. With the full log open that
@@ -8438,7 +8635,7 @@ async fn main() {
                         log_scroll = (log_scroll as isize + step).max(0) as usize;
                     }
                 }
-                render_battle(&run, p, log_expanded, log_scroll, mx, my);
+                render_battle(&run, p, log_expanded, log_scroll, &mut hover, mx, my);
             }
         } else {
             render_slots(&layout, &run, &reports, &drag, &mut hover, mx, my);
@@ -8511,7 +8708,29 @@ async fn main() {
         // Tooltip for whatever is under the cursor (never while dragging).
         // A request left by a render pass wins: those regions are the panel
         // and the strips around each board, which nothing else claims.
-        if matches!(drag, Drag::None) && hover.enemy_card {
+        // A held-open overflow list, and the sub-card for whatever row you
+        // point at inside it. Drawn before the other tooltips and instead of
+        // them: it is the thing you are reading.
+        if let Some(pin) = pinned.clone() {
+            let r = render_pinned(&pin, &run, true, mx, my);
+            if left_pressed() {
+                click_taken = true;
+                if !r.contains(Vec2::new(mx, my)) {
+                    pinned = None;
+                }
+            }
+            if is_key_pressed(KeyCode::Escape) {
+                pinned = None;
+            }
+        } else if let Some(pin) = hover.overflow.take() {
+            if matches!(drag, Drag::None) {
+                render_pinned(&pin, &run, false, mx, my);
+                if left_pressed() {
+                    click_taken = true;
+                    pinned = Some(pin);
+                }
+            }
+        } else if matches!(drag, Drag::None) && hover.enemy_card {
             // Left of the side panel, so the panel it was opened from stays
             // uncovered - a preview that hides its own hover target flickers.
             let spec = *run.monster();
@@ -8921,8 +9140,8 @@ async fn main() {
 
         // Buying, checked before the drag handler so clicking a shelf never
         // picks a piece up.
-        let mut bought_this_frame = false;
-        if run.phase == Phase::Loadout && is_mouse_button_pressed(MouseButton::Left) {
+        let mut bought_this_frame = click_taken;
+        if run.phase == Phase::Loadout && is_mouse_button_pressed(MouseButton::Left) && !click_taken {
             if reroll_rect(layout.shop).contains(Vec2::new(mx, my)) {
                 bought_this_frame = true;
                 match run.reroll() {
@@ -9198,6 +9417,7 @@ async fn main() {
             }
         }
 
+        FRAME.fetch_add(1, Ordering::Relaxed);
         next_frame().await;
     }
 }

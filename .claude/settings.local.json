@@ -119,7 +119,8 @@
       "Bash(grep -n \"Action::Damage { amount, target, .. } =>\" -A 8 crates/engine/src/rating.rs)",
       "Bash(grep -n \"Trigger::SpendMana { cost, on_success, on_failure }\" -A 22 crates/engine/src/combat.rs)",
       "Bash(grep -n \"Trigger::SpendMana { cost, on_success, on_failure } => Trigger::SpendMana\" -A 6 crates/engine/src/piece.rs)",
-      "Bash(awk 'NR>2060 && NR<2300 && /^fn |^#\\\\[test\\\\]|use gearmaster_engine/' crates/engine/tests/packing.rs)"
+      "Bash(awk 'NR>2060 && NR<2300 && /^fn |^#\\\\[test\\\\]|use gearmaster_engine/' crates/engine/tests/packing.rs)",
+      "Bash(awk -F'[ ;]' '{p+=$4} END {print \"passed:\", p}')"
     ]
   }
 }
