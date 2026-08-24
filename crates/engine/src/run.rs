@@ -95,6 +95,26 @@ pub struct QuestDone {
     pub into: &'static str,
 }
 
+/// What one town visit came to, for the screen to read back.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TownVisit {
+    pub at: Option<&'static str>,
+    pub did: Option<crate::town::Action>,
+    /// Gold the visit paid.
+    pub paid: i32,
+    /// The class walked out with, if any.
+    pub gained_class: Option<&'static str>,
+    /// How many of it is held now.
+    pub stacks: usize,
+    /// Set when five stacks converted into something else.
+    pub became: Option<&'static str>,
+    /// Shelves the visit put in the shop.
+    pub stocked: usize,
+}
+
+/// Prayers it takes before the chapel gives you the other thing.
+pub const PIETY_FOR_A_TICKET: usize = 5;
+
 /// What a settled fight did to the run, so the GUI can say so.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Settlement {
@@ -117,6 +137,8 @@ pub struct Settlement {
     pub landing: Option<&'static str>,
     /// The class a finished dungeon handed over.
     pub class_won: Option<&'static str>,
+    /// A town this win has brought you to the gate of.
+    pub town: Option<&'static str>,
     /// The component an event's fight handed over, on a win. Separate from
     /// `dropped`, which is a trophy off a named creature.
     pub won_item: Option<&'static str>,
@@ -209,6 +231,23 @@ pub struct Run {
     /// Choices actually taken, by label, so a later event can ask what you did
     /// at an earlier one.
     pub took: Vec<&'static str>,
+    /// Every point of each resource this run has ever banked, across every
+    /// fight it has fought.
+    ///
+    /// Nothing else in the game asks a question about a whole playthrough - a
+    /// fight is the unit everything is measured in - so this is counted at
+    /// settle time and kept nowhere else. Indexed by `Resource::index`.
+    pub banked_all_run: [i32; 4],
+    /// What the last fight paid. The factory doubles it, and nothing else has
+    /// ever needed to look back at a bounty after banking it.
+    pub last_bounty: i32,
+    /// The town you are standing in, if any. Unlike everything else that
+    /// interrupts the road, this *is* a rung: it is set on arriving and stays
+    /// set until you go in or walk on, and the ladder does not move meanwhile.
+    pub town: Option<&'static crate::town::Town>,
+    /// Towns already answered, by id, so a Grinder knocked back through one
+    /// does not get a second visit.
+    pub towns_seen: Vec<&'static str>,
     /// The dungeon being walked and which floor, if any. A dungeon stands off
     /// the road: it never moves the rung, so coming out puts you back in front
     /// of the fight you had not got to.
@@ -309,6 +348,10 @@ impl Run {
             best_fight_ms: None,
             worst_fight_ms: None,
             took: Vec::new(),
+            banked_all_run: [0; 4],
+            last_bounty: 0,
+            town: None,
+            towns_seen: Vec::new(),
             dungeon: None,
             pending_landing: None,
             extra_lives: 0,
@@ -409,8 +452,50 @@ impl Run {
         if self.phase != Phase::Loadout || self.at_fountain() || self.at_doubling_fountain() {
             return None;
         }
+        // A rumour door first: it stands on the same rung as whatever else is
+        // there, and having gone to the trouble of earning it you should get
+        // to see it.
+        if let Some(e) = self.whispered_event() {
+            return Some(e);
+        }
         crate::event::at(self.rung, self.best_fight_ms, self.worst_fight_ms, &self.answered)
             .filter(|e| !self.answered.contains(&e.id))
+    }
+
+    /// A rumour door standing on this rung: one you are carrying the word
+    /// about, whose condition you have actually met.
+    ///
+    /// Separate from `event::at` because neither half can be answered from a
+    /// rung and two stopwatches - one is about the board and one is about the
+    /// whole run so far, and the run is the only thing that knows either.
+    fn whispered_event(&self) -> Option<&'static crate::event::LadderEvent> {
+        crate::event::EVENTS.iter().find(|e| {
+            let crate::event::Trigger::Whispered { rumour } = e.trigger else { return false };
+            e.at == self.rung
+                && !self.answered.contains(&e.id)
+                && self.owned.iter().any(|&i| self.registry.def(i).name == rumour)
+                && crate::rumour::by_name(rumour).is_some_and(|r| self.meets(r.needs))
+        })
+    }
+
+    /// Is a rumour's condition true right now?
+    pub fn meets(&self, c: crate::rumour::Condition) -> bool {
+        use crate::rumour::Condition;
+        match c {
+            Condition::Crowded { slot, under } => self.empty_cells(slot) < under,
+            Condition::BankedAllRun { what, at_least } => {
+                self.banked_all_run[what.index()] >= at_least
+            }
+        }
+    }
+
+    /// Cells in a slot with nothing on them.
+    pub fn empty_cells(&self, slot: crate::piece::SlotKind) -> usize {
+        let s = self.loadout.slot(slot);
+        (0..s.rows())
+            .flat_map(|y| (0..crate::slot::SLOT_W).map(move |x| (x, y)))
+            .filter(|&(x, y)| s.get(x, y).is_none())
+            .count()
     }
 
     /// Loose components that would satisfy `req`, as ids.
@@ -542,6 +627,59 @@ impl Run {
         Ok(id)
     }
 
+    // ------------------------------------------------------------ bartering
+
+    /// Loose components that would pay for the rumour on `slot`.
+    ///
+    /// Loose only, like every other trade in the game: what you are wearing is
+    /// not on the table. Handing something over has to cost you something you
+    /// could have used.
+    pub fn payment_for(&self, slot: usize) -> Vec<PieceId> {
+        let Some(r) = self.rumour_on(slot) else { return Vec::new() };
+        self.inventory()
+            .into_iter()
+            .filter(|&id| {
+                let d = self.registry.def(id);
+                match r.price {
+                    crate::rumour::Barter::Kind(k) => d.kind == k,
+                    crate::rumour::Barter::Rumour(n) => d.name == n,
+                }
+            })
+            .collect()
+    }
+
+    /// The rumour on a shelf, if that shelf holds one.
+    pub fn rumour_on(&self, slot: usize) -> Option<&'static crate::rumour::Rumour> {
+        let def = self.shop.def(slot)?;
+        crate::rumour::by_name(def.name)
+    }
+
+    /// Buy a rumour by handing something over.
+    ///
+    /// A separate door from `buy` on purpose: the pub does not take money, and
+    /// a shelf that quietly accepted either would make the one thing the pub
+    /// is for - what you are carrying being worth more than what you have
+    /// banked - into a footnote.
+    pub fn barter(&mut self, slot: usize, paying: PieceId) -> Result<PieceId, RuleError> {
+        if self.phase != Phase::Loadout {
+            return Err(RuleError::LoadoutLocked);
+        }
+        if self.rumour_on(slot).is_none() {
+            return Err(RuleError::NothingThere);
+        }
+        if !self.payment_for(slot).contains(&paying) {
+            return Err(RuleError::NothingThere);
+        }
+        self.remember("bartering");
+        let def = self.shop.take(slot).ok_or(RuleError::NothingThere)?;
+        // Handed over, not sold: no gold changes hands in either direction.
+        self.owned.retain(|&i| i != paying);
+        self.loadout.remove_anywhere(paying);
+        let id = self.registry.alloc(def);
+        self.owned.push(id);
+        Ok(id)
+    }
+
     /// Reroll the shelves. Cheap, but it is gold you are not spending on gear.
     pub fn reroll(&mut self) -> Result<(), RuleError> {
         if self.phase != Phase::Loadout {
@@ -619,6 +757,30 @@ impl Run {
             .unwrap_or(0);
         self.grown_health += grew;
 
+        // Everything the fight banked, added to the run's running total. Read
+        // from the events rather than from the end state: a pool that was
+        // banked and then spent still happened, and the only question anything
+        // asks of this is how much has passed through your hands.
+        if let Some(l) = self.log.as_ref() {
+            for e in &l.entries {
+                match &e.event {
+                    Event::GainResource { side: Side::Player, what, amount, .. } => {
+                        if let Some(r) = crate::piece::Resource::by_name(what) {
+                            self.banked_all_run[r.index()] += amount;
+                        }
+                    }
+                    // Mana has an event of its own - most of the mana in the
+                    // game arrives through it rather than through a named
+                    // resource gain, so leaving it out would make the mana
+                    // total permanently zero.
+                    Event::GainMana { side: Side::Player, amount, .. } => {
+                        self.banked_all_run[crate::piece::Resource::Mana.index()] += amount;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
         // A fight an event arranged is settled on its own terms and never
         // touches the ladder: it is a detour, so whatever the rung was going
         // to hand you is still waiting when it is over - including its bounty,
@@ -634,6 +796,7 @@ impl Run {
                 dropped: None,
                 landing: None,
                 class_won: None,
+                town: None,
                 won_item: None,
                 rows_won: 0,
             };
@@ -672,6 +835,7 @@ impl Run {
             dropped: None,
             landing: None,
             class_won: None,
+            town: None,
             won_item: None,
             rows_won: 0,
         };
@@ -749,6 +913,16 @@ impl Run {
                 self.best_rung = self.best_rung.max(self.rung);
                 // Whatever stood in for that rung is done standing in.
                 self.substitute = None;
+                // And there may be somewhere between here and the next one.
+                // Once only: a Grinder knocked back through a town does not
+                // get to work the same shift twice.
+                if let Some(t) = crate::town::between(self.rung) {
+                    if !self.towns_seen.contains(&t.id) {
+                        self.town = Some(t);
+                        self.last_bounty = bounty;
+                        settlement.town = Some(t.name);
+                    }
+                }
             }
             // A draw or a defeat both mean the thing is still standing, so
             // neither advances the ladder.
@@ -1725,6 +1899,82 @@ impl Run {
     pub fn begin_fight(&mut self) -> &CombatLog {
         self.forget_undo();
         self.fight(&RUST_GOLEM)
+    }
+
+    // -------------------------------------------------------------- towns
+
+    /// The town you are standing at the gate of, if any.
+    pub fn pending_town(&self) -> Option<&'static crate::town::Town> {
+        self.town.filter(|_| self.phase == Phase::Loadout)
+    }
+
+    /// Walk on. The bounty is paid a second time and the town is done with.
+    ///
+    /// A real offer, not a courtesy: a build one component short of an item
+    /// wants gold more than it wants a class, and the town should lose that
+    /// argument sometimes.
+    pub fn skip_town(&mut self) -> i32 {
+        let Some(t) = self.town.take() else { return 0 };
+        self.towns_seen.push(t.id);
+        let paid = self.last_bounty;
+        self.gold += paid;
+        paid
+    }
+
+    /// Go in, and do the one thing you have time for.
+    ///
+    /// One action a visit. Four doors and one key makes a town a decision
+    /// rather than a shopping trip.
+    pub fn visit_town(&mut self, what: crate::town::Action) -> TownVisit {
+        use crate::town::Action;
+        let Some(t) = self.town.take() else { return TownVisit::default() };
+        self.towns_seen.push(t.id);
+        let mut out = TownVisit { at: Some(t.name), did: Some(what), ..TownVisit::default() };
+        match what {
+            Action::Chapel => {
+                self.gain_class("Piety");
+                // Five of them are taken away and handed back as one thing
+                // that is worth more than five of anything.
+                if self.stacks_of("Piety") >= PIETY_FOR_A_TICKET {
+                    self.classes.retain(|c| c.name != "Piety");
+                    self.gain_class("Ticket to Ride");
+                    out.became = Some("Ticket to Ride");
+                }
+                out.gained_class = Some(out.became.unwrap_or("Piety"));
+                out.stacks = self.stacks_of(out.gained_class.unwrap_or(""));
+            }
+            Action::Factory => {
+                let paid = self.last_bounty * 2;
+                self.gold += paid;
+                out.paid = paid;
+                self.gain_class("Tired");
+                out.gained_class = Some("Tired");
+                out.stacks = self.stacks_of("Tired");
+            }
+            Action::Shop => {
+                self.shop.stock_exactly(crate::piece::TOWN_ONLY);
+                out.stocked = crate::piece::TOWN_ONLY.len();
+            }
+            Action::Pub => {
+                self.shop.stock_exactly(crate::rumour::on_offer());
+                out.stocked = crate::rumour::on_offer().len();
+            }
+        }
+        out
+    }
+
+    /// Add one to a stacking class, or the class itself if it does not stack.
+    fn gain_class(&mut self, name: &'static str) {
+        let Some(c) = crate::class::CLASSES.iter().find(|c| c.name == name) else { return };
+        if !crate::class::stacks(name) && self.classes.iter().any(|k| k.name == name) {
+            return;
+        }
+        self.classes.push(c);
+    }
+
+    /// How many of a class is held. One for anything that does not stack.
+    pub fn stacks_of(&self, name: &str) -> usize {
+        self.classes.iter().filter(|c| c.name == name).count()
     }
 
     /// Return to gear-arranging and discard the fight.

@@ -383,6 +383,26 @@ pub enum Resource {
 }
 
 impl Resource {
+    pub const ALL: [Resource; 4] =
+        [Resource::Mana, Resource::Rage, Resource::Faith, Resource::Nature];
+
+    /// A stable slot for a per-resource array. `Run::banked_all_run` is
+    /// indexed by it.
+    pub fn index(self) -> usize {
+        match self {
+            Resource::Mana => 0,
+            Resource::Rage => 1,
+            Resource::Faith => 2,
+            Resource::Nature => 3,
+        }
+    }
+
+    /// The reverse of `name`. Combat logs a resource by its name, so anything
+    /// reading a log back needs this.
+    pub fn by_name(name: &str) -> Option<Resource> {
+        Resource::ALL.into_iter().find(|r| r.name() == name)
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             Resource::Mana => "mana",
@@ -8372,6 +8392,176 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 0,
         price: 560,
     },
+    // ---- town gear ----
+    //
+    // Sold three times a run at most, and *not* exempt from the rating scale
+    // the way the VIP shelves are. The VIP shop is behind a locked branch and
+    // its five pieces are meant to be absurd; a town is on the way to
+    // everywhere, and five outliers three times a run would flatten the whole
+    // curve. What makes these worth the trip is shape and effect, not size.
+    PieceDef {
+        // A helmet frame with a hole in it, so a spell can sit in its middle -
+        // the one thing the ordinary helmet frames never let you do.
+        name: "Lamplighter's Cage",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0, 0), (1, 0), (2, 0), (0, 1), (2, 1), (0, 2), (1, 2), (2, 2)],
+        base: Stats { health: 165, faith: 3, mind_resist: 8, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3400,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 90,
+    },
+    PieceDef {
+        // One cell. There is nothing else in the game that fits in a gap this
+        // small, which is exactly what a tightly packed board runs out of.
+        name: "Wickstub",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        cells: &[(0, 0)],
+        base: Stats { health: 55, armor: 9, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 70,
+    },
+    PieceDef {
+        // Pays out on being hit rather than on hitting, which is the half of
+        // the game the ordinary glove stock hardly touches.
+        name: "Toll-Taker's Mitt",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Ring,
+        cells: &[(0, 0), (1, 0), (1, 1)],
+        base: Stats { health: 70, curse_resist: 12, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Gain {
+            what: Resource::Mana,
+            amount: 4,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 110,
+    },
+    PieceDef {
+        // A long thin sole. Greaves boards are wide and shallow once a couple
+        // of blocks are in; this is the piece that goes along the bottom.
+        name: "Ridge Runner",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Mold,
+        cells: &[(0, 0), (1, 0), (2, 0), (3, 0)],
+        base: Stats { health: 90, armor: 12, nature: 4, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 8,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 130,
+    },
+    PieceDef {
+        // Cheap, fast, and worth having only if the rest of the board is fast
+        // too - the opposite argument to everything else on the weapon shelf.
+        name: "Kettleworks Pin",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Damaging,
+        cells: &[(0, 0), (0, 1)],
+        base: Stats { physical_damage: 26, strength: 6, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 22,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 120,
+    },
+    // ---- what the two rumour doors hand over ----
+    //
+    // Not off the scale: you paid for these with a component and a condition,
+    // not with a locked branch, and the condition is the interesting part.
+    PieceDef {
+        name: "Crownwright's Measure",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats { health: 120, mind_resist: 14, faith: 4, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Gain {
+            what: Resource::Faith,
+            amount: 5,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 200,
+    },
+    PieceDef {
+        name: "The Green Ledger",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Layer,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats { health: 240, nature: 8, curse_resist: 10, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Gain {
+            what: Resource::Nature,
+            amount: 9,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 260,
+    },
+    // ---- rumours ----
+    //
+    // One cell and nothing on it. A rumour is a component so that it can be
+    // held, sold and bartered like anything else, but seating one costs a cell
+    // and gains nothing - it is not gear, it is a condition. See `rumour.rs`.
+    PieceDef {
+        name: "A Word About the Crownwright",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "A Word About the Green Ledger",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
     // Not for sale, and not exempt from anything: what it is worth is the
     // thirty cells it hands you, and those are not on its card.
     PieceDef {
@@ -8414,6 +8604,12 @@ pub const EVENT_ONLY: &[&str] = &[
     "Gold Chip",
     "Platinum Chip",
     "Sprocketman's Gratitude",
+    // Rumours are bartered for, never bought. See `rumour.rs`.
+    "A Word About the Crownwright",
+    "A Word About the Green Ledger",
+    // And what the doors they open hand over.
+    "Crownwright's Measure",
+    "The Green Ledger",
 ];
 
 /// The five things on the shelves behind the velvet rope.
@@ -8433,6 +8629,26 @@ pub const VIP_ONLY: &[&str] = &[
 
 pub fn is_vip_only(name: &str) -> bool {
     VIP_ONLY.contains(&name)
+}
+
+/// The five shelves a town's shop puts out.
+///
+/// Deliberately *not* off the scale. The VIP five are behind a locked branch
+/// and are meant to be absurd; a town is on the way to everywhere, and five
+/// outliers three times a run would flatten the whole curve. These earn their
+/// place with shapes and effects the ordinary shop does not stock - a frame
+/// with a hole in it, a single cell, a four-long sole - which is worth more to
+/// a full board than another large number would be.
+pub const TOWN_ONLY: &[&str] = &[
+    "Lamplighter's Cage",
+    "Wickstub",
+    "Toll-Taker's Mitt",
+    "Ridge Runner",
+    "Kettleworks Pin",
+];
+
+pub fn is_town_only(name: &str) -> bool {
+    TOWN_ONLY.contains(&name)
 }
 
 /// Is this piece kept out of the reckoning that prices everything else?

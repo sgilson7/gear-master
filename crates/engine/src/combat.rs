@@ -2734,6 +2734,13 @@ pub struct Combatant {
     /// Set by Longhauler: everything runs this much faster for every second
     /// the fight has been going, capped at twice speed.
     pub haste_per_s: i32,
+    /// Set by Ticket to Ride: every `n`th attack made against this fighter
+    /// misses entirely. Zero means nothing misses.
+    pub warded_every: u32,
+    /// Attacks this fighter has made that were counted against a ward. Kept on
+    /// the attacker, so two creatures each miss every other swing rather than
+    /// sharing one tally between them.
+    pub warded_count: u32,
     pub curses: Curses,
     /// Stacks of mana empowerment and mana shield. Both scale off *current*
     /// mana, and both are bought with mana — so stacking them hard drains the
@@ -2861,6 +2868,8 @@ impl Combatant {
             slower_pct: 0,
             armour_pct: 100,
             haste_per_s: 0,
+            warded_every: 0,
+            warded_count: 0,
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
@@ -2958,6 +2967,8 @@ impl Combatant {
             slower_pct: 0,
             armour_pct: 100,
             haste_per_s: 0,
+            warded_every: 0,
+            warded_count: 0,
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
@@ -3118,6 +3129,8 @@ pub enum Event {
     Hit { by: Side, damage: i32, absorbed: i32, target_health: i32, target_armor: i32 },
     /// An item came round and nothing happened - a misfire ate it.
     Misfired { side: Side, item: String },
+    /// An attack was warded off before it landed. Ticket to Ride.
+    Warded { side: Side, item: String },
     /// A spell went off. `paid` says whether it was cast in full or weakly.
     Cast { side: Side, paid: bool, cost: i32, remaining: i32 },
     /// Maximum health grew mid-fight.
@@ -3259,6 +3272,9 @@ impl CombatLog {
             ),
             Event::Misfired { side, item } => {
                 format!("{} {}'s {} misfires and does nothing", t, self.who(*side), item)
+            }
+            Event::Warded { side, item } => {
+                format!("{} {}'s {} misses entirely", t, self.who(*side), item)
             }
             Event::Cast { side, paid, cost, remaining } => {
                 if *paid {
@@ -3494,6 +3510,12 @@ pub fn simulate_party(
             crate::class::ClassPower::Bastion(pct) => start_player.bastion = pct,
             crate::class::ClassPower::Contagion(n) => start_player.contagion = n,
             crate::class::ClassPower::Guilt => start_player.no_regen = true,
+            // The two that stack. Every other arm here assigns, because the
+            // fountains never hand out the same class twice; a town hands out
+            // the same one over and over on purpose, so these add.
+            crate::class::ClassPower::Piety { faith } => start_player.faith += faith,
+            crate::class::ClassPower::Tired { mana } => start_player.mana -= mana,
+            crate::class::ClassPower::Ticket { nth } => start_player.warded_every = nth,
             crate::class::ClassPower::Trundle { slower, armour } => {
                 start_player.slower_pct = slower;
                 start_player.armour_pct = armour;
@@ -3715,6 +3737,26 @@ pub fn simulate_party(
                             event: Event::Misfired { side, item: name },
                         });
                         continue;
+                    }
+                    // Ticket to Ride: every nth thing they swing at you comes
+                    // to nothing. Eaten here rather than at each damage site
+                    // because a warded attack lands nothing at all - no hit,
+                    // no curse, no drain - and there are a dozen ways for one
+                    // activation to reach you.
+                    if side == Side::Enemy && p.warded_every > 0 {
+                        let c = pick(&mut p, &mut foes, me);
+                        c.warded_count = c.warded_count.wrapping_add(1);
+                        let warded = c.warded_count % p.warded_every == 0;
+                        if warded {
+                            let name = pick(&mut p, &mut foes, me).items[idx].name.clone();
+                            let front = aim_of(&foes, p.aim);
+                            log.push(LogEntry {
+                                who: me.logged_as(front),
+                                at_ms: t,
+                                event: Event::Warded { side, item: name },
+                            });
+                            continue;
+                        }
                     }
                     activate(&mut p, &mut foes, me, idx, t, &mut log);
                     if check_down(&p, &foes, t, &mut log, &mut outcome, &mut fallen) {

@@ -266,6 +266,17 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Geomancer", "Grand Calculator"),      // the Grand Calculation, pp. 61-63
         ("Hexweaver", "Funnel Sergeant"),       // army-issue Funny funnels, p. 78
         ("Immense Guilt", "Henpeck's Accomplice"),
+        // The sacred ladder's bottom rung: the Francians made Francis their
+        // god by accident (pp. 61-63), and a novice is somebody who has knelt
+        // and not yet been answered.
+        ("Piety", "Francian Novice"),
+        // Being answered. Multicity's commute grinds 1.79 trillion people down
+        // a little every day (pp. 70-73); a season pass is what half of it
+        // missing you looks like as an errand.
+        ("Ticket to Ride", "Multicity Season Pass"),
+        // The Sprocketmen were mined out of the Great Gear Cave by Lord
+        // Drabley Henpeck (p. 44). He is still hiring.
+        ("Tired", "Henpeck's Double Shift"),
         ("Juggernaut", "Multicity Commuter"),   // 1.79 trillion residents, pp. 70-73
         ("Longhauler", "Thrumbus Finisher"),
         ("Oracle", "Galapagos Timekeeper"),     // Galapagos Jim, time traveller, pp. 89-90
@@ -290,6 +301,8 @@ pub static TURTLE_DICK: Theme = Theme {
         // Ratchet Cog and Flywheel Cog are deliberately absent: cogs are the
         // player's own culture now, salvaged out of the Great Gear Cave, and
         // are the one place the old words survive on purpose.
+        ("A Word About the Crownwright", "Word of the Kolok Hatter"),
+        ("A Word About the Green Ledger", "Word of the Radish Tally"),
         ("Absolution", "Remark of Renewal"),
         ("Adamant Base", "Ypytryktrium Base"),
         ("Adamant Carapace", "Ypytryktrium Carapace"),
@@ -381,6 +394,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Crimson Alignment", "Striped Boskner"),
         ("Crown of Nails", "Crown of Darts"),
         ("Crown of the Deep", "Crown of Cleveland"),
+        ("Crownwright's Measure", "Francian Head-Measure"),
         ("Cull", "The Rubber"),
         ("Cursed Blade", "Martyr's Anvil-Blade"),
         ("Cursed Handle", "Confetti Trigger"),
@@ -476,10 +490,12 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Ironshod Sole", "Sneel-Shod Sole"),
         ("Ironthread Material", "Fishing-Line Thread"),
         ("Kaklon's Patent", "Spike Kaklon's Patent"),
+        ("Kettleworks Pin", "Thrumbus Pin"),
         ("Kingmaker Hilt", "Treyway Hilt"),
         ("Kingsbane", "Steel-Ball Called Shot"),
         ("Kingsblood Ink", "Time Sap"),
         ("Knuckleduster", "Tennis-Racquet Mold"),
+        ("Lamplighter's Cage", "Gear Cave Lantern"),
         ("Last Rite", "Final Remark"),
         ("Layered Core", "Rice-Bale Core"),
         ("Layered Plating", "Onigiri Plating"),
@@ -555,6 +571,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Rending Mold", "Wallspider Mold"),
         ("Resonant Chord", "Very Fast This Time"),
         ("Ribbed Base", "Vinyl Base"),
+        ("Ridge Runner", "Fast Roller Tread"),
         ("Ridged Frame", "Corrugated Frame"),
         ("Rime Nova", "Minus One Degrees"),
         ("Rimeguard Base", "Blizzard Base"),
@@ -638,6 +655,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Tallykeeper's Weave", "Deep Chocolate Weave"),
         ("Tetrahedron Shard", "Nibbalonius's Tetrahedron"),
         ("The Empty Crown", "The Empty Throne"),
+        ("The Green Ledger", "The Radish Tally"),
         ("The Growing Weight", "The Growing Stone"),
         ("The Idiot's Gift", "The Blind Idiot's Gift"),
         ("The Money Jacket", "The Money Jacket"),
@@ -657,6 +675,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Titan's Grip", "Megalodon Grip"),
         ("Tithe Collector", "Francian Tithe"),
         ("Tithe Ring", "Francian Tithe Ring"),
+        ("Toll-Taker's Mitt", "Multicity Fare Grip"),
         ("Toolwright's Grip", "Skeleton Tool Wizard's Grip"),
         ("Trailworn Sole", "Pilgrim of Dobira Sole"),
         ("Treadmill Sole", "Shift-Work Sole"),
@@ -701,6 +720,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Whetstone", "Quarry Granite"),
         ("Whipcord Hilt", "Grungo-Elastic Hilt"),
         ("Whisperbound Tome", "The Words of Angelo"),
+        ("Wickstub", "Cork Stub"),
         ("Widow's Sole", "Stone-Keeper's Sole"),
         ("Wildfire Layer", "Ash-Field Layer"),
         ("Wildgrowth", "Bumper Crop"),

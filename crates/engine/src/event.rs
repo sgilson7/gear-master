@@ -115,6 +115,14 @@ pub enum Trigger {
     /// `over_ms`. The shallow end has two doors and they are the same
     /// question asked twice - how is this build actually going?
     SlowKill { over_ms: u32, from: usize },
+    /// Stands on `at`, but only for somebody carrying the named rumour *and*
+    /// answering whatever it is a rumour about.
+    ///
+    /// Unlike the others this cannot be decided from a rung and two
+    /// stopwatches: the conditions are about the board and about the whole run
+    /// so far. `event::at` refuses it and `Run::pending_event` answers it,
+    /// because the run is the only thing that knows.
+    Whispered { rumour: &'static str },
 }
 
 impl Trigger {
@@ -122,7 +130,7 @@ impl Trigger {
     /// exactly one rung, so it is that.
     pub fn from(self) -> usize {
         match self {
-            Trigger::Rung => 0,
+            Trigger::Rung | Trigger::Whispered { .. } => 0,
             Trigger::QuickKill { from, .. } | Trigger::SlowKill { from, .. } => from,
         }
     }
@@ -181,6 +189,80 @@ pub static THE_BACK_ROOM: Brawl = Brawl {
 };
 
 pub const EVENTS: &[LadderEvent] = &[
+    // ---- the two the pub sells ----
+    //
+    // Neither stands here for anybody who did not buy the rumour, and neither
+    // stands here for somebody who bought it and then did not do the thing.
+    // That is the shape of a rumour: it is a bet on the board you will have.
+    LadderEvent {
+        id: "the-crownwright",
+        at: 19,
+        trigger: Trigger::Whispered { rumour: "A Word About the Crownwright" },
+        blocked_by: &[],
+        expects: "Bone Cantor",
+        title: "THE CROWNWRIGHT",
+        prose: &[
+            "The workshop is up a stair behind a door that is not a door until \
+             you are looking for it, and the Crownwright does not turn round \
+             when you come in.",
+            "\"Full,\" he says, of your head, without having looked at it. \
+             \"Most of them come up here empty and want me to put something in \
+             it. There is nothing I can do for an empty one.\"",
+            "He does not offer to make you anything. He offers to take a \
+             measurement, which he says is the same thing eventually.",
+        ],
+        choices: &[
+            Choice {
+                label: "Stand still for it",
+                blurb: "Whatever he is measuring, he is measuring it against something.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("Crownwright's Measure"),
+                unmet: "",
+            },
+            Choice {
+                label: "Ask what he made last",
+                blurb: "The answer is on a shelf and the shelf is at head height.",
+                requires: Requirement::None,
+                outcome: Outcome::Claim("Piety"),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-green-ledger",
+        at: 22,
+        trigger: Trigger::Whispered { rumour: "A Word About the Green Ledger" },
+        blocked_by: &[],
+        expects: "The Gearwright",
+        title: "THE GREEN LEDGER",
+        prose: &[
+            "The tally man has a column that has been open for eleven years and \
+             a hand that has got worse over all of them. He shows you the \
+             figure at the bottom of it without being asked.",
+            "It is a number you recognise, because it is roughly what you have \
+             put into the ground and taken back out of it since you started \
+             climbing. He has been keeping it. He does not say for whom.",
+            "\"Sign it off,\" he says, \"and it is finished, and I can go home. \
+             Or add to it, and it is not, and I cannot.\"",
+        ],
+        choices: &[
+            Choice {
+                label: "Close the column",
+                blurb: "He goes home. You keep what was in the drawer under it.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("The Green Ledger"),
+                unmet: "",
+            },
+            Choice {
+                label: "Add your own line",
+                blurb: "Eleven years is not so long. He seems relieved, which is worse.",
+                requires: Requirement::None,
+                outcome: Outcome::Claim("Longhauler"),
+                unmet: "",
+            },
+        ],
+    },
+
     // The pay-off for having asked rather than taken. Always stands here, so a
     // player who took Trundle at the roadside sees what the other answer was
     // worth - and a player who never met the cart at all learns there was one.
@@ -493,6 +575,8 @@ pub fn at(
             Trigger::SlowKill { over_ms, from } => {
                 (from..=e.at).contains(&rung) && worst_fight_ms.is_some_and(|ms| ms > over_ms)
             }
+            // Not answerable from here. See `Trigger::Whispered`.
+            Trigger::Whispered { .. } => false,
         }
     })
 }

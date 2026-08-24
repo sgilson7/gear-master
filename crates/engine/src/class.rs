@@ -387,6 +387,25 @@ pub enum ClassPower {
     /// it buys about half again as much armour for a quarter less of
     /// everything, which is a decision.
     Trundle { slower: i32, armour: i32 },
+    /// Start every fight with `n` devotion, per stack held.
+    ///
+    /// The first class in the game you can hold more than one of. Five of them
+    /// are taken away and replaced with Ticket to Ride - see `Ticket`.
+    Piety { faith: i32 },
+    /// Start every fight `n` mana in debt, per stack held.
+    ///
+    /// Debt is mana below zero, so nothing that spends mana can pay until
+    /// income has carried the pool back above the cost. A mana engine feels
+    /// this immediately; a board that never spends mana does not feel it at
+    /// all, which is the trade.
+    Tired { mana: i32 },
+    /// Every `nth` attack they make misses entirely.
+    ///
+    /// Written as a count rather than a chance because combat consults no
+    /// RNG - a share code has to reproduce a fight exactly. Counting is also
+    /// better than rolling here: it cannot streak, and half of everything is
+    /// half of everything whether you fought for four seconds or forty.
+    Ticket { nth: u32 },
     /// You do not heal. Regeneration on your gear stops working, for good.
     ///
     /// The only power in the game that is purely a cost, and it is meant to
@@ -443,6 +462,9 @@ impl ClassPower {
         }
         Some(match self {
             Guilt => return None,
+            // A town class is not something a fountain has in front of it, so
+            // there is nothing for the doubling fountain to double.
+            Piety { .. } | Tired { .. } | Ticket { .. } => return None,
             // Doubling the slowdown as well as the armour would not be the
             // same bargain twice - it would be a different and much worse one.
             Trundle { .. } => return None,
@@ -485,6 +507,11 @@ impl ClassPower {
     pub fn short(self) -> String {
         match self {
             ClassPower::Guilt => "you cannot heal".to_string(),
+            ClassPower::Piety { faith } => format!("start with {} faith", faith),
+            ClassPower::Tired { mana } => format!("start {} mana in debt", mana),
+            ClassPower::Ticket { nth } => {
+                format!("every {} attack on you misses", ordinal(nth))
+            }
             ClassPower::Trundle { slower, armour } => {
                 format!("{}% slower, {}% armour", slower, armour)
             }
@@ -528,6 +555,24 @@ impl ClassPower {
     /// rule that was never written. Name the numbers and the condition.
     pub fn describe(self) -> String {
         match self {
+            ClassPower::Piety { faith } => format!(
+                "Every fight starts with {} devotion already banked, for each stack of \
+                 Piety you are carrying. Five stacks are taken away and given back as \
+                 Ticket to Ride.",
+                faith
+            ),
+            ClassPower::Tired { mana } => format!(
+                "Every fight starts {} mana in debt, for each stack of Tired you are \
+                 carrying. Debt is mana below zero: nothing that spends mana can pay \
+                 until your income has carried the pool back above what it costs.",
+                mana
+            ),
+            ClassPower::Ticket { nth } => format!(
+                "Every {} attack made against you misses entirely - no damage, no curse, \
+                 nothing. Counted rather than rolled, one count per attacker, so it is \
+                 exactly half of everything and it never streaks.",
+                ordinal(nth)
+            ),
             ClassPower::Guilt => "Your regeneration is 0 a second for the rest of the run. \
                  Not slowed - stopped, whatever your gear says it heals for."
                 .to_string(),
@@ -660,6 +705,29 @@ impl ClassDef {
 }
 
 pub static CLASSES: &[ClassDef] = &[
+    // ---- the three you can only pick up in a town ----
+    //
+    // None of these has requirements, because nothing you wear points at
+    // them: they are places you went, not builds you made. `is_earned` keeps
+    // them off the fountain.
+    ClassDef {
+        name: "Piety",
+        blurb: "You knelt on a floor that cuts, in a town that is mostly water.",
+        requires: &[],
+        power: ClassPower::Piety { faith: 1 },
+    },
+    ClassDef {
+        name: "Ticket to Ride",
+        blurb: "Five prayers answered at once, by something that was listening after all.",
+        requires: &[],
+        power: ClassPower::Ticket { nth: 2 },
+    },
+    ClassDef {
+        name: "Tired",
+        blurb: "You took the shift. They paid you for it, which is the part you remember.",
+        requires: &[],
+        power: ClassPower::Tired { mana: 3 },
+    },
     ClassDef {
         name: "Chronomancer",
         blurb: "Orbs that never cast the same thing twice, and a chestpiece full of magic.",
@@ -843,8 +911,34 @@ pub struct Match {
 /// out of the ranking entirely and a fountain can never pour one. They are
 /// also the only classes allowed to ask for nothing, which is what the floor
 /// class does, so every invariant about requirements has to know about them.
+/// Classes handed out by a town, which no fountain offers and no build
+/// qualifies for.
+pub const TOWN_CLASSES: &[&str] = &["Piety", "Ticket to Ride", "Tired"];
+
+/// Classes you can hold more than one of at once.
+///
+/// Every other class in the game is unique - the fountains never pour the same
+/// one twice - which is why `simulate_party` can assign each power to its field
+/// and be done. These two accumulate instead, so they are listed here rather
+/// than discovered by reading the match arms.
+pub fn stacks(name: &str) -> bool {
+    matches!(name, "Piety" | "Tired")
+}
+
+/// "2nd", "3rd", "4th". Only ever small numbers, so no special cases past the
+/// teens are needed.
+fn ordinal(n: u32) -> String {
+    let suffix = match n % 10 {
+        1 if n % 100 != 11 => "st",
+        2 if n % 100 != 12 => "nd",
+        3 if n % 100 != 13 => "rd",
+        _ => "th",
+    };
+    format!("{}{}", n, suffix)
+}
+
 pub fn is_earned(name: &str) -> bool {
-    if crate::dungeon::is_dungeon_only(name) {
+    if crate::dungeon::is_dungeon_only(name) || TOWN_CLASSES.contains(&name) {
         return true;
     }
     crate::event::EVENTS.iter().any(|e| {

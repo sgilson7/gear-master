@@ -2576,7 +2576,7 @@ impl Playback {
             Event::Activate { .. } => return, // shown as a bar, not a log line
             // Worth a line: an item coming round and doing nothing is the sort
             // of thing you want to see explained rather than wonder about.
-            Event::Misfired { .. } => {}
+            Event::Misfired { .. } | Event::Warded { .. } => {}
             // Growth changes the bar itself, not just what is in it.
             Event::Grew { side, total, .. } => match side {
                 Side::Player => self.player_max = *total,
@@ -5912,6 +5912,180 @@ fn render_event(
     chosen
 }
 
+/// The gate, and the four doors behind it.
+///
+/// Not the event screen, though it looks related on purpose. An event is a
+/// question about something that happened to you; a town is five things laid
+/// out at once and one of them is walking past, and that wants the whole
+/// screen rather than two buttons at the bottom of a paragraph.
+///
+/// `None` means nothing was clicked. `Some(None)` is walking on.
+#[allow(clippy::type_complexity)]
+fn render_town(
+    run: &Run,
+    town: &'static gearmaster_engine::town::Town,
+    mx: f32,
+    my: f32,
+) -> Option<Option<gearmaster_engine::town::Action>> {
+    use gearmaster_engine::town::Action;
+    let pad = 56.0;
+    let h = 620.0;
+    let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, LOGICAL_W - 2.0 * pad, h);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 20, 26, 252));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
+    ui_text(&words::retell(town.name), r.x + 28.0, r.y + 42.0, 24.0, col_gold());
+    let sub = words::word("town-one-thing", "ONE OF THEM. NOT TWO.");
+    ui_text(&sub, r.x + r.w - 28.0 - text_width(&sub, 13.0), r.y + 42.0, 13.0, col_dim());
+
+    let mut y = r.y + 76.0;
+    for para in town.blurb {
+        for l in wrap_px(&words::retell(para), r.w - 56.0, 15.0) {
+            ui_text(&l, r.x + 28.0, y, 15.0, Color::from_rgba(198, 200, 218, 255));
+            y += 20.0;
+        }
+        y += 10.0;
+    }
+
+    let gap = 14.0;
+    let cw = (r.w - 56.0 - 3.0 * gap) / 4.0;
+    let top = y + 14.0;
+    let ch = (r.y + r.h - 108.0) - top;
+    let mut picked = None;
+    for (i, a) in Action::ALL.into_iter().enumerate() {
+        let cell = Rect::new(r.x + 28.0 + i as f32 * (cw + gap), top, cw, ch);
+        let hot = cell.contains(Vec2::new(mx, my));
+        draw_rectangle(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { Color::from_rgba(46, 42, 30, 255) } else { Color::from_rgba(26, 26, 38, 255) },
+        );
+        draw_rectangle_lines(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { 2.5 } else { 1.5 },
+            if hot { col_gold() } else { Color::from_rgba(64, 64, 88, 255) },
+        );
+        let mut cy = cell.y + 28.0;
+        let name = words::word(a.key(), a.name());
+        ui_text(&name, cell.x + 14.0, cy, 17.0, col_gold());
+        cy += 24.0;
+        for l in wrap_px(&words::retell(a.blurb()), cell.w - 28.0, 13.0) {
+            ui_text(&l, cell.x + 14.0, cy, 13.0, Color::from_rgba(186, 190, 206, 255));
+            cy += 16.0;
+        }
+        // What it is worth to *this* run, which is the only number that
+        // matters at the gate. A stack count nobody can see is a stack count
+        // nobody can plan around.
+        let note = town_note(run, a);
+        if !note.is_empty() {
+            // Two lines at the foot of the card, so a long note wraps rather
+            // than running under the one beside it.
+            for (i, l) in wrap_px(&note, cell.w - 28.0, 13.0).into_iter().take(2).enumerate() {
+                ui_text(&l, cell.x + 14.0, cell.y + ch - 34.0 + i as f32 * 17.0, 13.0, col_ok());
+            }
+        }
+        if hot && left_pressed() {
+            picked = Some(Some(a));
+        }
+    }
+
+    // Walking on. A real offer, not a courtesy: a build one component short of
+    // an item wants the money more than it wants a class.
+    let on = Rect::new(r.x + r.w / 2.0 - 190.0, r.y + r.h - 76.0, 380.0, 46.0);
+    let hot = on.contains(Vec2::new(mx, my));
+    draw_rectangle(on.x, on.y, on.w, on.h, if hot { Color::from_rgba(42, 42, 58, 255) } else { Color::from_rgba(26, 26, 38, 255) });
+    draw_rectangle_lines(on.x, on.y, on.w, on.h, 1.5, if hot { col_gold() } else { Color::from_rgba(64, 64, 88, 255) });
+    let label = format!(
+        "WALK ON  -  {} {}",
+        run.last_bounty,
+        words::word("gold-lower", "gold")
+    );
+    let lw = text_width(&label, 16.0);
+    ui_text(&label, on.x + (on.w - lw) / 2.0, on.y + 29.0, 16.0, if hot { col_gold() } else { LIGHTGRAY });
+    if hot && left_pressed() {
+        picked = Some(None);
+    }
+    picked
+}
+
+/// What a visit is, said once, in the message strip.
+fn town_message(run: &Run, v: &gearmaster_engine::run::TownVisit) -> String {
+    use gearmaster_engine::town::Action;
+    match v.did {
+        Some(Action::Chapel) => match v.became {
+            Some(name) => format!(
+                "Five said, and something answers. You are {} now.",
+                words::class(name)
+            ),
+            None => format!(
+                "You kneel. {} x{} - that much devotion banked before every fight.",
+                words::class("Piety"),
+                v.stacks
+            ),
+        },
+        Some(Action::Factory) => format!(
+            "A shift done. {} gold, and {} x{}: you start {} mana in debt now.",
+            v.paid,
+            words::class("Tired"),
+            v.stacks,
+            v.stacks * 3
+        ),
+        Some(Action::Pub) => {
+            "Rumours on the bar. They do not want money - they want what you are carrying."
+                .to_string()
+        }
+        Some(Action::Shop) => {
+            format!("Five things you will not see again. {} gold in hand.", run.gold)
+        }
+        None => String::new(),
+    }
+}
+
+/// What a door is worth to this run in particular, under its description.
+fn town_note(run: &Run, a: gearmaster_engine::town::Action) -> String {
+    use gearmaster_engine::run::PIETY_FOR_A_TICKET;
+    use gearmaster_engine::town::Action;
+    match a {
+        Action::Chapel => {
+            let held = run.stacks_of("Piety");
+            if run.stacks_of("Ticket to Ride") > 0 {
+                "You already have the ticket.".to_string()
+            } else if held + 1 >= PIETY_FOR_A_TICKET {
+                "This one makes five.".to_string()
+            } else {
+                format!("{} of {} prayers said.", held, PIETY_FOR_A_TICKET)
+            }
+        }
+        Action::Factory => {
+            let n = run.stacks_of("Tired");
+            format!("{} now. You would be {} mana down.", run.last_bounty * 2, (n + 1) * 3)
+        }
+        Action::Pub => {
+            let n = run
+                .inventory()
+                .into_iter()
+                .filter(|&id| {
+                    let k = run.registry.def(id).kind;
+                    gearmaster_engine::rumour::RUMOURS.iter().any(|r| {
+                        matches!(r.price, gearmaster_engine::rumour::Barter::Kind(want) if want == k)
+                    })
+                })
+                .count();
+            if n == 0 {
+                "Nothing loose they would take.".to_string()
+            } else {
+                format!("{} loose piece{} they would take.", n, if n == 1 { "" } else { "s" })
+            }
+        }
+        Action::Shop => format!("{} in hand.", run.gold),
+    }
+}
+
 /// The third fountain: it takes a title you already hold and doubles it.
 ///
 /// Deliberately not the same screen as the other two. Those hand over
@@ -8350,6 +8524,17 @@ async fn main() {
         }
         message = format!("Wearing {} classes.", run.classes.len());
     }
+    // GEARMASTER_TOWN=<n> stands you at the nth town's gate. Getting there by
+    // playing means winning six fights first, which is not a way to look at a
+    // screen.
+    if let Ok(n) = std::env::var("GEARMASTER_TOWN").unwrap_or_default().parse::<usize>() {
+        if let Some(t) = gearmaster_engine::town::TOWNS.get(n) {
+            run.rung = t.after + 1;
+            run.town = Some(t);
+            run.last_bounty = 42;
+            message = format!("At the gate of {}.", t.name);
+        }
+    }
     if std::env::var("GEARMASTER_PRESET").is_ok() {
         run.apply_preset();
         message = "Auto-built a complete loadout - every bonus is lit.".to_string();
@@ -8898,6 +9083,37 @@ async fn main() {
             }
             if is_key_pressed(KeyCode::Escape) {
                 tools_open = false;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
+        }
+
+        // The town gate, ahead of the events: a town is a rung of its own and
+        // the event on the next rung has not been arrived at yet.
+        if let Some(t) = run.pending_town() {
+            if let Some(pick) = render_town(&run, t, mx, my) {
+                message = match pick {
+                    None => {
+                        let paid = run.skip_town();
+                        format!("You keep walking. {} gold for the trouble.", paid)
+                    }
+                    Some(a) => {
+                        let v = run.visit_town(a);
+                        town_message(&run, &v)
+                    }
+                };
             }
             #[cfg(not(target_arch = "wasm32"))]
             {

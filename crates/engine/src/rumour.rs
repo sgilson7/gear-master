@@ -1,0 +1,201 @@
+//! Rumours: components that are conditions rather than gear.
+//!
+//! A rumour is a real component. It sits in the tray, it takes up a slot there,
+//! it can be handed over. What it does not do is go on a board: it has one cell
+//! and nothing on it, so seating it would cost you a cell and gain you nothing.
+//!
+//! What it is *for* is standing as the condition on an event that will not
+//! happen otherwise. Holding "A Word About the Crownwright" is what puts the
+//! Crownwright's door on rung twenty-one - and only if the other half of the
+//! condition is true when you get there.
+//!
+//! The pub sells them, and it does not take money. You barter: hand over a
+//! loose component of the kind it asks for, or another rumour. That is the
+//! point of the pub as a door - it is the one place in the game where what you
+//! are carrying is worth more than what you have banked.
+//!
+//! ## Vagueness is the feature
+//!
+//! `hint` is what the hover says, and it is deliberately not the condition.
+//! "They only see people whose heads are already full" is a rumour; "helmet
+//! empty cells < 10" is a quest marker. The two are written side by side here
+//! so the gap between them stays deliberate.
+
+use crate::piece::PieceKind;
+
+/// What a rumour wants in trade.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Barter {
+    /// A loose component of this kind, handed over.
+    Kind(PieceKind),
+    /// Another rumour, by name. A rumour you have decided you cannot use is
+    /// still worth something, which is what stops a bad draw being dead.
+    Rumour(&'static str),
+}
+
+impl Barter {
+    /// What the price says on the shelf.
+    pub fn label(self) -> String {
+        match self {
+            Barter::Kind(k) => format!("a loose {}", k.name().to_lowercase()),
+            Barter::Rumour(n) => format!("the word about {}", short_name(n)),
+        }
+    }
+}
+
+/// What has to be true when you arrive for the rumour to be worth anything.
+///
+/// Checked on the rung, not when the rumour is bought: a rumour is a bet on
+/// the board you will have, not the one you have.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Condition {
+    /// Fewer than `n` empty cells left in that slot.
+    Crowded { slot: crate::piece::SlotKind, under: usize },
+    /// At least `n` of a resource banked across the entire run, counting every
+    /// fight. The only question anything in the game asks about a whole
+    /// playthrough rather than a moment in it.
+    BankedAllRun { what: crate::piece::Resource, at_least: i32 },
+}
+
+pub struct Rumour {
+    pub name: &'static str,
+    /// What the hover says. Vague on purpose - see the module note.
+    pub hint: &'static str,
+    /// What the pub wants for it.
+    pub price: Barter,
+    /// The event it opens, by id.
+    pub opens: &'static str,
+    /// What has to be true on that rung.
+    pub needs: Condition,
+}
+
+pub static RUMOURS: &[Rumour] = &[
+    Rumour {
+        name: "A Word About the Crownwright",
+        hint: "They only see people whose heads are already full. Nobody has \
+               ever said what that means and everybody nods along.",
+        price: Barter::Kind(PieceKind::Frame),
+        opens: "the-crownwright",
+        needs: Condition::Crowded { slot: crate::piece::SlotKind::Helmet, under: 10 },
+    },
+    Rumour {
+        name: "A Word About the Green Ledger",
+        hint: "It is a long tally and it wants to be finished. They say the \
+               man who keeps it has been adding up the same column for years.",
+        price: Barter::Rumour("A Word About the Crownwright"),
+        opens: "the-green-ledger",
+        needs: Condition::BankedAllRun {
+            what: crate::piece::Resource::Nature,
+            at_least: 100,
+        },
+    },
+];
+
+/// Every rumour, as component names, for the pub's shelves.
+pub fn on_offer() -> &'static [&'static str] {
+    SHELVES
+}
+
+/// The same list as a const, because `stock_exactly` wants a slice of names
+/// and building one per visit would allocate for nothing.
+const SHELVES: &[&str] = &["A Word About the Crownwright", "A Word About the Green Ledger"];
+
+pub fn by_name(name: &str) -> Option<&'static Rumour> {
+    RUMOURS.iter().find(|r| r.name == name)
+}
+
+/// Is this component a rumour rather than gear?
+pub fn is_rumour(name: &str) -> bool {
+    RUMOURS.iter().any(|r| r.name == name)
+}
+
+/// The rumour that opens an event, if one does.
+pub fn opens(event_id: &str) -> Option<&'static Rumour> {
+    RUMOURS.iter().find(|r| r.opens == event_id)
+}
+
+/// "the Crownwright" out of "A Word About the Crownwright", for a price label
+/// that would otherwise be half as long as the shelf.
+fn short_name(full: &str) -> &str {
+    full.strip_prefix("A Word About ").unwrap_or(full)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_rumour_is_a_real_component() {
+        for r in RUMOURS {
+            assert!(
+                crate::piece::CATALOG.iter().any(|d| d.name == r.name),
+                "{} is a rumour with nothing to hold",
+                r.name
+            );
+        }
+        for name in SHELVES {
+            assert!(by_name(name).is_some(), "{name} is on the shelf and is not a rumour");
+        }
+        assert_eq!(SHELVES.len(), RUMOURS.len(), "a rumour nobody can buy");
+    }
+
+    #[test]
+    fn every_rumour_opens_a_real_event() {
+        for r in RUMOURS {
+            let ev = crate::event::EVENTS.iter().find(|e| e.id == r.opens);
+            assert!(ev.is_some(), "{} opens {}, which does not exist", r.name, r.opens);
+        }
+    }
+
+    #[test]
+    fn the_hint_does_not_give_it_away() {
+        // A hint that names the number is a quest marker, not a rumour. This
+        // cannot check for vagueness, but it can check that the condition's
+        // own numbers are not printed in it.
+        for r in RUMOURS {
+            let numbers: Vec<String> = match r.needs {
+                Condition::Crowded { under, .. } => vec![under.to_string()],
+                Condition::BankedAllRun { at_least, .. } => vec![at_least.to_string()],
+            };
+            for n in numbers {
+                assert!(
+                    !r.hint.contains(&n),
+                    "{}'s hint prints {}, which is the whole answer",
+                    r.name,
+                    n
+                );
+            }
+            assert!(r.hint.len() > 40, "{}: a hint has to be worth reading", r.name);
+        }
+    }
+
+    #[test]
+    fn a_rumour_can_always_be_paid_for() {
+        for r in RUMOURS {
+            match r.price {
+                Barter::Kind(k) => assert!(
+                    crate::piece::CATALOG.iter().any(|d| d.kind == k),
+                    "{}: nothing in the game is a {:?}",
+                    r.name,
+                    k
+                ),
+                Barter::Rumour(n) => assert!(
+                    by_name(n).is_some() && n != r.name,
+                    "{}: priced in a rumour that is not one, or in itself",
+                    r.name
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn a_rumour_is_never_on_an_ordinary_shelf() {
+        for r in RUMOURS {
+            assert!(
+                crate::piece::is_event_only(r.name),
+                "{} could be bought with money, which is not what a rumour is",
+                r.name
+            );
+        }
+    }
+}
