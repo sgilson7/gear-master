@@ -64,9 +64,14 @@ const WINDOW_MS: u32 = 6_000;
 
 #[test]
 fn frost_slows_everything_the_target_owns_not_one_item() {
-    // Hoarfrost lands frost on the enemy every time it goes off. A spell needs
+    // Rime Nova lands frost on the enemy every time it goes off. A spell needs
     // a book and an ink around it before it will cast at all.
-    let run = wearing(&["Pocket Grimoire", "Mercurial Ink", "Hoarfrost"]);
+    //
+    // It used to be Hoarfrost. Frost is the feet's curse now and most of the
+    // spells that carried it gave it up; Rime Nova is one of the handful the
+    // weapon keeps, and it is the same kind, so it drops straight in. The
+    // assertion below is untouched.
+    let run = wearing(&["Pocket Grimoire", "Mercurial Ink", "Rime Nova"]);
     let stats = run.player_stats();
     let items = run.combat_items();
     assert_eq!(items.len(), 1, "the frost weapon has to assemble to cast");

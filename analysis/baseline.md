@@ -278,3 +278,26 @@ It stops being one-sided when the shop starts selling the other half.
 Weapon damage share did not move on any board, which is the expected result:
 curses, drains and reactions are not damage, and the exodus was never going to
 touch the number the acceptance criterion is about.
+
+### PR 6 — the curse exodus, and the feet get an identity
+
+| Build | Cleared | Median TTK | Weapon share |
+|---|---|---|---|
+| starter | 1/50 | 3.00s | 100.0% |
+| preset | 10/50 → **11/50** | 9.00s → 8.45s | 100.0% |
+| owner | 50/50 | 25.60s | 96.1% |
+| friend | 49/50 | 7.75s | 100.0% |
+
+**Time-to-kill at rungs 1, 10, 25 and 40 has still not moved at all** on any
+board, across both exoduses. Criterion 4 continues to hold exactly rather than
+within its band.
+
+Seventeen weapon pieces gave up frost, stun or misfire; six signature carriers
+keep theirs. Fifteen greaves molds arrived to receive them. The preset clears
+one more rung, which is again monsters getting weaker rather than players
+getting stronger - the new molds are in the shop but on nobody's board.
+
+Weapon damage share has not moved across five pull requests, and it will not:
+curses, drains and reactions are not damage. Getting the weapon from 96% to the
+target 55-65% is entirely a question of the other four slots learning to deal
+damage of their own, which is the helmet, chest and gloves sweeps.

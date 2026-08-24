@@ -63,6 +63,13 @@ fn interacts(def: &PieceDef) -> bool {
                     | Trigger::PerAdjacentItem { .. }
                     | Trigger::PerAdjacentEmpty(_)
                     | Trigger::OnOtherCast(_)
+                    // The two the interaction fabric added. A watcher reads
+                    // the board's event stream and a diagonal reads past its
+                    // neighbours; both are interactions, and leaving them out
+                    // would have let a slot satisfy the density quota only in
+                    // the vocabulary it had before the primitives landed.
+                    | Trigger::OnDiagonalActivate(_)
+                    | Trigger::Watch { .. }
             )
         })
 }
@@ -282,7 +289,7 @@ const RULES: &[Rule] = &[
     // Greaves - Tempo. Who moves, how often, and first. The weapon keeps its
     // own cadence tools; everything else gives them up.
     Rule { what: "OnBattleStart", home: SlotKind::Greaves, level: Level::Only, shared_with: &[],
-        budget: 10, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnBattleStart(_))) },
+        budget: 9, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnBattleStart(_))) },
     Rule { what: "speed_bonus outside the weapon", home: SlotKind::Greaves, level: Level::Only,
         shared_with: &[SlotKind::Weapon], budget: 10, target: 0, carries: |d| d.speed_bonus != 0 },
     Rule { what: "ReduceCooldown outside the weapon", home: SlotKind::Greaves, level: Level::Only,
@@ -294,7 +301,7 @@ const RULES: &[Rule] = &[
         shared_with: &[SlotKind::Greaves], budget: 0, target: 0,
         carries: |d| d.kind.is_underlay() },
     Rule { what: "frost, stun and misfire", home: SlotKind::Greaves, level: Level::Mostly(70),
-        shared_with: &[], budget: 25, target: 0,
+        shared_with: &[], budget: 9, target: 0,
         carries: |d| does(d, |a| matches!(a, Action::Curse {
             kind: CurseKind::Frost | CurseKind::Stun | CurseKind::Misfire, .. })) },
 ];
@@ -403,13 +410,13 @@ const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
     (SlotKind::Gloves, "plain flat-stat filler", 20),
     (SlotKind::Gloves, "the dearest third interacts", 3),
     (SlotKind::Gloves, "pool-spend texture", 0),
-    (SlotKind::Greaves, "expresses its own axis", 15),
-    (SlotKind::Greaves, "expresses its bleed axis", 26),
-    (SlotKind::Greaves, "plain flat-stat filler", 12),
-    (SlotKind::Greaves, "the dearest third interacts", 2),
+    (SlotKind::Greaves, "expresses its own axis", 9),
+    (SlotKind::Greaves, "expresses its bleed axis", 22),
+    (SlotKind::Greaves, "plain flat-stat filler", 5),
+    (SlotKind::Greaves, "the dearest third interacts", 0),
     (SlotKind::Greaves, "pool-spend texture", 0),
     (SlotKind::Weapon, "the dearest third interacts", 0),
-    (SlotKind::Weapon, "pool-spend texture", 13),
+    (SlotKind::Weapon, "pool-spend texture", 5),
 ];
 
 fn budget_for(slot: SlotKind, what: &str) -> usize {
