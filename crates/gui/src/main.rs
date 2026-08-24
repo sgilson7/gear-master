@@ -2516,12 +2516,34 @@ fn bar_progress(schedule: &[u32], cooldown_ms: u32, now_ms: u32) -> f32 {
 /// `Side::Enemy`, and only the entry's foe index tells them apart.
 /// Start whatever fight is next: the rung's own creature, or the party an
 /// event has put in front of you.
-fn begin_next_fight(run: &mut Run, speed: f32) -> Playback {
-    let profiles = run.combat_items();
-    match run.pending_brawl() {
-        Some(specs) => Playback::new(run.fight_party(&specs), &profiles, speed),
-        None => Playback::new(run.fight_next(), &profiles, speed),
+/// Start the next fight, unless something is standing in the road.
+///
+/// `None` means a town, a fountain or an event is waiting and the caller
+/// should put the player back in front of it rather than fighting. Every path
+/// that starts a fight goes through here, which is the point: the one that did
+/// not - REMATCH, straight off the battle screen - is how runs were walking
+/// past the first fountain.
+/// "a town" -> "A town", for a sentence that starts with it.
+fn capitalise(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+        None => String::new(),
     }
+}
+
+fn begin_next_fight(run: &mut Run, speed: f32) -> Option<Playback> {
+    // A brawl an event arranged is the thing in the road, not a detour round
+    // it, so it goes ahead.
+    if let Some(specs) = run.pending_brawl() {
+        let profiles = run.combat_items();
+        return Some(Playback::new(run.fight_party(&specs), &profiles, speed));
+    }
+    if run.road_is_blocked().is_some() {
+        return None;
+    }
+    let profiles = run.combat_items();
+    Some(Playback::new(run.fight_next(), &profiles, speed))
 }
 
 fn schedule_for(log: &CombatLog, want: Side, who: u8, count: usize) -> Vec<Vec<u32>> {
@@ -8818,7 +8840,7 @@ async fn main() {
         });
         settled = false;
     } else if std::env::var("GEARMASTER_FIGHT").is_ok() {
-        pb = Some(begin_next_fight(&mut run, playback_speed));
+        pb = begin_next_fight(&mut run, playback_speed);
         message = "Fight in progress.".to_string();
     }
     // Screenshot capture is a desktop-only debugging aid: the browser build has
@@ -9554,10 +9576,25 @@ async fn main() {
                     p.skip_to_end(&run);
                 }
             } else if hit(2) {
-                pb = Some(begin_next_fight(&mut run, playback_speed));
-                // A new fight follows itself again.
-                log_scroll = 0;
-                settled = false;
+                // Straight into the next fight without going back to the
+                // loadout - which is where the town gate, the events and the
+                // fountain are all drawn. Anything waiting there gets looked
+                // at first.
+                match begin_next_fight(&mut run, playback_speed) {
+                    Some(next) => {
+                        pb = Some(next);
+                        // A new fight follows itself again.
+                        log_scroll = 0;
+                        settled = false;
+                    }
+                    None => {
+                        let what = run.road_is_blocked().unwrap_or("something");
+                        run.back_to_loadout();
+                        pb = None;
+                        log_expanded = false;
+                        message = format!("{} is standing in the road.", capitalise(what));
+                    }
+                }
             } else if hit(3) {
                 log_expanded = !log_expanded;
             } else if hit(4) {
@@ -9573,11 +9610,19 @@ async fn main() {
                 // choosing is yours.
                 fountain_open = true;
             } else if clicked_button(0) {
-                pb = Some(begin_next_fight(&mut run, playback_speed));
-                // A new fight follows itself again.
-                log_scroll = 0;
-                settled = false;
-                message = "Fight in progress.".to_string();
+                match begin_next_fight(&mut run, playback_speed) {
+                    Some(next) => {
+                        pb = Some(next);
+                        // A new fight follows itself again.
+                        log_scroll = 0;
+                        settled = false;
+                        message = "Fight in progress.".to_string();
+                    }
+                    None => {
+                        let what = run.road_is_blocked().unwrap_or("something");
+                        message = format!("{} is standing in the road.", capitalise(what));
+                    }
+                }
             } else if clicked_button(1) {
                 playback_speed = next_speed(playback_speed);
                 message = format!("Fights will replay at {}x.", speed_label(playback_speed));

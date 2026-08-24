@@ -446,6 +446,33 @@ impl Run {
 
     // ------------------------------------------------------------ events
 
+    /// What is standing in the road before the next fight, if anything.
+    ///
+    /// Deliberately not phase-gated, unlike `pending_town` and `pending_event`.
+    /// Those answer "should this screen be drawn", and the answer is no while a
+    /// fight is being replayed. This answers "may a fight start", which has to
+    /// be answerable *from* the battle screen - because that is where the bug
+    /// was: REMATCH called `fight_next` straight from the replay, the rung had
+    /// already moved on, and the run walked past its town, its events and its
+    /// fountain without any of them being drawn. A board good enough to keep
+    /// pressing it reached rung ten with no class at all.
+    pub fn road_is_blocked(&self) -> Option<&'static str> {
+        if self.town.is_some() {
+            return Some("a town");
+        }
+        if self.at_fountain() || self.at_doubling_fountain() {
+            return Some("a fountain");
+        }
+        // The same question `pending_event` asks, without the phase gate.
+        if self.whispered_event().is_some() {
+            return Some("something on the road");
+        }
+        let standing =
+            crate::event::at(self.rung, self.best_fight_ms, self.worst_fight_ms, &self.answered)
+                .filter(|e| !self.answered.contains(&e.id));
+        standing.map(|_| "something on the road")
+    }
+
     /// The event standing in front of this rung, if there is one and it has
     /// not been answered.
     pub fn pending_event(&self) -> Option<&'static crate::event::LadderEvent> {
