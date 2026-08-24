@@ -413,7 +413,7 @@ const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
     (SlotKind::Helmet, "the dearest third interacts", 2),
     (SlotKind::Chest, "expresses its own axis", 0),
     (SlotKind::Chest, "expresses its bleed axis", 5),
-    (SlotKind::Chest, "plain flat-stat filler", 16),
+    (SlotKind::Chest, "plain flat-stat filler", 0),
     (SlotKind::Chest, "the dearest third interacts", 0),
     (SlotKind::Chest, "pool-spend texture", 0),
     (SlotKind::Gloves, "expresses its own axis", 0),

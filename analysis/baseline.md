@@ -343,3 +343,21 @@ Rung-1 time-to-kill is unchanged for the fourth pull request running.
 Weapon share is flat at 93%. Economy is not damage either - the helmet feeds
 the weapon rather than replacing it, which is what the axis says it should do.
 The two slots left that could move this number are chest and greaves.
+
+### PR 9 — the body
+
+| Build | Cleared | Median TTK | Weapon share |
+|---|---|---|---|
+| starter | 1/50 | 3.00s | 100.0% |
+| preset | 11/50 | 8.45s | 100.0% |
+| owner | 49/50 | 22.40s → 23.10s | 93.1% |
+| friend | 49/50 | 5.55s | 100.0% |
+
+Thirty-two inert chest bases and layers gained armour on activation, and three
+grow instead. Chest filler 16 → 0. Nothing else moved: armour is not damage,
+and rung-1 time-to-kill is unchanged for the fifth pull request running.
+
+**All four armour slots now sit at zero filler.** What is left of the shape
+work is greaves' two axis quotas and the mechanics still sitting in the wrong
+slot - `health above 15` (30), `Grow` (10), `harden` (8), `speed_bonus` (10),
+`OnBattleStart` (9) - plus the 43 identity mechanics on floating kinds.
