@@ -24,8 +24,22 @@ use gearmaster_engine::rating::piece_rating;
 use gearmaster_engine::rng::Rng;
 use gearmaster_engine::slot::{SLOT_H, SLOT_W};
 
+/// Which creature is being packed. Francis by default, because he is the one
+/// this search was written for and the one whose board is hardest to author.
+fn who() -> String {
+    std::env::var("PACK_MONSTER").unwrap_or_else(|_| "Francis".into())
+}
+
 /// The one boss trophy the creature being packed is allowed to wear.
-const MINE: &str = "The Money Jacket";
+///
+/// A trophy belongs to exactly one creature - it is the thing that creature
+/// leaves behind - so Francis may wear his coat and nobody else may. A monster
+/// with no trophy of its own passes an empty string, which matches nothing.
+fn mine() -> String {
+    std::env::var("PACK_TROPHY").unwrap_or_else(|_| {
+        if who() == "Francis" { "The Money Jacket".into() } else { String::new() }
+    })
+}
 
 /// How far down the rating order to start drawing.
 ///
@@ -62,7 +76,7 @@ fn pool(slot: SlotKind, kind: PieceKind) -> Vec<usize> {
         // creature leaves behind - so Francis may wear his coat and nobody
         // else's. `boss_gear_belongs_to_exactly_one_monster` is the test that
         // catches this, and it caught it.
-        .filter(|&i| !is_boss_only(CATALOG[i].name) || CATALOG[i].name == MINE)
+        .filter(|&i| !is_boss_only(CATALOG[i].name) || CATALOG[i].name == mine())
         .collect();
     v.sort_by_key(|&i| std::cmp::Reverse(piece_rating(&CATALOG[i])));
     // Skip the top of the order, but never empty the pool: a kind with three
@@ -214,18 +228,38 @@ fn seat_item(
 /// two runs at the same power band produced boards that differed by more than
 /// the band did - one where the friend won all four settings and one where it
 /// lost all four. Scoring the outcome directly is the only thing that aims.
-const WANT: [(&str, [bool; 4]); 2] = [
-    // Easy, Medium, Hard, Insane. `true` is a win for the player.
-    ("owner", [true, false, false, false]),
-    ("friend", [true, true, false, false]),
-];
+/// Measured off the board the creature already has, rather than written down.
+///
+/// Francis had his profile stated by hand because he is the last rung and
+/// somebody had to decide what beating him should mean. Every other creature
+/// already has an answer - the one its current board gives - and repacking is
+/// meant to make a board *denser*, not harder. So the target is whatever the
+/// existing spec does against the two finished builds, and a repack is
+/// accepted only if it lands on the same table.
+///
+/// That is what makes this mechanical rather than fifty-three tuning problems:
+/// balance is preserved by construction, and `PACK_BAND` only has to be moved
+/// when the search cannot reach the profile at all.
+fn ceiling() -> usize {
+    use gearmaster_engine::combat::LADDER;
+    let now = LADDER.iter().find(|m| m.name == who()).expect("on the ladder").gear.len();
+    // Twice what it has, or eight more, whichever is kinder to a small board -
+    // and never past what Francis himself wears.
+    (now * 2).max(now + 8).min(44)
+}
+
+fn want() -> Vec<[bool; 4]> {
+    use gearmaster_engine::combat::LADDER;
+    let base = *LADDER.iter().find(|m| m.name == who()).expect("on the ladder");
+    fight(base.gear, base.items)
+}
 
 /// Fight a candidate board with both finished builds.
-fn outcomes(gear: &'static [(&'static str, SlotKind, u8, u8, u8)], chunks: &'static [usize])
+fn fight(gear: &'static [(&'static str, SlotKind, u8, u8, u8)], chunks: &'static [usize])
     -> Vec<[bool; 4]>
 {
     use gearmaster_engine::combat::{simulate_at, Difficulty, Outcome, LADDER};
-    let base = *LADDER.iter().find(|m| m.name == "Francis").expect("on the ladder");
+    let base = *LADDER.iter().find(|m| m.name == who()).expect("on the ladder");
     let spec = gearmaster_engine::combat::MonsterSpec { gear, items: chunks, ..base };
     boards()
         .iter()
@@ -243,9 +277,22 @@ fn outcomes(gear: &'static [(&'static str, SlotKind, u8, u8, u8)], chunks: &'sta
 fn boards() -> Vec<(&'static str, gearmaster_engine::run::Run)> {
     use gearmaster_engine::run::{Mode, Run};
     use gearmaster_engine::share;
-    [("owner", share::A_WINNING_RUN), ("friend", share::A_FRIENDS_RUN)]
+    // The preset first, and it is the one that matters for the early ladder.
+    // Two finished ladder-clearing boards beat a rung-two creature whatever it
+    // is wearing, so scoring only against them left the search free to pack
+    // Bog Toad to fifty-six pieces and call the profile unchanged - it *was*
+    // unchanged, because neither yardstick could feel the difference. The
+    // preset clears eleven rungs, which is roughly what a player has in hand
+    // early, and it loses to an over-packed creature the moment one exists.
+    [("preset", ""), ("owner", share::A_WINNING_RUN), ("friend", share::A_FRIENDS_RUN)]
         .into_iter()
         .map(|(label, code)| {
+            if code.is_empty() {
+                let mut r = Run::new();
+                r.mode = Mode::Grinder;
+                r.apply_preset();
+                return (label, r);
+            }
             let sh = share::import(code).expect("reads");
             let mut r = Run::new();
             r.mode = Mode::Grinder;
@@ -292,15 +339,15 @@ fn pack() {
             // a 2680-health board before anything else had happened - and it
             // is also simply not him: he is a gambler in a coat with a sword.
             let recs: &[&[(PieceKind, usize, usize)]] =
-                if slot == SlotKind::Weapon { &all[..1] } else { all };
+                if slot == SlotKind::Weapon && who() == "Francis" { &all[..1] } else { all };
             // The coat goes on first. It is a Base, it is four cells by three,
             // and it is the one strange thing Francis owns - a board packed
             // around it is a different board from one packed without it, so it
             // cannot be left to whether the search happens to reach for it.
             let mut stalled = 0;
             let mut here = 0usize;
-            if slot == SlotKind::Chest {
-                let coat = CATALOG.iter().position(|d| d.name == MINE).expect("in the catalogue");
+            if slot == SlotKind::Chest && !mine().is_empty() {
+                let coat = CATALOG.iter().position(|d| d.name == mine()).expect("in the catalogue");
                 let layer = pool(slot, PieceKind::Layer);
                 for &l in layer.iter().take(4) {
                     if let Some(p) = seat_item(&mut reg, &mut lo, slot, &[coat, l], &mut rng) {
@@ -320,7 +367,12 @@ fn pack() {
             // One weapon. A player carries one; a creature carrying three
             // swings three times a cooldown and no board can answer that.
             let cap = if slot == SlotKind::Weapon { 1 } else { per_slot() };
-            while stalled < 40 && here < cap {
+            // The ceiling is enforced here rather than on the finished
+            // candidate: the loop fills a slot at a time, so a board that is
+            // going to be too big is too big from early on, and rejecting it
+            // afterwards simply threw every candidate away.
+            let room = ceiling().saturating_sub(gear.len());
+            while stalled < 40 && here < cap && gear.len() < ceiling() && room > 0 {
                 let r = recs[rng.below(recs.len())];
                 let defs = choose(slot, r, &mut rng);
                 if defs.is_empty() {
@@ -353,11 +405,12 @@ fn pack() {
         // Leaked so the spec can borrow them for the length of the fight. This
         // is a generator that runs once by hand; the alternative is threading a
         // lifetime through `MonsterSpec` for the benefit of one test.
-        let got = outcomes(Box::leak(gear.into_boxed_slice()), Box::leak(chunks.clone().into_boxed_slice()));
-        let hits: usize = WANT
+        let got = fight(Box::leak(gear.into_boxed_slice()), Box::leak(chunks.clone().into_boxed_slice()));
+        let target = want();
+        let hits: usize = target
             .iter()
             .zip(&got)
-            .map(|((_, want), have)| want.iter().zip(have).filter(|(a, b)| a == b).count())
+            .map(|(want, have)| want.iter().zip(have).filter(|(a, b)| a == b).count())
             .sum();
         // Outcome first, density second: a board that fights right at seventy
         // percent is worth more than one that fights wrong at ninety.
@@ -370,11 +423,11 @@ fn pack() {
     let (hits, total, out, chunks, got) = best.expect("something was packed");
     let cap = SLOT_W as usize * SLOT_H as usize * 5;
     println!("BEST {total}/{cap} cells ({:.0}%), {hits}/8 outcomes on target", 100.0 * total as f32 / cap as f32);
-    for ((label, want), have) in WANT.iter().zip(&got) {
+    for (want, have) in want().iter().zip(&got) {
         let show = |r: &[bool; 4]| {
             r.iter().map(|w| if *w { "W" } else { "L" }).collect::<Vec<_>>().join("")
         };
-        println!("  {label:6} want {} got {}", show(want), show(have));
+        println!("  board want {} got {}", show(want), show(have));
     }
     println!("GEAR");
     println!("{out}");
