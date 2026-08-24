@@ -186,24 +186,24 @@ fn a_foe_that_is_down_stops_taking_turns() {
 fn a_brawl_is_worse_than_either_of_them_alone() {
     // The point of the whole feature. If two at once is easier than the harder
     // one on its own, something is wrong with the targeting or the turns.
+    //
+    // Measured as how long the player lasts, not what health they end on:
+    // sudden death brings every unfinished fight to nearly zero on both sides,
+    // so end-state health stopped telling one fight from another the moment
+    // that rule landed.
     let one = brawl(&["The Iron Warden"]);
     let two = brawl(&["The Iron Warden", "The Iron Warden"]);
-    let left = |log: &CombatLog| -> i32 {
-        let mut hp = log.player.health;
-        for e in &log.entries {
-            match &e.event {
-                Event::Hit { by: Side::Enemy, target_health, .. } => hp = *target_health,
-                Event::Burn { side: Side::Player, health, .. }
-                | Event::Regen { side: Side::Player, health, .. } => hp = *health,
-                _ => {}
-            }
-        }
-        hp
+    let lasted = |log: &CombatLog| -> u32 {
+        log.entries
+            .iter()
+            .find(|e| matches!(e.event, Event::Fell { side: Side::Player }))
+            .map(|e| e.at_ms)
+            .unwrap_or(log.duration_ms)
     };
     assert!(
-        left(&two) < left(&one),
-        "two of them left the player on {} and one left {} - two is not harder",
-        left(&two),
-        left(&one)
+        lasted(&two) < lasted(&one),
+        "the player lasted {}ms against two of them and {}ms against one - two is not harder",
+        lasted(&two),
+        lasted(&one)
     );
 }

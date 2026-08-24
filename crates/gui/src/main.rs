@@ -2577,6 +2577,16 @@ impl Playback {
                     self.player_mana = *remaining;
                 }
             }
+            // Sudden death takes health off everybody at once, straight past
+            // armour, so the bars have to follow it down rather than waiting
+            // for a Hit that never comes.
+            Event::SuddenDeath { pct } => {
+                let bite = |max: i32| (max * pct / 100).max(1);
+                self.player_hp = (self.player_hp - bite(self.player_max)).max(0);
+                for f in self.foes.iter_mut() {
+                    f.hp = (f.hp - bite(f.max)).max(0);
+                }
+            }
             Event::Spent { side, remaining, .. } => {
                 // The purse is shown on the loadout screen, but a fight that
                 // is eating it should say so while it happens.

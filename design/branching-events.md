@@ -352,16 +352,14 @@ trade's clothes: half the activations for plates worth double left armour per
 second *exactly where it was* and halved everything else. At twenty-five the
 wall genuinely goes up.
 
-**And it still costs rungs, for a reason that is not the class.** On the board
-that cleared the game, at Hard: a run that asked reaches rung 22; the same
-board having taken Trundle stalls at rung 14 — on a **stalemate at sixty
-seconds**. It survives the full clock and cannot finish.
+**It used to cost the road, and the reason was not the class.** A trundling
+board stalled at rung 14 on a *stalemate at sixty seconds* — alive at the end
+of the clock and unable to finish — while the same board that asked reached 22.
+Armour bought survival, survival was not victory, and a stalemate cost a life
+exactly like a defeat.
 
-That is the binding constraint, and it is the one the balance report opened
-with. Armour buys survival, survival is not victory, and a stalemate costs a
-life exactly like a defeat. **No defensive option can be good while the clock
-scores a draw as a loss** — which makes "settle the clock on health share"
-worth more than any amount of tuning Trundle.
+That was the binding constraint on every defensive option in the game, and it
+has been removed. See *Sudden death* below.
 
 ### Walking it
 
@@ -374,3 +372,53 @@ which door it finds is decided by the setting rather than by anything seeded:
   and 14400ms at worst. The casino is shut and the road is open instead.
 
 One build, two chains, nothing arranged.
+
+
+---
+
+## Sudden death
+
+The sixty-second cap scored a draw as a loss, which quietly made defence
+unplayable: a build that could out-last anything but out-damage nothing lost
+anyway, however thick its wall.
+
+Nothing happens for the first **thirty seconds** — a long fight is allowed to
+be a long fight. Past that, both fighters lose a growing share of their own
+maximum health every second: one percent, then two, then three. The total
+passes a hundred percent after fourteen seconds, so no fight runs beyond about
+forty-four however much health or armour is in it.
+
+It is not dodgeable. The damage comes straight off health, past armour and
+resistance both, because a wall you can hide behind for ever is the thing
+being fixed.
+
+**Going down together** is now a real possibility rather than a curiosity, so
+it has a rule: whoever is less far past zero takes it, and a dead heat goes to
+the player. An even fight should not cost a life.
+
+`Outcome::Stalemate` still exists as a backstop on the hard sixty-second cap,
+and nothing in the game reaches it any more — there is a test that walks every
+build the project can produce, at every setting, and finds none.
+
+### What it changed
+
+Reach of the winning board, walking the ladder:
+
+| | before | after |
+|---|---|---|
+| Medium, no class | rung 31 | **35** |
+| Medium, Trundle | rung 25 | **35** |
+| Hard, no class | rung 31 | **35** |
+| Hard, Trundle | rung 13 | **23** |
+
+Everything got deeper, because fights that used to run out the clock now
+resolve. Trundle gained the most: it is free at Medium and still gives up
+about a dozen rungs on Hard, which is a defensive option being a decision
+rather than a mistake.
+
+Three tests elsewhere had been quietly measuring the clock rather than what
+they were named for, and had to be re-pointed: end-state health stopped telling
+one fight from another once every unfinished fight ends near zero; an item
+ratio counted to the end of a fight that now stops at a different tick; and a
+mana-shield test read health after thirty seconds, which reads the overtime
+rather than the shield.

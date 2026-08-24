@@ -134,8 +134,16 @@ fn each_item_keeps_its_own_cooldown() {
     let slow = item("Slow", SlotKind::Weapon, 2000, Stats::physical(1));
     let log = simulate(Stats::new(1000, 0, 0, 100), &[fast, slow], &DUMMY);
 
-    let fast_hits = activations_of(&log, "Fast").len();
-    let slow_hits = activations_of(&log, "Slow").len();
+    // Counted over a whole number of the slow item's cycles, not to the end of
+    // the fight. Sudden death stops a fight wherever it stops, which can leave
+    // the fast item one swing into a cycle the slow one has not finished - a
+    // ratio of 85 to 21 rather than 84 to 21, and nothing wrong with either.
+    const WINDOW_MS: u32 = 20_000;
+    let within = |name: &str| {
+        activations_of(&log, name).into_iter().filter(|&t| t <= WINDOW_MS).count()
+    };
+    let (fast_hits, slow_hits) = (within("Fast"), within("Slow"));
+    assert!(slow_hits > 0, "the slow item never fired; this proves nothing");
     assert_eq!(
         fast_hits,
         slow_hits * 4,

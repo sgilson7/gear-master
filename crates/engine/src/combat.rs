@@ -22,6 +22,23 @@ pub const SLOW_TIME_MS: u32 = 5000;
 
 pub const MAX_DURATION_MS: u32 = 60_000;
 
+/// When a fight that will not end starts ending itself.
+///
+/// Nothing happens for the first thirty seconds - a long fight is allowed to
+/// be a long fight. Past that, both fighters take a share of their own maximum
+/// health every second, and the share grows: one percent, then two, then
+/// three. The total passes a hundred percent after fourteen seconds, so no
+/// fight runs beyond about forty-four however much health or armour is in it,
+/// which is the point.
+///
+/// It replaces a sixty-second cap that scored a draw as a loss. That rule made
+/// every defensive option unplayable: armour buys survival, survival was not
+/// victory, and a build that could out-last anything but out-damage nothing
+/// lost anyway. Nothing here is dodgeable - the damage ignores armour and
+/// resistance both, because a wall you can hide behind for ever is the thing
+/// being fixed.
+pub const SUDDEN_DEATH_MS: u32 = 30_000;
+
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Side {
     Player,
@@ -3095,6 +3112,9 @@ pub enum Event {
     /// Run gold spent mid-fight. `remaining` is what is left in the purse,
     /// which is what you will arrive at the shop with.
     Spent { side: Side, amount: i32, remaining: i32 },
+    /// The fight has gone on long enough and is now ending itself. `pct` is
+    /// the share of maximum health both sides are losing this second.
+    SuddenDeath { pct: i32 },
     Hit { by: Side, damage: i32, absorbed: i32, target_health: i32, target_armor: i32 },
     /// An item came round and nothing happened - a misfire ate it.
     Misfired { side: Side, item: String },
@@ -3319,6 +3339,9 @@ impl CombatLog {
                 item,
                 *duration_ms as f32 / 1000.0
             ),
+            Event::SuddenDeath { pct } => {
+                format!("{} the fight turns - {}% of everyone, and rising", t, pct)
+            }
             Event::Spent { side, amount, remaining } => format!(
                 "{} {} spends {} fnorp ({} left)",
                 t,
@@ -3608,6 +3631,19 @@ pub fn simulate_party(
                 }
             }
         }
+        // 1b. Sudden death. A fight that has gone on this long ends itself,
+        // and it ends itself for everybody at once - straight off health,
+        // past armour and resistance, because a wall you can hide behind for
+        // ever is exactly what this exists to stop.
+        if t >= SUDDEN_DEATH_MS && t % 1000 == 0 {
+            let second = ((t - SUDDEN_DEATH_MS) / 1000 + 1) as i32;
+            log.push(LogEntry { who: 0, at_ms: t, event: Event::SuddenDeath { pct: second } });
+            for c in std::iter::once(&mut p).chain(foes.iter_mut()) {
+                let bite = (c.max_health * second / 100).max(1);
+                c.health -= bite;
+            }
+        }
+
         if check_down(&p, &foes, t, &mut log, &mut outcome, &mut fallen) {
             break 'fight;
         }
@@ -3785,16 +3821,32 @@ fn check_down(
             log.push(LogEntry { who: i as u8, at_ms: t, event: Event::Fell { side: Side::Enemy } });
         }
     }
-    if foes.iter().all(|f| f.is_down()) {
-        *outcome = Outcome::Victory;
-        return true;
-    }
-    if p.is_down() {
+    let cleared = foes.iter().all(|f| f.is_down());
+    let fell = p.is_down();
+    if fell {
         log.push(LogEntry { who: 0, at_ms: t, event: Event::Fell { side: Side::Player } });
-        *outcome = Outcome::Defeat;
-        return true;
     }
-    false
+
+    match (cleared, fell) {
+        (false, false) => false,
+        (true, false) => {
+            *outcome = Outcome::Victory;
+            true
+        }
+        (false, true) => {
+            *outcome = Outcome::Defeat;
+            true
+        }
+        // Everyone went down on the same tick, which sudden death makes a
+        // real possibility rather than a curiosity. Whoever is less far past
+        // zero takes it, and a dead heat goes to the player: the fight was
+        // even, and an even fight should not cost a life.
+        (true, true) => {
+            let best = foes.iter().map(|f| f.health).max().unwrap_or(i32::MIN);
+            *outcome = if p.health >= best { Outcome::Victory } else { Outcome::Defeat };
+            true
+        }
+    }
 }
 
 /// Resolve one item firing: its flat effects, then its triggers in order.

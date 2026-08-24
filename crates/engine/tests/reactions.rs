@@ -309,16 +309,26 @@ fn mana_shield_blunts_every_kind_of_damage() {
         "the log reports the swing, mitigation happens on arrival"
     );
     // Health should be barely touched compared with 20 a second unmitigated.
-    let final_hp = log
+    //
+    // Read before sudden death, which takes a growing share of maximum health
+    // off both sides from thirty seconds and does not care what you are
+    // wearing. That is the point of that rule, and it is not what this test is
+    // about - measuring after it reads the overtime rather than the shield.
+    let hp_before_overtime = log
         .entries
         .iter()
+        .filter(|e| e.at_ms < gearmaster_engine::combat::SUDDEN_DEATH_MS)
         .rev()
         .find_map(|e| match e.event {
             Event::Hit { by: Side::Enemy, target_health, .. } => Some(target_health),
             _ => None,
         })
-        .unwrap();
-    assert!(final_hp > 1500, "shield should have absorbed most of it, hp {}", final_hp);
+        .expect("the puncher landed something in the first thirty seconds");
+    assert!(
+        hp_before_overtime > 1500,
+        "shield should have absorbed most of it, hp {}",
+        hp_before_overtime
+    );
 }
 
 #[test]

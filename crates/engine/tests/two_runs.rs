@@ -449,20 +449,19 @@ fn taking_trundle_shuts_the_pay_off_but_not_the_door() {
 
 /// What Trundle costs, measured on the board that cleared the game.
 ///
-/// Fight by fight it is a fair trade at twenty-five percent: about half again
-/// as much armour for about a quarter less damage. Over a run it still costs
-/// rungs, and the reason is the clock rather than the class.
+/// It used to cost the road: a trundling board stalled at rung fourteen on a
+/// *stalemate* - alive after sixty seconds and unable to finish - while the
+/// same board that asked reached twenty-two. Armour bought survival, survival
+/// was not victory, and no defensive option could be worth taking.
 ///
-/// A trundling board on Hard stalls at rung fourteen on a *stalemate* - it
-/// survives the full sixty seconds and cannot finish. Armour buys survival,
-/// survival is not victory, and a stalemate costs a life exactly like a
-/// defeat. Any defensive option runs into that wall; it is the same finding
-/// the balance report opened with.
+/// Sudden death removed the clock, and with it the trap. Both runs now reach
+/// the pay-off. Trundle is still a real cost where fights are marginal - on
+/// Hard it gives up about a dozen rungs of reach - but it no longer stops a
+/// run dead, which is the difference between a decision and a mistake.
 ///
-/// Recorded rather than asserted at a number, so a retune shows up here as a
-/// change rather than a failure.
+/// Recorded rather than asserted at a number, so a retune reads as a change.
 #[test]
-fn trundle_costs_a_run_most_of_the_road() {
+fn trundle_no_longer_costs_the_road() {
     let follow = EVENTS.iter().find(|e| e.id == "where-it-was-going").expect("authored");
 
     let mut asked = a_grinding_run();
@@ -476,9 +475,14 @@ fn trundle_costs_a_run_most_of_the_road() {
         asked.rung + 1,
         took.rung + 1
     );
-    assert!(
-        took.rung < asked.rung,
-        "Trundle is supposed to be a real cost and this run did not feel it"
+    assert_eq!(
+        asked.rung, follow.at,
+        "a run that asked no longer reaches the pay-off"
+    );
+    assert_eq!(
+        took.rung, follow.at,
+        "a trundling run stalls at rung {} short of the pay-off - the clock is back",
+        follow.at + 1 - took.rung
     );
 }
 
