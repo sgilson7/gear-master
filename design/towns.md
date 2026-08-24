@@ -123,19 +123,39 @@ stock*.
 
 ## Milestones
 
-1. **The rung that is not a fight.** `town.rs`, the three towns, the extra-rung
-   arithmetic, enter-or-skip, and the purse for skipping. No actions yet.
-2. **Stacking classes.** `Piety` and `Tired`, the accumulating class-application
-   path in `combat.rs`, mana debt, and the class band showing `x3`.
-3. **Chapel and factory.** The two actions that hand out those classes, and the
-   five-stack conversion to Ticket to Ride.
-4. **Ticket to Ride.** Deterministic every-second-attack miss, per attacker.
-5. **Rumours.** The component kind, the bartering shop, the two rumours, the
-   run-total nature counter, and the two rung-20 events they open.
-6. **The town shop.** `TOWN_ONLY` gear, themed names, the shelf logic.
-7. **The screen.** The gate, the four doors, what each says before you commit.
-8. **Glossary sweep.** Every class in the class list, every keyword the new
-   text introduces, and a test that says so rather than a reading of it.
+All eight built.
+
+1. ~~**The rung that is not a fight.**~~ `town.rs`, three towns, `Run::town` /
+   `towns_seen` / `last_bounty`, `skip_town`, `visit_town`.
+2. ~~**Stacking classes.**~~ `ClassPower::{Piety, Tired, Ticket}`, the two
+   accumulating arms in `simulate_party`, `class::stacks`, `Run::stacks_of`.
+3. ~~**Chapel and factory.**~~ Both actions, and the five-stack conversion.
+4. ~~**Ticket to Ride.**~~ `Combatant::warded_every` / `warded_count`, eaten at
+   the activation beside the misfire check, `Event::Warded`.
+5. ~~**Rumours.**~~ `rumour.rs`, `Trigger::Whispered`, `Run::banked_all_run`,
+   `Run::barter` / `payment_for`, the two rung-19 and rung-22 doors.
+6. ~~**The town shop.**~~ `piece::TOWN_ONLY`, five themed names.
+7. ~~**The screen.**~~ `render_town`, the pub's two-click barter, the rumour
+   hover.
+8. ~~**Glossary sweep.**~~ Eleven terms, and the tests that found them.
+
+### What the numbers came out at
+
+Measured rather than guessed, on the two boards the project has:
+
+| | auto-built | the winning board |
+|---|---|---|
+| empty helmet cells | 32 | 2 |
+| nature banked by rung 22 | 0 | 453 |
+| starting mana | 6 | 46 |
+
+So "fewer than 10 empty helmet cells" and "100 nature all run" are both
+conditions the endgame board meets and the auto-builder does not, which is
+what a rumour should be: a bet on the board you will have.
+
+The same table is why Tired is measured on the auto-built board and Ticket to
+Ride on the winning one. Three stacks of Tired against 46 opening mana is a
+discount, not a debt.
 
 ---
 
@@ -151,3 +171,12 @@ Recorded here rather than learned again:
 - **Do not measure anything that depends on how long a fight ran.** A class
   that slows the enemy makes the fight longer, so totals come out equal and the
   class looks like it does nothing. Use fixed windows.
+- **Filter log events by side.** Counting `Cast` events to measure Tired
+  counted the *enemy's* casts and reported that ninety-six mana of debt changed
+  nothing. Neither board in the project casts spells at all.
+- **A resource may have more than one event.** Mana arrives through `GainMana`,
+  not `GainResource`, so the run-total mana counter read zero for ever while
+  the other three worked.
+- **`force_win` writes no log.** A loop built on it banks nothing, and a test
+  measuring what a run accumulated will say the condition is unreachable when
+  it is only unfought.
