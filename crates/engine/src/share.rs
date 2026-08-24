@@ -109,6 +109,29 @@ fn slot_of(i: u32) -> SlotKind {
 }
 
 /// Write a run down.
+/// A second complete run, built by somebody else entirely.
+///
+/// Worth keeping beside `A_WINNING_RUN` because it wins the same game a
+/// different way, and having only one finished board to measure against meant
+/// every tuning decision was really a decision about one person's taste.
+///
+/// Seventy-six pieces at ninety-eight percent of the cells - marginally
+/// tighter than the owner's - but the shape is not the same. Half of what is
+/// on this board is deliberately *not* assembled: twelve finished items and
+/// twelve loose groups seated purely for their flat stats, because a piece
+/// that cannot finish an item still pays its base stats and a cell left empty
+/// pays nothing. The owner's board finishes almost everything it seats.
+///
+/// It also went through the towns - it carries Piety and Tired - and took
+/// Trundle at the roadside, which no board here had done.
+///
+/// The four class tokens differ from the string the player copied. Classes are
+/// written down as positions in `CLASSES`, and for one day that array had the
+/// three town classes at the front of it, which is when this run was shared -
+/// see `the_class_order_is_append_only`. Every placement in the code is
+/// untouched; only those four numbers were re-pointed.
+pub const A_FRIENDS_RUN: &str = "2-1J-1J-2-74K-0-0-4-4-R-M-P-2C-1GR02-11441-H881-11405-11065-ZC28-E80D-J84C-12C8C-1KC2H-10WAH-ZC0R-E44R-1ERAS-7RG1-1JGM1-144P0-1MGP6-14WT5-1MGP8-138GC-1PCMC-78MG-ERTH-148GN-1JGMN-154PN-1PCRR-1PCPW-P501-1F141-FN81-1NX24-6S08-X4A-15X0D-1718C-P52K-1FS6G-HN8H-650M-1HN6M-6S8M-1A90R-1NX2R-5H6R-498T-5X0W-18HG1-16HM0-10XT1-85J4-7XR7-1P1GB-49MA-161RF-3NJG-115MH-11NGM-FNPN-5STM-119JR-1KY00-Q220-BT63-V606-SY0A-RY48-SY88-C26D-1HT0G-D64K-1GP6P-RY0R-TY4T-RT8S";
+
 /// A run that cleared the whole ladder, shared by the game's owner.
 ///
 /// Kept here as a fixture rather than in one test file, because it is the only

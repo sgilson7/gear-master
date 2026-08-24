@@ -705,29 +705,6 @@ impl ClassDef {
 }
 
 pub static CLASSES: &[ClassDef] = &[
-    // ---- the three you can only pick up in a town ----
-    //
-    // None of these has requirements, because nothing you wear points at
-    // them: they are places you went, not builds you made. `is_earned` keeps
-    // them off the fountain.
-    ClassDef {
-        name: "Piety",
-        blurb: "You knelt on a stone floor in a town that is mostly water, and it cut, and you stayed down.",
-        requires: &[],
-        power: ClassPower::Piety { faith: 1 },
-    },
-    ClassDef {
-        name: "Ticket to Ride",
-        blurb: "Five prayers in, somebody hands you a small printed card and will not say who from.",
-        requires: &[],
-        power: ClassPower::Ticket { nth: 2 },
-    },
-    ClassDef {
-        name: "Tired",
-        blurb: "You took the shift. They paid on the hour, in full, which is the part you keep telling people.",
-        requires: &[],
-        power: ClassPower::Tired { mana: 3 },
-    },
     ClassDef {
         name: "Chronomancer",
         blurb: "Orbs that never cast the same thing twice, and a chestpiece full of magic.",
@@ -883,6 +860,29 @@ pub static CLASSES: &[ClassDef] = &[
         requires: &[],
         power: ClassPower::Adaptable(1),
     },
+    // ---- the three you can only pick up in a town ----
+    //
+    // None of these has requirements, because nothing you wear points at
+    // them: they are places you went, not builds you made. `is_earned` keeps
+    // them off the fountain.
+    ClassDef {
+        name: "Piety",
+        blurb: "You knelt on a stone floor in a town that is mostly water, and it cut, and you stayed down.",
+        requires: &[],
+        power: ClassPower::Piety { faith: 1 },
+    },
+    ClassDef {
+        name: "Ticket to Ride",
+        blurb: "Five prayers in, somebody hands you a small printed card and will not say who from.",
+        requires: &[],
+        power: ClassPower::Ticket { nth: 2 },
+    },
+    ClassDef {
+        name: "Tired",
+        blurb: "You took the shift. They paid on the hour, in full, which is the part you keep telling people.",
+        requires: &[],
+        power: ClassPower::Tired { mana: 3 },
+    },
 ];
 
 /// How well a build matches one class.
@@ -954,6 +954,48 @@ pub fn how_you_get_it(name: &str) -> Option<&'static str> {
         _ => "taken at an event, off the road",
     })
 }
+
+/// Every class, in the order a share code writes them down.
+///
+/// This is the load-bearing detail of the whole sharing feature: a code stores
+/// classes as positions in `CLASSES`, so the array is a wire format and not
+/// just a list. Inserting a class anywhere but the end silently re-points
+/// every code ever written - and quietly, because the code still reads, it
+/// just names different classes.
+///
+/// That has happened once. The three town classes went in at the top, and from
+/// then until it was noticed, every saved build reported somebody else's
+/// titles. `A_FRIENDS_RUN` was shared during that window and had to be
+/// re-pointed by hand.
+///
+/// Add a class by appending to `CLASSES` and appending here. Never reorder.
+pub const CLASS_ORDER: &[&str] = &[
+    "Chronomancer",
+    "Archmage",
+    "Berserker",
+    "Longhauler",
+    "Trundle",
+    "Immense Guilt",
+    "Bulwark",
+    "Hexweaver",
+    "Druid",
+    "Templar",
+    "Duelist",
+    "Juggernaut",
+    "Geomancer",
+    "Spellblade",
+    "Oracle",
+    "Stormcaller",
+    "Warpriest",
+    "Bloodletter",
+    "Wellspring",
+    "Ascendant",
+    "Avenged",
+    "Wanderer",
+    "Piety",
+    "Ticket to Ride",
+    "Tired",
+];
 
 pub fn is_earned(name: &str) -> bool {
     if crate::dungeon::is_dungeon_only(name) || TOWN_CLASSES.contains(&name) {
@@ -1125,5 +1167,34 @@ mod tests {
         let extreme = Fingerprint { scores: vec![(Axis::Orbits, 100), (Axis::MagicIn(SlotKind::Chest), 100)] };
         assert_eq!(classify(&modest).name, "Chronomancer");
         assert_eq!(classify(&extreme).name, "Chronomancer");
+    }
+}
+
+#[cfg(test)]
+mod order_tests {
+    use super::*;
+
+    #[test]
+    fn the_class_order_is_append_only() {
+        // `CLASSES` is a wire format: a share code stores a class as its
+        // position in it. Reordering re-points every code anybody has saved,
+        // and does it silently - the code still reads, it just hands back
+        // different titles.
+        let live: Vec<&str> = CLASSES.iter().map(|c| c.name).collect();
+        for (i, name) in CLASS_ORDER.iter().enumerate() {
+            assert_eq!(
+                live.get(i),
+                Some(name),
+                "position {i} is {:?} and every share code written so far says it is {name:?}. \
+                 Append new classes; never insert or reorder.",
+                live.get(i)
+            );
+        }
+        assert_eq!(
+            live.len(),
+            CLASS_ORDER.len(),
+            "a class was added to CLASSES without being appended to CLASS_ORDER, so it \
+             cannot be shared"
+        );
     }
 }
