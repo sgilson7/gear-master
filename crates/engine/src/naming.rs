@@ -291,6 +291,10 @@ pub fn qualifiers(reg: &PieceRegistry, pieces: &[PieceId]) -> Vec<&'static str> 
                 EffectKind::DoubleNeighbor { .. } => "Resonant",
                 EffectKind::SelfPerEmptyCell { .. } => "Hollow",
                 EffectKind::DoubleAdjacentItemStat { .. } => "Conducting",
+                // Named for the thing standing on it, which is what an
+                // underlay is for.
+                EffectKind::PerOverlappingItem { .. } => "Bearing",
+                EffectKind::PerOverlappingCore { .. } => "Foundational",
             }));
         }
         if def.speed_bonus > 0 {

@@ -169,12 +169,28 @@ pub enum PieceKind {
     /// than being cast itself - which is why an orb needs no ink: the
     /// alignment is where an orb's build decision lives.
     Alignment,
+    /// **Terrain.** Laid under the grid rather than packed into it: other
+    /// pieces may sit on top of it, and what it is worth depends on what ends
+    /// up covering it.
+    ///
+    /// No recipe names this kind, which is the whole of how "an underlay is
+    /// never part of an item" is enforced - there is no rule to write and no
+    /// special case to forget. It is a kind rather than a flag on `PieceDef`
+    /// because terrain is a different sort of thing from gear, not gear with a
+    /// setting; the spec called for a `bool`, and a bool would also have meant
+    /// spelling out `underlay: false` in all 446 existing entries.
+    Terrain,
 }
 
 impl PieceKind {
     /// The component each recipe needs exactly one of. A core anchors an item:
     /// everything else in the slot joins the core it is nearest to, which is
     /// what lets two finished items sit flush against each other.
+    /// Does this kind lie under the grid rather than in it?
+    pub fn is_underlay(self) -> bool {
+        matches!(self, PieceKind::Terrain)
+    }
+
     pub fn is_core(self) -> bool {
         matches!(
             self,
@@ -189,6 +205,7 @@ impl PieceKind {
 
     pub fn name(self) -> &'static str {
         match self {
+            PieceKind::Terrain => "terrain",
             PieceKind::Ring => "ring",
             PieceKind::Book => "book",
             PieceKind::Ink => "ink",
@@ -295,6 +312,15 @@ pub enum EffectKind {
     /// `stat`. Cross-item, which is only expressible because items are anchored
     /// by their core and may therefore sit flush against one another.
     DoubleAdjacentItemStat { stat: StatKind },
+    /// Terrain only: `amount` of `stat` for every distinct piece covering at
+    /// least one of this piece's cells.
+    PerOverlappingItem { stat: StatKind, amount: i32 },
+    /// Terrain only: the same, counting only the cores items are built around.
+    ///
+    /// Worth more than `PerOverlappingItem` and harder to earn - a core is one
+    /// piece an item, so covering an underlay with two cores means two items
+    /// standing on it rather than one item spread across it.
+    PerOverlappingCore { stat: StatKind, amount: i32 },
     /// Multiply every number on this item by `times`, but only while the item
     /// is standing alone in the sense `what` describes.
     ///
@@ -8747,6 +8773,38 @@ pub static CATALOG: &[PieceDef] = &[
         quest: None,
         power_bonus: 0,
         price: 1,
+    },
+    // ---- Terrain ----
+    //
+    // The first underlay. Laid under a grid rather than packed into it: gear
+    // may stand on top of it, and what it is worth is decided by what does.
+    //
+    // Appended, and appended is the only way a component may ever join this
+    // list - a share code stores a piece as its position here, so inserting
+    // one anywhere else silently re-points every board anybody has saved.
+    //
+    // It is here in the pull request that built the underlay layer rather than
+    // in the chest sweep that will use it, because a mechanic with nothing
+    // carrying it cannot be tested, and shipping placement rules that nothing
+    // has ever exercised is how they turn out to be wrong later.
+    PieceDef {
+        name: "Keystone Base",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Terrain,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats::health(10),
+        adjacency: None,
+        effect: Some(Effect {
+            label: "for each item built on top of it",
+            kind: EffectKind::PerOverlappingCore { stat: StatKind::Power, amount: 10 },
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 30,
     },
 ];
 

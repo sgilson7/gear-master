@@ -35,6 +35,19 @@ pub struct Slot {
     /// How many rows this grid has. Starts at `SLOT_H` and can be grown.
     rows: u8,
     cells: Vec<Option<PieceId>>,
+    /// The terrain layer, one cell for one cell with `cells`.
+    ///
+    /// Two layers rather than one cell holding two pieces, because everything
+    /// that reads a grid - grouping, adjacency, empty-cell counting, the
+    /// diagonal relation - wants the answer "what gear is here", and terrain is
+    /// not gear. Keeping it in its own layer means `get` still means what it
+    /// always meant and none of those had to learn about underlays. It is also
+    /// how "an underlay never joins an item" enforces itself: `groups` walks
+    /// `cells`, so terrain is not there to be found.
+    ///
+    /// One layer deep, and underlays never overlap each other, so one slot per
+    /// cell is enough.
+    under: Vec<Option<PieceId>>,
 }
 
 impl Slot {
@@ -43,7 +56,8 @@ impl Slot {
     }
 
     pub fn with_rows(kind: SlotKind, rows: u8) -> Self {
-        Self { kind, rows, cells: vec![None; SLOT_W as usize * rows as usize] }
+        let n = SLOT_W as usize * rows as usize;
+        Self { kind, rows, cells: vec![None; n], under: vec![None; n] }
     }
 
     pub fn rows(&self) -> u8 {
@@ -57,7 +71,9 @@ impl Slot {
     /// already filled must not move a single piece, and this is why it cannot.
     pub fn grow(&mut self, by: u8) {
         self.rows += by;
-        self.cells.resize(SLOT_W as usize * self.rows as usize, None);
+        let n = SLOT_W as usize * self.rows as usize;
+        self.cells.resize(n, None);
+        self.under.resize(n, None);
     }
 
     #[inline]
@@ -70,18 +86,49 @@ impl Slot {
         x >= 0 && y >= 0 && x < SLOT_W as i32 && y < self.rows as i32
     }
 
+    /// What gear is in this cell. Terrain is not gear: it is under the grid,
+    /// not in it, and `under_at` is how you ask about that.
     pub fn get(&self, x: u8, y: u8) -> Option<PieceId> {
         self.cells[self.idx(x, y)]
     }
 
+    /// What terrain lies under this cell, whether or not gear covers it.
+    pub fn under_at(&self, x: u8, y: u8) -> Option<PieceId> {
+        self.under[self.idx(x, y)]
+    }
+
+    /// Which layer a piece belongs in.
+    fn layer_of(reg: &PieceRegistry, id: PieceId) -> bool {
+        reg.def(id).kind.is_underlay()
+    }
+
+    /// Distinct pieces of gear sitting on top of `id`, which must be terrain.
+    /// Empty for anything else, and empty for terrain nobody has covered.
+    pub fn covering(&self, id: PieceId) -> Vec<PieceId> {
+        let mut out: Vec<PieceId> = Vec::new();
+        for y in 0..self.rows {
+            for x in 0..SLOT_W {
+                if self.under_at(x, y) != Some(id) {
+                    continue;
+                }
+                if let Some(on_top) = self.get(x, y) {
+                    if !out.contains(&on_top) {
+                        out.push(on_top);
+                    }
+                }
+            }
+        }
+        out
+    }
+
     pub fn is_empty(&self) -> bool {
-        self.cells.iter().all(|c| c.is_none())
+        self.cells.iter().chain(self.under.iter()).all(|c| c.is_none())
     }
 
     /// Every piece currently in this slot, in a stable (row-major) order.
     pub fn pieces(&self) -> Vec<PieceId> {
         let mut seen = Vec::new();
-        for cell in &self.cells {
+        for cell in self.cells.iter().chain(self.under.iter()) {
             if let Some(id) = cell {
                 if !seen.contains(id) {
                     seen.push(*id);
@@ -98,7 +145,7 @@ impl Slot {
         let mut anchor: Option<(u8, u8)> = None;
         for y in 0..self.rows {
             for x in 0..SLOT_W {
-                if self.get(x, y) == Some(id) {
+                if self.get(x, y) == Some(id) || self.under_at(x, y) == Some(id) {
                     anchor = Some(match anchor {
                         None => (x, y),
                         Some((ax, ay)) => (ax.min(x), ay.min(y)),
@@ -110,7 +157,7 @@ impl Slot {
     }
 
     pub fn contains(&self, id: PieceId) -> bool {
-        self.cells.iter().any(|c| *c == Some(id))
+        self.cells.iter().chain(self.under.iter()).any(|c| *c == Some(id))
     }
 
     /// Would `id` fit with its anchor at `(ax, ay)`? Cells the piece itself
@@ -128,12 +175,19 @@ impl Slot {
         if !reg.def(id).fits(self.kind) {
             return Err(PlaceError::WrongSlot);
         }
+        // Terrain collides with terrain and gear collides with gear; the two
+        // layers do not see each other, which is the whole of "an underlay may
+        // be covered". Bounds are checked against the grid's *current* rows,
+        // because a board that has been granted extra rows is that tall now.
+        let underlay = Self::layer_of(reg, id);
         for &(dx, dy) in reg.shape(id).cells() {
             let (nx, ny) = (ax as i32 + dx as i32, ay as i32 + dy as i32);
             if !self.in_bounds(nx, ny) {
                 return Err(PlaceError::OutOfBounds);
             }
-            match self.get(nx as u8, ny as u8) {
+            let (x, y) = (nx as u8, ny as u8);
+            let here = if underlay { self.under_at(x, y) } else { self.get(x, y) };
+            match here {
                 None => {}
                 Some(other) if other == id => {}
                 Some(_) => return Err(PlaceError::Occupied),
@@ -142,20 +196,26 @@ impl Slot {
         Ok(())
     }
 
-    /// Write `id` into every cell of its shape. Check `can_place` first.
+    /// Write `id` into every cell of its shape, in whichever layer it belongs
+    /// to. Check `can_place` first.
     pub fn place(&mut self, reg: &PieceRegistry, id: PieceId, ax: u8, ay: u8) {
+        let underlay = Self::layer_of(reg, id);
         for &(dx, dy) in reg.shape(id).cells() {
             let (nx, ny) = (ax as i32 + dx as i32, ay as i32 + dy as i32);
             if self.in_bounds(nx, ny) {
                 let i = self.idx(nx as u8, ny as u8);
-                self.cells[i] = Some(id);
+                if underlay {
+                    self.under[i] = Some(id);
+                } else {
+                    self.cells[i] = Some(id);
+                }
             }
         }
     }
 
     /// Clear every cell holding `id`.
     pub fn remove(&mut self, id: PieceId) {
-        for cell in &mut self.cells {
+        for cell in self.cells.iter_mut().chain(self.under.iter_mut()) {
             if *cell == Some(id) {
                 *cell = None;
             }
@@ -163,7 +223,7 @@ impl Slot {
     }
 
     pub fn clear(&mut self) {
-        for cell in &mut self.cells {
+        for cell in self.cells.iter_mut().chain(self.under.iter_mut()) {
             *cell = None;
         }
     }
@@ -187,7 +247,7 @@ impl Slot {
         let mut out = Vec::new();
         for y in 0..self.rows {
             for x in 0..SLOT_W {
-                if self.get(x, y) == Some(id) {
+                if self.get(x, y) == Some(id) || self.under_at(x, y) == Some(id) {
                     out.push((x, y));
                 }
             }

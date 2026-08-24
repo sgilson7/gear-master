@@ -544,6 +544,63 @@ impl Loadout {
             });
         }
 
+        // 6. Terrain. It is never in a group - `groups` walks the gear layer
+        //    and terrain is under it - so it contributes here, on its own, as
+        //    the permanently-loose thing it is. Its stats reach the wearer the
+        //    same way any unassembled piece's do.
+        for id in slot.pieces() {
+            let def = reg.def(id);
+            if !def.kind.is_underlay() {
+                continue;
+            }
+            let mut contribution = def.base;
+            let mut item_notes: Vec<String> = Vec::new();
+            if let Some(eff) = def.effect {
+                let covering = slot.covering(id);
+                let n = match eff.kind {
+                    EffectKind::PerOverlappingItem { .. } => covering.len() as i32,
+                    EffectKind::PerOverlappingCore { .. } => {
+                        covering.iter().filter(|&&c| reg.def(c).kind.is_core()).count() as i32
+                    }
+                    _ => 0,
+                };
+                if let EffectKind::PerOverlappingItem { stat, amount }
+                | EffectKind::PerOverlappingCore { stat, amount } = eff.kind
+                {
+                    // Terrain is never assembled, so `When::Assembled` on an
+                    // underlay would silence it for ever. `holds(false)` is the
+                    // honest question and says so.
+                    if n > 0 && eff.when.holds(false) {
+                        contribution.add(stat, amount * n);
+                        item_notes.push(format!(
+                            "{}: +{} {} from {} covering it",
+                            def.name,
+                            amount * n,
+                            stat.name(),
+                            n
+                        ));
+                    }
+                }
+            }
+            slot_total += contribution;
+            items.push(GearItem {
+                name: name_item(
+                    self.name_seed,
+                    reg,
+                    slot,
+                    &[id],
+                    crate::rating::Rarity::of(0),
+                    self.naming,
+                ),
+                pieces: vec![id],
+                assembled: false,
+                status: "underlay".to_string(),
+                stats: contribution,
+                notes: item_notes,
+                rating: 0,
+            });
+        }
+
         SlotReport { slot: kind, items, stats: slot_total }
     }
 

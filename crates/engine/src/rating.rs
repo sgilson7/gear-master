@@ -541,16 +541,23 @@ fn effect_points(e: &Effect, rate: f32) -> f32 {
         // enormous when it lands and very easy to break by accident, and the
         // rating cannot see the board it will end up on.
         EffectKind::SoleIf { times, .. } => (times - 1) as f32 * 22.0,
+        // Terrain is worth what ends up standing on it, and the rating cannot
+        // see the board. Two covering pieces is what a build that bothered to
+        // lay an underlay will manage - it is the same "what a reasonable build
+        // gets" the conditional triggers are discounted by.
+        EffectKind::PerOverlappingItem { amount, stat } => {
+            EXPECTED_COVERAGE * amount as f32 * stat_weight(stat)
+        }
+        // A core is one piece an item, so covering an underlay with two of
+        // them means two whole items standing on it. Rarer, and worth more per
+        // point because of it.
+        EffectKind::PerOverlappingCore { amount, stat } => {
+            EXPECTED_COVERAGE * 0.6 * amount as f32 * stat_weight(stat)
+        }
         // Worth roughly two neighbours of the right sort, which is what a
         // build that wants this effect will actually manage.
         EffectKind::SelfPerNeighborKind { per, stat, .. } => {
-            2.0 * per as f32
-                * match stat {
-                    crate::stats::StatKind::Strength => weight::STRENGTH,
-                    crate::stats::StatKind::Health => weight::HEALTH,
-                    crate::stats::StatKind::Power => weight::POWER,
-                    _ => 2.0,
-                }
+            2.0 * per as f32 * stat_weight(stat)
         }
         // Doubling a neighbour is worth about what a good neighbour carries.
         EffectKind::DoubleNeighbor { .. } => 16.0,
@@ -560,6 +567,28 @@ fn effect_points(e: &Effect, rate: f32) -> f32 {
         EffectKind::Flat { stats } => standing_points(&stats) + activated_points(&stats, rate),
     };
     raw * scale
+}
+
+/// How many covering pieces an underlay can expect to end up under.
+///
+/// The rating cannot see the board, so this is the same standard every
+/// conditional trigger in this file is discounted by: what a build that
+/// actually wanted the effect will manage. Somebody who lays terrain lays gear
+/// on it.
+const EXPECTED_COVERAGE: f32 = 2.0;
+
+/// What one point of a stat is worth to an effect that grants it directly.
+///
+/// Was written inline inside `SelfPerNeighborKind` and is now wanted by the two
+/// overlap effects as well; three copies of a four-arm match is how they drift
+/// apart.
+fn stat_weight(stat: crate::stats::StatKind) -> f32 {
+    match stat {
+        crate::stats::StatKind::Strength => weight::STRENGTH,
+        crate::stats::StatKind::Health => weight::HEALTH,
+        crate::stats::StatKind::Power => weight::POWER,
+        _ => 2.0,
+    }
 }
 
 fn adjacency_points(a: &Adjacency, rate: f32) -> f32 {
