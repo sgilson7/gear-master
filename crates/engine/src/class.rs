@@ -937,6 +937,24 @@ fn ordinal(n: u32) -> String {
     format!("{}{}", n, suffix)
 }
 
+/// Where a class that no fountain pours actually comes from, in a few words.
+///
+/// The shelf used to print "asks for nothing" for these, which is true and
+/// useless: a class you cannot build toward and cannot be told where to find
+/// is a class the glossary has listed and not explained.
+pub fn how_you_get_it(name: &str) -> Option<&'static str> {
+    if !is_earned(name) {
+        return None;
+    }
+    Some(match name {
+        "Piety" => "prayed for, at a town chapel",
+        "Ticket to Ride" => "five prayers, at a town chapel",
+        "Tired" => "worked for, at a town factory",
+        _ if crate::dungeon::is_dungeon_only(name) => "carried out of a dungeon",
+        _ => "taken at an event, off the road",
+    })
+}
+
 pub fn is_earned(name: &str) -> bool {
     if crate::dungeon::is_dungeon_only(name) || TOWN_CLASSES.contains(&name) {
         return true;

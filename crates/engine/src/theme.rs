@@ -920,6 +920,21 @@ pub static TURTLE_DICK: Theme = Theme {
              from you permanently.",
         ),
         (
+            "MANA DEBT",
+            "JOKE DEBT",
+            "Jokes below zero, which is what a shift at the works leaves you on. Nothing \
+             that spends jokes can pay while the jar is under water - you have to bank your \
+             way back above the cost first. A build that never tells a joke never notices.",
+        ),
+        (
+            "A MISS",
+            "A CLEAN MISS",
+            "An attack that comes to nothing at all - no harm, no curse, no drain. A \
+             Multicity Season Pass is the only thing that causes them, and it counts rather \
+             than rolls: every second attack made against you, per attacker. Exactly half of \
+             everything, and it never streaks.",
+        ),
+        (
             "MIND RESIST",
             "THICK SKULL",
             "Percent reduction to Idiot Mode. Survivable, given a thick enough one.",

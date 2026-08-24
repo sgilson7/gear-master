@@ -71,6 +71,11 @@ pub fn misfire_interval(stacks: u32) -> u32 {
 }
 
 impl CurseKind {
+    /// All four, so anything that has to cover the set - the glossary, the
+    /// theme, a legend - can be checked rather than kept in step by hand.
+    pub const ALL: [CurseKind; 4] =
+        [CurseKind::Searing, CurseKind::Frost, CurseKind::Stun, CurseKind::Misfire];
+
     pub fn name(self) -> &'static str {
         match self {
             CurseKind::Searing => "searing",

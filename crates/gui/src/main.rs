@@ -5759,8 +5759,19 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("RAGE", "Banked by some gear. Every point adds physical damage while you hold it, and some triggers spend it for a burst."),
     ("FAITH", "Banked slowly. Every point adds resistance of both types while held, up to 40%."),
     ("NATURE", "Banked by growing things. Every point adds regeneration while held."),
-    ("CLASS", "Read off your build at a fountain, never chosen. There are two fountains on the ladder and they give different classes, so you end up holding both and both powers apply. Hover the class panel to see your build drawn as a shape, what you would be given now, and what you are nearest to otherwise."),
+    ("CLASS", "Read off your build at a fountain, never chosen. Three fountains stand on the ladder - two that name you something new and a deep one that doubles a title you already hold - and every class you are carrying applies at once. Some are not poured at all but earned, off the road: a dungeon, an event, a town. Hover the class panel to see your build drawn as a shape, what you would be given now, and what you are nearest to otherwise."),
+    ("STACKING CLASSES", "Most titles are held once. Two are not: Piety and Tired are handed out by a town over and over, and each one you take counts. A stacked class is shown with its count beside the name, and its power is multiplied by it."),
     ("THE FOUNTAIN", "Not a fight, and not a rung: drinking costs you nothing and the creature standing there is still to be fought. It measures your gear along a set of axes - how much magic, how much iron, how fast, how woven together - and gives you the most demanding class you qualify for. The second fountain will not repeat the first."),
+    ("SUDDEN DEATH", "After 30 seconds both fighters start losing health every second - 1% of maximum, then 2%, then 3%, climbing until somebody falls. It goes through armour and resistance and answers to nothing. No fight can run for ever, and a wall that cannot kill is no longer a wall that cannot lose. If you both go down on the same tick, whoever was further from zero takes it, and a dead heat goes to you."),
+    ("BRAWL", "Some events put more than one creature across the table. Your aim moves along after every attack, so a brawl comes down together rather than one at a time, and every one of them acts against you independently. A brawl is not a rung: whichever way it goes, the fight the ladder had waiting is still waiting."),
+    ("TOWN", "A rung with nothing on it to fight, inserted between two that do have something. At the gate you either walk on - which pays the last bounty a second time - or go in, and going in buys exactly one of four things: the chapel, the pub, the factory, or the shop. One a visit, and a town is only ever visited once."),
+    ("RUMOUR", "A component that is not gear. It has one empty cell, it never goes on a board, and all it has to do is be carried. What it is for is standing as the condition on a door that will not otherwise be there - and its description tells you roughly what sets it off rather than exactly, because working that out is the whole of it."),
+    ("BARTER", "How the pub sells. It does not take money: a rumour is paid for by handing over a loose component of the kind it asks for, or another rumour. Click the shelf, and anything in the tray they would take lights up."),
+    ("MANA DEBT", "Mana below zero, which is what a stack of Tired starts you on. Nothing that spends mana can pay while the pool is under water - your income has to carry it back above the cost first. A board that never spends mana never notices."),
+    ("BANKED AT THE BELL", "Every pool starts a fight at zero and earns its way up, which is why the opening of every fight looks much the same whatever you are wearing. One thing changes that: a stack of Piety hands you a point of faith before the first tick."),
+    ("A MISS", "An attack that comes to nothing at all - no damage, no curse, no drain. Ticket to Ride is the only thing that causes them, and it counts rather than rolls: every second attack made against you, per attacker. Exactly half, and it never streaks."),
+    ("DRAIN", "Some gear takes a pool off the other side rather than adding to its own, and hurts them for what it took. It is the answer to a build that has banked more than it can spend."),
+    ("EXTRA ROWS", "One reward in the game makes your grids taller rather than giving you something to put in them. Rows only ever go up - nothing that grants them can be sold - so a piece can never end up sitting in a row that is about to stop existing."),
     // Last, so it lands on the last page. It is a control as well as a
     // definition; see SKIP_TERM.
     (SKIP_TERM, "The road up the mountain, which most of us have walked more times than we care to count. Those who know it well are not made to walk it again: click these words and choose where to pick it up. Every rung on the way pays its bounty in full, as though each had been fought and won. It only runs upward. It keeps no quests. It asks no questions."),
@@ -6379,7 +6390,9 @@ fn render_fountain(run: &Run, mx: f32, my: f32) -> Option<&'static gearmaster_en
             y += 15.0;
         }
         if c.requires.is_empty() {
-            ui_text("asks for nothing", cell.x + 14.0, y, 12.0, col_dim());
+            let how = gearmaster_engine::class::how_you_get_it(c.name)
+                .unwrap_or("asks for nothing");
+            ui_text(&words::retell(how), cell.x + 14.0, y, 12.0, col_dim());
             y += 15.0;
         }
         y += 10.0;
@@ -7415,8 +7428,14 @@ fn render_class_pages(r: Rect, page: usize, _mx: f32, _my: f32) -> usize {
             }
             y += 6.0;
             if c.requires.is_empty() {
-                ui_text("asks for nothing", x + 8.0, y, 12.0, col_dim());
-                y += 15.0;
+                // Nothing you wear points at these, so the line that would
+                // list what to build says where to go instead.
+                let how = gearmaster_engine::class::how_you_get_it(c.name)
+                    .unwrap_or("asks for nothing");
+                for l in wrap_px(&words::retell(how), col_w - 12.0, 12.0) {
+                    ui_text(&l, x + 8.0, y, 12.0, col_dim());
+                    y += 15.0;
+                }
             } else {
                 for &(axis, need) in c.requires {
                     ui_text(
@@ -9815,6 +9834,136 @@ async fn main() {
 // The coordinate maths below is the load-bearing part of drag and drop: if
 // `hit` and `cell_origin` ever disagree, pieces land one cell away from where
 // they were dropped. None of these touch the GPU, so they run headlessly.
+
+#[cfg(test)]
+mod glossary_tests {
+    use super::*;
+
+    /// Every term the glossary defines, in the plain words, upper-cased.
+    fn terms() -> Vec<String> {
+        GLOSSARY.iter().map(|(t, _)| t.trim().to_uppercase()).collect()
+    }
+
+    fn defines(word: &str) -> bool {
+        let want = word.to_uppercase();
+        terms().iter().any(|t| t.contains(&want))
+    }
+
+    #[test]
+    fn a_class_no_build_points_at_says_where_to_find_it() {
+        use gearmaster_engine::class::{how_you_get_it, is_earned, CLASSES};
+        // A class with no requirements is either the floor - which a fountain
+        // pours when a build matched nothing, and for which "asks for nothing"
+        // is the literal truth - or it is earned somewhere, and then the shelf
+        // has to say where.
+        for c in CLASSES.iter().filter(|c| c.requires.is_empty() && is_earned(c.name)) {
+            let how = how_you_get_it(c.name);
+            assert!(
+                how.is_some(),
+                "{} asks for nothing and the shelf cannot say where it comes from",
+                c.name
+            );
+            assert!(how.unwrap().len() > 10, "{}: {:?} explains nothing", c.name, how);
+        }
+        // And the reverse: nothing that a build *can* reach pretends to be
+        // earned, or the fountain would be offering something it will not.
+        for c in CLASSES.iter().filter(|c| !c.requires.is_empty()) {
+            assert!(how_you_get_it(c.name).is_none(), "{} is both built and earned", c.name);
+        }
+    }
+
+    #[test]
+    fn every_class_in_the_game_is_on_the_classes_shelf() {
+        // The shelf walks CLASSES, so this is really a check that nothing is
+        // filtered out of it - an earned class is still a class you can be
+        // holding, and a player looking one up does not know or care how they
+        // came by it.
+        use gearmaster_engine::class::CLASSES;
+        assert!(CLASSES.len() > 20, "only {} classes; the list is not being read", CLASSES.len());
+        for c in CLASSES {
+            assert!(!c.blurb.is_empty(), "{} has no blurb, so its card is a heading", c.name);
+            let power = c.power.describe();
+            assert!(
+                power.len() > 30,
+                "{}'s power describes itself in {:?}, which tells nobody anything",
+                c.name,
+                power
+            );
+            assert!(
+                !c.power.short().is_empty(),
+                "{} has nothing to show in the side panel",
+                c.name
+            );
+        }
+    }
+
+    #[test]
+    fn a_class_that_stacks_says_so_somewhere() {
+        use gearmaster_engine::class::{stacks, CLASSES};
+        for c in CLASSES.iter().filter(|c| stacks(c.name)) {
+            let text = format!("{} {}", c.blurb, c.power.describe()).to_lowercase();
+            assert!(
+                text.contains("stack"),
+                "{} can be held several times over and never mentions it: {:?}",
+                c.name,
+                c.power.describe()
+            );
+        }
+    }
+
+    #[test]
+    fn every_resource_is_defined() {
+        use gearmaster_engine::piece::Resource;
+        for r in Resource::ALL {
+            assert!(defines(r.name()), "the glossary never says what {} is", r.name());
+        }
+    }
+
+    #[test]
+    fn every_curse_is_defined() {
+        use gearmaster_engine::curse::CurseKind;
+        for k in CurseKind::ALL {
+            assert!(defines(k.name()), "the glossary never says what a curse of {} does", k.name());
+        }
+    }
+
+    #[test]
+    fn every_rule_that_can_end_a_fight_is_defined() {
+        // The three ways a fight stops that are not "somebody ran out of
+        // health": these are the ones a player meets without being told.
+        for word in ["SUDDEN DEATH", "BOUNTY", "BRAWL"] {
+            assert!(defines(word), "the glossary never explains {word}");
+        }
+    }
+
+    #[test]
+    fn every_thing_a_town_hands_you_is_defined() {
+        for word in ["TOWN", "RUMOUR", "BARTER", "MANA DEBT"] {
+            assert!(defines(word), "the glossary never explains {word}");
+        }
+    }
+
+    #[test]
+    fn no_term_is_defined_twice() {
+        let mut seen = terms();
+        let n = seen.len();
+        seen.sort();
+        seen.dedup();
+        assert_eq!(seen.len(), n, "the glossary defines something twice");
+    }
+
+    #[test]
+    fn every_definition_is_worth_reading() {
+        for (term, meaning) in GLOSSARY {
+            assert!(!term.trim().is_empty(), "a nameless entry");
+            assert!(
+                meaning.len() > 20,
+                "{term} is defined in {:?}, which is not a definition",
+                meaning
+            );
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
