@@ -566,6 +566,7 @@ impl Run {
                 if let Some(k) = crate::class::CLASSES.iter().find(|k| k.name == class) {
                     if !self.classes.iter().any(|held| held.name == k.name) {
                         self.classes.push(k);
+                        self.refresh_class_effects();
                     }
                 }
             }
@@ -579,6 +580,7 @@ impl Run {
                 if let Some(c) = crate::class::CLASSES.iter().find(|c| c.name == name) {
                     if !self.classes.iter().any(|k| k.name == c.name) {
                         self.classes.push(c);
+                        self.refresh_class_effects();
                     }
                 }
             }
@@ -635,6 +637,15 @@ impl Run {
     /// not on the table. Handing something over has to cost you something you
     /// could have used.
     pub fn payment_for(&self, slot: usize) -> Vec<PieceId> {
+        if self.trophy_shelf(slot) {
+            // Any trophy. There is no scale between them - what the bar is
+            // buying is that you went and took one off something.
+            return self
+                .inventory()
+                .into_iter()
+                .filter(|&id| crate::piece::is_boss_only(self.registry.def(id).name))
+                .collect();
+        }
         let Some(r) = self.rumour_on(slot) else { return Vec::new() };
         self.inventory()
             .into_iter()
@@ -654,6 +665,14 @@ impl Run {
         crate::rumour::by_name(def.name)
     }
 
+    /// Is this shelf the bar's standing offer on boss trophies?
+    ///
+    /// The counter pays nothing for one, so this is the only thing in the game
+    /// that will take one at all.
+    pub fn trophy_shelf(&self, slot: usize) -> bool {
+        self.shop.def(slot).is_some_and(|d| d.name == crate::rumour::TROPHY_SHELF)
+    }
+
     /// Buy a rumour by handing something over.
     ///
     /// A separate door from `buy` on purpose: the pub does not take money, and
@@ -664,11 +683,21 @@ impl Run {
         if self.phase != Phase::Loadout {
             return Err(RuleError::LoadoutLocked);
         }
-        if self.rumour_on(slot).is_none() {
+        if self.rumour_on(slot).is_none() && !self.trophy_shelf(slot) {
             return Err(RuleError::NothingThere);
         }
         if !self.payment_for(slot).contains(&paying) {
             return Err(RuleError::NothingThere);
+        }
+        // The trophy trade hands over a class, not a component. The shelf
+        // restocks, because a run that took two bosses may spend two.
+        if self.trophy_shelf(slot) {
+            self.remember("trading a trophy");
+            self.owned.retain(|&i| i != paying);
+            self.loadout.remove_anywhere(paying);
+            self.gain_class("Recycler");
+            self.refresh_class_effects();
+            return Ok(paying);
         }
         self.remember("bartering");
         let def = self.shop.take(slot).ok_or(RuleError::NothingThere)?;
@@ -874,6 +903,7 @@ impl Run {
                     {
                         if !self.classes.iter().any(|k| k.name == c.name) {
                             self.classes.push(c);
+                            self.refresh_class_effects();
                             settlement.class_won = Some(c.name);
                         }
                     }
@@ -1426,6 +1456,7 @@ impl Run {
             return None;
         }
         self.classes.push(choice);
+        self.refresh_class_effects();
         let need = self.needs_a_weapon();
         self.shop.restock(&mut self.rng, need);
         Some(choice)
@@ -1441,6 +1472,7 @@ impl Run {
             .map(|m| m.class)
             .unwrap_or_else(|| crate::class::classify(&self.fingerprint()));
         self.classes.push(class);
+        self.refresh_class_effects();
         // A fountain is not a fight and does not stand on a rung of its own,
         // so the ladder does not move. The shelves still turn over: drinking
         // is a moment between fights like any other.
@@ -1963,6 +1995,24 @@ impl Run {
         out
     }
 
+    /// Push the class rules that live on the board back onto the board.
+    ///
+    /// Recycler scales adjacency bonuses, and `Loadout::report` is the single
+    /// place that maths happens - so the loadout has to be told. Every path
+    /// that changes `self.classes` calls this; `a_class_gained_any_way_reaches_the_board`
+    /// is the test that says so.
+    pub fn refresh_class_effects(&mut self) {
+        let pct = self
+            .effective_classes()
+            .iter()
+            .filter_map(|c| match c.power {
+                crate::class::ClassPower::Recycler { pct } => Some(pct),
+                _ => None,
+            })
+            .sum();
+        self.loadout.adjacency_pct = pct;
+    }
+
     /// Add one to a stacking class, or the class itself if it does not stack.
     fn gain_class(&mut self, name: &'static str) {
         let Some(c) = crate::class::CLASSES.iter().find(|c| c.name == name) else { return };
@@ -1970,6 +2020,7 @@ impl Run {
             return;
         }
         self.classes.push(c);
+        self.refresh_class_effects();
     }
 
     /// How many of a class is held. One for anything that does not stack.

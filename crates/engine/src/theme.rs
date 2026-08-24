@@ -277,6 +277,9 @@ pub static TURTLE_DICK: Theme = Theme {
         // The Sprocketmen were mined out of the Great Gear Cave by Lord
         // Drabley Henpeck (p. 44). He is still hiring.
         ("Tired", "Henpeck's Double Shift"),
+        // Cogs are the one place the old words survive on purpose, salvaged
+        // out of the Great Gear Cave - and salvage is exactly what this is.
+        ("Recycler", "Gear Cave Salvager"),
         ("Juggernaut", "Multicity Commuter"),   // 1.79 trillion residents, pp. 70-73
         ("Longhauler", "Thrumbus Finisher"),
         ("Oracle", "Galapagos Timekeeper"),     // Galapagos Jim, time traveller, pp. 89-90
@@ -605,6 +608,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Scaled Plating", "Megalodon Scale"),
         ("Scarred Plating", "Dented Vinyl Plating"),
         ("Scholar's Codex", "Rick Richard's Notebook"),
+        ("Scrap Ticket", "Henpeck's Chit"),
         ("Scrying Lens", "Cork Glasses"),
         ("Scrying Orb", "Mog Watcher"),
         ("Seal of Power", "Treyway Seal"),
@@ -624,6 +628,7 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Silver Band", "Fnorp Piece"),
         ("Silver Charm", "Forever Stamp"),
         ("Siphon", "Semuta Strain"),
+        ("Slash and Burn", "Radish Roast"),
         ("Soot Ink", "Slime Cola"),
         ("Sovereign Mold", "Treyway Mold"),
         ("Spiked Vambrace", "Dart-Board Vambrace"),

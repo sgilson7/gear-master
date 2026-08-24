@@ -631,7 +631,18 @@ pub fn shop_price(def: &PieceDef) -> i32 {
 }
 
 /// Half of what it cost, rounded down - what selling one back pays.
+/// What the counter pays for a component.
+///
+/// Boss gear pays nothing, on purpose. It is priced off a rating that is
+/// deliberately outside the scale - the Money Jacket came to 1685 against 131
+/// for the best thing anybody can buy - so one trophy paid for the rest of the
+/// run and the shop stopped being a decision. What it is worth instead is a
+/// trade: the pub takes one for a stack of Recycler, and that is the only
+/// thing in the game that will take one.
 pub fn resale_price(def: &PieceDef) -> i32 {
+    if crate::piece::is_boss_only(def.name) {
+        return 0;
+    }
     shop_price(def) / 2
 }
 

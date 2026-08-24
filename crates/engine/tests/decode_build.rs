@@ -64,3 +64,71 @@ fn both_shared_runs_read_back_the_classes_they_were_played_with() {
     assert_eq!(friend.wins, 50);
     assert_eq!(friend.losses, 2);
 }
+
+#[test]
+fn probe_boss_prices() {
+    use gearmaster_engine::piece::{BOSS_ONLY, CATALOG};
+    use gearmaster_engine::rating::{resale_price, shop_price};
+    let mut worst = 0;
+    for name in BOSS_ONLY {
+        let d = CATALOG.iter().find(|d| d.name == *name).unwrap();
+        println!("{:>24}  shop {:>5}  resale {:>5}", name, shop_price(d), resale_price(d));
+        worst = worst.max(resale_price(d));
+    }
+    println!("worst boss resale: {worst}");
+    let ordinary: i32 = CATALOG.iter()
+        .filter(|d| !gearmaster_engine::piece::is_off_the_scale(d.name))
+        .map(resale_price).max().unwrap();
+    println!("best ordinary resale: {ordinary}");
+}
+
+/// A fingerprint of what a code actually seats, so a catalogue shift is loud.
+fn worn(code: &str) -> Vec<&'static str> {
+    let sh = gearmaster_engine::share::import(code).expect("reads");
+    let mut names: Vec<&'static str> = sh
+        .placed
+        .iter()
+        .map(|&(d, ..)| gearmaster_engine::piece::CATALOG[d].name)
+        .collect();
+    names.sort_unstable();
+    names
+}
+
+#[test]
+fn both_shared_runs_still_seat_the_gear_they_were_built_from() {
+    // `CATALOG` is a wire format: a share code stores a component as its
+    // position in it. Inserting a piece anywhere but the end re-points every
+    // saved board, and does it quietly - the code still reads, the board is
+    // still full, it is simply somebody else's gear.
+    //
+    // That happened. One spell went into the middle of the catalogue and both
+    // of these decoded into different boards; the owner's lost six hundred
+    // health and the friend's helmet went from four items to two. Nothing
+    // failed, because nothing was checking.
+    //
+    // A count is not enough - the wrong board has the same number of pieces.
+    // These are what the two runs are actually wearing.
+    let owner = worn(gearmaster_engine::share::A_WINNING_RUN);
+    assert_eq!(owner.len(), 75);
+    // Four trophies off four named creatures, which is the part of a board
+    // nobody could have got any other way.
+    for trophy in ["Asker's Monocle", "Eighth Ray Crown", "Henpeck's Cell Keys", "Kaklon's Patent"]
+    {
+        assert!(owner.contains(&trophy), "the owner's board lost its {trophy}");
+    }
+    assert_eq!(owner.iter().filter(|n| **n == "Riveted Layer").count(), 2);
+    assert_eq!(owner.iter().filter(|n| **n == "Sawtooth Edge").count(), 2);
+    assert_eq!(owner.iter().filter(|n| **n == "Witchglass Shard").count(), 2);
+    assert!(owner.contains(&"Worldsplitter"));
+
+    let friend = worn(gearmaster_engine::share::A_FRIENDS_RUN);
+    assert_eq!(friend.len(), 76);
+    // This run went through the VIP area and through a town, and the board
+    // says so: two pieces off the table behind the rope, and three off a cart
+    // in Sump Bottom. Nothing at those indices by accident would.
+    assert_eq!(friend.iter().filter(|n| **n == "Tallykeeper's Weave").count(), 2);
+    assert!(friend.contains(&"Treadmill Sole"), "lost the VIP sole");
+    assert_eq!(friend.iter().filter(|n| **n == "Wickstub").count(), 3);
+    assert_eq!(friend.iter().filter(|n| **n == "Runed Plating").count(), 3);
+    assert!(friend.contains(&"The Seeker's Tears"));
+}

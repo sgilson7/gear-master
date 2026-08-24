@@ -266,6 +266,17 @@ pub struct Loadout {
     /// the theme, but it has to live here: names are generated where items
     /// are, not where they are drawn.
     pub naming: &'static crate::naming::Naming,
+    /// Extra percent on every adjacency bonus, from Recycler.
+    ///
+    /// It lives on the loadout rather than being passed in because `report` is
+    /// called from a hundred and eight places and every one of them - the
+    /// character sheet, each item card, the shop's comparison, combat - has to
+    /// see the same number. A parameter through all of them would be a
+    /// parameter somebody forgets in one place, and the bug that makes is an
+    /// item card that disagrees with the fight.
+    ///
+    /// `Run::refresh_class_effects` is the only thing that writes it.
+    pub adjacency_pct: i32,
 }
 
 impl Default for Loadout {
@@ -281,6 +292,7 @@ impl Loadout {
             slots: SlotKind::ALL.iter().map(|&k| Slot::new(k)).collect(),
             name_seed: 0,
             naming: &crate::naming::PLAIN_NAMING,
+            adjacency_pct: 0,
         }
     }
 
@@ -487,7 +499,11 @@ impl Loadout {
             if assembled[gi] {
                 for &p in group {
                     if let Some(adj) = reg.def(p).adjacency {
-                        item_stats += adj.stats;
+                        // Recycler counts the bonus for more than it says on
+                        // the piece. The label still quotes the printed
+                        // number, so the note says what the component is and
+                        // the total says what it came to.
+                        item_stats += adj.stats.scaled(100 + self.adjacency_pct);
                         item_notes.push(adj.label.to_string());
                     }
                 }

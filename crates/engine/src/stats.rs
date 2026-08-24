@@ -394,6 +394,40 @@ pub fn after_defences(raw: i32, resist: i32, pierce: i32, harden: i32) -> i32 {
     ((raw as i64 * kept as i64) / 100).max(0) as i32
 }
 
+impl Stats {
+    /// Every field taken to `percent` of itself, rounding toward zero.
+    ///
+    /// Used for adjacency bonuses under Recycler. Percentages are applied to
+    /// the whole lump rather than field by field on purpose: a bonus is one
+    /// thing a component pays, and scaling half of it would be a different
+    /// bonus.
+    pub fn scaled(self, percent: i32) -> Stats {
+        let pct = |v: i32| (v as i64 * percent as i64 / 100) as i32;
+        Stats {
+            health: pct(self.health),
+            strength: pct(self.strength),
+            regen: pct(self.regen),
+            power: pct(self.power),
+            armor: pct(self.armor),
+            mana: pct(self.mana),
+            mind: pct(self.mind),
+            mind_resist: pct(self.mind_resist),
+            curse_resist: pct(self.curse_resist),
+            physical_damage: pct(self.physical_damage),
+            physical_resist: pct(self.physical_resist),
+            physical_pierce: pct(self.physical_pierce),
+            physical_harden: pct(self.physical_harden),
+            magic_damage: pct(self.magic_damage),
+            magic_resist: pct(self.magic_resist),
+            magic_pierce: pct(self.magic_pierce),
+            magic_harden: pct(self.magic_harden),
+            rage: pct(self.rage),
+            faith: pct(self.faith),
+            nature: pct(self.nature),
+        }
+    }
+}
+
 impl Add for Stats {
     type Output = Stats;
     fn add(self, o: Stats) -> Stats {

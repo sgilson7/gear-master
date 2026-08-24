@@ -122,7 +122,10 @@
       "Bash(awk 'NR>2060 && NR<2300 && /^fn |^#\\\\[test\\\\]|use gearmaster_engine/' crates/engine/tests/packing.rs)",
       "Bash(awk -F'[ ;]' '{p+=$4} END {print \"passed:\", p}')",
       "Bash(awk -F: '$1>9820')",
-      "Bash(grep -vE \"^\\(   Compiling|    Finished|     Running|$\\)\")"
+      "Bash(grep -vE \"^\\(   Compiling|    Finished|     Running|$\\)\")",
+      "Bash(python3 /Users/samgilson/.claude/jobs/a7e69fbf/tmp/names.py)",
+      "Bash(PACK_BAND=3 PACK_ITEMS=3 cargo test --release -q -p gearmaster-engine --test pack_francis -- --ignored --nocapture)",
+      "Bash(python3 /Users/samgilson/.claude/jobs/a7e69fbf/tmp/install.py)"
     ]
   }
 }

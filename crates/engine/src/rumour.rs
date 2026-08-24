@@ -103,14 +103,22 @@ pub static RUMOURS: &[Rumour] = &[
     },
 ];
 
-/// Every rumour, as component names, for the pub's shelves.
+/// What the bar will hand over, in shelf order.
+///
+/// The last of them is not a rumour at all. `TROPHY_SHELF` is the trade that
+/// makes a boss trophy worth carrying: the counter pays nothing for one, and
+/// this is the only other thing in the game that will take one.
 pub fn on_offer() -> &'static [&'static str] {
     SHELVES
 }
 
+/// The component that stands for the Recycler trade on the shelves.
+pub const TROPHY_SHELF: &str = "Scrap Ticket";
+
 /// The same list as a const, because `stock_exactly` wants a slice of names
 /// and building one per visit would allocate for nothing.
-const SHELVES: &[&str] = &["A Word About the Crownwright", "A Word About the Green Ledger"];
+const SHELVES: &[&str] =
+    &["A Word About the Crownwright", "A Word About the Green Ledger", TROPHY_SHELF];
 
 pub fn by_name(name: &str) -> Option<&'static Rumour> {
     RUMOURS.iter().find(|r| r.name == name)
@@ -129,7 +137,15 @@ pub fn opens(event_id: &str) -> Option<&'static Rumour> {
 /// "the Crownwright" out of "A Word About the Crownwright", for a price label
 /// that would otherwise be half as long as the shelf.
 fn short_name(full: &str) -> &str {
-    full.strip_prefix("A Word About ").unwrap_or(full)
+    // Both prefixes, longest first. Stripping only "A Word About " leaves the
+    // article behind, and the caller adds one of its own: "they want the the
+    // Crownwright for it".
+    for lead in ["A Word About the ", "A Word About "] {
+        if let Some(rest) = full.strip_prefix(lead) {
+            return rest;
+        }
+    }
+    full
 }
 
 #[cfg(test)]
@@ -146,9 +162,20 @@ mod tests {
             );
         }
         for name in SHELVES {
-            assert!(by_name(name).is_some(), "{name} is on the shelf and is not a rumour");
+            assert!(
+                by_name(name).is_some() || *name == TROPHY_SHELF,
+                "{name} is on the bar and is neither a rumour nor the trophy trade"
+            );
+            assert!(
+                crate::piece::CATALOG.iter().any(|d| d.name == *name),
+                "{name} is on the bar and is not a component"
+            );
         }
-        assert_eq!(SHELVES.len(), RUMOURS.len(), "a rumour nobody can buy");
+        assert_eq!(SHELVES.len(), RUMOURS.len() + 1, "a rumour nobody can buy");
+        assert!(
+            crate::piece::is_event_only(TROPHY_SHELF),
+            "the trophy trade could be bought with money"
+        );
     }
 
     #[test]

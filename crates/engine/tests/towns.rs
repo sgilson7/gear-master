@@ -393,13 +393,21 @@ fn the_pub_stocks_rumours_and_wants_no_money() {
     let mut run = at_the_gate();
     run.visit_town(Action::Pub);
     let on_sale: Vec<&str> = run.shop.stock_defs().iter().map(|d| d.name).collect();
-    assert_eq!(on_sale.len(), gearmaster_engine::rumour::RUMOURS.len());
+    assert_eq!(on_sale.len(), gearmaster_engine::rumour::on_offer().len());
     for r in gearmaster_engine::rumour::RUMOURS {
         assert!(on_sale.contains(&r.name), "{} was not on the bar", r.name);
     }
-    // And every shelf of it is a rumour, so `buy` never reaches one.
+    assert!(
+        on_sale.contains(&gearmaster_engine::rumour::TROPHY_SHELF),
+        "the bar's standing offer on trophies was not on it"
+    );
+    // Nothing on this bar is bought with money, so `buy` must never reach a
+    // shelf of it: every one is either a rumour or the trophy trade.
     for i in 0..on_sale.len() {
-        assert!(run.rumour_on(i).is_some(), "shelf {i} of the pub is not a rumour");
+        assert!(
+            run.rumour_on(i).is_some() || run.trophy_shelf(i),
+            "shelf {i} of the pub takes money"
+        );
     }
 }
 
@@ -765,4 +773,75 @@ fn a_whole_run_up_the_ladder_meets_the_doors_it_paid_for() {
         !without.contains(&"the-crownwright") && !without.contains(&"the-green-ledger"),
         "a run that heard no rumours met one anyway: {without:?}"
     );
+}
+
+// ------------------------------------------------------------------ recycler
+
+#[test]
+fn a_class_gained_any_way_reaches_the_board() {
+    // Recycler's maths lives in `Loadout::report`, so the loadout has to be
+    // told the run holds it. Every path that grants a class has to say so, and
+    // "every path" is the part nobody remembers - so this walks them.
+    let recycler = CLASSES.iter().find(|c| c.name == "Recycler").expect("authored");
+
+    // Through the pub.
+    let mut run = the_winning_board();
+    give(&mut run, "The Money Jacket");
+    run.town = Some(&TOWNS[0]);
+    run.visit_town(Action::Pub);
+    let shelf = (0..6).find(|&i| run.trophy_shelf(i)).expect("the bar takes trophies");
+    let pay = *run.payment_for(shelf).first().expect("the coat pays for it");
+    run.barter(shelf, pay).expect("the trade goes through");
+    assert_eq!(run.stacks_of("Recycler"), 1);
+    assert_eq!(run.loadout.adjacency_pct, 10, "the pub granted it and the board never heard");
+
+    // And pushed straight on, the way a test or a debug hook does.
+    let mut plain = the_winning_board();
+    plain.classes.push(recycler);
+    plain.classes.push(recycler);
+    plain.refresh_class_effects();
+    assert_eq!(plain.loadout.adjacency_pct, 20, "two stacks are twenty percent");
+}
+
+#[test]
+fn recycler_pays_a_board_that_finishes_what_it_seats() {
+    // The point of the class, and the reason it is worth a trophy: it scales
+    // adjacency bonuses, which only pay on an assembled item. Measured on the
+    // owner's board, which finishes nearly everything it seats.
+    let recycler = CLASSES.iter().find(|c| c.name == "Recycler").expect("authored");
+    let mut run = the_winning_board();
+    let before = run.player_stats().health;
+    assert!(before > 0);
+
+    for n in 1..=5 {
+        run.classes.push(recycler);
+        run.refresh_class_effects();
+        assert_eq!(run.loadout.adjacency_pct, n * 10);
+    }
+    let after = run.player_stats().health;
+    assert!(
+        after > before,
+        "five stacks of Recycler moved health from {before} to {after}"
+    );
+    // Five stacks is half again on the bonuses, not on the whole board, so the
+    // jump has to be real and nowhere near fifty percent of everything.
+    assert!(
+        after < before * 3 / 2,
+        "five stacks added {} health, which is half the whole board and not half the bonuses",
+        after - before
+    );
+}
+
+#[test]
+fn a_board_that_assembles_nothing_gets_nothing_from_recycler() {
+    // The other half of the contract. An adjacency bonus pays only when its
+    // item comes together, so a tray full of loose pieces is worth no more
+    // with the class than without it.
+    let recycler = CLASSES.iter().find(|c| c.name == "Recycler").expect("authored");
+    let mut run = Run::new();
+    give(&mut run, "Steel Frame");
+    let before = run.player_stats();
+    run.classes.push(recycler);
+    run.refresh_class_effects();
+    assert_eq!(run.player_stats(), before, "a loose frame paid a bonus it never earned");
 }

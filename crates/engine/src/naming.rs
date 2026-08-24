@@ -392,17 +392,36 @@ pub fn name_item(
 
     // A name grows with what it is worth, so rarity is audible before the
     // badge is read: three words common, four rare, five epic, six legendary.
+    // A tail is one or two words of its own, and either of them can be a word
+    // the name has already used: "Bastion Hollow of the Hollow King" is a
+    // qualifier, a noun and a two-word tail that all agree with each other.
+    // The noun and the attributive were already filtered against the
+    // qualifier; the tail never was, so it was the one place a repeat could
+    // still get through.
+    let taken = [qualifier.to_lowercase(), base.to_lowercase()];
+    let clean = |s: &&'static str| -> bool {
+        !s.split_whitespace().any(|w| taken.contains(&w.to_lowercase()))
+    };
     let tail = |want: usize| -> &'static str {
-        let pool: Vec<&str> =
-            naming.suffixes.iter().copied().filter(|s| s.split_whitespace().count() == want).collect();
-        // A theme with no tail of that length falls back to any tail rather
-        // than to nothing; the word count is a target, not a promise it can
-        // keep on somebody else's corpus.
-        if pool.is_empty() {
-            pick(h, 21, naming.suffixes)
-        } else {
-            pick(h, 21, &pool)
+        let pool: Vec<&str> = naming
+            .suffixes
+            .iter()
+            .copied()
+            .filter(|s| s.split_whitespace().count() == want)
+            .filter(clean)
+            .collect();
+        // A theme with no clean tail of that length widens rather than gives
+        // up: any length that does not repeat, and only then anything at all.
+        // The word count is a target, not a promise it can keep on somebody
+        // else's corpus.
+        if !pool.is_empty() {
+            return pick(h, 21, &pool);
         }
+        let any_clean: Vec<&str> = naming.suffixes.iter().copied().filter(clean).collect();
+        if !any_clean.is_empty() {
+            return pick(h, 21, &any_clean);
+        }
+        pick(h, 21, naming.suffixes)
     };
     let full = match rarity {
         Rarity::Common => {

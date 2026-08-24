@@ -8579,6 +8579,55 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 0,
         price: 1,
     },
+    // ---- appended, and appended on purpose ----
+    //
+    // CATALOG is a wire format. A share code writes a component down as its
+    // *position* here, so inserting one anywhere but the end re-points every
+    // board anybody has saved - silently, because the code still reads, it
+    // just comes back as somebody else's gear. Both finished runs in `share`
+    // were decoded into nonsense by putting one piece in the middle of this
+    // list. Append. Never insert.
+    PieceDef {
+        // Everything you have grown, set alight at once. A nature build banks
+        // steadily all fight and has nowhere to spend it; this is the sink,
+        // and it pays in a curse that stacks without a ceiling, so what it is
+        // worth is exactly how patient the board has been.
+        name: "Slash and Burn",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Spell,
+        cells: &[(0,0),(1,0),(2,0)],
+        base: Stats { magic_damage: 8, nature: 4, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Consume {
+            what: Resource::Nature,
+            each: 8,
+            per: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 26,
+    },
+    // Stands on the bar beside the rumours and is traded for the same way,
+    // but what it hands over is a class rather than a condition. It never
+    // reaches the tray: `Run::barter` turns it into a stack of Recycler.
+    PieceDef {
+        name: "Scrap Ticket",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
 ];
 
 /// Gear that exists only on a boss.
@@ -8610,6 +8659,8 @@ pub const EVENT_ONLY: &[&str] = &[
     // And what the doors they open hand over.
     "Crownwright's Measure",
     "The Green Ledger",
+    // Traded for a boss trophy at a pub, and never anything else.
+    "Scrap Ticket",
 ];
 
 /// The five things on the shelves behind the velvet rope.

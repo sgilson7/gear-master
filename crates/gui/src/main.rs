@@ -3286,7 +3286,10 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
     );
     // A bar does not take money, and a shop that said "click to buy" over a
     // row of things money cannot buy would be lying twice.
-    let bar = layout.shop_cards.iter().any(|c| gearmaster_engine::rumour::is_rumour(c.def.name));
+    let bar = layout.shop_cards.iter().any(|c| {
+        gearmaster_engine::rumour::is_rumour(c.def.name)
+            || c.def.name == gearmaster_engine::rumour::TROPHY_SHELF
+    });
     ui_text(
         if bar {
             words::word("barter-hint", "click a rumour, then the piece that pays for it")
@@ -3374,6 +3377,11 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
             let rs = fitting_size(&role, card.rect.w - 10.0, &[12.0, 11.0, 10.0]);
             centered_text(&role, cx, ty, rs, col_dim());
         }
+        if def.name == gearmaster_engine::rumour::TROPHY_SHELF {
+            let label = words::word("trophy-price", "one boss trophy");
+            let ps = fitting_size(label, card.rect.w - 8.0, &[12.0, 11.0, 10.0, 9.0]);
+            draw_capped(label, card.rect.x + 4.0, price_y, card.rect.w - 8.0, ps, col_gold(), 1);
+        } else {
         match gearmaster_engine::rumour::by_name(def.name) {
             // Priced in gear. The label is what they want, not what it costs.
             Some(word) => {
@@ -3402,6 +3410,7 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
                 14.0,
                 if afford { col_gold() } else { col_bad() },
             ),
+        }
         }
 
         // What this piece deals in, stacked down the left edge - mana above
@@ -3708,6 +3717,30 @@ fn render_def_tooltip_inner(
     // empty cell and no stats, so the ordinary treatment would print a name
     // and then nothing at all. What it has instead is a hint, and the hint is
     // vague on purpose - working out what it means is the whole of it.
+    if def.name == gearmaster_engine::rumour::TROPHY_SHELF {
+        lines.push((words::word("a-standing-offer", "A STANDING OFFER").to_string(), col_dim()));
+        lines.push((String::new(), WHITE));
+        for l in wrap_px(
+            &words::retell_naming(
+                "Hand over anything you took off a named creature and they will show you how                  to look at gear. A stack of Recycler: every adjacency bonus on your boards                  counts ten percent more.",
+            ),
+            420.0,
+            14.0,
+        ) {
+            lines.push((l, Color::from_rgba(214, 200, 170, 255)));
+        }
+        lines.push((String::new(), WHITE));
+        lines.push((
+            words::word(
+                "trophy-note",
+                "The counter pays nothing for a trophy. This is the only other thing that takes one.",
+            )
+            .to_string(),
+            col_dim(),
+        ));
+        draw_tooltip_with_sigil(&lines, Some((Some(def.slot), 0)), mx, my);
+        return;
+    }
     if let Some(word) = gearmaster_engine::rumour::by_name(def.name) {
         lines.push((words::word("a-rumour", "A RUMOUR").to_string(), col_dim()));
         lines.push((String::new(), WHITE));
@@ -5783,6 +5816,8 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("CLASS", "Read off your build at a fountain, never chosen. Three fountains stand on the ladder - two that name you something new and a deep one that doubles a title you already hold - and every class you are carrying applies at once. Some are not poured at all but earned, off the road: a dungeon, an event, a town. Hover the class panel to see your build drawn as a shape, what you would be given now, and what you are nearest to otherwise."),
     ("STACKING CLASSES", "Most titles are held once. Two are not: Piety and Tired are handed out by a town over and over, and each one you take counts. A stacked class is shown with its count beside the name, and its power is multiplied by it."),
     ("THE FOUNTAIN", "Not a fight, and not a rung: drinking costs you nothing and the creature standing there is still to be fought. It measures your gear along a set of axes - how much magic, how much iron, how fast, how woven together - and gives you the most demanding class you qualify for. The second fountain will not repeat the first."),
+    ("A TROPHY", "What a named creature leaves behind. The counter pays nothing for one - they are priced off a scale the shop does not use, and one of them used to pay for a whole run - so selling is not what they are for. A town pub takes one for a stack of Recycler, and nothing else in the game will take one at all."),
+    ("ADJACENCY BONUS", "A flat lump a component pays only once its item comes together. One piece in each recipe carries one, and it is the difference between a board that finishes what it seats and one that fills cells with loose pieces. Recycler counts them for more."),
     ("SUDDEN DEATH", "After 30 seconds both fighters start losing health every second - 1% of maximum, then 2%, then 3%, climbing until somebody falls. It goes through armour and resistance and answers to nothing. No fight can run for ever, and a wall that cannot kill is no longer a wall that cannot lose. If you both go down on the same tick, whoever was further from zero takes it, and a dead heat goes to you."),
     ("BRAWL", "Some events put more than one creature across the table. Your aim moves along after every attack, so a brawl comes down together rather than one at a time, and every one of them acts against you independently. A brawl is not a rung: whichever way it goes, the fight the ladder had waiting is still waiting."),
     ("TOWN", "A rung with nothing on it to fight, inserted between two that do have something. At the gate you either walk on - which pays the last bounty a second time - or go in, and going in buys exactly one of four things: the chapel, the pub, the factory, or the shop. One a visit, and a town is only ever visited once."),
@@ -8689,6 +8724,7 @@ async fn main() {
         for c in gearmaster_engine::class::CLASSES.iter().take(n) {
             run.classes.push(c);
         }
+        run.refresh_class_effects();
         message = format!("Wearing {} classes.", run.classes.len());
     }
     // GEARMASTER_EVENT=<id> stands you in front of one, with whatever it
@@ -9575,6 +9611,21 @@ async fn main() {
             } else if let Some(i) = layout.shop_hit(mx, my) {
                 bought_this_frame = true;
                 let name = run.shop.def(i).map(|d| d.name).unwrap_or("?");
+                if run.trophy_shelf(i) {
+                    bought_this_frame = true;
+                    if run.payment_for(i).is_empty() {
+                        bartering = None;
+                        message =
+                            "They want something you took off a named creature, and you have \
+                             not got one loose."
+                                .to_string();
+                    } else {
+                        bartering = Some(i);
+                        message =
+                            "Now hand over a trophy. Anything they will take is lit up below."
+                                .to_string();
+                    }
+                } else {
                 match run.rumour_on(i) {
                     // Not for sale. Pick it up and then hand something over.
                     Some(word) => {
@@ -9597,6 +9648,7 @@ async fn main() {
                         Err(e) => message = format!("{}", e),
                     },
                 }
+                }
             } else if let Some((slot, id)) = bartering
                 .and_then(|slot| layout.cards.iter().find(|c| c.rect.contains(Vec2::new(mx, my))).map(|c| (slot, c.id)))
             {
@@ -9606,14 +9658,26 @@ async fn main() {
                 bought_this_frame = true;
                 let paying = run.registry.def(id).name;
                 let taking = run.shop.def(slot).map(|d| d.name).unwrap_or("?");
+                let trophy = run.trophy_shelf(slot);
                 match run.barter(slot, id) {
                     Ok(_) => {
                         bartering = None;
-                        message = format!(
-                            "You hand over the {}. They tell you about {}.",
-                            words::piece(paying),
-                            words::piece(taking)
-                        );
+                        message = if trophy {
+                            format!(
+                                "The {} goes behind the bar. {} x{} - every adjacency bonus \
+                                 you own counts {}% more.",
+                                words::piece(paying),
+                                words::class("Recycler"),
+                                run.stacks_of("Recycler"),
+                                run.loadout.adjacency_pct
+                            )
+                        } else {
+                            format!(
+                                "You hand over the {}. They tell you about {}.",
+                                words::piece(paying),
+                                words::piece(taking)
+                            )
+                        };
                     }
                     Err(_) => {
                         message = format!(

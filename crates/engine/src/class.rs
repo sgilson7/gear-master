@@ -387,6 +387,17 @@ pub enum ClassPower {
     /// it buys about half again as much armour for a quarter less of
     /// everything, which is a decision.
     Trundle { slower: i32, armour: i32 },
+    /// Every assembled item's adjacency bonus counts `pct` percent more, per
+    /// stack held.
+    ///
+    /// An adjacency bonus is the flat lump a component pays only once its item
+    /// comes together, so this rewards a board that finishes what it seats
+    /// rather than one that fills cells with loose pieces - which is the
+    /// difference between the two finished boards in `share`.
+    ///
+    /// Traded for, never poured: the pub takes a boss trophy for a stack, and
+    /// nothing else in the game will take one at all.
+    Recycler { pct: i32 },
     /// Start every fight with `n` devotion, per stack held.
     ///
     /// The first class in the game you can hold more than one of. Five of them
@@ -464,7 +475,7 @@ impl ClassPower {
             Guilt => return None,
             // A town class is not something a fountain has in front of it, so
             // there is nothing for the doubling fountain to double.
-            Piety { .. } | Tired { .. } | Ticket { .. } => return None,
+            Piety { .. } | Tired { .. } | Ticket { .. } | Recycler { .. } => return None,
             // Doubling the slowdown as well as the armour would not be the
             // same bargain twice - it would be a different and much worse one.
             Trundle { .. } => return None,
@@ -507,6 +518,7 @@ impl ClassPower {
     pub fn short(self) -> String {
         match self {
             ClassPower::Guilt => "you cannot heal".to_string(),
+            ClassPower::Recycler { pct } => format!("+{}% adjacency bonuses", pct),
             ClassPower::Piety { faith } => format!("start with {} faith", faith),
             ClassPower::Tired { mana } => format!("start {} mana in debt", mana),
             ClassPower::Ticket { nth } => {
@@ -555,6 +567,13 @@ impl ClassPower {
     /// rule that was never written. Name the numbers and the condition.
     pub fn describe(self) -> String {
         match self {
+            ClassPower::Recycler { pct } => format!(
+                "Every adjacency bonus on your boards counts {}% more, for each stack of \
+                 Recycler you are carrying. Five stacks is half again on all five slots. \
+                 An adjacency bonus is the lump a component pays only when its item comes \
+                 together, so this pays a board that finishes what it seats.",
+                pct
+            ),
             ClassPower::Piety { faith } => format!(
                 "Every fight starts with {} devotion already banked, for each stack of \
                  Piety you are carrying. Five stacks are taken away and given back as \
@@ -883,6 +902,12 @@ pub static CLASSES: &[ClassDef] = &[
         requires: &[],
         power: ClassPower::Tired { mana: 3 },
     },
+    ClassDef {
+        name: "Recycler",
+        blurb: "You carried a dead lord's coat into a bar and left with a way of looking at gear.",
+        requires: &[],
+        power: ClassPower::Recycler { pct: 10 },
+    },
 ];
 
 /// How well a build matches one class.
@@ -913,7 +938,7 @@ pub struct Match {
 /// class does, so every invariant about requirements has to know about them.
 /// Classes handed out by a town, which no fountain offers and no build
 /// qualifies for.
-pub const TOWN_CLASSES: &[&str] = &["Piety", "Ticket to Ride", "Tired"];
+pub const TOWN_CLASSES: &[&str] = &["Piety", "Ticket to Ride", "Tired", "Recycler"];
 
 /// Classes you can hold more than one of at once.
 ///
@@ -922,7 +947,7 @@ pub const TOWN_CLASSES: &[&str] = &["Piety", "Ticket to Ride", "Tired"];
 /// and be done. These two accumulate instead, so they are listed here rather
 /// than discovered by reading the match arms.
 pub fn stacks(name: &str) -> bool {
-    matches!(name, "Piety" | "Tired")
+    matches!(name, "Piety" | "Tired" | "Recycler")
 }
 
 /// "2nd", "3rd", "4th". Only ever small numbers, so no special cases past the
@@ -950,6 +975,7 @@ pub fn how_you_get_it(name: &str) -> Option<&'static str> {
         "Piety" => "prayed for, at a town chapel",
         "Ticket to Ride" => "five prayers, at a town chapel",
         "Tired" => "worked for, at a town factory",
+        "Recycler" => "traded for at a town pub, one boss trophy a stack",
         _ if crate::dungeon::is_dungeon_only(name) => "carried out of a dungeon",
         _ => "taken at an event, off the road",
     })
@@ -995,6 +1021,7 @@ pub const CLASS_ORDER: &[&str] = &[
     "Piety",
     "Ticket to Ride",
     "Tired",
+    "Recycler",
 ];
 
 pub fn is_earned(name: &str) -> bool {
