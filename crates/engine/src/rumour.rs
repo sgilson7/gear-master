@@ -34,11 +34,21 @@ pub enum Barter {
 }
 
 impl Barter {
-    /// What the price says on the shelf.
+    /// What the price says on the shelf. Short: it goes on a card two inches
+    /// wide, under a name that has already taken three lines.
     pub fn label(self) -> String {
         match self {
             Barter::Kind(k) => format!("a loose {}", k.name().to_lowercase()),
-            Barter::Rumour(n) => format!("the word about {}", short_name(n)),
+            Barter::Rumour(n) => format!("the {}", short_name(n)),
+        }
+    }
+
+    /// The component this wants, if it wants a named one. The interface needs
+    /// it to print the *themed* name rather than the canonical one.
+    pub fn named(self) -> Option<&'static str> {
+        match self {
+            Barter::Rumour(n) => Some(n),
+            Barter::Kind(_) => None,
         }
     }
 }

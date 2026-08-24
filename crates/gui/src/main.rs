@@ -155,10 +155,18 @@ fn synthetic_click_frame() -> u32 {
     std::env::var("GEARMASTER_CLICK").ok().and_then(|v| v.parse().ok()).unwrap_or(u32::MAX)
 }
 
+/// The frame GEARMASTER_CLICK2 fires a second left press on. Some flows are
+/// two clicks long - pick the shelf, then pick what pays for it.
+fn second_click_frame() -> u32 {
+    std::env::var("GEARMASTER_CLICK2").ok().and_then(|v| v.parse().ok()).unwrap_or(u32::MAX)
+}
+
 /// A left press this frame, real or scripted.
 fn left_pressed() -> bool {
+    let f = FRAME.load(Ordering::Relaxed);
     is_mouse_button_pressed(MouseButton::Left)
-        || FRAME.load(Ordering::Relaxed) == synthetic_click_frame()
+        || f == synthetic_click_frame()
+        || f == second_click_frame()
 }
 
 fn window_conf() -> Conf {
@@ -3222,6 +3230,17 @@ fn reroll_rect(shop: Rect) -> Rect {
 }
 
 /// The shelf. Clicking a card buys it if you can afford it.
+/// "Word of the Kolok Hatter" -> "Kolok Hatter", so a price reads as a price
+/// and not as a second name.
+fn trim_article(s: &str) -> &str {
+    for lead in ["A Word About the ", "A Word About ", "Word of the ", "Word of ", "The ", "A "] {
+        if let Some(rest) = s.strip_prefix(lead) {
+            return rest;
+        }
+    }
+    s
+}
+
 fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
     let r = layout.shop;
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(28, 26, 22, 255));
@@ -3244,9 +3263,25 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
         20.0,
         WHITE,
     );
-    ui_text(words::word("buy-hint", "click to buy"), r.x + 14.0, r.y + 68.0, 12.0, col_dim());
+    // A bar does not take money, and a shop that said "click to buy" over a
+    // row of things money cannot buy would be lying twice.
+    let bar = layout.shop_cards.iter().any(|c| gearmaster_engine::rumour::is_rumour(c.def.name));
+    ui_text(
+        if bar {
+            words::word("barter-hint", "click a rumour, then the piece that pays for it")
+        } else {
+            words::word("buy-hint", "click to buy")
+        },
+        r.x + 14.0,
+        r.y + 68.0,
+        12.0,
+        col_dim(),
+    );
     let cost = run.reroll_cost();
-    button(reroll_rect(r), &reroll_label(cost), run.gold >= cost, mx, my);
+    // Nothing to reroll at a bar: these two are the only rumours there are.
+    if !bar {
+        button(reroll_rect(r), &reroll_label(cost), run.gold >= cost, mx, my);
+    }
 
     for card in &layout.shop_cards {
         let def = card.def;
@@ -3301,7 +3336,10 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
         let shown = words::piece(def.name);
         let ns = fitting_size(shown, card.rect.w - 12.0, &[13.0, 12.0, 11.0]);
         let name_lines = wrap_px(shown, card.rect.w - 12.0, ns);
-        for line in name_lines.iter().take(2) {
+        // A rumour prints no role, so its name gets that line back. Three is
+        // what "A Word About the Crownwright" needs on a card this narrow.
+        let name_room = if gearmaster_engine::rumour::is_rumour(def.name) { 3 } else { 2 };
+        for line in name_lines.iter().take(name_room) {
             centered_text(line, cx, ty, ns, if afford { WHITE } else { col_dim() });
             ty += line_h(ns);
         }
@@ -3315,13 +3353,35 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
             let rs = fitting_size(&role, card.rect.w - 10.0, &[12.0, 11.0, 10.0]);
             centered_text(&role, cx, ty, rs, col_dim());
         }
-        centered_text(
-            &format!("{} {}", shop_price(def), words::word("gold-lower", "gold")),
-            cx,
-            price_y,
-            14.0,
-            if afford { col_gold() } else { col_bad() },
-        );
+        match gearmaster_engine::rumour::by_name(def.name) {
+            // Priced in gear. The label is what they want, not what it costs.
+            Some(word) => {
+                // The themed name, not the canonical one: a bar that wants
+                // "the Crownwright" in a game full of Kolok is the theme
+                // giving itself away.
+                let label = match word.price.named() {
+                    Some(n) => format!("the {}", trim_article(words::piece(n))),
+                    None => words::retell(&word.price.label()),
+                };
+                let ps = fitting_size(&label, card.rect.w - 8.0, &[12.0, 11.0, 10.0, 9.0]);
+                draw_capped(
+                    &label,
+                    card.rect.x + 4.0,
+                    price_y,
+                    card.rect.w - 8.0,
+                    ps,
+                    col_gold(),
+                    1,
+                );
+            }
+            None => centered_text(
+                &format!("{} {}", shop_price(def), words::word("gold-lower", "gold")),
+                cx,
+                price_y,
+                14.0,
+                if afford { col_gold() } else { col_bad() },
+            ),
+        }
 
         // What this piece deals in, stacked down the left edge - mana above
         // rage above whatever else it touches - so the shelves can be read
@@ -3382,7 +3442,17 @@ fn sell_hit(layout: &Layout, mx: f32, my: f32) -> Option<PieceId> {
         .map(|c| c.id)
 }
 
-fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
+fn render_inventory(
+    layout: &Layout,
+    run: &Run,
+    drag: &Drag,
+    bartering: Option<usize>,
+    mx: f32,
+    my: f32,
+) {
+    // Anything the bar would take for the rumour that is waiting. Nothing at
+    // all when no trade is open, which is almost always.
+    let wanted: Vec<PieceId> = bartering.map(|i| run.payment_for(i)).unwrap_or_default();
     draw_rectangle(layout.inv.x, layout.inv.y, layout.inv.w, layout.inv.h, col_tray());
     draw_rectangle_lines(
         layout.inv.x,
@@ -3424,6 +3494,25 @@ fn render_inventory(layout: &Layout, run: &Run, drag: &Drag, mx: f32, my: f32) {
         let def = run.registry.def(card.id);
         let shape = run.registry.shape(card.id);
         let hovered = card.rect.contains(Vec2::new(mx, my));
+        // Lit up while a trade is open, so "hand something over" is a thing
+        // you can see rather than a thing you have to work out.
+        if wanted.contains(&card.id) {
+            draw_rectangle(
+                card.rect.x - 3.0,
+                card.rect.y - 3.0,
+                card.rect.w + 6.0,
+                card.rect.h + 6.0,
+                Color::from_rgba(252, 205, 88, 38),
+            );
+            draw_rectangle_lines(
+                card.rect.x - 3.0,
+                card.rect.y - 3.0,
+                card.rect.w + 6.0,
+                card.rect.h + 6.0,
+                2.0,
+                col_gold(),
+            );
+        }
 
         draw_rectangle(
             card.rect.x,
@@ -3594,6 +3683,29 @@ fn render_def_tooltip_inner(
         lines.push(("part of".to_string(), col_dim()));
     }
     lines.push((words::piece(def.name).to_string(), WHITE));
+    // A rumour is not gear and its card must not read like gear: it has one
+    // empty cell and no stats, so the ordinary treatment would print a name
+    // and then nothing at all. What it has instead is a hint, and the hint is
+    // vague on purpose - working out what it means is the whole of it.
+    if let Some(word) = gearmaster_engine::rumour::by_name(def.name) {
+        lines.push((words::word("a-rumour", "A RUMOUR").to_string(), col_dim()));
+        lines.push((String::new(), WHITE));
+        for l in wrap_px(&words::retell(word.hint), 420.0, 14.0) {
+            lines.push((l, Color::from_rgba(214, 200, 170, 255)));
+        }
+        lines.push((String::new(), WHITE));
+        lines.push((
+            format!("they want {} for it", words::retell(&word.price.label())),
+            col_gold(),
+        ));
+        lines.push((
+            words::word("rumour-note", "It never goes on a board. It only has to be carried.")
+                .to_string(),
+            col_dim(),
+        ));
+        draw_tooltip_with_sigil(&lines, Some((Some(def.slot), 0)), mx, my);
+        return;
+    }
     // A shared piece names every grid it fits, not just the one it is filed
     // under - naming one would be the same lie the old colouring told.
     let where_it_goes = def
@@ -8353,6 +8465,9 @@ async fn main() {
     // A "+ N more" the player has clicked to hold open. Outlives the frame it
     // was opened in - that is the whole point of it.
     let mut pinned: Option<Pinned> = None;
+    // The rumour shelf waiting to be paid for. A bar does not take money, so
+    // buying one is two clicks: the shelf, then the piece that goes over it.
+    let mut bartering: Option<usize> = None;
     let mut tools_open = std::env::var("GEARMASTER_TOOLS").is_ok();
     // GEARMASTER_PASTE=<code> loads a shared run at startup. The clipboard is
     // not readable before the window has focus, so this is the only way to put
@@ -8535,6 +8650,18 @@ async fn main() {
             message = format!("At the gate of {}.", t.name);
         }
     }
+    // GEARMASTER_GIVE=Name[,Name] drops loose pieces in the tray, for looking
+    // at anything that trades one.
+    if let Ok(v) = std::env::var("GEARMASTER_GIVE") {
+        for name in v.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            if let Some(d) =
+                gearmaster_engine::piece::CATALOG.iter().position(|d| d.name == name)
+            {
+                let id = run.registry.alloc(d);
+                run.owned.push(id);
+            }
+        }
+    }
     if std::env::var("GEARMASTER_PRESET").is_ok() {
         run.apply_preset();
         message = "Auto-built a complete loadout - every bonus is lit.".to_string();
@@ -8593,6 +8720,9 @@ async fn main() {
     let mut frame: u32 = 0;
 
     loop {
+        // Bumped at the top: the loop returns early for every overlay screen,
+        // so a counter at the bottom stops moving whenever one is open.
+        FRAME.fetch_add(1, Ordering::Relaxed);
         // Clear the whole window (letterbox bars included), then switch into
         // logical space for everything that follows.
         set_default_camera();
@@ -8826,7 +8956,7 @@ async fn main() {
             render_slots(&layout, &run, &reports, &drag, &mut hover, mx, my);
             render_slot_items(&layout, &run, &reports, &worn, &mut hover, mx, my);
             render_shop(&layout, &run, mx, my);
-            render_inventory(&layout, &run, &drag, mx, my);
+            render_inventory(&layout, &run, &drag, bartering, mx, my);
         }
 
         // Drag ghost + placement preview.
@@ -9357,7 +9487,7 @@ async fn main() {
         // Buying, checked before the drag handler so clicking a shelf never
         // picks a piece up.
         let mut bought_this_frame = click_taken;
-        if run.phase == Phase::Loadout && is_mouse_button_pressed(MouseButton::Left) && !click_taken {
+        if run.phase == Phase::Loadout && left_pressed() && !click_taken {
             if reroll_rect(layout.shop).contains(Vec2::new(mx, my)) {
                 bought_this_frame = true;
                 match run.reroll() {
@@ -9367,9 +9497,52 @@ async fn main() {
             } else if let Some(i) = layout.shop_hit(mx, my) {
                 bought_this_frame = true;
                 let name = run.shop.def(i).map(|d| d.name).unwrap_or("?");
-                match run.buy(i) {
-                    Ok(_) => message = format!("Bought {}. {} gold left.", name, run.gold),
-                    Err(e) => message = format!("{}", e),
+                match run.rumour_on(i) {
+                    // Not for sale. Pick it up and then hand something over.
+                    Some(word) => {
+                        if run.payment_for(i).is_empty() {
+                            bartering = None;
+                            message = format!(
+                                "They want {} for that, and you have not got one loose.",
+                                words::retell(&word.price.label())
+                            );
+                        } else {
+                            bartering = Some(i);
+                            message = format!(
+                                "Now hand over {}. Anything they will take is lit up below.",
+                                words::retell(&word.price.label())
+                            );
+                        }
+                    }
+                    None => match run.buy(i) {
+                        Ok(_) => message = format!("Bought {}. {} gold left.", name, run.gold),
+                        Err(e) => message = format!("{}", e),
+                    },
+                }
+            } else if let Some((slot, id)) = bartering
+                .and_then(|slot| layout.cards.iter().find(|c| c.rect.contains(Vec2::new(mx, my))).map(|c| (slot, c.id)))
+            {
+                // The second half of a barter. Ahead of the sell badge and the
+                // drag handler: while a trade is open, a click on a card in the
+                // tray is an answer to it and nothing else.
+                bought_this_frame = true;
+                let paying = run.registry.def(id).name;
+                let taking = run.shop.def(slot).map(|d| d.name).unwrap_or("?");
+                match run.barter(slot, id) {
+                    Ok(_) => {
+                        bartering = None;
+                        message = format!(
+                            "You hand over the {}. They tell you about {}.",
+                            words::piece(paying),
+                            words::piece(taking)
+                        );
+                    }
+                    Err(_) => {
+                        message = format!(
+                            "They do not want the {}.",
+                            words::piece(paying)
+                        );
+                    }
                 }
             } else if let Some(id) = sell_hit(&layout, mx, my) {
                 bought_this_frame = true;
@@ -9633,7 +9806,6 @@ async fn main() {
             }
         }
 
-        FRAME.fetch_add(1, Ordering::Relaxed);
         next_frame().await;
     }
 }
