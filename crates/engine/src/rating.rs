@@ -377,6 +377,11 @@ fn action_points(a: &Action) -> f32 {
                 v
             }
         }
+        // Two ordinary points become one worth four of them, so the trade is
+        // worth the two points of standing value it adds. Discounted because
+        // it does nothing at all unless both parents have something in them,
+        // which early in a fight they do not.
+        Action::Fuse { .. } => 0.66 * 2.0 * weight::HELD_PER_POINT,
         Action::GainArmor(n) => *n as f32 * weight::ARMOR_PS,
         Action::ReduceCooldown(ms) => *ms as f32 / 1000.0 * weight::HASTE_PS,
         Action::GainEmpowerment(n) => *n as f32 * weight::STACK_PS,
@@ -404,12 +409,48 @@ fn action_points(a: &Action) -> f32 {
 /// Half of `HELD_PER_POINT`, because a point spent is a point that was going
 /// to keep paying for the rest of the fight and the average spend lands
 /// somewhere in the middle of one.
+/// Friendly activations a second on a board worth having.
+///
+/// Measured rather than assumed. `tests/baseline.rs` reports 1.8 a second for
+/// the engine's own preset, 2.3 for one finished run and 4.8 for another with
+/// thirteen items on it; the starter board, which is one item, manages 0.5.
+/// Two is what a reasonable build gets, which is the standard every other
+/// discount in this file is set by. The spec guessed one, which is a board
+/// nobody plays.
+const ACTIVATIONS_PER_S: f32 = 2.0;
+
+/// How often a watcher of each kind sees the thing it is counting.
+///
+/// Shares of `ACTIVATIONS_PER_S`, discounted by how much of the board a
+/// watcher of that kind can see. Anything counts everything; a neighbour
+/// watcher only sees the items it touches, and a diagonal one fewer still,
+/// because a packed board makes edges by accident and corners on purpose.
+/// Curses are not activations at all and are much rarer than them.
+fn watched_per_s(what: crate::piece::Watched) -> f32 {
+    use crate::piece::Watched;
+    ACTIVATIONS_PER_S
+        * match what {
+            Watched::AnyActivation => 1.0,
+            Watched::AlignedActivation => 0.3,
+            Watched::AdjacentActivation => 0.2,
+            Watched::DiagonalActivation => 0.15,
+            Watched::CurseApplied => 0.1,
+        }
+}
+
 fn pool_weight(what: crate::piece::Resource) -> f32 {
     use crate::piece::Resource;
     match what {
         Resource::Mana => weight::MANA_PS,
         Resource::Rage | Resource::Faith | Resource::Nature => {
             weight::RESOURCE_PS + weight::HELD_PER_POINT / 2.0
+        }
+        // Nothing spends a fusion, so the only figure it needs is what it is
+        // worth to hold - and what it is worth to lose, which is the same
+        // number seen from a `Drain`. Both parents at double is four times an
+        // ordinary pool point, and none of the spend half applies.
+        Resource::DruidicMight | Resource::Communion | Resource::Zealotry => {
+            4.0 * weight::HELD_PER_POINT
         }
     }
 }
@@ -466,6 +507,15 @@ fn trigger_points(t: &Trigger) -> f32 {
         // than your own, but they need a neighbour to exist at all.
         Trigger::OnAdjacentActivate(a) => 1.1 * action_points(a),
         Trigger::OnAlignedActivate(a) => 0.9 * action_points(a),
+        // A diagonal pair is rarer than an edge pair - a packed board makes
+        // edges by accident and corners on purpose - so it answers less often
+        // than a neighbour and is discounted to match.
+        Trigger::OnDiagonalActivate(a) => 0.7 * action_points(a),
+        // Handled by the caller for the same reason `OnBattleStart` is: it
+        // fires on a count of events, not on this item coming round, so
+        // multiplying it by this item's cadence is backwards. See
+        // `piece_points`.
+        Trigger::Watch { .. } => 0.0,
         // Pays on every activation of the ball except its own turn in the
         // cycle - so on a three-spell ball, two casts out of three. Worth more
         // than a neighbour reaction because the item it waits on is itself.
@@ -551,6 +601,21 @@ fn piece_points(def: &PieceDef, cooldown_ms: u32) -> f32 {
         // every ink in the game to nothing.
         if let Trigger::OnBattleStart(a) = t {
             points += action_points(a) / TYPICAL_FIGHT_S;
+        } else if let Trigger::Watch { what, count, then, repeats } = t {
+            // A watcher runs on the board's clock, not the item's. Its rate is
+            // how often the thing it counts happens, divided by how many it
+            // waits for - so a fast item and a slow one carrying the same
+            // watcher are worth the same, which is the point of the trigger.
+            let seen = watched_per_s(*what);
+            let per = seen / (*count).max(1) as f32;
+            points += action_points(then)
+                * if *repeats {
+                    per
+                } else {
+                    // One payout at most, and none at all if the fight ends
+                    // before the count is reached.
+                    (per * TYPICAL_FIGHT_S).min(1.0) / TYPICAL_FIGHT_S
+                };
         } else {
             points += trigger_points(t) * rate;
         }

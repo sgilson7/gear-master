@@ -15,8 +15,10 @@ pub fn actions_of(t: &Trigger, f: &mut impl FnMut(&Action)) {
         Trigger::OnActivate(a)
         | Trigger::OnAdjacentActivate(a)
         | Trigger::OnAlignedActivate(a)
+        | Trigger::OnDiagonalActivate(a)
         | Trigger::OnBattleStart(a)
         | Trigger::OnOtherCast(a) => f(a),
+        Trigger::Watch { then, .. } => f(then),
         Trigger::PerAdjacentItem { action, .. } => f(action),
         Trigger::Consume { per, .. } => f(per),
         Trigger::SpendGold { on_success, .. } => f(on_success),

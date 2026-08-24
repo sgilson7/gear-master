@@ -1588,7 +1588,7 @@ fn note(k: &'static str, out: &mut Vec<&'static str>) {
 }
 
 fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
-    use gearmaster_engine::piece::{Action, Resource, Trigger};
+    use gearmaster_engine::piece::{Action, Trigger};
     let mut out: Vec<&'static str> = Vec::new();
     fn from_stats(st: &gearmaster_engine::stats::Stats, out: &mut Vec<&'static str>) {
         for (v, k) in [
@@ -1626,22 +1626,12 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
         Action::Curse { .. } => note("curse", out),
         Action::StunStrongest { .. } => note("stun", out),
         Action::Drain { what, .. } => note(
-            match what {
-                Resource::Mana => "mana",
-                Resource::Rage => "rage",
-                Resource::Faith => "faith",
-                Resource::Nature => "nature",
-            },
+            what.name(),
             out,
         ),
         Action::GainMana(_) => note("mana", out),
         Action::Gain { what, .. } => note(
-            match what {
-                Resource::Mana => "mana",
-                Resource::Rage => "rage",
-                Resource::Faith => "faith",
-                Resource::Nature => "nature",
-            },
+            what.name(),
             out,
         ),
         Action::GainArmor(_) => note("armor", out),
@@ -1652,6 +1642,7 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
             note("mana", out)
         }
         Action::Grow(_) => note("health", out),
+        Action::Fuse { into, .. } => note(into.name(), out),
     } }
     // A repeat carries a trigger, so unwrap it once and read that: a piece
     // whose only trigger is a repeat would otherwise show no icons at all.
@@ -1669,7 +1660,9 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
             | Trigger::PerAdjacentItem { action: a, .. }
             | Trigger::OnAdjacentActivate(a)
             | Trigger::OnAlignedActivate(a)
+            | Trigger::OnDiagonalActivate(a)
             | Trigger::OnOtherCast(a) => from_action(a, &mut out),
+            Trigger::Watch { then, .. } => from_action(then, &mut out),
             Trigger::SpendGold { on_success, .. } => {
                 note("fnorp", &mut out);
                 from_action(on_success, &mut out);
@@ -1681,24 +1674,14 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
             }
             Trigger::Consume { what, per, .. } => {
                 note(
-                    match what {
-                        Resource::Mana => "mana",
-                        Resource::Rage => "rage",
-                        Resource::Faith => "faith",
-                        Resource::Nature => "nature",
-                    },
+                    what.name(),
                     &mut out,
                 );
                 from_action(per, &mut out);
             }
             Trigger::Spend { what, on_success, on_failure, .. } => {
                 note(
-                    match what {
-                        Resource::Mana => "mana",
-                        Resource::Rage => "rage",
-                        Resource::Faith => "faith",
-                        Resource::Nature => "nature",
-                    },
+                    what.name(),
                     &mut out,
                 );
                 from_action(on_success, &mut out);
@@ -2628,6 +2611,9 @@ impl Playback {
             // Worth a line: an item coming round and doing nothing is the sort
             // of thing you want to see explained rather than wonder about.
             Event::Misfired { .. } | Event::Warded { .. } => {}
+            // Both read as plain lines. The pool chips and the counter readout
+            // that would show them properly are the GUI pass, not this one.
+            Event::Fused { .. } | Event::Watched { .. } => {}
             // Growth changes the bar itself, not just what is in it.
             Event::Grew { side, total, .. } => match side {
                 Side::Player => self.player_max = *total,
@@ -5338,12 +5324,10 @@ fn item_summary_lines_plain(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> 
     // spending a pool, answering a neighbour, landing a curse - keeps its own
     // line, because there the wording is the information.
     let mut banked = [0i32; 4];
-    let slot_of = |r: Resource| match r {
-        Resource::Mana => 0,
-        Resource::Rage => 1,
-        Resource::Faith => 2,
-        Resource::Nature => 3,
-    };
+    // Only the four bankable pools fold into a summary line. A fusion is made
+    // rather than granted, so it never reaches here - `Action::Gain` cannot
+    // name one - and it keeps its own line with the rest of the conditionals.
+    let slot_of = |r: Resource| r.index().min(3);
     let mut conditional: Vec<&Trigger> = Vec::new();
     for t in &p.triggers {
         match t {
@@ -7806,7 +7790,9 @@ fn trigger_curses(t: &gearmaster_engine::piece::Trigger) -> bool {
         | Trigger::PerAdjacentItem { action: a, .. }
         | Trigger::OnAdjacentActivate(a)
         | Trigger::OnAlignedActivate(a)
+        | Trigger::OnDiagonalActivate(a)
         | Trigger::OnOtherCast(a) => curses(a),
+        Trigger::Watch { then, .. } => curses(then),
         Trigger::SpendGold { on_success, .. } => curses(on_success),
         Trigger::SpendMana { on_success, on_failure, .. }
         | Trigger::Spend { on_success, on_failure, .. } => curses(on_success) || curses(on_failure),
@@ -10290,6 +10276,7 @@ mod tests {
             stats: gearmaster_engine::stats::Stats::ZERO,
             triggers: Vec::new(),
             adjacent_assembled_same_slot: 0,
+        diagonal_items: Vec::new(),
         open_cells: 0,
         power: 100,
         rating: 0,

@@ -116,6 +116,14 @@ preset           10/50      100.0%       9.00s      6.8%
 owner            49/50       96.1%      16.00s      5.2%
 friend           48/50      100.0%       7.75s      0.5%
 
+## Board cadence - friendly activations a second
+
+build              items activations/s    per item
+starter                1          0.50       0.498
+preset                 8          1.82       0.227
+owner                 13          4.80       0.369
+friend                12          2.27       0.189
+
 ## Mind damage across the whole ladder (max health removed, not in the shares above)
 
 build          helmet    chest   gloves  greaves   weapon
@@ -226,3 +234,10 @@ mechanics and become the designated bleed carriers.
 **9. A note on the preset.** The engine's own auto-built board clears only
 10 of 50 rungs, against 49 and 48 for the two human boards. It is a fair
 reference for an early-to-mid build and should not be read as a strong one.
+
+**10. Board cadence, and what it prices.** A built board does 1.8–4.8 friendly
+activations a second (preset 1.8, friend 2.3, owner 4.8); the starter board,
+which is one item, manages 0.5. The rewrite spec guessed "about one a second"
+when setting the value of a `Watch` trigger — a board nobody plays.
+`rating.rs` now assumes **two**, which is what a reasonable build gets and the
+standard every other discount in that file is set by.

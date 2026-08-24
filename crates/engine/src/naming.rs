@@ -174,6 +174,13 @@ fn action_word(a: &Action) -> Option<&'static str> {
     use crate::piece::Target::*;
     Some(match a {
         Action::Gain { .. } => "Brimming",
+        // A fusion is named for the thing it makes, which is the whole reason
+        // anybody builds one.
+        Action::Fuse { into, .. } => match into {
+            crate::piece::Resource::DruidicMight => "Druidic",
+            crate::piece::Resource::Communion => "Communing",
+            _ => "Zealous",
+        },
         // Named for what it takes, not for what it leaves.
         Action::Drain { hurt, target: Enemy, .. } if *hurt > 0 => "Bloodletting",
         Action::Drain { target: Enemy, .. } => "Siphoning",
@@ -225,12 +232,27 @@ pub fn qualifiers(reg: &PieceRegistry, pieces: &[PieceId]) -> Vec<&'static str> 
                     note(Some("Prepared"));
                     note(action_word(a));
                 }
+                Trigger::OnDiagonalActivate(a) => {
+                    note(Some("Oblique"));
+                    note(action_word(a));
+                }
+                Trigger::Watch { then, .. } => {
+                    note(Some("Tallying"));
+                    note(action_word(then));
+                }
                 Trigger::Spend { what, on_success, on_failure, .. } => {
                     note(Some(match what {
                         crate::piece::Resource::Mana => "Attuned",
                         crate::piece::Resource::Rage => "Furious",
                         crate::piece::Resource::Faith => "Devout",
                         crate::piece::Resource::Nature => "Verdant",
+                        // A fusion is not spendable, so this arm is
+                        // unreachable from a legal `Spend`. Named anyway
+                        // rather than left to a catch-all, so adding a
+                        // spendable pool later has to come back here.
+                        crate::piece::Resource::DruidicMight => "Druidic",
+                        crate::piece::Resource::Communion => "Communing",
+                        crate::piece::Resource::Zealotry => "Zealous",
                     }));
                     note(action_word(on_success));
                     note(action_word(on_failure));

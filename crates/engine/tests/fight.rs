@@ -26,6 +26,7 @@ fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfi
         stats,
         triggers: Vec::new(),
         adjacent_assembled_same_slot: 0,
+        diagonal_items: Vec::new(),
         open_cells: 0,
         power: 100,
         rating: 0,

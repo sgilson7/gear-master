@@ -451,4 +451,37 @@ impl Slot {
             .flat_map(|&p| self.cells_of(p))
             .any(|(x, y)| self.orthogonal(x, y).iter().any(|c| b_cells.contains(c)))
     }
+
+    /// Cells sharing a corner with `(x, y)` and no edge. In bounds only, so a
+    /// piece against a wall simply has fewer of them.
+    fn corners(&self, x: u8, y: u8) -> Vec<(u8, u8)> {
+        [(-1i32, -1i32), (1, -1), (-1, 1), (1, 1)]
+            .iter()
+            .filter_map(|&(dx, dy)| {
+                let (nx, ny) = (x as i32 + dx, y as i32 + dy);
+                self.in_bounds(nx, ny).then_some((nx as u8, ny as u8))
+            })
+            .collect()
+    }
+
+    /// Do these two sets meet at a corner and nowhere along an edge?
+    ///
+    /// The two relations are deliberately exclusive. "Diagonal" is meant to
+    /// name the pair that is *near but not touching* - an item packed against
+    /// three neighbours has spent its sides, and the whole point of the
+    /// relation is that it reaches past them. A pair that shares an edge
+    /// somewhere is adjacent, whatever their other corners do, so it is
+    /// answered by `sets_touch` and not by this.
+    ///
+    /// It is a relation between the two sets and not between cells: a pair that
+    /// meets at four corners is diagonal once.
+    pub fn sets_touch_diagonally(&self, a: &[PieceId], b: &[PieceId]) -> bool {
+        if self.sets_touch(a, b) {
+            return false;
+        }
+        let b_cells: HashSet<(u8, u8)> = b.iter().flat_map(|&p| self.cells_of(p)).collect();
+        a.iter()
+            .flat_map(|&p| self.cells_of(p))
+            .any(|(x, y)| self.corners(x, y).iter().any(|c| b_cells.contains(c)))
+    }
 }

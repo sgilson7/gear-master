@@ -373,27 +373,68 @@ impl Target {
     }
 }
 
-/// One of the four banked pools.
+/// A banked pool.
+///
+/// The first four are what gear grants and spends. The last three are
+/// **fusions**: made by spending one of each of two parents, worth both
+/// parents' passive at double rate, and no use as fuel - nothing spends them,
+/// which is what stops a fusion from being a second currency with better rates.
+/// They can still be drained, so a build that banks deeply in one is carrying
+/// something worth taking.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Resource {
     Mana,
     Rage,
     Faith,
     Nature,
+    DruidicMight,
+    Communion,
+    Zealotry,
 }
 
 impl Resource {
-    pub const ALL: [Resource; 4] =
+    pub const ALL: [Resource; 7] = [
+        Resource::Mana,
+        Resource::Rage,
+        Resource::Faith,
+        Resource::Nature,
+        Resource::DruidicMight,
+        Resource::Communion,
+        Resource::Zealotry,
+    ];
+
+    /// The four a trigger may spend. Mana is fuel and the other three are
+    /// holdings, but all four are things gear can ask for; a fusion is not.
+    pub const SPENDABLE: [Resource; 4] =
         [Resource::Mana, Resource::Rage, Resource::Faith, Resource::Nature];
 
     /// A stable slot for a per-resource array. `Run::banked_all_run` is
-    /// indexed by it.
+    /// indexed by it, so these numbers are not free to move.
     pub fn index(self) -> usize {
         match self {
             Resource::Mana => 0,
             Resource::Rage => 1,
             Resource::Faith => 2,
             Resource::Nature => 3,
+            Resource::DruidicMight => 4,
+            Resource::Communion => 5,
+            Resource::Zealotry => 6,
+        }
+    }
+
+    /// A product rather than fuel: `Spend`, `SpendMana` and `Consume` refuse
+    /// it, and `Fuse` will not take one as a parent.
+    pub fn is_fused(self) -> bool {
+        matches!(self, Resource::DruidicMight | Resource::Communion | Resource::Zealotry)
+    }
+
+    /// The two pools a fusion is made of, in the order they are spent.
+    pub fn parents(self) -> Option<(Resource, Resource)> {
+        match self {
+            Resource::DruidicMight => Some((Resource::Nature, Resource::Rage)),
+            Resource::Communion => Some((Resource::Faith, Resource::Nature)),
+            Resource::Zealotry => Some((Resource::Rage, Resource::Faith)),
+            _ => None,
         }
     }
 
@@ -409,6 +450,9 @@ impl Resource {
             Resource::Rage => "rage",
             Resource::Faith => "faith",
             Resource::Nature => "nature",
+            Resource::DruidicMight => "druidic might",
+            Resource::Communion => "communion",
+            Resource::Zealotry => "zealotry",
         }
     }
 }
@@ -457,6 +501,14 @@ pub enum Action {
     /// piece carrying it is worth more the longer the fight lasts - which is
     /// the opposite of everything else, and why they cost what they cost.
     Grow(i32),
+    /// Spend one of each parent pool to bank one of a fused pool. Nothing
+    /// happens unless both parents have something in them.
+    ///
+    /// The exchange is deliberately bad by volume and good by rate: two points
+    /// become one, and that one is worth both parents at double. So fusing is
+    /// only worth it once income outruns what the passives are paying, which
+    /// makes it a decision late in a fight rather than a thing to do on sight.
+    Fuse { a: Resource, b: Resource, into: Resource },
 }
 
 impl Action {
@@ -464,6 +516,9 @@ impl Action {
         match self {
             Action::Curse { kind, target } => {
                 format!("apply curse of {} to {}", kind.name(), target.name())
+            }
+            Action::Fuse { a, b, into } => {
+                format!("turn 1 {} and 1 {} into 1 {}", a.name(), b.name(), into.name())
             }
             Action::StunStrongest { target } => {
                 format!("stun the strongest item {} has", target.name())
@@ -596,6 +651,55 @@ pub enum Trigger {
     /// ball worth more than the sum of its spells: the ones sitting idle this
     /// turn still answer the one that went off.
     OnOtherCast(Action),
+    /// Fires whenever an assembled item **sharing only a corner** with this one
+    /// activates.
+    ///
+    /// Adjacency is edge-sharing, so an item packed against three neighbours
+    /// has already spent its sides. A diagonal is the relation left over: it
+    /// sees past the things touching it, which is why it is the mind's and the
+    /// hands' to use and nothing else's.
+    OnDiagonalActivate(Action),
+    /// Count something, and do something every `count` times it is seen.
+    ///
+    /// Every other trigger answers one event. This one answers a *number* of
+    /// them, which is the only way the board gets to reward a long fight
+    /// without also rewarding a fast one: ten activations is ten activations
+    /// whether they took four seconds or forty.
+    ///
+    /// The counter belongs to the piece, resets when the fight does, and ticks
+    /// after the event it watched has resolved. With `repeats` false it pays
+    /// once and then stops counting.
+    Watch { what: Watched, count: u32, then: Action, repeats: bool },
+}
+
+/// What a `Watch` counts.
+///
+/// Each is an event the fight already emits, so a watcher never needs the
+/// engine to invent bookkeeping - it reads the same stream the log does.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Watched {
+    /// Any other friendly item activating.
+    AnyActivation,
+    /// An edge-neighbour activating.
+    AdjacentActivation,
+    /// A corner-neighbour activating.
+    DiagonalActivation,
+    /// An item in another grid sharing this one's rows activating.
+    AlignedActivation,
+    /// A curse landing, on either side.
+    CurseApplied,
+}
+
+impl Watched {
+    pub fn name(self) -> &'static str {
+        match self {
+            Watched::AnyActivation => "activation",
+            Watched::AdjacentActivation => "neighbour activation",
+            Watched::DiagonalActivation => "diagonal activation",
+            Watched::AlignedActivation => "aligned activation",
+            Watched::CurseApplied => "curse",
+        }
+    }
 }
 
 impl Trigger {
@@ -607,6 +711,12 @@ impl Trigger {
             Trigger::OnAdjacentActivate(a) => Trigger::OnAdjacentActivate(a.scaled(pct)),
             Trigger::OnAlignedActivate(a) => Trigger::OnAlignedActivate(a.scaled(pct)),
             Trigger::OnOtherCast(a) => Trigger::OnOtherCast(a.scaled(pct)),
+            Trigger::OnDiagonalActivate(a) => Trigger::OnDiagonalActivate(a.scaled(pct)),
+            // The payload scales; the count is a count, and multiplying it
+            // would make a powerful item wait longer for the same thing.
+            Trigger::Watch { what, count, then, repeats } => {
+                Trigger::Watch { what, count, then: then.scaled(pct), repeats }
+            }
             Trigger::PerAdjacentItem { action, same_slot_only } => Trigger::PerAdjacentItem {
                 action: action.scaled(pct),
                 same_slot_only,
@@ -641,6 +751,16 @@ impl Trigger {
     pub fn describe(&self) -> String {
         match self {
             Trigger::OnActivate(a) => format!("on activation, {}", a.describe()),
+            Trigger::OnDiagonalActivate(a) => {
+                format!("when an item touching only a corner of this one acts, {}", a.describe())
+            }
+            Trigger::Watch { what, count, then, repeats } => format!(
+                "every {} {}{}, {}",
+                count,
+                what.name(),
+                if *count == 1 { "" } else { "s" },
+                then.describe(),
+            ) + if *repeats { "" } else { " (once a fight)" },
             Trigger::SpendGold { cost, budget, on_success } => format!(
                 "on activation, spend {} fnorp to {} - and again harder each time, \
                  up to {} fnorp a fight",
@@ -8826,7 +8946,9 @@ mod tests {
                 | Trigger::PerAdjacentItem { action: a, .. }
                 | Trigger::OnAdjacentActivate(a)
                 | Trigger::OnAlignedActivate(a)
+                | Trigger::OnDiagonalActivate(a)
                 | Trigger::OnOtherCast(a) => is(a),
+                Trigger::Watch { then, .. } => is(then),
                 Trigger::SpendGold { on_success, .. } => is(on_success),
                 Trigger::SpendMana { on_success, on_failure, .. }
                 | Trigger::Spend { on_success, on_failure, .. } => is(on_success) || is(on_failure),

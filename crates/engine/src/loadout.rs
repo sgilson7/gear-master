@@ -31,6 +31,9 @@ pub struct ItemProfile {
     pub adjacent_items: Vec<usize>,
     /// Indices of assembled items in *other* slots lying on the same rows.
     pub aligned_items: Vec<usize>,
+    /// Indices, within this same list, of assembled items meeting this one at
+    /// a corner and along no edge. Same grid, and never also adjacent.
+    pub diagonal_items: Vec<usize>,
     /// The item's generated short name — what the cooldown bars show.
     pub name: String,
     /// The same name with its "of the ..." tail.
@@ -624,6 +627,7 @@ impl Loadout {
             let slot = self.slot(*kind);
             let mut adjacent = Vec::new();
             let mut aligned = Vec::new();
+            let mut diagonal = Vec::new();
             for (j, (other_kind, other)) in gathered.iter().enumerate() {
                 if i == j {
                     continue;
@@ -631,6 +635,8 @@ impl Loadout {
                 if other_kind == kind {
                     if slot.sets_touch(&item.pieces, &other.pieces) {
                         adjacent.push(j);
+                    } else if slot.sets_touch_diagonally(&item.pieces, &other.pieces) {
+                        diagonal.push(j);
                     }
                 } else if let (Some(a), Some(b)) = (spans[i], spans[j]) {
                     // Different grids: "aligned" means their rows overlap.
@@ -713,6 +719,7 @@ impl Loadout {
                 open_cells: slot.open_cells_around(&item.pieces),
                 adjacent_items: adjacent,
                 aligned_items: aligned,
+                diagonal_items: diagonal,
                 name: item.name.short.clone(),
                 full_name: item.name.full.clone(),
                 core: core.map(|c| reg.def(c).name.to_string()).unwrap_or_default(),

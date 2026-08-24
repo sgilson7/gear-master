@@ -9,7 +9,7 @@
 
 use crate::curse::{mind_damage_after_resist, CurseKind, Curses, STUN_CAP_MS, TICK_MS};
 use crate::loadout::ItemProfile;
-use crate::piece::{Action, Resource, SlotKind, Target, Trigger};
+use crate::piece::{Action, Resource, SlotKind, Target, Trigger, Watched};
 use crate::stats::Stats;
 
 /// How often damage-over-time is summarised into the log.
@@ -2631,6 +2631,14 @@ pub struct RunningItem {
     /// Indices, in the owner's item list, of items this one reacts to.
     pub adjacent_items: Vec<usize>,
     pub aligned_items: Vec<usize>,
+    pub diagonal_items: Vec<usize>,
+    /// One tally per entry in `triggers`, so a `Watch` remembers what it has
+    /// seen. Parallel to `triggers` rather than keyed by anything, because two
+    /// identical watchers on one item are two separate counts.
+    pub watched: Vec<u32>,
+    /// Which watchers have already paid out. Only read by the ones that do not
+    /// repeat.
+    pub watch_paid: Vec<bool>,
     /// Monster attacks can carry a curse; player items use triggers instead.
     pub curse: Option<CurseKind>,
     /// Fingerprint used to draw this item's emblem.
@@ -2667,6 +2675,9 @@ impl RunningItem {
             power: p.power,
             adjacent_items: p.adjacent_items.clone(),
             aligned_items: p.aligned_items.clone(),
+            diagonal_items: p.diagonal_items.clone(),
+            watched: vec![0; p.triggers.len()],
+            watch_paid: vec![false; p.triggers.len()],
             curse: None,
             sigil_seed: p.sigil_seed,
             rating: p.rating,
@@ -2699,6 +2710,9 @@ impl RunningItem {
             power: 100,
             adjacent_items: Vec::new(),
             aligned_items: Vec::new(),
+            diagonal_items: Vec::new(),
+            watched: Vec::new(),
+            watch_paid: Vec::new(),
             curse: a.curse,
             // Innate attacks have no gear behind them, so seed off the name.
             rating: 0,
@@ -2746,6 +2760,11 @@ pub struct Combatant {
     pub rage: i32,
     pub faith: i32,
     pub nature: i32,
+    /// The fused pools. Made by `Action::Fuse`, worth both parents at double
+    /// rate, and spendable by nothing - the only way one leaves is a `Drain`.
+    pub druidic_might: i32,
+    pub communion: i32,
+    pub zealotry: i32,
     /// Run gold carried into the fight. Only the player has one, and only
     /// `SpendGold` touches it; what it spends is gone at the shop afterwards.
     pub purse: i32,
@@ -2853,6 +2872,9 @@ impl Combatant {
             health: stats.health,
             armor: 0,
             mana: 0,
+            druidic_might: 0,
+            communion: 0,
+            zealotry: 0,
             strength: stats.strength,
             power: stats.power,
             regen: stats.regen,
@@ -2952,6 +2974,9 @@ impl Combatant {
             health: stats.health,
             armor: 0,
             mana: 0,
+            druidic_might: 0,
+            communion: 0,
+            zealotry: 0,
             strength: stats.strength,
             power: stats.power,
             regen: stats.regen,
@@ -3035,6 +3060,9 @@ impl Combatant {
             Rage => self.rage,
             Faith => self.faith,
             Nature => self.nature,
+            DruidicMight => self.druidic_might,
+            Communion => self.communion,
+            Zealotry => self.zealotry,
         }
     }
 
@@ -3045,23 +3073,31 @@ impl Combatant {
             Rage => self.rage = v,
             Faith => self.faith = v,
             Nature => self.nature = v,
+            DruidicMight => self.druidic_might = v,
+            Communion => self.communion = v,
+            Zealotry => self.zealotry = v,
         }
     }
 
     pub fn held_bonus(&self) -> Stats {
         let m = self.overflowing.max(1);
         let (rage, faith, nature) = (self.rage * m, self.faith * m, self.nature * m);
+        // A fusion pays both its parents, each at double the parent's rate.
+        // Written out rather than derived from `parents()` because the rates
+        // are the design and reading them off a table hides what they are.
+        let (might, comm, zeal) =
+            (self.druidic_might * m, self.communion * m, self.zealotry * m);
         Stats {
             // Fury sharpens the blade.
-            physical_damage: rage,
+            physical_damage: rage + might * 2 + zeal * 2,
             // Conviction turns aside both kinds of harm, and no longer stops
             // at forty percent. The cap meant a faith build hit a ceiling it
             // could not see and everything banked past it was dead weight -
             // which is the opposite of what a pool is for.
-            physical_resist: faith * 2,
-            magic_resist: faith * 2,
+            physical_resist: faith * 2 + comm * 4 + zeal * 4,
+            magic_resist: faith * 2 + comm * 4 + zeal * 4,
             // Growth knits you back together.
-            regen: nature,
+            regen: nature + might * 2 + comm * 2,
             ..Stats::ZERO
         }
     }
@@ -3182,6 +3218,23 @@ pub enum Event {
     Regen { side: Side, amount: i32, health: i32 },
     /// A reaction pushed an item's cooldown forward.
     Hastened { side: Side, item: String, by_ms: u32 },
+    /// Two pools became one of a fused pool. `total` is what is now held of
+    /// it, and `from`/`and` are the parents with what each has left.
+    ///
+    /// The parents are named here rather than left implicit because two pools
+    /// going down with no line to explain them is exactly the sort of thing a
+    /// player notices and cannot account for. A fusion is the only action in
+    /// the game that spends something it was not asked for.
+    Fused {
+        side: Side,
+        what: &'static str,
+        total: i32,
+        from: (&'static str, i32),
+        and: (&'static str, i32),
+    },
+    /// A watcher reached its count and paid out. The payload logs itself; this
+    /// says which item was counting, so a log reads as cause then effect.
+    Watched { side: Side, item: String, what: &'static str },
     /// A mana buff gained stacks. `total` is the new stack count.
     Empowered { side: Side, total: u32, power_bonus: i32 },
     Shielded { side: Side, total: u32, reduction: i32 },
@@ -3331,6 +3384,20 @@ impl CombatLog {
             ),
             Event::GainResource { side, what, amount, total } => {
                 format!("{} {} gains {} {} ({})", t, self.who(*side), amount, what, total)
+            }
+            Event::Fused { side, what, total, from, and } => format!(
+                "{} {} fuses 1 {} ({}) - {} {} and {} {} left",
+                t,
+                self.who(*side),
+                what,
+                total,
+                from.1,
+                from.0,
+                and.1,
+                and.0
+            ),
+            Event::Watched { side, item, what } => {
+                format!("{} {}'s {} has counted enough {}s", t, self.who(*side), item, what)
             }
             Event::Hit { by, damage, absorbed, target_health, target_armor } => {
                 let soak = if *absorbed > 0 {
@@ -4454,7 +4521,11 @@ fn activate(
             // These wait for someone else to act.
             Trigger::OnAdjacentActivate(_)
             | Trigger::OnAlignedActivate(_)
+            | Trigger::OnDiagonalActivate(_)
             | Trigger::OnOtherCast(_) => {}
+            // A watcher does not act on its own cadence either. It is fed by
+            // `notify_watchers` as the events it counts go past.
+            Trigger::Watch { .. } => {}
         }
     }
 
@@ -4506,12 +4577,13 @@ fn notify_reactors(
         if j == actor_idx {
             continue;
         }
-        let (touches, lines_up, triggers) = {
+        let (touches, lines_up, corners, triggers) = {
             let c = pick(p, foes, me);
             let it = &c.items[j];
             (
                 it.adjacent_items.contains(&actor_idx),
                 it.aligned_items.contains(&actor_idx),
+                it.diagonal_items.contains(&actor_idx),
                 it.triggers.clone(),
             )
         };
@@ -4528,10 +4600,111 @@ fn notify_reactors(
                     Trigger::OnAlignedActivate(a) if lines_up => {
                         apply(p, foes, me, a, t, log, Some(j))
                     }
+                    Trigger::OnDiagonalActivate(a) if corners => {
+                        apply(p, foes, me, a, t, log, Some(j))
+                    }
                     _ => {}
                 }
             }
         }
+    }
+
+    // And let the watchers count it. Separate pass so a reaction that fires
+    // this tick is not itself counted as an activation - a watcher counts
+    // items coming round, not the answers they provoke.
+    for j in 0..count {
+        if j == actor_idx {
+            continue;
+        }
+        let (touches, lines_up, corners) = {
+            let it = &pick(p, foes, me).items[j];
+            (
+                it.adjacent_items.contains(&actor_idx),
+                it.aligned_items.contains(&actor_idx),
+                it.diagonal_items.contains(&actor_idx),
+            )
+        };
+        for what in [
+            Watched::AnyActivation,
+            Watched::AdjacentActivation,
+            Watched::AlignedActivation,
+            Watched::DiagonalActivation,
+        ] {
+            let saw = match what {
+                Watched::AnyActivation => true,
+                Watched::AdjacentActivation => touches,
+                Watched::AlignedActivation => lines_up,
+                Watched::DiagonalActivation => corners,
+                Watched::CurseApplied => false,
+            };
+            if saw {
+                tick_watchers(p, foes, me, j, what, t, log);
+            }
+        }
+    }
+}
+
+/// Advance every `Watch` on item `j` that counts `what`, and run the payload of
+/// any that came round.
+///
+/// A watcher never observes itself. Reactions already work that way and one
+/// rule is easier to hold than two - and a fast item watching its own
+/// activations would be counting its cadence, which is what `OnActivate` is
+/// for.
+fn tick_watchers(
+    p: &mut Combatant,
+    foes: &mut Vec<Combatant>,
+    me: Ref,
+    j: usize,
+    what: Watched,
+    t: u32,
+    log: &mut Vec<LogEntry>,
+) {
+    let due: Vec<(Action, String)> = {
+        let it = &mut pick(p, foes, me).items[j];
+        let mut due = Vec::new();
+        for k in 0..it.triggers.len() {
+            let Trigger::Watch { what: w, count, then, repeats } = it.triggers[k] else { continue };
+            if w != what || count == 0 || (!repeats && it.watch_paid[k]) {
+                continue;
+            }
+            // The counter ticks after the event it watched has resolved, and
+            // the payload runs immediately after that.
+            it.watched[k] += 1;
+            if it.watched[k] % count == 0 {
+                it.watch_paid[k] = true;
+                due.push((then, it.name.clone()));
+            }
+        }
+        due
+    };
+    let front = aim_of(foes, p.aim);
+    let (side, who) = (me.side, me.logged_as(front));
+    for (action, item) in due {
+        log.push(LogEntry {
+            who,
+            at_ms: t,
+            event: Event::Watched { side, item, what: what.name() },
+        });
+        apply(p, foes, me, action, t, log, Some(j));
+    }
+}
+
+/// Let every watcher on `side` count a curse landing.
+///
+/// Curses are the one thing a watcher counts that is not an activation, and
+/// they land on both sides, so this is called from where the curse lands rather
+/// than from where an item fires.
+fn notify_curse_watchers(
+    p: &mut Combatant,
+    foes: &mut Vec<Combatant>,
+    me: Ref,
+    t: u32,
+    log: &mut Vec<LogEntry>,
+) {
+    let count = pick(p, foes, me).items.len();
+    for j in 0..count {
+        tick_watchers(p, foes, me, j, Watched::CurseApplied, t, log);
     }
 }
 
@@ -4558,6 +4731,32 @@ fn apply(
     };
 
     match action {
+        Action::Fuse { a, b, into } => {
+            // Both parents have to have something in them, and neither may
+            // itself be a fusion - a product is not fuel. Anything else is a
+            // no-op rather than a partial trade, so a board that fuses on a
+            // fast cadence simply does nothing until it can afford to.
+            let ok = !a.is_fused() && !b.is_fused() && into.is_fused() && a != b;
+            let me_c = pick(p, foes, me);
+            if ok && me_c.pool(a) > 0 && me_c.pool(b) > 0 {
+                let (pa, pb) = (me_c.pool(a) - 1, me_c.pool(b) - 1);
+                me_c.set_pool(a, pa);
+                me_c.set_pool(b, pb);
+                let total = me_c.pool(into) + 1;
+                me_c.set_pool(into, total);
+                log.push(LogEntry {
+                    who,
+                    at_ms: t,
+                    event: Event::Fused {
+                        side,
+                        what: into.name(),
+                        total,
+                        from: (a.name(), pa),
+                        and: (b.name(), pb),
+                    },
+                });
+            }
+        }
         Action::Curse { kind, target } => {
             // Bloodscent: what you rot, you feed on.
             if matches!(target, Target::Enemy) {
@@ -4599,11 +4798,18 @@ fn apply(
             let on = resolve(target);
             let c = pick(p, foes, on);
             land_curse(c, on, kind, StunAim::Unaimed, t, log);
+            // A curse is the one thing a watcher counts that nobody activated,
+            // and it is watched from both sides: the gear that landed it and
+            // the gear wearing it both saw the same event.
+            notify_curse_watchers(p, foes, me, t, log);
+            notify_curse_watchers(p, foes, me.other(front), t, log);
         }
         Action::StunStrongest { target } => {
             let on = resolve(target);
             let c = pick(p, foes, on);
             land_curse(c, on, CurseKind::Stun, StunAim::Strongest, t, log);
+            notify_curse_watchers(p, foes, me, t, log);
+            notify_curse_watchers(p, foes, me.other(front), t, log);
         }
         Action::Damage { amount, kind, target } => {
             let on = resolve(target);

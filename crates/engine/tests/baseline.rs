@@ -590,6 +590,27 @@ fn report_damage_share_and_ttk() {
     // Reported apart rather than folded in, because a slot reading 0% of the
     // damage while quietly eating the enemy's health bar would be a fault in
     // the instrument rather than a finding about the slot.
+    // What a `Watch` is worth depends entirely on how often the board does
+    // anything, and `rating.rs` needs that as a constant. Measured rather than
+    // assumed: the spec's guess was "about one friendly activation a second".
+    println!("\n## Board cadence - friendly activations a second\n");
+    println!("{:<12}{:>12}{:>14}{:>12}", "build", "items", "activations/s", "per item");
+    for b in reference_builds() {
+        let (mut acts, mut secs) = (0u64, 0f64);
+        for spec in LADDER {
+            let log = b.fight(spec);
+            acts += log
+                .entries
+                .iter()
+                .filter(|e| matches!(e.event, Event::Activate { side: Side::Player, .. }))
+                .count() as u64;
+            secs += log.duration_ms as f64 / 1000.0;
+        }
+        let n = b.profiles().len();
+        let ps = acts as f64 / secs.max(0.001);
+        println!("{:<12}{:>12}{:>14.2}{:>12.3}", b.name, n, ps, ps / n.max(1) as f64);
+    }
+
     println!("\n## Mind damage across the whole ladder (max health removed, not in the shares above)\n");
     print!("{:<12}", "build");
     for s in SlotKind::ALL {
