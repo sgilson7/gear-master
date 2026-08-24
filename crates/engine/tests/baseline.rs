@@ -16,6 +16,9 @@
 //!
 //!     cargo test -p gearmaster-engine --test baseline -- --ignored --nocapture
 
+mod common;
+
+use common::{does, has};
 use gearmaster_engine::class::{ClassDef, ClassPower, CLASSES};
 use gearmaster_engine::combat::{
     simulate_with_class, CombatLog, Difficulty, Event, MonsterSpec, Outcome, Side, LADDER,
@@ -293,27 +296,6 @@ struct Census {
     total: [usize; 5],
 }
 
-/// Run `f` over every action a trigger can reach, following the one wrapping
-/// variant so an effect hidden inside `PerAdjacentEmpty` still counts.
-fn actions_of(t: &Trigger, f: &mut impl FnMut(&Action)) {
-    match t {
-        Trigger::OnActivate(a)
-        | Trigger::OnAdjacentActivate(a)
-        | Trigger::OnAlignedActivate(a)
-        | Trigger::OnBattleStart(a)
-        | Trigger::OnOtherCast(a) => f(a),
-        Trigger::PerAdjacentItem { action, .. } => f(action),
-        Trigger::Consume { per, .. } => f(per),
-        Trigger::SpendGold { on_success, .. } => f(on_success),
-        Trigger::SpendMana { on_success, on_failure, .. }
-        | Trigger::Spend { on_success, on_failure, .. } => {
-            f(on_success);
-            f(on_failure);
-        }
-        Trigger::PerAdjacentEmpty(inner) => actions_of(inner, f),
-    }
-}
-
 fn census() -> Census {
     let mut c = Census::default();
     let mut rows: Vec<(&'static str, [usize; 5])> = Vec::new();
@@ -325,17 +307,6 @@ fn census() -> Census {
             }
         }
         rows.push((label, row));
-    };
-
-    let any_action = |d: &gearmaster_engine::piece::PieceDef, want: fn(&Action) -> bool| {
-        let mut hit = false;
-        for t in d.triggers {
-            actions_of(t, &mut |a| hit |= want(a));
-        }
-        hit
-    };
-    let any_trigger = |d: &gearmaster_engine::piece::PieceDef, want: fn(&Trigger) -> bool| {
-        d.triggers.iter().any(want)
     };
 
     add("pieces", &|_| true);
@@ -358,30 +329,30 @@ fn census() -> Census {
     add("- effect", &|d| d.effect.is_some());
     add("- adjacency bonus", &|d| d.adjacency.is_some());
 
-    add("curse application", &|d| any_action(d, |a| matches!(a, Action::Curse { .. })));
+    add("curse application", &|d| does(d, |a| matches!(a, Action::Curse { .. })));
     add("- searing", &|d| {
-        any_action(d, |a| {
+        does(d, |a| {
             matches!(a, Action::Curse { kind: gearmaster_engine::curse::CurseKind::Searing, .. })
         })
     });
     add("- frost", &|d| {
-        any_action(d, |a| {
+        does(d, |a| {
             matches!(a, Action::Curse { kind: gearmaster_engine::curse::CurseKind::Frost, .. })
         })
     });
     add("- stun", &|d| {
-        any_action(d, |a| {
+        does(d, |a| {
             matches!(a, Action::Curse { kind: gearmaster_engine::curse::CurseKind::Stun, .. })
         })
     });
     add("- misfire", &|d| {
-        any_action(d, |a| {
+        does(d, |a| {
             matches!(a, Action::Curse { kind: gearmaster_engine::curse::CurseKind::Misfire, .. })
         })
     });
 
     add("reaction trigger", &|d| {
-        any_trigger(d, |t| {
+        has(d, |t| {
             matches!(
                 t,
                 Trigger::OnAdjacentActivate(_)
@@ -391,34 +362,34 @@ fn census() -> Census {
         })
     });
     add("- OnAdjacentActivate", &|d| {
-        any_trigger(d, |t| matches!(t, Trigger::OnAdjacentActivate(_)))
+        has(d, |t| matches!(t, Trigger::OnAdjacentActivate(_)))
     });
     add("- OnAlignedActivate", &|d| {
-        any_trigger(d, |t| matches!(t, Trigger::OnAlignedActivate(_)))
+        has(d, |t| matches!(t, Trigger::OnAlignedActivate(_)))
     });
     add("- PerAdjacentItem", &|d| {
-        any_trigger(d, |t| matches!(t, Trigger::PerAdjacentItem { .. }))
+        has(d, |t| matches!(t, Trigger::PerAdjacentItem { .. }))
     });
 
-    add("OnBattleStart", &|d| any_trigger(d, |t| matches!(t, Trigger::OnBattleStart(_))));
-    add("Drain", &|d| any_action(d, |a| matches!(a, Action::Drain { .. })));
-    add("StunStrongest", &|d| any_action(d, |a| matches!(a, Action::StunStrongest { .. })));
-    add("Grow", &|d| any_action(d, |a| matches!(a, Action::Grow(_))));
-    add("MindDamage", &|d| any_action(d, |a| matches!(a, Action::MindDamage { .. })));
-    add("GainEmpowerment", &|d| any_action(d, |a| matches!(a, Action::GainEmpowerment(_))));
-    add("GainShield", &|d| any_action(d, |a| matches!(a, Action::GainShield(_))));
-    add("GainForking", &|d| any_action(d, |a| matches!(a, Action::GainForking(_))));
-    add("ReduceCooldown", &|d| any_action(d, |a| matches!(a, Action::ReduceCooldown(_))));
+    add("OnBattleStart", &|d| has(d, |t| matches!(t, Trigger::OnBattleStart(_))));
+    add("Drain", &|d| does(d, |a| matches!(a, Action::Drain { .. })));
+    add("StunStrongest", &|d| does(d, |a| matches!(a, Action::StunStrongest { .. })));
+    add("Grow", &|d| does(d, |a| matches!(a, Action::Grow(_))));
+    add("MindDamage", &|d| does(d, |a| matches!(a, Action::MindDamage { .. })));
+    add("GainEmpowerment", &|d| does(d, |a| matches!(a, Action::GainEmpowerment(_))));
+    add("GainShield", &|d| does(d, |a| matches!(a, Action::GainShield(_))));
+    add("GainForking", &|d| does(d, |a| matches!(a, Action::GainForking(_))));
+    add("ReduceCooldown", &|d| does(d, |a| matches!(a, Action::ReduceCooldown(_))));
 
     add("pool spend (SpendMana / Spend / Consume)", &|d| {
-        any_trigger(d, |t| {
+        has(d, |t| {
             matches!(
                 t,
                 Trigger::SpendMana { .. } | Trigger::Spend { .. } | Trigger::Consume { .. }
             )
         })
     });
-    add("- Consume", &|d| any_trigger(d, |t| matches!(t, Trigger::Consume { .. })));
+    add("- Consume", &|d| has(d, |t| matches!(t, Trigger::Consume { .. })));
 
     add("power_bonus", &|d| d.power_bonus != 0);
     add("speed_bonus", &|d| d.speed_bonus != 0);
