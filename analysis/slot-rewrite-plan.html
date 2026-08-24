@@ -1,0 +1,893 @@
+<title>Five Slots, Five Axes</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --bg:        #F4F6F8;
+    --surface:   #FFFFFF;
+    --sunken:    #EAEEF2;
+    --border:    #DCE2E9;
+    --rule:      #C3CCD6;
+    --text:      #171C24;
+    --muted:     #5C6673;
+    --faint:     #8892A0;
+    --accent:    #9C6E15;
+    --accent-bg: #F6EDD8;
+    --ok:        #2F6F4E;
+    --warn:      #A5581B;
+    --crit:      #A83A2C;
+
+    --weapon:  #B4503F;
+    --gloves:  #276E7D;
+    --greaves: #6C7126;
+    --chest:   #75558E;
+    --helmet:  #37639C;
+
+    --measure: 68ch;
+    --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --f-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:        #12161C;
+      --surface:   #1A1F27;
+      --sunken:    #161B22;
+      --border:    #2A313B;
+      --rule:      #3A424E;
+      --text:      #E4E8ED;
+      --muted:     #99A3B0;
+      --faint:     #737E8C;
+      --accent:    #D9A648;
+      --accent-bg: #2A2415;
+      --ok:        #6FBF92;
+      --warn:      #E09A56;
+      --crit:      #E5796A;
+
+      --weapon:  #E08B76;
+      --gloves:  #5FB8C9;
+      --greaves: #B9BE5C;
+      --chest:   #B49AD0;
+      --helmet:  #7FA9E0;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg:        #12161C;
+    --surface:   #1A1F27;
+    --sunken:    #161B22;
+    --border:    #2A313B;
+    --rule:      #3A424E;
+    --text:      #E4E8ED;
+    --muted:     #99A3B0;
+    --faint:     #737E8C;
+    --accent:    #D9A648;
+    --accent-bg: #2A2415;
+    --ok:        #6FBF92;
+    --warn:      #E09A56;
+    --crit:      #E5796A;
+
+    --weapon:  #E08B76;
+    --gloves:  #5FB8C9;
+    --greaves: #B9BE5C;
+    --chest:   #B49AD0;
+    --helmet:  #7FA9E0;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--f-body);
+    font-size: 17px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 0 1.5rem 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  .col  { max-width: var(--measure); }
+
+  /* ---------------------------------------------------------- masthead */
+
+  header.masthead {
+    padding: 4.5rem 0 2rem;
+    border-bottom: 2px solid var(--text);
+    margin-bottom: 2.5rem;
+  }
+
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: .72rem;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0 0 1.25rem;
+  }
+
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    line-height: 1.02;
+    letter-spacing: -.022em;
+    text-wrap: balance;
+    margin: 0 0 1rem;
+  }
+
+  .standfirst {
+    font-size: 1.16rem;
+    color: var(--muted);
+    max-width: 56ch;
+    margin: 0 0 2rem;
+  }
+
+  .status-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 2.25rem;
+    font-family: var(--f-mono);
+    font-size: .8rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--border);
+  }
+  .status-strip div { padding: .7rem 0; }
+  .status-strip span {
+    display: block;
+    font-size: .68rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: .15rem;
+  }
+  .status-strip b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ------------------------------------------------------------ typography */
+
+  section { margin: 0 0 4.5rem; }
+
+  h2 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 1.62rem;
+    letter-spacing: -.012em;
+    line-height: 1.2;
+    text-wrap: balance;
+    margin: 0 0 .35rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--rule);
+  }
+  h2 .num {
+    font-family: var(--f-mono);
+    font-size: .78rem;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: .1em;
+    display: block;
+    margin-bottom: .55rem;
+  }
+  .deck {
+    color: var(--muted);
+    font-size: 1.02rem;
+    max-width: 60ch;
+    margin: 0 0 2rem;
+  }
+
+  h3 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 1.06rem;
+    letter-spacing: -.005em;
+    margin: 2.4rem 0 .6rem;
+  }
+
+  p { margin: 0 0 1.1rem; max-width: var(--measure); }
+  ul, ol { max-width: var(--measure); padding-left: 1.2rem; margin: 0 0 1.2rem; }
+  li { margin-bottom: .5rem; }
+  li::marker { color: var(--faint); }
+
+  code {
+    font-family: var(--f-mono);
+    font-size: .855em;
+    background: var(--sunken);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: .08em .32em;
+    white-space: nowrap;
+  }
+
+  strong { font-weight: 600; }
+  em { font-style: italic; color: var(--muted); }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* ----------------------------------------------------------- data blocks */
+
+  .scroll { overflow-x: auto; margin: 0 0 1.5rem; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 540px;
+    font-family: var(--f-mono);
+    font-size: .81rem;
+    font-variant-numeric: tabular-nums;
+  }
+  caption {
+    text-align: left;
+    font-family: var(--f-mono);
+    font-size: .7rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    padding-bottom: .7rem;
+  }
+  th {
+    text-align: left;
+    font-weight: 600;
+    font-size: .7rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1.5px solid var(--rule);
+    padding: .4rem .8rem .4rem 0;
+  }
+  td {
+    padding: .42rem .8rem .42rem 0;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th.n, td.n { text-align: right; padding-right: 1.1rem; }
+  tbody tr:last-child td { border-bottom: 1.5px solid var(--rule); }
+  .rowlabel { font-family: var(--f-body); font-size: .95rem; white-space: nowrap; }
+
+  /* slot identity chips */
+  .slot {
+    font-family: var(--f-mono);
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .slot::before {
+    content: "";
+    display: inline-block;
+    width: .42rem; height: .42rem;
+    margin-right: .45rem;
+    vertical-align: .04rem;
+    background: currentColor;
+  }
+  .s-weapon  { color: var(--weapon); }
+  .s-gloves  { color: var(--gloves); }
+  .s-greaves { color: var(--greaves); }
+  .s-chest   { color: var(--chest); }
+  .s-helmet  { color: var(--helmet); }
+
+  /* ------------------------------------------------------------ callouts */
+
+  .note {
+    border-left: 3px solid var(--rule);
+    background: var(--surface);
+    padding: 1.1rem 1.3rem;
+    margin: 0 0 1.5rem;
+    max-width: var(--measure);
+  }
+  .note p:last-child { margin-bottom: 0; }
+  .note .tag {
+    font-family: var(--f-mono);
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: .45rem;
+  }
+  .note.flag  { border-left-color: var(--crit); }
+  .note.flag .tag { color: var(--crit); }
+  .note.good  { border-left-color: var(--ok); }
+  .note.good .tag { color: var(--ok); }
+  .note.watch { border-left-color: var(--warn); }
+  .note.watch .tag { color: var(--warn); }
+
+  /* --------------------------------------------------------------- basis */
+
+  .basis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(178px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    margin: 0 0 2rem;
+  }
+  .basis > div { background: var(--surface); padding: 1.1rem 1.05rem 1.2rem; }
+  .basis .vec {
+    font-family: var(--f-display);
+    font-size: 1.22rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    margin: .55rem 0 .4rem;
+  }
+  .basis p { font-size: .87rem; color: var(--muted); margin: 0; max-width: none; }
+
+  /* ------------------------------------------------------------ PR list */
+
+  ol.prs { list-style: none; padding: 0; max-width: none; counter-reset: pr -1; }
+  ol.prs > li {
+    counter-increment: pr;
+    display: grid;
+    grid-template-columns: 3.4rem 1fr;
+    gap: 0 1.2rem;
+    padding: 1.15rem 0;
+    border-bottom: 1px solid var(--border);
+    margin: 0;
+  }
+  ol.prs > li::before {
+    content: "PR " counter(pr);
+    font-family: var(--f-mono);
+    font-size: .69rem;
+    font-weight: 600;
+    letter-spacing: .07em;
+    color: var(--accent);
+    padding-top: .3rem;
+    white-space: nowrap;
+  }
+  ol.prs h4 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 1.02rem;
+    margin: 0 0 .3rem;
+  }
+  ol.prs p { font-size: .93rem; color: var(--muted); margin: 0 0 .45rem; max-width: 62ch; }
+  ol.prs p:last-child { margin-bottom: 0; }
+  .gate {
+    font-family: var(--f-mono);
+    font-size: .73rem;
+    color: var(--text);
+    background: var(--sunken);
+    border: 1px solid var(--border);
+    padding: .3rem .55rem;
+    display: inline-block;
+  }
+  .gate b { color: var(--accent); font-weight: 600; }
+
+  /* ------------------------------------------------------------ decisions */
+
+  details {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 0 1.2rem;
+    margin: 0 0 .8rem;
+    max-width: var(--measure);
+  }
+  summary {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: .98rem;
+    cursor: pointer;
+    padding: .95rem 0;
+    list-style-position: outside;
+  }
+  details[open] summary { border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
+  details > *:last-child { margin-bottom: 1.1rem; }
+
+  footer {
+    border-top: 2px solid var(--text);
+    padding-top: 1.4rem;
+    font-family: var(--f-mono);
+    font-size: .76rem;
+    color: var(--faint);
+  }
+
+  @media (max-width: 640px) {
+    body { font-size: 16px; padding: 0 1.1rem 4rem; }
+    header.masthead { padding-top: 2.75rem; }
+    ol.prs > li { grid-template-columns: 1fr; gap: .4rem; }
+  }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">Gear Master · Execution briefing</p>
+  <h1>Five Slots, Five Axes</h1>
+  <p class="standfirst">
+    What the codebase actually is, what the game actually does, and the plan for
+    the gear-slot basis rewrite — measured against the catalog rather than
+    against the spec.
+  </p>
+  <div class="status-strip">
+    <div><span>Baseline suite</span><b>29 suites · 492 tests · green</b></div>
+    <div><span>Catalog</span><b>446 pieces</b></div>
+    <div><span>Monster specs</span><b>57</b></div>
+    <div><span>Spec status</span><b>Not yet executed</b></div>
+  </div>
+</header>
+
+<!-- ============================================================ 1 -->
+<section>
+  <h2><span class="num">Part One</span>The codebase</h2>
+  <p class="deck">
+    Three crates, one rule: the engine holds every rule and no graphics.
+  </p>
+
+  <p>
+    <code>crates/engine</code> is the game. <code>crates/cli</code> is a headless
+    REPL that drives it, and <code>crates/gui</code> is a macroquad window that
+    drives the same engine — 10,832 lines of it, the largest single file in the
+    workspace. A scripted run piped into the CLI replays identically; that is the
+    design contract, not a convenience.
+  </p>
+
+  <p>
+    The engine's weight sits in two files. <code>piece.rs</code> (9,020 lines)
+    defines what a piece is and then lists all 446 of them. <code>combat.rs</code>
+    (5,111 lines) runs the fight and carries all 57 monster boards inside it.
+    Everything else is small and single-purpose: rating, naming, classes, shop,
+    towns, events, rumours, dungeons, share codes, and a display-only theme layer.
+  </p>
+
+  <h3>The four doctrines</h3>
+  <ol>
+    <li><strong>Determinism is load-bearing.</strong> Combat consults no RNG at
+      all. One seeded PRNG exists for shop stock and other out-of-combat draws.
+      Even the Ticket to Ride miss chance is deterministic.</li>
+    <li><strong>Canonical names are string keys.</strong> Piece names key the
+      theme table, monster gear lists, quest targets, event and rumour
+      conditions, and dozens of tests. Renaming without propagating is the
+      repo's classic failure.</li>
+    <li><strong>Tests pin behavior on purpose.</strong> Rarity distribution and
+      fight outcomes are pinned so a batch of new content cannot quietly move
+      them. A moved pin gets re-pinned with a written justification, never
+      loosened.</li>
+    <li><strong>A theme cannot break the game.</strong> <code>theme.rs</code> is
+      display-only; missing entries fall through to canonical names.</li>
+  </ol>
+
+  <div class="note good">
+    <span class="tag">Verified</span>
+    <p>
+      A clean checkout builds and runs green: <strong>29 test binaries, 492
+      tests, zero failures.</strong> That is the baseline every re-pin below
+      will be measured against.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ 2 -->
+<section>
+  <h2><span class="num">Part Two</span>The game</h2>
+  <p class="deck">
+    You pack five grids. The engine turns what you packed into a fight that
+    could not have gone any other way.
+  </p>
+
+  <h3>The road</h3>
+  <p>
+    Fifty creature rungs carry three bosses and seven mini-bosses. Three towns
+    sit <em>between</em> rungs, events stand <em>in front of</em> them, and
+    dungeons stand <em>beside</em> them — a run that enters all three towns
+    stands on 53 rungs, and nothing on the road can be walked past. Fountains
+    appear before each boss, score the build on axes, and hand out classes;
+    the third can double one. Milestone rungs re-price the shop, named creatures
+    leave their gear behind, and a kill under two seconds in the first ten rungs
+    opens the casino exactly once.
+  </p>
+
+  <h3>A fight</h3>
+  <p>
+    Both boards tick in 50ms steps. Items activate on cooldown — their own, or
+    their slot's default. A hit is <code>(flat damage + strength) × power</code>,
+    typed physical or magic; the defender answers with the matching resist,
+    punched through by pierce and shored up by harden. Armor absorbs first and
+    resets to zero every fight. Regen heals per second, <code>Grow</code> raises
+    max health mid-fight, and mind damage lowers max health and cannot be healed.
+    Curses stack by kind with caps and floors. Stalemates run the full clock.
+  </p>
+
+  <h3>Pools and assembly</h3>
+  <p>
+    Mana is fuel. The other three pools pay passively at exact rates: rage gives
+    +1 physical damage a point, faith +2 physical and +2 magic resist, nature +1
+    regen. Loose pieces contribute their flat stats; pieces connected into a
+    <strong>recipe</strong> become an item that acts. Rating scores a board,
+    rating sets price and rarity, and rarity sets how many words the generated
+    name gets — three for Common up to six for Legendary. Which is why the
+    rarity thresholds are untouchable: move them and every item in the game
+    is renamed.
+  </p>
+
+  <h3>The problem the rewrite exists to fix</h3>
+  <p>
+    The weapon is the only slot that asks a question. It owns three recipes,
+    all the damage, most of the curse game, and most of the reaction game.
+    The other four are one stat-pile slot wearing four shapes — helmet and
+    chest sit at 0.93 cosine similarity, and a single k-means cluster absorbs
+    353 of the pieces across every slot. The fix is redistribution, not nerfs:
+    give each slot one basis vector and move the weapon's side-monopolies out
+    to the slots that should have owned them.
+  </p>
+
+  <div class="basis">
+    <div>
+      <span class="slot s-weapon">Weapon</span>
+      <p class="vec">Conversion</p>
+      <p>Turns time and banked resources into typed damage.</p>
+    </div>
+    <div>
+      <span class="slot s-gloves">Gloves</span>
+      <p class="vec">Reaction</p>
+      <p>Acts when other things act. The hands answer.</p>
+    </div>
+    <div>
+      <span class="slot s-greaves">Greaves</span>
+      <p class="vec">Tempo</p>
+      <p>Your speed, their curses, the opening move.</p>
+    </div>
+    <div>
+      <span class="slot s-chest">Chest</span>
+      <p class="vec">Reserve</p>
+      <p>How long you last. Outlasting is its offense.</p>
+    </div>
+    <div>
+      <span class="slot s-helmet">Helmet</span>
+      <p class="vec">Economy</p>
+      <p>Pool income and conversion. The mind game.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 3 -->
+<section>
+  <h2><span class="num">Part Three</span>What the catalog actually says</h2>
+  <p class="deck">
+    I re-measured every claim in the spec against today's 446 pieces rather
+    than trusting the census it was written from. Most of it holds. Some of it
+    has drifted, and one finding is larger than anything the spec records.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>Spec's census vs. today — per-slot piece counts</caption>
+      <thead>
+        <tr><th>Slot</th><th class="n">Spec</th><th class="n">Today</th><th class="n">Δ</th><th>Note</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="slot s-weapon">Weapon</span></td><td class="n">171</td><td class="n">172</td><td class="n">+1</td><td>Recycler and one other post-date the census</td></tr>
+        <tr><td><span class="slot s-helmet">Helmet</span></td><td class="n">79</td><td class="n">80</td><td class="n">+1</td><td>—</td></tr>
+        <tr><td><span class="slot s-chest">Chest</span></td><td class="n">68</td><td class="n">68</td><td class="n">0</td><td>—</td></tr>
+        <tr><td><span class="slot s-gloves">Gloves</span></td><td class="n">75</td><td class="n">75</td><td class="n">0</td><td>—</td></tr>
+        <tr><td><span class="slot s-greaves">Greaves</span></td><td class="n">51</td><td class="n">51</td><td class="n">0</td><td>Smallest slot, biggest new axis</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    The mechanical distribution the rewrite is built on holds up. Curse
+    applications sit at 35 on the weapon against 6/6/8/4 elsewhere (the spec
+    said 37). Reaction triggers are exactly the claimed 10 on the weapon.
+    <code>Grow</code> is smeared 4/3/3/2/3 across all five slots.
+    <code>power_bonus</code> is already weapon-exclusive at 49 pieces. Positional
+    content reaches 73 of 446 pieces, against the spec's 67 of 444.
+  </p>
+
+  <h3>The finding that reframes the work</h3>
+  <p>
+    The spec measures <em>interaction density</em> and finds it low. The sharper
+    number is <strong>inertness</strong>: pieces carrying no trigger, no
+    positional effect, and no adjacency bonus at all — nothing but a stat line.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>Inert stat-piles and positional content, per slot</caption>
+      <thead>
+        <tr><th>Slot</th><th class="n">Pieces</th><th class="n">Inert</th><th class="n">Inert %</th><th class="n">Positional</th><th class="n">Positional %</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="slot s-weapon">Weapon</span></td><td class="n">172</td><td class="n">45</td><td class="n">26.2%</td><td class="n">31</td><td class="n">18.0%</td></tr>
+        <tr><td><span class="slot s-helmet">Helmet</span></td><td class="n">80</td><td class="n">45</td><td class="n">56.2%</td><td class="n">12</td><td class="n">15.0%</td></tr>
+        <tr><td><span class="slot s-chest">Chest</span></td><td class="n">68</td><td class="n">36</td><td class="n">52.9%</td><td class="n">14</td><td class="n">20.6%</td></tr>
+        <tr><td><span class="slot s-gloves">Gloves</span></td><td class="n">75</td><td class="n">44</td><td class="n">58.7%</td><td class="n">9</td><td class="n">12.0%</td></tr>
+        <tr><td><span class="slot s-greaves">Greaves</span></td><td class="n">51</td><td class="n">27</td><td class="n">52.9%</td><td class="n">7</td><td class="n">13.7%</td></tr>
+        <tr><td><strong>Total</strong></td><td class="n"><strong>446</strong></td><td class="n"><strong>197</strong></td><td class="n"><strong>44.2%</strong></td><td class="n"><strong>73</strong></td><td class="n"><strong>16.4%</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note flag">
+    <span class="tag">Scope, restated honestly</span>
+    <p>
+      <strong>197 pieces — 44% of the catalog — are pure stat lines.</strong>
+      Every armor slot is over half inert. The spec's quota caps plain filler at
+      15% per slot, which means roughly <strong>130–150 pieces need mechanical
+      content written for them from scratch.</strong> That is not a sweep of
+      off-axis offenders; it is authoring a third of a game's worth of new gear
+      behavior. This is the single largest cost in the rewrite and the spec
+      does not name it.
+    </p>
+  </div>
+
+  <div class="note watch">
+    <span class="tag">The reaction slot has no reactions</span>
+    <p>
+      Gloves — the designated exclusive home of the reaction game — currently
+      carry <strong>zero</strong> <code>OnAdjacentActivate</code> triggers. All
+      nine live on weapon (6), helmet (2) and chest (1). The migration is not
+      "move most of them"; it is "build the slot's identity from nothing."
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ 4 -->
+<section>
+  <h2><span class="num">Part Four</span>Where the spec is wrong</h2>
+  <p class="deck">
+    The repo's rule is that the design document wins and the code files a bug
+    report. That rule assumes the document describes intent. Where the document
+    makes a factual claim <em>about the code</em> and the claim is false, the
+    document is what needs amending — and it does, in one structural place.
+  </p>
+
+  <h3>The bleed cycle contradicts the recipes</h3>
+  <p>
+    The spec's organizing device is a directed 5-cycle: Weapon → Gloves →
+    Greaves → Chest → Helmet → Weapon, so every slot overlaps exactly one
+    neighbor. §3.5 grounds the Greaves→Chest link in shipped code —
+    <em>"the recipe's optional Plating is the armor bleed, already shipped."</em>
+  </p>
+  <p>
+    It isn't. <code>PieceDef::fits</code> lets two piece kinds cross grids, and
+    they don't cross where the spec says:
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>Cross-grid pieces — what <code>fits()</code> actually permits</caption>
+      <thead>
+        <tr><th>Kind</th><th class="n">Count</th><th>Declared home</th><th>Also placeable in</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Material</td><td class="n">37</td><td>Gloves 20 · Greaves 17</td><td>Gloves ↔ Greaves</td></tr>
+        <tr><td>Plating</td><td class="n">24</td><td>Helmet 23 · Greaves 1</td><td>Helmet ↔ Greaves</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    Plating is a <strong>helmet</strong> kind that floats to greaves. Chest takes
+    Base + Layer only and cannot receive a Plating at all. So the structural
+    adjacency the code ships is not a 5-cycle — it is a path,
+    <strong>Gloves — Greaves — Helmet</strong>, with Weapon and Chest isolated at
+    the ends. Greaves is already the crossroads slot.
+  </p>
+
+  <div class="note flag">
+    <span class="tag">Consequence for the exclusivity table</span>
+    <p>
+      61 pieces (13.7%) can be legally placed outside their declared slot. A test
+      can only enforce exclusivity on <code>def.slot</code>; at runtime a greaves
+      Material carrying <code>OnBattleStart</code> sits happily in the gloves
+      grid. "Greaves-exclusive" is therefore a statement about authorship, not
+      about the board — unless the identity-carrying mechanics are deliberately
+      kept off the two floating kinds.
+    </p>
+  </div>
+
+  <p>
+    That last clause is also the repair. If Material and Plating are treated as
+    the <em>designated bleed carriers</em> — deliberately neutral, deliberately
+    shared — and the identity mechanics live on the kinds that cannot float
+    (Mold, Ring, Crest, Frame, Base, Layer), then the exclusivity table becomes
+    enforceable and the bleed structure stops being invented: it is read off the
+    recipes the game already ships.
+  </p>
+
+  <h3>The other amendments, confirmed</h3>
+  <div class="scroll">
+    <table>
+      <caption>Spec claims checked against source</caption>
+      <thead>
+        <tr><th>Claim</th><th>Finding</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="rowlabel">Share codes</td>
+          <td><strong>Index-based, confirmed.</strong> <code>share.rs</code> packs <code>def_index &lt;&lt; 12</code>. CATALOG is append-only or every code ever pasted breaks — including two full-run fixtures pinned in the repo.</td>
+        </tr>
+        <tr>
+          <td class="rowlabel">Grids are 6×8</td>
+          <td><strong>Base only.</strong> <code>SLOT_H</code> is a starting height; <code>Slot::rows</code> decides. Share codes carry the row count at version 2. Any new placement rule reads current dims.</td>
+        </tr>
+        <tr>
+          <td class="rowlabel">Damage attribution may need engine work</td>
+          <td><strong>Not needed.</strong> <code>RunningItem</code> already carries <code>slot: Option&lt;SlotKind&gt;</code>, and <code>Event::Activate</code> carries the item index. Slot attribution is derivable from today's log read-only.</td>
+        </tr>
+        <tr>
+          <td class="rowlabel"><code>OnBattleStart</code> is unvalued</td>
+          <td><strong>False alarm.</strong> It returns 0.0 from <code>trigger_points</code> but is handled specially in <code>piece_points</code> as <code>action_points / TYPICAL_FIGHT_S</code>. Correct today — but that one constant will price an entire slot once greaves own the trigger.</td>
+        </tr>
+        <tr>
+          <td class="rowlabel">Fusion pools grow <code>Resource</code> to 7</td>
+          <td><strong>~10 match sites</strong>, most compiler-caught. The real hazard is <code>Resource::index()</code>, which backs a fixed-size per-resource array in <code>Run</code>.</td>
+        </tr>
+        <tr>
+          <td class="rowlabel">"Exactly one adjacency piece per slot"</td>
+          <td><strong>Stale doc-comment.</strong> There are 25 (7/4/7/4/3), and towns grant a stacking <code>adjacency_pct</code> multiplier on top.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ 5 -->
+<section>
+  <h2><span class="num">Part Five</span>The plan</h2>
+  <p class="deck">
+    Nine changes, in dependency order, each one shippable and each one green.
+    The gates are the point: no catalog work begins until the test that judges
+    it exists and fails.
+  </p>
+
+  <ol class="prs">
+    <li>
+      <h4>Baseline metrics harness</h4>
+      <p>A census binary over <code>CATALOG</code> and a deterministic CLI replay
+      that reports per-slot damage share and per-rung time-to-kill for three
+      reference builds (melee, caster, hybrid) at rungs 10, 25 and 40. Read-only:
+      attribution comes from pairing <code>Hit</code> events to the preceding
+      <code>Activate</code> index, so no engine change ships here.</p>
+      <p class="gate"><b>Gate ·</b> numbers committed to <code>analysis/</code>. They are the denominators for every later claim.</p>
+    </li>
+    <li>
+      <h4><code>catalog_shape.rs</code>, written red</h4>
+      <p>The exclusivity table and both quota families — axis quotas and
+      interaction-density quotas — encoded as ranges, not exact counts. It fails
+      loudly against today's catalog and stays failing until PR 6. Enforced on
+      <code>def.slot</code>; Material and Plating are exempted as designated
+      bleed carriers, and the plain-filler assertion is set at 30% with the 15%
+      target recorded beside it.</p>
+      <p class="gate"><b>Gate ·</b> red for the right reasons — each assertion names the piece that broke it.</p>
+    </li>
+    <li>
+      <h4>Engine primitives, part one</h4>
+      <p><code>Watch</code> counters, the diagonal relation, and fusion pools.
+      Each deterministic, integer-only, and unit-tested before any piece uses
+      them. Fusion grows <code>Resource</code> to seven; the compiler finds the
+      match sites and <code>Resource::index()</code> gets the careful read.</p>
+      <p class="gate"><b>Gate ·</b> identical logs across two replays of one seed. No catalog changes in this PR.</p>
+    </li>
+    <li>
+      <h4>Underlay placement</h4>
+      <p>Overlap as terrain, merged alone because it touches placement, packing,
+      rating, the auto-builder and the GUI at once. Legality checks read the
+      board's current rows, never <code>SLOT_H</code>. If it balloons, the
+      documented fallback is adjacency-shaped approximation — but it is the
+      fallback, not the plan.</p>
+      <p class="gate"><b>Gate ·</b> <code>packing.rs</code> and <code>taller_boards.rs</code> unmoved.</p>
+    </li>
+    <li>
+      <h4>Weapon exodus, greaves intake</h4>
+      <p>Curse concepts leave the weapon for new greaves pieces; reaction
+      triggers leave for gloves designs; <code>Drain</code> and
+      <code>StunStrongest</code> go to the hands. Searing stays weapon-majority —
+      it is damage wearing a curse costume. Greaves gain the 10–15 new pieces
+      they need, appended to CATALOG, never inserted.</p>
+      <p class="gate"><b>Gate ·</b> no damage number on any weapon piece changed. The weapon loses scope, not power.</p>
+    </li>
+    <li>
+      <h4>Helmet and chest sweep</h4>
+      <p>Helmet takes <code>Consume</code>, empowerment, shield, mind damage and
+      mind_resist and gives up its armor piles; chest takes the <code>Grow</code>
+      and harden monopolies and grows its reserve numbers to absorb what the
+      other slots stopped providing. Written against the new primitives.</p>
+      <p class="gate"><b>Gate ·</b> the inert count for both slots is inside the filler quota agreed in Part Four.</p>
+    </li>
+    <li>
+      <h4>Gloves and greaves sweep</h4>
+      <p>The reaction slot gets built rather than migrated — it starts from zero
+      <code>OnAdjacentActivate</code>. Greaves finish their tempo intake. This is
+      where <code>catalog_shape.rs</code> turns green.</p>
+      <p class="gate"><b>Gate ·</b> <code>catalog_shape.rs</code> green. First time all five axes are enforced.</p>
+    </li>
+    <li>
+      <h4>Re-pin the dependent systems</h4>
+      <p>Every rewritten piece silently rebalances a rung, because monsters wear
+      the same catalog: all 57 boards get replayed and compared to the PR 1
+      baseline before any pin moves. Then rating weights, shop pools, the
+      auto-builder's heuristic, and the progression pins — weights adjusted,
+      thresholds never.</p>
+      <p class="gate"><b>Gate ·</b> every moved constant carries a one-line justification in the commit.</p>
+    </li>
+    <li>
+      <h4>Words, and the final measurement</h4>
+      <p>Theme entries for new and renamed pieces, <code>naming.rs</code>
+      coverage for the moved mechanics, glossary and per-slot identity lines
+      routed through theme vocabulary. Then the acceptance criteria, measured
+      against PR 1.</p>
+      <p class="gate"><b>Gate ·</b> the four acceptance criteria below.</p>
+    </li>
+  </ol>
+
+  <h3>Acceptance criteria</h3>
+  <div class="scroll">
+    <table>
+      <caption>Measured against the PR 1 baseline, not against taste</caption>
+      <thead>
+        <tr><th>Criterion</th><th>Target</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="rowlabel">Weapon damage share</td><td>Falls to 55–65% in reference builds</td></tr>
+        <tr><td class="rowlabel">Slot-mattering</td><td>Stripping any one non-weapon slot from a rung-25 build flips the outcome or costs ≥25% TTK</td></tr>
+        <tr><td class="rowlabel">No-weapon viability</td><td>An empty weapon grid still clears rung 15</td></tr>
+        <tr><td class="rowlabel">Early game preserved</td><td>Rungs 1–10 TTK within ±20% — new players feel nothing</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ 6 -->
+<section>
+  <h2><span class="num">Part Six</span>Three decisions, settled</h2>
+  <p class="deck">
+    Each of these changes what the shape test asserts. All three are now
+    answered, and <code>catalog_shape.rs</code> is written against them.
+  </p>
+
+  <div class="note good">
+    <span class="tag">Decided · exclusivity across the floating kinds</span>
+    <p>
+      <strong>Keep identity off the floaters.</strong> Material and Plating
+      become the designated bleed carriers — deliberately neutral, deliberately
+      shared. Identity-carrying mechanics live only on the kinds that cannot
+      cross a grid: Mold, Ring, Crest, Frame, Base and Layer.
+    </p>
+    <p>
+      This makes the exclusivity table enforceable rather than aspirational, and
+      it stops the bleed structure from being invented — Gloves↔Greaves is the
+      Material channel and Helmet↔Greaves is the Plating channel, both already
+      shipped. <code>fits()</code> is not narrowed, so no existing board or share
+      code is invalidated.
+    </p>
+  </div>
+
+  <div class="note good">
+    <span class="tag">Decided · the filler quota</span>
+    <p>
+      <strong>Staged: 30% for this rewrite, 15% as the written target.</strong>
+      All five axes and the full exclusivity table ship without the 130–150
+      piece authoring cliff. <code>catalog_shape.rs</code> encodes 30% as the
+      assertion with the 15% target recorded beside it as the documented next
+      step, so the tightening is a change to one constant rather than a
+      re-litigation.
+    </p>
+  </div>
+
+  <div class="note good">
+    <span class="tag">Decided · underlay</span>
+    <p>
+      <strong>Build it at PR 4, ahead of the sweeps.</strong> The catalog sweep
+      then writes pieces against it — including the Keystone Base from the
+      design brief — instead of approximating chest's structural tense with
+      adjacency and revisiting later. It still merges alone.
+    </p>
+  </div>
+</section>
+
+<footer>
+  Measured on a clean checkout · 446 pieces · 57 monster specs · 492 tests green ·
+  Nothing in this plan has been executed yet.
+</footer>
+
+</div>
