@@ -83,11 +83,19 @@ Two to start with, both firing around rung 20:
 | Rumour | Bartered for | Hover says | Actually needs |
 |---|---|---|---|
 | **A Word About the Crownwright** | any loose *Frame* | "They only see people whose heads are already full." | Fewer than 10 empty cells in the helmet slot |
-| **A Word About the Green Ledger** | any loose *Material* | "It is a long tally, and it wants to be finished." | 100 nature banked across the whole run |
+| **A Word About the Green Ledger** | the *Crownwright* rumour | "It is a long tally, and it wants to be finished." | 100 nature banked across the whole run |
 
 Both are checked when you arrive at their rung. Fail the condition and the
 event does not stand there — the rumour stays in the tray and does nothing,
 which is the risk you took.
+
+**The two are an either/or, on purpose.** The Ledger is priced in the
+Crownwright word, and the Crownwright door stands on rung 19 while the Ledger's
+stands on 22. The only pub between them is Kettleworks, after rung 17 — so
+trading up means arriving at 19 with nothing to show, and keeping the word
+means never hearing about the Ledger. A rumour you have decided you cannot use
+is still worth something, which is what stops a bad draw being dead; what it is
+worth is the other one.
 
 The running nature total is a new field on `Run`: nothing counted it before,
 because nothing had ever asked a question about a whole playthrough.

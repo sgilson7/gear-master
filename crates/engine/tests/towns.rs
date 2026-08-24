@@ -615,3 +615,154 @@ fn town_returns_the_town_between_two_rungs() {
 }
 
 
+
+// ------------------------------------------------------- walking both chains
+
+/// Play up the ladder, taking one named action at each town, and report the
+/// events that stood in front of the run on the way.
+fn walk(actions: &[Action], keep_rumours: bool) -> Vec<&'static str> {
+    let mut run = the_winning_board();
+    // A loose frame in the tray. The winning board is 97% packed and has
+    // nothing loose at all, so without this it cannot pay for a rumour - which
+    // is true of the board and not of a run, since anything bought or dropped
+    // lands in the tray first.
+    give(&mut run, "Steel Frame");
+    let mut seen: Vec<&'static str> = Vec::new();
+    let mut town_no = 0usize;
+    for rung in 0..26usize {
+        run.rung = rung;
+        // Fought rather than forced: a forced win writes no log, so it banks
+        // nothing, and the Ledger's condition is about what a run has banked.
+        run.fight_next();
+        run.settle();
+        run.back_to_loadout();
+        if let Some(t) = run.pending_town() {
+            match actions.get(town_no) {
+                Some(&a) => {
+                    run.visit_town(a);
+                    // The pub only stocks the shelves; buying is a second act.
+                    if a == Action::Pub && keep_rumours {
+                        for shelf in 0..6usize {
+                            let Some(_) = run.rumour_on(shelf) else { continue };
+                            if let Some(&pay) = run.payment_for(shelf).first() {
+                                let _ = run.barter(shelf, pay);
+                            }
+                        }
+                    }
+                }
+                None => {
+                    run.skip_town();
+                }
+            }
+            town_no += 1;
+            let _ = t;
+        }
+        while let Some(ev) = run.pending_event() {
+            seen.push(ev.id);
+            let Some(c) = ev.choices.iter().find(|c| run.choice_open(c)) else { break };
+            run.take_choice(c);
+            run.back_to_loadout();
+        }
+    }
+    seen
+}
+
+#[test]
+fn a_run_that_buys_the_first_word_gets_the_first_door() {
+    // One pub visit, one frame handed over, and the Crownwright is standing
+    // there on rung nineteen.
+    let mut run = the_winning_board();
+    give(&mut run, "Steel Frame");
+    run.town = Some(&TOWNS[0]);
+    run.visit_town(Action::Pub);
+    let shelf = (0..6)
+        .find(|&i| run.rumour_on(i).map(|r| r.name) == Some("A Word About the Crownwright"))
+        .expect("on the bar");
+    let pay = *run.payment_for(shelf).first().expect("the frame pays for it");
+    run.barter(shelf, pay).expect("the trade goes through");
+
+    let ev = gearmaster_engine::event::EVENTS
+        .iter()
+        .find(|e| e.id == "the-crownwright")
+        .expect("authored");
+    run.rung = ev.at;
+    run.back_to_loadout();
+    assert_eq!(run.pending_event().map(|e| e.id), Some(ev.id));
+}
+
+#[test]
+fn trading_the_first_word_up_buys_the_second_door_and_costs_the_first() {
+    // The either/or. Both halves of it, so neither can quietly stop working.
+    let mut run = the_winning_board();
+    give(&mut run, "Steel Frame");
+    run.town = Some(&TOWNS[0]);
+    run.visit_town(Action::Pub);
+    let first = (0..6)
+        .find(|&i| run.rumour_on(i).map(|r| r.name) == Some("A Word About the Crownwright"))
+        .expect("on the bar");
+    let pay = *run.payment_for(first).first().expect("the frame pays");
+    run.barter(first, pay).expect("first trade");
+
+    // A later pub, where the word itself is the price of the other one.
+    run.town = Some(&TOWNS[1]);
+    run.towns_seen.clear();
+    run.visit_town(Action::Pub);
+    let second = (0..6)
+        .find(|&i| run.rumour_on(i).map(|r| r.name) == Some("A Word About the Green Ledger"))
+        .expect("on the bar");
+    let up = *run
+        .payment_for(second)
+        .first()
+        .expect("the word you are carrying is what they want for it");
+    run.barter(second, up).expect("second trade");
+
+    assert!(
+        run.owned.iter().any(|&i| run.registry.def(i).name == "A Word About the Green Ledger"),
+        "traded up and got nothing"
+    );
+    assert!(
+        !run.owned.iter().any(|&i| run.registry.def(i).name == "A Word About the Crownwright"),
+        "traded the word away and still have it"
+    );
+
+    // So the first door is shut and the second is open.
+    run.rung = gearmaster_engine::event::EVENTS
+        .iter()
+        .find(|e| e.id == "the-crownwright")
+        .unwrap()
+        .at;
+    run.back_to_loadout();
+    assert!(run.pending_event().map(|e| e.id) != Some("the-crownwright"));
+
+    // Bank the hundred nature the ledger wants, by fighting for it.
+    for rung in 0..22usize {
+        run.rung = rung;
+        run.fight_next();
+        run.settle();
+        run.back_to_loadout();
+    }
+    run.rung = gearmaster_engine::event::EVENTS
+        .iter()
+        .find(|e| e.id == "the-green-ledger")
+        .unwrap()
+        .at;
+    run.back_to_loadout();
+    assert_eq!(run.pending_event().map(|e| e.id), Some("the-green-ledger"));
+}
+
+#[test]
+fn a_whole_run_up_the_ladder_meets_the_doors_it_paid_for() {
+    // The end-to-end version: play it, and see the door.
+    let with_word = walk(&[Action::Pub, Action::Chapel, Action::Chapel], true);
+    assert!(
+        with_word.contains(&"the-crownwright"),
+        "bought the word, walked to the rung, and the door was not there: {with_word:?}"
+    );
+
+    // And a run that never went to a pub never meets either of them.
+    let without = walk(&[Action::Chapel, Action::Chapel, Action::Chapel], false);
+    assert!(
+        !without.contains(&"the-crownwright") && !without.contains(&"the-green-ledger"),
+        "a run that heard no rumours met one anyway: {without:?}"
+    );
+}
