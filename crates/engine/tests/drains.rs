@@ -7,6 +7,34 @@
 use gearmaster_engine::combat::{simulate_at, CombatLog, Difficulty, Event, Side, LADDER};
 use gearmaster_engine::run::Run;
 
+mod common;
+
+/// Every creature on the ladder wearing something that drains faith.
+///
+/// Found rather than named. This used to be the list `["Pale Twin", "Null
+/// Sentinel", "The Iron Choir"]`, which was true when it was written and is a
+/// hostage to the monster repack: all three carry Tithe Collector in the
+/// helmet, and of the three themes they are about to be given, only the
+/// drainer at rung 38 has a helmet to keep it in. A test that names the
+/// creatures fails when the creatures change; a test that asks the ladder who
+/// does this fails only when *nobody* does, which is the thing actually worth
+/// hearing about.
+fn faith_drinkers() -> Vec<&'static str> {
+    use gearmaster_engine::piece::{Action, Resource, CATALOG};
+    let takes_faith = |a: &Action| {
+        matches!(a, Action::Drain { what: Resource::Faith, target: gearmaster_engine::piece::Target::Enemy, .. })
+    };
+    LADDER
+        .iter()
+        .filter(|m| {
+            m.gear.iter().any(|&(n, ..)| {
+                CATALOG.iter().any(|d| d.name == n && common::does(d, takes_faith))
+            })
+        })
+        .map(|m| m.name)
+        .collect()
+}
+
 fn wearing(names: &[&str]) -> Run {
     let mut run = Run::with_all_pieces();
     run.difficulty = Difficulty::Medium;
@@ -82,9 +110,13 @@ fn losing_a_pool_to_a_creature_hurts_for_what_was_taken() {
     let items = run.combat_items();
     assert!(!items.is_empty(), "the helmet has to assemble to bank faith");
 
-    let carriers = ["Pale Twin", "Null Sentinel", "The Iron Choir"];
+    let carriers = faith_drinkers();
+    assert!(
+        !carriers.is_empty(),
+        "nothing on the ladder drinks faith any more, so this mechanic has no home"
+    );
     let mut seen = 0usize;
-    for name in carriers {
+    for name in carriers.iter().copied() {
         let spec = LADDER.iter().find(|m| m.name == name).expect("on the ladder");
         let log = simulate_at(stats, &items, spec, Difficulty::Medium);
         let lost = drains(&log, Side::Player);
@@ -116,6 +148,7 @@ fn losing_a_pool_to_a_creature_hurts_for_what_was_taken() {
         );
     }
     assert!(seen > 0, "none of {carriers:?} ever took a point of faith off a faith build");
+    println!("faith is drunk by {carriers:?}");
 }
 
 #[test]
@@ -126,7 +159,8 @@ fn a_drain_against_an_empty_pool_does_nothing_at_all() {
     let stats = run.player_stats();
     let items = run.combat_items();
 
-    for name in ["Pale Twin", "Null Sentinel", "The Iron Choir"] {
+    // The same creatures the other test finds, for the same reason.
+    for name in faith_drinkers() {
         let spec = LADDER.iter().find(|m| m.name == name).expect("on the ladder");
         let log = simulate_at(stats, &items, spec, Difficulty::Medium);
         assert!(

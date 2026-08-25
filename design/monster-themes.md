@@ -109,6 +109,17 @@ Small changes, all of them constraints rather than new machinery:
 4. The acceptance gate stays exactly as it is: same outcome and time-to-kill
    within a quarter, measured against the three reference boards **at Medium**,
    which is one times.
+5. *Added 2026-08-25.* **A creature off the ladder has to be told its rung.**
+   The four in `ALTERNATES` - The Dreaming Idiot, and the three floors of the
+   crevice - stand beside the road rather than on it, so nothing in the game
+   says how hard they are meant to be, and the curve, the density target and
+   the theme are all functions of a rung. The packer takes `PACK_RUNG` and
+   refuses to guess. All four are met at the shrine fork on **rung 10**; whether
+   a dungeon floor should be packed for the rung it is entered from, or for
+   something deeper because it is optional and pays a class, is a question this
+   document does not answer yet. Their current boards - 27 to 40 pieces against
+   the five a rung-10 creature carries - say somebody already thought they
+   should be much harder.
 
 That last point is the one to hold on to. Forty boards were attempted with the
 gate and all forty were skipped, because a denser board could not reproduce the
@@ -137,6 +148,34 @@ and the owner's is the only reference board that clears far enough up the ladder
 to give a reading at every rung. Rung 1 is 3.2s, rung 25 is 12.4s, rung 50 is
 22.4s; its median across the 46 rungs it currently clears is 14.4s, so the line
 runs through roughly where the game already sits rather than moving it.
+
+*Amended, 2026-08-25.* **That last sentence was wrong twice over, and the line
+it was defending is right for a better reason.**
+
+The median was 14.4s on a board that was being rebuilt without locking each item
+as it assembled. Rebuilt correctly the owner's board clears **45 of 50** and its
+median is **9.00s**. So the line does not run through where the game sits: of
+the 37 rungs whose fights are decided by the gear, only **13** land within ±30%
+of it. Rung 23 takes 4.55s against a target of 11.6s; rung 26 takes 24.0s
+against 12.8s. The ladder is not a ramp, it is a scatter — which is the thing
+the repack exists to fix, so a target the ladder does not follow yet is exactly
+what a target should be. It was never a description and should not have been
+written as one.
+
+The eight remaining wins are not measurements at all. **Sudden death begins at
+30s** (`combat.rs:40`), so every fight past that point is being finished by the
+clock rather than by anybody's gear: rungs 40, 42, 43, 44, 45, 46, 48 and 49 all
+land between 37s and 43s, and 43.00s appears four times because that is where
+the escalation happens to reach these boards. A curve fitted through those is a
+curve fitted through the clock.
+
+Which gives the slope its real justification. **The band's top edge must clear
+sudden death.** At 0.4s a rung the line reaches 22.4s at rung 50 and +30% of
+that is 29.1s — just inside the 30s where the gear stops deciding. Any steeper
+and the top of the ladder is authored into a region where the fight is settled
+by escalation, and the packer would be tuning boards it cannot measure. That is
+a constraint the line satisfies, rather than a coincidence it was justified by,
+and it is why the line is unchanged here despite the numbers under it moving.
 
 The floor was two seconds for about ten minutes. Rung 2 wanted 2.4s and the
 best themed board any search could find took 3.2s — a striker at rung 2 cannot

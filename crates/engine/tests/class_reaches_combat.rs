@@ -94,16 +94,25 @@ fn bastion_actually_reduces_damage() {
 fn the_log_records_the_fight_not_the_setup() {
     // The guard for the mistake above: if this ever passes trivially again,
     // every margin measured off `log.player` is measuring the character sheet.
+    // Asked of the ladder rather than of one rung. What has to be true is that
+    // *somewhere* a fight leaves the player on less health than it started
+    // them with, and that the log says so. Naming rung 41 was naming a
+    // creature strong enough to do it in August, which is a fact about that
+    // creature's gear and not about the log.
     let run = a_fighting_run();
-    let spec = LADDER[40];
-    let log =
-        simulate_with_class(run.player_stats(), &run.combat_items(), &spec, Difficulty::Medium, &[]);
-    let (player, _) = final_health(&log);
+    let (stats, items) = (run.player_stats(), run.combat_items());
+    let hurt = LADDER.iter().find_map(|spec| {
+        let log = simulate_with_class(stats, &items, spec, Difficulty::Medium, &[]);
+        let (player, _) = final_health(&log);
+        (player < log.player.health).then_some((spec.name, player, log.player.health))
+    });
+    let (name, player, started) = hurt.expect(
+        "nothing on the ladder took a point off this build, so either the fixture is \
+         invincible or `log.player` is the starting snapshot being read as the end state",
+    );
     assert!(
-        player < log.player.health,
-        "a fight the player loses left them on {} of {} health - `log.player` is the \
-         starting snapshot, so end state has to be read from the events",
-        player,
-        log.player.health
+        player < started,
+        "{name} left the player on {player} of {started} health - `log.player` is the \
+         starting snapshot, so end state has to be read from the events"
     );
 }

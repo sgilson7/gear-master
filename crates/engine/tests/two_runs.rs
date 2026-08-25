@@ -201,7 +201,12 @@ fn a_sharp_run_finds_the_casino_and_walks_out_with_a_chip() {
     // Earned, not arranged: a board that cleared the ladder is quick enough
     // for the door on its own.
     let best = run.best_fight_ms.expect("won something in the shallow end");
-    assert!(best < 3_000, "the winning board took {best}ms and should not have got in");
+    assert!(
+        best < 3_000,
+        "the winning board took {best}ms and should not have got in. Measured at 1600ms, so \
+         something took 1.4s off the early ladder's headroom - see the corridor note on \
+         `the_casino_bar_is_high_and_the_other_door_is_not`"
+    );
     println!("the winning board's quickest shallow win: {best}ms");
 }
 
@@ -256,11 +261,20 @@ fn the_free_branch_of_the_long_way_leaves_a_note_for_later() {
 /// What it actually takes to get through the casino door.
 ///
 /// A complete auto-built board on Medium is nowhere near: its quickest win in
-/// the shallow end is around seven seconds against a three-second bar, while
-/// the board that actually cleared the game gets through comfortably. That is
-/// the door working - it selects for a build that has gone all in on damage
-/// early - but it is worth having written down, because it also means most
-/// runs meet the *other* door rather than this one.
+/// the shallow end is **4.5s** against a three-second bar, while the board that
+/// actually cleared the game gets through in **1.6s**. That is the door working
+/// - it selects for a build that has gone all in on damage early - but it is
+/// worth having written down, because it also means most runs meet the *other*
+/// door rather than this one.
+///
+/// **The corridor, measured, for whoever repacks the early ladder.** Both doors
+/// key off rungs 1-10, so every creature down there is inside it. Making them
+/// stronger slows both boards: the sharp run has **1.4s** of room before its
+/// best win stops being under three seconds and the casino shuts. Making them
+/// weaker speeds both: the plain board has **1.5s** of room before an ordinary
+/// build clears a bar meant for a sharp one. The slow door is not close - the
+/// plain run's worst is 44s against a 10s trip - so the binding constraint is
+/// the 1.4s. `probe_the_casino_corridor` prints all four figures.
 #[test]
 fn the_casino_bar_is_high_and_the_other_door_is_not() {
     let mut run = a_run(Difficulty::Medium);
@@ -271,7 +285,8 @@ fn the_casino_bar_is_high_and_the_other_door_is_not() {
     let worst = run.worst_fight_ms.expect("same");
     assert!(
         best >= 3_000,
-        "a plain board now clears the casino bar at {best}ms - retune or reword this"
+        "a plain board now clears the casino bar at {best}ms - it was 4500ms, so the early \
+         ladder got 1.5s easier and the sharp door is no longer sharp"
     );
     assert!(
         worst > 10_000,
@@ -547,5 +562,24 @@ fn longhaul_winds_up_as_the_fight_drags() {
     assert!(
         hauled_ms < plain_ms,
         "a long-hauler took {hauled_ms}ms where the same board took {plain_ms}ms"
+    );
+}
+
+/// Both sides of the casino corridor at once, for whoever repacks rungs 1-10.
+#[test]
+#[ignore = "generator; run with --ignored"]
+fn probe_the_casino_corridor() {
+    let mut sharp = a_sharp_run();
+    play(&mut sharp, 12, |c| matches!(c.outcome, ChoiceOutcome::Give(_)));
+    println!(
+        "PROBE sharp best {:?}ms worst {:?}ms  (needs best < 3000)",
+        sharp.best_fight_ms, sharp.worst_fight_ms
+    );
+    let mut plain = a_run(Difficulty::Medium);
+    plain.rung = 1;
+    play(&mut plain, 10, |_| true);
+    println!(
+        "PROBE plain best {:?}ms worst {:?}ms  (needs best >= 3000, worst > 10000)",
+        plain.best_fight_ms, plain.worst_fight_ms
     );
 }

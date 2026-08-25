@@ -55,6 +55,25 @@ fn band() -> usize {
     std::env::var("PACK_BAND").ok().and_then(|v| v.parse().ok()).unwrap_or(0)
 }
 
+/// Which rung an off-ladder creature is being packed for.
+///
+/// The dungeon floors and the event fights are the four creatures in
+/// `ALTERNATES`, and they have no rung: they stand beside the road rather than
+/// on it, so nothing in the game says how hard they are supposed to be. The
+/// curve, the density target and the theme are all functions of a rung, so one
+/// has to be supplied - and supplied deliberately, which is why this errors
+/// rather than guessing.
+///
+/// The road does say where they are *met*. All four hang off the shrine fork
+/// at rung 10: The Dreaming Idiot is the boss you fight instead of the Warded
+/// Idol, and the other three are the floors of the crevice, in order. Whether a
+/// dungeon floor should be packed for the rung it is entered from or for
+/// something deeper is a design question `design/monster-themes.md` does not
+/// answer yet.
+fn rung_override() -> Option<usize> {
+    std::env::var("PACK_RUNG").ok().and_then(|v| v.parse::<usize>().ok()).map(|r| r - 1)
+}
+
 /// How many items one slot may hold.
 ///
 /// A player's finished board carries twelve or thirteen across all five slots.
@@ -240,11 +259,25 @@ fn themes_of(rung: usize, ordinary: bool) -> Vec<Theme> {
 /// The creature being packed, and where it stands.
 fn subject() -> (usize, bool) {
     use gearmaster_engine::combat::{Rank, LADDER};
-    LADDER
-        .iter()
-        .position(|m| m.name == who())
-        .map(|i| (i, LADDER[i].rank == Rank::Ordinary))
-        .unwrap_or((0, true))
+    if let Some(i) = LADDER.iter().position(|m| m.name == who()) {
+        return (rung_override().unwrap_or(i), LADDER[i].rank == Rank::Ordinary);
+    }
+    let spec = subject_spec();
+    let rung = rung_override().unwrap_or_else(|| {
+        panic!(
+            "{} is not on the ladder, so it has no rung and nothing here knows how hard it \
+             should be. Set PACK_RUNG to the rung it is meant to fight like - all four \
+             off-ladder creatures are met at the shrine fork on rung 10.",
+            spec.name
+        )
+    });
+    (rung, spec.rank == Rank::Ordinary)
+}
+
+/// The creature being packed, wherever it is written.
+fn subject_spec() -> &'static gearmaster_engine::combat::MonsterSpec {
+    gearmaster_engine::combat::creature(&who())
+        .unwrap_or_else(|| panic!("no creature called {}", who()))
 }
 
 /// Pieces of one kind that may go in one slot, best first.
@@ -475,9 +508,20 @@ fn pieces_for(rung: usize) -> usize {
 /// Read off the owner's board at Medium: Medium is one times, and the owner's
 /// is the only reference board that clears far enough to give a reading at
 /// every rung. Rising four tenths of a second a rung, from a floor of 2.8s -
-/// rung 1 is 3.2s, rung 25 is 12.4s, rung 50 is 22.4s. Its median across the 46
-/// rungs it currently clears is 14.4s, so the line runs through roughly where
-/// the game already sits rather than moving it somewhere new.
+/// rung 1 is 3.2s, rung 25 is 12.4s, rung 50 is 22.4s.
+///
+/// The slope is set by **sudden death**, which begins at 30s. The band is ±30%,
+/// so the top edge at rung 50 is 29.1s - just inside the point where the clock
+/// starts deciding fights instead of the gear. Any steeper and the packer would
+/// be authoring the top of the ladder into a region it cannot measure, because
+/// every candidate there finishes by escalation.
+///
+/// It used to be justified as "the line runs through roughly where the game
+/// already sits". It does not, and it never did: of the 37 rungs the owner's
+/// board settles on its own, **13** land within the band. Rung 23 takes 4.55s
+/// against a target of 11.6s and rung 26 takes 24.0s against 12.8s. The ladder
+/// is a scatter, which is what the repack is for - so this is a target, and a
+/// target the ladder does not follow yet is the only kind worth having.
 ///
 /// The floor was two seconds and is 2.8 because the first attempt said so:
 /// rung two wanted 2.4s and the best themed board any search could find took
@@ -536,8 +580,7 @@ impl Beat {
 
 #[allow(dead_code)]
 fn want() -> Vec<[Beat; 4]> {
-    use gearmaster_engine::combat::LADDER;
-    let base = *LADDER.iter().find(|m| m.name == who()).expect("on the ladder");
+    let base = *subject_spec();
     fight(base.gear, base.items)
 }
 
@@ -545,8 +588,8 @@ fn want() -> Vec<[Beat; 4]> {
 fn fight(gear: &'static [(&'static str, SlotKind, u8, u8, u8)], chunks: &'static [usize])
     -> Vec<[Beat; 4]>
 {
-    use gearmaster_engine::combat::{simulate_at, Difficulty, Outcome, LADDER};
-    let base = *LADDER.iter().find(|m| m.name == who()).expect("on the ladder");
+    use gearmaster_engine::combat::{simulate_at, Difficulty, Outcome};
+    let base = *subject_spec();
     let spec = gearmaster_engine::combat::MonsterSpec { gear, items: chunks, ..base };
     boards()
         .iter()
@@ -768,4 +811,44 @@ fn pack() {
     println!("ITEMS &{chunks:?}");
     println!("pieces: {}", out.matches("\", SlotKind").count());
     let _ = is_boss_only("");
+}
+
+/// The owner's board against the whole ladder, beside the curve it is meant to
+/// follow. The reading that says whether a repack has moved the game or the
+/// measurement.
+#[test]
+#[ignore = "generator; run with --ignored"]
+fn probe_the_curve() {
+    use gearmaster_engine::combat::{simulate_at, Difficulty, Outcome, LADDER};
+    let bs = boards();
+    let (_, owner) = bs.iter().find(|(l, _)| *l == "owner").expect("owner");
+    let (st, items) = (owner.player_stats(), owner.combat_items());
+    let mut won: Vec<(usize, u32)> = Vec::new();
+    for (i, spec) in LADDER.iter().enumerate() {
+        let log = simulate_at(st, &items, spec, Difficulty::Medium);
+        let ok = log.outcome == Outcome::Victory;
+        println!(
+            "CURVE rung {:2} {:24} {} {:7.2}s  want {:5.2}s",
+            i + 1,
+            spec.name,
+            if ok { "win " } else { "loss" },
+            log.duration_ms as f32 / 1000.0,
+            target_ms(i) as f32 / 1000.0
+        );
+        if ok {
+            won.push((i, log.duration_ms));
+        }
+    }
+    let mut ms: Vec<u32> = won.iter().map(|&(_, m)| m).collect();
+    ms.sort_unstable();
+    println!("CURVE cleared {} of 50, median {:.2}s", ms.len(), ms[ms.len() / 2] as f32 / 1000.0);
+    // Least-squares fit of ms = a + b*rung over the rungs it clears.
+    let n = won.len() as f64;
+    let sx: f64 = won.iter().map(|&(i, _)| i as f64).sum();
+    let sy: f64 = won.iter().map(|&(_, m)| m as f64).sum();
+    let sxx: f64 = won.iter().map(|&(i, _)| (i as f64) * (i as f64)).sum();
+    let sxy: f64 = won.iter().map(|&(i, m)| (i as f64) * (m as f64)).sum();
+    let b = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+    let a = (sy - b * sx) / n;
+    println!("CURVE fit  {:.0}ms + {:.0}ms per rung", a, b);
 }

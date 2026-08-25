@@ -243,10 +243,31 @@ fn an_ordinary_rung_drops_nothing() {
 fn the_named_fights_pack_their_boards() {
     use gearmaster_engine::combat::Rank;
     use gearmaster_engine::piece::SlotKind;
+    // Judged on the slots each creature turns up wearing, not on all five.
+    //
+    // This asked all five of every named fight, which was right while every
+    // creature wore all five and is wrong the moment one has a theme: a themed
+    // hybrid wears three slots or four, and a demand for density in the two it
+    // has deliberately left empty is a demand that it not be themed. So the
+    // density rule follows the gear, and `min_slots` holds the other half -
+    // that a named fight cannot satisfy it by retreating into one corner of
+    // one board.
     for m in LADDER.iter().filter(|m| m.rank != Rank::Ordinary) {
         let need = m.rank.min_items_per_slot();
         let (reg, lo) = m.loadout();
-        for slot in SlotKind::ALL {
+        let worn: Vec<SlotKind> = SlotKind::ALL
+            .into_iter()
+            .filter(|&s| !lo.slot(s).pieces().is_empty())
+            .collect();
+        assert!(
+            worn.len() >= m.rank.min_slots(),
+            "{} ({:?}) turns up wearing {} slot(s), needs {}",
+            m.name,
+            m.rank,
+            worn.len(),
+            m.rank.min_slots()
+        );
+        for slot in worn {
             let got = lo.report(&reg, slot).items.iter().filter(|it| it.assembled).count();
             assert!(
                 got >= need,
@@ -1177,8 +1198,11 @@ fn growth_is_kept_after_a_loss_too() {
     let mut run = Run::with_all_pieces();
     equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
     equip(&mut run, "Gluttonous Fang", SlotKind::Weapon, 1, 0);
-    // Far up the ladder, where this build has no chance.
-    run.rung = 40;
+    // The top of the ladder, where this build has no chance. Named as "the
+    // last rung" rather than as a number: a two-piece fixture loses to the end
+    // of the ladder whatever the end of the ladder is wearing, and rung 41 was
+    // only ever a guess at how far up "no chance" starts.
+    run.rung = LADDER.len() - 1;
 
     let log = run.fight_next();
     assert_ne!(log.outcome, Outcome::Victory, "the fixture should be losing this");

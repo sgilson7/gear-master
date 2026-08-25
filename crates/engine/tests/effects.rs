@@ -7,6 +7,31 @@ use common::{equip, piece};
 use gearmaster_engine::piece::SlotKind;
 use gearmaster_engine::run::Run;
 
+/// A creature durable enough that the fight against it runs long.
+///
+/// Searched, not indexed. Three tests here needed "a fight that lasts" and two
+/// of them said `LADDER[25]` and `LADDER[30]`, which is a different thing that
+/// happened to be true. `LADDER[30]` is the Weeping Idol, a boss whose fifteen
+/// items end a fight before a caster has banked anything - a lesson the third
+/// test had already learned and written down, having been moved off the same
+/// index once before. Every one of these creatures is about to be repacked, so
+/// the question is asked of the ladder instead: who lasts?
+///
+/// Ordinary on purpose. A named fight is dense by rule, and density is what
+/// ends fights early.
+///
+/// The *shallowest* rung that lasts, rather than the deepest. Taking the
+/// highest health instead picks Francis - who is `Rank::Ordinary`, wears
+/// forty-four pieces, and ends a caster's fight before it has banked anything,
+/// which is the same trap by a different road.
+fn a_long_fight() -> &'static gearmaster_engine::combat::MonsterSpec {
+    use gearmaster_engine::combat::{Rank, LADDER};
+    LADDER
+        .iter()
+        .find(|m| m.rank == Rank::Ordinary && m.health > 3_000)
+        .expect("the deep ladder has ordinary rungs")
+}
+
 /// Total strength contributed by one slot.
 fn slot_str(run: &Run, kind: SlotKind) -> i32 {
     run.report(kind).stats.strength
@@ -221,7 +246,7 @@ fn a_neighbour_reading_effect_is_dormant_until_its_item_assembles() {
 /// nothing but more attempts.
 #[test]
 fn emptying_a_pool_pays_more_the_fuller_it_was() {
-    use gearmaster_engine::combat::{simulate, Event, Side, LADDER};
+    use gearmaster_engine::combat::{simulate, Event, Side};
     use gearmaster_engine::piece::SlotKind;
     use gearmaster_engine::run::Run;
 
@@ -243,7 +268,7 @@ fn emptying_a_pool_pays_more_the_fuller_it_was() {
         let profiles = run.combat_items();
         let mut stats = run.player_stats();
         stats.health = 100_000;
-        let log = simulate(stats, &profiles, &LADDER[25]);
+        let log = simulate(stats, &profiles, a_long_fight());
         log.entries
             .iter()
             .filter_map(|e| match e.event {
@@ -319,7 +344,7 @@ fn an_orb_out_damages_a_book_for_the_room_it_costs() {
 
 #[test]
 fn a_spell_cast_without_mana_still_lands_but_weakly() {
-    use gearmaster_engine::combat::{simulate, Event, Side, LADDER};
+    use gearmaster_engine::combat::{simulate, Event, Side};
     use gearmaster_engine::piece::SlotKind;
     use gearmaster_engine::run::Run;
 
@@ -334,7 +359,7 @@ fn a_spell_cast_without_mana_still_lands_but_weakly() {
     stats.health = 100_000;
 
     // Nothing banked, so every cast after the opening mana runs out is weak.
-    let log = simulate(stats, &profiles, &LADDER[30]);
+    let log = simulate(stats, &profiles, a_long_fight());
     let paid: Vec<bool> = log
         .entries
         .iter()
@@ -355,7 +380,7 @@ fn a_spell_cast_without_mana_still_lands_but_weakly() {
 /// Mana banked is spent on casting, so a build that makes mana casts in full.
 #[test]
 fn mana_income_pays_for_full_strength_casts() {
-    use gearmaster_engine::combat::{simulate, Event, Side, LADDER};
+    use gearmaster_engine::combat::{simulate, Event, Side};
     use gearmaster_engine::piece::SlotKind;
     use gearmaster_engine::run::Run;
 
@@ -372,14 +397,7 @@ fn mana_income_pays_for_full_strength_casts() {
     let profiles = run.combat_items();
     let mut stats = run.player_stats();
     stats.health = 100_000;
-    // An ordinary rung on purpose. LADDER[30] used to be one and is now the
-    // Weeping Idol, whose fifteen items end the fight before a caster has
-    // banked anything - which tells you nothing about mana income.
-    let foe = LADDER
-        .iter()
-        .find(|m| m.rank == gearmaster_engine::combat::Rank::Ordinary && m.health > 3000)
-        .expect("the deep ladder has ordinary rungs");
-    let log = simulate(stats, &profiles, foe);
+    let log = simulate(stats, &profiles, a_long_fight());
     let paid = log
         .entries
         .iter()

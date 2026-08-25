@@ -171,13 +171,35 @@ pub enum Rank {
 }
 
 impl Rank {
-    /// How many assembled items each of this creature's five slots must hold.
+    /// How many assembled items each slot this creature *uses* must hold.
     ///
     /// An ordinary creature is allowed a loose board. The named ones are not:
     /// a boss whose helmet holds one item is a boss you out-gear, and the
     /// whole point of locking items is that a board can hold more than the
     /// authoring tool used to be able to find.
+    ///
+    /// "Uses" rather than "has", which it used to be. A themed creature wears
+    /// two slots and a themed hybrid three or four - that is what a theme is -
+    /// so demanding density in all five demands that no creature have a theme.
+    /// The density rule is about the slots a creature actually turns up
+    /// wearing; how many of those there must be is `min_slots`.
     pub fn min_items_per_slot(self) -> usize {
+        match self {
+            Rank::Ordinary => 0,
+            Rank::Mini => 2,
+            Rank::Boss => 3,
+        }
+    }
+
+    /// How many slots a named creature has to turn up wearing.
+    ///
+    /// Set by the themes rather than by taste. A mini-boss is a hybrid of its
+    /// own cluster and the next, and the thinnest such pairing shares no slot
+    /// and has none to spare: the two drainers at rungs 39 and 43 find nothing
+    /// past rung 44 to hybridise with and wear their own two. A boss's two
+    /// clusters always overlap by one, which is three. Anything below these is
+    /// a named fight hiding in a corner of its board.
+    pub fn min_slots(self) -> usize {
         match self {
             Rank::Ordinary => 0,
             Rank::Mini => 2,

@@ -34,6 +34,11 @@ fn a_fighter() -> Run {
 }
 
 /// Health each foe was left on, read from the events rather than the setup.
+///
+/// Note the clamp: a foe that falls is written down to zero, so the damage this
+/// implies for the killing blow includes every point of overkill. That is fine
+/// for "did this one come down" and useless for "were they whittled evenly" -
+/// see `the_aim_moves_along_so_they_come_down_together`, which counts blows.
 fn foe_health(log: &CombatLog) -> Vec<i32> {
     let mut hp: Vec<i32> = log.enemies.iter().map(|e| e.health).collect();
     for e in &log.entries {
@@ -96,32 +101,62 @@ fn the_aim_moves_along_so_they_come_down_together() {
     // Two of the same thing, so anything other than an even split is the
     // targeting rule and not the creatures.
     let log = brawl(&["Bog Toad", "Bog Toad"]);
-    let hp = foe_health(&log);
-    assert_eq!(hp.len(), 2);
+    assert_eq!(log.enemies.len(), 2);
 
+    // Counted in blows, not in damage.
+    //
+    // Damage cannot answer this question and it took a repack to notice. A
+    // foe that falls is charged with all the health it had left, however far
+    // the killing blow overshot, so the sequence hit-A, hit-B, kill-A reads as
+    // "A took its whole health bar and B took one hit" - a gap the size of the
+    // creature, produced by the aim working exactly as intended. The lighter
+    // the creature, the worse the reading, so the test got harder to pass the
+    // *weaker* the thing being hit, which is not a property any test should
+    // have.
+    //
+    // What the rule says is that the aim moves along after every attack. That
+    // is about blows, and blows are what this counts - up to the moment one of
+    // them falls, after which every remaining swing goes to the survivor and
+    // ought to.
+    let mut hits = [0i32; 2];
+    let mut down = [false; 2];
+    for e in &log.entries {
+        let who = e.who as usize;
+        match &e.event {
+            Event::Hit { by: Side::Player, .. } if !down[0] && !down[1] => {
+                if let Some(h) = hits.get_mut(who) {
+                    *h += 1;
+                }
+            }
+            Event::Fell { side: Side::Enemy } => {
+                if let Some(d) = down.get_mut(who) {
+                    *d = true;
+                }
+            }
+            _ => {}
+        }
+    }
+    let landed: i32 = hits.iter().sum();
+    assert!(
+        landed >= 2,
+        "only {landed} blow(s) landed while both were standing, so there is no alternation \
+         to see. The fixture is too thin for the creatures it is fighting - give it more \
+         board, do not relax this."
+    );
+    assert!(hits.iter().all(|&h| h > 0), "one of them was never touched: {hits:?}");
+    assert!(
+        (hits[0] - hits[1]).abs() <= 1,
+        "one took {} blows and the other {} while both were standing - that is focus \
+         fire, not a spread",
+        hits[0],
+        hits[1]
+    );
+
+    // And it is not a spread that leaves one of them healthy: both come down.
+    let hp = foe_health(&log);
     let start = log.enemies[0].health;
     let dealt: Vec<i32> = hp.iter().map(|h| start - h).collect();
-    assert!(dealt.iter().all(|&d| d > 0), "one of them was never touched: {dealt:?}");
-
-    // Whittled at one rate, not one at a time. A single swing of slack is
-    // fine - the aim moves after each attack, so at any moment one of them is
-    // at most one hit ahead.
-    let gap = (dealt[0] - dealt[1]).abs();
-    let biggest_hit = log
-        .entries
-        .iter()
-        .filter_map(|e| match &e.event {
-            Event::Hit { by: Side::Player, damage, .. } => Some(*damage),
-            _ => None,
-        })
-        .max()
-        .unwrap_or(0);
-    assert!(
-        gap <= biggest_hit.max(1),
-        "one took {} and the other {} - that is focus fire, not a spread",
-        dealt[0],
-        dealt[1]
-    );
+    assert!(dealt.iter().all(|&d| d > 0), "one of them took no damage at all: {dealt:?}");
 }
 
 #[test]

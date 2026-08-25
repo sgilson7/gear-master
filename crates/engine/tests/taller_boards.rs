@@ -108,9 +108,16 @@ fn nothing_can_be_placed_below_the_last_row() {
 #[test]
 fn a_monster_keeps_the_ordinary_eight() {
     // The player's boards grow; nothing else's does.
+    //
+    // Asked of the whole ladder rather than of rung 21, which is what it used
+    // to name. A repack that packs a creature to more pieces than eight rows
+    // hold is exactly the thing this should catch, and it cannot catch it one
+    // rung at a time.
     use gearmaster_engine::combat::LADDER;
-    let (_, loadout) = LADDER[20].loadout();
-    assert_eq!(loadout.rows(), SLOT_H);
+    for m in LADDER {
+        let (_, loadout) = m.loadout();
+        assert_eq!(loadout.rows(), SLOT_H, "{} needs a taller board than anybody gets", m.name);
+    }
 }
 
 #[test]

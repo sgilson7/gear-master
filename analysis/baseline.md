@@ -854,3 +854,56 @@ right: (Helmet, "Aegis Crown + Warding Plate")`.
 **The packer's reference boards are correct from here on**, which is what the
 monster repack was waiting for: its acceptance curve is read off the owner's
 board, and it was reading a board nobody built.
+
+---
+
+## The curve the repack packs against, and what it is really pinned to
+
+The gate in `design/monster-themes.md` §6 asks "is this the right difficulty for
+this rung", against `target(rung) = 2.8s + 0.4s × rung`, ±30%, read off the
+owner's board at Medium. It justified itself by saying the line runs through
+where the game already sits, citing a median of 14.4s.
+
+Both halves of that were wrong and the line is right anyway.
+
+**The median is 9.00s**, on a board that assembles. **And the line does not run
+through the game**: the owner's board settles 37 of its 45 wins on its own, and
+of those, **13** land inside the band.
+
+```
+rung  1 Cave Rat            1.50s   want  2.80s      rung 23 The Gearwright      4.55s   want 11.60s
+rung 10 Warded Idol         2.00s   want  6.40s      rung 26 Mire Behemoth      24.00s   want 12.80s
+rung 20 Bone Cantor         8.05s   want 10.40s      rung 33 Iron Abbot         27.00s   want 15.60s
+```
+
+The ladder is a scatter, not a ramp, which is the thing the repack exists to
+fix — so a target the ladder does not follow is exactly what a target should be.
+It was never a description and should not have been written as one.
+
+**The other eight wins are not measurements at all.** Sudden death begins at 30s
+(`combat.rs:40`), so rungs 40, 42, 43, 44, 45, 46, 48 and 49 — all between 37s
+and 43s, with 43.00s appearing four times — are being finished by escalation
+rather than by anybody's gear. A curve fitted through those is a curve fitted
+through the clock. (A least-squares line through everything reads 911ms a rung;
+through the fights the gear actually settles, 622ms.)
+
+Which gives the slope the justification it should have had. **The band's top
+edge has to clear sudden death.** At 0.4s a rung the line reaches 22.4s at rung
+50, and +30% of that is 29.1s — just inside the 30s where the clock takes over.
+Any steeper and the packer would be authoring the top of the ladder into a
+region it cannot measure. So the line is unchanged, for a reason that holds.
+
+### The casino corridor, measured
+
+Both doors key off rungs 1–10, so the repack is inside them from its first
+board.
+
+| | now | needs | room |
+|---|---|---|---|
+| sharp run's best early win | 1600ms | < 3000ms | **1.4s of slack** |
+| plain board's best early win | 4500ms | ≥ 3000ms | 1.5s of slack |
+| plain board's worst early win | 44000ms | > 10000ms | not close |
+
+Stronger early creatures slow both boards, weaker ones speed both, so the
+binding constraint is the 1.4s: that is how much the early ladder may be
+hardened before the casino door shuts on the build it was written for.
