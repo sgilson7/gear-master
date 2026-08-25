@@ -129,6 +129,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gearmaster-packer"
+version = "0.1.0"
+dependencies = [
+ "gearmaster-engine",
+ "macroquad",
+]
+
+[[package]]
 name = "glam"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
