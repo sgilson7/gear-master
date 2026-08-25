@@ -55,8 +55,8 @@ re-pinned first**.
 | M0 | The ground, written down | **done** |
 | M1 | Typed lanes and the twins (A1+A2) - merges alone | **done** |
 | M2 | Insight and Dread, dark (A3) | **done** |
-| M3 | The road stack, receipts, tooltips (A7/A9/A6) | next |
-| M4 | Road machinery, landed inert (A4) | |
+| M3 | The road stack, receipts, tooltips (A7/A9/A6) | **done** |
+| M4 | Road machinery, landed inert (A4) | next |
 | M5 | Frames and the four new themes (H4) | |
 | M6 | Dungeon presentation, pedestals, route map (A8/A10/G6) | |
 | M7 | Relics, crushables and consignment (H1) | |
@@ -184,3 +184,45 @@ call as the run's flag. `piece::touches_insight` is the predicate.
 fails in the commit that authors the family (M9), and the fix is to delete it.
 
 Suite: **569 green**, 0 warnings.
+
+
+---
+
+## M3 - The road stack, receipts and tooltips
+
+Two commits, and nothing in `combat.rs`. The harness is byte-identical to M2.
+
+**A7, derived rather than stored.** `Run::road_stack()` is a function over run
+state, not a `Vec` field pushed and popped. Every entry is already decided by
+something that exists - `dungeon`, `town`, `at_fountain`, `answered`, `brawl` -
+and a stored copy would be a second source of truth for a question five fields
+already answer. Two of this project's bugs were exactly that shape. Derived,
+"resolving an interrupt may push more" and "a dungeon exit resumes the pop
+where it left off" both need no code at all.
+
+**Amended: the pop order is the gate, then the fountain, then the events.** The
+spec asks for fountain first. The two genuinely collide - `FOUNTAINS` is 7 and
+14 and Sump Bottom's gate stands at rung 7 - and the shipped road reads the
+gate first in both places it decides. E6 criterion 2 settles it.
+
+**A6 and A9.** `Requirement::describe`, `Outcome::describe`,
+`TownVisit::receipt` and `rumour::conditions_line` all live in the engine and
+return canonical prose, so the CLI prints the sentences the interface draws and
+the theme layer swaps the nouns in both. `unmet` did not go anywhere: it is
+flavour for the moment *after* a door refuses you, and `describe` is the plain
+statement before you try one. Both ship.
+
+`Run::last_receipt` / `take_receipt` is read once and dismissed, and the panel
+that shows it blocks the next pop of the stack.
+
+**The CLI can now walk the road.** It could equip and fight and nothing else,
+so a scripted run went straight past every event, town and fountain in the
+game - which makes "two replays produce identical logs" (E6.1) a claim about a
+road nobody was on. `road`, `answer <n>`, `town`, `town on`, `town <door>` and
+`drink`.
+
+**And a test that was passing for the wrong reason.**
+`a_town_gate_blocks_the_road_even_mid_replay` was satisfied by the fountain
+that shares rung seven with the gate. It names what it is looking for now.
+
+Suite: **589 green**, 0 warnings. New: `road_stack.rs` (8), `tooltips.rs` (11).

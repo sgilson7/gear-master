@@ -159,6 +159,26 @@ pub fn opens(event_id: &str) -> Option<&'static Rumour> {
     RUMOURS.iter().find(|r| r.opens == event_id)
 }
 
+/// What a rumour is for, in one line, for the tray hover.
+///
+/// Built from the reverse index over `EVENTS` rather than from `Rumour::opens`,
+/// which is the same fact written down twice and free to drift. If the event
+/// moves, this moves with it.
+///
+/// Deliberately *not* the hint. The hint is vague because working out what a
+/// rumour means is the whole of it; this says which door it is a key to and
+/// where that door stands, which is the thing a player cannot work out by
+/// staring at their tray. Both are shown, one under the other.
+pub fn conditions_line(name: &str) -> Option<String> {
+    let events = crate::event::conditioned_by(name);
+    if events.is_empty() {
+        return None;
+    }
+    let each: Vec<String> =
+        events.iter().map(|e| format!("{} - {}", e.title, e.where_it_stands())).collect();
+    Some(format!("Conditions: {}", each.join("; ")))
+}
+
 /// "the Crownwright" out of "A Word About the Crownwright", for a price label
 /// that would otherwise be half as long as the shelf.
 fn short_name(full: &str) -> &str {
@@ -201,6 +221,33 @@ mod tests {
             crate::piece::is_event_only(TROPHY_SHELF),
             "the trophy trade could be bought with money"
         );
+    }
+
+    /// An orphan rumour is dead content: a component that costs a tray slot,
+    /// can be bartered for, and is a key to nothing.
+    ///
+    /// `every_rumour_opens_a_real_event` reads `Rumour::opens` forwards, which
+    /// catches a typo in the id. This reads the events backwards, which catches
+    /// the other half - an event that stopped being `Whispered`, or moved to a
+    /// different rumour, and left this one holding nothing. One assertion,
+    /// because the reverse index makes it one.
+    #[test]
+    fn no_rumour_is_a_key_to_nothing() {
+        for r in RUMOURS {
+            let events = crate::event::conditioned_by(r.name);
+            assert!(!events.is_empty(), "{} conditions no event at all", r.name);
+            assert!(
+                conditions_line(r.name).is_some_and(|l| l.contains("Conditions:")),
+                "{} cannot say what it is for",
+                r.name
+            );
+        }
+        // And nothing waits on a rumour that is not one.
+        for e in crate::event::EVENTS {
+            if let crate::event::Trigger::Whispered { rumour } = e.trigger {
+                assert!(by_name(rumour).is_some(), "{} waits on {}, which is not a rumour", e.id, rumour);
+            }
+        }
     }
 
     #[test]

@@ -1559,3 +1559,19 @@ asks to be deleted on the day the family lands.
 The glossary was carrying a wrong sentence after M1 - "MANA SHIELD ... damage
 of any kind" - and now says magic. SPELLBLADE, DEFLECTION, INSIGHT, DREAD and
 THE THREE LANES are new entries beside it.
+
+## Drift — M3, the road stack, receipts and tooltips
+
+**None.** Byte-identical to M2 across the whole harness. Nothing in this
+milestone is in `combat.rs`.
+
+What it is worth recording instead is a test that was passing for the wrong
+reason. `the_road::a_town_gate_blocks_the_road_even_mid_replay` asserts that a
+gate still stops the next fight while a replay is up, and it checks
+`road_is_blocked().is_some()`. Sump Bottom's gate stands at rung index 7 and so
+does the first fountain, so "something is blocking the road" was answerable by
+the wrong one of the two - and was, the first time `road_stack` read the
+phase-gated `pending_town` there. It names what it is looking for now.
+
+That is the third entry in `second-order.md` §4's list, and the first one found
+by a change rather than by reading.

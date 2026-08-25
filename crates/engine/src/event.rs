@@ -79,6 +79,67 @@ pub enum Outcome {
     Stock { shelves: &'static [&'static str], class: &'static str },
 }
 
+impl Outcome {
+    /// The concrete deltas this hands over, one line each.
+    ///
+    /// A `Vec` where `Requirement::describe` is a `String`, and the difference
+    /// is the point: a requirement is one condition, and an outcome is
+    /// however many things happen. The VIP area's bargain restocks a shop
+    /// *and* costs you a class, and a receipt that mentioned one of those
+    /// would be a receipt somebody had to check.
+    ///
+    /// Static: what this outcome *is*, for a tooltip before it is taken. What
+    /// it *did*, with the run's own numbers in it, is `Run::receipt` - a
+    /// bounty depends on the rung and a seeded gamble depends on the roll,
+    /// and neither is knowable from here.
+    pub fn describe(&self) -> Vec<String> {
+        match self {
+            Outcome::FightAsWritten => vec!["Fight the creature standing here".into()],
+            Outcome::FightInstead(name) => vec![format!("Fight {} instead", name)],
+            Outcome::BuyOff { times } => vec![
+                "Hand over what was asked".into(),
+                format!("The rung is bought off, and pays its bounty {} times over", times),
+            ],
+            Outcome::Enter(id) => {
+                let name = crate::dungeon::by_id(id).map(|d| d.name).unwrap_or(id);
+                vec![format!("Enter: {}", name)]
+            }
+            Outcome::Spare => vec!["One more loss before the run ends".into()],
+            Outcome::Claim(name) => vec![format!("Class: {}", name)],
+            Outcome::Give(name) => vec![format!("Gained: {}", name)],
+            Outcome::Step(b) => {
+                let mut out = vec![format!("Fight: {}", b.with.join(" and "))];
+                if !b.win.is_empty() {
+                    out.push(format!("If you win: {}", b.win));
+                }
+                if b.and_grow > 0 {
+                    out.push(format!(
+                        "If you win: +{} row{} on every board",
+                        b.and_grow,
+                        if b.and_grow == 1 { "" } else { "s" }
+                    ));
+                }
+                out.push(
+                    if b.forgiving {
+                        "Losing costs no life".into()
+                    } else {
+                        "Losing costs what losing costs".into()
+                    },
+                );
+                out
+            }
+            Outcome::Stock { shelves, class } => {
+                let mut out = vec![format!("The shop is emptied and stocked with {}", shelves.len())];
+                for name in shelves.iter() {
+                    out.push(format!("  {}", name));
+                }
+                out.push(format!("Class: {}", class));
+                out
+            }
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct Choice {
     pub label: &'static str,
@@ -618,7 +679,63 @@ pub fn at(
     })
 }
 
+/// Every event a rumour is the condition on, in table order.
+///
+/// The reverse of `Rumour::opens`, and worth having both ways round. Forwards
+/// answers "what does this rumour do"; backwards answers "is this rumour for
+/// anything at all", which is the question that catches dead content. Built by
+/// walking `EVENTS` rather than kept in a table, so an event that moves takes
+/// its rumour's description with it.
+pub fn conditioned_by(rumour: &str) -> Vec<&'static LadderEvent> {
+    EVENTS
+        .iter()
+        .filter(|e| matches!(e.trigger, Trigger::Whispered { rumour: r } if r == rumour))
+        .collect()
+}
+
+impl LadderEvent {
+    /// Where this stands, in a phrase.
+    ///
+    /// A scheduled event stands on exactly one rung. An earned one roams a
+    /// window and `at` is its deadline rather than its address, which is the
+    /// one place the field's name lies and the one place it matters.
+    pub fn where_it_stands(&self) -> String {
+        match self.trigger {
+            Trigger::Rung | Trigger::Whispered { .. } => format!("rung {}", self.at + 1),
+            Trigger::QuickKill { from, .. } | Trigger::SlowKill { from, .. } => {
+                format!("rungs {} to {}", from + 1, self.at + 1)
+            }
+        }
+    }
+}
+
 impl Requirement {
+    /// What this asks for, in a plain sentence.
+    ///
+    /// Not the same thing as `Choice::unmet`, and both are needed. `unmet` is
+    /// flavour written for the moment after you have tried - "Merrik does not
+    /// move the rope" - and it is the right register for a door that has just
+    /// refused you. This is the plain statement *before* an attempt: hover a
+    /// greyed choice and it tells you what would open it.
+    ///
+    /// Two authored events once sat behind four gates with no feedback of any
+    /// kind and the result was that nobody ever saw them. `Condition::describe`
+    /// was the answer for rumours; this is the same answer for choices.
+    ///
+    /// The nouns are canonical. The theme layer swaps them on the way to a
+    /// screen, which is why this returns the engine's words and not the
+    /// player's - the CLI has to be able to print the same sentence.
+    pub fn describe(&self) -> String {
+        match self {
+            Requirement::None => String::new(),
+            Requirement::LooseItemOfSize { w, h } => {
+                format!("Requires: a loose component {} by {}", w, h)
+            }
+            Requirement::Took(label) => format!("Requires: having chosen \"{}\" earlier", label),
+            Requirement::Holding(name) => format!("Requires: {}", name),
+        }
+    }
+
     /// Does `shape` - a component's footprint, in cells - satisfy this?
     pub fn met_by_shape(self, cells: &[(u8, u8)]) -> bool {
         match self {

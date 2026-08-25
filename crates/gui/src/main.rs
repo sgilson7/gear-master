@@ -3933,6 +3933,14 @@ fn render_def_tooltip_inner(
         for l in wrap_px(&word.needs.describe(), 420.0, 14.0) {
             lines.push((l, col_dim()));
         }
+        // And which door it is a key to, off the reverse index over EVENTS -
+        // so if the event moves, this moves with it and nobody has to
+        // remember. The hint is the puzzle; this is the address.
+        if let Some(line) = gearmaster_engine::rumour::conditions_line(def.name) {
+            for l in wrap_px(&words::retell_naming(&line), 420.0, 14.0) {
+                lines.push((l, Color::from_rgba(170, 186, 214, 255)));
+            }
+        }
         lines.push((
             words::word("rumour-note", "It never goes on a board. It only has to be carried.")
                 .to_string(),
@@ -6323,6 +6331,87 @@ fn render_share_board(
 /// One screen for all of them. An event is data - `EVENTS` in the engine - so
 /// adding one is adding an entry there, and this draws whatever is in it.
 /// Returns the choice clicked.
+/// The road stack, drawn.
+///
+/// Shown only when there is something to explain: two or more things queued on
+/// the rung, or the player standing inside one. A rung with a single event on
+/// it needs no strip - the event is the screen. The rung's own fight is always
+/// the last row, so the queue visibly ends somewhere rather than trailing off.
+fn render_stack_strip(run: &Run, mx: f32, my: f32) {
+    let stack = run.road_stack();
+    let inside = stack.iter().any(|i| matches!(i, gearmaster_engine::run::Interrupt::Dungeon(..)));
+    if stack.len() < 2 && !inside {
+        return;
+    }
+    let w = 300.0;
+    let row = 22.0;
+    let h = 34.0 + (stack.len() + 1) as f32 * row;
+    let r = Rect::new(18.0, 96.0, w, h);
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(12, 12, 20, 236));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.5, Color::from_rgba(70, 70, 96, 255));
+    ui_text(
+        words::word("on-this-rung", "ON THIS RUNG"),
+        r.x + 12.0,
+        r.y + 22.0,
+        13.0,
+        col_dim(),
+    );
+    let mut y = r.y + 34.0 + 14.0;
+    let mut tip: Option<String> = None;
+    for (i, it) in stack.iter().enumerate() {
+        let cell = Rect::new(r.x, y - 15.0, r.w, row);
+        if cell.contains(Vec2::new(mx, my)) {
+            tip = Some(it.describe());
+        }
+        let (mark, c) = if i == 0 {
+            ("\u{25b8}", col_gold())
+        } else {
+            (" ", Color::from_rgba(150, 154, 180, 255))
+        };
+        ui_text(mark, r.x + 12.0, y, 14.0, c);
+        ui_text(&words::retell(it.name()), r.x + 28.0, y, 14.0, c);
+        y += row;
+    }
+    // The floor. Always drawn, always last.
+    ui_text(" ", r.x + 12.0, y, 14.0, col_dim());
+    ui_text(&words::monster(run.monster().name), r.x + 28.0, y, 14.0, col_dim());
+    if let Some(t) = tip {
+        draw_tooltip(&[(words::retell_naming(&t), WHITE)], mx, my);
+    }
+}
+
+/// The receipt. Returns true when it has been dismissed.
+///
+/// Deliberately plain: no prose, no flavour, one line per thing that changed.
+/// A gamble reveals its *result* here and never its odds - the dispenser's
+/// receipt is where you learn "It wedged. Nothing."
+fn render_receipt(run: &Run, mx: f32, my: f32) -> bool {
+    let Some(lines) = run.last_receipt.as_ref() else { return false };
+    let w = 520.0;
+    let h = 96.0 + lines.len() as f32 * 24.0;
+    let r = Rect::new((LOGICAL_W - w) / 2.0, (LOGICAL_H - h) / 2.0, w, h);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 200));
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
+    ui_text(words::word("receipt", "AND SO"), r.x + 24.0, r.y + 36.0, 20.0, col_gold());
+    let mut y = r.y + 68.0;
+    for l in lines {
+        ui_text(&words::retell_naming(l), r.x + 24.0, y, 15.0, Color::from_rgba(206, 208, 226, 255));
+        y += 24.0;
+    }
+    let b = Rect::new(r.x + r.w - 130.0, r.y + r.h - 44.0, 106.0, 30.0);
+    let hot = b.contains(Vec2::new(mx, my));
+    draw_rectangle_lines(b.x, b.y, b.w, b.h, if hot { 2.5 } else { 1.5 }, col_gold());
+    ui_text(
+        words::word("on-you-go", "ON YOU GO"),
+        b.x + 12.0,
+        b.y + 20.0,
+        14.0,
+        if hot { col_gold() } else { col_dim() },
+    );
+    (hot && is_mouse_button_pressed(MouseButton::Left)) || is_key_pressed(KeyCode::Enter)
+}
+
 fn render_event(
     run: &Run,
     ev: &'static gearmaster_engine::event::LadderEvent,
@@ -6359,6 +6448,7 @@ fn render_event(
     let cw = (r.w - 56.0 - (n - 1) as f32 * gap) / n as f32;
     let top = r.y + r.h - 150.0;
     let mut chosen = None;
+    let mut locked_tip: Option<String> = None;
     for (i, c) in ev.choices.iter().enumerate() {
         let cell = Rect::new(r.x + 28.0 + i as f32 * (cw + gap), top, cw, 120.0);
         let open = run.choice_open(c);
@@ -6384,6 +6474,13 @@ fn render_event(
                 Color::from_rgba(52, 40, 40, 255)
             },
         );
+        // A shut door is hoverable too, and says the plain thing when it is.
+        // `unmet` is written for the moment after an attempt - "Merrik has not
+        // moved the rope in eleven years" - which is the right register and
+        // the wrong sentence for somebody working out what to build.
+        if !open && cell.contains(Vec2::new(mx, my)) {
+            locked_tip = Some(c.requires.describe());
+        }
         let mut cy = cell.y + 28.0;
         ui_text(
             &words::retell(c.label),
@@ -6401,6 +6498,12 @@ fn render_event(
         }
         if open && is_mouse_button_pressed(MouseButton::Left) && cell.contains(Vec2::new(mx, my)) {
             chosen = Some(c);
+        }
+    }
+    // Drawn last so it sits over the cells rather than under the next one.
+    if let Some(t) = locked_tip {
+        if !t.is_empty() {
+            draw_tooltip(&[(words::retell_naming(&t), col_gold())], mx, my);
         }
     }
     chosen
@@ -9937,10 +10040,36 @@ async fn main() {
             continue;
         }
 
+        // The receipt, before anything else: what the last thing you answered
+        // actually did, in plain numbers, sitting between that resolution and
+        // the next pop of the road stack. Flavour prose stays in the event;
+        // this is the accounting underneath it, and it has to be dismissed.
+        if run.last_receipt.is_some() {
+            if render_receipt(&run, mx, my) {
+                run.take_receipt();
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
+        }
+
         // The town gate, ahead of the events: a town is a rung of its own and
         // the event on the next rung has not been arrived at yet.
         if let Some(t) = run.pending_town() {
-            if let Some(pick) = render_town(&run, t, mx, my) {
+            let pick = render_town(&run, t, mx, my);
+            render_stack_strip(&run, mx, my);
+            if let Some(pick) = pick {
                 message = match pick {
                     None => {
                         let paid = run.skip_town();
@@ -9971,7 +10100,9 @@ async fn main() {
         // An event sits over everything while it is being answered, the same
         // way a fountain does.
         if let Some(ev) = run.pending_event() {
-            if let Some(c) = render_event(&run, ev, mx, my) {
+            let picked = render_event(&run, ev, mx, my);
+            render_stack_strip(&run, mx, my);
+            if let Some(c) = picked {
                 let gave = run.take_choice(c);
                 message = match gave {
                     Some(name) => format!(

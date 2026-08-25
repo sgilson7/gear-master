@@ -112,6 +112,36 @@ pub struct TownVisit {
     pub stocked: usize,
 }
 
+impl TownVisit {
+    /// The receipt: what one visit actually did, one line each.
+    ///
+    /// The struct already carries every number; this is those numbers said in
+    /// the same voice as an event's receipt, so the panel does not need to know
+    /// which sort of thing it is drawing.
+    pub fn receipt(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        if let (Some(at), Some(did)) = (self.at, self.did) {
+            out.push(format!("{}: {}", at, did.name()));
+        }
+        if self.paid != 0 {
+            out.push(format!("+{}g", self.paid));
+        }
+        if let Some(became) = self.became {
+            out.push(format!("Five became one: {}", became));
+        } else if let Some(c) = self.gained_class {
+            out.push(if self.stacks > 1 {
+                format!("Class: {} x{}", c, self.stacks)
+            } else {
+                format!("Class: {}", c)
+            });
+        }
+        if self.stocked > 0 {
+            out.push(format!("The shelves are {} things you will not see again", self.stocked));
+        }
+        out
+    }
+}
+
 /// Prayers it takes before the chapel gives you the other thing.
 pub const PIETY_FOR_A_TICKET: usize = 5;
 
@@ -336,6 +366,16 @@ pub struct Run {
     /// beside the rung rather than on it: whichever way it goes, the rung's
     /// own creature is still there afterwards.
     pub brawl: Option<&'static crate::event::Brawl>,
+    /// What the last thing you answered actually did, one line each.
+    ///
+    /// The receipt. Flavour prose stays in the event; this is the plain
+    /// accounting underneath it, and it sits between a resolution and the next
+    /// pop of the road stack. Engine-side, so the CLI prints the same lines the
+    /// interface draws and the theme layer swaps the nouns in both.
+    ///
+    /// A seeded gamble reveals its **result** here and never its odds: the
+    /// dispenser's receipt is where you learn "It wedged. Nothing."
+    pub last_receipt: Option<Vec<String>>,
     /// Whether the mind lane's pool has been earned.
     ///
     /// False until THE THRESHOLD is cleared. While it is false nothing that
@@ -480,6 +520,7 @@ impl Run {
             took: Vec::new(),
             banked_all_run: [0; 8],
             insight_unlocked: false,
+            last_receipt: None,
             last_bounty: 0,
             town: None,
             towns_seen: Vec::new(),
@@ -773,13 +814,23 @@ impl Run {
         }
         self.answered.push(ev.id);
         self.took.push(c.label);
+        // The receipt starts as what the outcome *is* and gains what it *did*
+        // as the arms below work out their numbers. A bounty depends on the
+        // rung and a life depends on the mode, and neither is knowable from a
+        // table.
+        let mut receipt = c.outcome.describe();
         let mut gave = None;
         match c.outcome {
             ChoiceOutcome::FightAsWritten => {}
             ChoiceOutcome::FightInstead(name) => {
                 self.substitute = crate::combat::alternate(name);
             }
-            ChoiceOutcome::Spare => self.grant_life(),
+            ChoiceOutcome::Spare => {
+                self.grant_life();
+                if let Some(left) = self.lives_left() {
+                    receipt.push(format!("Lives left: {}", left));
+                }
+            }
             ChoiceOutcome::Step(b) => {
                 self.brawl = Some(b);
             }
@@ -796,6 +847,10 @@ impl Run {
                 if let Some(d) = crate::piece::CATALOG.iter().position(|d| d.name == name) {
                     let id = self.registry.alloc(d);
                     self.owned.push(id);
+                    receipt.push("It arrives loose, and takes up room".into());
+                } else {
+                    receipt.clear();
+                    receipt.push(format!("Nothing: {} is not a component", name));
                 }
             }
             ChoiceOutcome::Claim(name) => {
@@ -813,8 +868,13 @@ impl Run {
                 if let Some(&id) = self.offerings(c.requires).first() {
                     gave = Some(self.registry.def(id).name);
                     self.owned.retain(|&o| o != id);
+                    receipt[0] = format!("Handed over: {}", self.registry.def(id).name);
                 }
-                self.gold += LADDER[self.rung.min(LADDER.len() - 1)].bounty * times;
+                let paid = LADDER[self.rung.min(LADDER.len() - 1)].bounty * times;
+                if receipt.len() > 1 {
+                    receipt[1] = format!("+{}g, and the rung is behind you", paid);
+                }
+                self.gold += paid;
                 // Paid off rather than beaten: the rung is behind you, but it
                 // was never fought, so it is not a win.
                 self.rung += 1;
@@ -823,7 +883,16 @@ impl Run {
         self.shop.restock(&mut self.rng, need);
             }
         }
+        self.last_receipt = Some(receipt);
         gave
+    }
+
+    /// Take the receipt, so the road can move on.
+    ///
+    /// Read once. The panel that shows it dismisses it, and the next pop of
+    /// the stack happens after that - which is the whole of A9's ordering.
+    pub fn take_receipt(&mut self) -> Option<Vec<String>> {
+        self.last_receipt.take()
     }
 
     /// Open the mind lane. Once, and never closed again.
@@ -2201,6 +2270,8 @@ impl Run {
         self.towns_seen.push(t.id);
         let paid = self.last_bounty;
         self.gold += paid;
+        self.last_receipt =
+            Some(vec![format!("Walked past {}", t.name), format!("+{}g, the bounty again", paid)]);
         paid
     }
 
@@ -2243,6 +2314,7 @@ impl Run {
                 out.stocked = crate::rumour::on_offer().len();
             }
         }
+        self.last_receipt = Some(out.receipt());
         out
     }
 
