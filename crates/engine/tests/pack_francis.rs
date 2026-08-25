@@ -824,6 +824,15 @@ fn in_the_shallow_window(rung: usize) -> bool {
 struct Beat {
     won: bool,
     ms: u32,
+    /// Did the creature land anything at all?
+    ///
+    /// The band dial makes a creature weaker by drawing from further down the
+    /// rating order, and far enough down is gear that cannot hurt anybody: Mire
+    /// Behemoth came back at band 6 unable to land a blow on any of the four
+    /// boards, which `every_monster_can_actually_hurt_you` is there to forbid.
+    /// A creature that cannot reach you is not an easier fight, it is not a
+    /// fight.
+    hurt: bool,
 }
 
 fn want() -> Vec<[Beat; 4]> {
@@ -845,7 +854,20 @@ fn fight(gear: &'static [(&'static str, SlotKind, u8, u8, u8)], chunks: &'static
             let mut row = [Beat::default(); 4];
             for (i, d) in Difficulty::ALL.iter().enumerate() {
                 let log = simulate_at(st, &items, &spec, *d);
-                row[i] = Beat { won: log.outcome == Outcome::Victory, ms: log.duration_ms };
+                let hurt = log.entries.iter().any(|e| {
+                    use gearmaster_engine::combat::{Event, Side};
+                    matches!(
+                        e.event,
+                        Event::Hit { by: Side::Enemy, .. }
+                            | Event::MindHit { by: Side::Enemy, .. }
+                            | Event::Burn { side: Side::Player, .. }
+                    )
+                });
+                row[i] = Beat {
+                    won: log.outcome == Outcome::Victory,
+                    ms: log.duration_ms,
+                    hurt,
+                };
             }
             row
         })
@@ -1086,7 +1108,12 @@ fn pack() {
         let miss = off_curve(got[2][1], rung);
         // Whole percent off, inverted, so closer sorts higher and the tuple
         // below still compares cleanly against density.
-        let holds = preset_holds(was[0][1], got[0][1])
+        // It has to be able to reach somebody. Asked of the preset, which is
+        // the middle board: a creature that cannot mark it cannot mark
+        // anything worth calling a fight.
+        let reaches = got[1][1].hurt;
+        let holds = reaches
+            && preset_holds(was[0][1], got[0][1])
             && preset_holds(was[1][1], got[1][1])
             && (!in_the_shallow_window(rung) || got[1][1].ms >= CASINO_BAR_MS)
             && rank_is_satisfied(subject_spec().rank, &gear_for_rank, &chunks);
@@ -1118,6 +1145,11 @@ fn pack() {
          Leaving it alone.",
         rung + 1,
         subject_spec().rank,
+    );
+    assert!(
+        got[1][1].hurt,
+        "the best board for rung {} cannot land a blow on an ordinary board. Leaving it alone.",
+        rung + 1,
     );
     for (i, which) in [(0usize, "four-piece"), (1, "preset")] {
         assert!(

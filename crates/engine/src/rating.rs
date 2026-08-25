@@ -48,6 +48,21 @@ mod weight {
     /// discounted against flat resistance.
     pub const PIERCE: f32 = 0.5;
     pub const HARDEN: f32 = 0.55;
+    /// Reflection returns a percentage of what your armour ate, as damage, to
+    /// whoever swung.
+    ///
+    /// Priced off a stated assumption rather than a feel, the way
+    /// `EXPECTED_COVERAGE` is: a board built to be hit soaks something like six
+    /// hundred points into armour over a fight, so one percent of reflect sends
+    /// six of them back - a tenth of a point a second across a sixty-second
+    /// fight, which at `DAMAGE_PS` is about a quarter of a point of worth.
+    ///
+    /// It had **no weight at all**. Seventeen chest pieces carry it and every
+    /// one was priced as though its only offensive verb did not exist - which
+    /// also meant `stepped_component` sorted them to the bottom of their
+    /// footprint families and the interaction quotas, which measure the dearest
+    /// third of a slot, could not see them.
+    pub const REFLECT: f32 = 0.26;
 
     /// Points per point-per-second of each activated stat.
     pub const DAMAGE_PS: f32 = 2.6;
@@ -259,6 +274,7 @@ fn standing_points(s: &Stats) -> f32 {
         + (s.physical_resist + s.magic_resist) as f32 * weight::RESIST
         + (s.physical_pierce + s.magic_pierce) as f32 * weight::PIERCE
         + (s.physical_harden + s.magic_harden) as f32 * weight::HARDEN
+        + s.reflect as f32 * weight::REFLECT
 }
 
 /// Stats granted once per activation, scored at `rate` activations a second.
@@ -293,7 +309,16 @@ fn curse_points(kind: crate::curse::CurseKind) -> f32 {
     match kind {
         // Damage over time rather than denial, and it does not stack.
         CurseKind::Searing => weight::CURSE_PS,
-        CurseKind::Frost => secs(FROST_MS) * FROST_SLOW_PCT as f32 / 100.0 * weight::DENIAL_S,
+        // Frost slows *everything* the other side owns, and this model counts
+        // denial in seconds of one item's output - so a curse that takes a
+        // fifth off eight items was being priced as though it took a fifth off
+        // one. That was noted here for a long time and left alone because
+        // repricing it moves a lot of gear; it is greaves' curse now, and the
+        // slot it belongs to was being paid a fifth of what its signature
+        // mechanic is worth.
+        CurseKind::Frost => {
+            secs(FROST_MS) * FROST_SLOW_PCT as f32 / 100.0 * weight::DENIAL_S * SLOWED_ITEMS
+        }
         // A stun stops one item for its whole length. This figure did not
         // change when stun stopped being side-wide, and did not need to: the
         // model has always counted denial in seconds of *one* item's output,
@@ -306,6 +331,17 @@ fn curse_points(kind: crate::curse::CurseKind) -> f32 {
         CurseKind::Misfire => secs(MISFIRE_MS) / MISFIRE_EVERY as f32 * weight::DENIAL_S,
     }
 }
+
+/// How many items a side-wide slow is assumed to be slowing.
+///
+/// A built board runs eight to nineteen items; the preset runs eight and the
+/// two finished human boards run seventeen and nineteen. **Two**, which is far
+/// below any of them, and deliberately: the design says stun and misfire are
+/// the premium curses and frost is the cheap one, and that ordering is a
+/// decision rather than an accident of arithmetic. Two doubles frost - which is
+/// the error this corrects - and leaves it the cheapest of the three, which is
+/// what it is meant to be. Frost is worth more than this against a real board.
+const SLOWED_ITEMS: f32 = 2.0;
 
 /// What a drain of "everything they have" is priced as holding.
 ///
@@ -343,6 +379,23 @@ fn action_points(a: &Action) -> f32 {
         // by a span in seconds converts "health per activation" into "the flat
         // health this will be worth" - which is the thing to compare it
         // against.
+        // Growth arrives over the fight rather than at the bell, so the health
+        // it is actually worth is the average it stood at, not the total it
+        // reached: a board that ends a fight three hundred health taller spent
+        // most of that fight less than three hundred taller. Halved for that.
+        // Left alone, and the attempt is worth recording. Halving this - on the
+        // argument that growth arrives over a fight, so the health it is worth
+        // is the average it stood at rather than the total it reached - is a
+        // reasonable model and had no fault behind it. What it did have was a
+        // consequence: it moved Grow-carrying pieces down their footprint
+        // families, `stepped_component` sorts those families by rating to
+        // choose a creature's gear above Medium, and Francis's Insane step
+        // stopped picking Berserker's Crest and started picking Tithe
+        // Collector - a drain, against a board that banks nothing. The best
+        // board in the project then lost to him on Hard and beat him on
+        // Insane. A final boss who gets easier as the setting rises is worse
+        // than a mechanic priced by the wrong model, so the model stands until
+        // there is a fault to fix rather than a preference to express.
         Action::Grow(n) => *n as f32 * weight::HEALTH * TYPICAL_FIGHT_S,
         Action::Damage { amount, target, .. } => {
             let v = *amount as f32 * weight::DAMAGE_PS;
@@ -503,14 +556,16 @@ fn trigger_points(t: &Trigger) -> f32 {
         // Four open cells is what a build that is trying gets; more is
         // possible and costs more than it is worth.
         Trigger::PerAdjacentEmpty(inner) => 4.0 * trigger_points(inner),
-        // Reactions fire off someone else's cooldown, which is usually faster
-        // than your own, but they need a neighbour to exist at all.
-        Trigger::OnAdjacentActivate(a) => 1.1 * action_points(a),
-        Trigger::OnAlignedActivate(a) => 0.9 * action_points(a),
-        // A diagonal pair is rarer than an edge pair - a packed board makes
-        // edges by accident and corners on purpose - so it answers less often
-        // than a neighbour and is discounted to match.
-        Trigger::OnDiagonalActivate(a) => 0.7 * action_points(a),
+        // Reactions fire off somebody else's cooldown. Handled by the caller,
+        // for exactly the reason `OnBattleStart` and `Watch` are: multiplying
+        // them by *this* item's cadence prices a reaction by the wrong clock,
+        // so a fast item and a slow one carrying the same reaction came out
+        // worth different amounts when the thing they answer is the neighbour.
+        // The comment two lines above used to say "fires off someone else's
+        // cooldown" and then multiply by this one's.
+        Trigger::OnAdjacentActivate(_)
+        | Trigger::OnAlignedActivate(_)
+        | Trigger::OnDiagonalActivate(_) => 0.0,
         // Handled by the caller for the same reason `OnBattleStart` is: it
         // fires on a count of events, not on this item coming round, so
         // multiplying it by this item's cadence is backwards. See
@@ -645,6 +700,20 @@ fn piece_points(def: &PieceDef, cooldown_ms: u32) -> f32 {
                     // before the count is reached.
                     (per * TYPICAL_FIGHT_S).min(1.0) / TYPICAL_FIGHT_S
                 };
+        } else if let Some((a, seen)) = match t {
+            // A reaction answers a neighbour, so it runs at the rate that
+            // neighbour comes round - the same board clock a watcher counts
+            // on, which `watched_per_s` already models.
+            Trigger::OnAdjacentActivate(a) => {
+                Some((a, crate::piece::Watched::AdjacentActivation))
+            }
+            Trigger::OnAlignedActivate(a) => Some((a, crate::piece::Watched::AlignedActivation)),
+            Trigger::OnDiagonalActivate(a) => {
+                Some((a, crate::piece::Watched::DiagonalActivation))
+            }
+            _ => None,
+        } {
+            points += action_points(a) * watched_per_s(seen);
         } else {
             points += trigger_points(t) * rate;
         }
@@ -897,7 +966,16 @@ mod tests {
         let frost = curse_points(CurseKind::Frost);
         let stun = curse_points(CurseKind::Stun);
         let misfire = curse_points(CurseKind::Misfire);
-        assert!(stun > frost * 2.0, "a stun is worth more than two frosts: {} vs {}", stun, frost);
+        // `stun > frost` rather than `stun > frost * 2`.
+        //
+        // Frost used to be priced as though it slowed one item, which is what
+        // made the gap that wide; it slows everything, and it is greaves' own
+        // curse now, so the slot's signature mechanic was being paid a fraction
+        // of what it does. Corrected against a deliberately low assumption -
+        // two items, where a built board runs eight to nineteen - so the gap
+        // narrows and the ordering the design asks for survives. The ordering
+        // is the claim; the size of the gap never was.
+        assert!(stun > frost, "a stun denies more than a frost: {} vs {}", stun, frost);
         assert!(misfire > stun, "a misfire denies more than a stun: {} vs {}", misfire, stun);
     }
 

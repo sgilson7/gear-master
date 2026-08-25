@@ -378,3 +378,61 @@ fn probe_membership() {
         println!("    ]),");
     }
 }
+
+/// Print a shared board as a creature's `gear` and `items`, for pasting into
+/// `combat.rs`.
+///
+/// The boards at the top of the ladder are the ones people actually built, and
+/// they are far stronger than anything the packer will author: seventy-odd
+/// pieces packed to within a cell or two of full, nineteen items on one of
+/// them. A search that has to land on a curve cannot produce that, and the last
+/// few fights are the place where it should not have to.
+///
+/// Assembled items only. A player may seat loose pieces for their flat stats -
+/// the friend's board does it twelve times - but `MonsterSpec::unassembled`
+/// forbids a creature a chunk that does not come together, and loose gear
+/// would be exactly that. Each item's pieces are emitted contiguously, which
+/// is what `items` partitions.
+///
+///     BOARD=owner cargo test -p gearmaster-engine --test decode_build \
+///         -- --ignored --nocapture as_a_creature_board
+#[test]
+#[ignore = "generator; run with --ignored"]
+fn as_a_creature_board() {
+    use gearmaster_engine::share;
+    let which = std::env::var("BOARD").unwrap_or_else(|_| "owner".into());
+    let skip: Vec<String> = std::env::var("BOARD_SKIP_SLOT")
+        .map(|v| v.split(',').map(|s| s.trim().to_lowercase()).collect())
+        .unwrap_or_default();
+    let code = match which.as_str() {
+        "owner" => share::A_WINNING_RUN,
+        "friend" => share::A_FRIENDS_RUN,
+        "perfect" => share::A_PERFECT_RUN,
+        other => panic!("no board called {other}"),
+    };
+    let sh = share::import(code).expect("reads");
+    let (reg, lo) = sh.loadout();
+    let mut chunks: Vec<usize> = Vec::new();
+    println!("GEAR");
+    for k in SlotKind::ALL {
+        if skip.iter().any(|s| s == &k.name().to_lowercase()) {
+            continue;
+        }
+        for item in lo.report(&reg, k).items.iter().filter(|i| i.assembled) {
+            chunks.push(item.pieces.len());
+            for &p in &item.pieces {
+                let (x, y) = lo.slot(k).anchor_of(p).expect("a seated piece has an anchor");
+                println!(
+                    "            (\"{}\", SlotKind::{:?}, {}, {}, {}),",
+                    reg.def(p).name,
+                    k,
+                    x,
+                    y,
+                    reg.rotation(p)
+                );
+            }
+        }
+    }
+    println!("ITEMS &{chunks:?}");
+    println!("pieces: {}, items: {}", chunks.iter().sum::<usize>(), chunks.len());
+}

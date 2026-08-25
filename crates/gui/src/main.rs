@@ -2424,6 +2424,10 @@ struct FoeView {
     curses: Vec<ActiveCurse>,
     /// Stunned items, as (item index, started, ends).
     stuns: Vec<(usize, u32, u32)>,
+    /// When a watcher on an item last came round, by item name. A payout is
+    /// not an activation - it happens on the board's clock, between this
+    /// item's own beats - so it gets its own note and its own animation.
+    watch_pops: Vec<(String, u32)>,
     empower: u32,
     shield: u32,
     fork: u32,
@@ -2461,6 +2465,7 @@ struct Playback {
     /// Stunned items, as (item index, started, ends). A stun stops one item
     /// rather than a whole side, so this is per item and not per fighter.
     player_stuns: Vec<(usize, u32, u32)>,
+    player_watch_pops: Vec<(String, u32)>,
     lines: Vec<String>,
     flash_player: f64,
     now_ms: u32,
@@ -2575,6 +2580,7 @@ impl Playback {
                     pools: [0; 6],
                     curses: Vec::new(),
                     stuns: Vec::new(),
+                    watch_pops: Vec::new(),
                     empower: 0,
                     shield: 0,
                     fork: 0,
@@ -2602,6 +2608,7 @@ impl Playback {
             player_pools: [0; 6],
             player_curses: Vec::new(),
             player_stuns: Vec::new(),
+            player_watch_pops: Vec::new(),
             lines: Vec::new(),
             flash_player: -10.0,
             now_ms: 0,
@@ -2642,7 +2649,22 @@ impl Playback {
             }
             // Reads as a plain line: the health bar it moves is the other
             // side's, and that already animates.
-            Event::Reflected { .. } | Event::Watched { .. } => {}
+            Event::Reflected { .. } => {}
+            // A watcher coming round is the one thing on a board that happens
+            // on somebody else's clock, so nothing else on the row shows it:
+            // the cooldown bar is mid-sweep and the count has just wrapped to
+            // zero. Noted here so the row can be made to jump.
+            Event::Watched { side, item, .. } => {
+                let pops = if matches!(side, Side::Player) {
+                    &mut self.player_watch_pops
+                } else {
+                    &mut self.foe_mut(who).watch_pops
+                };
+                match pops.iter_mut().find(|(n, _)| n == item) {
+                    Some(slot) => slot.1 = entry.at_ms,
+                    None => pops.push((item.clone(), entry.at_ms)),
+                }
+            }
             // Growth changes the bar itself, not just what is in it.
             Event::Grew { side, total, .. } => match side {
                 Side::Player => self.player_max = *total,
@@ -2863,6 +2885,20 @@ impl Playback {
             let span = until.saturating_sub(from).max(1);
             (until.saturating_sub(self.now_ms) as f32 / span as f32, until - self.now_ms)
         })
+    }
+
+    /// How long ago a watcher on this item paid, in milliseconds, if lately.
+    ///
+    /// By name rather than by index: `Event::Watched` carries the item's name,
+    /// and a name is what the row is drawn with anyway.
+    fn watch_pop_of(&self, side: Side, who: usize, name: &str) -> Option<u32> {
+        let list = match side {
+            Side::Player => &self.player_watch_pops,
+            Side::Enemy => &self.foes[who.min(self.foes.len() - 1)].watch_pops,
+        };
+        list.iter()
+            .find(|(n, _)| n == name)
+            .map(|&(_, at)| self.now_ms.saturating_sub(at))
     }
 
     fn stunned_count(&self, side: Side, who: usize) -> usize {
@@ -4066,7 +4102,12 @@ fn watch_of(it: &gearmaster_engine::combat::RunningItem) -> Option<(u32, u32)> {
     it.triggers.iter().enumerate().find_map(|(k, t)| match t {
         Trigger::Watch { count, .. } if *count > 0 => {
             let seen = it.watched.get(k).copied().unwrap_or(0);
-            Some((seen % count, *count))
+            // Show `count` on the beat it pays rather than a wrap to zero.
+            // `seen % count` is the honest remainder and it hides the one
+            // moment anybody is watching for: the readout went 9/10 and then
+            // straight back to 0/10, so the payout never appeared on screen.
+            let shown = if seen > 0 && seen % count == 0 { *count } else { seen % count };
+            Some((shown, *count))
         }
         _ => None,
     })
@@ -4092,7 +4133,18 @@ fn render_cooldown_row(
     // bar beside it says nothing about when it will pay - this is the only
     // thing that does.
     watch: Option<(u32, u32)>,
+    // Milliseconds since a watcher on this item last came round, if lately.
+    watch_pop_ms: Option<u32>,
 ) {
+    // How far through the pop we are, 1.0 at the instant it pays and 0.0 once
+    // it is over. A payout is not an activation: it lands between this item's
+    // own beats, so the row's usual flash would say "it came round", which is
+    // the one thing that did not happen.
+    const POP_MS: f32 = 420.0;
+    let popping = watch_pop_ms
+        .filter(|&ms| (ms as f32) < POP_MS)
+        .map(|ms| 1.0 - ms as f32 / POP_MS)
+        .unwrap_or(0.0);
     let icon = 24.0;
     let label_w = 232.0;
     let track_x = x + label_w;
@@ -4120,7 +4172,23 @@ fn render_cooldown_row(
         (false, true) => WHITE,
         (false, false) => tint,
     };
-    draw_item_sigil(x, y - 5.0, icon, slot, sigil_seed, sigil_col);
+    if popping > 0.0 {
+        // Off the page: the sigil grows, rides up, and throws a ring.
+        let ease = popping * popping;
+        let grow = icon * (1.0 + 0.55 * ease);
+        let cx = x + icon / 2.0;
+        let cy = y - 5.0 + icon / 2.0 - 7.0 * ease;
+        draw_circle_lines(
+            cx,
+            cy,
+            icon * (0.6 + 1.5 * (1.0 - popping)),
+            2.0,
+            Color::from_rgba(255, 255, 255, (200.0 * popping) as u8),
+        );
+        draw_item_sigil(cx - grow / 2.0, cy - grow / 2.0, grow, slot, sigil_seed, WHITE);
+    } else {
+        draw_item_sigil(x, y - 5.0, icon, slot, sigil_seed, sigil_col);
+    }
     // Names are procedurally generated, so their length is not something the
     // layout can assume; shrink rather than run into the bar.
     let name_x = x + icon + 8.0;
@@ -4128,7 +4196,18 @@ fn render_cooldown_row(
     let pips_w = rarity.marks() as f32 * 10.0;
     let size = fitting_size(name, track_x - name_x - pips_w - 12.0, &[15.0, 14.0, 13.0, 12.0, 11.0]);
     ui_text(name, name_x, y + 12.0, size, fg);
-    draw_rarity_pips(name_x + text_width(name, size) + 6.0, y + 7.0, rarity, 1.0);
+    let pips_at = name_x + text_width(name, size) + 6.0;
+    draw_rarity_pips(pips_at, y + 7.0, rarity, 1.0);
+    // The tally in figures as well as pips: the strip says how far along, this
+    // says how far along *out of what*, which is the part somebody reads once
+    // and then stops needing.
+    if let Some((seen, of)) = watch {
+        let txt = format!("{seen}/{of}");
+        let at = pips_at + pips_w + 4.0;
+        if at + text_width(&txt, 11.0) < track_x - 6.0 {
+            ui_text(&txt, at, y + 12.0, 11.0, if popping > 0.0 { WHITE } else { tint });
+        }
+    }
 
     // The stun meter takes the cooldown's place rather than sitting beside it.
     // While a stun is up the cooldown is not advancing at all, so drawing it
@@ -4145,33 +4224,31 @@ fn render_cooldown_row(
         return;
     }
 
-    // A watcher counts the board rather than its own clock, so it gets a tally
-    // where everything else gets a cooldown. Drawn in the same track so the
-    // rows still line up, hollow rather than filled, because it is a count and
-    // not a countdown.
+    // A watcher gets a tally *and* the item keeps its cooldown.
+    //
+    // The tally used to be drawn in the cooldown's track and then return, on
+    // the reasoning that "a watcher counts the board rather than its own
+    // clock". True of the watcher and false of the item: it still comes round
+    // on its own cooldown and does its own thing, and hiding that left no way
+    // to tell when it was about to act. So the bar keeps the top of the track
+    // and the count gets a strip underneath it - two clocks, because there are
+    // two.
+    let bar_h = if watch.is_some() { h - 5.0 } else { h };
+    draw_rectangle(track_x, y, track_w, bar_h, Color::from_rgba(26, 26, 38, 255));
+    let p = bar_progress(schedule, cooldown_ms, now_ms).clamp(0.0, 1.0);
+    let fill = if just_fired { WHITE } else { tint };
+    draw_rectangle(track_x, y, track_w * p, bar_h, fill);
+    draw_rectangle_lines(track_x, y, track_w, bar_h, 1.0, Color::from_rgba(74, 74, 98, 255));
     if let Some((seen, of)) = watch {
-        draw_rectangle(track_x, y, track_w, h, Color::from_rgba(26, 26, 38, 255));
+        let sy = y + bar_h + 1.0;
         let step = track_w / of as f32;
         for k in 0..of {
             let cx = track_x + k as f32 * step;
-            let c = if k < seen { tint } else { Color::from_rgba(52, 52, 70, 255) };
-            draw_rectangle(cx + 1.0, y + 3.0, (step - 2.0).max(1.0), h - 6.0, c);
+            let lit = k < seen;
+            let c = if lit { tint } else { Color::from_rgba(52, 52, 70, 255) };
+            draw_rectangle(cx + 1.0, sy, (step - 2.0).max(1.0), 4.0, c);
         }
-        ui_text(
-            &format!("{}/{}", seen, of),
-            track_x + track_w + 8.0,
-            y + 12.0,
-            12.0,
-            tint,
-        );
-        return;
     }
-
-    draw_rectangle(track_x, y, track_w, h, Color::from_rgba(26, 26, 38, 255));
-    let p = bar_progress(schedule, cooldown_ms, now_ms).clamp(0.0, 1.0);
-    let fill = if just_fired { WHITE } else { tint };
-    draw_rectangle(track_x, y, track_w * p, h, fill);
-    draw_rectangle_lines(track_x, y, track_w, h, 1.0, Color::from_rgba(74, 74, 98, 255));
 
     // The gap it is genuinely running at right now, which drifts from the
     // nominal cooldown whenever the owner is slowed.
@@ -5035,6 +5112,7 @@ fn render_battle(
                 Rarity::of(it.rating),
                 stun,
                 watch_of(it),
+                pb.watch_pop_of(side, who, &it.name),
             );
         }
         if shown < order.len() {

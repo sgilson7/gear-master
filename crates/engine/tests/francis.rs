@@ -116,3 +116,35 @@ fn he_still_wears_his_own_coat_and_nobody_elses() {
         }
     }
 }
+
+/// He may not get easier as the setting goes up.
+///
+/// `stepped_component` chooses a creature's gear above Medium by walking its
+/// footprint family in rating order, so what a monster wears on Hard and Insane
+/// is decided by the shop's model of worth rather than by what wins a fight.
+/// The two are not the same thing, and when they disagree the ladder can invert:
+/// halving what `Grow` is worth was enough to make Francis trade a damage crest
+/// for a drain at Insane, and the best board in the project then lost to him on
+/// Hard and beat him on Insane.
+///
+/// Cheap to check and it catches the whole class, so it is checked rather than
+/// trusted. Any change to `rating.rs` re-gears every creature on three of the
+/// four settings; this is the one creature where that must never read backwards.
+#[test]
+fn he_never_gets_easier_as_the_setting_rises() {
+    let order = [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard, Difficulty::Insane];
+    for code in [share::A_WINNING_RUN, share::A_FRIENDS_RUN] {
+        let won: Vec<bool> = order.iter().map(|&d| wins(code, d)).collect();
+        // Once he holds, he holds. A win above a loss is the ladder inverting.
+        if let Some(first_loss) = won.iter().position(|&w| !w) {
+            for (k, &w) in won.iter().enumerate().skip(first_loss) {
+                assert!(
+                    !w,
+                    "he is beaten on {} and holds on {} - the ladder reads backwards",
+                    order[k].name(),
+                    order[first_loss].name()
+                );
+            }
+        }
+    }
+}

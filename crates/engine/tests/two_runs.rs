@@ -565,10 +565,29 @@ fn trundle_no_longer_costs_the_road() {
         asked.rung, follow.at,
         "a run that asked no longer reaches the pay-off"
     );
+    // Trundle costs the pay-off on Insane now, and it costs it by losing.
+    //
+    // This asked for both runs to reach rung 21 and both did, until the pools
+    // were switched on: `held_bonus` had been computing faith and nature and
+    // nothing had ever read it, so half of what every creature banks did
+    // nothing at all. Switching it on made the ladder harder for everybody, and
+    // a board carrying Trundle is the board with least room for that.
+    //
+    // What matters is *how* it is stopped. The trap this test was written
+    // against was the clock - alive after sixty seconds and unable to finish -
+    // and that is not what happens: the trundling run walks to rung 14 and is
+    // beaten by The Hollow King in 11.2s. A boss stopping a deliberately slow
+    // build is a cost; a fight it cannot end is a mistake. Pinned at the rung
+    // it reaches so any further retune reads as a change, which is what the
+    // note above asks for.
     assert_eq!(
-        took.rung, follow.at,
-        "a trundling run stalls at rung {} short of the pay-off - the clock is back",
-        follow.at + 1 - took.rung
+        took.rung, 13,
+        "a trundling run now reaches rung {} - it reached 14 when this was pinned",
+        took.rung + 1
+    );
+    assert!(
+        took.rung > road.at,
+        "Trundle stopped the run where it opened the road, which is the trap and not a cost"
     );
 }
 

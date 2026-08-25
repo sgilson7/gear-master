@@ -691,3 +691,53 @@ fn power_reaches_armour_and_pools_not_just_damage() {
         plain_armor
     );
 }
+
+/// A banked pool is worth what it says it is worth, in a fight.
+///
+/// `Combatant::held_bonus` computed the right numbers and **one field of it
+/// was ever read**: the hit path took `.physical_damage`, so rage reached a
+/// fight and nature and faith did not. The regen tick used the flat `regen`
+/// field and `take_typed` used the flat resists, which meant a hundred banked
+/// nature healed nothing and a hundred banked faith turned aside nothing.
+///
+/// It went unnoticed because the test that covers it - `progression::
+/// devotion_keeps_paying_past_forty_percent` - asserts `held_bonus()` itself.
+/// That is arithmetic nobody consulted, and it was green the whole time. This
+/// one asks the fight.
+#[test]
+fn a_banked_pool_pays_out_where_it_is_supposed_to() {
+    use gearmaster_engine::combat::Combatant;
+    use gearmaster_engine::stats::Stats;
+
+    // Nature heals. Same board, same fight, one of them holding a pool.
+    let healed = |nature: i32| -> i32 {
+        let mut c = Combatant::player(Stats::new(1000, 0, 0, 100), &[]);
+        c.nature = nature;
+        c.effective_regen()
+    };
+    assert_eq!(healed(0), 0, "no pool, no regeneration");
+    assert_eq!(healed(10), 10, "ten nature is ten regeneration a second");
+
+    // Faith turns harm aside, and the number the fight reads has to include it.
+    let resist = |faith: i32| -> i32 {
+        let mut c = Combatant::player(Stats::new(1000, 0, 0, 100), &[]);
+        c.faith = faith;
+        c.effective_physical_resist()
+    };
+    assert_eq!(resist(0), 0);
+    assert_eq!(resist(20), 40, "twenty faith is forty percent of both resistances");
+
+    // Pools start a fight at zero on purpose - an item's `nature:` is granted
+    // each time it comes round, not handed over at the bell - so the end-to-end
+    // proof of this is the ladder moving, and that is recorded in
+    // `analysis/baseline.md` rather than pinned here. What is pinned is that
+    // the fight reads the pool at all, which is the thing that was missing.
+    let mut c = Combatant::player(Stats::new(1000, 0, 0, 100), &[]);
+    c.nature = 25;
+    assert!(
+        c.effective_regen() > c.regen,
+        "a combatant holding twenty-five nature reports {} regeneration against a base of {}",
+        c.effective_regen(),
+        c.regen
+    );
+}

@@ -980,14 +980,14 @@ pub const LADDER: &[MonsterSpec] = &[
         curse_resist: 23,
         attacks: &[],
         gear: &[
-            ("Executioner's Haft", SlotKind::Weapon, 0, 0, 1),
-            ("Iron Blade", SlotKind::Weapon, 0, 1, 1),
-            ("Serrated Edge", SlotKind::Weapon, 4, 0, 0),
-            ("Green Crown", SlotKind::Helmet, 0, 0, 0),
-            ("Scarred Plating", SlotKind::Helmet, 3, 0, 0),
-            ("Overflow Plate", SlotKind::Helmet, 2, 1, 0),
+            ("Apprentice's Primer", SlotKind::Weapon, 0, 0, 0),
+            ("Starlit Ink", SlotKind::Weapon, 2, 0, 0),
+            ("Unmaking", SlotKind::Weapon, 4, 0, 2),
+            ("Ossuary Frame", SlotKind::Helmet, 0, 0, 1),
+            ("Scarred Plating", SlotKind::Helmet, 2, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 4, 0, 0),
             ("Heartwood Base", SlotKind::Chest, 0, 0, 0),
-            ("Oathplate", SlotKind::Chest, 3, 0, 0),
+            ("Berserker's Plate", SlotKind::Chest, 3, 0, 0),
         ],
         gear_offset: 0,
         bounty: 75,
@@ -1246,29 +1246,30 @@ pub const LADDER: &[MonsterSpec] = &[
         curse_resist: 41,
         attacks: &[],
         gear: &[
-            ("Sevenleague Boots", SlotKind::Greaves, 0, 0, 1),
-            ("Zealot's Sole", SlotKind::Greaves, 3, 0, 1),
-            ("Consecrated Plating", SlotKind::Greaves, 3, 1, 0),
-            ("Sanctified Material", SlotKind::Greaves, 0, 2, 1),
-            ("Zealot's Sole", SlotKind::Greaves, 2, 2, 0),
-            ("Braced Plating", SlotKind::Greaves, 3, 3, 0),
-            ("Witch's Stilts", SlotKind::Greaves, 1, 3, 0),
-            ("Worldstrider Sole", SlotKind::Greaves, 3, 5, 0),
-            ("Rootwoven Material", SlotKind::Gloves, 0, 0, 0),
-            ("Deft Mold", SlotKind::Gloves, 3, 0, 0),
-            ("Tin Band", SlotKind::Gloves, 5, 0, 0),
-            ("Ring of Roots", SlotKind::Gloves, 0, 1, 0),
-            ("Rootwoven Material", SlotKind::Gloves, 1, 1, 0),
-            ("Quickfinger Mold", SlotKind::Gloves, 4, 1, 1),
-            ("Sevenleague Boots", SlotKind::Gloves, 0, 2, 1),
-            ("Gauntlet Mold", SlotKind::Gloves, 3, 2, 3),
+            ("Sanctified Material", SlotKind::Greaves, 0, 0, 1),
+            ("Sapling Mold", SlotKind::Greaves, 2, 0, 1),
+            ("Sanctified Material", SlotKind::Greaves, 4, 0, 1),
+            ("Sapling Mold", SlotKind::Greaves, 2, 1, 1),
+            ("Braced Plating", SlotKind::Greaves, 1, 2, 0),
+            ("Sanctified Material", SlotKind::Greaves, 4, 1, 3),
+            ("Grave-Iron Mold", SlotKind::Greaves, 3, 2, 2),
+            ("Sanctified Material", SlotKind::Greaves, 0, 3, 0),
+            ("Sapling Mold", SlotKind::Greaves, 2, 4, 1),
+            ("Mage's Wrapping", SlotKind::Gloves, 0, 0, 0),
+            ("Deft Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Sanctified Material", SlotKind::Gloves, 4, 0, 1),
+            ("Deft Mold", SlotKind::Gloves, 2, 1, 0),
+            ("Iron Band", SlotKind::Gloves, 5, 1, 0),
+            ("Oathring", SlotKind::Gloves, 2, 2, 0),
+            ("Mage's Wrapping", SlotKind::Gloves, 0, 2, 0),
+            ("Featherweight Mold", SlotKind::Gloves, 2, 3, 0),
         ],
         gear_offset: 0,
         bounty: 134,
         sprite: MonsterSprite::Ember,
         rank: Rank::Ordinary,
         drops: &[],
-        items: &[3, 3, 2, 4, 2, 2],
+        items: &[2, 3, 2, 2, 2, 4, 2],
     },
     MonsterSpec {
         name: "Slag Warden",
@@ -1282,30 +1283,31 @@ pub const LADDER: &[MonsterSpec] = &[
         curse_resist: 44,
         attacks: &[],
         gear: &[
-            ("Rootwoven Material", SlotKind::Greaves, 0, 0, 0),
-            ("Sapling Mold", SlotKind::Greaves, 3, 0, 1),
-            ("Consecrated Plating", SlotKind::Greaves, 0, 1, 0),
-            ("Sevenleague Boots", SlotKind::Greaves, 2, 1, 1),
-            ("Worldstrider Sole", SlotKind::Greaves, 0, 3, 0),
-            ("Swiftplate", SlotKind::Greaves, 4, 2, 2),
-            ("Sanctified Material", SlotKind::Greaves, 2, 3, 3),
-            ("Zealot's Sole", SlotKind::Greaves, 0, 5, 1),
-            ("Consecrated Plating", SlotKind::Greaves, 4, 4, 0),
-            ("Sevenleague Boots", SlotKind::Gloves, 0, 0, 1),
-            ("Quickfinger Mold", SlotKind::Gloves, 3, 0, 1),
-            ("Unshod Signet", SlotKind::Gloves, 5, 0, 0),
-            ("Ring of Roots", SlotKind::Gloves, 4, 1, 0),
-            ("Tallykeeper's Weave", SlotKind::Gloves, 0, 2, 0),
-            ("Quickfinger Mold", SlotKind::Gloves, 2, 2, 1),
+            ("Sanctified Material", SlotKind::Greaves, 0, 0, 1),
+            ("Sapling Mold", SlotKind::Greaves, 2, 0, 1),
+            ("Witch's Claw", SlotKind::Greaves, 4, 0, 0),
+            ("Runner's Mold", SlotKind::Greaves, 2, 1, 0),
+            ("Braced Plating", SlotKind::Greaves, 0, 2, 0),
+            ("Sanctified Material", SlotKind::Greaves, 4, 2, 3),
+            ("Sapling Mold", SlotKind::Greaves, 2, 3, 1),
+            ("Braced Plating", SlotKind::Greaves, 1, 4, 0),
+            ("Witch's Stilts", SlotKind::Gloves, 0, 0, 1),
+            ("Deft Mold", SlotKind::Gloves, 3, 0, 0),
+            ("Sanctified Material", SlotKind::Gloves, 4, 0, 3),
+            ("Deft Mold", SlotKind::Gloves, 2, 1, 0),
+            ("Sanctified Material", SlotKind::Gloves, 0, 1, 3),
+            ("Deft Mold", SlotKind::Gloves, 2, 2, 0),
             ("Tin Band", SlotKind::Gloves, 4, 2, 0),
-            ("Tin Band", SlotKind::Gloves, 5, 2, 0),
+            ("Oathring", SlotKind::Gloves, 5, 2, 0),
+            ("Sanctified Material", SlotKind::Gloves, 0, 3, 1),
+            ("Deft Mold", SlotKind::Gloves, 2, 3, 0),
         ],
         gear_offset: 0,
         bounty: 143,
         sprite: MonsterSprite::Slag,
         rank: Rank::Ordinary,
         drops: &[],
-        items: &[3, 3, 3, 4, 4],
+        items: &[2, 3, 3, 2, 2, 4, 2],
     },
     MonsterSpec {
         name: "The Gearwright",
@@ -1404,34 +1406,33 @@ pub const LADDER: &[MonsterSpec] = &[
         curse_resist: 50,
         attacks: &[],
         gear: &[
-            ("Sevenleague Boots", SlotKind::Greaves, 0, 0, 1),
-            ("Sapling Mold", SlotKind::Greaves, 3, 0, 1),
-            ("Consecrated Plating", SlotKind::Greaves, 3, 1, 0),
-            ("Tallykeeper's Weave", SlotKind::Greaves, 0, 2, 0),
-            ("Sapling Mold", SlotKind::Greaves, 2, 2, 0),
-            ("Consecrated Plating", SlotKind::Greaves, 3, 3, 0),
-            ("Sevenleague Boots", SlotKind::Greaves, 0, 4, 1),
-            ("Pilgrim Sole", SlotKind::Greaves, 3, 5, 0),
-            ("Consecrated Plating", SlotKind::Greaves, 0, 6, 0),
-            ("Sevenleague Boots", SlotKind::Gloves, 0, 0, 1),
-            ("Quickfinger Mold", SlotKind::Gloves, 3, 0, 1),
+            ("Rootwoven Material", SlotKind::Greaves, 0, 0, 0),
+            ("Worldstrider Sole", SlotKind::Greaves, 3, 0, 0),
+            ("Tallykeeper's Weave", SlotKind::Greaves, 0, 1, 0),
+            ("Worldstrider Sole", SlotKind::Greaves, 2, 1, 2),
+            ("Consecrated Plating", SlotKind::Greaves, 0, 3, 0),
+            ("Sevenleague Boots", SlotKind::Greaves, 2, 3, 1),
+            ("Worldstrider Sole", SlotKind::Greaves, 0, 5, 0),
+            ("Consecrated Plating", SlotKind::Greaves, 3, 5, 0),
+            ("Sanctified Material", SlotKind::Gloves, 0, 0, 1),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 1),
             ("Unshod Signet", SlotKind::Gloves, 5, 0, 0),
-            ("Ring of Roots", SlotKind::Gloves, 4, 1, 0),
-            ("Witch's Stilts", SlotKind::Gloves, 3, 1, 3),
-            ("Quickfinger Mold", SlotKind::Gloves, 1, 2, 1),
-            ("Tin Band", SlotKind::Gloves, 0, 2, 0),
-            ("Unshod Signet", SlotKind::Gloves, 0, 3, 0),
-            ("Sevenleague Boots", SlotKind::Gloves, 2, 3, 1),
-            ("Quickfinger Mold", SlotKind::Gloves, 0, 4, 1),
-            ("Sevenleague Boots", SlotKind::Gloves, 1, 5, 1),
-            ("Quickfinger Mold", SlotKind::Gloves, 4, 4, 3),
+            ("Ring of Roots", SlotKind::Gloves, 1, 1, 0),
+            ("Sanctified Material", SlotKind::Gloves, 3, 1, 1),
+            ("Deft Mold", SlotKind::Gloves, 5, 1, 1),
+            ("Unshod Signet", SlotKind::Gloves, 2, 2, 0),
+            ("Ring of Roots", SlotKind::Gloves, 1, 2, 0),
+            ("Sanctified Material", SlotKind::Gloves, 0, 2, 0),
+            ("Quickfinger Mold", SlotKind::Gloves, 2, 3, 1),
+            ("Witch's Stilts", SlotKind::Gloves, 4, 2, 0),
+            ("Quickfinger Mold", SlotKind::Gloves, 2, 4, 3),
         ],
         gear_offset: 0,
         bounty: 170,
         sprite: MonsterSprite::CogPriest,
         rank: Rank::Ordinary,
         drops: &[],
-        items: &[3, 3, 3, 4, 4, 2, 2],
+        items: &[2, 3, 3, 4, 4, 2, 2],
     },
     MonsterSpec {
         name: "Mire Behemoth",
@@ -3053,6 +3054,31 @@ impl Combatant {
         }
     }
 
+    /// Regeneration a second, pools included.
+    ///
+    /// `held_bonus` has always computed this correctly and nothing has ever
+    /// read it. The one call site takes `.physical_damage` and throws the rest
+    /// away, so rage reached a fight and **nature and faith did not**: the
+    /// regen tick read the flat `regen` field, `take_typed` read the flat
+    /// resists, and a hundred banked nature was worth exactly nothing. The
+    /// unit test that was supposed to cover it asserts `held_bonus()` directly
+    /// and so has been green throughout, testing arithmetic nobody consulted.
+    ///
+    /// Named `effective_*`, beside `effective_power`, because that is the shape
+    /// this file already uses for "the number after everything the wearer
+    /// brings".
+    pub fn effective_regen(&self) -> i32 {
+        self.regen + self.held_bonus().regen
+    }
+
+    pub fn effective_physical_resist(&self) -> i32 {
+        self.physical_resist + self.held_bonus().physical_resist
+    }
+
+    pub fn effective_magic_resist(&self) -> i32 {
+        self.magic_resist + self.held_bonus().magic_resist
+    }
+
     pub fn effective_power(&self) -> i32 {
         self.power + self.empowerment as i32 * 5 * self.mana.max(0)
     }
@@ -3070,13 +3096,13 @@ impl Combatant {
         let amount = match kind {
             DamageType::Physical => crate::stats::after_defences(
                 amount,
-                self.physical_resist,
+                self.effective_physical_resist(),
                 pierce,
                 self.physical_harden,
             ),
             DamageType::Magic => crate::stats::after_defences(
                 amount,
-                self.magic_resist,
+                self.effective_magic_resist(),
                 pierce,
                 self.magic_harden,
             ),
@@ -3692,8 +3718,9 @@ pub fn simulate_party(
                 c.burn_timer = 0;
                 log.push(LogEntry { who, at_ms: t, event: Event::Burn { side, damage: dmg, health: hp } });
             }
-            if c.regen > 0 && c.health < c.max_health && !c.no_regen {
-                c.regen_milli += c.regen * TICK_MS as i32;
+            let regen = c.effective_regen();
+            if regen > 0 && c.health < c.max_health && !c.no_regen {
+                c.regen_milli += regen * TICK_MS as i32;
                 let heal = (c.regen_milli / 1000).min(c.max_health - c.health);
                 if heal > 0 {
                     c.regen_milli %= 1000;
