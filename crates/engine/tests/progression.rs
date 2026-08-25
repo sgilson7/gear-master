@@ -278,6 +278,28 @@ const QUEST_REWARDS_WORN: usize = 12;
 /// game showing you the reward before you have earned it, on something that
 /// will not hand it over - `drops` is a separate list, so wearing is not
 /// giving, which is why this was able to go unnoticed.
+/// No creature is enchanted, for now.
+///
+/// The layer is the player's: two conditions read off two grids, and a creature
+/// board is authored rather than packed by somebody looking at it. Deciding
+/// what a creature does with an enchantment is a later question, and until it
+/// is decided the honest state is that none of them has one.
+#[test]
+fn nothing_on_the_ladder_is_enchanted() {
+    use gearmaster_engine::combat::ALTERNATES;
+    use gearmaster_engine::piece::CATALOG;
+    for m in LADDER.iter().chain(ALTERNATES.iter()) {
+        for &(name, ..) in m.gear {
+            let Some(def) = CATALOG.iter().find(|d| d.name == name) else { continue };
+            assert!(
+                !def.kind.is_enchantment(),
+                "{} is standing on {name}, and enchantments are the player's",
+                m.name
+            );
+        }
+    }
+}
+
 #[test]
 fn no_creature_wears_what_only_a_door_hands_over() {
     use gearmaster_engine::combat::ALTERNATES;

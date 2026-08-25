@@ -169,17 +169,24 @@ pub enum PieceKind {
     /// than being cast itself - which is why an orb needs no ink: the
     /// alignment is where an orb's build decision lives.
     Alignment,
-    /// **Terrain.** Laid under the grid rather than packed into it: other
-    /// pieces may sit on top of it, and what it is worth depends on what ends
-    /// up covering it.
+    /// **Enchantment.** Laid under the grid rather than packed into it: gear
+    /// may sit on top of it, and what it is worth depends on what ends up
+    /// covering it.
     ///
-    /// No recipe names this kind, which is the whole of how "an underlay is
+    /// It was called terrain, which was the wrong word for four grids out of
+    /// five - only the greaves have ground under them, and a helmet does not.
+    /// What the layer actually is, in every slot, is the thing worked into the
+    /// gear underneath: an enchantment.
+    ///
+    /// No recipe names this kind, which is the whole of how "an enchantment is
     /// never part of an item" is enforced - there is no rule to write and no
-    /// special case to forget. It is a kind rather than a flag on `PieceDef`
-    /// because terrain is a different sort of thing from gear, not gear with a
-    /// setting; the spec called for a `bool`, and a bool would also have meant
-    /// spelling out `underlay: false` in all 446 existing entries.
-    Terrain,
+    /// special case to forget, and in particular nothing can be merged into one
+    /// item by laying an enchantment under two. It is a kind rather than a flag
+    /// on `PieceDef` because an enchantment is a different sort of thing from
+    /// gear, not gear with a setting; the spec called for a `bool`, and a bool
+    /// would also have meant spelling out `enchantment: false` in all 446
+    /// existing entries.
+    Enchantment,
 }
 
 impl PieceKind {
@@ -187,8 +194,8 @@ impl PieceKind {
     /// everything else in the slot joins the core it is nearest to, which is
     /// what lets two finished items sit flush against each other.
     /// Does this kind lie under the grid rather than in it?
-    pub fn is_underlay(self) -> bool {
-        matches!(self, PieceKind::Terrain)
+    pub fn is_enchantment(self) -> bool {
+        matches!(self, PieceKind::Enchantment)
     }
 
     pub fn is_core(self) -> bool {
@@ -205,7 +212,7 @@ impl PieceKind {
 
     pub fn name(self) -> &'static str {
         match self {
-            PieceKind::Terrain => "terrain",
+            PieceKind::Enchantment => "enchantment",
             PieceKind::Ring => "ring",
             PieceKind::Book => "book",
             PieceKind::Ink => "ink",
@@ -9368,7 +9375,7 @@ pub static CATALOG: &[PieceDef] = &[
     PieceDef {
         name: "Keystone Base",
         slot: SlotKind::Chest,
-        kind: PieceKind::Terrain,
+        kind: PieceKind::Enchantment,
         cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
         base: Stats::health(10),
         adjacency: None,
@@ -9383,6 +9390,108 @@ pub static CATALOG: &[PieceDef] = &[
         quest: None,
         power_bonus: 0,
         price: 30,
+    },
+
+    // The other four grids. One enchantment each, on that slot's own axis,
+    // because an enchantment is not ground - it is the thing worked into the
+    // gear from underneath, and a helmet has an underneath.
+    //
+    // Each carries two payouts and they are read on different layers. The
+    // `effect` is what it is worth while it is merely *live* - nothing else on
+    // the enchantment layer touching it - and scales with what happens to be
+    // standing on it. The `triggers` are what it hands to an item that *bonds*
+    // with it, which needs one item covering every one of its cells. Live wants
+    // enchantments spread out; bonded wants gear packed tight. That is the
+    // whole mechanic and the two halves are meant to fight.
+    PieceDef {
+        name: "Chalked Circle",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats { power: 15, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect {
+            label: "for each item built inside it",
+            kind: EffectKind::PerOverlappingCore { stat: StatKind::Power, amount: 12 },
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Conversion: what stands in the circle strikes twice as far.
+        triggers: &[Trigger::OnActivate(Action::Damage {
+            amount: 22,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 60,
+    },
+    PieceDef {
+        name: "Open Palm",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (1, 0), (2, 0)],
+        base: Stats { curse_resist: 8, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect {
+            label: "for each piece lying in it",
+            kind: EffectKind::PerOverlappingItem { stat: StatKind::Armor, amount: 6 },
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Reaction: a hand holding nothing else is a hand that can catch
+        // something.
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
+            amount: 14,
+            kind: DamageType::Physical,
+            target: Target::Enemy,
+        })],
+        quest: None,
+        power_bonus: 0,
+        price: 52,
+    },
+    PieceDef {
+        name: "Sprung Board",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats { curse_resist: 12, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect {
+            label: "for each piece standing on it",
+            kind: EffectKind::PerOverlappingItem { stat: StatKind::Regen, amount: 2 },
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Tempo: you cannot take a run-up in a crowd.
+        triggers: &[Trigger::OnActivate(Action::ReduceCooldown(260))],
+        quest: None,
+        power_bonus: 0,
+        price: 48,
+    },
+    PieceDef {
+        name: "Quiet Room",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1), (0, 2), (1, 2)],
+        base: Stats { mana: 3, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect {
+            label: "for each item kept in it",
+            kind: EffectKind::PerOverlappingCore { stat: StatKind::Mana, amount: 3 },
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Economy, and the slot where the clearance rule reads clearest: room
+        // to think. Crowd the head and the head stops paying.
+        triggers: &[Trigger::OnActivate(Action::GainMana(5))],
+        quest: None,
+        power_bonus: 0,
+        price: 55,
     },
 ];
 
@@ -9497,14 +9606,14 @@ pub fn town_shelf() -> &'static [&'static str] {
     static SHELF: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
     SHELF.get_or_init(|| {
         let mut out: Vec<&'static str> = TOWN_ONLY.to_vec();
-        out.extend(CATALOG.iter().filter(|d| d.kind.is_underlay()).map(|d| d.name));
+        out.extend(CATALOG.iter().filter(|d| d.kind.is_enchantment()).map(|d| d.name));
         out
     })
 }
 
 /// Is this piece bought in a town rather than off the road?
 pub fn is_town_stock(def: &PieceDef) -> bool {
-    is_town_only(def.name) || def.kind.is_underlay()
+    is_town_only(def.name) || def.kind.is_enchantment()
 }
 
 /// Is this piece kept out of the reckoning that prices everything else?

@@ -1479,7 +1479,7 @@ fn kind_luminance(kind: PieceKind) -> f32 {
         | PieceKind::Alignment => 0.72,
         // Terrain is drawn beneath the grid, so it wants to read as ground
         // rather than as gear: lighter than anything standing on it.
-        PieceKind::Terrain => 0.85,
+        PieceKind::Enchantment => 0.85,
     }
 }
 
@@ -3065,7 +3065,7 @@ fn render_slots(
                 // covers it, so a covered cell has to say so. Hatched rather
                 // than tinted: a tint reads as another piece.
                 let slot = run.loadout.slot(view.kind);
-                if slot.under_at(gx, gy).is_some() && slot.get(gx, gy).is_some() {
+                if slot.enchant_at(gx, gy).is_some() && slot.get(gx, gy).is_some() {
                     let n = 4;
                     for k in 0..n {
                         let off = SLOT_CELL * (k as f32 + 0.5) / n as f32;
@@ -3092,7 +3092,7 @@ fn render_slots(
         // walks the gear layer before the one underneath, which is the right
         // order for everything except drawing.
         let mut to_draw = run.loadout.slot(view.kind).pieces();
-        to_draw.sort_by_key(|&id| !run.registry.def(id).kind.is_underlay());
+        to_draw.sort_by_key(|&id| !run.registry.def(id).kind.is_enchantment());
         for id in to_draw {
             if drag.holds(id) {
                 continue; // it's on the cursor instead

@@ -413,7 +413,7 @@ fn the_town_shop_is_things_you_cannot_get_elsewhere() {
     assert!(
         on_sale.iter().any(|n| CATALOG
             .iter()
-            .any(|d| d.name == *n && d.kind.is_underlay())),
+            .any(|d| d.name == *n && d.kind.is_enchantment())),
         "a town is the only place that sells ground, and this one sold none"
     );
 }

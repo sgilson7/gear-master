@@ -544,17 +544,24 @@ impl Loadout {
             });
         }
 
-        // 6. Terrain. It is never in a group - `groups` walks the gear layer
-        //    and terrain is under it - so it contributes here, on its own, as
-        //    the permanently-loose thing it is. Its stats reach the wearer the
-        //    same way any unassembled piece's do.
+        // 6. Enchantments. One is never in a group - `groups` walks the gear
+        //    layer and an enchantment is under it - so it contributes here, on
+        //    its own, as the permanently-loose thing it is. Its stats reach the
+        //    wearer the same way any unassembled piece's do.
         for id in slot.pieces() {
             let def = reg.def(id);
-            if !def.kind.is_underlay() {
+            if !def.kind.is_enchantment() {
                 continue;
             }
-            let mut contribution = def.base;
+            // Dead enchantments give nothing at all, stats included. An
+            // enchantment with another one touching it is not a weaker
+            // enchantment, it is a smothered one.
+            let live = slot.enchant_is_live(id);
+            let mut contribution = if live { def.base } else { Stats::ZERO };
             let mut item_notes: Vec<String> = Vec::new();
+            if !live {
+                item_notes.push(format!("{}: smothered - another enchantment touches it", def.name));
+            }
             if let Some(eff) = def.effect {
                 let covering = slot.covering(id);
                 let n = match eff.kind {
@@ -567,10 +574,10 @@ impl Loadout {
                 if let EffectKind::PerOverlappingItem { stat, amount }
                 | EffectKind::PerOverlappingCore { stat, amount } = eff.kind
                 {
-                    // Terrain is never assembled, so `When::Assembled` on an
-                    // underlay would silence it for ever. `holds(false)` is the
+                    // An enchantment is never assembled, so `When::Assembled`
+                    // on one would silence it for ever. `holds(false)` is the
                     // honest question and says so.
-                    if n > 0 && eff.when.holds(false) {
+                    if live && n > 0 && eff.when.holds(false) {
                         contribution.add(stat, amount * n);
                         item_notes.push(format!(
                             "{}: +{} {} from {} covering it",
@@ -594,7 +601,13 @@ impl Loadout {
                 ),
                 pieces: vec![id],
                 assembled: false,
-                status: "underlay".to_string(),
+                status: if !live {
+                    "smothered".to_string()
+                } else if slot.enchant_is_buried(id) {
+                    "bonded".to_string()
+                } else {
+                    "enchantment".to_string()
+                },
                 stats: contribution,
                 notes: item_notes,
                 rating: 0,
@@ -715,8 +728,45 @@ impl Loadout {
             // Ink scales the cast it is bound into rather than the wearer.
             let power_bonus: i32 = item.pieces.iter().map(|&p| reg.def(p).power_bonus).sum();
             // And so does power, now. Base is a plain multiple of one.
-            let power: i32 =
+            let mut power: i32 =
                 100 + item.pieces.iter().map(|&p| reg.def(p).base.power).sum::<i32>() + power_bonus;
+
+            // The bond. An enchantment this item is built on top of doubles it
+            // and hands it a trigger.
+            //
+            // Two conditions, one on each layer, and they pull opposite ways.
+            // The enchantment has to be *live* - nothing else on its own layer
+            // touching it - which wants enchantments spread out. And it has to
+            // be *buried* by this item alone: every one of its cells covered,
+            // and every covering piece part of this item, which wants gear
+            // packed tight and shaped to fit. An item that happens to cover
+            // half of one gets nothing, and two items sharing the cover get
+            // nothing either.
+            //
+            // The payout is `+1.00x power`, and power is already the thing that
+            // multiplies an item's stats and what its triggers pay out (never
+            // what they cost) - so doubling it means the same thing in all five
+            // grids rather than only in the one that swings.
+            let mut raw_triggers = raw_triggers;
+            for eid in slot.pieces() {
+                if !reg.def(eid).kind.is_enchantment() {
+                    continue;
+                }
+                if !slot.enchant_is_live(eid) {
+                    continue;
+                }
+                let cells = slot.enchant_cells(eid);
+                let bonded = !cells.is_empty()
+                    && cells.iter().all(|&(x, y)| match slot.get(x, y) {
+                        Some(on_top) => item.pieces.contains(&on_top),
+                        None => false,
+                    });
+                if bonded {
+                    power += 100;
+                    raw_triggers.extend(reg.def(eid).triggers.iter().copied());
+                }
+            }
+            let power = power;
 
             // Every spell in the item is one payload. A book has bound one,
             // an orb several; ordinary gear has none and keeps carrying its

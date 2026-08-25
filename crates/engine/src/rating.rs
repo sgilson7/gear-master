@@ -632,6 +632,14 @@ fn effect_points(e: &Effect, rate: f32) -> f32 {
 /// on it.
 const EXPECTED_COVERAGE: f32 = 2.0;
 
+/// What bonding is worth, before anything the enchantment itself carries.
+///
+/// Doubling one item is worth roughly what a strong piece is, and the two
+/// conditions it asks for pull against each other on purpose - enchantments
+/// have to be spread out and gear has to be packed tight on the one of them
+/// you mean to bond. A board that does both has given up cells to do it.
+const BOND_POINTS: f32 = 45.0;
+
 /// What one point of a stat is worth to an effect that grants it directly.
 ///
 /// Was written inline inside `SelfPerNeighborKind` and is now wanted by the two
@@ -665,7 +673,23 @@ fn piece_points(def: &PieceDef, cooldown_ms: u32) -> f32 {
     } else {
         1.0
     };
-    let mut points = standing_points(&def.base)
+    // The bond, which is most of what an enchantment is worth and none of what
+    // its stat line says.
+    //
+    // A bonded item is doubled - `+1.00x power`, which multiplies its stats and
+    // what its triggers pay out - and handed this piece's triggers on top. The
+    // rating cannot see the board, and this needs two things of one at once:
+    // the enchantment layer clear all round it, and one item shaped to cover
+    // every cell. So it is discounted hard from "worth a whole item", the same
+    // way every conditional in this file is: what a build that actually wanted
+    // it will manage.
+    //
+    // Flat rather than a share of the slot ceiling, because the ceiling is a
+    // maximum over pieces and a piece whose worth is a fraction of the ceiling
+    // would be defining the thing it is measured against.
+    let bond = if def.kind.is_enchantment() { BOND_POINTS } else { 0.0 };
+    let mut points = bond
+        + standing_points(&def.base)
         + activated_points(&def.base, rate) * intensity
         + held_points(&def.base, rate)
         + def.power_bonus as f32 * weight::POWER_BONUS;

@@ -318,11 +318,22 @@ const RULES: &[Rule] = &[
     Rule { what: "ReduceCooldown outside the weapon", home: SlotKind::Greaves, level: Level::Only,
         shared_with: &[SlotKind::Weapon, SlotKind::Gloves], budget: 0, target: 0,
         carries: |d| does(d, |a| matches!(a, Action::ReduceCooldown(_))) },
-    // Terrain is the body's and the feet's: a thing to stand on, or ground to
-    // cross. Nothing is laid under a helmet.
-    Rule { what: "terrain", home: SlotKind::Chest, level: Level::Only,
-        shared_with: &[SlotKind::Greaves], budget: 0, target: 0,
-        carries: |d| d.kind.is_underlay() },
+    // Enchantments are every grid's, which is a change of mind and worth
+    // saying so.
+    //
+    // The table used to read "terrain is the body's and the feet's: a thing to
+    // stand on, or ground to cross. Nothing is laid under a helmet." That was
+    // true of *terrain* and it is why the word was wrong - only the greaves
+    // have ground under them. What the layer actually is, in every slot, is the
+    // thing worked into the gear from underneath, and there is no reason a
+    // helmet may not be enchanted.
+    //
+    // So the rule is kept rather than deleted, and it is kept vacuous on
+    // purpose: the row is here to say the decision was made, not forgotten.
+    Rule { what: "enchantment", home: SlotKind::Chest, level: Level::Only,
+        shared_with: &[SlotKind::Greaves, SlotKind::Helmet, SlotKind::Gloves, SlotKind::Weapon],
+        budget: 0, target: 0,
+        carries: |d| d.kind.is_enchantment() },
     Rule { what: "frost, stun and misfire", home: SlotKind::Greaves, level: Level::Mostly(70),
         shared_with: &[], budget: 0, target: 0,
         carries: |d| does(d, |a| matches!(a, Action::Curse {
