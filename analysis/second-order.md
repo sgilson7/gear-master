@@ -241,21 +241,34 @@ Measured across 400 seeded runs and six restocks each - 14,400 shelf slots:
 | Chest | 10.2% | 14.7% |
 | Greaves | 10.2% | 14.1% |
 
-The pool is uniform over the catalogue, so the weapon should take 36.7%. It
-takes half as much again, because `ensure_weapon` is not as rare as its comment
-believes: six shelves drawn at random often cannot build any of the three
-weapon recipes, the repair steps in, and each repair forces two or three weapon
-shelves.
+**Corrected, and the correction is most of the finding.** That measurement
+forced `ensure_weapon` on every restock, and the real shop only asks for it when
+the player has no assembled weapon at all - true at the start of a run and false
+after. Measured the way a run actually restocks, the old shop was **36.6%**
+weapon: exactly its share of the catalogue, because the pool was uniform over
+the catalogue. The 54.8% was the repair, and the repair is rare.
+
+So the shop was not over-representing the weapon. **The catalogue is.** The
+weapon is two fifths of the pieces, and a uniform draw faithfully reproduces
+that on every shelf a player ever sees.
 
 This is the damage-share problem wearing different clothes. The shop is the one
 surface where a player meets the catalogue, and on it the weapon is not 37% of
 the game, it is 55%. A rewrite that gives four other slots a job has to put
 their parts in front of somebody.
 
-The fix is not the one that was tried and reverted - reserving shelves by
-*kind* made handles and blades seven times over-represented. It is to draw the
-pool per slot rather than uniformly over a catalogue the weapon owns two fifths
-of, and leave `ensure_weapon` as the rare repair it was meant to be.
+The shelves are dealt a slot at a time now, weighted by `SHELF_TILT` - the
+weapon at 33.9% and the four armour slots at 14-18% each, where before they were
+10-13%. It is a small move and it is bounded by a real tension: at a tilt of 1.0
+each slot is dealt in proportion to its catalogue, every component is equally
+likely, and the weapon takes the shelf; at 0.5 the shelf is even and a chest
+piece is 2.5x as likely as a weapon piece, which
+`avail::the_shelves_are_not_the_same_six_things_every_time` refuses at 3.7x.
+0.9 is where both hold.
+
+The larger version of this is not a shop change at all. If the weapon should be
+a fifth of what a player meets rather than two fifths, that is 100 pieces the
+other four slots do not have, and no amount of dealing fixes it.
 
 
 ---
@@ -285,4 +298,4 @@ Running list, so the last mile is not guesswork.
   should stop paying for it, and the first is a combat change.
 - **Watchers that can feed themselves (see 11).** Guarded for curses; any new
   `Watched` variant needs the same question asked of it before it ships.
-- **The shop's slot mix (see 12).** 54.8% weapon against a 36.7% share. M8.
+- **The catalogue's slot mix (see 12).** The shop is dealt fairly now; the weapon is still two fifths of the pieces that exist.

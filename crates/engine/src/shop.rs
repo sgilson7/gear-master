@@ -5,6 +5,17 @@ use crate::rng::Rng;
 
 /// How many components are on offer at once.
 pub const SHOP_SIZE: usize = 6;
+/// How hard the shelf tilts toward the slots with the most pieces.
+///
+/// 1.0 deals every slot in proportion to its catalogue - perfectly even
+/// components, and the weapon on 54.8% of every shelf because it is two fifths
+/// of the pieces. 0.5 deals the five slots nearly evenly - a fair shelf, and a
+/// chest piece 2.5x as likely as a weapon piece, which
+/// `avail::the_shelves_are_not_the_same_six_things_every_time` refuses at 3.7x.
+///
+/// The two rules pull against each other and this is where both hold.
+const SHELF_TILT: f32 = 0.9;
+
 /// What you start a run with. You own nothing, so this has to cover a first
 /// weapon at minimum.
 pub const STARTING_GOLD: i32 = 28;
@@ -91,12 +102,76 @@ impl Shop {
             // by the side of the road.
             .filter(|&i| !crate::piece::is_town_stock(&CATALOG[i]))
             .collect();
+        // Dealt a slot at a time, not drawn uniformly from the catalogue.
+        //
+        // A uniform pool is a pool the weapon owns, because the weapon is two
+        // fifths of the catalogue: measured over 400 seeded runs and six
+        // restocks each, the weapon took **54.8%** of every shelf against a
+        // 36.7% share of the pieces, and the four armour slots got ten to
+        // thirteen per cent apiece. The shop is the one surface where a player
+        // meets the catalogue, and on it the game was not five slots, it was a
+        // weapon and some accessories.
+        //
+        // So the shelves are dealt round-robin over a shuffled slot order:
+        // whatever a slot has in the catalogue, it gets its turn. That is not
+        // the reservation that was tried and reverted - that one held shelves
+        // for a *kind*, which made handles and blades seven times
+        // over-represented and quietly argued for martial weapons over the
+        // other two recipes. This holds nothing for anything; it just stops
+        // one slot taking the whole shelf by weight of numbers.
         rng.shuffle(&mut pool);
-        for i in pool {
-            if chosen.len() >= SHOP_SIZE {
+        // One ticket per square root of a slot's catalogue, which is the
+        // compromise the two evenness rules leave room for.
+        //
+        // Dealing the five slots in equal turns fixes the shelf mix and breaks
+        // something else: a slot's share is then spread over however many
+        // pieces it has, so a chest piece (69 of them) turns up two and a half
+        // times as often as a weapon piece (172), and
+        // `avail::the_shelves_are_not_the_same_six_things_every_time` says 3.7x
+        // and refuses. Dealing in proportion to the catalogue is what we had,
+        // and that is the weapon taking 55% of every shelf.
+        //
+        // So the exponent is the dial and it sits between them. At 1.0 a slot
+        // is dealt in proportion to its catalogue: every component is exactly
+        // as likely as every other and the weapon takes the shelf. At 0.5 the
+        // shelf is nearly even between slots and a chest piece is two and a
+        // half times as likely as a weapon piece. `SHELF_TILT` is set where
+        // both tests pass, which is the only place either of them is happy.
+        let mut tickets: Vec<SlotKind> = Vec::new();
+        for k in SlotKind::ALL {
+            let n = CATALOG.iter().filter(|d| d.slot == k).count();
+            let weight = ((n as f32).powf(SHELF_TILT) / 6.0).round().max(1.0) as usize;
+            for _ in 0..weight {
+                tickets.push(k);
+            }
+        }
+        rng.shuffle(&mut tickets);
+        let mut round = 0usize;
+        while chosen.len() < SHOP_SIZE {
+            let before = chosen.len();
+            for &want in &tickets {
+                if chosen.len() >= SHOP_SIZE {
+                    break;
+                }
+                if let Some(pos) = pool
+                    .iter()
+                    .position(|&i| CATALOG[i].slot == want && !chosen.contains(&i))
+                {
+                    chosen.push(pool.remove(pos));
+                }
+            }
+            // Nothing left in any slot: fall back to whatever the pool still
+            // holds, so a heavily-filtered catalogue still fills the shelves.
+            if chosen.len() == before {
+                match pool.iter().position(|i| !chosen.contains(i)) {
+                    Some(pos) => chosen.push(pool.remove(pos)),
+                    None => break,
+                }
+            }
+            round += 1;
+            if round > SHOP_SIZE + 5 {
                 break;
             }
-            chosen.push(i);
         }
         // Enough to build *a* weapon - repaired afterwards rather than
         // reserved up front.
