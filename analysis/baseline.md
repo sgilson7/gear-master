@@ -470,3 +470,46 @@ Weapon share reads **79.5%**, not 82.9%. Lower, because the fights are longer
 and the slots that pay over time - reflection, burn, reaction damage - get more
 of the fight to pay in. That is the honest number against the 66-76% band, and
 it is three and a half points from the top of it rather than seven.
+
+---
+
+## The two owed criteria, measured at last
+
+Criteria 2 and 3 had not been re-measured since the baseline. Both are read-only
+questions the harness already knew how to ask; neither had been asked since the
+catalogue changed under them.
+
+### Criterion 3 — a build with no weapon clears rung 15
+
+**Passes, and now for the right reason.**
+
+| Build | Rung 15 | What carried it |
+|---|---|---|
+| owner | Victory in 6.6s | **greaves 66%** |
+| friend | Victory in 7.3s | **gloves 76%** |
+| preset | Defeat | burn only |
+
+At the baseline this passed with `burn 100%` on every board - a searing curse
+ticking down the clock while no armour slot landed a blow. Two slots now carry
+a weaponless kill on their own gear. That is the existence proof the criterion
+was written to demand, and it was a hollow pass before.
+
+### Criterion 2 — stripping a slot costs 25% or flips the fight
+
+| Slot | Best showing | Verdict |
+|---|---|---|
+| Gloves | 63-295%, flips three fights | **passes** |
+| Helmet | 42-181%, flips rung 40 | **passes** |
+| Greaves | 19-44%, flips rung 40 | **passes** |
+| Chest | **0% everywhere** | **fails** |
+
+Three of four slots now cost a build real time or the fight itself. Chest costs
+nothing measurable anywhere, on any board, at any rung - which is exactly what
+the spec set out to fix and the one place it is not yet fixed.
+
+The cause is known rather than mysterious: reflection is chest's only way to
+hurt anything and it has **one carrier**, Thorn Layer at ten percent. Three more
+were armed and came back out - two are worn by Francis and cost the friend's
+board a setting, and a third shifted a fight by one activation and tripped a
+guard in `towns`. Spreading it is Phase 2's next job, and it wants the monster
+boards in the same change.
