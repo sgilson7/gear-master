@@ -179,3 +179,50 @@ fn probe_what_a_shared_board_loses_on_the_way_back() {
         }
     }
 }
+
+#[test]
+fn a_shared_board_comes_back_as_the_items_it_was_built_from() {
+    // The guard that was missing. `Shared::loadout` seated every piece
+    // correctly and then derived the wrong *items* from them - a dense board
+    // is one connected mass, so a single pass at the end merged whole grids
+    // into one item. The owner's nineteen weapon pieces came back as one; the
+    // perfect run's eleven came back as none. Nothing caught it, and every
+    // measurement in the rewrite was taken against boards nobody had built.
+    //
+    // Pinned as a floor rather than an exact count: the number depends on the
+    // catalogue, and the catalogue moves. What must not happen again is a board
+    // quietly collapsing, and a floor says so loudly.
+    use gearmaster_engine::piece::SlotKind;
+    use gearmaster_engine::share;
+    for (label, code, least) in [
+        ("owner", share::A_WINNING_RUN, 17),
+        ("friend", share::A_FRIENDS_RUN, 15),
+        ("perfect", share::A_PERFECT_RUN, 13),
+    ] {
+        let sh = share::import(code).expect("reads");
+        let (reg, lo) = sh.loadout();
+        let seated: usize = SlotKind::ALL.iter().map(|&k| lo.slot(k).pieces().len()).sum();
+        assert_eq!(seated, sh.placed.len(), "{label} lost pieces on the way back");
+        let items: usize =
+            SlotKind::ALL.iter().map(|&k| lo.report(&reg, k).assembled_count()).sum();
+        assert!(
+            items >= least,
+            "{label} came back with {items} finished items, and a board somebody won with \
+             should manage at least {least}. A dense board that assembles almost nothing is \
+             the connectivity fault returning."
+        );
+        // And every grid a finished board fills should hold something that
+        // acts - a whole empty slot is the same fault, seen per-grid.
+        for k in SlotKind::ALL {
+            if lo.slot(k).pieces().is_empty() {
+                continue;
+            }
+            assert!(
+                lo.report(&reg, k).assembled_count() > 0,
+                "{label}'s {:?} holds {} pieces and not one finished item",
+                k,
+                lo.slot(k).pieces().len()
+            );
+        }
+    }
+}
