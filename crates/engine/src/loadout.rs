@@ -48,6 +48,13 @@ pub struct ItemProfile {
     pub adjacent_assembled_same_slot: usize,
     /// Empty cells touching this item - what `PerAdjacentEmpty` repeats over.
     pub open_cells: usize,
+    /// Whether a misfire eats this item's activation.
+    ///
+    /// One piece in the game says no - a Stray Orb, whose spells go off
+    /// whatever the curse says. Per item rather than per fighter, because that
+    /// is what makes it a decision about which item to build the orb into
+    /// rather than a flat immunity somebody bought.
+    pub steady: bool,
     /// Whether this item is standing on a Lightning Rod.
     ///
     /// Curses that pick a target on your board pick this one instead. Which
@@ -859,6 +866,10 @@ impl Loadout {
                 adjacent_assembled_same_slot: adjacent.len(),
                 open_cells: slot.open_cells_around(&item.pieces),
                 attracts_curses,
+                steady: item
+                    .pieces
+                    .iter()
+                    .any(|&p| reg.def(p).name == crate::piece::STRAY_ORB),
                 adjacent_items: adjacent,
                 aligned_items: aligned,
                 diagonal_items: diagonal,

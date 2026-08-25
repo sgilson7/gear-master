@@ -311,6 +311,23 @@ pub fn stepped_component(name: &str, step: i32) -> &'static str {
         // Quest rewards are earned, not stepped into, for the same reason
         // they are kept off the shelves.
         .filter(|d| !crate::piece::is_quest_reward(d.name))
+        // And so is everything else the road hands over.
+        //
+        // This list was two entries long and should always have been four.
+        // Event gear was already reaching monster boards before anybody
+        // noticed - `Gold Chip` and `Crownwright's Measure` both turn up in
+        // Nine of Ashes's Easy step - and it is the same fault the trophies
+        // had: a footprint family sorted by worth does not know that some of
+        // its members are things you are *given*. Thirty-one new components,
+        // most of them one-cell rewards, turned a quiet wrongness into a loud
+        // one: a creature was being handed the Mainspring's shape and the
+        // astronomer's lens.
+        .filter(|d| !crate::piece::is_event_only(d.name))
+        // The mind lane's gear is worse than wrong on a creature: it banks a
+        // pool the fight has no other use for, and a player cannot even meet
+        // the piece until THE THRESHOLD is cleared. A creature wearing gear
+        // nobody can buy is a creature wearing a stat line.
+        .filter(|d| !crate::piece::touches_insight(d))
         .collect();
     // Ordered by what a piece is worth to a *creature*, not to a shop.
     //
@@ -2637,6 +2654,8 @@ pub struct RunningItem {
     /// Standing on a Lightning Rod, so anything that picks a target on this
     /// board picks this.
     pub attracts_curses: bool,
+    /// A misfire does not eat this one's activation.
+    pub steady: bool,
     /// What this item multiplies its own damage by, in hundredths.
     pub power: i32,
     pub physical_damage: i32,
@@ -2680,6 +2699,7 @@ impl RunningItem {
             name: p.name.clone(),
             slot: Some(p.slot),
             attracts_curses: p.attracts_curses,
+            steady: p.steady,
             cooldown_ms: p.cooldown_ms,
             progress_ms: 0,
             stun_ms: 0,
@@ -2717,6 +2737,7 @@ impl RunningItem {
             slot: None,
             // A monster's own teeth stand on nothing.
             attracts_curses: false,
+            steady: false,
             cooldown_ms: a.cooldown_ms.max(TICK_MS),
             progress_ms: 0,
             stun_ms: 0,
@@ -3997,7 +4018,13 @@ pub fn simulate_party(
                     let fizzled = {
                         let c = pick(&mut p, &mut foes, me);
                         c.misfire_count = c.misfire_count.wrapping_add(1);
-                        c.curses.misfires(c.misfire_count)
+                        // Counted whatever happens, because the curse is on
+                        // the fighter and eats every nth activation *they*
+                        // have. A steady item does not stop the count, it
+                        // simply is not the one that goes quiet - so building
+                        // one buys reliability for that item and hands the
+                        // fizzle to the next one round.
+                        c.curses.misfires(c.misfire_count) && !c.items[idx].steady
                     };
                     if fizzled {
                         let name = pick(&mut p, &mut foes, me).items[idx].name.clone();
@@ -4217,6 +4244,20 @@ fn land_curse(
             event: Event::Cursed { on, kind, duration_ms: ms, stacks },
         });
     }
+}
+
+/// `land_stun`, for a test that wants to put two items in front of it and see
+/// which one it picks.
+///
+/// The choice is the whole of the Lightning Rod and most of what keeps an
+/// aimed stun fair, and it is not reachable through `simulate` without
+/// building a board that happens to be cursed.
+pub fn land_stun_for_test(
+    victim: &mut Combatant,
+    aim: StunAim,
+    at_ms: u32,
+) -> Option<(usize, u32)> {
+    land_stun(victim, aim, at_ms)
 }
 
 fn land_stun(victim: &mut Combatant, aim: StunAim, at_ms: u32) -> Option<(usize, u32)> {

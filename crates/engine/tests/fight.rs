@@ -29,6 +29,7 @@ fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfi
         diagonal_items: Vec::new(),
         open_cells: 0,
         attracts_curses: false,
+        steady: false,
         power: 100,
         rating: 0,
         power_bonus: 0,

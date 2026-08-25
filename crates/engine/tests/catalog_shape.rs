@@ -126,6 +126,11 @@ fn conversion(def: &PieceDef) -> bool {
                     // through the payout - a reaction that answers with the
                     // blade is still a reaction.
                     | Action::GainSpellblade(_)
+                    // And Dread multiplies mind damage, which is already on
+                    // this list and is already named as the helmet's bleed
+                    // into the weapon. A stack that doubles a word counts as
+                    // the word.
+                    | Action::GainDread(_)
             )
         })
 }
@@ -289,6 +294,15 @@ const RULES: &[Rule] = &[
     // head.
     Rule { what: "MindDamage", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::MindDamage { .. })) },
+    // The mind lane's pair, on the same terms as the magic lane's. Dread is
+    // the head's outright; Insight income keeps a minority on a book, which is
+    // where a caster would look for it and the one place off the head that a
+    // pool has ever been banked.
+    Rule { what: "GainDread", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
+        budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::GainDread(_))) },
+    Rule { what: "Insight income", home: SlotKind::Helmet, level: Level::Mostly(80),
+        shared_with: &[], budget: 0, target: 0,
+        carries: |d| does(d, |a| matches!(a, Action::Gain { what: gearmaster_engine::piece::Resource::Insight, .. })) },
     Rule { what: "mind_resist", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| d.base.mind_resist != 0 },
 

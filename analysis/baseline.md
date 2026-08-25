@@ -1666,3 +1666,64 @@ Eight milestones, seven of them with the fights standing perfectly still.
   one function.
 - **The reward vocabulary that is not gear** - relics that read the run,
   crushables that are spent, a rod that curses would rather land on.
+
+## Drift — M9, the catalogue lands once
+
+Thirty-one components, and **the four-board table at Medium does not move by a
+figure**: owner 48/50 at 75.5%, friend 48/50 at 97.4%, preset 9/50, starter
+2/50. The census is the only thing in the whole capture that changes, which is
+what a catalogue landing correctly looks like.
+
+| | before | after |
+|---|---:|---:|
+| Catalogue | 473 | **504** |
+| Helmet | 81 | 96 |
+| Weapon | 173 | 187 |
+| Chest | 69 | 71 |
+| `mind_resist` | 28 | 36 |
+| inert | 102 (21.6%) | 120 (23.8%) |
+
+Medium steps nothing, so Medium was never the question. **The question was the
+other three settings, and the answer was twenty-nine boards.**
+
+### The event-gear leak, found by walking into it
+
+`stepped_component` filters boss gear and quest rewards out of a footprint
+family before it sorts one, and both filters were added after something went
+wrong: a trophy handed to the fourth creature on the ladder, and a quest reward
+stepped into rather than earned. The list should always have been four entries
+long.
+
+Measured across every creature at Easy, Hard and Insane, the thirty-one new
+components moved **29 of 162** stepped boards - and what they moved into was
+`The Stranger's Parcel`, `The Cracked Lens`, `Doorward Frame` and
+`Foreboding Crest`: three things the road hands over and one that banks a pool
+the run has not been given yet.
+
+With `is_event_only` and `touches_insight` added to the filter, that falls to
+**11 of 162** - and every one of the eleven is the *old* leak being closed.
+`Gold Chip` and `Crownwright's Measure` were already on monster boards at Easy
+and Hard before this mission started; they are `Fury Sigil`, `Zealot's Crest`
+and `Grudge Bead` now.
+
+So M9's net effect on the ladder is: **nothing new reaches a creature, and a
+quiet wrongness that predates the mission is closed on eleven boards.** The
+thirty-one new components were what made it loud enough to see - a creature
+being handed the astronomer's lens is harder to miss than a creature being
+handed a casino chip.
+
+### Two pieces the ratchet argued with, and won
+
+- **The Cracked Lens** at `mind: 20` out-rated `The Split Wisdom`, which is
+  boss gear and is supposed to be the best accessory a player can meet. Twelve,
+  and the spec is amended: twenty points of mind on a one-cell piece is four
+  times what any `MindDamage` action in the game pays.
+- **Bearhide** wanted "Gain Fury on battle start", and both halves belong to
+  somebody else - `OnBattleStart` is the feet's and banking rage on a chest is
+  the helmet's axis wearing a coat, which put chest's bleed at 25.4% against a
+  band that stops at 25. The fury is **strength**, which reaches every weapon
+  and belongs to nobody, and what the piece *does* is armour.
+
+`GainDread` counts as conversion now, beside `GainSpellblade` and for the same
+reason: a stack that doubles a word counts as the word. That is what brought
+helmet's bleed back into band after fifteen new helmet pieces landed.

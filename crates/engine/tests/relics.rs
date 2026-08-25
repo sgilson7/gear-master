@@ -280,19 +280,43 @@ fn what_comes_back_is_aimed_at_thirty_more_and_not_at_anything_at_all() {
 // ----------------------------------------------------------- lightning rod
 
 #[test]
-fn nothing_attracts_curses_until_something_is_standing_on_a_rod() {
-    // The rule is in `land_stun` and reads one flag. Vacuous until the
-    // enchantment lands, and this is the assertion it lands against.
-    let run = a_run();
-    for it in run.combat_items() {
-        assert!(!it.attracts_curses, "{} is standing on a rod that does not exist", it.name);
-    }
-    assert!(
-        !gearmaster_engine::piece::CATALOG
-            .iter()
-            .any(|d| d.name == gearmaster_engine::piece::LIGHTNING_ROD),
-        "the rod has landed; this test is now the one that arms it"
-    );
+fn a_curse_that_picks_a_target_picks_whatever_is_standing_on_the_rod() {
+    // The rod is a decision rather than a reward: lay it under something you
+    // do not mind losing the use of, and the thing you do mind stops being
+    // picked. A stun is the only curse in this game that picks a target on
+    // your board at all; the other three land on the fighter and always have.
+    use gearmaster_engine::combat::{land_stun_for_test, Combatant, StunAim};
+    use gearmaster_engine::stats::Stats;
+
+    let mut c = Combatant::player(Stats::new(1000, 0, 0, 100), &[]);
+    // Two items: a good one, and a cheap one with a wire running into it.
+    c.items = vec![
+        gearmaster_engine::combat::RunningItem {
+            name: "the good one".into(),
+            rating: 200,
+            cooldown_ms: 1000,
+            ..Default::default()
+        },
+        gearmaster_engine::combat::RunningItem {
+            name: "the rod's".into(),
+            rating: 1,
+            cooldown_ms: 1000,
+            attracts_curses: true,
+            ..Default::default()
+        },
+    ];
+    let (idx, _) = land_stun_for_test(&mut c, StunAim::Strongest, 1_000).expect("a stun landed");
+    assert_eq!(idx, 1, "an aimed stun took the best item rather than the rod's");
+    let (idx, _) = land_stun_for_test(&mut c, StunAim::Unaimed, 2_000).expect("a stun landed");
+    assert_eq!(idx, 1, "an unaimed one wandered off the rod");
+}
+
+#[test]
+fn the_rod_is_bought_where_ground_is_bought_and_nowhere_else() {
+    use gearmaster_engine::piece::{is_town_stock, CATALOG, LIGHTNING_ROD};
+    let d = CATALOG.iter().find(|d| d.name == LIGHTNING_ROD).expect("the rod has landed");
+    assert!(d.kind.is_enchantment(), "the rod is not ground");
+    assert!(is_town_stock(d), "the rod could be bought off the road");
 }
 
 #[test]

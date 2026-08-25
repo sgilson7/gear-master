@@ -61,8 +61,8 @@ re-pinned first**.
 | M6 | Dungeon presentation, pedestals, route map (A8/A10/G6) | **done** |
 | M7 | Relics, crushables and consignment (H1) | **done** |
 | M8 | Phase-1 gate, and the stretch decision | **done** |
-| M9 | The catalogue lands once | next |
-| M10 | The chain (Part B) | |
+| M9 | The catalogue lands once | **done** |
+| M10 | The chain (Part B) | next |
 | M11 | The dungeons and what they pay | |
 | M12 | Extra Large and the Orbs of Travel (Part G) | |
 | M13 | The five unconditional events (Part F) | |
@@ -418,3 +418,45 @@ from scratch.
 Phase-1 gate. `FRAMES` is empty until Phase 2 declares one, and a lint over an
 empty list cannot fail. It goes red on the first frame and green at M17, which
 is what E6.8 actually asks for.
+
+
+---
+
+## M9 - The catalogue lands once
+
+Thirty-one components in one commit, and the four-board table at Medium does
+not move by a figure. 473 pieces to **504**.
+
+Four Orbs of Travel, nine one-cell things the road hands over, ten pieces of
+mind-lane gear, six more words, a chest base and an enchantment. Every reward
+is `EVENT_ONLY`; the rod is an enchantment, so `is_town_stock` keeps it off the
+road's shelves without anybody listing it.
+
+**The trap the spec does not name, walked into and measured.** Appending to
+`CATALOG` re-gears creatures on Easy, Hard and Insane exactly as a `rating.rs`
+weight does, and it moved **29 of 162** stepped boards - into the astronomer's
+lens, the stranger's parcel and two pieces of gear that bank a pool the run has
+not been given.
+
+`stepped_component` already filtered boss gear and quest rewards, and both
+filters were added after something went wrong. The list should always have been
+four long. With `is_event_only` and `touches_insight` in it, the 29 falls to
+**11** - and all eleven are the *old* leak closing: `Gold Chip` and
+`Crownwright's Measure` have been on monster boards at Easy and Hard since
+before this mission, and are ordinary gear now.
+
+**Two pieces the ratchet argued with and won.** The Cracked Lens at 20 mind
+out-rated boss gear; it is 12. Bearhide's "Gain Fury on battle start" is two
+other slots' words - `OnBattleStart` is the feet's, banking rage is the head's
+- and put chest's bleed a third of a point over its band; the fury is strength
+and the verb is armour.
+
+**`GainDread` is conversion**, beside `GainSpellblade`: a stack that doubles a
+word counts as the word. That is what brought helmet's bleed back into band
+after fifteen new helmet pieces.
+
+And the promise that every component can be met moved rather than lapsed, the
+way it did for town gear: `avail.rs` has a second test now, and the mind lane
+is reachable the moment `Shop::insight_open` is.
+
+Suite: **668 green**, 0 warnings, ratchet green.

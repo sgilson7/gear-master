@@ -61,6 +61,7 @@ fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfi
         diagonal_items: Vec::new(),
         open_cells: 0,
         attracts_curses: false,
+        steady: false,
         power: 100,
         rating: 0,
         power_bonus: 0,
@@ -277,16 +278,29 @@ fn nothing_that_deals_in_the_pool_reaches_a_locked_shelf() {
 }
 
 #[test]
-fn the_catalogue_carries_no_insight_yet_and_that_is_the_state_of_the_mission() {
-    // A lint on the phase rather than on the code. Phase 1 ships the mechanic
-    // dark; the family is Phase 2's. When this fails, it should fail in the
-    // commit that authors the family, and the fix is to delete it.
-    let carriers: Vec<&str> =
-        CATALOG.iter().filter(|d| touches_insight(d)).map(|d| d.name).collect();
+fn the_family_has_landed_and_lives_where_the_lane_does() {
+    // This replaces a lint that asserted the catalogue carried none of it and
+    // asked to be deleted on the day it did. That day was M9.
+    let carriers: Vec<&'static gearmaster_engine::piece::PieceDef> =
+        CATALOG.iter().filter(|d| touches_insight(d)).collect();
+    assert!(carriers.len() >= 8, "the family is {} pieces", carriers.len());
+    let elsewhere: Vec<&str> = carriers
+        .iter()
+        .filter(|d| d.slot != SlotKind::Helmet)
+        .map(|d| d.name)
+        .collect();
     assert!(
-        carriers.is_empty(),
-        "the Insight family has landed; delete this test and arm the shop gate's, \
-         which is written to become real on the same day: {:?}",
-        carriers
+        elsewhere.len() * 5 <= carriers.len(),
+        "the lane has spread off the head: {:?}",
+        elsewhere
     );
+    // And none of it is a floating kind, which could sit in a grid the lane
+    // does not belong to.
+    for d in &carriers {
+        assert!(
+            !matches!(d.kind, PieceKind::Material | PieceKind::Plating),
+            "{} deals in the mind lane and can float out of the head",
+            d.name
+        );
+    }
 }
