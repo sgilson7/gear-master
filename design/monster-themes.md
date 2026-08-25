@@ -117,3 +117,31 @@ design, so the gate must be re-aimed at the curve — "is this the right
 difficulty for this rung" — rather than at the board being replaced. That is the
 one place this design asks for a judgement the current tooling cannot make on
 its own.
+
+---
+
+## 6. The curve, and the gate re-aimed
+
+Section 5 left one question open: the acceptance gate asked *"is this the same
+fight the creature already gave"*, which cannot accept a themed board, because a
+theme changes what a creature is on purpose.
+
+The gate asks about difficulty now:
+
+```
+target(rung) = 2.8s + 0.4s × rung
+```
+
+Read off the **owner's board at Medium**, within **±30%**. Medium is one times,
+and the owner's is the only reference board that clears far enough up the ladder
+to give a reading at every rung. Rung 1 is 3.2s, rung 25 is 12.4s, rung 50 is
+22.4s; its median across the 46 rungs it currently clears is 14.4s, so the line
+runs through roughly where the game already sits rather than moving it.
+
+The floor was two seconds for about ten minutes. Rung 2 wanted 2.4s and the
+best themed board any search could find took 3.2s — a striker at rung 2 cannot
+be built weaker than that out of gear that assembles. A curve whose bottom end
+nothing can reach rejects the entire early ladder, so the floor is measured
+rather than assumed.
+
+With it, Bog Toad packs: fifteen pieces, weapon and gloves only, on the curve.

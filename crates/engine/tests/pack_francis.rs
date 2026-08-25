@@ -436,6 +436,49 @@ fn ceiling() -> usize {
     (now * 2).max(now + 8).min(44)
 }
 
+
+/// What a fight on this rung should take.
+///
+/// The gate used to ask "is this the same fight the creature already gave",
+/// which cannot accept a themed board: a theme changes what a creature is on
+/// purpose, so sameness is the wrong question. This is the right one - is this
+/// the right *difficulty* for where it stands - and it needs a curve to be
+/// asked against.
+///
+/// Read off the owner's board at Medium: Medium is one times, and the owner's
+/// is the only reference board that clears far enough to give a reading at
+/// every rung. Rising four tenths of a second a rung, from a floor of 2.8s -
+/// rung 1 is 3.2s, rung 25 is 12.4s, rung 50 is 22.4s. Its median across the 46
+/// rungs it currently clears is 14.4s, so the line runs through roughly where
+/// the game already sits rather than moving it somewhere new.
+///
+/// The floor was two seconds and is 2.8 because the first attempt said so:
+/// rung two wanted 2.4s and the best themed board any search could find took
+/// 3.2, because a striker at rung two cannot be built weaker than that with
+/// gear that assembles. A curve whose bottom end nothing can reach is a curve
+/// that rejects the whole early ladder.
+///
+/// Linear on purpose: the brief is that difficulty should scale roughly
+/// linearly, and a curve nobody can predict from its own shape is one nobody
+/// can author against.
+fn target_ms(rung: usize) -> u32 {
+    2_800 + 400 * rung as u32
+}
+
+/// How far off the curve a candidate lands, as a fraction. Zero is exact, and
+/// a loss is infinitely far - a creature the reference board cannot beat is
+/// not on the curve at all.
+fn off_curve(owner_medium: Beat, rung: usize) -> f64 {
+    if !owner_medium.won {
+        return f64::MAX;
+    }
+    let want = target_ms(rung) as f64;
+    (owner_medium.ms as f64 - want).abs() / want
+}
+
+/// How far off a board may land and still be accepted.
+const BAND: f64 = 0.30;
+
 /// One fight: who won, and how long it took.
 ///
 /// Outcome alone is not enough and the ladder proved it. The preset board
@@ -450,6 +493,7 @@ struct Beat {
     ms: u32,
 }
 
+#[allow(dead_code)]
 impl Beat {
     /// Near enough the same fight. Within a quarter either way, which is the
     /// band `analysis/baseline.md` has been reading time-to-kill against since
@@ -463,6 +507,7 @@ impl Beat {
     }
 }
 
+#[allow(dead_code)]
 fn want() -> Vec<[Beat; 4]> {
     use gearmaster_engine::combat::LADDER;
     let base = *LADDER.iter().find(|m| m.name == who()).expect("on the ladder");
@@ -639,12 +684,13 @@ fn pack() {
         // is a generator that runs once by hand; the alternative is threading a
         // lifetime through `MonsterSpec` for the benefit of one test.
         let got = fight(Box::leak(gear.into_boxed_slice()), Box::leak(chunks.clone().into_boxed_slice()));
-        let target = want();
-        let hits: usize = target
-            .iter()
-            .zip(&got)
-            .map(|(want, have)| want.iter().zip(have).filter(|(a, b)| a.like(**b)).count())
-            .sum();
+        // Boards are [preset, owner, friend]; difficulties [Easy, Medium,
+        // Hard, Insane]. The owner at Medium is the reading.
+        let (rung, _) = subject();
+        let miss = off_curve(got[1][1], rung);
+        // Whole percent off, inverted, so closer sorts higher and the tuple
+        // below still compares cleanly against density.
+        let hits = if miss == f64::MAX { 0 } else { 1000 - (miss * 1000.0).min(1000.0) as usize };
         // Outcome first, density second: a board that fights right at seventy
         // percent is worth more than one that fights wrong at ninety.
         let key = (hits, total);
@@ -661,11 +707,20 @@ fn pack() {
     // existed. Failing here rather than printing a board means the batch runner
     // records a skip and leaves the creature exactly as it was, which is the
     // right answer for any board this search cannot match.
-    let needed = want().len() * 4;
+    let (rung, _) = subject();
+    let miss = off_curve(got[1][1], rung);
     assert!(
-        hits == needed,
-        "no candidate matched the fight this creature already gives: {hits}/{needed} \
-         beats within a quarter. Leaving it alone.",
+        miss <= BAND,
+        "nothing landed on the curve for rung {}: wanted {:.1}s within {:.0}%, best was {}. \
+         Leaving it alone.",
+        rung + 1,
+        target_ms(rung) as f64 / 1000.0,
+        BAND * 100.0,
+        if got[1][1].won {
+            format!("{:.1}s", got[1][1].ms as f64 / 1000.0)
+        } else {
+            "a loss".into()
+        },
     );
     let cap = SLOT_W as usize * SLOT_H as usize * 5;
     println!("BEST {total}/{cap} cells ({:.0}%), {hits}/8 outcomes on target", 100.0 * total as f32 / cap as f32);
