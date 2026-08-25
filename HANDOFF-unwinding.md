@@ -58,8 +58,8 @@ re-pinned first**.
 | M3 | The road stack, receipts, tooltips (A7/A9/A6) | **done** |
 | M4 | Road machinery, landed inert (A4) | **done** |
 | M5 | Frames and the four new themes (H4) | **done** |
-| M6 | Dungeon presentation, pedestals, route map (A8/A10/G6) | next |
-| M7 | Relics, crushables and consignment (H1) | |
+| M6 | Dungeon presentation, pedestals, route map (A8/A10/G6) | **done** |
+| M7 | Relics, crushables and consignment (H1) | next |
 | M8 | Phase-1 gate, and the stretch decision | |
 | M9 | The catalogue lands once | |
 | M10 | The chain (Part B) | |
@@ -311,3 +311,35 @@ refusing is the generator working; Francis keeps his hand-authored board either
 way.
 
 Suite: **630 green**, 0 warnings. New: 9 tests in `bestiary.rs`.
+
+
+---
+
+## M6 - Presentation, pedestals and the route map
+
+One commit. Ladder byte-identical.
+
+**A8: you always know you are inside one.** A dungeon carries `entry` lines
+now, played on the machinery the bosses use the moment you step through - a
+different thing from `blurb`, which is read at the door while it is still a
+decision. Inside, the screen is edged in violet, and the boards say
+"THE CREVICE IN THE ROCK - FLOOR 2 OF 3" with pips, in place of a rung line
+that would otherwise have said the same number for three fights in a row.
+
+**A10: `route::route(run)` is a pure function of the tables plus the run.**
+Nodes come from `LADDER`, `TOWNS`, `EVENTS` and `DUNGEONS`; fill comes from the
+run; names are canonical. Nine tests, one per grammar rule and two on the
+shape. `route::ascii` is the same map for the headless driver, on `map` - which
+is the point of putting it in the engine, because two renderings of one
+function cannot disagree about which road the game has.
+
+**G6: the pedestal**, with an empty destination table and all three rules
+already true - an orb is a piece first, a destination fires once a run across
+both pedestals, and an orbless run sees furniture rather than an error.
+
+One mechanism worth naming: **`Run::forced_event`**. Every other event is found
+by rung; this is for the ones pushed onto the stack from somewhere that is not
+a rung at all - a pedestal, and later THE FORK.
+
+Suite: **647 green**, 0 warnings. New: `route.rs` (9), `pedestal.rs` (5), one
+in `dungeon.rs`.

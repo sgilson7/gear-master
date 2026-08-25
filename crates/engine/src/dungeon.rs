@@ -14,8 +14,16 @@ pub struct Dungeon {
     pub id: &'static str,
     /// What the door calls itself.
     pub name: &'static str,
-    /// Shown on the way in.
+    /// Shown on the way in - the door, and what is behind it.
     pub blurb: &'static [&'static str],
+    /// One or two lines played as a cutscene the moment you step through.
+    ///
+    /// Not the same thing as `blurb`, and the difference is where you are
+    /// standing. The blurb is read at the door while it is still a decision;
+    /// this is said once the decision is made, on the same machinery a boss
+    /// uses, and it is how you know you have gone somewhere. A dungeon you can
+    /// walk into without noticing is a dungeon nobody knows they are in.
+    pub entry: &'static [&'static str],
     /// Floors in order, each naming an alternate creature.
     pub floors: &'static [&'static str],
     /// Said between floors, one per floor cleared. The last is the ending.
@@ -51,6 +59,13 @@ pub const DUNGEONS: &[Dungeon] = &[
              has told nobody, because nobody who works here has the shoulders \
              to widen a crack in a rock, and he has been very patient about \
              waiting for somebody who does.",
+        ],
+        entry: &[
+            "The hole in the back wall is a hole in the back wall for about \
+             four feet, and then it is a staircase somebody cut, and then it \
+             is not a staircase.",
+            "Boyetano is already ahead of you. He has been ahead of you for \
+             six years.",
         ],
         floors: &["The Reciter", "The Long Haul", "The Watchers"],
         landings: &[
@@ -123,6 +138,22 @@ mod tests {
                  fountain could hand it over",
                 c.name
             );
+        }
+    }
+
+    /// You always know you are inside one.
+    ///
+    /// A door that hands you three fights and says nothing is a door you can
+    /// walk through by accident, and a fight you did not know you had chosen
+    /// is the one kind of fight this game should never hand out.
+    #[test]
+    fn every_dungeon_says_something_the_moment_you_are_in_it() {
+        for d in DUNGEONS {
+            assert!(!d.entry.is_empty(), "{} lets you in without a word", d.id);
+            for line in d.entry {
+                assert!(line.len() > 20, "{}: an entry line worth reading", d.id);
+            }
+            assert!(d.entry.len() <= 3, "{}: an entry is a line or two, not a scene", d.id);
         }
     }
 

@@ -1603,3 +1603,16 @@ depths:
   averaged an uneven board would put pieces in a row the sharer did not have,
   or drop the ones in the row they did. Version 2 codes still read, and read as
   what they are: boards where nothing had outgrown anything.
+
+## Drift — M5 and M6
+
+**None from either.** `bestiary.rs` moved a table between files; `route.rs`,
+`pedestal.rs` and the dungeon's entry lines add reading rather than fighting.
+
+Worth recording: `pack_francis::pack` - the `#[ignore]`d generator, not a test
+- now **refuses Francis**. M1 took the reference board's magic multiplier off
+its iron, the board no longer beats him at Medium, and the search reports "best
+was a loss. Leaving it alone." That is the generator working: it refuses rather
+than writing a board it cannot measure, and Francis keeps his hand-authored one
+either way. The CURVE printer beside it agrees with M1's capture at 48 of 50
+and a 9.00s median.

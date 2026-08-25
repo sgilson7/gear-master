@@ -475,6 +475,17 @@ pub struct Run {
     pub scouting: bool,
     /// Quests handed to pieces that were not born with one.
     granted_quests: std::collections::HashMap<PieceId, &'static crate::piece::Quest>,
+    /// Destinations a pedestal has already sent this run to, by id.
+    ///
+    /// One set for both pedestals. Each destination fires once a run.
+    pub destinations_visited: Vec<&'static str>,
+    /// An event the road must ask next, wherever the road happens to be.
+    ///
+    /// Every other event is found by rung. This is for the ones pushed onto
+    /// the stack from somewhere that is not a rung at all - a pedestal in a
+    /// shop the size of a weather system, or a fork that puts two futures in
+    /// front of you and asks only for the order.
+    pub forced_event: Option<&'static str>,
     /// Hidden towns something has put on the road, by id.
     ///
     /// A pinned town is on the map before the run starts; a hidden one is not
@@ -589,6 +600,8 @@ impl Run {
             town: None,
             towns_seen: Vec::new(),
             towns_revealed: Vec::new(),
+            destinations_visited: Vec::new(),
+            forced_event: None,
             flags: Vec::new(),
             counters: Vec::new(),
             last_figure: None,
@@ -779,8 +792,19 @@ impl Run {
     /// and occasionally a list of two, and the second is the reason it is a
     /// list at all.
     fn standing_events(&self) -> Vec<&'static crate::event::LadderEvent> {
-        let mut out: Vec<&'static crate::event::LadderEvent> =
-            self.whispered_event().into_iter().collect();
+        // Anything pushed here from off the road goes first. It is not waiting
+        // for a rung, so a rung is not what decides when it is asked.
+        let mut out: Vec<&'static crate::event::LadderEvent> = self
+            .forced_event
+            .and_then(|id| crate::event::EVENTS.iter().find(|e| e.id == id))
+            .filter(|e| !self.answered.contains(&e.id))
+            .into_iter()
+            .collect();
+        if let Some(e) = self.whispered_event() {
+            if !out.iter().any(|o| o.id == e.id) {
+                out.push(e);
+            }
+        }
         if let Some(e) =
             crate::event::at(self.rung, self.best_fight_ms, self.worst_fight_ms, &self.answered)
                 .filter(|e| !self.answered.contains(&e.id))
@@ -970,6 +994,9 @@ impl Run {
             return None;
         }
         self.answered.push(ev.id);
+        if self.forced_event == Some(ev.id) {
+            self.forced_event = None;
+        }
         self.took.push(c.label);
         let (gave, receipt) = self.apply_outcome(&c.outcome, c.requires);
         self.last_receipt = Some(receipt);
@@ -1031,9 +1058,7 @@ impl Run {
             ChoiceOutcome::Claim(name) => {
                 self.claim_class(name);
             }
-            ChoiceOutcome::Enter(id) => {
-                self.dungeon = crate::dungeon::by_id(id).map(|d| (d, 0));
-            }
+            ChoiceOutcome::Enter(id) => self.enter_dungeon(id),
             ChoiceOutcome::Flag(what) => {
                 if !self.flags.contains(&what) {
                     self.flags.push(what);
@@ -1047,9 +1072,7 @@ impl Run {
                 }
             }
             ChoiceOutcome::OpenShop { shelves } => self.shop.stock_exactly(shelves),
-            ChoiceOutcome::StartDungeon(id) => {
-                self.dungeon = crate::dungeon::by_id(id).map(|d| (d, 0));
-            }
+            ChoiceOutcome::StartDungeon(id) => self.enter_dungeon(id),
             ChoiceOutcome::GrantRow => self.owed_rows += 1,
             ChoiceOutcome::GrantQuest(q) => match self.inventory().first().copied() {
                 Some(id) => {
@@ -1134,6 +1157,55 @@ impl Run {
     pub fn unlock_insight(&mut self) {
         self.insight_unlocked = true;
         self.shop.insight_open = true;
+    }
+
+    /// Step into a dungeon, and say so.
+    ///
+    /// The cutscene is the whole of the addition: a door that hands you three
+    /// fights and says nothing is a door you can walk through by accident,
+    /// and a fight you did not know you had chosen is the one kind this game
+    /// should never hand out. Played on the machinery the bosses use, so it
+    /// skips the same way everything else does.
+    pub fn enter_dungeon(&mut self, id: &'static str) {
+        let Some(d) = crate::dungeon::by_id(id) else { return };
+        self.dungeon = Some((d, 0));
+        if !d.entry.is_empty() {
+            self.pending_scene = Some(d.entry);
+        }
+    }
+
+    /// Feed a pedestal an orb, and go where the orb goes.
+    ///
+    /// The orb is consumed and the destination fires **once per run**, however
+    /// many pedestals a run finds - there are two of them and they share one
+    /// visited-set, because the second exists so that a player whose orbs
+    /// arrived late still gets to spend them, not so that a patient one gets
+    /// to spend them twice.
+    ///
+    /// A duplicate orb is refused and stays what it was, which is a working
+    /// weapon: an orb is a piece first and a ticket second.
+    pub fn feed_pedestal(&mut self, id: PieceId) -> Option<&'static crate::pedestal::Destination> {
+        if !self.owned.contains(&id) {
+            return None;
+        }
+        let name = self.registry.def(id).name;
+        let dest = crate::pedestal::by_orb(name)?;
+        if self.destinations_visited.contains(&dest.id) {
+            return None;
+        }
+        self.destinations_visited.push(dest.id);
+        self.loadout.remove_anywhere(id);
+        self.owned.retain(|&o| o != id);
+        self.forget_undo();
+        match dest.kind {
+            crate::pedestal::Where::Dungeon(d) => self.enter_dungeon(d),
+            crate::pedestal::Where::Event(e) => self.forced_event = Some(e),
+        }
+        self.last_receipt = Some(vec![
+            format!("Fed the pedestal: {}", name),
+            format!("It takes you to {}", dest.name),
+        ]);
+        Some(dest)
     }
 
     /// Throw a piece into the melt and take back what comes out.

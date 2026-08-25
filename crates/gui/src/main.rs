@@ -6119,6 +6119,8 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("MOLDS", "Gloves and greaves both need a mold, but the two do not interchange - a gloves mold will not go on a shin. The role under a card's name says which it is."),
     ("LOCKED ITEM", "Shift-click a finished item to lock it. A locked item stops looking for other pieces to join, turns as one piece, and moves in and out of the inventory whole. Shift-click again to release it."),
     ("PINNED CARD", "Right-click a shop card to pin it. A reroll leaves pinned cards where they are, so you can hold something you cannot yet afford."),
+    ("THE ROAD (M)", "The whole run drawn as a map: fifty rungs across the spine, with towns as diamonds and everything else hanging off the rung it stands on. Filled is behind you, ringed is where you are, hollow is ahead."),
+    ("MINI DUNGEON", "A short chain of fights off the side of the road, ending in something you can get nowhere else. It never moves the ladder - coming out puts you back in front of the fight you had not got to. While you are inside one the screen is edged in violet and the boards say which floor you are on."),
     ("SPELL", "A weapon built the arcane way: a book or a crystal ball, ink, and the spell itself. It fills the weapon slot like any other item."),
     ("GROWING", "A few pieces raise your maximum health every time they fire, and you keep it - the health won in one fight is health you start the next one with, for the rest of the run. That is what makes them the dearest things in the shop. A stalemate banks nothing: surviving the clock would otherwise be the most profitable thing you could do."),
     ("STANDING ALONE", "Some gear multiplies every number on its item, but only while that item is alone - nothing else finished sharing its rows, or nothing overlapping it once the five grids are laid on top of one another. The multipliers are large and the conditions are easy to break by accident. That is the trade."),
@@ -6351,6 +6353,139 @@ fn render_share_board(
 /// One screen for all of them. An event is data - `EVENTS` in the engine - so
 /// adding one is adding an entry there, and this draws whatever is in it.
 /// Returns the choice clicked.
+/// The whole road, drawn: a spine of rungs with everything that hangs off it.
+///
+/// Nothing here is authored. Nodes come from `LADDER`, `TOWNS`, `EVENTS` and
+/// `DUNGEONS`, fill comes from the run, and names go through the theme layer -
+/// which is why the map cannot drift from the road it depicts.
+/// A tint down the edge of the screen while you are inside a dungeon.
+///
+/// Three ways of saying the same thing - a cutscene on the way in, this, and
+/// the banner over the boards - because a fight you did not know you had
+/// chosen is the one kind this game should never hand out, and the middle of
+/// a three-floor dungeon is exactly where somebody forgets.
+fn render_dungeon_tint(run: &Run) {
+    if run.dungeon.is_none() {
+        return;
+    }
+    let c = Color::from_rgba(120, 96, 150, 90);
+    let t = 6.0;
+    draw_rectangle(0.0, 0.0, LOGICAL_W, t, c);
+    draw_rectangle(0.0, LOGICAL_H - t, LOGICAL_W, t, c);
+    draw_rectangle(0.0, 0.0, t, LOGICAL_H, c);
+    draw_rectangle(LOGICAL_W - t, 0.0, t, LOGICAL_H, c);
+}
+
+fn render_route(run: &Run, mx: f32, my: f32) {
+    use gearmaster_engine::route::{route, EdgeKind, Fill, NodeKind};
+    let map = route(run);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 246));
+    ui_text(
+        words::word("the-road", "THE ROAD"),
+        40.0,
+        52.0,
+        26.0,
+        col_gold(),
+    );
+    ui_text(
+        words::word(
+            "the-road-hint",
+            "filled is behind you, ringed is where you are, hollow is ahead. M or ESC to go back.",
+        ),
+        40.0,
+        76.0,
+        13.0,
+        col_dim(),
+    );
+
+    // The spine runs left to right across two rows, because fifty rungs down
+    // one column is a scrollbar and this is meant to be read at a glance.
+    let per_row = 26usize;
+    let x0 = 48.0;
+    let step = (LOGICAL_W - 2.0 * x0) / (per_row - 1) as f32;
+    let place = |at: usize| -> Vec2 {
+        let row = at / per_row;
+        let col = at % per_row;
+        Vec2::new(x0 + col as f32 * step, 210.0 + row as f32 * 230.0)
+    };
+
+    // Edges first, so nothing is drawn over a node.
+    for e in &map.edges {
+        let (a, b) = (&map.nodes[e.from], &map.nodes[e.to]);
+        let (pa, pb) = (place(a.at), place(b.at));
+        match e.kind {
+            EdgeKind::Spine if pa.y == pb.y => {
+                draw_line(pa.x, pa.y, pb.x, pb.y, 2.0, Color::from_rgba(70, 70, 96, 255));
+            }
+            // Wrapping to the next row: nothing sensible to draw, and the
+            // numbers say it.
+            EdgeKind::Spine => {}
+            EdgeKind::Branch => {}
+            EdgeKind::MergeAhead => {
+                draw_line(pa.x, pa.y - 26.0, pb.x, pb.y, 1.5, Color::from_rgba(120, 96, 60, 255));
+            }
+        }
+    }
+
+    let mut tip: Option<String> = None;
+    // Off-spine things stack upward from the rung they hang off.
+    let mut stacked: std::collections::HashMap<usize, i32> = Default::default();
+    for n in &map.nodes {
+        let p = place(n.at);
+        let ink = match n.fill {
+            Fill::Cleared => Color::from_rgba(150, 158, 190, 255),
+            Fill::Current => col_gold(),
+            Fill::Ahead => Color::from_rgba(78, 78, 104, 255),
+        };
+        if n.off_spine {
+            let k = stacked.entry(n.at).or_insert(0);
+            *k += 1;
+            let y = p.y - 18.0 - *k as f32 * 15.0;
+            draw_line(p.x, p.y - 8.0, p.x, y + 4.0, 1.0, Color::from_rgba(60, 60, 84, 255));
+            let r = Rect::new(p.x - 4.0, y - 5.0, 9.0, 9.0);
+            match n.kind {
+                NodeKind::Town { .. } => draw_poly(p.x, y, 4, 6.0, 45.0, ink),
+                NodeKind::Dungeon { .. } => draw_rectangle(r.x, r.y, r.w, r.h, ink),
+                _ => draw_circle(p.x, y, 3.5, ink),
+            }
+            if Rect::new(p.x - 8.0, y - 9.0, 17.0, 17.0).contains(Vec2::new(mx, my)) {
+                tip = Some(words::retell(n.label).to_string());
+            }
+            continue;
+        }
+        match n.kind {
+            NodeKind::Town { .. } => draw_poly(p.x, p.y, 4, 8.0, 45.0, ink),
+            NodeKind::PastTheTop => draw_poly(p.x, p.y, 3, 11.0, 0.0, Color::from_rgba(210, 80, 80, 255)),
+            NodeKind::Rung(rank) => {
+                let r = match rank {
+                    gearmaster_engine::combat::Rank::Boss => 9.0,
+                    gearmaster_engine::combat::Rank::Mini => 7.0,
+                    _ => 5.0,
+                };
+                match n.fill {
+                    Fill::Ahead => draw_circle_lines(p.x, p.y, r, 1.5, ink),
+                    Fill::Current => {
+                        draw_circle(p.x, p.y, r, ink);
+                        draw_circle_lines(p.x, p.y, r + 5.0, 2.0, col_gold());
+                    }
+                    Fill::Cleared => draw_circle(p.x, p.y, r, ink),
+                }
+            }
+            _ => draw_circle(p.x, p.y, 4.0, ink),
+        }
+        if Rect::new(p.x - 10.0, p.y - 10.0, 21.0, 21.0).contains(Vec2::new(mx, my)) {
+            tip = Some(format!("{} {}", n.at + 1, words::monster(n.label)));
+        }
+        // Every tenth rung numbered, so the eye can find where it is.
+        if n.at % 10 == 0 || n.at + 1 == gearmaster_engine::combat::LADDER.len() {
+            ui_text(&format!("{}", n.at + 1), p.x - 6.0, p.y + 26.0, 12.0, col_dim());
+        }
+    }
+    if let Some(t) = tip {
+        draw_tooltip(&[(t, WHITE)], mx, my);
+    }
+}
+
 /// The road stack, drawn.
 ///
 /// Shown only when there is something to explain: two or more things queued on
@@ -9088,13 +9223,43 @@ fn render_panel(
     let bounty = coins(m.bounty);
     ui_text(&bounty, x + 20.0 + text_width(mname, 17.0) + 14.0, y, 15.0, col_gold());
     y += 18.0;
-    ui_text(
-        &format!("rung {} of {}  ·  {} hp", run.rung + 1, LADDER.len(), m.health),
-        x + 20.0,
-        y,
-        13.0,
-        if opp_hot { Color::from_rgba(190, 190, 210, 255) } else { col_dim() },
-    );
+    // Where you are, and inside a dungeon that is not a rung.
+    //
+    // A dungeon does not move the ladder, so the rung line goes on saying the
+    // same number for three fights in a row - which reads as nothing
+    // happening. Floor pips say the thing that is actually changing, and the
+    // banner above them says which door you went through.
+    if let Some((d, floor)) = run.dungeon {
+        ui_text(
+            &format!("{} - FLOOR {} OF {}", words::retell(d.name), floor + 1, d.floors.len()),
+            x + 20.0,
+            y,
+            13.0,
+            Color::from_rgba(196, 168, 220, 255),
+        );
+        let mut px = x + 20.0;
+        let py = y + 12.0;
+        for i in 0..d.floors.len() {
+            if i < floor {
+                draw_circle(px, py, 4.0, Color::from_rgba(150, 130, 176, 255));
+            } else if i == floor {
+                draw_circle(px, py, 4.5, Color::from_rgba(214, 186, 240, 255));
+                draw_circle_lines(px, py, 8.0, 1.5, Color::from_rgba(214, 186, 240, 255));
+            } else {
+                draw_circle_lines(px, py, 4.0, 1.5, Color::from_rgba(96, 84, 116, 255));
+            }
+            px += 22.0;
+        }
+        y += 12.0;
+    } else {
+        ui_text(
+            &format!("rung {} of {}  ·  {} hp", run.rung + 1, LADDER.len(), m.health),
+            x + 20.0,
+            y,
+            13.0,
+            if opp_hot { Color::from_rgba(190, 190, 210, 255) } else { col_dim() },
+        );
+    }
     y += 16.0;
     // How far off the next named fight is, and which kind. A boss carries
     // fifteen items of gear and a mini-boss ten; walking into one having just
@@ -9244,6 +9409,7 @@ async fn main() {
     // Kept between fights, and settable before one starts.
     let mut playback_speed = DEFAULT_SPEED;
     let mut glossary_open = std::env::var("GEARMASTER_GLOSSARY").is_ok();
+    let mut map_open = false;
     let mut fountain_open = std::env::var("GEARMASTER_FOUNTAIN").is_ok();
     let mut picker_open = std::env::var("GEARMASTER_PICKER").is_ok();
     let mut picker_page: usize = 0;
@@ -10400,6 +10566,37 @@ async fn main() {
             glossary_open = true;
         }
 
+        // The route map, over everything, on its own key. Drawn entirely from
+        // `route::route`, which is a pure function of the tables and the run -
+        // so this can never depict a road the game does not have, and the
+        // headless driver prints the same one in ASCII.
+        if map_open {
+            render_route(&run, mx, my);
+            if is_key_pressed(KeyCode::Escape)
+                || is_key_pressed(KeyCode::M)
+                || is_mouse_button_pressed(MouseButton::Left)
+            {
+                map_open = false;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
+        }
+        if is_key_pressed(KeyCode::M) {
+            map_open = true;
+        }
+
         // ----------------------------------------------------- input
         let rects = button_rects(layout.panel_x);
         let clicked_button = |i: usize| {
@@ -10854,6 +11051,9 @@ async fn main() {
         {
             frame += 1;
         }
+        // Last, so it sits over the boards rather than under them.
+        render_dungeon_tint(&run);
+
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(path) = &shot_path {
             if frame >= shot_after {

@@ -176,6 +176,11 @@ fn main() {
             // makes "two replays produce identical logs" a claim about a road
             // nobody was on.
             ["road"] => show_road(&run),
+            ["map"] => {
+                for l in gearmaster_engine::route::ascii(&run) {
+                    println!("{}", l);
+                }
+            }
             ["answer", n] => match n.parse::<usize>() {
                 Ok(i) => answer(&mut run, i),
                 Err(_) => println!("error: answer <n>"),
@@ -300,6 +305,7 @@ fn help() {
     println!("  items                    list the items that will act in combat");
     println!("  fight                    simulate and print the whole bout");
     println!("  road                     what is standing on this rung");
+    println!("  map                      the whole road, as this run has it");
     println!("  answer <n>               take choice n at the event in front of you");
     println!("  town | town on | town <door>   the gate, walking past it, or going in");
     println!("  drink                    take what the fountain is offering");
@@ -325,6 +331,10 @@ fn print_receipt(run: &mut Run) {
 /// visibly ends somewhere.
 fn show_road(run: &Run) {
     let stack = run.road_stack();
+    if let Some((d, floor)) = run.dungeon {
+        // You always know you are inside one.
+        println!("\n{} - FLOOR {} OF {}", d.name, floor + 1, d.floors.len());
+    }
     println!("\nRung {} - {}", run.rung + 1, run.monster().name);
     if stack.is_empty() {
         println!("  nothing on the road. `fight`.");
