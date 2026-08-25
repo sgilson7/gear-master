@@ -3054,29 +3054,58 @@ fn render_slots(
         };
         draw_rectangle(ox - 3.0, oy - 3.0, gw + 6.0, gh + 6.0, border);
 
+        // Which enchantments are bonded: live, and every cell of them covered
+        // by pieces belonging to one assembled item. Worked out once for the
+        // grid rather than per cell.
+        let bonded: Vec<PieceId> = {
+            let slot = run.loadout.slot(view.kind);
+            slot.pieces()
+                .into_iter()
+                .filter(|&id| run.registry.def(id).kind.is_enchantment())
+                .filter(|&id| slot.enchant_is_live(id))
+                .filter(|&id| {
+                    let cells = slot.enchant_cells(id);
+                    !cells.is_empty()
+                        && report.items.iter().filter(|i| i.assembled).any(|item| {
+                            cells.iter().all(|&(x, y)| {
+                                slot.get(x, y).is_some_and(|p| item.pieces.contains(&p))
+                            })
+                        })
+                })
+                .collect()
+        };
+
         for gy in 0..view.rows {
             for gx in 0..SLOT_W {
                 let (cx, cy) = view.cell_origin(gx, gy);
                 let c = if (gx + gy) % 2 == 0 { col_cell_a() } else { col_cell_b() };
                 draw_rectangle(cx, cy, SLOT_CELL, SLOT_CELL, c);
-                // Ground with something standing on it. Terrain draws beneath
-                // the gear that covers it and is therefore invisible exactly
-                // where it is doing its job - and its whole worth is what
-                // covers it, so a covered cell has to say so. Hatched rather
-                // than tinted: a tint reads as another piece.
+                // An enchantment with something standing on it. It draws
+                // beneath the gear that covers it and is therefore invisible
+                // exactly where it is doing its job, so a covered cell has to
+                // say so. Hatched rather than tinted: a tint reads as another
+                // piece.
+                //
+                // And the hatch carries the state, because the two conditions
+                // are the whole mechanic and neither of them is visible from
+                // the piece. Red is smothered - something else on its own layer
+                // is touching it, and it is paying nothing at all. Gold is
+                // bonded - one item covers every cell of it, and that item is
+                // doubled and holding an extra trigger. Pale is live but not
+                // yet bonded.
                 let slot = run.loadout.slot(view.kind);
-                if slot.enchant_at(gx, gy).is_some() && slot.get(gx, gy).is_some() {
+                if let (Some(eid), Some(_)) = (slot.enchant_at(gx, gy), slot.get(gx, gy)) {
+                    let tint = if !slot.enchant_is_live(eid) {
+                        Color::from_rgba(220, 90, 80, 105)
+                    } else if bonded.contains(&eid) {
+                        Color::from_rgba(240, 205, 110, 130)
+                    } else {
+                        Color::from_rgba(210, 200, 160, 70)
+                    };
                     let n = 4;
                     for k in 0..n {
                         let off = SLOT_CELL * (k as f32 + 0.5) / n as f32;
-                        draw_line(
-                            cx,
-                            cy + off,
-                            cx + off,
-                            cy,
-                            1.0,
-                            Color::from_rgba(210, 200, 160, 70),
-                        );
+                        draw_line(cx, cy + off, cx + off, cy, 1.0, tint);
                     }
                 }
             }
@@ -9952,7 +9981,21 @@ async fn main() {
                 && !shift
             {
                 if let Some((kind, gx, gy)) = layout.slot_hit(mx, my) {
-                    if let Some(id) = run.loadout.slot(kind).get(gx, gy) {
+                    // Gear first, and the enchantment underneath when there is
+                    // no gear on the cell - or when alt is held, which is how
+                    // you get at one you have already built on top of. Without
+                    // it a covered enchantment can never be lifted again, and
+                    // an uncovered one could not be lifted at all.
+                    let alt = is_key_down(KeyCode::LeftAlt) || is_key_down(KeyCode::RightAlt);
+                    let here = {
+                        let slot = run.loadout.slot(kind);
+                        if alt {
+                            slot.enchant_at(gx, gy).or_else(|| slot.get(gx, gy))
+                        } else {
+                            slot.get(gx, gy).or_else(|| slot.enchant_at(gx, gy))
+                        }
+                    };
+                    if let Some(id) = here {
                         // A locked item comes up whole. Taking one piece out of
                         // it is exactly what locking is meant to prevent, and
                         // lifting it all at once is what lets it be carried to
