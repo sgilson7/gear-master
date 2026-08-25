@@ -264,7 +264,7 @@ const RULES: &[Rule] = &[
 
     // Helmet - Economy. What the pools are for.
     Rule { what: "Consume", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
-        budget: 9, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::Consume { .. })) },
+        budget: 7, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::Consume { .. })) },
     Rule { what: "GainEmpowerment", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::GainEmpowerment(_))) },
     Rule { what: "GainShield", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
@@ -272,11 +272,11 @@ const RULES: &[Rule] = &[
     Rule { what: "MindDamage", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::MindDamage { .. })) },
     Rule { what: "mind_resist", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
-        budget: 4, target: 0, carries: |d| d.base.mind_resist != 0 },
+        budget: 3, target: 0, carries: |d| d.base.mind_resist != 0 },
 
     // Chest - Reserve. Outlasting is its offence.
     Rule { what: "Grow", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
-        budget: 10, target: 0, carries: |d| does(d, |a| matches!(a, Action::Grow(_))) },
+        budget: 7, target: 0, carries: |d| does(d, |a| matches!(a, Action::Grow(_))) },
     // Reflection is the body's attack and the body's alone. It is the one
     // offensive verb that *is* outlasting - it pays only what the armour ate,
     // so it does nothing on a board that dies fast - which is why it belongs
@@ -284,10 +284,10 @@ const RULES: &[Rule] = &[
     Rule { what: "reflect", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| d.base.reflect != 0 },
     Rule { what: "harden", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
-        budget: 7, target: 0,
+        budget: 5, target: 0,
         carries: |d| d.base.physical_harden != 0 || d.base.magic_harden != 0 },
     Rule { what: "health above 15", home: SlotKind::Chest, level: Level::Mostly(70),
-        shared_with: &[], budget: 2, target: 0, carries: |d| d.base.health > 15 },
+        shared_with: &[], budget: 0, target: 0, carries: |d| d.base.health > 15 },
 
     // Gloves - Reaction. The hands answer.
     Rule { what: "OnAdjacentActivate", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
@@ -434,7 +434,7 @@ const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
     (SlotKind::Gloves, "the dearest third interacts", 0),
     (SlotKind::Gloves, "pool-spend texture", 0),
     (SlotKind::Greaves, "expresses its own axis", 0),
-    (SlotKind::Greaves, "expresses its bleed axis", 22),
+    (SlotKind::Greaves, "expresses its bleed axis", 0),
     (SlotKind::Greaves, "plain flat-stat filler", 0),
     (SlotKind::Greaves, "the dearest third interacts", 0),
     (SlotKind::Greaves, "pool-spend texture", 0),
@@ -505,10 +505,11 @@ fn identity_carriers() -> Vec<(&'static str, &'static str)> {
     out
 }
 
-/// Forty-three pieces of a floating kind carry something the table calls an
-/// identity mechanic. Most are `health above 15` on a Material or Plating,
-/// which the chest sweep takes; the rest go as their mechanic finds its home.
-const FLOATING_CARRIER_BUDGET: usize = 23;
+/// Pieces of a floating kind carrying something the table calls an identity
+/// mechanic. It was forty-three; the greaves sweep took six of them, and what
+/// is left is mostly `health above 15` on a Material or Plating, which the
+/// chest sweep takes. The rest go as their mechanic finds its home.
+const FLOATING_CARRIER_BUDGET: usize = 17;
 
 /// §10.2 as written: rarity buys interestingness. Exactly four non-weapon
 /// pieces are epic or better - two helmets, one chest, one greave - and today

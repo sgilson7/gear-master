@@ -1033,3 +1033,38 @@ red - which is a lot of movement to buy a column of zeros.
 
 `report_what_a_slot_is_worth_in_health` is the reading for this slot now, and
 the spec says so at criterion 2.
+
+---
+
+## Drift — the greaves sweep
+
+Twenty-three greaves pieces stopped carrying the body's padding. Greaves'
+bleed axis was 57.6% against a 20-25% band, the largest single gap in the
+ratchet; it is 22.7% now, and every greaves quota is in band:
+
+| | own axis | bleed | filler | dearest third | pool-spend |
+|---|---:|---:|---:|---:|---:|
+| Greaves | 75.8% | 22.7% | 12.1% | 47.6% | 7.6% |
+
+Health, armour and regeneration came off; curse resistance, `speed_bonus` and
+`ReduceCooldown` went on, which is the slot's own vocabulary. Six rules fell
+with it - `Grow` 10 to 7, `harden` 7 to 5, `Consume` 9 to 7, `mind_resist` 4 to
+3, `health above 15` to zero - and six floating carriers went with them, 23 to
+17. Twenty-eight rules unmet, from thirty-six.
+
+Two of the sweep's own edits had to be walked back before the suite agreed.
+`Ironthread Material` and `Worldweave Material` traded 170 and 240 base health
+for armour, and armour is not a smaller version of health: it absorbs before
+health and resets each fight, so 60 armour on a rung-4 Bog Toad made the
+creature immune to a six-piece fixture rather than merely tougher. They carry
+modest armour and regeneration now.
+
+| build | cleared | weapon share | median ttk |
+|---|---|---|---|
+| owner | 49/50 | **81.4%** | 9.00s |
+| friend | 49/50 | 99.3% | 5.45s |
+
+Criterion 1 moved the wrong way by a point, which is what taking stats off a
+slot does to a share measured in damage. It is M7's problem and the levers for
+it are still untouched.
+

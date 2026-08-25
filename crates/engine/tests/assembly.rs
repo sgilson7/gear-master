@@ -287,7 +287,12 @@ fn an_adjacency_bonus_stays_dormant_until_the_item_assembles() {
 
     let r = run.report(SlotKind::Greaves);
     assert_eq!(r.assembled_count(), 1, "{}", r.summary());
-    assert_eq!((r.stats.armor, r.stats.health, r.stats.regen), (12, 75, 1), "base armour kept, bonus health added, +1 regen");
+    // The mold's +1 regen is gone: regeneration is the body's, and the greaves
+    // sweep sent the feet's padding to the chest. What Greave Mold gives now is
+    // cadence, which a stat report has no column for - so this reads zero and
+    // means "the mold contributes nothing this report can see", which is the
+    // truth. The two numbers that carry the test are the first two.
+    assert_eq!((r.stats.armor, r.stats.health, r.stats.regen), (12, 75, 0), "base armour kept, bonus health added, and the mold's padding gone");
     assert_eq!(r.notes(), vec!["Runed: +75 health"]);
 }
 
