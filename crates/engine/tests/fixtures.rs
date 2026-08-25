@@ -24,7 +24,7 @@
 //! coordinates for the new shape — and then delete the row. A shrinking table
 //! is the point.
 
-use gearmaster_engine::piece::{Action, PieceDef, SlotKind, Trigger, CATALOG};
+use gearmaster_engine::piece::{Action, PieceDef, Trigger, CATALOG};
 
 /// What a fixture needs its piece to still do.
 #[derive(Copy, Clone)]

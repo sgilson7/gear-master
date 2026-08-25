@@ -1,10 +1,15 @@
 //! The three primitives the interaction fabric is built from: watchers that
 //! count, the diagonal relation, and fused pools.
 //!
-//! Nothing in the catalogue carries any of these yet. That is deliberate - the
-//! primitives land first so the sweep can be written against them - and it is
-//! also why these tests build their item profiles by hand rather than by
-//! packing a board. What is under test is the mechanic, not the gear.
+//! These tests build their item profiles by hand rather than by packing a
+//! board: what is under test is the mechanic, not the gear. That was because
+//! nothing in the catalogue carried any of these when they were written, and it
+//! stays that way now that pieces do, because a test that reaches for whichever
+//! watcher happens to exist is a test that changes meaning under a sweep.
+//!
+//! The catalogue has since caught up unevenly - fifteen pieces watch, seven see
+//! diagonally, one is terrain, and **nothing fuses a pool**. Fusion is the one
+//! primitive that still exists only here.
 
 mod common;
 

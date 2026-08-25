@@ -3,10 +3,25 @@
 
 **What this is.** A data-grounded redesign of the five gear slots so that each slot is oriented around one mechanical basis vector, with deliberate ~20–25% bleed into exactly one neighboring slot. The weapon keeps its identity (damage conversion) but *loses its monopolies*; the four armor slots stop being interchangeable stat piles. All judgment calls are made in this document — what remains is execution, verification, and number-tuning inside the stated bounds.
 
+**Where this lives.** `design/`, with the other documents the code follows. It
+started at the repo root, which said it was a brief rather than a design, and it
+is not: the repo rule is that these lead and the code follows, and when they
+disagree this file is the bug report.
+
+**Amended, 2026-08-25.** Written before any of the work started, and the code
+has since overtaken it in ten places. Each correction is marked where the stale
+line is rather than collected here, so nobody reads one without the other: the
+catalogue's size (§1), reflection and the fifth bleed link (§2), what the chest
+attacks with (§3.3), the greaves→chest bleed that does not exist (§3.5), the
+attribution that was built after all (§4.3), grids that can gain rows (§4.4), two
+systems in the change map that were never built and one document that did not
+exist (§6), the setting every figure is taken at (§7), what the density quotas
+count (§10), and underlay's shape in the code (§11.4).
+
 **Prime directives (read before touching anything):**
 1. **Canonical names are keys.** `theme.rs` lookups, `combat.rs` monster `gear:` lists, `Quest.becomes` targets, and the test suite are all string-keyed on piece names. Prefer rewriting a piece's *stats and triggers under its existing name*. Rename only when the name would lie about the new identity, and then run the propagation checklist in §8.
 2. **Determinism is sacred.** No randomness anywhere. Every mechanic you write must be expressible in the existing deterministic vocabulary (`piece.rs:418` Actions, `piece.rs:535` Triggers, `piece.rs:283` EffectKinds, `curse.rs` curses).
-3. **No engine semantics change.** This is a catalog rewrite (`piece.rs:960` `CATALOG`, 444 entries) plus re-pinning of dependent systems. Every axis below is already expressible with shipped mechanics. The only new code is one new test file and optional constant tuning (§6).
+3. **No engine semantics change.** This is a catalog rewrite (`piece.rs:960` `CATALOG`, 444 entries when this was written and 469 now) plus re-pinning of dependent systems. Every axis below is already expressible with shipped mechanics. The only new code is one new test file and optional constant tuning (§6).
 4. **Measure before you move.** Capture the baseline metrics in §7 first; they are the acceptance criteria's denominators.
 
 ---
@@ -16,6 +31,12 @@
 Method: all 444 `PieceDef` entries were parsed into a feature matrix — 20 stat fields from `stats.rs`, 11 trigger variants, 13 action variants, 6 positional effect kinds, plus `speed_bonus`/`power_bonus` — then examined three ways: per-slot feature prevalence, cosine similarity between slot mechanical centroids, and PCA/k-means over the standardized matrix. (PCA stands in for ICA here; the conclusions below don't depend on the rotation.)
 
 **Catalog counts:** Weapon 171 · Helmet 79 · Chest 68 · Gloves 75 · Greaves 51.
+
+*Amended, 2026-08-25.* The census reads Weapon 172 · Helmet 80 · Chest 69 ·
+Gloves 82 · Greaves 66, for 469. The analysis below is against the 444 the
+catalogue held when it was taken; the *shape* of what it found is what matters
+and that has not changed, but any count quoted from it is a figure from before
+the sweeps. `report_catalog_census` prints the current one.
 
 ## 1a. The four armor slots are one slot wearing four shapes
 
@@ -64,6 +85,15 @@ So a weapon answers "how do I deal damage," "how do I deny the enemy tempo," *an
 
 The bleed relation is a directed 5-cycle — **W→G→Gr→C→H→W** — so every slot overlaps exactly one neighbor and no two non-adjacent slots share a secondary. Two links already exist in shipped code and are kept, not invented: greaves' recipe already admits a Plating (`piece.rs:844-848`), and helmet already leads mind/mind_resist.
 
+*Amended, 2026-08-25.* The cycle is a square, not a pentagon. Greaves→Chest was
+to be carried by Plating, and Plating is a **helmet** kind that floats to
+greaves — a chest cannot take one, so that link was never available to be kept
+(§3.5). What shipped is Gloves–Greaves–Helmet, and the greaves bleed axis is
+enforced as *reserve* in `catalog_shape.rs` even though the recipes give greaves
+no way to hand armour to a chest. That mismatch is the largest single quota gap
+in the ratchet and it is a design question, not a sweep: either greaves bleed
+somewhere they can reach, or the recipes gain the link this paragraph assumed.
+
 **The "express it through your axis" principle** (this is the rule that keeps the sweep coherent — apply it everywhere): every slot may do defense, and every slot may do offense, but *only in its own vocabulary*:
 
 - Chest defends with **armor/health/harden**; attacks not at all — it **Grows** (`Action::Grow` becomes chest-exclusive: outlasting *is* its offense).
@@ -80,6 +110,7 @@ The bleed relation is a directed 5-cycle — **W→G→Gr→C→H→W** — so e
 | Searing application | Weapon | majority |
 | `Consume`, `GainEmpowerment`, `GainShield`, `MindDamage` (player gear), `mind_resist` stat | Helmet | exclusive |
 | `Grow`, `physical_harden`/`magic_harden` stats | Chest | exclusive |
+| `reflect` stat *(added 2026-08-25)* | Chest | exclusive |
 | health above 15 per piece | Chest | majority |
 | `OnAdjacentActivate`, `PerAdjacentItem`, `Drain`, `StunStrongest`, `DoubleAdjacentItemStat` | Gloves | exclusive |
 | `OnAlignedActivate` | Gloves | majority (helmet/weapon minority allowed) |
@@ -88,7 +119,7 @@ The bleed relation is a directed 5-cycle — **W→G→Gr→C→H→W** — so e
 
 **Quotas per non-weapon slot** (also test-enforced): ≥60% of the slot's pieces express the primary axis, 20–25% express the bleed axis, ≤15% are plain flat-stat fillers (cheap early gear is fine and the name generator even has Plain epithets for it).
 
-**Interaction-density quotas (Part II, §10):** on top of the axis quotas, ≥35% of each slot's above-common pieces must carry an *interaction* (positional effect, adjacency bonus, reaction, watcher, diagonal, overlap, or fusion — Part II defines these), every Epic/Legendary non-weapon piece must carry at least one, and pool-spend texture (`SpendMana`/`Spend`/`Consume`) is capped at ≤15% of pieces per slot outside the helmet. Today the board barely talks to itself — 67 of 444 pieces (15%) have any positional content, only 36 of those outside the weapon — while 74 pieces are pool-spend texture. These quotas invert that.
+**Interaction-density quotas (Part II, §10):** on top of the axis quotas, ≥35% of each slot's *dearest third* (see §10's amendment; this read "above-common pieces") must carry an *interaction* (positional effect, adjacency bonus, reaction, watcher, diagonal, overlap, or fusion — Part II defines these), every Epic/Legendary non-weapon piece must carry at least one, and pool-spend texture (`SpendMana`/`Spend`/`Consume`) is capped at ≤15% of pieces per slot outside the helmet. Today the board barely talks to itself — 67 of 444 pieces (15%) have any positional content, only 36 of those outside the weapon — while 74 pieces are pool-spend texture. These quotas invert that.
 
 ---
 
@@ -132,6 +163,16 @@ triggers: &[Trigger::SpendMana {
 **Bleed → Helmet:** bases and layers that *hold* pools — the existing offenders `Mana Loom`, `Wellspring Base`, `Aether Layer` are not deleted, they're **reassigned to this bleed budget** (cap it at ~15 pieces); `Voidsilk Base` and `Hexweave Shroud`, whose content is casting rather than banking, get re-expressed or their identities traded to helmet designs.
 **Loses:** nothing structurally — chest is closest to its axis already (40% armor, 38% health). The sweep here is mostly *amplification*: give it the harden monopoly, the Grow monopoly, and bigger reserve numbers to compensate for the armor that helmets/gloves give up.
 
+*Amended, 2026-08-25.* The chest attacks, and this document did not say how.
+`Stats::reflect` is a percentage of what your armour absorbs, turned back on
+whoever swung — chest-exclusive, and the only offensive verb that *is*
+outlasting: it needs the blow to land and be soaked first, so it pays nothing to
+a board that dies quickly and everything to one built to be hit. It cannot be
+reflected in turn, so two reflecting boards cannot bounce a blow between them
+for ever. Seventeen chest pieces carry it and **no creature wears one**, which
+is why chest still measures zero on criterion 2: the gear that matters is the
+gear creatures and finished boards share.
+
 **Example — new layer to absorb the Grow consolidation:**
 ```rust
 PieceDef { name: "Patient Layer", slot: SlotKind::Chest, kind: PieceKind::Layer,
@@ -159,6 +200,11 @@ triggers: &[Trigger::OnAdjacentActivate(
 
 **Owns (exclusive):** `OnBattleStart` (the initiative mechanic — everything else starts a fight at zero; greaves are the gear that shows up already holding something), `speed_bonus` outside the weapon slot, `ReduceCooldown` outside the weapon slot. **Majority home of Frost/Stun/Misfire application** — the ~20 migrated weapon curse concepts land here as new Molds/Materials ("the slow is where you stand"). Keeps `curse_resist` lean — tempo defense.
 **Bleed → Chest:** the recipe's optional Plating (`piece.rs:847`) is the armor bleed, already shipped; keep ~10–12 armor-flavored greaves inside this budget.
+
+*Amended, 2026-08-25.* It is not shipped and it is not a bleed. Plating is a
+**helmet** kind that `PieceDef::fits` lets sit in greaves; a chest cannot hold
+one, so a Plating in a greave hands armour to nobody. See the amendment under
+§2's cycle — this is the same hole seen from the other side.
 **Loses:** identityless health/regen padding (the eight named offenders each gain a tempo hook or shrink into filler).
 **Smallest slot (51) and the one most under-built for its new axis** — expect this slot to need ~10–15 *new* pieces, which is where the migrated weapon curses go.
 
@@ -178,7 +224,11 @@ triggers: &[Trigger::OnBattleStart(Action::Gain { what: Resource::Faith, amount:
 1. **Required: one new test file** `crates/engine/tests/catalog_shape.rs` that enforces §2's exclusivity table and quotas by iterating `CATALOG` — same philosophy as the existing rarity-distribution pinning in `rating.rs` ("so a batch of new components cannot quietly make everything legendary"; this test is "so a batch of new components cannot quietly dissolve a slot's identity"). **Write it first.** It will be red against today's catalog; the sweep is done when it's green.
 2. **Optional, recommended: per-slot cadence tuning** in `default_cooldown_ms` (`piece.rs:860`) — cadence is a free identity lever: gloves tick fast (they react anyway), chest ticks slow and heavy, helmet middling, greaves middling-fast. Touch only after the sweep, measured against §7.
 3. **Optional, only if baseline capture needs it:** per-slot damage attribution in the combat log (display/CLI only, no behavior change) so §7's "weapon damage share" is measurable. Check whether the log already attributes sources before writing anything.
+
+   *Amended, 2026-08-25.* Built, and with no engine change at all: `tests/baseline.rs` pairs each `Event::Hit` to the `Event::Activate` before it and reads the slot off that. Two whole damage channels were invisible until it existed — **burn**, split across the slots that lit each searing curse, and **mind damage**, which removes maximum health and never touches `Event::Hit`. Both are attributed now, and both moved the reading when they arrived.
 4. **Explicitly out of scope:** new Trigger/Action variants, recipe changes (`recipes()` at `piece.rs:810` stays byte-identical), grid changes (all slots stay 6×8, `slot.rs:5-8`), curse constants (`curse.rs`).
+
+   *Amended, 2026-08-25.* Grids are 6×8 **base**. A run can be granted extra rows as a reward, and a resize must move nothing already placed (`tests/taller_boards.rs`). Anything that checks a placement — `catalog_shape.rs`, the underlay legality rules — asks the board for its current dimensions, never the constants. Part II's four primitives are also no longer out of scope: they shipped, which is what item 1's "Tier B" above became.
 
 ---
 
@@ -195,10 +245,10 @@ The weapon's dominance is agency-share, not number-share. After the sweep: tempo
 | `crates/engine/tests/catalog_shape.rs` (new) | §2 exclusivity + quotas, written first | Encode quotas as ranges, not exact counts, so tuning doesn't thrash the test |
 | `crates/engine/src/piece.rs` | The sweep: ~444-entry audit; rewrite off-axis pieces in place; ~10–15 new greaves pieces; Grow/harden/Consume/etc. consolidation | Names are keys (directive 1). `cells:` shapes of any piece used in a packed named board must not change — the authoring tool re-pack is expensive |
 | `crates/engine/src/rating.rs` | Effectiveness weights re-audit (`rating.rs:524` region): reaction triggers, OnBattleStart, curses, and Grow change worth when they change homes; re-pin the distribution tests | The rarity thresholds (`RARE_AT=90` etc.) should *not* move; re-pin the distribution by adjusting weights, not tiers, or item names (which grow with rarity) shift game-wide |
-| `crates/engine/src/combat.rs` | No engine change. Re-audit all 50 `MonsterSpec.gear:` boards — monsters wear these pieces, so every rewritten piece silently rebalances a rung | After the sweep, replay the ladder in the CLI and compare per-rung TTK to baseline before touching `progression.rs` pins |
+| `crates/engine/src/combat.rs` | No engine change. Governed by `design/monster-themes.md`, which postdates this file: six themes clustered up the ladder, hybrid mini-bosses, and a density curve read off the owner's board. Re-audit all 50 `MonsterSpec.gear:` boards — monsters wear these pieces, so every rewritten piece silently rebalances a rung | After the sweep, replay the ladder in the CLI and compare per-rung TTK to baseline before touching `progression.rs` pins |
 | `crates/engine/tests/progression.rs`, `effects.rs`, `reactions.rs`, `packing.rs`, `classes.rs`, `assembly.rs` | Re-pin with a one-line justification per changed constant | `packing.rs` covers the locked named boards; if it fails, a `cells:` shape changed — revert the shape, not the board |
-| `crates/engine/src/shop.rs` | Pool routing audit: shelf pools and M4/M5 milestone pricing should surface each slot's new identity at the milestones where it matters | — |
-| `crates/engine/src/loadout.rs` | Auto-build heuristic re-weight (it scores candidate boards; reaction/tempo pieces are worth more than their flat stats now) | — |
+| `crates/engine/src/shop.rs` | Pool routing audit: shelf pools and M4/M5 milestone pricing should surface each slot's new identity at the milestones where it matters | **Neither exists.** `restock` builds one uniform pool filtered only by availability, and there is no milestone pricing anywhere in the engine. This row is a feature request, not an audit |
+| `crates/engine/src/loadout.rs` | Auto-build heuristic re-weight (it scores candidate boards; reaction/tempo pieces are worth more than their flat stats now) | **There is no auto-builder.** `Run::apply_preset` is twenty-one hard-coded placements that show off the mechanics, and it is also the `preset` reference build, so changing it moves a row of the baseline |
 | `crates/engine/src/naming.rs` | Verify `action_word` coverage for the moved mechanics (Drain already has Bloodletting/Siphoning/Squandering at `naming.rs:178-180`; check `OnBattleStart` and `Consume` have words) | No structural change |
 | `crates/engine/src/theme.rs` | Add turtle-theme entries for renamed/new canonical names; unchanged names need zero work (missing entries fall through by design) | — |
 | `crates/engine/src/class.rs` | Audit `ClassDef.requires: &[(Axis, i32)]` (`class.rs:692`) and fountain scoring axes against the five vectors — if the existing `Axis` enum approximates them, adopt its vocabulary in the new test rather than inventing parallel names | — |
@@ -207,6 +257,12 @@ The weapon's dominance is agency-share, not number-share. After the sweep: tempo
 ---
 
 # 7. Balance acceptance criteria (measure, don't vibe)
+
+**Amended, 2026-08-25 — the setting.** Every figure in this section and in
+`analysis/baseline.md` is taken at **Medium**, which is one times. The first
+baseline was taken on Easy, where the monsters wear a step of gear down, and a
+share measured there flatters the weapon. `baseline.rs` pins the setting rather
+than passing it in, so nobody can take half a reading at the wrong difficulty.
 
 Capture **baseline first** with deterministic CLI replays (fixed seed, scripted reference builds at rungs 10 / 25 / 40 — build one melee, one caster, one hybrid reference):
 
@@ -265,6 +321,8 @@ Capture **baseline first** with deterministic CLI replays (fixed seed, scripted 
 
 **Density quotas** (already added to §2; encode in `catalog_shape.rs`):
 1. ≥35% of each slot's above-common pieces carry an interaction.
+
+   *Amended, 2026-08-25.* "Above-common" does not divide the catalogue. `RARE_AT` is 90 on a scale where full marks is the best a whole *item* can do, so a single component almost never clears it: **ten pieces in 469** are above Common, and a quota over ten pieces would be satisfied by editing ten pieces and would mean nothing. The intent — the more a component is worth, the more it should interact — is kept and the measure is changed to **the dearest third of each slot by `piece_rating`**. Quota 2 keeps its wording and is enforced over the same ten.
 2. Every Epic/Legendary non-weapon piece carries at least one — rarity buys interestingness, matching "names grow with what the item is worth."
 3. Pool-spend triggers ≤15% of pieces per slot outside helmet. The helmet keeps the economy axis but expresses it increasingly through *fusion and watchers* rather than raw `Consume`.
 
@@ -326,6 +384,13 @@ The one big-ticket item, merged as an isolated PR:
 // PieceDef gains:
 pub underlay: bool,   // default false
 ```
+
+*Amended, 2026-08-25.* Shipped as `PieceKind::Terrain` instead. A kind rather
+than a flag for two reasons: terrain is a different sort of thing from gear, not
+gear with a setting, and no recipe names the kind — which is the whole of how
+"an underlay is never part of an item" is enforced, with no rule to write and no
+special case to forget. A bool would also have meant spelling out
+`underlay: false` in four hundred and sixty-eight other entries.
 
 Semantics kept deliberately narrow: an underlay piece is **always loose** (never part of an assembled item — it is terrain, not a component); its cells **may be shared** by normal pieces; underlays never overlap each other; one layer deep. Payloads read what covers them:
 

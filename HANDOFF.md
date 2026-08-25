@@ -1,18 +1,17 @@
 # Handoff — the gear-slot rewrite
 
-Written for an agent starting with no context. Read `CLAUDE.md` first, then
-this, then `design/monster-themes.md`. The spec is `gear-slot-basis-rewrite.md`
-at the repo root — **it is now wrong in six places**, listed in §6 below.
+Written for an agent starting with no context. Read `CLAUDE.md` first, then this,
+then `design/monster-themes.md`. The spec is `design/gear-slot-basis-rewrite.md`
+and it now carries its own dated amendments inline — read them where they sit
+rather than trusting the line above each one.
 
 ## 1. Where the code is
 
 - **`main`** is published and live. `eb5cc5d Publish web build`. GitHub Pages
   serves `docs/` from `main`.
-- **`phase-2`** is the working branch, 6 commits ahead of `main`, not merged.
-  `ff1fad9`.
-- Suite: **536 tests, green.** `cargo test -p gearmaster-engine`.
-- Untracked and pre-existing: `CLAUDE.md`. Leave it or commit it, but it was
-  not created by this work.
+- **`phase-2`** is the working branch and is not merged. Everything below lands
+  there; `main` is touched once, at the end.
+- Suite: **537 tests, green, no warnings.** `cargo test -p gearmaster-engine`.
 
 ## 2. What the rewrite was for
 
@@ -25,114 +24,138 @@ them.
 
 ## 3. What is done
 
-Spec steps 1–7 in full, step 8 partly, step 9 barely.
+The engine half. The catalogue half is the larger one and is not.
 
-- **`tests/baseline.rs`** — the measurement harness. Damage attributed by slot
-  by pairing `Event::Hit` to the preceding `Event::Activate`; no engine change
+- **`tests/baseline.rs`** — the measurement harness. Damage attributed by slot by
+  pairing `Event::Hit` to the preceding `Event::Activate`; no engine change
   needed. Reports are `#[ignore]`d printers:
   `cargo test -p gearmaster-engine --test baseline -- --ignored --nocapture --test-threads=1`
-- **`tests/catalog_shape.rs`** — the rules. Ships as a **ratchet**: budgets are
+- **`tests/catalog_shape.rs`** — the rules, shipped as a **ratchet**: budgets are
   today's distance, `no_budget_is_slack` forbids leaving slack, and the
-  `#[ignore]`d `the_catalog_keeps_every_rule` asserts the targets and is **red
-  at 69 rules unmet** (from 79). Lower a budget in the commit that earns it;
-  never raise one.
-- **Four primitives**: `Trigger::Watch` + `Watched`, the diagonal relation,
-  fused pools (`Resource` grew to 7), and `PieceKind::Terrain` (underlay, a
-  second layer in `Slot`). Plus **reflection** (`Stats::reflect`), which the
-  spec never asked for.
-- **All five slots swept.** Every armour slot is inside its filler quota.
+  `#[ignore]`d `the_catalog_keeps_every_rule` asserts the targets and is **red at
+  69 rules unmet** (from 79). Lower a budget in the commit that earns it; never
+  raise one.
+- **Four primitives**: `Trigger::Watch` + `Watched`, the diagonal relation, fused
+  pools (`Resource` grew to 7), and `PieceKind::Terrain` (underlay, a second
+  layer in `Slot`). Plus **reflection** (`Stats::reflect`), which the spec never
+  asked for and the chest now owns exclusively.
+- **All five slots swept once.** The two monopolies are gone: gloves hold 47
+  reaction triggers to the weapon's 2; greaves hold 26 curse applications to the
+  weapon's 20. Inert pieces are down from 44% of the catalogue to 21%.
 - **`design/monster-themes.md`** — six themes, clustered rungs, hybrid
   mini-bosses, density curve, difficulty curve. Implemented in
-  `tests/pack_francis.rs`, which is now monster-agnostic
-  (`PACK_MONSTER`, `PACK_TROPHY`, `PACK_BAND`).
-- **`tests/fixtures.rs`** — a manifest of the 11 tests that name a piece as
-  their example of a mechanic, so a sweep fails there rather than downstream.
+  `tests/pack_francis.rs`, which is monster-agnostic (`PACK_MONSTER`,
+  `PACK_TROPHY`, `PACK_BAND`, `PACK_ITEMS`).
+- **`tests/fixtures.rs`** — a manifest of the tests that name a piece as their
+  example of a mechanic, so a sweep fails there rather than downstream.
+- **Documents reconciled** and every harness figure retaken at Medium on boards
+  that assemble correctly (`analysis/baseline.md`, last entry). Underlays are
+  town stock now: ground is bought where somebody has a floor to sell.
 
-## 4. What is NOT done
+## 4. What is left, in order
 
-Ordered by what I would do next.
+Nine milestones. Each ends green, with its numbers written into
+`analysis/baseline.md`.
 
-1. **Verify a shared board reconstructs name-by-name.** Counts and ladder
-   results match now; item membership has not been compared against what the
-   player sees on screen. This is the last thing between us and trusting these
-   boards. See §5.
-2. **The monster repack.** 51 boards, tooling complete, zero landed. Run
-   `bash` over `PACK_MONSTER=<name>` per creature, splice the printed
-   `gear`/`items` into `combat.rs`, commit every 3 with the suite as the
-   verdict. Last attempt halted on `brawl::the_aim_moves_along_so_they_come_down_together`.
-3. **Reflection across the chest.** 17 carriers, but **none is on a reference
-   board**, so chest still measures 0% on criterion 2. The gear that matters is
-   the gear creatures and finished boards share — needs the repack and the
-   `towns` fixture in the same change.
-4. **`rating.rs` weights and shop pools** — step 8's other half. Reaction
-   triggers, `OnBattleStart`, curses and `Grow` all changed homes, so their
-   worth is wrong.
-5. **69 shape rules**: `health above 15`→chest (30), `speed_bonus` and `Grow`
-   (10 each), `OnBattleStart`/`MindDamage`/`Consume` (9 each), plus **43
-   identity mechanics on floating kinds** (untouched) and greaves' bleed axis
-   22 pieces over.
-6. **Step 9**: glossary is done, theme/naming kept current per-piece; tooltips
-   and the final §7 verification are not.
-7. **Play it.** Nobody has. Every claim here is from the suite.
+**M1 — One way to rebuild a board.** `Shared::loadout` locks each item as it
+assembles; three test-side reconstructions still hand-roll `run.equip` in a loop
+and reproduce the fault it fixed — `towns.rs:36` (17 tests), `francis.rs:22`,
+`pack_francis.rs:575`. Route them all through one helper. Then pin item
+*membership* by name rather than counts, and add `debt_is_a_debt` to
+`fixtures.rs`. Until this lands, every figure taken through those three is taken
+on a board nobody built.
 
-## 5. The thing that will bite you
+**M2 — Clear the road for the repack.** Six tests refuse a themed board by
+construction and the packer cannot address `ALTERNATES` at all. Decide each once,
+here, rather than discovering them three boards into a batch: the five-slot
+requirement in `progression::the_named_fights_pack_their_boards`, the overkill
+accounting in `brawl::the_aim_moves_along_so_they_come_down_together`, the casino
+corridor in `two_runs.rs`, the three named drainers in `drains.rs`, and the
+hard-coded rungs in `effects.rs`, `class_reaches_combat.rs`, `progression.rs` and
+`taller_boards.rs`. Re-derive the density curve first — see §5.
 
-**A dense board does not reconstruct into the items its owner built** unless
-each item is locked as it assembles. A finished board packs to ~97% of its
-cells, so nearly everything touches everything; deriving items in one pass at
-the end merges whole grids. The owner's 19 weapon pieces came back as **one**
-item; the perfect run's 11 came back as **none**.
+**M3 — The repack.** 49 ladder boards, cluster by cluster, ascending. Francis is
+excluded by design. Nothing has been repacked yet: the 11 specs carrying `items:`
+got them from `packing::author_the_named_fights`, and every spec from index 6 up
+still spans all five slots, which a themed board never does. Commit every three
+with the suite as the verdict.
 
-Fixed in `share.rs` (`Shared::loadout` locks per placement) and in
-`pack_francis.rs` (`seat_item` used to `locks.clear()` on a failed attempt,
-unlocking everything already seated). `decode_build.rs` now pins floors so it
-cannot return silently.
+**M4 — Chest gets its attack.** Reflection is Wall-theme-exclusive, so rungs 7–13
+are the only rungs where a creature can wear it: this runs *inside* M3's Wall
+cluster, not after it. `rating.rs` has no weight for `reflect` at all — add one,
+and re-tune so `a_slots_ceiling_is_full_marks` holds.
 
-**This ran for the entire rewrite.** Consequence: every drift figure in
-`analysis/baseline.md` before the correction entry **understates the weapon**.
-The direction of all eleven sweeps survives — the same fault ran before and
-after each — but absolute numbers did not.
+**M5 — The rating re-audit.** Reaction triggers are priced on the carrier item's
+cadence rather than the neighbour's; frost is knowingly under-priced and is
+greaves' now; `Grow` was tuned when it was a weapon mechanic; `Fuse` is a flat
+constant; terrain has no arm. Watch `stepped_component` — it re-gears every
+monster on three of the four difficulty settings.
 
-## 6. Where the spec is wrong
+**M6 — The shape sweep, 69 → 0.** 15 exclusivity lines + 7 quota lines + 43
+floating carriers + 4 dull treasures. Cheapest first; the two large ones are
+`health above 15` → chest (30) and greaves' bleed axis (22).
 
-The repo rule is that `design/` leads and code follows. The code has overtaken
-the spec in six places; reconcile before trusting it.
+**M7 — Criterion 1.** 86.0% against 66–76%. M3 to M6 each move it; if it is still
+short after them, the levers are the interaction fabric reaching real boards and
+per-slot cadence at `piece.rs:860`.
 
-1. **The band.** §7 asks for 55–65% against an assumed 75–85% baseline. The
-   measured baseline was **96.1%**. Re-derived to **66–76%** in the spec.
-2. **Difficulty.** Everything is measured at **Medium**, which is 1x. The
-   original baseline was taken on Easy.
-3. **Burn and mind damage** are attributed to slots now; they were invisible.
-4. **Reflection** exists and is chest-exclusive.
-5. **Monster themes** exist; the spec has no notion of them.
-6. **§10's density quotas** are worded over "above-common pieces", which
-   assumes component rarity spreads. Only 10 of 447 clear Common. Re-measured
-   as "the dearest third of each slot".
+**M8 — Step 9.** Shop pool routing and milestone pricing (neither exists),
+`apply_preset` (which is also a reference build), GUI tooltips per primitive, one
+identity line per slot. Theme and naming are already complete and must stay so.
 
-Also: §3.5 claims Plating is the greaves→chest bleed. It is a **helmet** kind
-that floats to greaves; chest cannot take one. The shipped bleed structure is
-Gloves–Greaves–Helmet, not the spec's 5-cycle.
+**M9 — Final verification, then one merge.** Re-run the four printers, write the
+§7 verification, rewrite this file as a record, merge `phase-2` into `main`,
+publish.
 
-## 7. Numbers that matter
+**And nobody has played this.** Every claim here comes from the test suite.
+
+## 5. The things that will bite you
+
+**A dense board does not reconstruct into the items its owner built** unless each
+item is locked as it assembles. A finished board packs to ~97% of its cells, so
+nearly everything touches everything; deriving items in one pass at the end
+merges whole grids. The owner's 19 weapon pieces came back as **one** item; the
+perfect run's 11 came back as **none**.
+
+Fixed in `share.rs` and in `pack_francis.rs`. **Not** fixed in the three
+reconstructions M1 names, which is why M1 is first. Consequence: every drift
+figure in `analysis/baseline.md` before the correction entry **understates the
+weapon**, and anything measured through `towns.rs`, `francis.rs` or
+`pack_francis.rs`'s reference boards still does.
+
+**The repack's own gate is calibrated on that fault.** `design/monster-themes.md`
+§6 sets `target(rung) = 2.8s + 0.4s × rung`, ±30%, read off the owner's board at
+Medium and justified by "its median across the 46 rungs it currently clears is
+14.4s". Corrected, that median is **9.00s**. Packing 49 boards against the old
+line would bake the fault into the whole ladder.
+
+**`CATALOG` is index-keyed by `share.rs`.** Append-only for ever: nothing moves,
+nothing is deleted, a sweep rewrites in place under the existing name.
+
+**Any `rating.rs` weight change re-gears every monster** on Easy, Hard and
+Insane, through `stepped_component`. Almost nothing pins non-Medium outcomes.
+
+## 6. Numbers that matter
 
 | | |
 |---|---|
-| Weapon damage share, 1x | **86.0%** (target 66–76%) |
+| Weapon damage share, owner at Medium | **86.0%** (target 66–76%) |
 | Baseline it started at | 96.1% |
-| Criterion 2 | passes for gloves, helmet, greaves; **chest 0%** |
-| Criterion 3 | passes, and now for the right reason |
+| Criterion 2 | passes for gloves, helmet, greaves; **chest 0% everywhere** |
+| Criterion 3 | passes — owner takes 43/50 rungs with no weapon, on greaves |
 | Criterion 4 (early game) | holds — rung-1 TTK unmoved across every sweep |
-| `catalog_shape` target | 69 rules unmet |
+| `catalog_shape` target | **69 rules unmet** |
+| Board cadence, owner | 6.79 activations/s, against the 2.0 `rating.rs` assumes |
 
-## 8. Habits that paid off
+## 7. Habits that paid off
 
-- **Measure before designing.** Two whole damage channels were invisible and
-  the target band was arithmetic on a baseline nobody had taken.
-- **Land primitives inert, arm them separately.** Watch, fusion and underlay
-  all shipped with the ladder byte-identical.
+- **Measure before designing.** Two whole damage channels were invisible and the
+  target band was arithmetic on a baseline nobody had taken.
+- **Land primitives inert, arm them separately.** Watch, fusion and underlay all
+  shipped with the ladder byte-identical.
 - **Sweep a slot and repack the creatures wearing it in the same change.** The
-  greaves sweep failed until Francis was repacked with it. Everything that
-  arms a slot arms the monsters first.
+  greaves sweep failed until Francis was repacked with it. Everything that arms a
+  slot arms the monsters first.
 - **When a guard refuses your change, it is usually right.** It caught four
-  regressions I would otherwise have shipped, including the best board in the
+  regressions that would otherwise have shipped, including the best board in the
   project losing to Francis on Easy.

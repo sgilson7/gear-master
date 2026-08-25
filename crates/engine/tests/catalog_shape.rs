@@ -337,7 +337,7 @@ const RULES: &[Rule] = &[
 /// "every Epic or Legendary non-weapon piece", which reads as though component
 /// rarity had a spread. It does not: `RARE_AT` is 90 on a scale where full
 /// marks is the best a whole *item* can do, so a single component almost never
-/// clears it and only **ten pieces in the catalogue of 446** are above Common
+/// clears it and only **ten pieces in the catalogue of 469** are above Common
 /// (helmet 2, chest 2, gloves 2, greaves 1, weapon 3). A quota over those ten
 /// would be satisfied by editing ten pieces and would mean nothing.
 ///
@@ -510,9 +510,10 @@ fn identity_carriers() -> Vec<(&'static str, &'static str)> {
 /// which the chest sweep takes; the rest go as their mechanic finds its home.
 const FLOATING_CARRIER_BUDGET: usize = 43;
 
-/// §10.2 as written: rarity buys interestingness. Only four non-weapon pieces
-/// are above Common today, so this is a small rule - but it is the exact
-/// sentence the spec asks for, and it costs nothing to hold.
+/// §10.2 as written: rarity buys interestingness. Exactly four non-weapon
+/// pieces are epic or better - two helmets, one chest, one greave - and today
+/// all four are dull, which is the whole of this rule's distance. A small rule,
+/// but it is the exact sentence the spec asks for and it costs nothing to hold.
 fn dull_treasures() -> Vec<&'static str> {
     let mut out: Vec<&'static str> = CATALOG
         .iter()
