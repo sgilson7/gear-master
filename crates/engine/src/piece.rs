@@ -1521,7 +1521,10 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Chest,
         kind: PieceKind::Layer,
         cells: &[(0,0),(1,0),(0,1),(1,1)],
-        base: Stats { rage: 2, ..Stats::ZERO },
+        // Rage banked in the body was the economy axis sitting in the reserve
+        // slot, which is the whole of what the chest was doing wrong. A
+        // berserker's plate is plate.
+        base: Stats { armor: 8, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -2013,7 +2016,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Ring,
         cells: &[(0,0)],
-        base: Stats { physical_resist: 10, magic_resist: 10, ..Stats::ZERO },
+        base: Stats { physical_resist: 10, magic_resist: 10, curse_resist: 14, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -2032,8 +2035,8 @@ pub static CATALOG: &[PieceDef] = &[
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
-        speed_bonus: 35,
-        triggers: &[Trigger::OnAlignedActivate(Action::ReduceCooldown(200))],
+        speed_bonus: 0,
+        triggers: &[Trigger::OnAlignedActivate(Action::ReduceCooldown(400))],
         quest: None,
         power_bonus: 0,
         price: 15,
@@ -2118,11 +2121,11 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Chest,
         kind: PieceKind::Layer,
         cells: &[(0,0),(1,0),(2,0)],
-        base: Stats { reflect: 4, ..Stats::ZERO },
+        base: Stats { reflect: 12, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
-        speed_bonus: 40,
+        speed_bonus: 0,
         triggers: &[Trigger::OnActivate(Action::GainArmor(2))],
         quest: None,
         power_bonus: 0,
@@ -2133,11 +2136,11 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Mold,
         cells: &[(0,0),(1,0)],
-        base: Stats::ZERO,
+        base: Stats { curse_resist: 12, power: 20, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
-        speed_bonus: 55,
+        speed_bonus: 0,
         triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 5, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
@@ -2159,16 +2162,28 @@ pub static CATALOG: &[PieceDef] = &[
         price: 16,
     },
     PieceDef {
-        name: "Hastening Crest",
+        name: "Watchful Crest",
         slot: SlotKind::Helmet,
         kind: PieceKind::Crest,
         cells: &[(0,0),(0,1)],
-        base: Stats::ZERO,
+        base: Stats { mana: 2, ..Stats::ZERO },
         adjacency: Some(Adjacency { label: "Hastening: +0.20x weapon power", stats: Stats { power: 20, ..Stats::ZERO } }),
         effect: None,
         cooldown_ms: 0,
-        speed_bonus: 30,
-        triggers: &[],
+        speed_bonus: 0,
+        // It was thirty percent haste on an empty stat line, and haste
+        // outside the weapon is the feet's. What a crest can do instead
+        // is watch, and answer what it sees.
+        triggers: &[Trigger::Watch {
+            what: Watched::AnyActivation,
+            count: 5,
+            then: Action::Damage {
+                amount: 26,
+                kind: DamageType::Magic,
+                target: Target::Enemy,
+            },
+            repeats: true,
+        }],
         quest: None,
         power_bonus: 0,
         price: 14,
@@ -2183,7 +2198,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2600,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Curse { kind: CurseKind::Frost, target: Target::Enemy })],
+        triggers: &[Trigger::OnActivate(Action::GainArmor(30))],
         quest: None,
         power_bonus: 0,
         price: 25,
@@ -2208,7 +2223,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Helmet,
         kind: PieceKind::Frame,
         cells: &[(0,0),(1,0),(2,0),(0,1),(1,1),(2,1)],
-        base: Stats { mind_resist: 20, mana: 4, physical_resist: 18, physical_harden: 25, ..Stats::ZERO },
+        base: Stats { mind_resist: 20, mana: 4, physical_resist: 18, magic_resist: 25, ..Stats::ZERO },
         adjacency: Some(Adjacency { label: "Stonewall: +25% physical resistance", stats: Stats { physical_resist: 25, ..Stats::ZERO } }),
         effect: None,
         cooldown_ms: 2800,
@@ -2315,7 +2330,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Curse { kind: CurseKind::Frost, target: Target::Enemy })],
+        triggers: &[Trigger::OnActivate(Action::MindDamage { amount: 22, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 12,
@@ -3217,7 +3232,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Mold,
         cells: &[(0, 0), (1, 0), (0, 1)],
-        base: Stats { mana: 2, ..Stats::power(15) },
+        base: Stats { mana: 2, curse_resist: 10, ..Stats::power(15) },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -3272,7 +3287,10 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 6,
-        triggers: &[Trigger::OnActivate(Action::ReduceCooldown(200))],
+        triggers: &[
+            Trigger::OnActivate(Action::ReduceCooldown(200)),
+            Trigger::OnActivate(Action::Curse { kind: CurseKind::Frost, target: Target::Enemy }),
+        ],
         quest: None,
         power_bonus: 0,
         price: 3,
@@ -3646,10 +3664,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 3500,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Curse {
-            kind: CurseKind::Frost,
-            target: Target::Enemy,
-        })],
+        triggers: &[Trigger::OnActivate(Action::MindDamage { amount: 12, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 10,
@@ -3916,8 +3931,8 @@ pub static CATALOG: &[PieceDef] = &[
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
-        speed_bonus: 60,
-        triggers: &[Trigger::OnAlignedActivate(Action::ReduceCooldown(150))],
+        speed_bonus: 0,
+        triggers: &[Trigger::OnAlignedActivate(Action::ReduceCooldown(450))],
         quest: None,
         power_bonus: 0,
         price: 8,
@@ -4918,12 +4933,11 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         // Growth banked while the fight runs, which is what nature is for.
-        triggers: &[Trigger::Spend {
-            what: Resource::Nature,
-            cost: 12,
-            on_success: Action::Grow(14),
-            on_failure: Action::Gain { what: Resource::Nature, amount: 3 },
-        }],
+                triggers: &[Trigger::OnActivate(Action::Damage {
+            amount: 24,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 80,
         price: 19,
@@ -5088,7 +5102,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Handle,
         cells: &[(0,0),(0,1),(1,1)],
-        base: Stats { strength: 10, mind_resist: 10, ..Stats::ZERO },
+        base: Stats { strength: 10, magic_resist: 10, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 2000,
@@ -5538,7 +5552,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Helmet,
         kind: PieceKind::Frame,
         cells: &[(0,0),(1,0),(2,0),(0,1),(1,1),(2,1)],
-        base: Stats { mind_resist: 18, mana: 3, armor: 34, physical_harden: 20, ..Stats::ZERO },
+        base: Stats { mind_resist: 18, mana: 3, armor: 34, physical_resist: 20, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 4000,
@@ -6383,12 +6397,12 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Mold,
         cells: &[(0,0),(0,1),(1,1)],
-        base: Stats { power: 15, ..Stats::ZERO },
+        base: Stats { power: 25, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
-        speed_bonus: 12,
-        triggers: &[Trigger::OnAlignedActivate(Action::ReduceCooldown(150))],
+        speed_bonus: 0,
+        triggers: &[Trigger::OnAlignedActivate(Action::ReduceCooldown(300))],
         quest: None,
         power_bonus: 0,
         price: 10,
@@ -6398,12 +6412,12 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Mold,
         cells: &[(0,0),(0,1),(1,1)],
-        base: Stats { power: 25, ..Stats::ZERO },
+        base: Stats { power: 35, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
-        speed_bonus: 20,
-        triggers: &[Trigger::OnAdjacentActivate(Action::ReduceCooldown(200))],
+        speed_bonus: 0,
+        triggers: &[Trigger::OnAdjacentActivate(Action::ReduceCooldown(380))],
         quest: None,
         power_bonus: 0,
         price: 17,
@@ -6508,7 +6522,10 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 12,
-        triggers: &[Trigger::OnActivate(Action::ReduceCooldown(150))],
+        triggers: &[
+            Trigger::OnActivate(Action::ReduceCooldown(150)),
+            Trigger::OnActivate(Action::Curse { kind: CurseKind::Stun, target: Target::Enemy }),
+        ],
         quest: None,
         power_bonus: 0,
         price: 7,
@@ -6553,7 +6570,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::ReduceCooldown(150))],
+        triggers: &[Trigger::OnActivate(Action::Curse { kind: CurseKind::Misfire, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 14,
@@ -6890,11 +6907,13 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2800,
         speed_bonus: 0,
-        triggers: &[Trigger::Spend {
-            what: Resource::Nature,
-            cost: 10,
-            on_success: Action::Grow(11),
-            on_failure: Action::Gain { what: Resource::Nature, amount: 3 },
+        // A herbal doubles the dose. It grew you before, which is the
+        // body's; what a book does is make the cast land twice.
+        triggers: &[Trigger::Watch {
+            what: Watched::AnyActivation,
+            count: 10,
+            then: Action::GainForking(1),
+            repeats: true,
         }],
         quest: None,
         power_bonus: 0,
@@ -6920,7 +6939,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Book,
         cells: &[(0,0),(1,0),(2,0),(1,1)],
-        base: Stats { mana: 2, mind_resist: 12, ..Stats::ZERO },
+        base: Stats { mana: 2, magic_resist: 12, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 2400,
@@ -7072,12 +7091,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2700,
         speed_bonus: 0,
-        triggers: &[Trigger::Spend {
-            what: Resource::Nature,
-            cost: 9,
-            on_success: Action::Grow(16),
-            on_failure: Action::Gain { what: Resource::Nature, amount: 3 },
-        }],
+                triggers: &[Trigger::OnActivate(Action::Damage {
+            amount: 34,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 65,
         price: 22,
@@ -7177,7 +7195,6 @@ pub static CATALOG: &[PieceDef] = &[
             magic_resist: 40,
             physical_harden: 30,
             magic_harden: 30,
-            mind_resist: 40,
             curse_resist: 40,
             ..Stats::ZERO
         },
@@ -7210,7 +7227,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Grow(40))],
+        triggers: &[Trigger::OnActivate(Action::GainShield(1))],
         quest: None,
         power_bonus: 0,
         price: 46,
@@ -7275,7 +7292,13 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Grow(35))],
+        // It ate to get bigger. Growing is the body's; a fang converts what
+        // it takes into a harder bite, which is the weapon's.
+        triggers: &[Trigger::OnActivate(Action::Damage {
+            amount: 30,
+            kind: DamageType::Physical,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 0,
         price: 55,
@@ -7474,20 +7497,16 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Chest,
         kind: PieceKind::Layer,
         cells: &[(0,0),(1,0),(2,0)],
-        base: Stats { nature: 2, ..Stats::health(40) },
+        base: Stats { ..Stats::health(40) },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::Consume {
-            what: Resource::Nature,
-            each: 5,
-            per: Action::Damage {
-                amount: 8,
-                kind: DamageType::Magic,
-                target: Target::Enemy,
-            },
-        }],
+                triggers: &[Trigger::OnActivate(Action::Damage {
+            amount: 16,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 0,
         price: 24,
@@ -7518,16 +7537,14 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Chest,
         kind: PieceKind::Base,
         cells: &[(0,0),(1,0),(0,1),(1,1)],
-        base: Stats { rage: 2, ..Stats::health(60) },
+        base: Stats { ..Stats::health(60) },
         adjacency: None,
         effect: None,
         cooldown_ms: 4800,
         speed_bonus: 0,
-        triggers: &[Trigger::Consume {
-            what: Resource::Rage,
-            each: 6,
-            per: Action::GainArmor(11),
-        }],
+        // Emptying a pool in one go is the head's verb. A blood bank still
+        // pays out; it just does it on the clock.
+        triggers: &[Trigger::OnActivate(Action::GainArmor(18))],
         quest: None,
         power_bonus: 0,
         price: 27,
@@ -7563,11 +7580,15 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::Consume {
+        // A deep draught taken off somebody else. Consuming a pool is the
+        // head's and growing is the body's; drinking a neighbour's is
+        // exactly what the hands are for.
+        triggers: &[Trigger::OnAdjacentActivate(Action::Drain {
             what: Resource::Mana,
-            each: 5,
-            per: Action::Grow(9),
-        }],
+            amount: 4,
+            hurt: 5,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 0,
         price: 19,
@@ -7663,10 +7684,15 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::Consume {
-            what: Resource::Rage,
-            each: 5,
-            per: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
+        // A grudge compounds. It counted rage before, which is the head's
+        // way of counting; this counts what has already landed - and pays in a
+        // blow rather than another curse, because a curse watcher answering
+        // with a curse counts its own answer and the fight never returns.
+        triggers: &[Trigger::Watch {
+            what: Watched::CurseApplied,
+            count: 3,
+            then: Action::Damage { amount: 30, kind: DamageType::Physical, target: Target::Enemy },
+            repeats: true,
         }],
         quest: None,
         power_bonus: 0,
@@ -7686,7 +7712,7 @@ pub static CATALOG: &[PieceDef] = &[
         triggers: &[Trigger::Consume {
             what: Resource::Nature,
             each: 6,
-            per: Action::Grow(13),
+            per: Action::GainMana(4),
         }],
         quest: None,
         power_bonus: 0,
@@ -7721,15 +7747,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::Consume {
-            what: Resource::Faith,
-            each: 4,
-            per: Action::Damage {
-                amount: 13,
-                kind: DamageType::Magic,
-                target: Target::Enemy,
-            },
-        }],
+                triggers: &[Trigger::OnActivate(Action::Damage {
+            amount: 26,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 0,
         price: 24,
@@ -7821,7 +7843,7 @@ pub static CATALOG: &[PieceDef] = &[
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
-        speed_bonus: 60,
+        speed_bonus: 0,
         triggers: &[Trigger::OnActivate(Action::Curse { kind: CurseKind::Misfire, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
@@ -7981,13 +8003,16 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[
-            // The opening stays. This piece is named for it, and a name is a
-            // key here - the effects suite reads this one as its example of
-            // gear that shows up already holding something. It is a gloves
-            // piece carrying the feet's mechanic and the shape test says so,
-            // which is the honest state of it rather than a piece gutted to
-            // make a number smaller.
-            Trigger::OnBattleStart(Action::Gain { what: Resource::Rage, amount: 14 }),
+            // The opening stays; it is what the piece is named for. What
+            // changed is the verb. Opening the fight is the feet's, so this
+            // watches instead and pays on the first thing that happens - one
+            // tick later, and a mechanic the hands are allowed to hold.
+            Trigger::Watch {
+                what: Watched::AnyActivation,
+                count: 1,
+                then: Action::Gain { what: Resource::Rage, amount: 14 },
+                repeats: false,
+            },
             // And the hand's answer on top, which is the axis it does belong to.
             Trigger::OnAdjacentActivate(Action::Damage {
                 amount: 25,
@@ -8009,7 +8034,22 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnBattleStart(Action::Gain { what: Resource::Faith, amount: 14 })],
+        // A vigil is kept, not begun. Opening the fight is the feet's, so it
+        // keeps watch instead and pays on the first thing it sees - and
+        // then spends the vigil it has kept.
+        triggers: &[
+            Trigger::Watch {
+                what: Watched::AnyActivation,
+                count: 1,
+                then: Action::Gain { what: Resource::Faith, amount: 14 },
+                repeats: false,
+            },
+            Trigger::Consume {
+                what: Resource::Faith,
+                each: 7,
+                per: Action::GainShield(1),
+            },
+        ],
         quest: None,
         power_bonus: 0,
         price: 24,
@@ -8019,12 +8059,20 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Chest,
         kind: PieceKind::Layer,
         cells: &[(0,0),(1,0),(2,0)],
-        base: Stats { ..Stats { nature: 1, ..Stats::health(45) } },
+        base: Stats { nature: 1, ..Stats::health(45) },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnBattleStart(Action::Gain { what: Resource::Nature, amount: 14 })],
+        // A seedbed sows and reaps. Nature could only ever buy harm and more
+        // of itself once growing came home to the body; this is where it
+        // buys growth, which is the body's to sell.
+        triggers: &[Trigger::Spend {
+            what: Resource::Nature,
+            cost: 5,
+            on_success: Action::Grow(30),
+            on_failure: Action::Gain { what: Resource::Nature, amount: 4 },
+        }],
         quest: None,
         power_bonus: 0,
         price: 25,
@@ -8040,11 +8088,19 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnBattleStart(Action::Damage {
-            amount: 34,
-            kind: DamageType::Magic,
-            target: Target::Enemy,
-        })],
+        // Still the first word, counted rather than declared. Opening the
+        // fight is the feet's; a watcher that fires once on the first
+        // thing to happen says the same thing in a verb the weapon owns.
+        triggers: &[Trigger::Watch {
+            what: Watched::AnyActivation,
+            count: 1,
+            then: Action::Damage {
+                amount: 34,
+                kind: DamageType::Magic,
+                target: Target::Enemy,
+            },
+            repeats: false,
+        }],
         quest: None,
         power_bonus: 0,
         price: 27,
@@ -8113,7 +8169,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 5000,
         speed_bonus: 0,
-        triggers: &[Trigger::OnBattleStart(Action::Grow(40))],
+        triggers: &[Trigger::OnActivate(Action::Grow(20))],
         quest: None,
         power_bonus: 0,
         price: 34,
@@ -8137,7 +8193,15 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[
-            Trigger::OnBattleStart(Action::GainArmor(140)),
+            // It arrives holding something, which is the whole joke, and it
+            // arrives one tick late now because starting the fight belongs to
+            // the feet.
+            Trigger::Watch {
+                what: Watched::AnyActivation,
+                count: 1,
+                then: Action::GainArmor(140),
+                repeats: false,
+            },
             // It is a gift from something that counts, and it counts. Eight of
             // anything you do and it takes a little more off you than it gave.
             Trigger::Watch {
@@ -8176,7 +8240,7 @@ pub static CATALOG: &[PieceDef] = &[
         triggers: &[Trigger::Spend {
             what: Resource::Faith,
             cost: 14,
-            on_success: Action::GainForking(1),
+            on_success: Action::GainEmpowerment(2),
             on_failure: Action::Gain { what: Resource::Faith, amount: 4 },
         }],
         quest: None,
@@ -8189,17 +8253,15 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Chest,
         kind: PieceKind::Layer,
         cells: &[(0,0),(1,0),(2,0)],
-        base: Stats { nature: 2, ..Stats::health(40) },
+        base: Stats { reflect: 12, ..Stats::health(40) },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::Spend {
-            what: Resource::Nature,
-            cost: 14,
-            on_success: Action::GainForking(1),
-            on_failure: Action::Gain { what: Resource::Nature, amount: 4 },
-        }],
+        // A weave in two plies, which is what the name says and what a
+        // body does with a blow: splits it. Forking is the weapon's, and
+        // reflection is the only offence the chest has.
+        triggers: &[],
         quest: None,
         power_bonus: 0,
         price: 40,
@@ -8211,12 +8273,19 @@ pub static CATALOG: &[PieceDef] = &[
         cells: &[(0,0),(1,0),(0,1)],
         base: Stats { mana: 2, ..Stats::ZERO },
         adjacency: None,
-        effect: None,
+        // Twinning without forking. Doubling a neighbour's number is the
+        // hands' own doubling and the exclusivity table says so; the
+        // cast-doubling it used to buy is the weapon's.
+        effect: Some(Effect {
+            label: "Twinning: double the power of the item beside it",
+            when: When::Assembled,
+            kind: EffectKind::DoubleAdjacentItemStat { stat: StatKind::Power },
+        }),
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[Trigger::SpendMana {
             cost: 8,
-            on_success: Action::GainForking(1),
+            on_success: Action::Drain { what: Resource::Mana, amount: 4, hurt: 4, target: Target::Enemy },
             on_failure: Action::GainMana(3),
         }],
         quest: None,
@@ -8236,7 +8305,7 @@ pub static CATALOG: &[PieceDef] = &[
         triggers: &[Trigger::Spend {
             what: Resource::Rage,
             cost: 14,
-            on_success: Action::GainForking(1),
+            on_success: Action::ReduceCooldown(450),
             on_failure: Action::Gain { what: Resource::Rage, amount: 4 },
         }],
         quest: None,
@@ -8254,10 +8323,11 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::Consume {
-            what: Resource::Mana,
-            each: 10,
-            per: Action::GainForking(1),
+                triggers: &[Trigger::Watch {
+            what: Watched::AnyActivation,
+            count: 8,
+            then: Action::GainForking(1),
+            repeats: true,
         }],
         quest: None,
         power_bonus: 0,
@@ -8848,10 +8918,15 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::Consume {
+        // A handful at a time rather than the whole harvest at once.
+        // Emptying a pool in one go is the head's verb by the
+        // exclusivity table, and a Spell cannot be a helmet piece - so
+        // the sink keeps its sentence and loses its scale.
+        triggers: &[Trigger::Spend {
             what: Resource::Nature,
-            each: 8,
-            per: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
+            cost: 8,
+            on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
+            on_failure: Action::Gain { what: Resource::Nature, amount: 3 },
         }],
         quest: None,
         power_bonus: 0,

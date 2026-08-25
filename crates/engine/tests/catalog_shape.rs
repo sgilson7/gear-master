@@ -247,7 +247,7 @@ const RULES: &[Rule] = &[
         carries: |d| matches!(d.kind, PieceKind::Ink | PieceKind::Spell | PieceKind::Alignment
             | PieceKind::Book | PieceKind::Orb) },
     Rule { what: "GainForking", home: SlotKind::Weapon, level: Level::Only, shared_with: &[],
-        budget: 4, target: 0, carries: |d| does(d, |a| matches!(a, Action::GainForking(_))) },
+        budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::GainForking(_))) },
     Rule { what: "OnOtherCast", home: SlotKind::Weapon, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnOtherCast(_))) },
     Rule { what: "PerAdjacentEmpty", home: SlotKind::Weapon, level: Level::Only, shared_with: &[],
@@ -264,7 +264,7 @@ const RULES: &[Rule] = &[
 
     // Helmet - Economy. What the pools are for.
     Rule { what: "Consume", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
-        budget: 7, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::Consume { .. })) },
+        budget: 0, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::Consume { .. })) },
     Rule { what: "GainEmpowerment", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::GainEmpowerment(_))) },
     Rule { what: "GainShield", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
@@ -272,11 +272,11 @@ const RULES: &[Rule] = &[
     Rule { what: "MindDamage", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::MindDamage { .. })) },
     Rule { what: "mind_resist", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
-        budget: 3, target: 0, carries: |d| d.base.mind_resist != 0 },
+        budget: 0, target: 0, carries: |d| d.base.mind_resist != 0 },
 
     // Chest - Reserve. Outlasting is its offence.
     Rule { what: "Grow", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
-        budget: 7, target: 0, carries: |d| does(d, |a| matches!(a, Action::Grow(_))) },
+        budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::Grow(_))) },
     // Reflection is the body's attack and the body's alone. It is the one
     // offensive verb that *is* outlasting - it pays only what the armour ate,
     // so it does nothing on a board that dies fast - which is why it belongs
@@ -284,7 +284,7 @@ const RULES: &[Rule] = &[
     Rule { what: "reflect", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| d.base.reflect != 0 },
     Rule { what: "harden", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
-        budget: 2, target: 0,
+        budget: 0, target: 0,
         carries: |d| d.base.physical_harden != 0 || d.base.magic_harden != 0 },
     Rule { what: "health above 15", home: SlotKind::Chest, level: Level::Mostly(70),
         shared_with: &[], budget: 0, target: 0, carries: |d| d.base.health > 15 },
@@ -308,9 +308,9 @@ const RULES: &[Rule] = &[
     // Greaves - Tempo. Who moves, how often, and first. The weapon keeps its
     // own cadence tools; everything else gives them up.
     Rule { what: "OnBattleStart", home: SlotKind::Greaves, level: Level::Only, shared_with: &[],
-        budget: 6, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnBattleStart(_))) },
+        budget: 0, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnBattleStart(_))) },
     Rule { what: "speed_bonus outside the weapon", home: SlotKind::Greaves, level: Level::Only,
-        shared_with: &[SlotKind::Weapon], budget: 8, target: 0, carries: |d| d.speed_bonus != 0 },
+        shared_with: &[SlotKind::Weapon], budget: 0, target: 0, carries: |d| d.speed_bonus != 0 },
     // Gloves share this one. The bleed cycle has the hands bleeding into the
     // feet, and §3.4 names the piece that does it: a reaction whose payout is
     // tempo. Barring gloves outright made the slot's own designed bleed
@@ -324,7 +324,7 @@ const RULES: &[Rule] = &[
         shared_with: &[SlotKind::Greaves], budget: 0, target: 0,
         carries: |d| d.kind.is_underlay() },
     Rule { what: "frost, stun and misfire", home: SlotKind::Greaves, level: Level::Mostly(70),
-        shared_with: &[], budget: 3, target: 0,
+        shared_with: &[], budget: 0, target: 0,
         carries: |d| does(d, |a| matches!(a, Action::Curse {
             kind: CurseKind::Frost | CurseKind::Stun | CurseKind::Misfire, .. })) },
 ];
@@ -420,11 +420,11 @@ const EVENTUAL_FILLER_PCT: usize = 15;
 /// figure in the commit that earns it; never raise one.
 const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
     (SlotKind::Helmet, "expresses its own axis", 0),
-    (SlotKind::Helmet, "expresses its bleed axis", 1),
+    (SlotKind::Helmet, "expresses its bleed axis", 0),
     (SlotKind::Helmet, "plain flat-stat filler", 0),
     (SlotKind::Helmet, "the dearest third interacts", 0),
     (SlotKind::Chest, "expresses its own axis", 0),
-    (SlotKind::Chest, "expresses its bleed axis", 5),
+    (SlotKind::Chest, "expresses its bleed axis", 0),
     (SlotKind::Chest, "plain flat-stat filler", 0),
     (SlotKind::Chest, "the dearest third interacts", 0),
     (SlotKind::Chest, "pool-spend texture", 0),
@@ -439,7 +439,7 @@ const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
     (SlotKind::Greaves, "the dearest third interacts", 0),
     (SlotKind::Greaves, "pool-spend texture", 0),
     (SlotKind::Weapon, "the dearest third interacts", 0),
-    (SlotKind::Weapon, "pool-spend texture", 5),
+    (SlotKind::Weapon, "pool-spend texture", 0),
 ];
 
 fn budget_for(slot: SlotKind, what: &str) -> usize {

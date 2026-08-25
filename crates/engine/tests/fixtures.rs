@@ -28,6 +28,11 @@ use gearmaster_engine::piece::{Action, PieceDef, Trigger, CATALOG};
 
 /// What a fixture needs its piece to still do.
 #[derive(Copy, Clone)]
+// The vocabulary outlives the rows. Four of these five have no row left - the
+// sweep took the mechanics they named out of the slots they were sitting in,
+// which is the manifest working - and the next fixture that leans on something
+// will want the word already here rather than reinvented.
+#[allow(dead_code)]
 enum Needs {
     OpensTheFight,
     #[allow(dead_code)] // the empowerment rows retired; the mechanic has not
@@ -94,12 +99,7 @@ impl Needs {
 /// Where the mechanic is one the rewrite is still moving, the slot it is
 /// bound for is named too — those rows are the ones expected to go.
 const LEANED_ON: &[(&str, &str, Needs, &str)] = &[
-    ("Vigil Crest", "drains", Needs::OpensTheFight, "greaves"),
-    ("Opening Grudge", "effects::a_prepared_item_only_opens_once", Needs::OpensTheFight, "greaves"),
-    ("Twinning Mold", "effects", Needs::Forks, "weapon"),
     ("Hermit's Band", "effects", Needs::CarriesRealHealth, "chest"),
-    ("Gluttonous Fang", "progression", Needs::Grows, "chest"),
-    ("Slash and Burn", "slash_and_burn", Needs::SpendsAWholePool, "helmet"),
 ];
 
 #[test]

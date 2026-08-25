@@ -203,6 +203,32 @@ them has been touched.
 
 ---
 
+## 11. A watcher that answers what it watches for does not return
+
+`Trigger::Watch { what: CurseApplied, then: Action::Curse { .. } }` counts a
+curse landing and lands a curse. The second curse is a curse landing, so it
+counts, so it lands another. One accessory was written that way during the
+mechanic sweep and the whole test binary died with
+
+    fatal runtime error: stack overflow, aborting
+
+in two files that had nothing to do with the piece. No catalogue test could see
+it: the shape rules read a `PieceDef`, and this is a property of two triggers
+meeting at runtime.
+
+`notify_curse_watchers` no longer re-enters. The piece was fixed as well - a
+grudge pays in a blow now - but the guard is the part that matters, because the
+next author to write that trigger pair should get a piece that works rather
+than a crash three files away.
+
+The general shape is worth holding on to: **`Watch` is the one trigger whose
+payload can produce the event it counts.** Activations cannot, because a
+reaction never emits one; curses can, and so could any future `Watched` variant
+whose event an `Action` is able to cause.
+
+
+---
+
 ## 9. What is worth checking at the end
 
 Running list, so the last mile is not guesswork.
@@ -226,3 +252,5 @@ Running list, so the last mile is not guesswork.
 - **Damage stats outside the weapon (see 10).** Twenty-three components price
   damage they cannot deal. Either the stat should reach the slot or the rating
   should stop paying for it, and the first is a combat change.
+- **Watchers that can feed themselves (see 11).** Guarded for curses; any new
+  `Watched` variant needs the same question asked of it before it ships.

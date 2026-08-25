@@ -201,7 +201,28 @@ fn an_oracle_stops_their_gear() {
 
     // A deep monster, not a rat: an Oracle needs four activations to reach the
     // clock and a rat does not last four activations.
-    let tough = &LADDER[30];
+    //
+    // Searched rather than named. This stood at rung 31, and the creature
+    // there froze and stunned the fixture's one item down to three activations
+    // - one short - which read as "the Oracle stopped working" when it meant
+    // the fixture never got its fourth turn. What the test needs is a creature
+    // this build survives long enough to take four turns against, so find the
+    // deepest one that is true of.
+    let turns = |spec: &gearmaster_engine::combat::MonsterSpec| -> usize {
+        simulate_with_class(stats, &profiles, spec, Difficulty::Medium, &[])
+            .entries
+            .iter()
+            .filter(|e| matches!(e.event, Event::Activate { side: Side::Player, .. }))
+            .count()
+    };
+    // Shallowest, not deepest. Two things have to be true at once: the fight
+    // lasts four of this build's turns, and the creature is not so far up the
+    // ladder that its curse resistance shrugs the stun off - and those pull in
+    // opposite directions, so take the first rung where both hold.
+    let tough = LADDER
+        .iter()
+        .find(|spec| turns(spec) >= 4 && spec.curse_resist < 20)
+        .expect("nothing on the ladder lets this fixture take four turns and feel a curse");
     let stuns = |class: &[gearmaster_engine::class::ClassDef]| -> usize {
         let log = simulate_with_class(stats, &profiles, tough, Difficulty::Medium, class);
         log.entries

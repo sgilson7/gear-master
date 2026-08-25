@@ -1112,3 +1112,65 @@ gloves and weapon cost 19-100% of TTK on the owner's board, chest and greaves
 cost 0-12% of TTK and 18-44% of the health left, which is the reading that
 matches what those two slots do.
 
+---
+
+## Drift — the mechanics come home, and the ratchet goes green
+
+`the_catalog_keeps_every_rule` **passes**. It was sixty-nine rules unmet when
+this pass began.
+
+Forty-three pieces moved in this commit. `GainForking` (4), `Consume` (7),
+`mind_resist` (3), `Grow` (7), `harden` (2), `OnBattleStart` (6), `speed_bonus`
+(8) and three time-curses came home to their slots, and each one was translated
+rather than deleted: a herbal doubles the dose instead of growing you, a
+gluttonous fang bites harder instead of swelling, a split weave splits the blow.
+
+One rename: `Hastening Crest` is **Watchful Crest**, because a crest cannot
+promise haste - haste is the feet's, and a Plating floats into their grid.
+
+Every quota is in band on every slot:
+
+| slot | own axis | bleed | filler | dearest third | pool-spend |
+|---|---:|---:|---:|---:|---:|
+| Helmet | 77.5% | 21.2% | 25.0% | 42.3% | — |
+| Chest | 98.6% | 24.6% | 11.6% | 36.4% | 5.8% |
+| Gloves | 63.4% | 20.7% | 15.9% | 63.0% | 11.0% |
+| Greaves | 75.8% | 22.7% | 12.1% | 47.6% | 7.6% |
+| Weapon | — | — | — | 37.5% | 14.0% |
+
+Identity mechanics on floating kinds: **0**. Dull epic/legendary non-weapons: **0**.
+
+### The four criteria
+
+| build | cleared | weapon share | median ttk |
+|---|---|---|---|
+| starter | 2/50 | 100.0% | 45.00s |
+| preset | 9/50 | 100.0% | 9.00s |
+| **owner** | **50/50** | **74.9%** | 10.50s |
+| friend | 48/50 | 97.6% | 7.75s |
+
+Criterion 1 holds at 74.9% against 66-76%. Criterion 3 holds. Criterion 4 holds.
+Criterion 2 is unchanged: helmet, gloves and weapon cost 19-100% of TTK on the
+owner's board; chest and greaves cost almost no TTK and a third of the health
+left, which is the reading that matches what those two slots are for.
+
+### What the sweep cost, and what it bought
+
+`rating.rs` gained one correction. A creature's holding pools are re-priced at
+what `held_bonus` converts them to rather than at what a player would pay for
+the choice - a point of nature is a point of regeneration, and a creature never
+spends any of it. Without that, stepping *down* walked Francis into three crowns
+carrying nature between them; his regeneration on Easy came out four times what
+it was on Medium, and the best board in the project lost to him on the easiest
+setting and beat him on the next two.
+
+`fixtures.rs` is down to **one row** from eleven. Four of its predictions came
+true in this commit, each naming the test it was about to break before it broke
+it. That is the manifest working exactly as designed.
+
+Four tests had their sample widened or their target searched rather than named -
+`an_oracle_stops_their_gear` now finds a creature its fixture survives four
+turns against instead of trusting rung 31, and `growth_is_kept_after_a_loss_too`
+finds the deepest rung that beats its fixture *slowly* instead of assuming the
+last one does.
+

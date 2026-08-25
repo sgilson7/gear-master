@@ -1294,9 +1294,13 @@ fn growth_is_kept_between_fights() {
 
     let mut run = Run::with_all_pieces();
     // A weapon that grows every time it swings.
+    // Growing is the body's now, so the fixture is a body. The fang grew when
+    // it bit, which was the weapon holding the chest's mechanic; a weapon
+    // converts what it takes into a harder blow instead.
     equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
-    equip(&mut run, "Gluttonous Fang", SlotKind::Weapon, 1, 0);
-    assert_eq!(run.report(SlotKind::Weapon).assembled_count(), 1);
+    equip(&mut run, "Deep Roots Base", SlotKind::Chest, 0, 0);
+    equip(&mut run, "Rag Layer", SlotKind::Chest, 0, 2);
+    assert_eq!(run.report(SlotKind::Chest).assembled_count(), 1);
 
     let before = run.player_stats().health;
     assert_eq!(run.grown_health, 0, "nothing grown yet");
@@ -1325,15 +1329,38 @@ fn growth_is_kept_between_fights() {
 fn growth_is_kept_after_a_loss_too() {
     use gearmaster_engine::piece::SlotKind;
 
-    let mut run = Run::with_all_pieces();
-    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
-    equip(&mut run, "Gluttonous Fang", SlotKind::Weapon, 1, 0);
-    // The top of the ladder, where this build has no chance. Named as "the
-    // last rung" rather than as a number: a two-piece fixture loses to the end
-    // of the ladder whatever the end of the ladder is wearing, and rung 41 was
-    // only ever a guess at how far up "no chance" starts.
-    run.rung = LADDER.len() - 1;
+    // Growing is the body's now, so the fixture is a body. The fang grew when
+    // it bit, which was the weapon holding the chest's mechanic; a weapon
+    // converts what it takes into a harder blow instead.
+    let fixture = || {
+        let mut run = Run::with_all_pieces();
+        equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+        equip(&mut run, "Deep Roots Base", SlotKind::Chest, 0, 0);
+        equip(&mut run, "Rag Layer", SlotKind::Chest, 0, 2);
+        equip(&mut run, "Riveted Layer", SlotKind::Chest, 2, 2);
+        equip(&mut run, "Scale Layer", SlotKind::Chest, 0, 3);
+        run
+    };
 
+    // Searched, not guessed. This stood at the last rung, on the reasoning
+    // that a thin fixture loses to the top of the ladder whatever the top of
+    // the ladder is wearing - and that is true, but a chest item comes round
+    // once every five seconds and against Francis the fixture is dead in two
+    // and a half. The deepest rung it can lose to *slowly* is the one that
+    // says anything, and where that is depends on the ladder, so find it.
+    let deepest = (0..LADDER.len())
+        .rev()
+        .find(|&rung| {
+            let mut run = fixture();
+            run.rung = rung;
+            let outcome = run.fight_next().outcome;
+            run.settle();
+            outcome != Outcome::Victory && run.grown_health > 0
+        })
+        .expect("no rung both beats this fixture and lasts long enough for it to grow");
+
+    let mut run = fixture();
+    run.rung = deepest;
     let log = run.fight_next();
     assert_ne!(log.outcome, Outcome::Victory, "the fixture should be losing this");
     run.settle();
@@ -1359,8 +1386,12 @@ fn a_stalemate_banks_no_growth() {
     use gearmaster_engine::piece::SlotKind;
 
     let mut run = Run::with_all_pieces();
+    // Growing is the body's now, so the fixture is a body. The fang grew when
+    // it bit, which was the weapon holding the chest's mechanic; a weapon
+    // converts what it takes into a harder blow instead.
     equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
-    equip(&mut run, "Gluttonous Fang", SlotKind::Weapon, 1, 0);
+    equip(&mut run, "Deep Roots Base", SlotKind::Chest, 0, 0);
+    equip(&mut run, "Rag Layer", SlotKind::Chest, 0, 2);
 
     run.fight_next();
     // The fixture has to actually grow, or this test proves nothing.

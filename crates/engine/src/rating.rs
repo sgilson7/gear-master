@@ -756,11 +756,54 @@ fn piece_points(def: &PieceDef, cooldown_ms: u32) -> f32 {
 /// track what wins fights, not that this function is the last word on it.
 pub fn monster_value(def: &PieceDef) -> f32 {
     let mut v = piece_points(def, def.cooldown_ms);
+    // A holding pool is priced as a pool for a player and as what it converts
+    // to for a creature.
+    //
+    // `RESOURCE_PS` prices a point of rage, faith or nature at what it is
+    // worth to somebody who will decide what to spend it on. A creature never
+    // decides anything: its gear is fixed, it rarely carries a sink, and every
+    // point it starts with sits there paying `held_bonus` for the whole fight
+    // - a point of nature is a point of regeneration, a point of faith is two
+    // of each resistance, a point of rage is a point of physical damage. So
+    // the pool stats are re-priced here at their conversion.
+    //
+    // This is not a rounding difference. Stepping *down* walked Francis into
+    // three crowns carrying nature between them; his regeneration on Easy came
+    // out four times what it was on Medium, and the best board in the project
+    // lost to him on the easiest setting and beat him on the next two.
+    let held = &def.base;
+    v -= (held.rage + held.faith + held.nature) as f32 * weight::RESOURCE_PS;
+    v += held.nature as f32 * weight::REGEN;
+    v += held.rage as f32 * weight::DAMAGE_PS;
+    v += held.faith as f32 * 2.0 * weight::RESIST * 2.0;
     for t in def.triggers {
         let mut discount = 0.0f32;
+        let mut premium = 0.0f32;
         crate::piece::walk_actions(t, &mut |a| {
             discount += match a {
                 Action::Drain { .. } | Action::MindDamage { .. } => action_points(a),
+                _ => 0.0,
+            };
+            // Banking a holding pool compounds, and only for a creature.
+            //
+            // A point of rage, faith or nature pays its `held_bonus` for the
+            // rest of the fight, and a creature never spends any of it - its
+            // gear is fixed and rarely carries a sink. So a piece that banks
+            // every time it comes round is not worth one payout, it is worth
+            // one payout still running when the next arrives. Priced flat, it
+            // sorts below the piece it should sort above, and stepping *down*
+            // walked Francis into three crowns that each banked nature: his
+            // regeneration on Easy came out four times what it was on Medium,
+            // and the best board in the project lost to him on the easiest
+            // setting and beat him on the next two.
+            //
+            // Mana is left out on purpose. It is fuel rather than a holding,
+            // it pays nothing passively, and a creature with no sink for it
+            // has banked nothing at all.
+            premium += match a {
+                Action::Gain { what, .. } if *what != crate::piece::Resource::Mana => {
+                    action_points(a)
+                }
                 _ => 0.0,
             };
         });
@@ -768,6 +811,7 @@ pub fn monster_value(def: &PieceDef) -> f32 {
             discount += trigger_points(t).max(0.0);
         }
         v -= discount;
+        v += premium;
     }
     v
 }

@@ -1429,7 +1429,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Sanctified Material", SlotKind::Gloves, 0, 0, 1),
             ("Gauntlet Mold", SlotKind::Gloves, 2, 0, 1),
             ("Unshod Signet", SlotKind::Gloves, 5, 0, 0),
-            ("Ring of Roots", SlotKind::Gloves, 1, 1, 0),
+            ("Piercer's Band", SlotKind::Gloves, 1, 1, 0),
             ("Sanctified Material", SlotKind::Gloves, 3, 1, 1),
             ("Deft Mold", SlotKind::Gloves, 5, 1, 1),
             ("Unshod Signet", SlotKind::Gloves, 2, 2, 0),
@@ -2031,7 +2031,7 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Gauntlet Mold", SlotKind::Gloves, 3, 6, 3),
             ("Overseer's Circlet", SlotKind::Helmet, 0, 0, 0),
             ("Consecrated Plating", SlotKind::Helmet, 3, 0, 0),
-            ("Hastening Crest", SlotKind::Helmet, 5, 0, 0),
+            ("Watchful Crest", SlotKind::Helmet, 5, 0, 0),
             ("Overseer's Circlet", SlotKind::Helmet, 0, 2, 0),
             ("Consecrated Plating", SlotKind::Helmet, 3, 2, 0),
             ("Bloomcap", SlotKind::Helmet, 4, 3, 1),
@@ -2824,6 +2824,15 @@ pub struct Combatant {
     /// every tick buries everything else under a wall of "burns for 1".
     burn_acc: i32,
     burn_timer: u32,
+    /// Non-zero while curse watchers are being told about a curse.
+    ///
+    /// A watcher that counts curses and answers with a curse would count its
+    /// own answer and answer that, and so on until the stack ran out - which
+    /// is exactly what one accessory did, and the crash arrived as a fatal
+    /// runtime error in a test three files away rather than as anything the
+    /// catalogue tests could see. Nothing an author writes should be able to
+    /// do that, so the notification does not re-enter.
+    curse_watch_depth: u32,
 }
 
 impl Combatant {
@@ -2891,6 +2900,7 @@ impl Combatant {
             regen_milli: 0,
             burn_acc: 0,
             burn_timer: 0,
+            curse_watch_depth: 0,
         }
     }
 
@@ -2994,6 +3004,7 @@ impl Combatant {
             regen_milli: 0,
             burn_acc: 0,
             burn_timer: 0,
+            curse_watch_depth: 0,
         }
     }
 
@@ -4717,10 +4728,15 @@ fn notify_curse_watchers(
     t: u32,
     log: &mut Vec<LogEntry>,
 ) {
+    if p.curse_watch_depth > 0 {
+        return;
+    }
+    p.curse_watch_depth += 1;
     let count = pick(p, foes, me).items.len();
     for j in 0..count {
         tick_watchers(p, foes, me, j, Watched::CurseApplied, t, log);
     }
+    p.curse_watch_depth -= 1;
 }
 
 /// `owner` is the item the action belongs to, needed by effects that act on

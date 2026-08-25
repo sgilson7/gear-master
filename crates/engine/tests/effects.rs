@@ -516,11 +516,19 @@ fn a_prepared_item_only_opens_once() {
     use gearmaster_engine::piece::SlotKind;
     use gearmaster_engine::run::Run;
 
+    // Two items, because what the piece watches for is *another* item taking a
+    // turn. It opened the fight with `OnBattleStart` and opening the fight is
+    // the feet's, so it keeps a watch that pays on the first thing to happen
+    // and never again - one tick later than the bell, and still exactly once.
+    // A one-item board gives it nothing to see.
     let mut run = Run::with_all_pieces();
     equip(&mut run, "Leather Material", SlotKind::Gloves, 0, 0);
     equip(&mut run, "Gripping Mold", SlotKind::Gloves, 2, 0);
     equip(&mut run, "Opening Grudge", SlotKind::Gloves, 0, 2);
+    equip(&mut run, "Oak Handle", SlotKind::Weapon, 0, 0);
+    equip(&mut run, "Iron Blade", SlotKind::Weapon, 1, 0);
     assert_eq!(run.report(SlotKind::Gloves).assembled_count(), 1, "the fixture must assemble");
+    assert_eq!(run.report(SlotKind::Weapon).assembled_count(), 1, "and something to watch");
 
     let profiles = run.combat_items();
     let mut stats = run.player_stats();
@@ -528,15 +536,23 @@ fn a_prepared_item_only_opens_once() {
     let foe = LADDER.iter().find(|m| m.name == "Cave Rat").unwrap();
     let log = simulate(stats, &profiles, foe);
 
+    // Counted, not timed. The piece opened the fight with `OnBattleStart`, and
+    // opening the fight is the feet's - so it watches for the first thing that
+    // happens instead and pays on that, which is one tick later and still
+    // exactly once. Once is what this test is named for; `at_ms == 0` is the
+    // sibling test's job, and it reads it on a greaves piece that really does
+    // fire before the clock starts.
     let opens = log
         .entries
         .iter()
         .filter(|e| {
-            e.at_ms == 0
-                && matches!(e.event, Event::GainResource { side: Side::Player, what, .. } if what == "rage")
+            // The board banks 1 rage a tick passively; the opener pays a
+            // slab. Anything bigger than a trickle is the piece under test.
+            matches!(e.event, Event::GainResource { side: Side::Player, what, amount, .. }
+                if what == "rage" && amount > 1)
         })
         .count();
-    assert_eq!(opens, 1, "once, at the bell");
+    assert_eq!(opens, 1, "once, and only once");
 }
 
 
@@ -606,6 +622,7 @@ fn a_blade_does_not_fork() {
                     Trigger::OnActivate(a) | Trigger::OnBattleStart(a) => is(a),
                     Trigger::SpendMana { on_success, .. }
                     | Trigger::Spend { on_success, .. } => is(on_success),
+                    Trigger::Watch { then, .. } => is(then),
                     _ => false,
                 }
             }
@@ -613,13 +630,21 @@ fn a_blade_does_not_fork() {
         })
         .map(|d| d.name)
         .collect();
-    assert!(granters.len() >= 5, "only {} pieces grant forking", granters.len());
-    // One per slot, so no build is shut out of it.
-    for slot in gearmaster_engine::piece::SlotKind::ALL {
-        assert!(
-            CATALOG.iter().any(|d| d.fits(slot) && granters.contains(&d.name)),
-            "no {} grants forking",
-            slot.name()
+    assert!(granters.len() >= 3, "only {} pieces grant forking", granters.len());
+    // All of them in the weapon, which is the point.
+    //
+    // This used to require one per slot "so no build is shut out of it", and
+    // that is exactly the smearing the rewrite is undoing: forking copies a
+    // cast, casting is the weapon's, and the exclusivity table makes
+    // `GainForking` weapon-only. A build without a weapon is shut out of
+    // forking on purpose. What is still worth pinning is that more than one
+    // weapon piece reaches it, so it is not a single-piece mechanic.
+    for name in &granters {
+        let d = CATALOG.iter().find(|d| &d.name == name).unwrap();
+        assert_eq!(
+            d.slot,
+            gearmaster_engine::piece::SlotKind::Weapon,
+            "{name} grants forking outside the weapon"
         );
     }
 }

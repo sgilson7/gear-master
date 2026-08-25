@@ -535,8 +535,12 @@ fn the_run_counts_what_it_has_banked_all_the_way_up() {
     let mut run = the_winning_board();
     assert_eq!(run.banked_all_run[Resource::Nature.index()], 0, "counted before fighting");
 
+    // Sixteen rungs, not six. The board banks nature through gear that has to
+    // come round to do it, and the early rungs are over in a second and a half
+    // - which read as "this board never banked any nature" when it only meant
+    // the fights were too short to bank it in.
     let mut by_hand = 0;
-    for rung in 0..6usize {
+    for rung in 0..16usize {
         run.rung = rung;
         run.fight_next();
         if let Some(l) = run.log.as_ref() {

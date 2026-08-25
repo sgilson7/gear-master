@@ -1,8 +1,13 @@
 //! The spell that spends a harvest.
 //!
 //! A nature build banks steadily all fight and, before this, had nowhere to
-//! put it. Slash and Burn is the sink: the whole pool at once, one stack of
-//! searing per handful.
+//! put it. Slash and Burn is the sink.
+//!
+//! It took the whole pool at once, a stack of searing per handful. Emptying a
+//! pool in one go is `Consume`, and `Consume` is the head's by the exclusivity
+//! table - a Spell cannot be a helmet piece, so the spell keeps its sentence
+//! and loses its scale: a handful at a time, gated, with the harvest going
+//! back in the ground when there is not enough to pay.
 
 use gearmaster_engine::combat::{simulate_at, Difficulty, Event, Side, LADDER};
 use gearmaster_engine::curse::CurseKind;
@@ -16,14 +21,14 @@ fn def() -> &'static gearmaster_engine::piece::PieceDef {
 #[test]
 fn it_spends_nature_and_pays_in_searing() {
     let d = def();
-    let Trigger::Consume { what, each, per } = d.triggers[0] else {
-        panic!("Slash and Burn is meant to empty a pool: {:?}", d.triggers[0]);
+    let Trigger::Spend { what, cost, on_success, .. } = d.triggers[0] else {
+        panic!("Slash and Burn is meant to spend a pool: {:?}", d.triggers[0]);
     };
     assert_eq!(what, Resource::Nature);
-    assert!(each > 0, "a handful of zero would be an infinite loop of stacks");
+    assert!(cost > 0, "a cost of zero would be an infinite loop of stacks");
     assert!(
-        matches!(per, Action::Curse { kind: CurseKind::Searing, target: Target::Enemy }),
-        "it pays in something other than searing on them: {per:?}"
+        matches!(on_success, Action::Curse { kind: CurseKind::Searing, target: Target::Enemy }),
+        "it pays in something other than searing on them: {on_success:?}"
     );
 }
 
@@ -74,10 +79,10 @@ fn a_pool_that_is_never_banked_never_burns() {
     // The honest half: this is a sink, not a source. A board that banks no
     // nature gets one small burst off its starting pool and nothing after.
     let d = def();
-    let Trigger::Consume { each, .. } = d.triggers[0] else { unreachable!() };
+    let Trigger::Spend { cost, .. } = d.triggers[0] else { unreachable!() };
     assert!(
-        each >= 4,
-        "a handful of {each} would turn any trickle of nature into a permanent burn"
+        cost >= 4,
+        "a cost of {cost} would turn any trickle of nature into a permanent burn"
     );
 }
 
