@@ -1616,3 +1616,53 @@ was a loss. Leaving it alone." That is the generator working: it refuses rather
 than writing a board it cannot measure, and Francis keeps his hand-authored one
 either way. The CURVE printer beside it agrees with M1's capture at 48 of 50
 and a 9.00s median.
+
+---
+
+# Phase 1 closed — the engine, and the ladder where M1 left it
+
+| | M0, before anything | Phase 1 closed |
+|---|---|---|
+| Suite | 548 green, 33 suites | **666 green**, 42 suites, 0 warnings |
+| Owner at Medium | 50/50, 75.2%, median 10.50s | 48/50, **75.5%**, median 9.00s |
+| Friend | 48/50, 97.6%, median 7.75s | 48/50, 97.4%, median 8.15s |
+| preset / starter | 9/50 · 2/50 | 9/50 · 2/50 |
+| Catalogue | 473 pieces, 104 inert | 473, 102 inert |
+| `the_catalog_keeps_every_rule` | green | **green** |
+| Casino corridor | sharp 1,600ms · plain 6,000ms | **unmoved** |
+
+**The ladder has not moved since M1.** Every capture from M2 to M7 is
+byte-identical to M1's - four boards, fifty rungs, every share, every census
+row - which is the phase's own exit criterion and the whole of what "land
+primitives inert, arm them separately" is for. M1 is the only milestone in this
+mission licensed to move a fight, and it moved two: the owner's board stops
+clearing Nine of Ashes and Francis, because it was taking a magic-lane
+multiplier onto physical swings.
+
+**A scripted CLI run replays identically.** Twenty-one lines of input covering
+an event, a town, a fountain, a shop, four fights and two maps; two runs, 1,032
+lines each, diffed to nothing. E6.1 in the form the road can currently take.
+
+**The frame lint is green, and the plan said it would be red.** That was wrong
+in the plan rather than in the code: `FRAMES` is empty until Phase 2 declares
+one, and a lint over an empty list cannot fail. It goes red on the first frame
+and green again at M17, which is what E6.8 asks for.
+
+## What Phase 1 built
+
+Eight milestones, seven of them with the fights standing perfectly still.
+
+- **The three lanes** separate, with `mind_resist` as the mind lane's only
+  answer, and the two physical twins carried by fourteen pieces nothing wears.
+- **Insight**, the eighth resource, fuel rather than a holding, locked.
+- **The road stack**, derived rather than stored, and the receipts and
+  tooltips that let the engine own every sentence the road says.
+- **Five conditions and eleven outcomes**, none of them named by any event.
+- **A board that can be taller than the board beside it**, and a share code at
+  version 3 that can describe one.
+- **`bestiary.rs`**, four new themes, and a frame that is a creature before its
+  board is.
+- **`route.rs`**, a map that is a pure function of the tables, drawn twice from
+  one function.
+- **The reward vocabulary that is not gear** - relics that read the run,
+  crushables that are spent, a rod that curses would rather land on.

@@ -60,8 +60,8 @@ re-pinned first**.
 | M5 | Frames and the four new themes (H4) | **done** |
 | M6 | Dungeon presentation, pedestals, route map (A8/A10/G6) | **done** |
 | M7 | Relics, crushables and consignment (H1) | **done** |
-| M8 | Phase-1 gate, and the stretch decision | next |
-| M9 | The catalogue lands once | |
+| M8 | Phase-1 gate, and the stretch decision | **done** |
+| M9 | The catalogue lands once | next |
 | M10 | The chain (Part B) | |
 | M11 | The dungeons and what they pay | |
 | M12 | Extra Large and the Orbs of Travel (Part G) | |
@@ -381,3 +381,40 @@ they turn them over in one place now, because a shelf has two jobs at a restock
 and the second one is exactly what gets added to eight of nine.
 
 Suite: **666 green**, 0 warnings. New: `relics.rs` (16), 3 in `relic.rs`.
+
+
+---
+
+## M8 - Phase 1 closed, and the stretch slips
+
+No code. Four printers re-run, one decision taken.
+
+**The ladder has not moved since M1.** Byte-identical across M2 to M7: four
+boards, fifty rungs, every census row. The ratchet is green, the casino
+corridor is where M0 left it, and a twenty-one line scripted CLI run replays to
+1,032 identical lines - E6.1 in the form the road can currently take.
+
+**666 green, 42 suites, 0 warnings.**
+
+**The stretch slips**, and the reason is one measurement.
+
+Engraving needs a piece *instance* to differ from its *definition*.
+`PieceRegistry` could carry that cheaply - it already carries a rotation and a
+`transform` - and combat would be correct for free. Nothing else would be:
+`rating::piece_rating` is `fn(&PieceDef) -> i32`, and the shop's price,
+`Rarity::of`, the naming layer, `stepped_component` and all twenty-six of
+`catalog_shape`'s rules are built on that signature. An engraved piece would
+fight correctly and be priced, named and rated as the piece it used to be.
+
+Fixing *that* is a rating over instances rather than definitions, threaded
+through five modules and a ratchet - which is `second-order.md` §1's "two
+questions answered by one number" wearing different clothes, and a mission
+rather than a milestone. The Brain Farm's only prize is Engraving, so the tie
+E1.8 draws holds and both slip. Written into the spec as amendment #20,
+including what would unblock it, so the decision does not have to be retaken
+from scratch.
+
+**One correction to the plan.** It said the frame lint would be red at the
+Phase-1 gate. `FRAMES` is empty until Phase 2 declares one, and a lint over an
+empty list cannot fail. It goes red on the first frame and green at M17, which
+is what E6.8 actually asks for.

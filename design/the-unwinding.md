@@ -214,6 +214,43 @@ with one measured re-pin, rather than arriving in five content PRs with five
 uncontrolled re-gearings. `CATALOG` is closed from that milestone until the
 Phase-4 rating pin.
 
+## 20. The stretch slips: Engraving and the Brain Farm, decided at the gate
+
+E1.8 makes them one decision - "they land together or slip together" - and the
+tie is real, because the Brain Farm's only prize *is* Engraving. Taken at the
+Phase-1 gate with M1 to M7 green and the cost measured rather than guessed.
+
+**They slip.** Not cancelled, and not because either is a bad idea. The
+measurement:
+
+1. **Engraving requires a piece instance to differ from its definition**, and
+   nothing in this codebase is built for that. `PieceRegistry` could carry a
+   per-instance trigger list cheaply - it already carries a rotation and a
+   `transform` - and combat would be correct for free. Everything else would
+   not be. `rating::piece_rating` is `fn(&PieceDef) -> i32`, and the shop's
+   price, `Rarity::of`, the naming layer, `stepped_component` and every one of
+   `catalog_shape`'s twenty-six rules are built on that signature. An engraved
+   piece would fight correctly and be **priced, named and rated as the piece it
+   used to be**.
+2. Fixing that means a rating function over instances rather than definitions,
+   threaded through five modules and a ratchet. That is the same problem
+   `analysis/second-order.md` §1 records about `monster_value` - two questions
+   answered by one number - and it is a mission rather than a milestone.
+3. `share.rs` would take its **second** format bump of this mission, for a
+   feature that moves one trigger once.
+4. Nothing in Phases 2, 3 or 4 depends on either, which is what E1.8 says and
+   what makes slipping them cost nothing but themselves.
+
+**What would unblock it**, written down so the decision does not have to be
+retaken from scratch: a rating that takes an instance, not a definition. Do
+that first, for its own reasons, and Engraving becomes a small feature
+afterwards.
+
+The Brain Farm is cheap on its own - a deterministic three-by-three with one
+seeded flaw square is perhaps two hundred lines - and it is held here only by
+the tie. If it is ever wanted without Engraving it needs a prize, and that is a
+design decision rather than an engineering one.
+
 ---
 
 # PART A — MECHANICS
