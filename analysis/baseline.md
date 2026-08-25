@@ -1575,3 +1575,31 @@ phase-gated `pending_town` there. It names what it is looking for now.
 
 That is the third entry in `second-order.md` §4's list, and the first one found
 by a change rather than by reading.
+
+## Drift — M4, the road machinery
+
+**None.** Byte-identical again. Every mechanic lands dark: no event names any
+of them, so the road a player walks is the road they walked before.
+
+One structural change worth writing down because it touches a format. **A board
+can now be taller than the board beside it.** `branching-events.md` says a run
+where one slot outgrows the others "would be a different game and a much more
+confusing one", and that was right while the only thing handing out room was
+Sprocketman's Gratitude, which hands out five. The Depth hands out **one**, on a
+board of your choice, and the choice is the reward - so the rule is amended
+rather than worked around.
+
+Three things had to move with it, and all three are the same fault at different
+depths:
+
+- `Loadout::rows()` meant "every slot is the same height" and now means "the
+  tallest", which is the right number for laying out a row of boards and the
+  wrong one for asking whether a placement fits.
+- `equip_locked_at` compared against it. That is the third time this exact
+  question has been asked of the wrong thing: it was `SLOT_H` once, then the
+  loadout's height, and now the slot's own.
+- **The share code goes to version 3** and carries five row counts. One number
+  was the whole answer only while rows arrived five at a time; a code that
+  averaged an uneven board would put pieces in a row the sharer did not have,
+  or drop the ones in the row they did. Version 2 codes still read, and read as
+  what they are: boards where nothing had outgrown anything.

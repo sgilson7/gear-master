@@ -310,9 +310,27 @@ impl Loadout {
         }
     }
 
-    /// How tall these grids are. Every slot is the same height.
+    /// Grow one grid and leave the other four where they are.
+    ///
+    /// `branching-events.md` says a run where one slot is taller than the
+    /// others "would be a different game and a much more confusing one", and
+    /// that was the right rule while the only thing handing out room was
+    /// Sprocketman's Gratitude, which hands out five. The Depth hands out one,
+    /// on a board of your choice, and the choice is the reward - so the rule
+    /// is amended rather than worked around. `Slot` has carried its own height
+    /// since the day rows became a thing; this is the first caller to use it.
+    pub fn grow_one(&mut self, kind: SlotKind, by: u8) {
+        self.slots[kind.index()].grow(by);
+    }
+
+    /// How tall the tallest grid is.
+    ///
+    /// It used to be "every slot is the same height", and for layout that is
+    /// still the number worth having - a row of boards is as tall as its
+    /// tallest. Anything asking whether a *placement* fits must ask the slot,
+    /// not this.
     pub fn rows(&self) -> u8 {
-        self.slots.first().map(|s| s.rows()).unwrap_or(crate::slot::SLOT_H)
+        self.slots.iter().map(|s| s.rows()).max().unwrap_or(crate::slot::SLOT_H)
     }
 
     pub fn slot(&self, kind: SlotKind) -> &Slot {

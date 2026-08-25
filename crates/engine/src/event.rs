@@ -25,6 +25,43 @@ pub enum Requirement {
     /// `LooseItemOfSize` this is not handed over: the door opens because you
     /// have the key, and you keep the key.
     Holding(&'static str),
+    /// Something the run has done, by name.
+    ///
+    /// The chain's stations set these and later stations read them. A list of
+    /// strings rather than a field per station, and that is a decision worth
+    /// arguing: named booleans are checked by the compiler and a string is
+    /// not. What a string buys is the reverse index - `set_by` walks `EVENTS`
+    /// and finds which outcome sets a flag, so `no_flag_is_waited_on_forever`
+    /// is one assertion. A field per station gives no such lint, and the fault
+    /// this is guarding against is not a typo, it is a chain with a station
+    /// nothing reaches.
+    Flag(&'static str),
+    /// Something the run has done `at_least` times, silently counted.
+    ///
+    /// The watcher pattern: revealing the Slagworks arms a counter nobody
+    /// mentions, and forty rungs later the foundry says what it noticed. The
+    /// arming leaves a receipt line and no explanation, which is the closest
+    /// this game gets to being haunted.
+    Counter { what: &'static str, at_least: u32 },
+    /// An assembled item of at least this rarity, anywhere on the board.
+    ///
+    /// Rarity is an *item's*, not a component's - `RARE_AT` is 90 on a scale
+    /// where full marks is the best a whole item can do, so a single component
+    /// almost never clears it. A door that asked for a loose Legendary would
+    /// be asking for one of ten pieces in the catalogue.
+    AssembledOfRarity(crate::rating::Rarity),
+    /// At least this many assembled items sharing one alignment word.
+    ///
+    /// The inspector's question, and the reason building *for* an event is a
+    /// strategy: it reads the live board rather than the tray.
+    AlignedItems(usize),
+    /// A number, named by the player, inside these bounds.
+    ///
+    /// Always open - anybody can say a figure - so `choice_open` is true and
+    /// the refusal happens at `take_choice_with`, which is where the figure
+    /// arrives. A choice asking for one cannot be taken by `take_choice`,
+    /// because there is nothing to take it *with*.
+    Figure { min: i32, max: i32 },
 }
 
 /// A fight an event sets up, against however many creatures it likes.
@@ -77,6 +114,65 @@ pub enum Outcome {
     /// a curated offer works without needing a screen of its own: you walk out
     /// and the shop is different. `class` is the price of the arrangement.
     Stock { shelves: &'static [&'static str], class: &'static str },
+    /// Remember that this happened, by name. The chain is built out of these.
+    Flag(&'static str),
+    /// Count that this happened, silently. Nothing says a word; a door forty
+    /// rungs later reads the tally and says what it noticed.
+    Count(&'static str),
+    /// Put a hidden town on the road. It stands at its own rung from here.
+    RevealTown(&'static str),
+    /// A curated shelf, one visit. Unlike `Stock` it costs nothing and grants
+    /// nothing - it is a shop somebody laid out for you rather than a bargain.
+    OpenShop { shelves: &'static [&'static str] },
+    /// Walk into a mini dungeon from somewhere that is not a rung.
+    ///
+    /// The same thing `Enter` does, named for where it is used: `Enter` is an
+    /// event's, and this is a town door's. Kept apart because a town is a rung
+    /// of its own and an event stands in front of one, so what "coming out"
+    /// means is different for each.
+    StartDungeon(&'static str),
+    /// A row, on one slot, chosen later. `Run::owed_rows` holds it until the
+    /// player says which slot - "one board of your choice" is a decision and
+    /// an outcome cannot make it for you.
+    GrantRow,
+    /// Hand a loose piece a quest it was not born with.
+    GrantQuest(&'static crate::piece::Quest),
+    /// The next named creature of your choice drops its **entire** board.
+    ClaimTicket,
+    /// A standing arrangement with the shop, for the rest of the run.
+    StandingOrder(Standing),
+    /// Your next loss within five rungs does not count. One fight, once.
+    Underwrite,
+    /// See an upcoming boss's packed board from the loadout screen, for the
+    /// rest of the run. Grants no stats whatsoever - the board view is the
+    /// entire reward.
+    Scout,
+}
+
+/// An arrangement with the shop that outlives one restock.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Standing {
+    /// Every shelf from here on offers at least one piece of this kind.
+    GuaranteedKind(crate::piece::PieceKind),
+    /// The first reroll after every restock is free.
+    FreeFirstReroll,
+    /// A piece sold goes on consignment: it comes back three shops later,
+    /// worth thirty more than it left.
+    Consignment,
+}
+
+impl Standing {
+    pub fn describe(self) -> String {
+        match self {
+            Standing::GuaranteedKind(k) => {
+                format!("Standing order: every shelf offers a {}", k.name())
+            }
+            Standing::FreeFirstReroll => "Standing order: the first reroll is always free".into(),
+            Standing::Consignment => {
+                "Standing order: what you sell comes back three shops later, worth 30 more".into()
+            }
+        }
+    }
 }
 
 impl Outcome {
@@ -128,6 +224,41 @@ impl Outcome {
                 );
                 out
             }
+            Outcome::Flag(what) => vec![format!("Noted: {}", what.replace('-', " "))],
+            // A silent counter says nothing. That is the whole mechanic: the
+            // receipt is where a player would look for an explanation, and
+            // there is not one until the thing that was counting speaks.
+            Outcome::Count(_) => vec!["Nothing you could point to".into()],
+            Outcome::RevealTown(id) => {
+                let t = crate::town::by_id(id);
+                match t {
+                    Some(t) => vec![format!("Revealed: {} (after rung {})", t.name, t.after + 1)],
+                    None => vec![format!("Revealed: {}, which is nowhere", id)],
+                }
+            }
+            Outcome::OpenShop { shelves } => {
+                let mut out = vec![format!("A shelf of {}, this once", shelves.len())];
+                for n in shelves.iter() {
+                    out.push(format!("  {}", n));
+                }
+                out
+            }
+            Outcome::StartDungeon(id) => {
+                let name = crate::dungeon::by_id(id).map(|d| d.name).unwrap_or(id);
+                vec![format!("Enter: {}", name)]
+            }
+            Outcome::GrantRow => {
+                vec!["+1 row on a board of your choice, for the rest of the run".into()]
+            }
+            Outcome::GrantQuest(q) => vec![format!("A task: {}", q.label)],
+            Outcome::ClaimTicket => {
+                vec!["A claim on one named creature's whole board".into()]
+            }
+            Outcome::StandingOrder(o) => vec![o.describe()],
+            Outcome::Underwrite => {
+                vec!["Your next loss within five rungs does not count".into()]
+            }
+            Outcome::Scout => vec!["You can read a boss's board before you fight it".into()],
             Outcome::Stock { shelves, class } => {
                 let mut out = vec![format!("The shop is emptied and stocked with {}", shelves.len())];
                 for name in shelves.iter() {
@@ -679,6 +810,38 @@ pub fn at(
     })
 }
 
+/// Every choice whose outcome sets `flag`, as (event id, choice label).
+///
+/// The reverse index the string-keyed flags buy. A flag waited on by a door
+/// and set by nothing is a chain with a station nothing reaches, which is the
+/// failure a chain is most exposed to and the one hardest to see by reading.
+pub fn set_by(flag: &str) -> Vec<(&'static str, &'static str)> {
+    let mut out = Vec::new();
+    for e in EVENTS {
+        for c in e.choices {
+            if matches!(c.outcome, Outcome::Flag(f) if f == flag) {
+                out.push((e.id, c.label));
+            }
+        }
+    }
+    out
+}
+
+/// Every flag any door in the game waits on.
+pub fn flags_waited_on() -> Vec<&'static str> {
+    let mut out: Vec<&'static str> = Vec::new();
+    for e in EVENTS {
+        for c in e.choices {
+            if let Requirement::Flag(f) = c.requires {
+                if !out.contains(&f) {
+                    out.push(f);
+                }
+            }
+        }
+    }
+    out
+}
+
 /// Every event a rumour is the condition on, in table order.
 ///
 /// The reverse of `Rumour::opens`, and worth having both ways round. Forwards
@@ -733,6 +896,19 @@ impl Requirement {
             }
             Requirement::Took(label) => format!("Requires: having chosen \"{}\" earlier", label),
             Requirement::Holding(name) => format!("Requires: {}", name),
+            Requirement::Flag(what) => format!("Requires: {}", what.replace('-', " ")),
+            Requirement::Counter { what, at_least } => {
+                format!("Requires: {} at least {} times", what.replace('-', " "), at_least)
+            }
+            Requirement::AssembledOfRarity(r) => {
+                format!("Requires: an assembled {}", r.name())
+            }
+            Requirement::AlignedItems(n) => {
+                format!("Requires: {} assembled items sharing an alignment", n)
+            }
+            Requirement::Figure { min, max } => {
+                format!("Name a figure between {} and {}", min, max)
+            }
         }
     }
 
@@ -740,8 +916,14 @@ impl Requirement {
     pub fn met_by_shape(self, cells: &[(u8, u8)]) -> bool {
         match self {
             Requirement::None => true,
-            // Both of these are answered by the run rather than by a shape.
-            Requirement::Took(_) | Requirement::Holding(_) => true,
+            // Everything else is answered by the run rather than by a shape.
+            Requirement::Took(_)
+            | Requirement::Holding(_)
+            | Requirement::Flag(_)
+            | Requirement::Counter { .. }
+            | Requirement::AssembledOfRarity(_)
+            | Requirement::AlignedItems(_)
+            | Requirement::Figure { .. } => true,
             Requirement::LooseItemOfSize { w, h } => {
                 let (mut mx, mut my) = (0u8, 0u8);
                 for &(x, y) in cells {

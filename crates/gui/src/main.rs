@@ -303,10 +303,14 @@ impl Layout {
         let slots = SlotKind::ALL
             .iter()
             .enumerate()
+            // Each board's own height. `SlotView` has carried a `rows` field
+            // since rows became a thing and has been handed the same number
+            // five times ever since; the Depth grows one board, so it stops
+            // being the same number.
             .map(|(i, &kind)| SlotView {
                 kind,
                 origin: (x0 + i as f32 * (gw + SLOT_GAP), SLOT_TOP),
-                rows,
+                rows: run.loadout.slot(kind).rows(),
             })
             .collect();
 
@@ -9404,6 +9408,9 @@ async fn main() {
     if std::env::var("GEARMASTER_WIN").is_ok() {
         if let Some(sh) = gearmaster_engine::share::import(gearmaster_engine::share::A_WINNING_RUN) {
             run.loadout.grow(sh.extra_rows);
+            for k in SlotKind::ALL {
+                run.loadout.grow_one(k, sh.slot_rows[k.index()]);
+            }
             for (def, slot, x, y, rot) in &sh.placed {
                 let id = run.registry.alloc(*def);
                 run.owned.push(id);

@@ -891,7 +891,7 @@ impl Trigger {
 /// is part of an assembled item - a loose piece is inert, quests included -
 /// and it is tallied from the combat log after a fight rather than during it,
 /// so nothing in the simulation has to know quests exist.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Quest {
     /// What the player is told to do.
     pub label: &'static str,
@@ -905,7 +905,7 @@ pub struct Quest {
 }
 
 /// What a quest counts.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum QuestTrack {
     /// Activations of the item this component is part of.
     SelfActivations,

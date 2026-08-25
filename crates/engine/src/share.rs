@@ -14,11 +14,18 @@ use crate::run::Run;
 
 /// No I, L, O, U - the four that get misread or turn a code into a word.
 const ALPHABET: &[u8] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-/// Bumped when the shape of a code changes. Version 2 carries the board
-/// height: a run that has been given extra rows packs pieces into them, and a
-/// reader that assumed eight would drop everything below that line without
-/// saying so.
-const VERSION: u32 = 2;
+/// Bumped when the shape of a code changes.
+///
+/// Version 2 carries the board height: a run that has been given extra rows
+/// packs pieces into them, and a reader that assumed eight would drop
+/// everything below that line without saying so.
+///
+/// Version 3 carries five of them. One number was the whole answer while the
+/// only thing handing out room gave a row to every board at once; the Depth
+/// gives one row to a board of your choice, and a code that averaged that
+/// would put pieces in a row the sharer's board did not have - or drop the
+/// ones in the row it did. Same fault as version 2's, one slot down.
+const VERSION: u32 = 3;
 
 fn encode(vals: &[u32]) -> String {
     let mut out = String::new();
@@ -63,8 +70,14 @@ fn decode(s: &str) -> Option<Vec<u32>> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Shared {
     pub rung: usize,
-    /// Rows this run had been given beyond the usual eight.
+    /// Rows every board was given beyond the usual eight.
     pub extra_rows: u8,
+    /// Rows each board has beyond `extra_rows`, indexed by `SlotKind::index`.
+    ///
+    /// Zero everywhere for a version 1 or 2 code, which is exactly right: a
+    /// code written before one board could outgrow the others describes a
+    /// board where none of them had.
+    pub slot_rows: [u8; 5],
     pub wins: u32,
     pub losses: u32,
     pub gold: i32,
@@ -83,6 +96,9 @@ impl Shared {
         // Grow first, or every piece the sharer had put in the extra rows is
         // quietly refused by `can_place` and the board reads as half-empty.
         lo.grow(self.extra_rows);
+        for k in SlotKind::ALL {
+            lo.grow_one(k, self.slot_rows[k.index()]);
+        }
         for &(def, slot, x, y, rot) in &self.placed {
             if def >= CATALOG.len() {
                 continue;
@@ -170,6 +186,12 @@ pub fn export(run: &Run) -> String {
         crate::theme::THEMES.iter().position(|t| t.id == run.theme.id).unwrap_or(0) as u32,
     );
     vals.push(run.extra_rows as u32);
+    // What each board has *beyond* the uniform grant. Read off the boards
+    // rather than tracked, so it cannot disagree with them.
+    let per = run.slot_rows();
+    for k in SlotKind::ALL {
+        vals.push(per[k.index()].saturating_sub(run.extra_rows) as u32);
+    }
     vals.push(run.classes.len() as u32);
     for c in &run.classes {
         vals.push(crate::class::CLASSES.iter().position(|k| k.name == c.name).unwrap_or(0) as u32);
@@ -226,6 +248,12 @@ pub fn import(code: &str) -> Option<Shared> {
         .map(|t| t.id.to_string())
         .unwrap_or_else(|| "plain".into());
     let extra_rows = if v1 { 0 } else { next()? as u8 };
+    let mut slot_rows = [0u8; 5];
+    if version >= 3 {
+        for k in SlotKind::ALL {
+            slot_rows[k.index()] = next()? as u8;
+        }
+    }
     let n_classes = next()?;
     let mut classes = Vec::new();
     for _ in 0..n_classes {
@@ -249,7 +277,7 @@ pub fn import(code: &str) -> Option<Shared> {
             (v & 3) as u8,
         ));
     }
-    Some(Shared { rung, extra_rows, wins, losses, gold, theme, classes, placed })
+    Some(Shared { rung, extra_rows, slot_rows, wins, losses, gold, theme, classes, placed })
 }
 
 #[cfg(test)]

@@ -56,8 +56,8 @@ re-pinned first**.
 | M1 | Typed lanes and the twins (A1+A2) - merges alone | **done** |
 | M2 | Insight and Dread, dark (A3) | **done** |
 | M3 | The road stack, receipts, tooltips (A7/A9/A6) | **done** |
-| M4 | Road machinery, landed inert (A4) | next |
-| M5 | Frames and the four new themes (H4) | |
+| M4 | Road machinery, landed inert (A4) | **done** |
+| M5 | Frames and the four new themes (H4) | next |
 | M6 | Dungeon presentation, pedestals, route map (A8/A10/G6) | |
 | M7 | Relics, crushables and consignment (H1) | |
 | M8 | Phase-1 gate, and the stretch decision | |
@@ -226,3 +226,50 @@ road nobody was on. `road`, `answer <n>`, `town`, `town on`, `town <door>` and
 that shares rung seven with the gate. It names what it is looking for now.
 
 Suite: **589 green**, 0 warnings. New: `road_stack.rs` (8), `tooltips.rs` (11).
+
+
+---
+
+## M4 - Road machinery, landed inert
+
+Two commits, and the road is byte-identical to the one before them. Everything
+here is reachable by nothing: Phase 2's job is to name it.
+
+**Towns carry their own doors** and know whether they are on the map.
+`Unlock::{Pinned, Hidden}` and `actions: &[Action]`; the three shipped ones are
+pinned with all four and unchanged. `apply_outcome` is split out of
+`take_choice`, because a town door hands over an outcome too.
+
+**Five new conditions.** `Flag` (a chain station), `Counter` (the watcher
+pattern), `AssembledOfRarity`, `AlignedItems` (the inspector reads the live
+board), and `Figure` - a door that wants a number, which `take_choice` refuses
+and `take_choice_with` answers, because a default bid is a bid nobody made.
+
+Flags are strings rather than a field per station, and that is the one place
+this milestone argues with the spec. Named booleans are checked by the
+compiler; a string is not. What a string buys is `event::set_by` - the reverse
+index that makes "a chain with a station nothing reaches" one assertion. The
+fault worth guarding against is not a typo.
+
+**Eleven new outcomes**, all inert: Flag, Count, RevealTown, OpenShop,
+StartDungeon, GrantRow, GrantQuest, ClaimTicket, StandingOrder, Underwrite,
+Scout.
+
+**A board can be taller than the board beside it now.** The Depth grants one
+row on a slot of your choice, so `Loadout::grow_one` exists, `rows()` means
+"the tallest" rather than "the height", `equip_locked_at` asks the slot instead
+of the loadout - the third time that question has been asked of the wrong thing
+- and the **share code goes to version 3** carrying five row counts. Version 2
+codes still read.
+
+**The crucible melts.** `Run::melt` trades a piece for a same-slot piece within
+fifteen rating, out of the run's own PRNG, never combat. Quest pieces and
+rumours refuse the pot. Every melt is counted whether or not it worked, because
+the foundry is counting visits.
+
+**Rung 51 is plumbed and shut.** `past_the_top` wants the Mainspring and a
+cleared ladder; `ladder_complete` steps aside for it; share codes already
+accept the rung.
+
+Suite: **621 green**, 0 warnings. New: `hidden_towns.rs` (6),
+`road_machinery.rs` (23).

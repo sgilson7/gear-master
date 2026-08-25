@@ -142,6 +142,28 @@ impl TownVisit {
     }
 }
 
+/// How far a melt may move a piece's rating, either way.
+///
+/// Fifteen: enough that the crucible is a gamble worth taking with something
+/// mediocre and not enough that it is a way of turning a common into a
+/// legendary. The bands are ninety, a hundred and thirty and a hundred and
+/// seventy apart, so one melt never crosses two of them.
+pub const MELT_SPREAD: i32 = 15;
+
+/// The relic that opens the road past Francis.
+///
+/// Named here rather than in the chain because the plumbing has to know it
+/// before the content does: share codes, scoring and the road all have to
+/// accept a rung fifty-one before there is anything standing on one.
+pub const MAINSPRING: &str = "An Unwound Mainspring";
+
+/// How many rungs an underwritten loss stays good for.
+///
+/// Five, and the number is the whole of the arrangement: long enough to be
+/// worth taking, short enough that it is a decision about the next stretch of
+/// road rather than a life in your pocket for the rest of the run.
+pub const UNDERWRITTEN_FOR: usize = 5;
+
 /// Prayers it takes before the chapel gives you the other thing.
 pub const PIETY_FOR_A_TICKET: usize = 5;
 
@@ -175,6 +197,8 @@ pub struct Settlement {
     /// Rows added to every grid by that win. Nothing else in the game hands
     /// out room.
     pub rows_won: u8,
+    /// The fight an underwritten loss was spent on, if one was.
+    pub underwrote: Option<&'static str>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -418,6 +442,39 @@ pub struct Run {
     /// Towns already answered, by id, so a Grinder knocked back through one
     /// does not get a second visit.
     pub towns_seen: Vec<&'static str>,
+    /// What this run has done, by name.
+    ///
+    /// The chain's stations set these and later stations read them. Strings
+    /// rather than a field each, because that is what buys the reverse index -
+    /// `event::set_by` finds which door sets a flag, so "a station nothing
+    /// reaches" is one assertion rather than a thing somebody has to notice.
+    pub flags: Vec<&'static str>,
+    /// Things counted without anybody being told they were being counted.
+    ///
+    /// The watcher pattern. Arming leaves a receipt line that explains
+    /// nothing; the door that reads the tally is thirty rungs later.
+    pub counters: Vec<(&'static str, u32)>,
+    /// The last figure the player named, for a door that asked for one.
+    pub last_figure: Option<i32>,
+    /// Rows granted but not yet spent. "One board of your choice" is a
+    /// decision, and an outcome cannot make it for you.
+    pub owed_rows: u8,
+    /// Claims on a named creature's whole board, unspent.
+    pub claim_tickets: u32,
+    /// Arrangements with the shop that outlive a restock.
+    pub standing_orders: Vec<crate::event::Standing>,
+    /// The last rung an underwritten loss will still be forgiven on.
+    ///
+    /// Set five rungs ahead when it is taken, and taken away by the loss it
+    /// eats. One fight, once - the receipt says which fight it was.
+    pub underwritten_until: Option<usize>,
+    /// Whether a boss's packed board can be read before it is fought.
+    ///
+    /// Grants no stats whatsoever. The board view is the entire reward, which
+    /// is a thing worth pinning rather than trusting.
+    pub scouting: bool,
+    /// Quests handed to pieces that were not born with one.
+    granted_quests: std::collections::HashMap<PieceId, &'static crate::piece::Quest>,
     /// Hidden towns something has put on the road, by id.
     ///
     /// A pinned town is on the map before the run starts; a hidden one is not
@@ -532,6 +589,15 @@ impl Run {
             town: None,
             towns_seen: Vec::new(),
             towns_revealed: Vec::new(),
+            flags: Vec::new(),
+            counters: Vec::new(),
+            last_figure: None,
+            owed_rows: 0,
+            claim_tickets: 0,
+            standing_orders: Vec::new(),
+            underwritten_until: None,
+            scouting: false,
+            granted_quests: std::collections::HashMap::new(),
             dungeon: None,
             pending_landing: None,
             extra_lives: 0,
@@ -599,6 +665,12 @@ impl Run {
     /// made the shop a formality rather than a decision. It resets after every
     /// fight, so the pressure is inside a single visit and never carries.
     pub fn reroll_cost(&self) -> i32 {
+        // A standing order makes the *first* one free and leaves the rest
+        // where they were, so it is a nudge to look again rather than a
+        // licence to roll the shop until it says what you want.
+        if self.rerolls == 0 && self.shop.free_first_reroll {
+            return 0;
+        }
         REROLL_COST << self.rerolls.min(16)
     }
 
@@ -805,7 +877,75 @@ impl Run {
                 self.owned.iter().any(|&id| self.registry.def(id).name == name)
             }
             Requirement::LooseItemOfSize { .. } => !self.offerings(c.requires).is_empty(),
+            Requirement::Flag(what) => self.flags.contains(&what),
+            Requirement::Counter { what, at_least } => self.counted(what) >= at_least,
+            Requirement::AssembledOfRarity(want) => self
+                .combat_items()
+                .iter()
+                .any(|i| crate::rating::Rarity::of(i.rating) >= want),
+            Requirement::AlignedItems(n) => self.most_aligned() >= n,
+            // Anybody can say a figure. What happens to the figure is the
+            // door's business, and it happens in `take_choice_with`.
+            Requirement::Figure { .. } => true,
         }
+    }
+
+    /// How many times something silently counted has happened.
+    pub fn counted(&self, what: &str) -> u32 {
+        self.counters.iter().find(|(k, _)| *k == what).map(|(_, v)| *v).unwrap_or(0)
+    }
+
+    /// Count one more of something, silently.
+    pub fn count(&mut self, what: &'static str) {
+        match self.counters.iter_mut().find(|(k, _)| *k == what) {
+            Some(e) => e.1 += 1,
+            None => self.counters.push((what, 1)),
+        }
+    }
+
+    /// The largest group of assembled items sharing one earned qualifier.
+    ///
+    /// The inspector's question, and "alignment" in the sense the naming layer
+    /// already uses it: a qualifier is the adjective an item earns from what
+    /// its pieces *do* - Searing, Warded, Hastening - so items sharing one are
+    /// items built around the same idea. Not `PieceKind::Alignment`, which is
+    /// a crystal ball's colour and belongs to one recipe out of eight.
+    ///
+    /// Read off the live board rather than the tray, which is what makes
+    /// building *for* an event a strategy rather than a thing you happen to
+    /// have in a pocket.
+    pub fn most_aligned(&self) -> usize {
+        let items = self.combat_items();
+        let words: Vec<Vec<&'static str>> = items
+            .iter()
+            .map(|i| crate::naming::qualifiers(&self.registry, &i.pieces))
+            .collect();
+        let mut best = 0usize;
+        for mine in &words {
+            for w in mine {
+                best = best.max(words.iter().filter(|other| other.contains(w)).count());
+            }
+        }
+        best
+    }
+
+    /// Answer a door that asked for a number.
+    ///
+    /// A choice whose requirement is a `Figure` cannot go through
+    /// `take_choice`, because there is nothing there to take it with. The
+    /// figure is remembered on the run so the outcome can read it and the
+    /// receipt can say what it was.
+    pub fn take_choice_with(
+        &mut self,
+        c: &crate::event::Choice,
+        figure: i32,
+    ) -> Option<&'static str> {
+        let crate::event::Requirement::Figure { min, max } = c.requires else { return None };
+        if figure < min || figure > max {
+            return None;
+        }
+        self.last_figure = Some(figure);
+        self.take_choice_unchecked(c)
     }
 
     /// Answer the event in front of you.
@@ -815,6 +955,16 @@ impl Run {
     /// requirement is not met, so the offer cannot be widened by asking
     /// differently.
     pub fn take_choice(&mut self, c: &crate::event::Choice) -> Option<&'static str> {
+        // A door that wants a figure is answered with one. Refused here rather
+        // than resolved with a default, because a default bid is a bid nobody
+        // made.
+        if matches!(c.requires, crate::event::Requirement::Figure { .. }) {
+            return None;
+        }
+        self.take_choice_unchecked(c)
+    }
+
+    fn take_choice_unchecked(&mut self, c: &crate::event::Choice) -> Option<&'static str> {
         let Some(ev) = self.pending_event() else { return None };
         if !self.choice_open(c) {
             return None;
@@ -884,6 +1034,58 @@ impl Run {
             ChoiceOutcome::Enter(id) => {
                 self.dungeon = crate::dungeon::by_id(id).map(|d| (d, 0));
             }
+            ChoiceOutcome::Flag(what) => {
+                if !self.flags.contains(&what) {
+                    self.flags.push(what);
+                }
+            }
+            ChoiceOutcome::Count(what) => self.count(what),
+            ChoiceOutcome::RevealTown(id) => {
+                if !self.reveal_town(id) {
+                    receipt.clear();
+                    receipt.push("Nothing: there is no such place".into());
+                }
+            }
+            ChoiceOutcome::OpenShop { shelves } => self.shop.stock_exactly(shelves),
+            ChoiceOutcome::StartDungeon(id) => {
+                self.dungeon = crate::dungeon::by_id(id).map(|d| (d, 0));
+            }
+            ChoiceOutcome::GrantRow => self.owed_rows += 1,
+            ChoiceOutcome::GrantQuest(q) => match self.inventory().first().copied() {
+                Some(id) => {
+                    self.grant_quest(id, q);
+                    receipt.push(format!("Set on the table: {}", self.registry.def(id).name));
+                }
+                None => {
+                    receipt.clear();
+                    receipt.push("Nothing to put on the table".into());
+                }
+            },
+            ChoiceOutcome::ClaimTicket => self.claim_tickets += 1,
+            ChoiceOutcome::StandingOrder(o) => {
+                if !self.standing_orders.contains(&o) {
+                    self.standing_orders.push(o);
+                }
+                match o {
+                    crate::event::Standing::GuaranteedKind(k) => {
+                        if !self.shop.guaranteed.contains(&k) {
+                            self.shop.guaranteed.push(k);
+                        }
+                        let need = self.needs_a_weapon();
+                        self.shop.restock(&mut self.rng, need);
+                    }
+                    crate::event::Standing::FreeFirstReroll => {
+                        self.shop.free_first_reroll = true;
+                    }
+                    // Nothing to arm: the shelf does not change, the sell does.
+                    crate::event::Standing::Consignment => {}
+                }
+            }
+            ChoiceOutcome::Underwrite => {
+                self.underwritten_until = Some(self.rung + UNDERWRITTEN_FOR);
+                receipt.push(format!("Good until rung {}", self.rung + UNDERWRITTEN_FOR + 1));
+            }
+            ChoiceOutcome::Scout => self.scouting = true,
             ChoiceOutcome::BuyOff { times } => {
                 if let Some(&id) = self.offerings(req).first() {
                     gave = Some(self.registry.def(id).name);
@@ -934,9 +1136,81 @@ impl Run {
         self.shop.insight_open = true;
     }
 
+    /// Throw a piece into the melt and take back what comes out.
+    ///
+    /// A same-slot piece within `MELT_SPREAD` of what went in, drawn from the
+    /// run's own PRNG. Never combat, so determinism holds: two replays of a
+    /// seed melt the same thing into the same thing. Quest pieces and rumours
+    /// refuse the pot - one is the far side of a task and the other is a key,
+    /// and neither is gear in the sense a crucible understands.
+    ///
+    /// Returns the new piece, or `None` if it refused. Counts the melt
+    /// whichever way it goes, because the foundry is counting visits and not
+    /// successes.
+    pub fn melt(&mut self, id: PieceId) -> Option<PieceId> {
+        if self.phase != Phase::Loadout || !self.owned.contains(&id) {
+            return None;
+        }
+        let def = self.registry.def(id);
+        if crate::rumour::is_rumour(def.name)
+            || self.quest_of(id).is_some()
+            || crate::piece::is_quest_reward(def.name)
+            || crate::piece::is_boss_only(def.name)
+            || crate::piece::is_event_only(def.name)
+        {
+            return None;
+        }
+        let was = crate::rating::piece_rating(def);
+        let slot = def.slot;
+        let pool: Vec<usize> = crate::piece::all_def_indices()
+            .into_iter()
+            .filter(|&i| {
+                let d = &CATALOG[i];
+                d.slot == slot
+                    && d.name != def.name
+                    && (crate::rating::piece_rating(d) - was).abs() <= MELT_SPREAD
+                    && !crate::piece::is_boss_only(d.name)
+                    && !crate::piece::is_quest_reward(d.name)
+                    && !crate::piece::is_event_only(d.name)
+                    && (self.insight_unlocked || !crate::piece::touches_insight(d))
+            })
+            .collect();
+        self.count("crucible-melts");
+        let &pick = pool.get(self.rng.below(pool.len().max(1)))?;
+        self.loadout.remove_anywhere(id);
+        self.registry.transform(id, pick);
+        self.quest_progress.remove(&id);
+        self.granted_quests.remove(&id);
+        self.forget_undo();
+        self.last_receipt = Some(vec![
+            format!("Into the melt: {}", def.name),
+            format!("Out of it: {}", CATALOG[pick].name),
+        ]);
+        Some(id)
+    }
+
+    /// Is the road past Francis open?
+    ///
+    /// Rung 51 is not on the ladder and never will be: it appears when a run
+    /// has finished the chain and put the man at the top down, and it is the
+    /// only rung in the game that has to be earned twice.
+    ///
+    /// Dark until the chain exists. `THE_UNWOUND` names nothing yet, so this
+    /// is false for every run that can currently be played, and the plumbing
+    /// underneath it - share codes, scoring, the road stack - is being asked
+    /// to accept a rung that does not arrive.
+    pub fn past_the_top(&self) -> bool {
+        self.holds(MAINSPRING) && self.rung >= LADDER.len()
+    }
+
+    /// Does this run own a named component, worn or loose?
+    pub fn holds(&self, name: &str) -> bool {
+        self.owned.iter().any(|&id| self.registry.def(id).name == name)
+    }
+
     /// True once the ladder has been cleared.
     pub fn ladder_complete(&self) -> bool {
-        self.rung >= LADDER.len()
+        self.rung >= LADDER.len() && !self.past_the_top()
     }
 
     /// Buy the component on shelf `slot`.
@@ -1158,6 +1432,7 @@ impl Run {
                 town: None,
                 won_item: None,
                 rows_won: 0,
+                underwrote: None,
             };
             if outcome == Outcome::Victory {
                 self.wins += 1;
@@ -1197,6 +1472,7 @@ impl Run {
             town: None,
             won_item: None,
             rows_won: 0,
+            underwrote: None,
         };
 
         // How fast, and how slow, the shallow end went. The two doors of the
@@ -1291,6 +1567,23 @@ impl Run {
                 // Losing in a dungeon puts you out of it. The door does not
                 // reopen - you sold the thing that opened it.
                 self.dungeon = None;
+                // Underwritten: one fight, once, and it says which one.
+                //
+                // Read before the mode's own answer rather than after, because
+                // "this loss did not happen" has to mean the knock-back did
+                // not happen either. Taken away by the loss it eats, so a
+                // second one inside the five rungs costs what it costs.
+                if self.underwritten_until.is_some_and(|until| self.rung <= until) {
+                    self.underwritten_until = None;
+                    settlement.underwrote = Some(LADDER[self.rung.min(LADDER.len() - 1)].name);
+                    self.last_receipt = Some(vec![
+                        format!(
+                            "The underwriter eats it: {}",
+                            LADDER[self.rung.min(LADDER.len() - 1)].name
+                        ),
+                        "That loss did not happen".into(),
+                    ]);
+                } else {
                 match self.mode {
                     Mode::Grinder => {
                         // Back to the rung you last cleared, so there is
@@ -1307,6 +1600,7 @@ impl Run {
                             settlement.run_ended = true;
                         }
                     }
+                }
                 }
             }
         }
@@ -1483,7 +1777,12 @@ impl Run {
         // drop would leave the item scattered across the grid.
         for &(p, dx, dy) in &shape {
             let (x, y) = (ax as u32 + dx as u32, ay as u32 + dy as u32);
-            if x >= SLOT_W as u32 || y >= self.loadout.rows() as u32 {
+            // The slot's own height, not the tallest board's. Same shape of
+            // fault as the one `branching-events.md` records: "anything
+            // comparing against the constant is asking the wrong question",
+            // and the constant grew into a per-board number that has now grown
+            // into a per-slot one.
+            if x >= SLOT_W as u32 || y >= self.loadout.slot(kind).rows() as u32 {
                 return Err(RuleError::Place(PlaceError::OutOfBounds));
             }
             self.loadout.can_place(&self.registry, p, kind, x as u8, y as u8)?;
@@ -1814,6 +2113,24 @@ impl Run {
     // ------------------------------------------------------------ quests
 
     /// How far along a piece's quest is.
+    /// The quest a piece is carrying, born with or handed to it.
+    ///
+    /// A `PieceDef`'s quest is a property of the component; a granted one is a
+    /// property of *this* piece in *this* run, which is why it lives on the
+    /// run. Granted wins where both exist: the table said something out loud
+    /// about a piece somebody was holding, and that is the more recent fact.
+    pub fn quest_of(&self, id: PieceId) -> Option<&'static crate::piece::Quest> {
+        if let Some(q) = self.granted_quests.get(&id) {
+            return Some(q);
+        }
+        self.registry.def(id).quest.as_ref()
+    }
+
+    /// Hand a quest to a piece that was not born with one.
+    pub fn grant_quest(&mut self, id: PieceId, q: &'static crate::piece::Quest) {
+        self.granted_quests.insert(id, q);
+    }
+
     pub fn quest_progress(&self, id: PieceId) -> u32 {
         self.quest_progress.get(&id).copied().unwrap_or(0)
     }
@@ -1842,7 +2159,7 @@ impl Run {
         let mut earned: Vec<(PieceId, u32)> = Vec::new();
         for (i, profile) in profiles.iter().enumerate() {
             for &piece in &profile.pieces {
-                let Some(quest) = self.registry.def(piece).quest else { continue };
+                let Some(quest) = self.quest_of(piece) else { continue };
                 let count = match quest.track {
                     // A piece is only on duty while its item is assembled, and
                     // `combat_items` only ever returns assembled items - so
@@ -1869,7 +2186,7 @@ impl Run {
 
         let mut done = Vec::new();
         for (piece, count) in earned {
-            let quest = match self.registry.def(piece).quest {
+            let quest = match self.quest_of(piece) {
                 Some(q) => q,
                 None => continue,
             };
@@ -1971,6 +2288,34 @@ impl Run {
     pub fn grow_boards(&mut self, by: u8) {
         self.extra_rows += by;
         self.loadout.grow(by);
+    }
+
+    /// Spend a row that has been granted, on the board you choose.
+    ///
+    /// `owed_rows` holds the grant until the choice is made, because "one
+    /// board of your choice" is a decision and an outcome cannot make it for
+    /// you. Refuses when nothing is owed, so the receipt cannot claim a row
+    /// that was not there.
+    pub fn grow_slot(&mut self, kind: SlotKind) -> bool {
+        if self.owed_rows == 0 {
+            return false;
+        }
+        self.owed_rows -= 1;
+        self.loadout.grow_one(kind, 1);
+        self.last_receipt = Some(vec![format!("+1 row on the {}", kind.name().to_lowercase())]);
+        true
+    }
+
+    /// Extra rows each grid has beyond the eight it started with.
+    ///
+    /// Indexed by `SlotKind::index`. Read off the boards rather than tracked,
+    /// so it cannot disagree with them.
+    pub fn slot_rows(&self) -> [u8; 5] {
+        let mut out = [0u8; 5];
+        for k in SlotKind::ALL {
+            out[k.index()] = self.loadout.slot(k).rows().saturating_sub(crate::slot::SLOT_H);
+        }
+        out
     }
 
     pub fn grant_life(&mut self) {
