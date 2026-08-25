@@ -152,3 +152,38 @@ Whether a given board beats rung 20 on a given setting is a combat question and
 thing it is actually about. They are cheap to spot - a fixture, a `play` to a
 deep rung, and an assertion about an event - and each one is a test that will
 fail for an unrelated reason sooner or later.
+
+---
+
+## 8. Re-expressing a mechanic is not licence to drop the piece's gate
+
+`Warded Sabatons` bought a mana shield. Warding off the clock instead of the
+blow is the right translation into the feet's vocabulary - but it was written
+as `OnActivate(ReduceCooldown)`, unconditional, where the original had paid
+three mana for it.
+
+Every creature wearing the piece got that tempo for free, and the ladder felt it
+at once: a board that had cleared to rung 22 on the hardest setting stopped at
+20. It keeps its gate now.
+
+**The rule to hold for the rest of the sweep:** a piece has a shape as well as a
+mechanic - a cost, a cooldown, a condition - and the shape is usually load
+bearing even when the mechanic is in the wrong slot. Translate the verb, keep
+the sentence.
+
+---
+
+## 9. What is worth checking at the end
+
+Running list, so the last mile is not guesswork.
+
+- Every test that walks many rungs to reach something that is not about combat
+  (see 7). Cheap to spot: a fixture, a `play` to a deep rung, an assertion about
+  an event.
+- Every fixture that might be passing for a reason unrelated to its subject
+  (see 4). `fixtures.rs` covers eleven; the suite is larger than that.
+- The density quotas, re-read as design rather than as arithmetic (see 6).
+- `monster_value` (see 1), which is a patch and should be replaced by a scoring
+  function written for creatures rather than borrowed from the shop.
+- Reflection's trigger (see 3), if the body is ever meant to matter on the clock
+  as well as in health.
