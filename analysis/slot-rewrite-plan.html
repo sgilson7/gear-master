@@ -821,27 +821,64 @@
   </ol>
 
   <h3>Where this stands</h3>
-  <div class="note watch">
-    <span class="tag">Eight commits in, four steps to go</span>
-    <p>
-      Steps 1&ndash;5 are done. Step 5 was split in two &mdash; the reaction and
-      denial exodus, then the curse exodus with the greaves intake &mdash;
-      because the second needed a slot's worth of new pieces authored and could
-      not ship half-done.
-    </p>
-    <p>
-      Steps 6 and 7 were then <em>also</em> split, and less deliberately: the
-      helmet sweep shipped without the chest, and the gloves sweep without the
-      greaves. So <strong>chest has not been swept and greaves is only
-      partly</strong> &mdash; it has fifteen new molds and four adjacency
-      bonuses, but its own axis is still nine pieces short and its bleed
-      twenty-two over.
-    </p>
-    <p>
-      Remaining: the chest sweep, the greaves sweep, then steps 8 and 9 as
-      written.
-    </p>
+  <p class="deck">
+    Twenty commits in. Steps 1&ndash;7 are done; step 8 is part-done and step 9
+    barely started. What follows is measured, not remembered.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>The nine steps</caption>
+      <thead><tr><th>Step</th><th>State</th><th>Note</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">1 Baseline harness</td><td>done</td><td>attribution needed no engine change</td></tr>
+        <tr><td class="rowlabel">2 <code>catalog_shape</code></td><td>done</td><td>shipped as a ratchet, not a red suite</td></tr>
+        <tr><td class="rowlabel">3 Watch / diagonal / fusion</td><td>done</td><td>16 tests; ladder byte-identical</td></tr>
+        <tr><td class="rowlabel">4 Underlay</td><td>done</td><td><code>PieceKind::Terrain</code>, not a bool</td></tr>
+        <tr><td class="rowlabel">5 Weapon exodus</td><td>done</td><td>split in two, announced</td></tr>
+        <tr><td class="rowlabel">6 Helmet + chest</td><td>done</td><td>split in two, <em>not</em> announced</td></tr>
+        <tr><td class="rowlabel">7 Gloves + greaves</td><td>done</td><td>split in two; Francis repacked with greaves</td></tr>
+        <tr><td class="rowlabel">8 Monsters, rating, shop</td><td><strong>part</strong></td><td>Francis only; 51 boards, rating weights and shop pools untouched</td></tr>
+        <tr><td class="rowlabel">9 Words, verification</td><td><strong>barely</strong></td><td>theme and naming kept current per-piece; glossary, tooltips and final §7 not started</td></tr>
+      </tbody>
+    </table>
   </div>
+
+  <h3>The shape work that remains</h3>
+  <p>
+    <code>the_catalog_keeps_every_rule</code> &mdash; the red test that defines
+    done &mdash; stands at <strong>69 rules unmet</strong>, from 79 at step 2.
+    Every slot is inside its filler quota; what is left is mechanics sitting in
+    the wrong slot.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>Pieces still to move</caption>
+      <thead><tr><th>Mechanic</th><th class="n">Away</th><th>Belongs to</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">health above 15</td><td class="n">30</td><td><span class="slot s-chest">Chest</span></td></tr>
+        <tr><td class="rowlabel">speed_bonus / <code>Grow</code></td><td class="n">10 each</td><td>Greaves / Chest</td></tr>
+        <tr><td class="rowlabel"><code>OnBattleStart</code> / <code>MindDamage</code> / <code>Consume</code></td><td class="n">9 each</td><td>Greaves / Helmet</td></tr>
+        <tr><td class="rowlabel">harden, GainShield, GainEmpowerment</td><td class="n">7&ndash;8</td><td>Chest / Helmet</td></tr>
+        <tr><td class="rowlabel">Identity on floating kinds</td><td class="n">43</td><td>&mdash;</td></tr>
+        <tr><td class="rowlabel">Greaves bleed axis (57.6%, wants 20&ndash;25%)</td><td class="n">22</td><td>&mdash;</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Beyond the spec</h3>
+  <p>
+    Six things this rewrite added that the document never asked for, each
+    because measurement or play demanded it: <strong>reflection</strong> as
+    chest&rsquo;s attack; <strong>monster themes</strong> with a clustered
+    ladder and hybrid mini-bosses; a <strong>per-rung time-to-kill curve</strong>
+    and a packing gate aimed at it; <strong>burn and mind-damage
+    attribution</strong>, without which two whole damage channels were invisible;
+    a <strong>re-baseline at Medium</strong>, which is one times; and the
+    <strong>band re-derived</strong> from the measured 96.1% rather than the
+    spec&rsquo;s assumed 75&ndash;85%.
+  </p>
 
   <h3>Acceptance criteria</h3>
   <div class="scroll">
@@ -852,9 +889,9 @@
       </thead>
       <tbody>
         <tr><td class="rowlabel">Weapon damage share</td><td>Falls to 55–65% in reference builds</td></tr>
-        <tr><td class="rowlabel">Slot-mattering</td><td>Stripping any one non-weapon slot from a rung-25 build flips the outcome or costs ≥25% TTK</td></tr>
-        <tr><td class="rowlabel">No-weapon viability</td><td>An empty weapon grid still clears rung 15</td></tr>
-        <tr><td class="rowlabel">Early game preserved</td><td>Rungs 1–10 TTK within ±20% — new players feel nothing</td></tr>
+        <tr><td class="rowlabel">Slot-mattering</td><td>Not re-measured since the baseline. Owed.</td></tr>
+        <tr><td class="rowlabel">No-weapon viability</td><td>Passed at baseline <em>for the wrong reason</em> &mdash; burn only. Needs re-checking now attribution is fixed.</td></tr>
+        <tr><td class="rowlabel">Early game preserved</td><td><strong>Holds.</strong> Rung-1 time-to-kill unmoved across every catalogue sweep.</td></tr>
       </tbody>
     </table>
   </div>
