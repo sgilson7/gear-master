@@ -26,7 +26,7 @@ read at a glance, and five is what made every creature the same creature.
 | Theme | Slots | Vocabulary | Reads as |
 |---|---|---|---|
 | **Striker** | Weapon, Gloves | damage, strength, reaction damage | fast and fragile; punishes a slow board |
-| **Wall** | Chest, Helmet | armour, health, harden, **reflect** | slow; hits back only when hit |
+| **Wall** | Chest, Helmet, **Weapon** (one item) | armour, health, harden, **reflect** | slow; heavy; hits back harder when hit |
 | **Burner** | Weapon, Greaves | searing, damage | kills on the clock, not the swing |
 | **Slower** | Greaves, Gloves | frost, stun, misfire, `OnBattleStart` | denies tempo; deals little itself |
 | **Drainer** | Gloves, Helmet | `Drain`, `Consume`, mind damage | starves a build that banks pools |
@@ -39,6 +39,24 @@ theme is a superset of another.
 absorbed damage earns its keep, and confining it there is what lets reflection
 spread across the chest catalogue without arming every creature on the ladder —
 which is precisely what went wrong the first three times chest gear was touched.
+
+*Amended, 2026-08-25 — why the wall has a weapon.* Wall was the only theme of
+the six whose slots deal no damage, and a creature in this game fights
+**entirely through its gear**: exactly one creature on the ladder has an innate
+attack, and it is the Cave Rat's bite. So a chest-and-helmet wall lands nothing,
+ever. Packed that way The Iron Warden could not hurt anybody, two of them were
+no harder to fight than one, and nine tests failed in nine different vocabularies
+describing the same hole.
+
+Reflection was supposed to be the answer and cannot be. It needs the player to
+swing first and the wall's armour to soak the blow; it is reported as
+`Reflected` rather than `Hit`, so nothing that measures whether a creature can
+hurt you is able to see it; and it can never threaten somebody who out-damages
+it. It is a way of *punishing* an attack, not a way of making one.
+
+So a wall carries a weapon — **one item** of it, which is the most any creature
+may carry. It is still slow, still mostly armour, and it still hits back harder
+than it hits. What it is not any more is a thing that cannot fight.
 
 ## 2. Clustering
 

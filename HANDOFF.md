@@ -76,7 +76,7 @@ Insane is a design decision. Settling it means repacking him against the
 corrected curve, deliberately, and `design/monster-themes.md` §3 otherwise says
 to leave him alone.
 
-**M2 — Clear the road for the repack.** *Next.* Six tests refuse a themed board by
+**M2 — Clear the road for the repack. Done.** Six tests refuse a themed board by
 construction and the packer cannot address `ALTERNATES` at all. Decide each once,
 here, rather than discovering them three boards into a batch: the five-slot
 requirement in `progression::the_named_fights_pack_their_boards`, the overkill
@@ -85,7 +85,15 @@ corridor in `two_runs.rs`, the three named drainers in `drains.rs`, and the
 hard-coded rungs in `effects.rs`, `class_reaches_combat.rs`, `progression.rs` and
 `taller_boards.rs`. Re-derive the density curve first — see §5.
 
-**M3 — The repack.** 49 ladder boards, cluster by cluster, ascending. Francis is
+All of it landed. The curve keeps its line for a better reason: its band's top
+edge at rung 50 is 29.1s, just inside the 30s where **sudden death** takes the
+fight over, so any steeper and the packer would be authoring the top of the
+ladder into a region it cannot measure. Its old justification was false — only
+**13 of 37** gear-decided rungs are inside the band, because the ladder is a
+scatter rather than a ramp, which is what the repack is for.
+
+**M3 — The repack.** *In progress.* 49 ladder boards, cluster by cluster,
+ascending. Francis is
 excluded by design. Nothing has been repacked yet: the 11 specs carrying `items:`
 got them from `packing::author_the_named_fights`, and every spec from index 6 up
 still spans all five slots, which a themed board never does. Commit every three

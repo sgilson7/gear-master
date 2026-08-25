@@ -191,6 +191,24 @@ impl Rank {
         }
     }
 
+    /// The same, for one slot.
+    ///
+    /// The weapon is one item whatever the rank. A creature carrying three
+    /// swings three times a cooldown and no board can answer that - which the
+    /// packer has enforced since it was written, while this rule asked a boss
+    /// for three items in every slot it wears. Six of the ten named fights are
+    /// given a weapon slot by their theme, so for six of ten the two rules
+    /// could not both be satisfied; The Dreaming Idiot was already in that
+    /// state, unnoticed, because the test that asks walks the ladder and it is
+    /// an alternate.
+    pub fn min_items_in(self, slot: SlotKind) -> usize {
+        if slot == SlotKind::Weapon {
+            self.min_items_per_slot().min(1)
+        } else {
+            self.min_items_per_slot()
+        }
+    }
+
     /// How many slots a named creature has to turn up wearing.
     ///
     /// Set by the themes rather than by taste. A mini-boss is a hybrid of its

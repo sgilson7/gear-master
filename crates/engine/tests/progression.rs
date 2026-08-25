@@ -239,6 +239,102 @@ fn an_ordinary_rung_drops_nothing() {
     }
 }
 
+/// Every piece a creature is written as wearing actually goes on the board.
+///
+/// `MonsterSpec::loadout_at` places gear with `can_place` and skips anything
+/// that will not fit, silently, because a difficulty step can hand a creature a
+/// piece of a shape it has no room for. That silence is right at load time and
+/// wrong as a standing condition: a gear list naming four pieces the board only
+/// ever holds two of is not a board anybody authored.
+///
+/// The packer produced exactly that - two pieces on cell (0,0) of Iron
+/// Sentinel's chest - by taking a rejected item off the board *by name*, which
+/// on a board wearing two of something removed a piece belonging to an item
+/// already seated. Nothing noticed, because the creature still fought; it just
+/// fought with half the board its list described.
+/// How many pieces on creature boards are the far side of somebody's quest.
+///
+/// A ratchet, not a rule, because it is a backlog. `pack_francis`'s pool has
+/// said "quest rewards are the far side of somebody's quest and are not gear
+/// anybody wears" for as long as it has existed, and the boards it says it
+/// about were hand-authored before it did. Sixty-five placements across thirty
+/// creatures, and only four pieces: Warlord's Pauldron, Hexer's Reckoning,
+/// Sevenleague Sole and Blade of Helms.
+///
+/// The repack clears them a cluster at a time, because the pool refuses them
+/// now. Lower this in the commit that earns it; it may never rise.
+const QUEST_REWARDS_WORN: usize = 65;
+
+/// Nothing a creature wears is something a player could only be given.
+///
+/// The trophies have had this since they existed
+/// (`boss_gear_belongs_to_exactly_one_monster`), and the same argument covers
+/// three more classes the packer's pool did not exclude: event gear is what a
+/// door hands over, town gear is why you walk into a settlement, and a quest
+/// reward is the far side of somebody's errand. A creature wearing one is the
+/// game showing you the reward before you have earned it, on something that
+/// will not hand it over - `drops` is a separate list, so wearing is not
+/// giving, which is why this was able to go unnoticed.
+#[test]
+fn no_creature_wears_what_only_a_door_hands_over() {
+    use gearmaster_engine::combat::ALTERNATES;
+    use gearmaster_engine::piece::{is_event_only, is_quest_reward, is_town_stock, CATALOG};
+    let mut quest = Vec::new();
+    for m in LADDER.iter().chain(ALTERNATES.iter()) {
+        for &(name, ..) in m.gear {
+            let Some(def) = CATALOG.iter().find(|d| d.name == name) else { continue };
+            assert!(!is_event_only(name), "{} wears {name}, which a door hands over", m.name);
+            assert!(!is_town_stock(def), "{} wears {name}, which is sold in a town", m.name);
+            if is_quest_reward(name) {
+                quest.push(format!("{} wears {name}", m.name));
+            }
+        }
+    }
+    assert!(
+        quest.len() <= QUEST_REWARDS_WORN,
+        "{} pieces of quest reward on creature boards, up from {}: {:?}",
+        quest.len(),
+        QUEST_REWARDS_WORN,
+        &quest[..quest.len().min(5)]
+    );
+    assert_eq!(
+        quest.len(),
+        QUEST_REWARDS_WORN,
+        "the backlog is down to {} - lower QUEST_REWARDS_WORN in this commit",
+        quest.len()
+    );
+}
+
+#[test]
+fn every_piece_a_creature_wears_is_on_its_board() {
+    use gearmaster_engine::combat::{Difficulty, ALTERNATES};
+    use gearmaster_engine::piece::SlotKind;
+    for m in LADDER.iter().chain(ALTERNATES.iter()) {
+        assert_eq!(
+            m.items.iter().sum::<usize>(),
+            if m.items.is_empty() { 0 } else { m.gear.len() },
+            "{}'s item chunks add up to {} and it wears {} pieces",
+            m.name,
+            m.items.iter().sum::<usize>(),
+            m.gear.len()
+        );
+        for d in Difficulty::ALL {
+            let (_, lo) = m.loadout_at(*d);
+            let seated: usize =
+                SlotKind::ALL.iter().map(|&k| lo.slot(k).pieces().len()).sum();
+            assert_eq!(
+                seated,
+                m.gear.len(),
+                "{} on {} is written as wearing {} pieces and seats {}",
+                m.name,
+                d.name(),
+                m.gear.len(),
+                seated
+            );
+        }
+    }
+}
+
 #[test]
 fn the_named_fights_pack_their_boards() {
     use gearmaster_engine::combat::Rank;
@@ -252,8 +348,11 @@ fn the_named_fights_pack_their_boards() {
     // density rule follows the gear, and `min_slots` holds the other half -
     // that a named fight cannot satisfy it by retreating into one corner of
     // one board.
-    for m in LADDER.iter().filter(|m| m.rank != Rank::Ordinary) {
-        let need = m.rank.min_items_per_slot();
+    for m in LADDER
+        .iter()
+        .chain(gearmaster_engine::combat::ALTERNATES.iter())
+        .filter(|m| m.rank != Rank::Ordinary)
+    {
         let (reg, lo) = m.loadout();
         let worn: Vec<SlotKind> = SlotKind::ALL
             .into_iter()
@@ -268,6 +367,7 @@ fn the_named_fights_pack_their_boards() {
             m.rank.min_slots()
         );
         for slot in worn {
+            let need = m.rank.min_items_in(slot);
             let got = lo.report(&reg, slot).items.iter().filter(|it| it.assembled).count();
             assert!(
                 got >= need,

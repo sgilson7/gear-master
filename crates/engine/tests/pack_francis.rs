@@ -18,7 +18,7 @@
 
 use gearmaster_engine::loadout::{lock_assembled_in, Loadout};
 use gearmaster_engine::piece::{
-    is_boss_only, recipes, PieceDef, PieceKind, PieceRegistry, SlotKind, CATALOG,
+    is_boss_only, recipes, PieceDef, PieceId, PieceKind, PieceRegistry, SlotKind, CATALOG,
 };
 use gearmaster_engine::rating::piece_rating;
 use gearmaster_engine::rng::Rng;
@@ -135,7 +135,7 @@ impl Theme {
     fn slots(self) -> &'static [SlotKind] {
         match self {
             Theme::Striker => &[SlotKind::Weapon, SlotKind::Gloves],
-            Theme::Wall => &[SlotKind::Chest, SlotKind::Helmet],
+            Theme::Wall => &[SlotKind::Chest, SlotKind::Helmet, SlotKind::Weapon],
             Theme::Burner => &[SlotKind::Weapon, SlotKind::Greaves],
             Theme::Slower => &[SlotKind::Greaves, SlotKind::Gloves],
             Theme::Drainer => &[SlotKind::Gloves, SlotKind::Helmet],
@@ -186,6 +186,26 @@ impl Theme {
                     || b.magic_harden != 0
                     || b.reflect != 0
                     || says(|a| matches!(a, Action::GainArmor(_) | Action::Grow(_)))
+                    // And something to swing.
+                    //
+                    // Wall is the one theme of the six whose slots deal no
+                    // damage, and a creature fights entirely through its gear -
+                    // exactly one creature on the ladder has an innate attack,
+                    // and it is the Cave Rat. So a chest-and-helmet wall lands
+                    // nothing, ever: The Iron Warden packed into one slow chest
+                    // item and could not hurt anybody, two of them were no
+                    // harder than one, and nine tests said so in nine ways.
+                    //
+                    // Reflection was meant to be the answer and cannot be. It
+                    // needs the player to swing first and the armour to soak
+                    // it, it is reported as `Reflected` rather than `Hit` so
+                    // nothing measuring enemy damage can see it, and it can
+                    // never threaten somebody who out-damages it.
+                    //
+                    // So a wall carries a weapon - one item of it, which is all
+                    // any creature may carry. It is still slow, it is still
+                    // mostly armour, and now it can reach you.
+                    || d.slots().contains(&SlotKind::Weapon)
             }
             Theme::Burner => {
                 b.physical_damage != 0
@@ -337,6 +357,15 @@ fn pool(slot: SlotKind, kind: PieceKind) -> Vec<usize> {
         // else's. `boss_gear_belongs_to_exactly_one_monster` is the test that
         // catches this, and it caught it.
         .filter(|&i| !is_boss_only(CATALOG[i].name) || CATALOG[i].name == mine())
+        // Event gear is what a door hands over: the two casino chips, the
+        // rumours, and what the rumours open. A creature wearing The Green
+        // Ledger has the far side of somebody's errand strapped to its chest,
+        // and Iron Sentinel came back wearing exactly that.
+        .filter(|&i| !gearmaster_engine::piece::is_event_only(CATALOG[i].name))
+        // And town gear is bought in a town. Five curated shelves and the
+        // underlays: the reason to walk into a settlement, not something to
+        // meet on the road wearing a creature.
+        .filter(|&i| !gearmaster_engine::piece::is_town_stock(&CATALOG[i]))
         .collect();
     v.sort_by_key(|&i| std::cmp::Reverse(piece_rating(&CATALOG[i])));
     // Skip the top of the order, but never empty the pool: a kind with three
@@ -394,7 +423,7 @@ fn seat_item(
     slot: SlotKind,
     defs: &[usize],
     rng: &mut Rng,
-) -> Option<Vec<(&'static str, u8, u8, u8)>> {
+) -> Option<Vec<(PieceId, &'static str, u8, u8, u8)>> {
     let rows = lo.slot(slot).rows();
     let ids: Vec<_> = defs.iter().map(|&d| reg.alloc(d)).collect();
     let mut placed: Vec<(gearmaster_engine::piece::PieceId, u8, u8, u8)> = Vec::new();
@@ -477,10 +506,16 @@ fn seat_item(
         lo.locks.retain(|l| l.pieces.iter().all(|p| still.contains(p)));
         return None;
     }
+    // The ids come back with the names. A caller that has to take an item off
+    // the board again must take *these* pieces off it, and taking them off by
+    // name removed whichever piece of that name it found first - which, on a
+    // board that wears two of something, was one belonging to an item already
+    // seated. Iron Sentinel came back with two pieces on cell (0,0) and a gear
+    // list naming four pieces the board only held two of.
     Some(
         placed
             .iter()
-            .map(|&(pid, x, y, rot)| (CATALOG[reg.def_index(pid)].name, x, y, rot))
+            .map(|&(pid, x, y, rot)| (pid, CATALOG[reg.def_index(pid)].name, x, y, rot))
             .collect(),
     )
 }
@@ -526,12 +561,54 @@ fn pieces_for(rung: usize) -> usize {
     // the first themed run took the casino test down with it. Below eleven a
     // creature carries four or five; from eleven the line climbs a piece a
     // rung, reaching fifty-three at rung fifty as it always did.
-    if rung < 10 {
+    if rung < FLAT_UNTIL {
         4 + rung / 4
     } else {
-        3 + rung
+        // One piece a rung from where the flat window leaves off, and never
+        // more than the man at the end of the ladder.
+        (6 + rung - (FLAT_UNTIL - 1)).min(FRANCIS_PIECES)
     }
 }
+
+/// How many pieces this creature is allowed, which for a named fight is
+/// whatever its rank owes.
+///
+/// The density curve is written for ordinary creatures and the casino window
+/// holds its bottom end down to four or five pieces. A mini-boss at rung 9 owes
+/// two items in each of two slots, an item is two pieces at the very least, and
+/// four items do not fit in six pieces - so Whisperling could not be packed at
+/// all, at any band, and the refusal was correct every time. Two rules, both
+/// right, that had never been asked to hold at once.
+///
+/// A named fight is denser than its neighbours; that is most of what being one
+/// means. So it gets the room its rank needs and the curve stops binding it.
+/// Nothing is loosened by this - what stops a named fight becoming a wall is
+/// the two ordinary boards and the casino bar, which measure the fight rather
+/// than counting the pieces.
+fn room_for(rung: usize, wanted: &[SlotKind]) -> usize {
+    let rank = subject_spec().rank;
+    let base = pieces_for(rung);
+    if rank == gearmaster_engine::combat::Rank::Ordinary {
+        return base;
+    }
+    let owed: usize = wanted.iter().map(|&s| rank.min_items_in(s)).sum();
+    base.max(owed * 2)
+}
+
+/// What Francis wears, which nothing else may out-pack.
+///
+/// The line used to be `3 + rung`, inherited from before there was a flat
+/// window in front of it and never rejoined to one: density went from six
+/// pieces at rung 10 to **thirteen** at rung 11 while the difficulty target
+/// rose from 2.00s to 2.49s. A board that doubles in size is not a quarter
+/// harder, so rung 12 came back at 10.0s against a 3.0s target with nothing
+/// closer available - the search was being asked for a board that cannot
+/// exist.
+///
+/// It also aimed past the boss: `3 + rung` wants fifty-two pieces at rung 50,
+/// and Francis wears forty-four. A ladder whose ordinary creatures out-pack its
+/// final boss has the curve pointing at the wrong place entirely.
+const FRANCIS_PIECES: usize = 44;
 
 
 /// What a fight on this rung should take.
@@ -629,6 +706,28 @@ fn off_curve(owner_medium: Beat, rung: usize) -> f64 {
 /// How far off a board may land and still be accepted.
 const BAND: f64 = 0.30;
 
+/// And wider while the curve is flat.
+///
+/// A theme has its own natural speed. A striker at four pieces dies to the
+/// owner's board in a second and a half and a wall at four pieces cannot be
+/// built to die in under three - that is what the two themes *are*, and the
+/// flat window asks both of them for two seconds. Rungs 7, 8 and 9 were all
+/// refused for being too slow by half a second, which is a way of saying the
+/// early ladder may only contain strikers.
+///
+/// So while the density is flat the curve stops being the thing that decides.
+/// What decides down there is the corridor - an ordinary board still wins what
+/// it won, a four-piece board still wins what it won, and nothing falls in
+/// under three seconds to hand the casino to the wrong run - and the curve
+/// ranks what is left rather than ruling on it.
+fn band_for(rung: usize) -> f64 {
+    if rung < FLAT_UNTIL {
+        0.60
+    } else {
+        BAND
+    }
+}
+
 /// Does a board a player might actually have at this rung still get past it?
 ///
 /// The curve is read off the owner's finished seventy-five-piece build, and the
@@ -671,6 +770,33 @@ fn preset_holds(before: Beat, after: Beat) -> bool {
 /// if no shallow creature falls in under three seconds, neither does the
 /// minimum.
 const CASINO_BAR_MS: u32 = 3_000;
+
+/// Does this board hold what its rank owes every slot it wears?
+///
+/// The packer packed to a piece budget and a curve and knew nothing about
+/// rank. Whisperling came back a mini-boss with one item in the helmet, where
+/// `Rank::min_items_in` asks for two in every slot it turns up wearing - and a
+/// mini-boss with one item in a slot is the thing that rule exists to stop.
+///
+/// Both halves, because enforcing one half moved the failure rather than
+/// preventing it: told only about the items, the same creature came back with
+/// two of them and *one slot*, which is the other half of the same rule.
+fn rank_is_satisfied(
+    rank: gearmaster_engine::combat::Rank,
+    gear: &[(&'static str, SlotKind, u8, u8, u8)],
+    chunks: &[usize],
+) -> bool {
+    let mut per: std::collections::HashMap<SlotKind, usize> = std::collections::HashMap::new();
+    let mut at = 0usize;
+    for &c in chunks {
+        if at >= gear.len() {
+            break;
+        }
+        *per.entry(gear[at].1).or_default() += 1;
+        at += c;
+    }
+    per.len() >= rank.min_slots() && per.iter().all(|(&slot, &n)| n >= rank.min_items_in(slot))
+}
 
 /// Is this rung one of the ones the two doors are judged on?
 fn in_the_shallow_window(rung: usize) -> bool {
@@ -784,7 +910,15 @@ fn pack() {
     // gate is measured against it, and it is what the summary prints beside
     // what the winner does.
     let was = want();
-    let mut best: Option<(usize, usize, String, Vec<usize>, Vec<[Beat; 4]>)> = None;
+    type Candidate = (
+        usize,
+        usize,
+        String,
+        Vec<usize>,
+        Vec<[Beat; 4]>,
+        Vec<(&'static str, SlotKind, u8, u8, u8)>,
+    );
+    let mut best: Option<Candidate> = None;
 
     for trial in 0..trials() {
         let mut rng = Rng::new(name_seed() ^ (0x5EED_0000 + trial));
@@ -810,6 +944,7 @@ fn pack() {
             }
             v
         };
+        let wanted_for_cap = wanted.clone();
         for slot in wanted {
             let mut reg = PieceRegistry::new();
             let mut lo = Loadout::new();
@@ -833,7 +968,7 @@ fn pack() {
                     if let Some(p) = seat_item(&mut reg, &mut lo, slot, &[coat, l], &mut rng) {
                         here += 1;
                         chunks.push(p.len());
-                        for (name, x, y, rot) in p {
+                        for (_, name, x, y, rot) in p {
                             gear.push((name, slot, x, y, rot));
                             lines.push(format!(
                                 "            (\"{}\", SlotKind::{:?}, {}, {}, {}),",
@@ -851,7 +986,7 @@ fn pack() {
             // candidate: the loop fills a slot at a time, so a board that is
             // going to be too big is too big from early on, and rejecting it
             // afterwards simply threw every candidate away.
-            let cap_here = pieces_for(subject().0);
+            let cap_here = room_for(subject().0, &wanted_for_cap);
             while stalled < 40 && here < cap && gear.len() < cap_here {
                 let r = recs[rng.below(recs.len())];
                 let defs = choose(slot, r, &mut rng);
@@ -866,22 +1001,18 @@ fn pack() {
                     // at rung thirty and forty percent at rung two - and rung
                     // two is where the early ladder can least afford it.
                     Some(p) if gear.len() + p.len() > cap_here => {
-                        for (name, ..) in &p {
-                            if let Some(id) = lo
-                                .slot(slot)
-                                .pieces()
-                                .into_iter()
-                                .find(|&q| reg.def(q).name == *name)
-                            {
-                                lo.slot_mut(slot).remove(id);
-                            }
+                        for &(id, ..) in &p {
+                            lo.slot_mut(slot).remove(id);
                         }
+                        let still: std::collections::HashSet<_> =
+                            SlotKind::ALL.iter().flat_map(|&k| lo.slot(k).pieces()).collect();
+                        lo.locks.retain(|l| l.pieces.iter().all(|q| still.contains(q)));
                         stalled += 1;
                     }
                     Some(p) => {
                         here += 1;
                         chunks.push(p.len());
-                        for (name, x, y, rot) in p {
+                        for (_, name, x, y, rot) in p {
                             gear.push((name, slot, x, y, rot));
                             lines.push(format!(
                                 "            (\"{}\", SlotKind::{:?}, {}, {}, {}),",
@@ -903,6 +1034,7 @@ fn pack() {
         // Leaked so the spec can borrow them for the length of the fight. This
         // is a generator that runs once by hand; the alternative is threading a
         // lifetime through `MonsterSpec` for the benefit of one test.
+        let gear_for_rank = gear.clone();
         let got = fight(Box::leak(gear.into_boxed_slice()), Box::leak(chunks.clone().into_boxed_slice()));
         // Boards are [early, preset, owner, friend]; difficulties [Easy,
         // Medium, Hard, Insane]. The owner at Medium is the reading, and the
@@ -913,7 +1045,8 @@ fn pack() {
         // below still compares cleanly against density.
         let holds = preset_holds(was[0][1], got[0][1])
             && preset_holds(was[1][1], got[1][1])
-            && (!in_the_shallow_window(rung) || got[1][1].ms >= CASINO_BAR_MS);
+            && (!in_the_shallow_window(rung) || got[1][1].ms >= CASINO_BAR_MS)
+            && rank_is_satisfied(subject_spec().rank, &gear_for_rank, &chunks);
         let hits = if miss == f64::MAX || !holds {
             0
         } else {
@@ -923,11 +1056,11 @@ fn pack() {
         // percent is worth more than one that fights wrong at ninety.
         let key = (hits, total);
         if best.as_ref().is_none_or(|(h, t, ..)| key > (*h, *t)) {
-            best = Some((hits, total, lines.join("\n"), chunks, got));
+            best = Some((hits, total, lines.join("\n"), chunks, got, gear_for_rank));
         }
     }
 
-    let (hits, total, out, chunks, got) = best.expect("something was packed");
+    let (hits, total, out, chunks, got, best_gear) = best.expect("something was packed");
     // A minimum bar, not just a ranking. The search takes the best candidate it
     // found, and "best" is not the same as "good enough": Rust Colossus came
     // back turning seven-second fights into forty-three-second stalemates and
@@ -936,6 +1069,13 @@ fn pack() {
     // records a skip and leaves the creature exactly as it was, which is the
     // right answer for any board this search cannot match.
     let (rung, _) = subject();
+    assert!(
+        rank_is_satisfied(subject_spec().rank, &best_gear, &chunks),
+        "the best board for rung {} does not hold what a {:?} owes every slot it wears. \
+         Leaving it alone.",
+        rung + 1,
+        subject_spec().rank,
+    );
     for (i, which) in [(0usize, "four-piece"), (1, "preset")] {
         assert!(
             preset_holds(was[i][1], got[i][1]),
@@ -959,12 +1099,12 @@ fn pack() {
     );
     let miss = off_curve(got[2][1], rung);
     assert!(
-        miss <= BAND,
+        miss <= band_for(rung),
         "nothing landed on the curve for rung {}: wanted {:.1}s within {:.0}%, best was {}. \
          Leaving it alone.",
         rung + 1,
         target_ms(rung) as f64 / 1000.0,
-        BAND * 100.0,
+        band_for(rung) * 100.0,
         if got[2][1].won {
             format!("{:.1}s", got[2][1].ms as f64 / 1000.0)
         } else {
