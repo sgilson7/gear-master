@@ -218,6 +218,14 @@ pub struct Run {
     /// beside the rung rather than on it: whichever way it goes, the rung's
     /// own creature is still there afterwards.
     pub brawl: Option<&'static crate::event::Brawl>,
+    /// Whether the mind lane's pool has been earned.
+    ///
+    /// False until THE THRESHOLD is cleared. While it is false nothing that
+    /// banks Insight or stacks Dread reaches a shelf and the pool draws
+    /// nothing, because there is never anything in it to draw. There is
+    /// exactly one way to set it - see `unlock_insight` - and it is never
+    /// unset: a run does not un-learn a thing.
+    pub insight_unlocked: bool,
     /// Extra rows this run has been given, on top of the eight every grid
     /// starts with. Only ever goes up: what grants them cannot be sold, so
     /// there is no way to end up with pieces sitting in a row that is about
@@ -237,7 +245,11 @@ pub struct Run {
     /// Nothing else in the game asks a question about a whole playthrough - a
     /// fight is the unit everything is measured in - so this is counted at
     /// settle time and kept nowhere else. Indexed by `Resource::index`.
-    pub banked_all_run: [i32; 4],
+    /// Eight, not four: `Resource::index` runs to seven and a fused pool or
+    /// an Insight gain arriving through `GainResource` would have indexed off
+    /// the end. Nothing does today - a fusion has an event of its own - which
+    /// is exactly why it was worth widening before something did.
+    pub banked_all_run: [i32; 8],
     /// What the last fight paid. The factory doubles it, and nothing else has
     /// ever needed to look back at a bounty after banking it.
     pub last_bounty: i32,
@@ -348,7 +360,8 @@ impl Run {
             best_fight_ms: None,
             worst_fight_ms: None,
             took: Vec::new(),
-            banked_all_run: [0; 4],
+            banked_all_run: [0; 8],
+            insight_unlocked: false,
             last_bounty: 0,
             town: None,
             towns_seen: Vec::new(),
@@ -629,6 +642,16 @@ impl Run {
             }
         }
         gave
+    }
+
+    /// Open the mind lane. Once, and never closed again.
+    ///
+    /// The shelf is told at the same moment, because a flag on the run that
+    /// the shop has to be reminded of separately is a flag that will one day
+    /// be set without the reminder.
+    pub fn unlock_insight(&mut self) {
+        self.insight_unlocked = true;
+        self.shop.insight_open = true;
     }
 
     /// True once the ladder has been cleared.

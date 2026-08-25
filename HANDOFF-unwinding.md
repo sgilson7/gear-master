@@ -54,8 +54,8 @@ re-pinned first**.
 |---|---|---|
 | M0 | The ground, written down | **done** |
 | M1 | Typed lanes and the twins (A1+A2) - merges alone | **done** |
-| M2 | Insight and Dread, dark (A3) | next |
-| M3 | The road stack, receipts, tooltips (A7/A9/A6) | |
+| M2 | Insight and Dread, dark (A3) | **done** |
+| M3 | The road stack, receipts, tooltips (A7/A9/A6) | next |
 | M4 | Road machinery, landed inert (A4) | |
 | M5 | Frames and the four new themes (H4) | |
 | M6 | Dungeon presentation, pedestals, route map (A8/A10/G6) | |
@@ -154,3 +154,33 @@ implementation detail and there is no other way to put one number in and read
 what each lane did to it.
 
 Suite: **556 green**, 0 warnings.
+
+
+---
+
+## M2 - Insight and Dread, dark
+
+One commit, and the ladder did not move by a byte.
+
+`Resource::Insight` is the eighth, and it is **fuel rather than a holding**.
+That is the part of A3 worth reading twice: "what mana empowerment is to magic"
+means Insight pays nothing at all while held, exactly as mana does, because
+what it is worth is decided by the Dread standing on it. `held_bonus` therefore
+gets no Insight arm, and `insight.rs` pins that so a later passive rate has to
+come through the test and argue for itself.
+
+`Action::GainDread(u32)`; mind damage gains `dread x insight / DREAD_DIVISOR`,
+picked up off the swinger on the way out the way empowerment is, and wired into
+**both** routes to mind damage - a piece's `mind` stat and `Action::MindDamage`
+- because a bonus that reached one of them would be a lane with a hole in it.
+
+`Run::banked_all_run` was `[i32; 4]` against an index that already ran to six.
+No live panic, because a fusion has an event of its own; widened to eight
+before something wrote past the end rather than after.
+
+The gate is `Shop::insight_open`, set by `Run::unlock_insight` in the same
+call as the run's flag. `piece::touches_insight` is the predicate.
+`insight.rs::the_catalogue_carries_no_insight_yet` is a lint on the *phase*: it
+fails in the commit that authors the family (M9), and the fix is to delete it.
+
+Suite: **569 green**, 0 warnings.

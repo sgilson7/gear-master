@@ -452,6 +452,10 @@ fn action_points(a: &Action) -> f32 {
         Action::GainEmpowerment(n) => *n as f32 * weight::STACK_PS,
         Action::GainShield(n) => *n as f32 * weight::STACK_PS,
         Action::GainSpellblade(n) => *n as f32 * weight::SPELLBLADE_PS,
+        // A stack of Dread is worth what a stack of empowerment is worth: both
+        // multiply a lane by a pool, and neither is worth anything without the
+        // pool. Priced beside it and re-visited when the Insight family lands.
+        Action::GainDread(n) => *n as f32 * weight::STACK_PS,
         Action::GainDeflection(n) => *n as f32 * weight::DEFLECTION_PS,
         // A fork copies a cast, so a stack is worth roughly what the cast was
         // - which is more than a shield stack, and only to a build that has
@@ -508,7 +512,9 @@ fn watched_per_s(what: crate::piece::Watched) -> f32 {
 fn pool_weight(what: crate::piece::Resource) -> f32 {
     use crate::piece::Resource;
     match what {
-        Resource::Mana => weight::MANA_PS,
+        // Mana and Insight are fuel: neither pays anything while it is merely
+        // held, and both are worth exactly what the stacks they feed are worth.
+        Resource::Mana | Resource::Insight => weight::MANA_PS,
         Resource::Rage | Resource::Faith | Resource::Nature => {
             weight::RESOURCE_PS + weight::HELD_PER_POINT / 2.0
         }

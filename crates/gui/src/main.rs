@@ -1582,6 +1582,10 @@ fn pool_index(what: &str) -> Option<usize> {
         "druidic might" => Some(3),
         "communion" => Some(4),
         "zealotry" => Some(5),
+        // The mind lane's pool. It draws nothing until a run has been given
+        // it, which is the whole of "the pool renders nothing while locked":
+        // a chip only appears once there is a number in it.
+        "insight" => Some(6),
         _ => None,
     }
 }
@@ -1655,6 +1659,7 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
         // The physical twins want no mana, so they read as what they are:
         // one sharpens the blow and one turns it aside.
         Action::GainSpellblade(_) => note("damage", out),
+        Action::GainDread(_) => note("mind", out),
         Action::GainDeflection(_) => note("armor", out),
         Action::Grow(_) => note("health", out),
         Action::Fuse { into, .. } => note(into.name(), out),
@@ -1856,6 +1861,8 @@ fn pool_color(which: &str) -> Color {
         "druidic might" => Color::from_rgba(196, 168, 90, 255),
         "communion" => Color::from_rgba(196, 214, 130, 255),
         "zealotry" => Color::from_rgba(238, 158, 96, 255),
+        // Not painted between anything: Insight is nobody's child.
+        "insight" => Color::from_rgba(178, 150, 220, 255),
         _ => Color::from_rgba(170, 190, 220, 255),
     }
 }
@@ -2426,7 +2433,7 @@ struct FoeView {
     hp: i32,
     max: i32,
     armor: i32,
-    pools: [i32; 6],
+    pools: [i32; 7],
     curses: Vec<ActiveCurse>,
     /// Stunned items, as (item index, started, ends).
     stuns: Vec<(usize, u32, u32)>,
@@ -2439,6 +2446,8 @@ struct FoeView {
     /// The physical twins, which want no mana and so read on their own.
     whetted: u32,
     deflect: u32,
+    /// The mind lane's stack.
+    dread: u32,
     fork: u32,
     flash: f64,
     schedule: Vec<Vec<u32>>,
@@ -2466,7 +2475,7 @@ struct Playback {
     player_mana: i32,
     /// What is left of the run's gold, for gear that spends it mid-fight.
     purse: i32,
-    player_pools: [i32; 6],
+    player_pools: [i32; 7],
     /// Curses on the player. The start is kept as well as the end because the
     /// stun meter fills against the whole span, not against a fixed 1.2s -
     /// stun stacks add to the clock, so no two stuns are the same length.
@@ -2483,6 +2492,7 @@ struct Playback {
     player_shield: u32,
     player_whetted: u32,
     player_deflect: u32,
+    player_dread: u32,
     player_fork: u32,
     /// When each of the player's items fired, indexed the same way as the
     /// combatant's item list. Cooldown bars are drawn straight from these,
@@ -2588,7 +2598,7 @@ impl Playback {
                     hp: body.health,
                     max: body.max_health,
                     armor: 0,
-                    pools: [0; 6],
+                    pools: [0; 7],
                     curses: Vec::new(),
                     stuns: Vec::new(),
                     watch_pops: Vec::new(),
@@ -2596,6 +2606,7 @@ impl Playback {
                     shield: 0,
                     whetted: 0,
                     deflect: 0,
+                    dread: 0,
                     fork: 0,
                     flash: -10.0,
                     schedule: schedule_for(log, Side::Enemy, i as u8, body.items.len()),
@@ -2618,7 +2629,7 @@ impl Playback {
             player_armor: 0,
             player_mana: 0,
             purse: 0,
-            player_pools: [0; 6],
+            player_pools: [0; 7],
             player_curses: Vec::new(),
             player_stuns: Vec::new(),
             player_watch_pops: Vec::new(),
@@ -2630,6 +2641,7 @@ impl Playback {
             player_shield: 0,
             player_whetted: 0,
             player_deflect: 0,
+            player_dread: 0,
             player_fork: 0,
             player_schedule: schedule_for(log, Side::Player, 0, log.player.items.len()),
             player_profiles: pprof,
@@ -2836,6 +2848,13 @@ impl Playback {
                     self.player_shield = *total;
                 } else {
                     self.foe_mut(who).shield = *total;
+                }
+            }
+            Event::Dreading { side, total, .. } => {
+                if *side == Side::Player {
+                    self.player_dread = *total;
+                } else {
+                    self.foe_mut(who).dread = *total;
                 }
             }
             Event::Whetted { side, total, .. } => {
@@ -4962,6 +4981,7 @@ fn render_battle(
         pb.player_shield,
         pb.player_whetted,
         pb.player_deflect,
+        pb.player_dread,
         pb.player_fork,
         &pb.player_curses,
         pb.now_ms,
@@ -5039,6 +5059,7 @@ fn render_battle(
             foe.shield,
             foe.whetted,
             foe.deflect,
+            foe.dread,
             foe.fork,
             &foe.curses,
             pb.now_ms,
@@ -6022,9 +6043,42 @@ const GLOSSARY: &[(&str, &str)] = &[
     ),
     (
         "MANA SHIELD",
-        "Each stack cuts 1 off every incoming hit per point of mana you are still \
-         holding - damage of any kind, before armour. Same catch: it scales off \
-         what is left, not what you spent.",
+        "Each stack cuts 1 off every incoming MAGIC hit per point of mana you are \
+         still holding, before armour. Same catch: it scales off what is left, \
+         not what you spent. Iron and mind walk straight past it.",
+    ),
+    (
+        "SPELLBLADE",
+        "The physical twin of empowerment. Each stack adds a flat 0.50x weapon \
+         power on PHYSICAL hits, and wants no mana at all - so it is worth the \
+         same to a board that banks nothing, and never gets better than it \
+         starts.",
+    ),
+    (
+        "DEFLECTION",
+        "The physical twin of the mana shield. Each stack turns a flat 10 off \
+         every incoming PHYSICAL hit, before armour, and asks for nothing. \
+         Different from REFLECT: deflection reduces the blow, reflection pays \
+         it back.",
+    ),
+    (
+        "INSIGHT",
+        "The mind lane's pool, and the only one that has to be earned before it \
+         exists. Holding it does nothing whatsoever on its own - like mana, and \
+         for the same reason: what it is worth depends entirely on the stacks \
+         standing on it.",
+    ),
+    (
+        "DREAD",
+        "Each stack adds half the Insight you are holding to every point of mind \
+         damage you deal. A stack on an empty pool is worth nothing, and so is a \
+         full pool with no stacks.",
+    ),
+    (
+        "THE THREE LANES",
+        "Physical, magic and mind, each with one amplifier and one answer. Magic: \
+         mana empowerment, and the mana shield. Physical: Spellblade, and \
+         Deflection. Mind: Dread, and MIND RESIST. Nothing crosses.",
     ),
     ("COOLDOWN", "Seconds between one item's activations. Every item runs its own."),
     ("CORE", "The component a recipe needs exactly one of: handle, frame, base, material, book or crystal ball. It anchors an item, which is why two items can touch and still count separately."),
@@ -8008,12 +8062,13 @@ fn render_battle_side(
     shield: u32,
     whetted: u32,
     deflect: u32,
+    dread: u32,
     fork: u32,
     curses: &[ActiveCurse],
     // Playback clock, so a curse chip can count itself down.
     now_ms: u32,
-    // Rage, faith and nature, in that order.
-    pools: [i32; 6],
+    // Rage, faith and nature, then the three fusions, then Insight.
+    pools: [i32; 7],
     flash: f64,
     tint: Color,
 ) {
@@ -8050,7 +8105,7 @@ fn render_battle_side(
             // and only draws once there is one to draw - the row already drops
             // an empty pool, so a board that never fuses looks exactly as it
             // did.
-            ["rage", "faith", "nature", "druidic might", "communion", "zealotry"]
+            ["rage", "faith", "nature", "druidic might", "communion", "zealotry", "insight"]
                 .into_iter()
                 .zip(pools.iter().copied())
                 .map(|(n, v)| (n, if v > 0 { Some(v) } else { None })),
@@ -8116,6 +8171,17 @@ fn render_battle_side(
                 deflect as i32 * gearmaster_engine::combat::DEFLECTION_FLAT
             ),
             Color::from_rgba(228, 186, 150, 255),
+            false,
+        ));
+    }
+    if dread > 0 {
+        // Read against the Insight standing behind it, the way the mana pair
+        // is read against the mana - a stack on an empty pool is worth saying
+        // so about.
+        let per = dread as i32 * pools[6].max(0) / gearmaster_engine::combat::DREAD_DIVISOR;
+        chips.push((
+            format!("dread x{} (+{} per mind)", dread, per),
+            pool_color("insight"),
             false,
         ));
     }

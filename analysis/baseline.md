@@ -1531,3 +1531,31 @@ into the swing math as a comment, but the **Spellblade class** and the
 Spellblade *stack* now sit either side of the same line without either knowing
 about the other. A2 says re-wiring the class to grant stacks is optional. It is
 still optional, and it is still open.
+
+## Drift — M2, Insight and Dread
+
+**None.** The whole harness is byte-identical to M1: every board, every rung,
+every share, every census row. That is the milestone's exit criterion and it is
+what "land primitives inert" is supposed to look like when it works.
+
+`Resource` is eight. The eighth is **fuel, on mana's terms** rather than a
+holding on rage's: `held_bonus` pays nothing for a point of Insight, exactly as
+it pays nothing for a point of mana, because what both are worth is decided by
+the stacks standing on them. A3 asks for "what mana empowerment is to magic",
+and that is the half of the comparison that is easy to miss.
+
+`Run::banked_all_run` was `[i32; 4]` against a `Resource::index()` that already
+returned six. Nothing wrote past the end - a fusion emits `Event::Fused` rather
+than `Event::GainResource` - so this was a fact about today's actions and not
+about the array. It is eight now, and `insight.rs` writes to every index.
+
+The gate is a field on the **shop** (`Shop::insight_open`) set by
+`Run::unlock_insight` at the same moment as the run's own flag, because a flag
+the shop has to be reminded of separately is a flag that will one day be set
+without the reminder. `piece::touches_insight` is the predicate; it matches
+nothing in the catalogue today, and `insight.rs` has a lint that says so and
+asks to be deleted on the day the family lands.
+
+The glossary was carrying a wrong sentence after M1 - "MANA SHIELD ... damage
+of any kind" - and now says magic. SPELLBLADE, DEFLECTION, INSIGHT, DREAD and
+THE THREE LANES are new entries beside it.

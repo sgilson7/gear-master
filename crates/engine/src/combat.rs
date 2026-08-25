@@ -711,6 +711,13 @@ pub const SPELLBLADE_POWER: i32 = 50;
 /// numbers are deliberately the same crossing point.
 pub const DEFLECTION_FLAT: i32 = 10;
 
+/// What a stack of Dread divides the Insight it stands on by.
+///
+/// Mind damage gains `dread x insight / DREAD_DIVISOR` per hit. Two, so a
+/// stack against twenty Insight is worth ten a hit - which is empowerment's
+/// arithmetic seen from the other end, and the number A3 leaves to be tuned.
+pub const DREAD_DIVISOR: i32 = 2;
+
 /// The rung past which everything on the road pierces, and past which it also
 /// hardens. Both are exclusive: rung 30 does not, rung 31 does.
 pub const PIERCE_FROM: usize = 30;
@@ -2812,6 +2819,10 @@ pub struct Combatant {
     /// a physical swing is computed as though neither stack were there.
     pub empowerment: u32,
     pub shield: u32,
+    /// The mind lane's pool and its stack. Insight is fuel like mana - it pays
+    /// nothing at all while held - and Dread is what turns it into damage.
+    pub insight: i32,
+    pub dread: u32,
     /// Stacks of Spellblade and Deflection: the same pair in the physical
     /// lane, and **not** scaled by mana.
     ///
@@ -2960,6 +2971,8 @@ impl Combatant {
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
+            insight: 0,
+            dread: 0,
             spellblade: 0,
             deflection: 0,
             forking: 0,
@@ -3066,6 +3079,8 @@ impl Combatant {
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
+            insight: 0,
+            dread: 0,
             spellblade: 0,
             deflection: 0,
             forking: 0,
@@ -3108,6 +3123,7 @@ impl Combatant {
             DruidicMight => self.druidic_might,
             Communion => self.communion,
             Zealotry => self.zealotry,
+            Insight => self.insight,
         }
     }
 
@@ -3121,6 +3137,7 @@ impl Combatant {
             DruidicMight => self.druidic_might = v,
             Communion => self.communion = v,
             Zealotry => self.zealotry = v,
+            Insight => self.insight = v,
         }
     }
 
@@ -3203,6 +3220,14 @@ impl Combatant {
     /// Flat reduction Deflection applies to an incoming **physical** hit.
     pub fn physical_reduction(&self) -> i32 {
         self.deflection as i32 * DEFLECTION_FLAT
+    }
+
+    /// What Dread adds to every point of mind damage this fighter deals.
+    ///
+    /// Zero without the pool and zero without the stacks, which is the whole
+    /// of the third lane's bargain and the same one the first lane has.
+    pub fn mind_bonus(&self) -> i32 {
+        self.dread as i32 * self.insight.max(0) / DREAD_DIVISOR
     }
 
     /// Mana shield first, then armour, then health. Returns (absorbed by
@@ -3350,6 +3375,9 @@ pub enum Event {
     /// The physical twins. Same shape as the pair above, because they are the
     /// same pair in the other lane.
     Whetted { side: Side, total: u32, power_bonus: i32 },
+    /// The mind lane's stack. `mind_bonus` is what it currently works out to
+    /// against the Insight held, which is nothing until there is some.
+    Dreading { side: Side, total: u32, mind_bonus: i32 },
     Deflecting { side: Side, total: u32, reduction: i32 },
     /// Spell forking gained. Every cast lands once more per stack.
     Forking { side: Side, total: u32 },
@@ -3615,6 +3643,13 @@ impl CombatLog {
                 total,
                 power_bonus / 100,
                 power_bonus % 100
+            ),
+            Event::Dreading { side, total, mind_bonus } => format!(
+                "{} {} dread x{} (+{} per point of mind)",
+                t,
+                self.who(*side),
+                total,
+                mind_bonus
             ),
             Event::Whetted { side, total, power_bonus } => format!(
                 "{} {} spellblade x{} (+{}.{:02}x power on iron)",
@@ -4464,8 +4499,12 @@ fn activate(
     }
 
     if item.mind > 0 {
+        // Dread is the wearer's, so it is read off the swinger before the
+        // blow leaves - the same shape as empowerment, which is picked up on
+        // the way out rather than applied on arrival.
+        let raw = item.mind + pick(p, foes, me).mind_bonus();
         let target = pick(p, foes, me.other(front));
-        let dealt = target.take_mind(item.mind);
+        let dealt = target.take_mind(raw);
         let mh = target.max_health;
         if dealt > 0 {
             log.push(LogEntry {
@@ -5007,8 +5046,9 @@ fn apply(
         }
         Action::MindDamage { amount, target } => {
             let on = resolve(target);
+            let raw = amount + pick(p, foes, me).mind_bonus();
             let c = pick(p, foes, on);
-            let dealt = c.take_mind(amount);
+            let dealt = c.take_mind(raw);
             let mh = c.max_health;
             if dealt > 0 {
                 log.push(LogEntry {
@@ -5115,6 +5155,16 @@ fn apply(
             c.shield += n;
             let (total, reduction) = (c.shield, c.damage_reduction());
             log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::Shielded { side, total, reduction } });
+        }
+        Action::GainDread(n) => {
+            let c = pick(p, foes, me);
+            c.dread += n;
+            let (total, bonus) = (c.dread, c.mind_bonus());
+            log.push(LogEntry {
+                who,
+                at_ms: t,
+                event: Event::Dreading { side, total, mind_bonus: bonus },
+            });
         }
         Action::GainSpellblade(n) => {
             let c = pick(p, foes, me);

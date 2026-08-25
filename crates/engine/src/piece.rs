@@ -423,10 +423,21 @@ pub enum Resource {
     DruidicMight,
     Communion,
     Zealotry,
+    /// The mind lane's pool, and the eighth.
+    ///
+    /// To mind damage what mana is to magic empowerment, and that comparison
+    /// is exact rather than decorative: holding it is worth nothing at all on
+    /// its own, and worth a great deal per stack of Dread. So it is fuel
+    /// rather than a holding, it pays no `held_bonus`, and a board that banks
+    /// it without banking Dread has banked a number.
+    ///
+    /// Locked until THE THRESHOLD is cleared (`Run::insight_unlocked`). Until
+    /// then nothing that grants it reaches a shelf and the pool draws nothing.
+    Insight,
 }
 
 impl Resource {
-    pub const ALL: [Resource; 7] = [
+    pub const ALL: [Resource; 8] = [
         Resource::Mana,
         Resource::Rage,
         Resource::Faith,
@@ -434,6 +445,7 @@ impl Resource {
         Resource::DruidicMight,
         Resource::Communion,
         Resource::Zealotry,
+        Resource::Insight,
     ];
 
     /// The four a trigger may spend. Mana is fuel and the other three are
@@ -452,6 +464,7 @@ impl Resource {
             Resource::DruidicMight => 4,
             Resource::Communion => 5,
             Resource::Zealotry => 6,
+            Resource::Insight => 7,
         }
     }
 
@@ -486,6 +499,7 @@ impl Resource {
             Resource::DruidicMight => "druidic might",
             Resource::Communion => "communion",
             Resource::Zealotry => "zealotry",
+            Resource::Insight => "insight",
         }
     }
 }
@@ -534,6 +548,14 @@ pub enum Action {
     /// banks forty. So it has no ceiling to build towards and no condition to
     /// meet, which is the trade against the pair that does.
     GainSpellblade(u32),
+    /// Gain stacks of Dread: each stack adds `insight_held / 2` to every point
+    /// of **mind** damage dealt.
+    ///
+    /// The mind lane's amplifier, and the exact shape of empowerment: a stack
+    /// is worth nothing without the pool and the pool is worth nothing without
+    /// a stack. Helmet-exclusive, like the pair it copies. Locked with the
+    /// pool - see `Resource::Insight`.
+    GainDread(u32),
     /// Gain stacks of Deflection: each stack turns a flat 10 points off every
     /// incoming **physical** hit, ahead of armour.
     ///
@@ -602,6 +624,7 @@ impl Action {
             Action::GainEmpowerment(n) => format!("gain {} mana empowerment", n),
             Action::GainShield(n) => format!("gain {} mana shield", n),
             Action::GainSpellblade(n) => format!("gain {} spellblade", n),
+            Action::GainDread(n) => format!("gain {} dread", n),
             Action::GainDeflection(n) => format!("gain {} deflection", n),
             Action::GainForking(n) => format!("gain {} spell forking", n),
             Action::Grow(n) => format!("gain {} maximum health for the rest of the fight", n),
@@ -9624,6 +9647,25 @@ pub fn town_shelf() -> &'static [&'static str] {
 }
 
 /// Is this piece bought in a town rather than off the road?
+/// Does this piece deal in the mind lane's pool at all?
+///
+/// True for anything that banks Insight or stacks Dread. Both are locked
+/// behind THE THRESHOLD, so until a run has cleared it neither may reach a
+/// shelf - a pool nobody can hold is a piece that does nothing, and a piece
+/// that does nothing is worse than a piece that is not there.
+pub fn touches_insight(def: &PieceDef) -> bool {
+    def.triggers.iter().any(|t| {
+        let mut found = false;
+        walk_actions(t, &mut |a| {
+            found |= matches!(
+                a,
+                Action::GainDread(_) | Action::Gain { what: Resource::Insight, .. }
+            );
+        });
+        found
+    })
+}
+
 pub fn is_town_stock(def: &PieceDef) -> bool {
     is_town_only(def.name) || def.kind.is_enchantment()
 }
