@@ -215,8 +215,16 @@ fn every_stun_in_a_fight_names_one_item_and_respects_the_cap() {
             }
         }
         // Unpaid, Kingsbane takes its failure branch, which never aims.
+        //
+        // The player's stuns, not every stun in the log. This asked the whole
+        // fight, which was the same question while nothing on the ladder could
+        // aim one - and the drainers can: `StunStrongest` is theirs, so
+        // Verdigris now picks the player's strongest item on purpose and said
+        // so, and the test read that as Kingsbane breaking its own rule.
         assert!(
-            log.entries.iter().all(|e| !matches!(e.event, Event::Stunned { aimed: true, .. })),
+            log.entries.iter().all(
+                |e| !matches!(e.event, Event::Stunned { on: Side::Enemy, aimed: true, .. })
+            ),
             "{}: an unpaid stun reported itself as aimed",
             spec.name
         );

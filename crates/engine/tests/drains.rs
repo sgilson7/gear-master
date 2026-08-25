@@ -131,14 +131,26 @@ fn losing_a_pool_to_a_creature_hurts_for_what_was_taken() {
         if lost.is_empty() {
             continue;
         }
+        // The faith it took, not everything it took.
+        //
+        // This required every drain in the fight to be faith, which held while
+        // the creatures that drink faith drank nothing else. The drainers take
+        // whatever is banked - Gallowglass empties mana alongside it - and a
+        // theme whose whole job is taking pools was always going to. What the
+        // test is about is what a *faith* drain costs, so it looks at those.
+        let lost: Vec<_> = lost.into_iter().filter(|(w, _)| *w == "faith").collect();
+        if lost.is_empty() {
+            continue;
+        }
         seen += 1;
-        assert!(lost.iter().all(|(w, _)| *w == "faith"), "{name}: {lost:?}");
 
         // The damage lands in the same tick as the drain and is priced off it.
         let at = log
             .entries
             .iter()
-            .position(|e| matches!(e.event, Event::Drained { on: Side::Player, .. }))
+            .position(|e| {
+                matches!(&e.event, Event::Drained { on: Side::Player, what, .. } if *what == "faith")
+            })
             .expect("just found one");
         let taken = lost[0].1;
         let hit = log.entries[at + 1..]
