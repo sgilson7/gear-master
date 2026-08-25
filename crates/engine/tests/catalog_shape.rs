@@ -420,9 +420,9 @@ const EVENTUAL_FILLER_PCT: usize = 15;
 /// figure in the commit that earns it; never raise one.
 const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
     (SlotKind::Helmet, "expresses its own axis", 3),
-    (SlotKind::Helmet, "expresses its bleed axis", 6),
+    (SlotKind::Helmet, "expresses its bleed axis", 5),
     (SlotKind::Helmet, "plain flat-stat filler", 0),
-    (SlotKind::Helmet, "the dearest third interacts", 2),
+    (SlotKind::Helmet, "the dearest third interacts", 0),
     (SlotKind::Chest, "expresses its own axis", 0),
     (SlotKind::Chest, "expresses its bleed axis", 5),
     (SlotKind::Chest, "plain flat-stat filler", 0),
@@ -526,7 +526,7 @@ fn dull_treasures() -> Vec<&'static str> {
     out
 }
 
-const DULL_TREASURE_BUDGET: usize = 4;
+const DULL_TREASURE_BUDGET: usize = 0;
 
 #[test]
 fn the_catalog_stays_within_its_budgets() {

@@ -7101,7 +7101,14 @@ pub static CATALOG: &[PieceDef] = &[
             curse_resist: 40,
             ..Stats::ZERO
         },
-        adjacency: None,
+        adjacency: Some(Adjacency {
+            // A coat is a thing other things shelter under. Chest's tense is
+            // structural - what rests on it - and the one thing the coat
+            // cannot be is terrain, because Francis wears it as part of an
+            // item and terrain never joins one.
+            label: "The Money Jacket: +12 to both resistances",
+            stats: Stats { physical_resist: 12, magic_resist: 12, ..Stats::ZERO },
+        }),
         effect: None,
         cooldown_ms: 2600,
         speed_bonus: 0,
@@ -7707,7 +7714,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 3600,
         speed_bonus: 0,
-        triggers: &[Trigger::Consume {
+        triggers: &[
+            // It is a ring with a hole in it, and what it looks through is
+            // the corners - the one relation on a board that sees past its
+            // own neighbours.
+            Trigger::OnDiagonalActivate(Action::MindDamage { amount: 4, target: Target::Enemy }),
+            Trigger::Consume {
             what: Resource::Faith,
             each: 5,
             per: Action::GainShield(1),
@@ -7755,11 +7767,21 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Material,
         cells: &[(0,0),(1,0),(0,1),(1,1),(0,2),(1,2)],
         base: Stats { health: 1200, armor: 60, physical_resist: 34, magic_resist: 34, ..Stats::ZERO },
-        adjacency: None,
+        adjacency: Some(Adjacency {
+            // A Material floats between gloves and greaves, so it may not
+            // carry an identity mechanic - `ReduceCooldown` is the feet's and
+            // the ratchet said so the moment it was tried. Positional stats are
+            // pan-slot texture and belong to nobody, which is exactly what a
+            // bleed carrier is for.
+            label: "Gilded Offcuts: +90 health",
+            stats: Stats::health(90),
+        }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::GainArmor(48))],
+        triggers: &[
+            Trigger::OnActivate(Action::GainArmor(48)),
+        ],
         quest: None,
         power_bonus: 0,
         price: 999,
@@ -8023,6 +8045,14 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[
             Trigger::OnBattleStart(Action::GainArmor(140)),
+            // It is a gift from something that counts, and it counts. Eight of
+            // anything you do and it takes a little more off you than it gave.
+            Trigger::Watch {
+                what: Watched::AnyActivation,
+                count: 8,
+                then: Action::MindDamage { amount: 6, target: Target::Enemy },
+                repeats: true,
+            },
             Trigger::Consume {
                 what: Resource::Nature,
                 each: 6,
