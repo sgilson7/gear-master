@@ -18,7 +18,7 @@
 
 use gearmaster_engine::loadout::{lock_assembled_in, Loadout};
 use gearmaster_engine::piece::{
-    is_boss_only, recipes, PieceKind, PieceRegistry, SlotKind, CATALOG,
+    is_boss_only, recipes, PieceDef, PieceKind, PieceRegistry, SlotKind, CATALOG,
 };
 use gearmaster_engine::rating::piece_rating;
 use gearmaster_engine::rng::Rng;
@@ -62,12 +62,200 @@ fn per_slot() -> usize {
     std::env::var("PACK_ITEMS").ok().and_then(|v| v.parse().ok()).unwrap_or(99)
 }
 
+
+// ------------------------------------------------------------------ themes
+//
+// `design/monster-themes.md` is the argument; this is the table. A theme names
+// two slots and a vocabulary, and the packer considers nothing outside them -
+// which is what makes a creature legible in the first three seconds of a fight
+// and what cuts the candidate pool by roughly sixty percent.
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+enum Theme {
+    Striker,
+    Wall,
+    Burner,
+    Slower,
+    Drainer,
+    Caster,
+}
+
+impl Theme {
+    /// The two grids this creature fills. Two rather than five: two is what a
+    /// player can read at a glance, and five is what made every creature on
+    /// the ladder the same creature.
+    fn slots(self) -> &'static [SlotKind] {
+        match self {
+            Theme::Striker => &[SlotKind::Weapon, SlotKind::Gloves],
+            Theme::Wall => &[SlotKind::Chest, SlotKind::Helmet],
+            Theme::Burner => &[SlotKind::Weapon, SlotKind::Greaves],
+            Theme::Slower => &[SlotKind::Greaves, SlotKind::Gloves],
+            Theme::Drainer => &[SlotKind::Gloves, SlotKind::Helmet],
+            Theme::Caster => &[SlotKind::Weapon, SlotKind::Helmet],
+        }
+    }
+
+    /// Does this piece speak the theme's language?
+    ///
+    /// A piece that carries nothing either way - a plain frame, a bare
+    /// material - is allowed everywhere: a board needs cores and filler to
+    /// assemble at all, and refusing them would leave most themes unable to
+    /// finish a single item.
+    fn allows(self, d: &PieceDef) -> bool {
+        use gearmaster_engine::curse::CurseKind;
+        use gearmaster_engine::piece::{Action, Trigger};
+        let says = |want: fn(&Action) -> bool| {
+            d.triggers.iter().any(|t| match t {
+                Trigger::OnActivate(a)
+                | Trigger::OnBattleStart(a)
+                | Trigger::OnAdjacentActivate(a)
+                | Trigger::OnAlignedActivate(a)
+                | Trigger::OnDiagonalActivate(a)
+                | Trigger::OnOtherCast(a) => want(a),
+                Trigger::Watch { then, .. } => want(then),
+                Trigger::PerAdjacentItem { action, .. } => want(action),
+                Trigger::Consume { per, .. } => want(per),
+                Trigger::SpendGold { on_success, .. } => want(on_success),
+                Trigger::SpendMana { on_success, on_failure, .. }
+                | Trigger::Spend { on_success, on_failure, .. } => {
+                    want(on_success) || want(on_failure)
+                }
+                Trigger::PerAdjacentEmpty(_) => false,
+            })
+        };
+        let b = &d.base;
+        let speaks = match self {
+            Theme::Striker => {
+                b.physical_damage != 0
+                    || b.magic_damage != 0
+                    || b.strength != 0
+                    || says(|a| matches!(a, Action::Damage { .. }))
+            }
+            Theme::Wall => {
+                b.armor != 0
+                    || b.health != 0
+                    || b.physical_harden != 0
+                    || b.magic_harden != 0
+                    || b.reflect != 0
+                    || says(|a| matches!(a, Action::GainArmor(_) | Action::Grow(_)))
+            }
+            Theme::Burner => {
+                b.physical_damage != 0
+                    || b.magic_damage != 0
+                    || says(|a| {
+                        matches!(a, Action::Damage { .. })
+                            || matches!(a, Action::Curse { kind: CurseKind::Searing, .. })
+                    })
+            }
+            Theme::Slower => {
+                d.speed_bonus != 0
+                    || b.curse_resist != 0
+                    || d.triggers.iter().any(|t| matches!(t, Trigger::OnBattleStart(_)))
+                    || says(|a| {
+                        matches!(
+                            a,
+                            Action::Curse {
+                                kind: CurseKind::Frost | CurseKind::Stun | CurseKind::Misfire,
+                                ..
+                            }
+                        ) || matches!(a, Action::ReduceCooldown(_))
+                    })
+            }
+            Theme::Drainer => {
+                b.mind != 0
+                    || b.mind_resist != 0
+                    || says(|a| {
+                        matches!(
+                            a,
+                            Action::Drain { .. }
+                                | Action::MindDamage { .. }
+                                | Action::StunStrongest { .. }
+                        )
+                    })
+            }
+            Theme::Caster => {
+                d.power_bonus != 0
+                    || b.mana != 0
+                    || matches!(
+                        d.kind,
+                        PieceKind::Spell | PieceKind::Ink | PieceKind::Orb | PieceKind::Book
+                            | PieceKind::Alignment
+                    )
+                    || says(|a| {
+                        matches!(a, Action::GainMana(_) | Action::GainForking(_))
+                            | matches!(a, Action::GainEmpowerment(_) | Action::GainShield(_))
+                    })
+            }
+        };
+        speaks || plain(d)
+    }
+}
+
+/// Carries nothing any theme would recognise. Cores and filler, which every
+/// board needs whatever it is for.
+fn plain(d: &PieceDef) -> bool {
+    d.triggers.is_empty()
+        && d.effect.is_none()
+        && d.base.physical_damage == 0
+        && d.base.magic_damage == 0
+        && d.base.armor == 0
+        && d.base.health == 0
+}
+
+/// The clusters, from `design/monster-themes.md`. Stretches rather than a
+/// rotation, so a player has time to work out what is in front of them - and
+/// ordered to teach: hit first, then that hitting is not enough. Rungs 45 and
+/// beyond are deliberately unthemed.
+fn theme_for(rung: usize) -> Option<Theme> {
+    Some(match rung + 1 {
+        1..=6 => Theme::Striker,
+        7..=13 => Theme::Wall,
+        14..=20 => Theme::Burner,
+        21..=28 => Theme::Slower,
+        29..=36 => Theme::Caster,
+        37..=44 => Theme::Drainer,
+        _ => return None,
+    })
+}
+
+/// What this creature draws from. A mini-boss is a hybrid: its own cluster's
+/// theme and the one the next cluster introduces, so it is both a harder
+/// version of what you have learned and the first sight of what is coming.
+fn themes_of(rung: usize, ordinary: bool) -> Vec<Theme> {
+    let mut out: Vec<Theme> = theme_for(rung).into_iter().collect();
+    if !ordinary {
+        // The next cluster's theme, found by walking forward to the first rung
+        // that answers differently.
+        if let Some(next) = (rung + 1..50).find_map(|r| {
+            theme_for(r).filter(|t| Some(*t) != theme_for(rung))
+        }) {
+            out.push(next);
+        }
+    }
+    out
+}
+
+/// The creature being packed, and where it stands.
+fn subject() -> (usize, bool) {
+    use gearmaster_engine::combat::{Rank, LADDER};
+    LADDER
+        .iter()
+        .position(|m| m.name == who())
+        .map(|i| (i, LADDER[i].rank == Rank::Ordinary))
+        .unwrap_or((0, true))
+}
+
 /// Pieces of one kind that may go in one slot, best first.
 fn pool(slot: SlotKind, kind: PieceKind) -> Vec<usize> {
     let mut v: Vec<usize> = (0..CATALOG.len())
         .filter(|&i| {
             let d = &CATALOG[i];
-            d.kind == kind && d.slots().contains(&slot)
+            let (rung, ordinary) = subject();
+            let themes = themes_of(rung, ordinary);
+            // No theme - the run-in, or a creature off the ladder - means the
+            // old behaviour: everything that fits the slot.
+            let fits_theme = themes.is_empty() || themes.iter().any(|t| t.allows(d));
+            d.kind == kind && d.slots().contains(&slot) && fits_theme
         })
         // Quest rewards are the far side of somebody's quest and are not gear
         // anybody wears.
@@ -358,7 +546,24 @@ fn pack() {
         let mut chunks: Vec<usize> = Vec::new();
         let mut total = 0usize;
 
-        for slot in SlotKind::ALL {
+        // Only the theme's grids. A creature that fills all five is the
+        // creature this design exists to stop being.
+        let (rung, ordinary) = subject();
+        let drawn = themes_of(rung, ordinary);
+        let wanted: Vec<SlotKind> = if drawn.is_empty() {
+            SlotKind::ALL.to_vec()
+        } else {
+            let mut v: Vec<SlotKind> = Vec::new();
+            for t in &drawn {
+                for s in t.slots() {
+                    if !v.contains(s) {
+                        v.push(*s);
+                    }
+                }
+            }
+            v
+        };
+        for slot in wanted {
             let mut reg = PieceRegistry::new();
             let mut lo = Loadout::new();
             let all = recipes(slot);
