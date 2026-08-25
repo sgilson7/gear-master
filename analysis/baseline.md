@@ -539,3 +539,47 @@ repack and the `towns` fixture in the same change. `debt_is_a_debt` is not in
 `fixtures.rs` - it does not name a piece, it depends on activation counts being
 identical, which is a different and more brittle kind of coupling worth adding
 to that manifest.
+
+---
+
+## The reference boards were being rebuilt wrong
+
+Every figure above this line is measured against boards that did not assemble
+the way the players built them.
+
+A finished board packs to within a cell or two of full, so nearly everything on
+it touches nearly everything else. `Shared::loadout` seated every piece
+correctly - 62 of 62, 75 of 75, 76 of 76, nothing dropped - and then derived
+items from that in a single pass at the end, which asks which pieces are
+connected. On a board that dense the answer is "most of them". The owner's
+nineteen weapon pieces came back as **one** item; the perfect run's eleven came
+back as **none**.
+
+Locking each item the moment it assembles is what the player was doing while
+building it: a locked item is finished, nothing may join it, and the next piece
+packs flush against it rather than into it.
+
+| Board | Items assembled, before → after |
+|---|---|
+| perfect, weapon | **0 → 3** |
+| perfect, whole board | 12 → 17 |
+| owner, weapon | 1 → 2 |
+| owner, whole board | 13 → **19** |
+| friend, whole board | 12 → **17** |
+
+And the measurements move with it:
+
+| Build | Cleared | Median TTK | Weapon share |
+|---|---|---|---|
+| owner | 46/50 | 14.40s → **9.00s** | 79.5% → **86.0%** |
+| friend | 46/50 → **50/50** | 5.45s → 5.15s | 99.4% → 99.3% |
+
+The friend's board clears the whole ladder now, which is what a run that cleared
+the whole ladder ought to do — the clearest sign the reconstruction is right.
+
+**Weapon share at one times is 86.0%, not 79.5%.** The weapon was
+under-assembling more than the armour was, so repairing it raised the weapon's
+share rather than lowering it. Against the re-derived 66–76% band that is ten
+points out, not three and a half. Every drift entry above understates the
+weapon, and the direction of each sweep still holds — the same fault ran before
+and after all of them — but the absolute figures did not.

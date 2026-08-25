@@ -393,8 +393,16 @@ fn seat_item(
         for &(pid, _, _, _) in &placed {
             lo.remove_anywhere(pid);
         }
-        lo.locks.clear();
-        lock_assembled_in(lo, reg, slot);
+        // Only this attempt's locks come off. It used to clear every lock in
+        // the loadout and re-derive - which unlocked every item seated before
+        // it, and an unlocked item is one a later placement can be absorbed
+        // into. That is the whole reason to lock as you go: a locked item is
+        // finished and cannot be joined, so the next one may be packed flush
+        // against it. Clearing them all meant each failed attempt undid the
+        // density of everything already on the board.
+        let still: std::collections::HashSet<_> =
+            SlotKind::ALL.iter().flat_map(|&k| lo.slot(k).pieces()).collect();
+        lo.locks.retain(|l| l.pieces.iter().all(|p| still.contains(p)));
         return None;
     }
     Some(

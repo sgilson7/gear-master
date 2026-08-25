@@ -150,3 +150,32 @@ fn the_perfect_run_reads_back_as_what_it_says_it_is() {
         assert!(d < gearmaster_engine::piece::CATALOG.len(), "index {d} is not a component");
     }
 }
+
+#[test]
+#[ignore]
+fn probe_what_a_shared_board_loses_on_the_way_back() {
+    use gearmaster_engine::piece::SlotKind;
+    use gearmaster_engine::share;
+    for (label, code) in [
+        ("perfect", share::A_PERFECT_RUN),
+        ("owner", share::A_WINNING_RUN),
+        ("friend", share::A_FRIENDS_RUN),
+    ] {
+        let sh = share::import(code).expect("reads");
+        let (reg, lo) = sh.loadout();
+        let seated: usize = SlotKind::ALL.iter().map(|&k| lo.slot(k).pieces().len()).sum();
+        println!("\n{label}: code says {} pieces, board seated {seated}", sh.placed.len());
+        for k in SlotKind::ALL {
+            let r = lo.report(&reg, k);
+            let want = sh.placed.iter().filter(|(_, s, ..)| *s == k).count();
+            println!(
+                "  {:?}: {} of {} seated, {} items assembled, {} loose",
+                k,
+                lo.slot(k).pieces().len(),
+                want,
+                r.assembled_count(),
+                r.loose_count()
+            );
+        }
+    }
+}

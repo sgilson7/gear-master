@@ -91,10 +91,20 @@ impl Shared {
             reg.set_rotation(id, rot);
             if lo.can_place(&reg, id, slot, x, y).is_ok() {
                 lo.slot_mut(slot).place(&reg, id, x, y);
+                // Lock as it completes, not once at the end.
+                //
+                // A finished board is packed to within a cell or two of full,
+                // so nearly everything on it touches nearly everything else.
+                // Deriving items from that in a single pass at the end asks
+                // which pieces are connected, and on a dense board the answer
+                // is "most of them" - which is how a weapon grid of nineteen
+                // pieces came back holding one item. Locking each item the
+                // moment it assembles is what the player was doing while
+                // building it: a locked item is finished, nothing may join it,
+                // and the next piece packs flush against it rather than into
+                // it.
+                crate::loadout::lock_assembled_in(&mut lo, &reg, slot);
             }
-        }
-        for kind in SlotKind::ALL {
-            crate::loadout::lock_assembled_in(&mut lo, &reg, kind);
         }
         (reg, lo)
     }
