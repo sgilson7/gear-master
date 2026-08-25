@@ -75,6 +75,17 @@ impl Action {
     }
 }
 
+/// How a town comes to be on the road.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Unlock {
+    /// Always there. The three shipped towns.
+    Pinned,
+    /// Not there until something puts it there - an event outcome, usually a
+    /// word somebody gave you. Once revealed it stands at its own `after`
+    /// like any other town and behaves like one in every other respect.
+    Hidden,
+}
+
 /// A stop on the road.
 #[derive(Copy, Clone, Debug)]
 pub struct Town {
@@ -85,6 +96,15 @@ pub struct Town {
     pub name: &'static str,
     /// Read at the gate, before you decide.
     pub blurb: &'static [&'static str],
+    pub unlock: Unlock,
+    /// The doors this one has.
+    ///
+    /// The three shipped towns have the same four, which is why this was a
+    /// constant for as long as there were only three. A hidden town is hidden
+    /// because it is *somewhere else*, and somewhere else has its own doors -
+    /// a crucible, a mold line, a cellar - so the list belongs to the town
+    /// rather than to the idea of a town.
+    pub actions: &'static [Action],
 }
 
 /// Three of them, spaced so no two compete for the same run.
@@ -95,6 +115,8 @@ pub struct Town {
 pub const TOWNS: &[Town] = &[
     Town {
         id: "sump-bottom",
+        unlock: Unlock::Pinned,
+        actions: &Action::ALL,
         after: 6,
         name: "SUMP BOTTOM",
         blurb: &[
@@ -112,6 +134,8 @@ pub const TOWNS: &[Town] = &[
     },
     Town {
         id: "kettleworks",
+        unlock: Unlock::Pinned,
+        actions: &Action::ALL,
         after: 17,
         name: "KETTLEWORKS",
         blurb: &[
@@ -129,6 +153,8 @@ pub const TOWNS: &[Town] = &[
     },
     Town {
         id: "high-wick",
+        unlock: Unlock::Pinned,
+        actions: &Action::ALL,
         after: 31,
         name: "HIGH WICK",
         blurb: &[
@@ -200,6 +226,31 @@ mod tests {
         for t in TOWNS {
             let clash = crate::event::EVENTS.iter().find(|e| e.at == t.after + 1);
             assert!(clash.is_none(), "{} lands on {}", t.id, clash.map(|e| e.id).unwrap_or(""));
+        }
+    }
+
+    /// A hidden town that shares a gap with a pinned one would be a town
+    /// nobody can reach, because `between` takes the first match.
+    #[test]
+    fn every_town_has_its_gap_to_itself_whether_or_not_it_is_on_the_map() {
+        let mut seen: Vec<usize> = TOWNS.iter().map(|t| t.after).collect();
+        seen.sort_unstable();
+        let n = seen.len();
+        seen.dedup();
+        assert_eq!(seen.len(), n, "two towns on one rung, and one of them is unreachable");
+    }
+
+    #[test]
+    fn every_town_has_at_least_one_door() {
+        for t in TOWNS {
+            assert!(!t.actions.is_empty(), "{} is a town with nothing in it", t.id);
+        }
+    }
+
+    #[test]
+    fn the_three_shipped_towns_are_still_pinned_and_still_have_their_four() {
+        for t in TOWNS.iter().filter(|t| matches!(t.unlock, Unlock::Pinned)) {
+            assert_eq!(t.actions, &Action::ALL, "{} lost a door", t.id);
         }
     }
 

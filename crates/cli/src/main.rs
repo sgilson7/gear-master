@@ -383,7 +383,7 @@ fn show_town(run: &Run) {
         println!("  {}", line);
     }
     println!("  One of these, and then the road:");
-    for a in gearmaster_engine::town::Action::ALL {
+    for a in t.actions.iter().copied() {
         println!("    {:<9} {}", format!("{:?}", a).to_lowercase(), a.blurb());
     }
     println!("    on        walk past, and take the bounty again");

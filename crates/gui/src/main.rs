@@ -6524,7 +6524,6 @@ fn render_town(
     mx: f32,
     my: f32,
 ) -> Option<Option<gearmaster_engine::town::Action>> {
-    use gearmaster_engine::town::Action;
     let pad = 56.0;
     let h = 620.0;
     let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, LOGICAL_W - 2.0 * pad, h);
@@ -6544,12 +6543,18 @@ fn render_town(
         y += 10.0;
     }
 
+    // The town's own doors, not the idea of a town's doors. Three towns had
+    // the same four for as long as there were only three of them; a hidden
+    // town is hidden because it is somewhere else, and somewhere else has a
+    // crucible or a cellar instead of a chapel.
+    let doors = town.actions;
+    let n = doors.len().max(1);
     let gap = 14.0;
-    let cw = (r.w - 56.0 - 3.0 * gap) / 4.0;
+    let cw = (r.w - 56.0 - (n - 1) as f32 * gap) / n as f32;
     let top = y + 14.0;
     let ch = (r.y + r.h - 108.0) - top;
     let mut picked = None;
-    for (i, a) in Action::ALL.into_iter().enumerate() {
+    for (i, a) in doors.iter().copied().enumerate() {
         let cell = Rect::new(r.x + 28.0 + i as f32 * (cw + gap), top, cw, ch);
         let hot = cell.contains(Vec2::new(mx, my));
         draw_rectangle(

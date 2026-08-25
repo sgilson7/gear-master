@@ -418,6 +418,13 @@ pub struct Run {
     /// Towns already answered, by id, so a Grinder knocked back through one
     /// does not get a second visit.
     pub towns_seen: Vec<&'static str>,
+    /// Hidden towns something has put on the road, by id.
+    ///
+    /// A pinned town is on the map before the run starts; a hidden one is not
+    /// on it until an event says so, and after that it is a town like any
+    /// other. Kept as a list rather than a flag per town because which towns
+    /// exist is a table and this is a fact about a run.
+    pub towns_revealed: Vec<&'static str>,
     /// The dungeon being walked and which floor, if any. A dungeon stands off
     /// the road: it never moves the rung, so coming out puts you back in front
     /// of the fight you had not got to.
@@ -524,6 +531,7 @@ impl Run {
             last_bounty: 0,
             town: None,
             towns_seen: Vec::new(),
+            towns_revealed: Vec::new(),
             dungeon: None,
             pending_landing: None,
             extra_lives: 0,
@@ -807,20 +815,42 @@ impl Run {
     /// requirement is not met, so the offer cannot be widened by asking
     /// differently.
     pub fn take_choice(&mut self, c: &crate::event::Choice) -> Option<&'static str> {
-        use crate::event::Outcome as ChoiceOutcome;
         let Some(ev) = self.pending_event() else { return None };
         if !self.choice_open(c) {
             return None;
         }
         self.answered.push(ev.id);
         self.took.push(c.label);
+        let (gave, receipt) = self.apply_outcome(&c.outcome, c.requires);
+        self.last_receipt = Some(receipt);
+        gave
+    }
+
+    /// Do what an outcome says, and say what it did.
+    ///
+    /// Split out of `take_choice` because an outcome is not only an event's.
+    /// A town door hands one over too, and the two would otherwise be the same
+    /// twelve arms written twice - which is the shape of every "and then
+    /// somebody forgot to update the other one" bug in this file's history.
+    ///
+    /// `req` is the choice's requirement, and it is here for exactly one arm:
+    /// `BuyOff` takes the component the requirement named. A door with no
+    /// requirement passes `Requirement::None` and nothing is taken.
+    ///
+    /// Returns what was handed over, if anything, and the receipt.
+    pub fn apply_outcome(
+        &mut self,
+        outcome: &crate::event::Outcome,
+        req: crate::event::Requirement,
+    ) -> (Option<&'static str>, Vec<String>) {
+        use crate::event::Outcome as ChoiceOutcome;
         // The receipt starts as what the outcome *is* and gains what it *did*
         // as the arms below work out their numbers. A bounty depends on the
         // rung and a life depends on the mode, and neither is knowable from a
         // table.
-        let mut receipt = c.outcome.describe();
+        let mut receipt = outcome.describe();
         let mut gave = None;
-        match c.outcome {
+        match *outcome {
             ChoiceOutcome::FightAsWritten => {}
             ChoiceOutcome::FightInstead(name) => {
                 self.substitute = crate::combat::alternate(name);
@@ -836,12 +866,7 @@ impl Run {
             }
             ChoiceOutcome::Stock { shelves, class } => {
                 self.shop.stock_exactly(shelves);
-                if let Some(k) = crate::class::CLASSES.iter().find(|k| k.name == class) {
-                    if !self.classes.iter().any(|held| held.name == k.name) {
-                        self.classes.push(k);
-                        self.refresh_class_effects();
-                    }
-                }
+                self.claim_class(class);
             }
             ChoiceOutcome::Give(name) => {
                 if let Some(d) = crate::piece::CATALOG.iter().position(|d| d.name == name) {
@@ -854,18 +879,13 @@ impl Run {
                 }
             }
             ChoiceOutcome::Claim(name) => {
-                if let Some(c) = crate::class::CLASSES.iter().find(|c| c.name == name) {
-                    if !self.classes.iter().any(|k| k.name == c.name) {
-                        self.classes.push(c);
-                        self.refresh_class_effects();
-                    }
-                }
+                self.claim_class(name);
             }
             ChoiceOutcome::Enter(id) => {
                 self.dungeon = crate::dungeon::by_id(id).map(|d| (d, 0));
             }
             ChoiceOutcome::BuyOff { times } => {
-                if let Some(&id) = self.offerings(c.requires).first() {
+                if let Some(&id) = self.offerings(req).first() {
                     gave = Some(self.registry.def(id).name);
                     self.owned.retain(|&o| o != id);
                     receipt[0] = format!("Handed over: {}", self.registry.def(id).name);
@@ -880,11 +900,20 @@ impl Run {
                 self.rung += 1;
                 self.best_rung = self.best_rung.max(self.rung);
                 let need = self.needs_a_weapon();
-        self.shop.restock(&mut self.rng, need);
+                self.shop.restock(&mut self.rng, need);
             }
         }
-        self.last_receipt = Some(receipt);
-        gave
+        (gave, receipt)
+    }
+
+    /// Take a class handed over rather than poured, if it is not already held.
+    fn claim_class(&mut self, name: &str) {
+        let Some(k) = crate::class::CLASSES.iter().find(|k| k.name == name) else { return };
+        if self.classes.iter().any(|held| held.name == k.name) {
+            return;
+        }
+        self.classes.push(k);
+        self.refresh_class_effects();
     }
 
     /// Take the receipt, so the road can move on.
@@ -1247,7 +1276,7 @@ impl Run {
                 // And there may be somewhere between here and the next one.
                 // Once only: a Grinder knocked back through a town does not
                 // get to work the same shift twice.
-                if let Some(t) = crate::town::between(self.rung) {
+                if let Some(t) = self.town_between(self.rung) {
                     if !self.towns_seen.contains(&t.id) {
                         self.town = Some(t);
                         self.last_bounty = bounty;
@@ -2254,6 +2283,28 @@ impl Run {
     }
 
     // -------------------------------------------------------------- towns
+
+    /// The town standing in this gap, if there is one this run can see.
+    ///
+    /// A pinned town is always there. A hidden one is there only once
+    /// something has put it there, which is the whole of what "hidden" means -
+    /// after that it is a town like any other, at its own rung, with its own
+    /// doors, subject to the same one-visit rule.
+    pub fn town_between(&self, rung: usize) -> Option<&'static crate::town::Town> {
+        crate::town::between(rung).filter(|t| match t.unlock {
+            crate::town::Unlock::Pinned => true,
+            crate::town::Unlock::Hidden => self.towns_revealed.contains(&t.id),
+        })
+    }
+
+    /// Put a hidden town on the road. Idempotent, and never undone.
+    pub fn reveal_town(&mut self, id: &'static str) -> bool {
+        if crate::town::by_id(id).is_none() || self.towns_revealed.contains(&id) {
+            return false;
+        }
+        self.towns_revealed.push(id);
+        true
+    }
 
     /// The town you are standing at the gate of, if any.
     pub fn pending_town(&self) -> Option<&'static crate::town::Town> {
