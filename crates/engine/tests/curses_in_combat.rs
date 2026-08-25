@@ -72,9 +72,18 @@ fn frost_slows_everything_the_target_owns_not_one_item() {
     // weapon keeps, and it is the same kind, so it drops straight in. The
     // assertion below is untouched.
     let run = wearing(&["Pocket Grimoire", "Mercurial Ink", "Rime Nova"]);
-    let stats = run.player_stats();
+    let mut stats = run.player_stats();
     let items = run.combat_items();
     assert_eq!(items.len(), 1, "the frost weapon has to assemble to cast");
+    // Enough health to watch the window out.
+    //
+    // What is under test is how often the *enemy* acts, and the fixture is
+    // three pieces: against a themed ladder it loses every fight from rung 2
+    // and is dead inside six seconds from rung 12, so the search ran out of
+    // rungs that were still going when the window closed. A creature cannot be
+    // observed being slowed by somebody who is not there. `effects.rs` does the
+    // same thing to its fixtures for the same reason.
+    stats.health = 100_000;
 
     // Counting activations over the whole fight proves nothing: a slowed enemy
     // takes *longer* to do the same work, so the fight simply runs on and the

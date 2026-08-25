@@ -907,3 +907,69 @@ board.
 Stronger early creatures slow both boards, weaker ones speed both, so the
 binding constraint is the 1.4s: that is how much the early ladder may be
 hardened before the casino door shuts on the build it was written for.
+
+---
+
+## The wall could not fight, and three other things a slot list was deciding
+
+Rungs 7-13 are Walls. Getting them there took four attempts and turned up the
+one place where the theme design and the engine genuinely disagreed.
+
+**A creature fights entirely through its gear.** Exactly one creature on the
+ladder has an innate attack, and it is the Cave Rat's bite; every other one of
+the fifty-three boards deals damage only through what it is wearing. Wall is
+Chest and Helmet, and neither slot deals damage. So a themed wall lands nothing,
+ever: The Iron Warden packed into one slow chest item and could not hurt
+anybody, two of them were no harder to fight than one, no rung on the early
+ladder offered two busy enemy items, nothing burned in twelve fights. Nine tests
+failed in nine vocabularies describing one hole.
+
+Reflection was meant to be the answer and structurally cannot be. It needs the
+player to swing first and the wall's armour to soak the blow; it is reported as
+`Reflected` rather than `Hit`, so nothing measuring whether a creature can hurt
+you is able to see it; and it never threatens somebody who out-damages it. It is
+a way of punishing an attack, not a way of making one. **A wall carries one
+weapon item now** - the most any creature may carry - and is otherwise unchanged.
+
+Then the same fault three times over, each time from the slot list doing a
+second job nobody had asked it to do:
+
+1. The theme *allowed* the weapon and the packer filled chest and helmet first,
+   so every wall came back weaponless - the armour had spent the board before
+   the search reached the weapon. **A list of permitted slots was acting as a
+   priority order.**
+2. Seating the weapon first produced a wall wearing a sword and no armour. One
+   weapon item is a handle, two damaging pieces and two accessories: five, which
+   was the whole budget. **A cap on items is not a cap on pieces.**
+3. Giving every slot an equal share of the budget left the thinnest walls unable
+   to fit a chest item at all, and left a mini-boss unable to meet its rank
+   inside a share split four ways. **A share is a ceiling and must never be a
+   reason a slot cannot hold one item.**
+
+Each slot takes a rolling share now, floored at one item - or at the items its
+rank owes - and the weapon goes down first wherever a theme has one.
+
+### The long way asks for fifteen seconds
+
+The door that sends an ordinary run down the road wanted a **20s** win in rungs
+2-9. Nothing can produce one any more: a board blunted until it grinds - the
+winning build with its weapon off, at 27x - takes **18.0s** at its slowest down
+there, and a board blunted further cannot reach the pay-off twelve rungs later.
+
+The threshold had been raised from ten to twenty, and the reason was recorded:
+"a creature carries a piece a rung now". That is not true where this door is
+asked. The density curve is deliberately **flat** across rungs 1-10, four or
+five pieces, so the casino stays reachable; a piece a rung only begins above
+that. So the shallow end got lighter again and the line came back down with it.
+Fifteen separates the two boards that matter - sharp 8.0s, grinding 18.0s - and
+twenty separates nothing, because nothing reaches it. The door's own prose has
+always said "that last one took eleven seconds".
+
+### Where the ladder stands after two clusters
+
+| | |
+|---|---|
+| Rungs repacked | 2-13, less Rust Colossus |
+| Skipped | Rust Colossus - the weakest wall buildable at rung 12 still takes 4.5s against a 3.0s target |
+| Casino corridor | sharp 1600ms, plain 4500ms - unmoved from before the repack began |
+| Owner's board | clears 45 of 50, median 9.00s |

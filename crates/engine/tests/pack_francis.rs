@@ -587,12 +587,21 @@ fn pieces_for(rung: usize) -> usize {
 /// than counting the pieces.
 fn room_for(rung: usize, wanted: &[SlotKind]) -> usize {
     let rank = subject_spec().rank;
-    let base = pieces_for(rung);
+    let base = room_for_every_slot(pieces_for(rung), wanted);
     if rank == gearmaster_engine::combat::Rank::Ordinary {
         return base;
     }
     let owed: usize = wanted.iter().map(|&s| rank.min_items_in(s)).sum();
     base.max(owed * 2)
+}
+
+/// Room for at least one item in every slot the theme names.
+///
+/// A theme that names three slots and a budget that fits two is a theme with a
+/// slot it never uses - and which slot goes without is decided by the order of
+/// a list rather than by anything anybody meant.
+fn room_for_every_slot(base: usize, wanted: &[SlotKind]) -> usize {
+    base.max(wanted.len() * 2)
 }
 
 /// What Francis wears, which nothing else may out-pack.
@@ -944,8 +953,21 @@ fn pack() {
             }
             v
         };
+        // The weapon goes down first wherever a theme has one.
+        //
+        // A slot only gets filled while there is budget left, so the order is
+        // the priority whether it means to be or not: Wall lists chest and
+        // helmet before its weapon, and every wall came back with no weapon at
+        // all - the armour had eaten the board before the search reached it.
+        // The weapon is the thing that reaches you and it is capped at one
+        // item, so it costs two or three pieces and settles the question.
+        let mut wanted = wanted;
+        if let Some(at) = wanted.iter().position(|&s| s == SlotKind::Weapon) {
+            wanted.swap(0, at);
+        }
         let wanted_for_cap = wanted.clone();
-        for slot in wanted {
+        let slot_count = wanted.len();
+        for (nth, slot) in wanted.into_iter().enumerate() {
             let mut reg = PieceRegistry::new();
             let mut lo = Loadout::new();
             let all = recipes(slot);
@@ -986,7 +1008,28 @@ fn pack() {
             // candidate: the loop fills a slot at a time, so a board that is
             // going to be too big is too big from early on, and rejecting it
             // afterwards simply threw every candidate away.
-            let cap_here = room_for(subject().0, &wanted_for_cap);
+            // No slot may take more than its share of what is left.
+            //
+            // Seating the weapon first fixed a wall with no weapon and made a
+            // wall with nothing else: one weapon *item* is a handle and two
+            // damaging pieces and two accessories, which is five, and five was
+            // the whole board. The Iron Warden came back wearing a sword and
+            // no armour, which is a striker with the wrong name on it.
+            //
+            // The share rolls: a slot that takes less than its share leaves
+            // the rest to the slots after it, so a board still fills up. What
+            // it cannot do is let the first slot in the list decide what the
+            // creature is.
+            let room = room_for(subject().0, &wanted_for_cap);
+            let left = slot_count - nth;
+            let share = (room.saturating_sub(gear.len())).div_ceil(left);
+            // A share is a ceiling, never a reason a slot cannot hold an item.
+            // The smallest item is two pieces, and a rank asks for two or three
+            // of them: a wall at rung 7 given five pieces across three slots
+            // has one left over for its chest by the time the others are down,
+            // and one piece is no item at all.
+            let floor = 2 * subject_spec().rank.min_items_in(slot).max(1);
+            let cap_here = gear.len() + share.max(floor);
             while stalled < 40 && here < cap && gear.len() < cap_here {
                 let r = recs[rng.below(recs.len())];
                 let defs = choose(slot, r, &mut rng);

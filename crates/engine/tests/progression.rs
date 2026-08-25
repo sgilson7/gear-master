@@ -699,14 +699,24 @@ fn a_harder_setting_is_actually_harder() {
     easy.apply_preset();
     assert_eq!(easy.fight_next().outcome, Outcome::Victory, "the preset clears rung 1 on easy");
 
-    let mut insane = Run::with_all_pieces();
-    insane.difficulty = Difficulty::Insane;
-    insane.apply_preset();
-    insane.rung = 6;
-    assert_ne!(
-        insane.fight_next().outcome,
-        Outcome::Victory,
-        "the same build should not walk through a mid-ladder monster at 27x"
+    // Somewhere in the first half, not rung 7 in particular.
+    //
+    // Rung 7 was a creature wearing eighteen pieces; themed, it wears six, and
+    // the preset walks through it at 27x - which says something about that
+    // creature and nothing about the setting. What has to be true is that a
+    // build which clears rung 1 on Easy is stopped by the shallow half of the
+    // ladder on Insane, and that is what this asks.
+    let stopped = (0..LADDER.len() / 2).find(|&rung| {
+        let mut insane = Run::with_all_pieces();
+        insane.difficulty = Difficulty::Insane;
+        insane.apply_preset();
+        insane.rung = rung;
+        insane.fight_next().outcome != Outcome::Victory
+    });
+    assert!(
+        stopped.is_some(),
+        "the same build walks the whole shallow half of the ladder at 27x, so the setting \
+         is not doing anything"
     );
 }
 

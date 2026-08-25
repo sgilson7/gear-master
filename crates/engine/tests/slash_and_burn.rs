@@ -67,7 +67,14 @@ fn it_reaches_a_real_fight() {
     let run = a_burner();
     let (stats, items) = (run.player_stats(), run.combat_items());
     let mut burned = 0;
-    for spec in LADDER.iter().take(12) {
+    // The whole ladder, not the first twelve of it.
+    //
+    // Twelve was "far enough in that a fight lasts", and after the repack it is
+    // not: rungs 1-13 are strikers and walls, the spell wants a pool and a
+    // couple of seconds, and those fights are over before it has either. What
+    // this test is about is that burning reaches a real fight at all, so it
+    // asks the whole road rather than the part of it that used to be slow.
+    for spec in LADDER.iter() {
         let log = simulate_at(stats, &items, spec, Difficulty::Medium);
         burned += log
             .entries
@@ -78,5 +85,5 @@ fn it_reaches_a_real_fight() {
     // The auto-builder may not seat this particular spell, so this is a check
     // that burning works at all on a real board rather than proof it was this
     // piece that did it.
-    assert!(burned > 0, "nothing burned in twelve fights");
+    assert!(burned > 0, "nothing burned anywhere on the ladder");
 }

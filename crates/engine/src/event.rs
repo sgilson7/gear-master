@@ -417,7 +417,21 @@ pub const EVENTS: &[LadderEvent] = &[
     LadderEvent {
         id: "the-long-way",
         at: 8,
-        trigger: Trigger::SlowKill { over_ms: 20_000, from: 1 },
+        // Fifteen seconds, down from twenty.
+        //
+        // The number is a statement about the shallow ladder, and the shallow
+        // ladder was repacked to a curve: rungs 2 to 9 are four to six themed
+        // pieces now where they were hand-authored boards two and three times
+        // that. A board blunted until it grinds - the winning build with its
+        // weapon taken off, at 27x - takes 18.0s at its slowest down there,
+        // and took well over twenty against the boards this threshold was set
+        // against. Nothing that can still reach the pay-off twelve rungs later
+        // is slower than that.
+        //
+        // A sharp board's slowest shallow fight is 8.0s, so the two doors stay
+        // as far apart as they were; and the prose has always said "that last
+        // one took eleven seconds", which is nearer fifteen than twenty.
+        trigger: Trigger::SlowKill { over_ms: 15_000, from: 1 },
         blocked_by: &["the-casino"],
         expects: "Whisperling",
         title: "GERALD",

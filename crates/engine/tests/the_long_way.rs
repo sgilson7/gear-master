@@ -25,13 +25,21 @@ fn a_slow_win_in_the_shallow_end_opens_it() {
     let mut run = slow_run();
     assert_eq!(run.pending_event().map(|e| e.id), Some("the-long-way"));
 
-    // Twenty seconds is the line, and it is a floor rather than a ceiling.
-    // It was ten. The themed ladder makes fights longer - a creature carries a
-    // piece a rung now - so ten seconds stopped meaning "this run is grinding"
-    // and started meaning "this run is ordinary". The line moved with the
-    // fights it measures, the same way the casino's did in the other
-    // direction.
-    for (ms, open) in [(20_001u32, true), (20_000, false), (4_000, false)] {
+    // Fifteen seconds is the line, and it is a floor rather than a ceiling.
+    //
+    // It was ten, then twenty, and the reason for twenty was written down: "a
+    // creature carries a piece a rung now, so ten seconds stopped meaning this
+    // run is grinding". That is no longer true where this door is asked. The
+    // density curve is deliberately **flat** across rungs 1-10 - four or five
+    // pieces, to keep the casino reachable - and a piece a rung only starts
+    // above that. So the shallow end got lighter again and the line came back
+    // down with it.
+    //
+    // Fifteen because it is measured. A board blunted until it grinds takes
+    // 18.0s at its slowest down there; a sharp board takes 8.0s. Anything
+    // between those two separates them, and twenty separates nothing because
+    // nothing reaches it.
+    for (ms, open) in [(15_001u32, true), (15_000, false), (4_000, false)] {
         run.worst_fight_ms = Some(ms);
         assert_eq!(
             run.pending_event().map(|e| e.id) == Some("the-long-way"),

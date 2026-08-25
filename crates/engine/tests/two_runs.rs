@@ -174,6 +174,13 @@ fn a_grinding_run() -> Run {
     // slowest on Insane was 14.4s. The fixture's whole job is to be the run
     // that grinds, and grinding is what a board with no weapon does - the
     // other four slots still fight, which is the rewrite's own point.
+    // The fixture is unchanged this time and the door moved instead. Taking
+    // the gloves off as well does make it grind, and makes it too weak to
+    // reach the pay-off twelve rungs later - the fixture has to be slow in the
+    // shallow end *and* still get to rung 21, and after the repack no amount of
+    // blunting is both. What changed is the ladder underneath it, so what had
+    // to move was the number the door asks for. See `the-long-way` in
+    // `event.rs`.
     run.loadout.slot_mut(SlotKind::Weapon).clear();
     let still: Vec<_> =
         SlotKind::ALL.iter().flat_map(|&k| run.loadout.slot(k).pieces()).collect();
