@@ -106,9 +106,17 @@ fn losing_a_pool_to_a_creature_hurts_for_what_was_taken() {
         "Adamant Base",
         "Riveted Layer",
     ]);
-    let stats = run.player_stats();
+    let mut stats = run.player_stats();
     let items = run.combat_items();
     assert!(!items.is_empty(), "the helmet has to assemble to bank faith");
+    // Enough health to be drained.
+    //
+    // Pale Twin at rung 18 was the shallowest creature that drinks faith, and
+    // it is a burner now - so the shallowest is rung 21, and a seven-piece
+    // faith build does not survive rung 21 long enough for a helmet on a
+    // four-second cooldown to come round. What is under test is what a drain
+    // costs, which cannot be watched from a corpse.
+    stats.health = 100_000;
 
     let carriers = faith_drinkers();
     assert!(

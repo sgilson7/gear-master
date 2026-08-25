@@ -163,6 +163,19 @@ fn a_blunt_run() -> Run {
 /// win is 3200ms - past the casino's three-second bar - and its slowest is
 /// 14400ms, which is what opens the road instead.
 fn a_grinding_run() -> Run {
+    a_grinding_run_and_its_weapon().0
+}
+
+/// The same, and the weapon that was taken off it, so a run can put it back.
+///
+/// A board that grinds the shallow end and a board that walks to rung 21 are
+/// not the same board, and after the repack they cannot be: the road wants a
+/// fight over fifteen seconds in rungs 2-9, which takes the weapon off, and the
+/// burners at rungs 14-20 stop a weaponless board at 19. A player is not stuck
+/// with that choice - they ground the shallow end and then bought a weapon,
+/// which is the whole shape of the run this test is about - so the fixture
+/// stops pretending its board never changes.
+fn a_grinding_run_and_its_weapon() -> (Run, Vec<(gearmaster_engine::piece::PieceId, u8, u8)>) {
     // Insane, not Hard. This fixture's whole job is to be the board whose
     // fights run long enough to open the road instead of the casino, and the
     // gloves sweep moved that line: a board that answers its neighbours kills
@@ -181,11 +194,30 @@ fn a_grinding_run() -> Run {
     // blunting is both. What changed is the ladder underneath it, so what had
     // to move was the number the door asks for. See `the-long-way` in
     // `event.rs`.
+    let weapon: Vec<_> = run
+        .loadout
+        .slot(SlotKind::Weapon)
+        .pieces()
+        .into_iter()
+        .filter_map(|id| run.loadout.slot(SlotKind::Weapon).anchor_of(id).map(|(x, y)| (id, x, y)))
+        .collect();
     run.loadout.slot_mut(SlotKind::Weapon).clear();
     let still: Vec<_> =
         SlotKind::ALL.iter().flat_map(|&k| run.loadout.slot(k).pieces()).collect();
     run.loadout.locks.retain(|l| l.pieces.iter().all(|p| still.contains(p)));
-    run
+    (run, weapon)
+}
+
+/// Put the weapon back on, the way twelve rungs of shopping would have.
+fn rearm(run: &mut Run, weapon: &[(gearmaster_engine::piece::PieceId, u8, u8)]) {
+    for &(id, x, y) in weapon {
+        let _ = run.equip(id, SlotKind::Weapon, x, y);
+    }
+    gearmaster_engine::loadout::lock_assembled_in(
+        &mut run.loadout,
+        &run.registry,
+        SlotKind::Weapon,
+    );
 }
 
 #[test]
@@ -428,11 +460,18 @@ fn both_vip_branches_can_be_taken_by_the_winning_board() {
 /// twelve rungs later.
 #[test]
 fn the_winning_board_can_walk_the_road_and_collect_on_it() {
-    let mut run = a_grinding_run();
+    let (mut run, weapon) = a_grinding_run_and_its_weapon();
     let follow = EVENTS.iter().find(|e| e.id == "where-it-was-going").expect("authored");
+    let road = EVENTS.iter().find(|e| e.id == "the-long-way").expect("authored");
 
+    // Grind as far as the road, then arm up and walk it.
     // Ask rather than take: the whole point of the free branch.
-    let t = play(&mut run, follow.at, |c| c.label.starts_with("Ask"));
+    let mut t = play(&mut run, road.at + 1, |c| c.label.starts_with("Ask"));
+    rearm(&mut run, &weapon);
+    let rest = play(&mut run, follow.at, |c| c.label.starts_with("Ask"));
+    t.events.extend(rest.events);
+    t.choices.extend(rest.choices);
+    t.reached = rest.reached.max(t.reached);
     assert!(
         t.events.contains(&"the-long-way"),
         "the road never came up: reached rung {}, events {:?}, slowest win {:?}ms",
@@ -502,11 +541,20 @@ fn taking_trundle_shuts_the_pay_off_but_not_the_door() {
 fn trundle_no_longer_costs_the_road() {
     let follow = EVENTS.iter().find(|e| e.id == "where-it-was-going").expect("authored");
 
-    let mut asked = a_grinding_run();
-    play(&mut asked, follow.at, |c| c.label.starts_with("Ask"));
-
-    let mut took = a_grinding_run();
-    play(&mut took, follow.at, |c| matches!(c.outcome, ChoiceOutcome::Claim("Trundle")));
+    // Both runs grind to the road and then arm up, for the reason on
+    // `a_grinding_run_and_its_weapon`: a board that opens the road cannot also
+    // be the board that walks the twelve rungs after it, and a player is not
+    // stuck with that choice.
+    let road = EVENTS.iter().find(|e| e.id == "the-long-way").expect("authored");
+    let walk = |pick: &dyn Fn(&gearmaster_engine::event::Choice) -> bool| -> Run {
+        let (mut run, weapon) = a_grinding_run_and_its_weapon();
+        play(&mut run, road.at + 1, |c| pick(c));
+        rearm(&mut run, &weapon);
+        play(&mut run, follow.at, |c| pick(c));
+        run
+    };
+    let asked = walk(&|c| c.label.starts_with("Ask"));
+    let took = walk(&|c| matches!(c.outcome, ChoiceOutcome::Claim("Trundle")));
 
     println!(
         "the same board: rung {} having asked, rung {} having taken Trundle",
