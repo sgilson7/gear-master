@@ -53,8 +53,8 @@ re-pinned first**.
 | | Milestone | State |
 |---|---|---|
 | M0 | The ground, written down | **done** |
-| M1 | Typed lanes and the twins (A1+A2) - merges alone | next |
-| M2 | Insight and Dread, dark (A3) | |
+| M1 | Typed lanes and the twins (A1+A2) - merges alone | **done** |
+| M2 | Insight and Dread, dark (A3) | next |
 | M3 | The road stack, receipts, tooltips (A7/A9/A6) | |
 | M4 | Road machinery, landed inert (A4) | |
 | M5 | Frames and the four new themes (H4) | |
@@ -109,3 +109,48 @@ sibling. That is why every new component in the mission lands in one milestone
 `analysis/baseline.md` - the four-board table, the catalog census, criterion 2
 and 3, the mind-damage table, the ratchet in full, and the casino corridor,
 which is the constraint M1 is about to push on.
+
+
+---
+
+## M1 - Typed lanes and the twins
+
+Two commits. The first is the only one in the mission allowed to move the
+ladder; the second moved nothing at all.
+
+**A1.** Empowerment multiplies magic-typed hits only; the mana shield reduces
+magic-typed damage only; physical skips both, and so does mind. Mind is
+answered by `mind_resist` and nothing else (RECONCILIATION II #18) - the shield
+used to blunt it too, which made mana the answer to three lanes out of three.
+
+**A2.** `GainSpellblade` (+0.50x power a stack, flat, physical) and
+`GainDeflection` (-10 a hit, flat, physical, ahead of armour). Both constants
+are set where a twin stack equals its mana cousin at ten mana, which is where
+the two bargains cross.
+
+**What it cost.** The shallow ladder is byte-identical - rungs 1-14, all four
+boards - and the casino corridor is unmoved. The whole cost is two rungs on the
+owner's board (50/50 → 48/50, losing Nine of Ashes and Francis), which was
+taking a magic multiplier onto iron. Weapon share 75.2% → 75.5%. The friend's
+mind damage 595 → 707.
+
+**The three things that will bite the next sweep**, all learned by tripping
+over them here and all written up in `analysis/baseline.md`:
+
+1. **Never convert a reaction that deals a blow.** Four themes of six hold no
+   weapon, so a glove's answer is the whole of some creatures' offence, and a
+   Spellblade stack multiplies a swing that is not there.
+2. **A carrier must be free on four boards, not one**: every monster's `gear`,
+   all three share codes, *and* `apply_preset`. Missing the second cost a
+   rumour its door; missing the third moved the preset three rungs.
+3. **Deflection's greaves share sits on a mold, not a plating.** A Plating
+   floats into the helmet's grid and a floating kind carries no identity
+   mechanic. The spec is amended.
+
+**New in the harness.** `tests/typed_lanes.rs` (8 tests), `report_early_ladder`
+in `baseline.rs`, and census rows for both twins. `Combatant::take_typed` and
+`take_mind` are public now, because the lanes are a rule rather than an
+implementation detail and there is no other way to put one number in and read
+what each lane did to it.
+
+Suite: **556 green**, 0 warnings.

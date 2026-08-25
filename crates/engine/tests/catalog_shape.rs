@@ -115,7 +115,18 @@ fn conversion(def: &PieceDef) -> bool {
             // helmet's bleed into the weapon: mind and magic as cast support.
             // Leaving it out meant the one slot whose bleed the spec spells
             // out could not express it.
-            matches!(a, Action::Damage { .. } | Action::GainForking(_) | Action::MindDamage { .. })
+            matches!(
+                a,
+                Action::Damage { .. }
+                    | Action::GainForking(_)
+                    | Action::MindDamage { .. }
+                    // Spellblade multiplies a swing, which is conversion's
+                    // word whoever is saying it. Its home is the hands, whose
+                    // own axis it satisfies through the trigger rather than
+                    // through the payout - a reaction that answers with the
+                    // blade is still a reaction.
+                    | Action::GainSpellblade(_)
+            )
         })
 }
 
@@ -145,7 +156,10 @@ fn reserve(def: &PieceDef) -> bool {
         || def.base.physical_harden != 0
         || def.base.magic_harden != 0
         || def.base.reflect != 0
-        || does(def, |a| matches!(a, Action::Grow(_) | Action::GainArmor(_)))
+        // Deflection is mitigation, which is what the body's axis is made of.
+        || does(def, |a| {
+            matches!(a, Action::Grow(_) | Action::GainArmor(_) | Action::GainDeflection(_))
+        })
 }
 
 fn reaction(def: &PieceDef) -> bool {
@@ -269,6 +283,10 @@ const RULES: &[Rule] = &[
         budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::GainEmpowerment(_))) },
     Rule { what: "GainShield", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::GainShield(_))) },
+    // The magic lane's pair is the helmet's and stays there. The physical
+    // lane's twins are somebody else's on purpose - a rewrite that gave one
+    // slot all four amplifiers would have put the whole of both lanes on the
+    // head.
     Rule { what: "MindDamage", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::MindDamage { .. })) },
     Rule { what: "mind_resist", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
@@ -288,6 +306,17 @@ const RULES: &[Rule] = &[
         carries: |d| d.base.physical_harden != 0 || d.base.magic_harden != 0 },
     Rule { what: "health above 15", home: SlotKind::Chest, level: Level::Mostly(70),
         shared_with: &[], budget: 0, target: 0, carries: |d| d.base.health > 15 },
+    // Deflection is the body's, beside reflection and for the same reason:
+    // both are what a slot with no swing does about being hit. The feet keep a
+    // minority share, because footwork is also a way of not being hit.
+    //
+    // The spec asked for that minority on greaves *plating*, and it cannot be
+    // there: Plating floats into the helmet's grid, and a floating kind may
+    // carry no identity mechanic - `identity_carriers` holds that at zero. So
+    // it sits on a greaves mold, which is the feet's and only the feet's.
+    Rule { what: "GainDeflection", home: SlotKind::Chest, level: Level::Mostly(70),
+        shared_with: &[], budget: 0, target: 0,
+        carries: |d| does(d, |a| matches!(a, Action::GainDeflection(_))) },
 
     // Gloves - Reaction. The hands answer.
     Rule { what: "OnAdjacentActivate", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
@@ -304,6 +333,13 @@ const RULES: &[Rule] = &[
     Rule { what: "OnAlignedActivate", home: SlotKind::Gloves, level: Level::Mostly(70),
         shared_with: &[], budget: 0, target: 0,
         carries: |d| has(d, |t| matches!(t, Trigger::OnAlignedActivate(_))) },
+    // Spellblade is reaction-flavoured amplification: the hands answer a
+    // neighbour by sharpening what swings rather than by swinging themselves.
+    // The weapon keeps a minority share, on accessories, and it is counted up
+    // to rather than handed over - the same gate the helmet's empowerment has.
+    Rule { what: "GainSpellblade", home: SlotKind::Gloves, level: Level::Mostly(70),
+        shared_with: &[], budget: 0, target: 0,
+        carries: |d| does(d, |a| matches!(a, Action::GainSpellblade(_))) },
 
     // Greaves - Tempo. Who moves, how often, and first. The weapon keeps its
     // own cadence tools; everything else gives them up.

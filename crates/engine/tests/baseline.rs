@@ -443,6 +443,8 @@ fn census() -> Census {
     add("MindDamage", &|d| does(d, |a| matches!(a, Action::MindDamage { .. })));
     add("GainEmpowerment", &|d| does(d, |a| matches!(a, Action::GainEmpowerment(_))));
     add("GainShield", &|d| does(d, |a| matches!(a, Action::GainShield(_))));
+    add("GainSpellblade", &|d| does(d, |a| matches!(a, Action::GainSpellblade(_))));
+    add("GainDeflection", &|d| does(d, |a| matches!(a, Action::GainDeflection(_))));
     add("GainForking", &|d| does(d, |a| matches!(a, Action::GainForking(_))));
     add("ReduceCooldown", &|d| does(d, |a| matches!(a, Action::ReduceCooldown(_))));
 

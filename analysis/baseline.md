@@ -1434,3 +1434,100 @@ than lost in them.
 assumes.** Unchanged in character from the rewrite's finding and still
 unaddressed: anything that watches is under-priced on a good board by roughly
 three times. It is a Phase-4 correction, listed at M16.
+
+---
+
+## Drift — M1, the lanes separate and the twins arrive
+
+Two commits. The first moved the ladder; the second did not move it at all, and
+that was the harder half.
+
+### What A1 cost, and where
+
+| build | cleared | weapon share | median ttk |
+|---|---|---|---|
+| starter | 2/50 | 100.0% | 45.00s |
+| preset | 9/50 | 100.0% | 9.00s |
+| **owner** | 50/50 → **48/50** | 75.2% → **75.5%** | 10.50s → 9.00s |
+| friend | 48/50 | 97.6% → 97.4% | 7.75s → 8.15s |
+
+**The shallow ladder is byte-identical.** Rungs 1 to 14, all four boards, every
+figure unchanged - not within ten percent, unchanged - and the casino corridor
+sits where it did at 1,600ms and 6,000ms. `report_early_ladder` is a new
+printer and exists because the four sampled rungs could not answer that
+question: two of them are past rung 14, and a change that left rung 1 and rung
+10 alone while moving the eleven rungs between them would have read as
+"unmoved".
+
+**The whole cost is in the deep ladder**, and it is two rungs on one board. The
+owner's board stops clearing Nine of Ashes and Francis. It was taking a
+magic-lane multiplier onto physical swings - its helmet banks empowerment and
+its weapon deals iron - and that is the exact arrangement A1 exists to end. The
+friend's board slows at rungs 25 and 40 (7.75s → 10.30s, 13.55s → 15.45s) for
+the same reason and clears the same 48.
+
+**The mind lane moved most.** The friend's mind damage over the ladder goes
+**595 → 707**, because the mana shield used to blunt mind damage as well and
+now does not. That is decision #18 arriving: three lanes, three answers, and
+`mind_resist` is the only thing standing in front of this one.
+
+Not chased. The compensation for a physical board losing its multiplier is
+Spellblade, which is a piece a player buys; the three shared boards are records
+and cannot buy anything. Tuning the empowerment constant would hand more to
+casters, which is not what came off here.
+
+### What the twins cost: nothing, twice measured
+
+Fourteen pieces carry the two new actions - Spellblade on five gloves and two
+weapon accessories, Deflection on six chest layers and one greaves mold - and
+**every fight in the harness is byte-identical to the commit before them.** The
+only lines that move in the whole capture are census counts: weapon inert 55 →
+53, gloves reaction triggers 49 → 52.
+
+That took three attempts and each failure is worth keeping.
+
+1. **Taking a blow away from a glove can leave a creature with no offence at
+   all.** Six of the first carriers were reactions that dealt small flat
+   physical damage, and converting them to a Spellblade grant is a translation
+   that reads well and is wrong: four themes out of six hold no weapon, and a
+   Spellblade stack multiplies a swing that is not there. `Cog Priest` stepped
+   down into one of them on Easy and stopped being able to land anything -
+   `every_monster_can_actually_hurt_you`, which sweeps all four settings for
+   exactly this. The rule that came out of it: **arm what answers with armour,
+   a pool or nothing; never what answers with a blow.**
+2. **"Worn by no monster" is not "worn by nobody".** The second set was chosen
+   against the monster boards alone, and two of them - `Padded Mold` and
+   `Silver Charm` - are on the owner's board. Its fights got shorter, so it
+   banked 89 nature by rung 22 instead of a hundred, and the Green Ledger's
+   door stopped opening. Two tests in `towns.rs` said so.
+3. **`apply_preset` is a board too.** The third set cleared the monsters and
+   the three share codes and still moved the preset from 9/50 to 12/50, because
+   it wears `Chain Layer` and `Ruby Inlay`. Swapped for `Blight Layer` and
+   `Ratchet Cog`, which nothing wears at all.
+
+So the carrier test is: **not in any monster's `gear`, not in any of the three
+share codes, and not in `apply_preset`.** Four boards, not one.
+
+### Where the twins live
+
+```
+GainSpellblade    gloves 5   weapon 2     (Mostly(70), home gloves)
+GainDeflection    chest  6   greaves 1    (Mostly(70), home chest)
+```
+
+`catalog_shape` carries both rules and the ratchet is still green at zero rules
+unmet. One amendment to the spec: A2 asks for Deflection's minority share on
+greaves **plating**, and a Plating floats into the helmet's grid, so a floating
+kind may carry no identity mechanic - `identity_carriers` holds that at zero.
+It sits on a greaves **mold** instead, which is the feet's and nobody else's.
+
+### Still open
+
+`ClassPower::Transmute(50)` converts part of a physical swing into magic, and
+after A1 that conversion happens *after* Spellblade and *before* nothing -
+the transmuted half no longer picks up empowerment on the way across. That is
+the honest reading (a conversion, not a second amplifier) and it is written
+into the swing math as a comment, but the **Spellblade class** and the
+Spellblade *stack* now sit either side of the same line without either knowing
+about the other. A2 says re-wiring the class to grant stacks is optional. It is
+still optional, and it is still open.
