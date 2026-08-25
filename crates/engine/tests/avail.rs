@@ -31,6 +31,9 @@ fn sellable() -> Vec<&'static str> {
                 // Event gear is owned, not bought: what it is worth is the
                 // story of how you got it.
                 && !gearmaster_engine::piece::is_event_only(d.name)
+                // Town gear is reachable, but not here. What a town sells is
+                // covered by `town_gear_is_reachable_and_only_in_a_town`.
+                && !gearmaster_engine::piece::is_town_stock(d)
         })
         .map(|d| d.name)
         .collect()
@@ -65,6 +68,26 @@ fn the_shelves_are_not_the_same_six_things_every_time() {
         &v[v.len() - 3..],
         &v[..3]
     );
+}
+
+/// Town gear is still reachable - just not from the road.
+///
+/// The doctrine is that every component a player can own has somewhere it can
+/// be met. Taking the five town shelves and the underlays out of the ordinary
+/// pool would quietly break that, so the promise moves rather than lapses:
+/// what a town sells is exactly what a town sells, and the road never offers
+/// it.
+#[test]
+fn town_gear_is_reachable_and_only_in_a_town() {
+    use gearmaster_engine::piece::{is_town_stock, town_shelf};
+    let shelf = town_shelf();
+    for d in CATALOG.iter().filter(|d| is_town_stock(d)) {
+        assert!(shelf.contains(&d.name), "{} is town gear nobody stocks", d.name);
+    }
+    let counts = shelf_counts(false, 60, 40);
+    let leaked: Vec<&str> =
+        shelf.iter().copied().filter(|n| counts.contains_key(n)).collect();
+    assert!(leaked.is_empty(), "the road offered town gear: {:?}", leaked);
 }
 
 /// The guarantee still holds where it is meant to: a player with no weapon

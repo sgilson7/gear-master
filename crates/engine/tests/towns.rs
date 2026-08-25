@@ -364,14 +364,26 @@ fn debt_is_a_debt_and_takes_real_time_to_pay_off() {
 // -------------------------------------------------------------------- shops
 
 #[test]
-fn the_town_shop_is_five_things_you_cannot_get_elsewhere() {
+fn the_town_shop_is_things_you_cannot_get_elsewhere() {
+    let shelf = gearmaster_engine::piece::town_shelf();
     let mut run = at_the_gate();
     run.visit_town(Action::Shop);
     let on_sale: Vec<&str> = run.shop.stock_defs().iter().map(|d| d.name).collect();
-    assert_eq!(on_sale.len(), TOWN_ONLY.len());
+    assert_eq!(on_sale.len(), shelf.len());
+    for name in shelf {
+        assert!(on_sale.contains(name), "{name} was not on the shelf");
+    }
+    // The curated five are the reason to come in; the underlays are the thing
+    // a town is the only place to buy. Both, or the shelf is half a shelf.
     for name in TOWN_ONLY {
         assert!(on_sale.contains(name), "{name} was not on the shelf");
     }
+    assert!(
+        on_sale.iter().any(|n| CATALOG
+            .iter()
+            .any(|d| d.name == *n && d.kind.is_underlay())),
+        "a town is the only place that sells ground, and this one sold none"
+    );
 }
 
 #[test]
@@ -380,7 +392,7 @@ fn town_gear_does_not_move_the_scale_for_anything_else() {
     // a locked branch and meant to be absurd. A town is on the way to
     // everywhere, so its gear has to live inside the curve like everything
     // else - which means it must not be the ceiling of its slot.
-    for name in TOWN_ONLY {
+    for name in gearmaster_engine::piece::town_shelf() {
         assert!(
             !gearmaster_engine::piece::is_off_the_scale(name),
             "{name} is exempt from the scale, which a town's gear must not be"

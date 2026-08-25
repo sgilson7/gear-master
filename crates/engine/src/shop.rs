@@ -85,6 +85,11 @@ impl Shop {
             // the quest that leads to it pointless.
             .filter(|&i| !crate::piece::is_quest_reward(CATALOG[i].name))
             .filter(|&i| !crate::piece::is_event_only(CATALOG[i].name))
+            // Town gear is bought in a town. The five curated shelves are the
+            // reason to walk into a settlement rather than past it, and an
+            // underlay is ground rather than kit - neither belongs on a stall
+            // by the side of the road.
+            .filter(|&i| !crate::piece::is_town_stock(&CATALOG[i]))
             .collect();
         rng.shuffle(&mut pool);
         for i in pool {
@@ -142,13 +147,17 @@ impl Shop {
                     continue;
                 }
                 // The same exclusions as the general pool: a repair must not
-                // put boss gear or a quest reward on a shelf.
+                // put boss gear, a quest reward or a town's stock on a shelf.
+                // Kettleworks Pin is a damaging piece, so leaving town gear
+                // out of the pool and not out of the repair meant the road
+                // still handed it over whenever somebody turned up unarmed.
                 let sellable = |i: &usize| {
                     CATALOG[*i].slot == SlotKind::Weapon
                         && CATALOG[*i].kind == k
                         && !crate::piece::is_boss_only(CATALOG[*i].name)
                         && !crate::piece::is_quest_reward(CATALOG[*i].name)
                         && !crate::piece::is_event_only(CATALOG[*i].name)
+                        && !crate::piece::is_town_stock(&CATALOG[*i])
                 };
                 let mut candidates: Vec<usize> = (0..CATALOG.len())
                     .filter(sellable)

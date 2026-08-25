@@ -2011,8 +2011,8 @@ impl Run {
                 out.stacks = self.stacks_of("Tired");
             }
             Action::Shop => {
-                self.shop.stock_exactly(crate::piece::TOWN_ONLY);
-                out.stocked = crate::piece::TOWN_ONLY.len();
+                self.shop.stock_exactly(crate::piece::town_shelf());
+                out.stocked = crate::piece::town_shelf().len();
             }
             Action::Pub => {
                 self.shop.stock_exactly(crate::rumour::on_offer());

@@ -9251,6 +9251,28 @@ pub fn is_town_only(name: &str) -> bool {
     TOWN_ONLY.contains(&name)
 }
 
+/// Everything a town puts out: the five above, and every underlay.
+///
+/// Terrain is town gear by kind rather than by name. An underlay is ground
+/// rather than kit - somebody who sells you a floor has a floor to sell - and
+/// a piece of ground turning up between a helmet and a ring on the road is
+/// the shelf failing to say what the thing is. Keyed on the kind because a
+/// name list is a thing to forget: every underlay written after this one is
+/// town gear without anybody having to remember.
+pub fn town_shelf() -> &'static [&'static str] {
+    static SHELF: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    SHELF.get_or_init(|| {
+        let mut out: Vec<&'static str> = TOWN_ONLY.to_vec();
+        out.extend(CATALOG.iter().filter(|d| d.kind.is_underlay()).map(|d| d.name));
+        out
+    })
+}
+
+/// Is this piece bought in a town rather than off the road?
+pub fn is_town_stock(def: &PieceDef) -> bool {
+    is_town_only(def.name) || def.kind.is_underlay()
+}
+
 /// Is this piece kept out of the reckoning that prices everything else?
 pub fn is_off_the_scale(name: &str) -> bool {
     is_boss_only(name) || is_vip_only(name)
