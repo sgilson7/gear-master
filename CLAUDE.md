@@ -30,8 +30,9 @@ CLI REPL verbs (the same engine the GUI drives): `help`, `show [slot]`, `inv`,
 that is not a convenience, it is the design contract.
 
 **Workspace:** `crates/engine` (all rules, no graphics), `crates/cli`,
-`crates/gui`, `crates/packer` (a local tool that edits creature boards and
-writes them back into `combat.rs`; never deployed). `design/` holds living design documents — and the repo's stated
+`crates/gui`. `make pack` runs the GUI in packing mode (`gui/src/pack.rs`):
+the same screen, editing a creature's board instead of yours, with a free
+shop over the whole catalogue and a save that writes back into `combat.rs`. `design/` holds living design documents — and the repo's stated
 rule is *"code follows this document, not the other way round — when they
 disagree, this is the bug report"* (`design/branching-events.md`).
 

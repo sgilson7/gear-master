@@ -8,7 +8,6 @@
 CARGO ?= cargo
 GUI   := gearmaster-gui
 CLI   := gearmaster-cli
-PACKER := gearmaster-packer
 
 # Absolute path to this directory, so `make install`'s launcher works from
 # anywhere the user happens to be.
@@ -36,9 +35,9 @@ release:
 geared:
 	@GEARMASTER_PRESET=1 $(CARGO) run -p $(GUI)
 
-## pack: open the board packer, to dress creatures by hand
+## pack: dress creatures by hand - the game, editing somebody else's board
 pack:
-	@$(CARGO) run -p $(PACKER)
+	@GEARMASTER_PACK=1 $(CARGO) run -p $(GUI)
 
 ## cli: play headlessly in the terminal
 cli:

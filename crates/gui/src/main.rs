@@ -20,6 +20,8 @@ use gearmaster_engine::run::{Mode, ROGUE_LIVES};
 use gearmaster_engine::run::{Phase, Run};
 use gearmaster_engine::shape::Shape;
 use gearmaster_engine::slot::{SLOT_H, SLOT_W};
+mod pack;
+
 use macroquad::prelude::*;
 
 /// The interface is authored at this fixed size and scaled to fit whatever
@@ -6702,6 +6704,169 @@ fn render_fountain(run: &Run, mx: f32, my: f32) -> Option<&'static gearmaster_en
 /// that is also a control.
 ///
 /// Returns the rung chosen, and whether the picker should close.
+/// Who is being dressed. The ladder picker's shape, over every creature in the
+/// game rather than only the ones ahead of you - packing has no road.
+/// What packing adds to the loadout screen, and nothing else.
+///
+/// Deliberately a strip rather than a redesign: the screen underneath is the
+/// game's, unchanged, because the whole point of packing inside it is that a
+/// board dressed here is dressed by the same rules and looked at through the
+/// same tooltips as one the player builds.
+fn render_pack_bar(pk: &pack::Pack, run: &Run, searching: bool, mx: f32, my: f32) {
+    let spec = pk.spec();
+    let w = LOGICAL_W - PANEL_W;
+    let r = Rect::new(0.0, 0.0, w, 30.0);
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(24, 22, 14, 244));
+    draw_line(0.0, r.h, w, r.h, 1.0, col_gold());
+
+    let rung = LADDER.iter().position(|m| m.name == spec.name);
+    let where_ = match rung {
+        Some(n) => format!("rung {}", n + 1),
+        None => "off the road".to_string(),
+    };
+    ui_text("PACKING", 12.0, 20.0, 13.0, col_gold());
+    ui_text(spec.name, 82.0, 20.0, 15.0, col_ok());
+    ui_text(
+        &format!("{where_}  ·  {:?}  ·  {} health", spec.rank, spec.health),
+        82.0 + text_width(spec.name, 15.0) + 14.0,
+        20.0,
+        12.0,
+        col_dim(),
+    );
+
+    // The shelf, and what is being searched for.
+    let found = pack::shelf(&pk.search);
+    let pages = found.len().div_ceil(gearmaster_engine::shop::SHOP_SIZE).max(1);
+    let hint = if pk.search.is_empty() {
+        format!("the whole catalogue - {} pieces", found.len())
+    } else {
+        format!("\"{}\" - {} pieces", pk.search, found.len())
+    };
+    // Right-aligned, and stopping where the side panel starts - the bar spans
+    // the whole window and the panel is drawn over its right-hand end.
+    let shelf_line = format!("SHELF  {hint}  ·  page {} of {pages}", pk.page + 1);
+    let edge = LOGICAL_W - PANEL_W - 12.0;
+    ui_text(
+        &shelf_line,
+        edge - text_width(&shelf_line, 12.0),
+        20.0,
+        12.0,
+        if searching { col_gold() } else { col_dim() },
+    );
+
+    // What is wrong with the board, worst first. This is the reason to pack
+    // inside the game rather than beside it: the complaint arrives on the frame
+    // the mistake is made rather than in a test run three files away.
+    let trouble = pack::complaints(run, spec);
+    let mut y = LOGICAL_H - 16.0 - trouble.len().min(6) as f32 * 15.0;
+    if trouble.is_empty() {
+        ui_text("nothing to complain about", 12.0, LOGICAL_H - 16.0, 13.0, col_ok());
+    }
+    for (line, bad) in trouble.iter().take(6) {
+        ui_text(line, 12.0, y, 13.0, if *bad { col_bad() } else { col_gold() });
+        y += 15.0;
+    }
+    let _ = (mx, my);
+}
+
+fn render_pack_picker(who: usize, page: usize, mx: f32, my: f32) -> (Option<usize>, bool, usize) {
+    let pad = 40.0;
+    let r = Rect::new(pad, pad, LOGICAL_W - 2.0 * pad, LOGICAL_H - 2.0 * pad);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 232));
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
+    ui_text("WHO ARE YOU DRESSING", r.x + 24.0, r.y + 38.0, 20.0, col_gold());
+    ui_text(
+        "Every creature in the game. The ladder in order, then the four that stand off it.",
+        r.x + 24.0,
+        r.y + 62.0,
+        13.0,
+        col_dim(),
+    );
+    let close = Rect::new(r.x + r.w - 140.0, r.y + 16.0, 120.0, 34.0);
+    let shut = button(close, "CLOSE", true, mx, my);
+
+    let all = pack::everyone();
+    let cols = 5usize;
+    let gap = 12.0;
+    let cw = (r.w - 48.0 - (cols - 1) as f32 * gap) / cols as f32;
+    let rh = 44.0;
+    let top = r.y + 92.0;
+    let rows = (((r.y + r.h - 56.0) - top) / (rh + 8.0)) as usize;
+    let per_page = (rows * cols).max(1);
+    let pages = all.len().div_ceil(per_page).max(1);
+    let page = page.min(pages - 1);
+
+    let mut chosen = None;
+    for (i, spec) in all.iter().enumerate().skip(page * per_page).take(per_page) {
+        let k = i - page * per_page;
+        let cell = Rect::new(
+            r.x + 24.0 + (k % cols) as f32 * (cw + gap),
+            top + (k / cols) as f32 * (rh + 8.0),
+            cw,
+            rh,
+        );
+        let hot = cell.contains(Vec2::new(mx, my));
+        let on = i == who;
+        draw_rectangle(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot {
+                Color::from_rgba(52, 46, 30, 255)
+            } else if on {
+                Color::from_rgba(40, 40, 56, 255)
+            } else {
+                Color::from_rgba(28, 28, 40, 255)
+            },
+        );
+        draw_rectangle_lines(cell.x, cell.y, cell.w, cell.h, 1.0, if on { col_gold() } else { col_dim() });
+        let rung = LADDER.iter().position(|m| m.name == spec.name);
+        let tag = match rung {
+            Some(n) => format!("{}", n + 1),
+            None => "-".into(),
+        };
+        ui_text(&tag, cell.x + 8.0, cell.y + 19.0, 12.0, col_dim());
+        draw_capped(spec.name, cell.x + 30.0, cell.y + 19.0, cell.w - 38.0, 14.0, col_ok(), 1);
+        draw_capped(
+            &format!("{} pieces  {:?}", spec.gear.len(), spec.rank),
+            cell.x + 30.0,
+            cell.y + 35.0,
+            cell.w - 38.0,
+            11.0,
+            col_dim(),
+            1,
+        );
+        if hot && left_pressed() {
+            chosen = Some(i);
+        }
+    }
+
+    if pages > 1 {
+        let prev = Rect::new(r.x + 24.0, r.y + r.h - 44.0, 110.0, 30.0);
+        let next = Rect::new(r.x + 144.0, r.y + r.h - 44.0, 110.0, 30.0);
+        let back = button(prev, "PREVIOUS", page > 0, mx, my);
+        let on = button(next, "NEXT", page + 1 < pages, mx, my);
+        ui_text(
+            &format!("page {} of {}", page + 1, pages),
+            r.x + 270.0,
+            r.y + r.h - 24.0,
+            12.0,
+            col_dim(),
+        );
+        let page = if back && page > 0 {
+            page - 1
+        } else if on && page + 1 < pages {
+            page + 1
+        } else {
+            page
+        };
+        return (chosen, shut, page);
+    }
+    (chosen, shut, page)
+}
+
 fn render_ladder_picker(run: &Run, page: usize, mx: f32, my: f32) -> (Option<usize>, bool, usize) {
     let pad = 56.0;
     let r = Rect::new(pad, pad, LOGICAL_W - 2.0 * pad, LOGICAL_H - 2.0 * pad);
@@ -8805,6 +8970,10 @@ async fn main() {
     let mut fountain_open = std::env::var("GEARMASTER_FOUNTAIN").is_ok();
     let mut picker_open = std::env::var("GEARMASTER_PICKER").is_ok();
     let mut picker_page: usize = 0;
+    // Whether typing goes to the packer's shelf search, and whether the
+    // shelves need re-dealing from it.
+    let mut searching = false;
+    let mut restock_shelf = false;
     let mut glossary_tab: usize = std::env::var("GEARMASTER_GLOSSARY_TAB")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -8815,7 +8984,8 @@ async fn main() {
         .unwrap_or(0);
     // Where the game opens: the intro pages, then the mode picker, then play.
     // Any debug hook skips straight to the board.
-    let skip_intro = std::env::var("GEARMASTER_PRESET").is_ok()
+    let skip_intro = std::env::var("GEARMASTER_PACK").is_ok()
+        || std::env::var("GEARMASTER_PRESET").is_ok()
         || std::env::var("GEARMASTER_FIGHT").is_ok()
         || std::env::var("GEARMASTER_PLACE").is_ok()
         || std::env::var("GEARMASTER_SKIP_INTRO").is_ok();
@@ -8921,8 +9091,44 @@ async fn main() {
     if let Ok(m) = std::env::var("GEARMASTER_MODE") {
         run.mode = if m.eq_ignore_ascii_case("rogue") { Mode::Rogue } else { Mode::Grinder };
     }
-    let mut message =
-        String::from("Drag components into a slot. Pieces must touch to become gear.");
+    // GEARMASTER_PACK=1 dresses creatures instead of yourself.
+    //
+    // The board on the grids is a `MonsterSpec`'s, so everything the player
+    // already knows about this screen - dragging, locking, item outlines,
+    // hover tooltips, the recipe hints - is the same code doing the same
+    // thing. What changes is whose board it is, a shop that stocks the whole
+    // catalogue for nothing, and a save.
+    let mut packing: Option<pack::Pack> = std::env::var("GEARMASTER_PACK").is_ok().then(|| {
+        let mut p = pack::Pack::default();
+        // GEARMASTER_PACK=<name> opens on that creature, which is the only way
+        // to point a headless capture at a board with gear on it.
+        if let Ok(want) = std::env::var("GEARMASTER_PACK") {
+            if let Some(i) = pack::everyone().iter().position(|m| m.name == want) {
+                p.who = i;
+            }
+        }
+        p
+    });
+    let mut message = if packing.is_some() {
+        String::from("Packing. F to choose a creature, / to search the shelves, Cmd-S to save.")
+    } else {
+        String::from("Drag components into a slot. Pieces must touch to become gear.")
+    };
+    if let Some(p) = packing.as_mut() {
+        // A purse nothing can empty, and the whole catalogue on the shelves.
+        run.gold = 1_000_000;
+        let dropped = pack::load_into(&mut run, p.spec());
+        if dropped > 0 {
+            p.status = format!("{dropped} placement(s) would not sit");
+        }
+        let found = pack::shelf(&p.search);
+        let names: Vec<&str> = found
+            .iter()
+            .take(gearmaster_engine::shop::SHOP_SIZE)
+            .map(|&i| gearmaster_engine::piece::CATALOG[i].name)
+            .collect();
+        run.shop.stock_exactly(&names);
+    }
 
     // Debug hooks so this window can be inspected without a human at the
     // keyboard: GEARMASTER_PRESET=1 starts geared up, GEARMASTER_FIGHT=1 opens
@@ -9297,6 +9503,9 @@ async fn main() {
             render_slot_items(&layout, &run, &reports, &worn, &mut hover, mx, my);
             render_shop(&layout, &run, mx, my);
             render_inventory(&layout, &run, &drag, bartering, mx, my);
+            if let Some(pk) = packing.as_ref() {
+                render_pack_bar(pk, &run, searching, mx, my);
+            }
         }
 
         // Drag ghost + placement preview.
@@ -9664,6 +9873,105 @@ async fn main() {
             }
             next_frame().await;
             continue;
+        }
+
+        // Packing's own overlay and keys, before anything else can eat them.
+        if let Some(pk) = packing.as_mut() {
+            if pk.picking {
+                let (chosen, shut, page) = render_pack_picker(pk.who, picker_page, mx, my);
+                picker_page = page;
+                if let Some(i) = chosen {
+                    pk.who = i;
+                    pk.picking = false;
+                    let dropped = pack::load_into(&mut run, pk.spec());
+                    drag = Drag::None;
+                    pk.status = if dropped > 0 {
+                        format!("{} - {dropped} placement(s) would not sit", pk.spec().name)
+                    } else {
+                        format!("dressing {}", pk.spec().name)
+                    };
+                }
+                if shut || is_key_pressed(KeyCode::Escape) {
+                    pk.picking = false;
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    frame += 1;
+                }
+                next_frame().await;
+                continue;
+            }
+
+            // Typing goes to the shelf search whenever it is open. The keys
+            // that are not letters do the rest: F picks a creature, / opens
+            // the search, Cmd-S saves.
+            let cmd = is_key_down(KeyCode::LeftSuper)
+                || is_key_down(KeyCode::RightSuper)
+                || is_key_down(KeyCode::LeftControl)
+                || is_key_down(KeyCode::RightControl);
+            if searching {
+                let mut changed = false;
+                while let Some(c) = get_char_pressed() {
+                    match c {
+                        '\u{8}' => {
+                            pk.search.pop();
+                            changed = true;
+                        }
+                        '\r' | '\n' => searching = false,
+                        c if !c.is_control() => {
+                            pk.search.push(c);
+                            changed = true;
+                        }
+                        _ => {}
+                    }
+                }
+                if is_key_pressed(KeyCode::Escape) {
+                    searching = false;
+                }
+                if changed {
+                    pk.page = 0;
+                    restock_shelf = true;
+                }
+            } else {
+                if is_key_pressed(KeyCode::F) {
+                    pk.picking = true;
+                    picker_page = pk.who / 25;
+                }
+                if is_key_pressed(KeyCode::Slash) {
+                    searching = true;
+                }
+                if cmd && is_key_pressed(KeyCode::S) {
+                    message = match pack::save(&run, pk.spec()) {
+                        Ok(m) => m,
+                        Err(e) => format!("NOT SAVED - {e}"),
+                    };
+                    pk.status = message.clone();
+                }
+                // The shelves page with the bracket keys, which nothing else
+                // wants.
+                let found = pack::shelf(&pk.search);
+                let pages = found.len().div_ceil(gearmaster_engine::shop::SHOP_SIZE).max(1);
+                if is_key_pressed(KeyCode::RightBracket) && pk.page + 1 < pages {
+                    pk.page += 1;
+                    restock_shelf = true;
+                }
+                if is_key_pressed(KeyCode::LeftBracket) && pk.page > 0 {
+                    pk.page -= 1;
+                    restock_shelf = true;
+                }
+            }
+            if restock_shelf {
+                restock_shelf = false;
+                let found = pack::shelf(&pk.search);
+                let names: Vec<&str> = found
+                    .iter()
+                    .skip(pk.page * gearmaster_engine::shop::SHOP_SIZE)
+                    .take(gearmaster_engine::shop::SHOP_SIZE)
+                    .map(|&i| gearmaster_engine::piece::CATALOG[i].name)
+                    .collect();
+                run.shop.stock_exactly(&names);
+                run.gold = 1_000_000;
+            }
         }
 
         // The ladder picker sits over everything and eats input, the same way
