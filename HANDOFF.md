@@ -92,8 +92,20 @@ ladder into a region it cannot measure. Its old justification was false — only
 **13 of 37** gear-decided rungs are inside the band, because the ladder is a
 scatter rather than a ramp, which is what the repack is for.
 
-**M3 — The repack.** *In progress.* 49 ladder boards, cluster by cluster,
-ascending. Francis is
+**M3 — The repack.** *In progress — 26 of 49.* Strikers (2-6), Walls (7-13),
+Burners (14-20) and Slowers (21-28) are packed; Caster, Drainer and the unthemed
+run-in remain. One skip so far: Rust Colossus, whose weakest buildable wall at
+rung 12 still takes 4.5s against a 3.0s target.
+
+The packer needed thirteen fixes to get through the first two clusters and none
+at all for the two after, which is the shape to expect: the defects were
+assumptions about what a creature *is*, and stating them correctly once holds
+for every theme after. They are listed in the commits; the ones that will matter
+again are that a theme's slot list is a permission and must not double as a
+priority, that a cap on items is not a cap on pieces, and that a share of the
+board must never be the reason a slot holds nothing.
+
+49 ladder boards, cluster by cluster, ascending. Francis is
 excluded by design. Nothing has been repacked yet: the 11 specs carrying `items:`
 got them from `packing::author_the_named_fights`, and every spec from index 6 up
 still spans all five slots, which a themed board never does. Commit every three

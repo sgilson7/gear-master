@@ -28,9 +28,44 @@ fn it_spends_nature_and_pays_in_searing() {
 }
 
 /// A board wearing the spell, with enough nature banking to feed it.
+///
+/// It said that and did something else: `apply_preset()`, whose twenty-one
+/// hard-coded pieces carry **no searing at all**. So `it_reaches_a_real_fight`
+/// was never watching this spell reach a fight - it was watching whether burn
+/// happened to arrive from anywhere on a board that could not produce it, and
+/// it went green for as long as something else obliged. The repack stopped
+/// obliging, which is the only reason anybody looked.
+///
+/// A book and an ink around the spell, because a spell will not cast without
+/// them, and a nature source to give it something to spend.
 fn a_burner() -> Run {
     let mut run = Run::with_all_pieces();
-    run.apply_preset();
+    run.difficulty = Difficulty::Medium;
+    // Book, ink, spell - and the ink is the nature one, because the recipe
+    // takes a single ink and the spell needs a pool to spend.
+    for name in ["Pocket Grimoire", "Gravebloom Ink", "Slash and Burn"] {
+        let Some(id) = run
+            .owned
+            .iter()
+            .copied()
+            .find(|&i| run.registry.def(i).name == name && !run.is_equipped(i))
+        else {
+            continue;
+        };
+        let slot = run.registry.def(id).slot;
+        'seat: for y in 0..8u8 {
+            for x in 0..6u8 {
+                if run.equip(id, slot, x, y).is_ok() {
+                    break 'seat;
+                }
+            }
+        }
+    }
+    assert_eq!(
+        run.report(gearmaster_engine::piece::SlotKind::Weapon).assembled_count(),
+        1,
+        "the spell has to be in a finished weapon before it casts anything"
+    );
     run
 }
 

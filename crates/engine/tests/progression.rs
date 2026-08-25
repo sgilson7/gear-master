@@ -264,9 +264,10 @@ fn an_ordinary_rung_drops_nothing() {
 /// The repack clears them a cluster at a time, because the pool refuses them
 /// now. Lower this in the commit that earns it; it may never rise.
 ///
-/// 65 at the start of the repack. 50 after the strikers, walls, burners and
-/// slowers - every board the search re-authors drops whatever it was carrying.
-const QUEST_REWARDS_WORN: usize = 50;
+/// 65 at the start of the repack. 29 after the strikers, walls, burners,
+/// slowers and casters - every board the search re-authors drops whatever it
+/// was carrying.
+const QUEST_REWARDS_WORN: usize = 29;
 
 /// Nothing a creature wears is something a player could only be given.
 ///
