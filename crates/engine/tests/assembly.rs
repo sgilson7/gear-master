@@ -251,7 +251,20 @@ fn every_slot_assembles_on_the_preset_loadout() {
             slot.name(),
             r.summary()
         );
-        assert_eq!(r.loose_count(), 0, "{} left loose pieces", slot.name());
+        // Enchantments excepted, because "loose" is what an enchantment
+        // permanently is: it lies under the grid, no recipe names its kind,
+        // and `groups` walks the gear layer - so it can never join an item and
+        // the report has nowhere else to file it. The preset lays one under
+        // the chest.
+        let stranded = r
+            .items
+            .iter()
+            .filter(|i| !i.assembled)
+            .filter(|i| {
+                !i.pieces.iter().all(|&p| run.registry.def(p).kind.is_enchantment())
+            })
+            .count();
+        assert_eq!(stranded, 0, "{} left loose pieces: {}", slot.name(), r.summary());
     }
     // Chest, gloves and greaves each carry two separate items.
     assert_eq!(run.report(SlotKind::Chest).assembled_count(), 2);

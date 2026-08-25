@@ -1784,6 +1784,10 @@ impl Run {
     /// the weapon's Runed Edge doubles the Ruby Inlay next to it, and the
     /// Hollow Weave sits out in open space where its empty-cell bonus counts.
     /// Fields are `(name, slot, anchor x, anchor y, quarter turns)`.
+    ///
+    /// And every grid stands on a bonded enchantment, because this is the
+    /// button somebody presses to find out what the game is, and a demo that
+    /// leaves out the newest layer is a demo of the game before it.
     pub fn apply_preset(&mut self) {
         for kind in SlotKind::ALL {
             self.loadout.slot_mut(kind).clear();
@@ -1819,6 +1823,21 @@ impl Run {
             ("Runed Edge", SlotKind::Weapon, 1, 0, 0),
             ("Ruby Inlay", SlotKind::Weapon, 2, 0, 0),
             ("Balance Weight", SlotKind::Weapon, 2, 2, 0),
+            // And one enchantment, bonded: every cell of it covered by one
+            // finished item, which doubles that item and hands it a trigger.
+            // Last in the list because it goes in the layer underneath and the
+            // gear above has to be seated first for the bond to mean anything.
+            //
+            // One rather than five, and the chest rather than the weapon. This
+            // is the demo button and it should show the newest layer, but it is
+            // also the deliberately blunt reference build - `two_runs` walks it
+            // up the ladder to prove the *other* door opens for a build that
+            // cannot earn the casino. Five bonded items took its median kill
+            // from nine seconds to four and a half and shut that door. The body
+            // is the one grid where doubling an item makes the build tougher
+            // rather than faster, so it is the one that can carry the
+            // demonstration without changing what the build is for.
+            ("Keystone Base", SlotKind::Chest, 0, 0, 0),
         ];
         // The preset names specific components, so grant any the player has
         // not bought. It is a demo button, not a way to dodge the shop.
