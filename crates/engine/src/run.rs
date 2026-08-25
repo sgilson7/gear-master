@@ -186,6 +186,124 @@ impl From<PlaceError> for RuleError {
     }
 }
 
+/// Everything that stands on a rung besides the fight.
+///
+/// The road has always had this order and it has always been a discipline
+/// rather than a thing: `road_is_blocked` knew it, the interface knew it
+/// again in its own words, and the two agreed because somebody kept them
+/// agreeing. This is that order written down once.
+///
+/// **Derived, not stored.** The spec asks for `road_stack: Vec<Interrupt>` on
+/// `Run`, pushed on arrival and popped on resolution. It is a function here
+/// instead, and the reason is the same one that cost this project two
+/// milestones already: a schedule kept in a second place is a schedule that
+/// will one day disagree with the first. Every entry below is already decided
+/// by run state - `dungeon`, `pending_town`, `at_fountain`, `answered`,
+/// `brawl` - so a stored copy would have two sources of truth for one
+/// question. Derived, "resolving an interrupt may push more" needs no code at
+/// all: an event whose outcome sets `dungeon` simply appears with the dungeon
+/// on top of it next time the stack is read, and a dungeon exit resumes the
+/// pop where it left off because the rest of the stack never went anywhere.
+#[derive(Copy, Clone, Debug)]
+pub enum Interrupt {
+    /// A mini dungeon being walked, and which floor. Innermost: you are
+    /// standing inside it, so everything else is underneath you.
+    Dungeon(&'static crate::dungeon::Dungeon, usize),
+    /// A town's gate, standing between the rung just cleared and the next.
+    TownGate(&'static crate::town::Town),
+    /// A fountain owed at this rung. Carries the rung it stands on.
+    Fountain(usize),
+    /// An event standing in front of the fight.
+    Event(&'static crate::event::LadderEvent),
+    /// A fight an event arranged, waiting to be walked into.
+    Brawl(&'static crate::event::Brawl),
+}
+
+impl Interrupt {
+    /// What sort of thing this is, as a stable key. Never shown raw - the
+    /// theme layer looks the word up.
+    pub fn kind(self) -> &'static str {
+        match self {
+            Interrupt::Dungeon(..) => "dungeon",
+            Interrupt::TownGate(_) => "town",
+            Interrupt::Fountain(_) => "fountain",
+            Interrupt::Event(_) => "event",
+            Interrupt::Brawl(_) => "brawl",
+        }
+    }
+
+    /// The id of the thing, where it has one. Empty for the two that are not
+    /// table entries.
+    pub fn id(self) -> &'static str {
+        match self {
+            Interrupt::Dungeon(d, _) => d.id,
+            Interrupt::TownGate(t) => t.id,
+            Interrupt::Event(e) => e.id,
+            Interrupt::Fountain(_) | Interrupt::Brawl(_) => "",
+        }
+    }
+
+    /// What it calls itself. Canonical: the theme layer swaps the noun.
+    pub fn name(self) -> &'static str {
+        match self {
+            Interrupt::Dungeon(d, _) => d.name,
+            Interrupt::TownGate(t) => t.name,
+            Interrupt::Fountain(_) => "A FOUNTAIN",
+            Interrupt::Event(e) => e.title,
+            Interrupt::Brawl(_) => "A FIGHT ARRANGED",
+        }
+    }
+
+    /// One line for a hover: what it is, and where you are in it.
+    pub fn describe(self) -> String {
+        match self {
+            Interrupt::Dungeon(d, floor) => {
+                format!("{} - floor {} of {}", d.name, floor + 1, d.floors.len())
+            }
+            Interrupt::TownGate(t) => format!("{} - a town, and one thing to do in it", t.name),
+            Interrupt::Fountain(_) => {
+                "A fountain, which reads your build and names you something".into()
+            }
+            Interrupt::Event(e) => format!("{} - a question, and it will wait", e.title),
+            Interrupt::Brawl(b) => format!("{} - both of them at once", b.with.join(" and ")),
+        }
+    }
+
+    /// Does this stop a replay from walking straight into the next fight?
+    ///
+    /// Everything except a dungeon. A dungeon *is* where the fighting happens
+    /// while you are in one, so treating it as a blockage would stop the
+    /// thing it stands for.
+    pub fn blocks_a_rematch(self) -> bool {
+        !matches!(self, Interrupt::Dungeon(..))
+    }
+
+    /// The word `road_is_blocked` has always answered with.
+    pub fn blocking_name(self) -> &'static str {
+        match self {
+            Interrupt::TownGate(_) => "a town",
+            Interrupt::Fountain(_) => "a fountain",
+            _ => "something on the road",
+        }
+    }
+}
+
+impl PartialEq for Interrupt {
+    /// By what it is and which one, so two reads of the same road compare
+    /// equal without `LadderEvent` having to carry `PartialEq` down through
+    /// its prose.
+    fn eq(&self, other: &Self) -> bool {
+        let floor = |i: &Interrupt| match i {
+            Interrupt::Dungeon(_, f) => *f,
+            Interrupt::Fountain(r) => *r,
+            _ => 0,
+        };
+        self.kind() == other.kind() && self.id() == other.id() && floor(self) == floor(other)
+    }
+}
+
+impl Eq for Interrupt {}
+
 pub struct Run {
     pub registry: PieceRegistry,
     /// Every component the player owns, in a stable display order. What is in
@@ -470,20 +588,87 @@ impl Run {
     /// fountain without any of them being drawn. A board good enough to keep
     /// pressing it reached rung ten with no class at all.
     pub fn road_is_blocked(&self) -> Option<&'static str> {
-        if self.town.is_some() {
-            return Some("a town");
+        self.road_stack().into_iter().find(|i| i.blocks_a_rematch()).map(|i| i.blocking_name())
+    }
+
+    /// Everything standing on this rung, in the order it will be answered.
+    ///
+    /// The rung's own fight is not in it - the fight is the floor the stack
+    /// stands on, and it begins when the stack is empty. That is the whole
+    /// doctrine of `the_road.rs` said once in a data structure instead of in
+    /// four places that have to be kept agreeing.
+    ///
+    /// The order is the order the game has always resolved in: the town gate
+    /// first, then the fountain, then the events in table order, then a fight
+    /// an event arranged. A dungeon sits on top of all of it, because being
+    /// inside one is not something waiting for you - it is where you are.
+    ///
+    /// The spec asks for fountain before gate. It is amended: the two collide
+    /// for real (`FOUNTAINS` is 7 and 14, Sump Bottom's gate stands at rung 7)
+    /// and the shipped towns' tests read the gate first. Changing the order to
+    /// match a document would have been changing the game to match a document.
+    pub fn road_stack(&self) -> Vec<Interrupt> {
+        let mut out = Vec::new();
+        if let Some((d, floor)) = self.dungeon {
+            out.push(Interrupt::Dungeon(d, floor));
+        }
+        // `self.town`, not `pending_town`: the phase gate on that one asks
+        // "should this screen be drawn", which is no during a fight. This asks
+        // what is standing on the rung, and a town does not stop standing
+        // there because a replay is up. `road_is_blocked` has always had to be
+        // answerable from the battle screen, and reading the gated question
+        // here made `a_town_gate_blocks_the_road_even_mid_replay` pass on the
+        // fountain that happens to share rung seven with Sump Bottom.
+        if let Some(t) = self.town {
+            out.push(Interrupt::TownGate(t));
         }
         if self.at_fountain() || self.at_doubling_fountain() {
-            return Some("a fountain");
+            out.push(Interrupt::Fountain(self.rung));
         }
-        // The same question `pending_event` asks, without the phase gate.
-        if self.whispered_event().is_some() {
-            return Some("something on the road");
+        // Read without the fountain gate `pending_event` applies, so the strip
+        // can show what is standing underneath the fountain rather than
+        // pretending the rung is otherwise empty.
+        // Every event standing here, not just the one that would be asked
+        // next. The strip's whole job is to say what is underneath, and an
+        // event that is going to be asked the moment this one is answered is
+        // exactly that.
+        for e in self.standing_events() {
+            out.push(Interrupt::Event(e));
         }
-        let standing =
+        if let Some(b) = self.brawl {
+            out.push(Interrupt::Brawl(b));
+        }
+        out
+    }
+
+    /// The event standing on this rung, whatever else is also standing here.
+    ///
+    /// `pending_event` is this plus two gates - the loadout phase, and a
+    /// fountain taking precedence - which are about whether it is *askable*
+    /// now. This is about whether it is *there*.
+    fn standing_event(&self) -> Option<&'static crate::event::LadderEvent> {
+        self.standing_events().into_iter().next()
+    }
+
+    /// Every event standing on this rung, in the order they will be asked.
+    ///
+    /// Rumour doors first - having gone to the trouble of earning one you
+    /// should get to see it - then whatever `event::at` finds, which is one at
+    /// most because it takes the first match. So this is usually a list of one
+    /// and occasionally a list of two, and the second is the reason it is a
+    /// list at all.
+    fn standing_events(&self) -> Vec<&'static crate::event::LadderEvent> {
+        let mut out: Vec<&'static crate::event::LadderEvent> =
+            self.whispered_event().into_iter().collect();
+        if let Some(e) =
             crate::event::at(self.rung, self.best_fight_ms, self.worst_fight_ms, &self.answered)
-                .filter(|e| !self.answered.contains(&e.id));
-        standing.map(|_| "something on the road")
+                .filter(|e| !self.answered.contains(&e.id))
+        {
+            if !out.iter().any(|o| o.id == e.id) {
+                out.push(e);
+            }
+        }
+        out
     }
 
     /// The event standing in front of this rung, if there is one and it has
@@ -494,12 +679,9 @@ impl Run {
         }
         // A rumour door first: it stands on the same rung as whatever else is
         // there, and having gone to the trouble of earning it you should get
-        // to see it.
-        if let Some(e) = self.whispered_event() {
-            return Some(e);
-        }
-        crate::event::at(self.rung, self.best_fight_ms, self.worst_fight_ms, &self.answered)
-            .filter(|e| !self.answered.contains(&e.id))
+        // to see it. `standing_event` is that question; the two gates above
+        // are the difference between "there" and "askable now".
+        self.standing_event()
     }
 
     /// A rumour door standing on this rung: one you are carrying the word
