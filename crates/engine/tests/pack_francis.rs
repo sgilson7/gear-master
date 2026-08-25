@@ -427,13 +427,20 @@ fn seat_item(
 ///
 /// That is what makes this mechanical rather than fifty-three tuning problems:
 /// balance is preserved by construction, and `PACK_BAND` only has to be moved
-/// when the search cannot reach the profile at all.
-fn ceiling() -> usize {
-    use gearmaster_engine::combat::LADDER;
-    let now = LADDER.iter().find(|m| m.name == who()).expect("on the ladder").gear.len();
-    // Twice what it has, or eight more, whichever is kinder to a small board -
-    // and never past what Francis himself wears.
-    (now * 2).max(now + 8).min(44)
+/// How many pieces a creature on this rung carries.
+///
+/// `design/monster-themes.md` §4: density is the curve and the theme is the
+/// character. One more piece a rung from a floor of three, so rung 1 is four,
+/// rung 25 is twenty-eight and rung 50 is fifty-three. A wall and a striker on
+/// the same rung carry the same count and look nothing alike.
+///
+/// This replaced a ceiling of "twice what it has, or eight more" - a bound
+/// relative to the board being replaced, which was the right guard while the
+/// job was densifying existing boards and the wrong one the moment the job
+/// became authoring them to a curve. It is why Bog Toad, on rung two, came back
+/// with fifteen pieces when the curve asks for five.
+fn pieces_for(rung: usize) -> usize {
+    3 + rung
 }
 
 
@@ -649,8 +656,8 @@ fn pack() {
             // candidate: the loop fills a slot at a time, so a board that is
             // going to be too big is too big from early on, and rejecting it
             // afterwards simply threw every candidate away.
-            let room = ceiling().saturating_sub(gear.len());
-            while stalled < 40 && here < cap && gear.len() < ceiling() && room > 0 {
+            let room = pieces_for(subject().0).saturating_sub(gear.len());
+            while stalled < 40 && here < cap && gear.len() < pieces_for(subject().0) && room > 0 {
                 let r = recs[rng.below(recs.len())];
                 let defs = choose(slot, r, &mut rng);
                 if defs.is_empty() {

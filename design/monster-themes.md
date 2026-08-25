@@ -144,4 +144,17 @@ be built weaker than that out of gear that assembles. A curve whose bottom end
 nothing can reach rejects the entire early ladder, so the floor is measured
 rather than assumed.
 
-With it, Bog Toad packs: fifteen pieces, weapon and gloves only, on the curve.
+With it, Bog Toad packs: **seven** pieces, weapon and gloves only, on the curve.
+
+It was fifteen for a while, and that was a bug worth recording. §5.3 - the
+seating loop targeting `pieces(rung)` - had not been built, so the loop was
+still bounded by the old ceiling of "twice what the board has, or eight more",
+which is a bound relative to the board being *replaced*. That was the right
+guard while the job was densifying existing boards and the wrong one the moment
+the job became authoring them to a curve. Rung two asks for five.
+
+Seven rather than five because the loop checks the bound before seating an item
+and an item is two to four pieces, so it overshoots by up to one item. That is
+tolerable - a board is built of items, not pieces, and the alternative is
+refusing the last item and landing short - but the curve should be read as
+"about `3 + rung`" rather than exactly.
