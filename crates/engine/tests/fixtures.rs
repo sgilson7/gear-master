@@ -30,6 +30,7 @@ use gearmaster_engine::piece::{Action, PieceDef, Trigger, CATALOG};
 #[derive(Copy, Clone)]
 enum Needs {
     OpensTheFight,
+    #[allow(dead_code)] // the empowerment rows retired; the mechanic has not
     BanksEmpowerment,
     #[allow(dead_code)] // the drain fixture retired; the mechanic has not
     TakesAPool,
@@ -93,8 +94,6 @@ impl Needs {
 /// Where the mechanic is one the rewrite is still moving, the slot it is
 /// bound for is named too — those rows are the ones expected to go.
 const LEANED_ON: &[(&str, &str, Needs, &str)] = &[
-    ("Archmage's Primer", "curses_in_combat::a_stunning_caster", Needs::BanksEmpowerment, "helmet"),
-    ("Empowering Focus", "curses_in_combat::a_stunning_caster", Needs::BanksEmpowerment, "helmet"),
     ("Vigil Crest", "drains", Needs::OpensTheFight, "greaves"),
     ("Braced Plating", "effects::a_prepared_item_only_opens_once", Needs::OpensTheFight, "greaves"),
     ("Opening Grudge", "effects::a_prepared_item_only_opens_once", Needs::OpensTheFight, "greaves"),

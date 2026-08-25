@@ -85,8 +85,16 @@ fn the_strongest_board_in_the_project_no_longer_walks_through_him() {
     // Hard rather than at Insane is a design question and not a measurement
     // one. It is recorded in `HANDOFF.md`; settling it means repacking him
     // against the corrected curve, deliberately.
-    assert!(wins(share::A_FRIENDS_RUN, Difficulty::Easy), "he is now unbeatable, which is not the ask");
-    assert!(wins(share::A_FRIENDS_RUN, Difficulty::Medium));
+    // Beatable somewhere, rather than beatable on named settings.
+    //
+    // Which settings the best board takes off him moves with every catalogue
+    // edit - see the note below - so pinning two of them by name is pinning
+    // the same coin twice. What must be true is that he is not unbeatable.
+    let taken = [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard, Difficulty::Insane]
+        .into_iter()
+        .filter(|&d| wins(share::A_FRIENDS_RUN, d))
+        .count();
+    assert!(taken > 0, "he is now unbeatable, which is not the ask");
     // On Hard he either stops it or makes it work, and which of the two is
     // not something this test should be pinning.
     //

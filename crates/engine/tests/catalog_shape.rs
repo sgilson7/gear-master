@@ -266,7 +266,7 @@ const RULES: &[Rule] = &[
     Rule { what: "Consume", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
         budget: 9, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::Consume { .. })) },
     Rule { what: "GainEmpowerment", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
-        budget: 7, target: 0, carries: |d| does(d, |a| matches!(a, Action::GainEmpowerment(_))) },
+        budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::GainEmpowerment(_))) },
     Rule { what: "GainShield", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::GainShield(_))) },
     Rule { what: "MindDamage", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
@@ -308,7 +308,7 @@ const RULES: &[Rule] = &[
     // Greaves - Tempo. Who moves, how often, and first. The weapon keeps its
     // own cadence tools; everything else gives them up.
     Rule { what: "OnBattleStart", home: SlotKind::Greaves, level: Level::Only, shared_with: &[],
-        budget: 8, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnBattleStart(_))) },
+        budget: 7, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnBattleStart(_))) },
     Rule { what: "speed_bonus outside the weapon", home: SlotKind::Greaves, level: Level::Only,
         shared_with: &[SlotKind::Weapon], budget: 10, target: 0, carries: |d| d.speed_bonus != 0 },
     // Gloves share this one. The bleed cycle has the hands bleeding into the
@@ -508,7 +508,7 @@ fn identity_carriers() -> Vec<(&'static str, &'static str)> {
 /// Forty-three pieces of a floating kind carry something the table calls an
 /// identity mechanic. Most are `health above 15` on a Material or Plating,
 /// which the chest sweep takes; the rest go as their mechanic finds its home.
-const FLOATING_CARRIER_BUDGET: usize = 42;
+const FLOATING_CARRIER_BUDGET: usize = 39;
 
 /// §10.2 as written: rarity buys interestingness. Exactly four non-weapon
 /// pieces are epic or better - two helmets, one chest, one greave - and today

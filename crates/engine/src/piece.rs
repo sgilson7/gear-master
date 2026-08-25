@@ -1190,7 +1190,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[Trigger::SpendMana {
             cost: 5,
-            on_success: Action::GainEmpowerment(1),
+            on_success: Action::GainForking(1),
             on_failure: Action::GainMana(3),
         }],
         quest: None,
@@ -2761,7 +2761,7 @@ pub static CATALOG: &[PieceDef] = &[
         // Potent, but it wants paying for.
         triggers: &[Trigger::SpendMana {
             cost: 3,
-            on_success: Action::GainEmpowerment(1),
+            on_success: Action::Damage { amount: 14, kind: DamageType::Magic, target: Target::Enemy },
             on_failure: Action::Curse { kind: CurseKind::Searing, target: Target::Yourself },
         }],
         quest: None,
@@ -3468,7 +3468,18 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 3000,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::GainMana(3))],
+        triggers: &[
+            Trigger::OnActivate(Action::GainMana(3)),
+            // Empowerment is the helmet's by the table and had one carrier left
+            // after seven went home. It is also the clearest statement of the
+            // economy axis there is: mana banked, turned into the weapon's
+            // power, which is the helmet's bleed toward the weapon.
+            Trigger::SpendMana {
+                cost: 6,
+                on_success: Action::GainEmpowerment(1),
+                on_failure: Action::GainMana(2),
+            },
+        ],
         quest: None,
         power_bonus: 0,
         price: 8,
@@ -4151,7 +4162,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[Trigger::SpendMana {
             cost: 4,
-            on_success: Action::GainEmpowerment(1),
+            on_success: Action::GainForking(1),
             on_failure: Action::GainMana(2),
         }],
         quest: None,
@@ -4170,7 +4181,12 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[Trigger::SpendMana {
             cost: 3,
-            on_success: Action::GainEmpowerment(1),
+            // Tempo, which is the hands' own bleed into the feet - the spec
+            // names it exactly: "a reaction whose payout is tempo". Gloves fell
+            // under their bleed band when the last floating piece carrying an
+            // `OnBattleStart` was made neutral, and this is where the band is
+            // supposed to be filled from.
+            on_success: Action::ReduceCooldown(400),
             on_failure: Action::GainMana(2),
         }],
         quest: None,
@@ -4189,7 +4205,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[Trigger::SpendMana {
             cost: 3,
-            on_success: Action::GainShield(1),
+            on_success: Action::GainEmpowerment(1),
             on_failure: Action::GainArmor(8),
         }],
         quest: None,
@@ -4811,7 +4827,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::SpendMana { cost: 4, on_success: Action::GainEmpowerment(1), on_failure: Action::GainMana(2) }],
+        triggers: &[Trigger::SpendMana { cost: 4, on_success: Action::GainForking(1), on_failure: Action::GainMana(2) }],
         quest: None,
         power_bonus: 90,
         price: 20,
@@ -7726,7 +7742,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 25,
-        triggers: &[Trigger::OnOtherCast(Action::GainEmpowerment(1))],
+        triggers: &[Trigger::OnOtherCast(Action::GainForking(1))],
         quest: None,
         power_bonus: 0,
         price: 999,
@@ -8029,12 +8045,16 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Material,
         cells: &[(0,0),(1,0),(0,1),(1,1)],
-        base: Stats { strength: 4, ..Stats::health(50) },
+        base: Stats { strength: 4, armor: 6, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnBattleStart(Action::GainEmpowerment(1))],
+        // A Material floats between gloves and greaves and may carry no
+        // identity mechanic at all; this had two - opening the fight is the
+        // feet's and banking empowerment is the mind's - on top of health it
+        // is not the chest's business to be giving out either.
+        triggers: &[],
         quest: None,
         power_bonus: 0,
         price: 31,

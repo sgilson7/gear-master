@@ -182,6 +182,12 @@ Running list, so the last mile is not guesswork.
   an event.
 - Every fixture that might be passing for a reason unrelated to its subject
   (see 4). `fixtures.rs` covers eleven; the suite is larger than that.
+- **`fixtures.rs`'s own rows.** Two of them bound pieces to
+  `curses_in_combat::a_stunning_caster` as banking empowerment, and that test
+  does not mention empowerment anywhere - the fixture happened to carry some and
+  somebody recorded it. When the sweep took it away the manifest failed and the
+  test did not. The manifest is a good idea that can be wrong in the same way
+  the tests it guards can be.
 - The density quotas, re-read as design rather than as arithmetic (see 6).
 - `monster_value` (see 1), which is a patch and should be replaced by a scoring
   function written for creatures rather than borrowed from the shop.
