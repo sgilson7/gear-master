@@ -60,6 +60,7 @@ fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfi
         adjacent_assembled_same_slot: 0,
         diagonal_items: Vec::new(),
         open_cells: 0,
+        attracts_curses: false,
         power: 100,
         rating: 0,
         power_bonus: 0,

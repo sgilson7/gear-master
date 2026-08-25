@@ -142,6 +142,11 @@ impl TownVisit {
     }
 }
 
+/// How much better a piece comes back from consignment.
+pub const CONSIGNMENT_GAIN: i32 = 30;
+/// How many shops it is away for.
+pub const CONSIGNMENT_SHOPS: u32 = 3;
+
 /// How far a melt may move a piece's rating, either way.
 ///
 /// Fifteen: enough that the crucible is a gamble worth taking with something
@@ -199,6 +204,8 @@ pub struct Settlement {
     pub rows_won: u8,
     /// The fight an underwritten loss was spent on, if one was.
     pub underwrote: Option<&'static str>,
+    /// Whether a passenger was riding, and is not any more.
+    pub lost_passenger: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -475,6 +482,18 @@ pub struct Run {
     pub scouting: bool,
     /// Quests handed to pieces that were not born with one.
     granted_quests: std::collections::HashMap<PieceId, &'static crate::piece::Quest>,
+    /// A fragile thing riding on one of your boards, and until when.
+    ///
+    /// The rent is paid in dead cells: it occupies a cell that could have held
+    /// gear, for five rungs, and it is lost the moment you lose a fight. That
+    /// is the whole of it - a courier's job, priced in floor space rather than
+    /// in gold.
+    pub passenger: Option<(PieceId, usize)>,
+    /// A second town action, bought by crushing something. Cleared by the door
+    /// it pays for.
+    pub second_key_ready: bool,
+    /// Pieces sold on consignment, and how many shops until they come back.
+    pub consigned: Vec<(usize, u32)>,
     /// Destinations a pedestal has already sent this run to, by id.
     ///
     /// One set for both pedestals. Each destination fires once a run.
@@ -601,6 +620,9 @@ impl Run {
             towns_seen: Vec::new(),
             towns_revealed: Vec::new(),
             destinations_visited: Vec::new(),
+            passenger: None,
+            second_key_ready: false,
+            consigned: Vec::new(),
             forced_event: None,
             flags: Vec::new(),
             counters: Vec::new(),
@@ -1095,7 +1117,7 @@ impl Run {
                             self.shop.guaranteed.push(k);
                         }
                         let need = self.needs_a_weapon();
-                        self.shop.restock(&mut self.rng, need);
+                        self.restock(need);
                     }
                     crate::event::Standing::FreeFirstReroll => {
                         self.shop.free_first_reroll = true;
@@ -1125,7 +1147,7 @@ impl Run {
                 self.rung += 1;
                 self.best_rung = self.best_rung.max(self.rung);
                 let need = self.needs_a_weapon();
-                self.shop.restock(&mut self.rng, need);
+                self.restock(need);
             }
         }
         (gave, receipt)
@@ -1206,6 +1228,88 @@ impl Run {
             format!("It takes you to {}", dest.name),
         ]);
         Some(dest)
+    }
+
+    /// Break a one-cell unique, and get the one thing it is for.
+    ///
+    /// The only things in this game that are *spent*. Everything else you own
+    /// is either worn or sold; a crushable is destroyed by using it, which is
+    /// what makes carrying one a decision about when rather than whether.
+    ///
+    /// Returns what it did, or `None` if that piece is not one of them.
+    pub fn crush(&mut self, id: PieceId) -> Option<crate::relic::Crush> {
+        use crate::relic::Crush;
+        if !self.owned.contains(&id) {
+            return None;
+        }
+        let name = self.registry.def(id).name;
+        let what = crate::relic::crushable(name)?.what;
+        let mut receipt = vec![format!("Crushed: {}", name)];
+        match what {
+            // The one legal breach of the one-action rule, and it is legal
+            // because it costs you the key.
+            Crush::SecondKey => {
+                if self.town.is_none() {
+                    return None;
+                }
+                self.second_key_ready = true;
+                receipt.push("One more door, in this town".into());
+            }
+            // A door you walked away from, standing open again. The most
+            // recent one, because that is the one you are still thinking
+            // about.
+            Crush::Appeal => {
+                let Some(back) = self.answered.pop() else { return None };
+                self.took.retain(|_| true);
+                receipt.push(format!("They will hear you again: {}", back));
+            }
+            Crush::SkipStone => {
+                if self.rung + 1 > LADDER.len() {
+                    return None;
+                }
+                receipt.push(format!("Stepped over {}", LADDER[self.rung].name));
+                receipt.push("It pays nothing, and it is behind you".into());
+                self.rung += 1;
+                self.best_rung = self.best_rung.max(self.rung);
+            }
+        }
+        self.loadout.remove_anywhere(id);
+        self.owned.retain(|&o| o != id);
+        self.forget_undo();
+        self.last_receipt = Some(receipt);
+        Some(what)
+    }
+
+    /// Take a passenger aboard, for `rungs` rungs.
+    ///
+    /// It has to be somewhere on a board: the rent is dead cells, and a
+    /// passenger riding in the tray is paying nothing.
+    pub fn take_passenger(&mut self, id: PieceId, rungs: usize) -> bool {
+        if !self.owned.contains(&id) || self.passenger.is_some() {
+            return false;
+        }
+        self.passenger = Some((id, self.rung + rungs));
+        true
+    }
+
+    /// Is the passenger where it is supposed to be - on a board, not in a bag?
+    pub fn passenger_is_seated(&self) -> bool {
+        let Some((id, _)) = self.passenger else { return false };
+        SlotKind::ALL.iter().any(|&k| self.loadout.slot(k).pieces().contains(&id))
+    }
+
+    /// Deliver it, if the road has gone far enough.
+    pub fn deliver_passenger(&mut self) -> bool {
+        let Some((id, until)) = self.passenger else { return false };
+        if self.rung < until {
+            return false;
+        }
+        self.passenger = None;
+        self.loadout.remove_anywhere(id);
+        self.owned.retain(|&o| o != id);
+        self.forget_undo();
+        self.last_receipt = Some(vec!["Delivered, and in one piece".into()]);
+        true
     }
 
     /// Throw a piece into the melt and take back what comes out.
@@ -1397,7 +1501,7 @@ impl Run {
         self.gold -= cost;
         self.rerolls += 1;
         let need = self.needs_a_weapon();
-        self.shop.restock(&mut self.rng, need);
+        self.restock(need);
         Ok(())
     }
 
@@ -1416,7 +1520,45 @@ impl Run {
         // reporting an item that no longer exists.
         self.loadout.locks.retain(|l| !l.pieces.contains(&id));
         self.gold += refund;
+        // On consignment: it does not leave, it goes away for a while and
+        // comes back worth more. The order is a standing arrangement, so this
+        // happens to everything sold while it is held.
+        if self.standing_orders.contains(&crate::event::Standing::Consignment) {
+            let def = self.registry.def_index(id);
+            if let Some(better) = crate::piece::dearer_than(def, CONSIGNMENT_GAIN) {
+                self.consigned.push((better, CONSIGNMENT_SHOPS));
+            }
+        }
         Ok(refund)
+    }
+
+    /// Turn the shelves over.
+    ///
+    /// One place, rather than the nine `shop.restock` used to be called from,
+    /// because a shelf now has two things to do when it turns over and the
+    /// second one - handing back what was left on consignment - is exactly the
+    /// kind of thing that gets added to eight of nine call sites.
+    fn restock(&mut self, ensure_weapon: bool) {
+        self.shop.restock(&mut self.rng, ensure_weapon);
+        self.tick_consignments();
+    }
+
+    /// Move every consignment one shop closer, and put back whatever has come.
+    ///
+    /// Called on the restock rather than on the sale, because "three shops
+    /// later" is a fact about shops.
+    fn tick_consignments(&mut self) {
+        let mut arrived: Vec<usize> = Vec::new();
+        for (def, left) in self.consigned.iter_mut() {
+            *left = left.saturating_sub(1);
+            if *left == 0 {
+                arrived.push(*def);
+            }
+        }
+        self.consigned.retain(|(_, left)| *left > 0);
+        for def in arrived {
+            self.shop.put_on_a_shelf(def);
+        }
     }
 
     /// Bank the result of the fight just watched: pay the bounty, move the
@@ -1505,6 +1647,7 @@ impl Run {
                 won_item: None,
                 rows_won: 0,
                 underwrote: None,
+                lost_passenger: false,
             };
             if outcome == Outcome::Victory {
                 self.wins += 1;
@@ -1524,7 +1667,7 @@ impl Run {
             self.log = None;
             self.last_settlement = Some(settlement);
             let need = self.needs_a_weapon();
-            self.shop.restock(&mut self.rng, need);
+            self.restock(need);
             return Some(0);
         }
 
@@ -1545,6 +1688,7 @@ impl Run {
             won_item: None,
             rows_won: 0,
             underwrote: None,
+            lost_passenger: false,
         };
 
         // How fast, and how slow, the shallow end went. The two doors of the
@@ -1586,7 +1730,7 @@ impl Run {
                         }
                     }
                 }
-                self.shop.restock(&mut self.rng, false);
+                self.restock(false);
             }
             Outcome::Victory => {
                 self.wins += 1;
@@ -1639,6 +1783,15 @@ impl Run {
                 // Losing in a dungeon puts you out of it. The door does not
                 // reopen - you sold the thing that opened it.
                 self.dungeon = None;
+                // And a passenger is a fragile thing that was riding on you.
+                // It goes whatever the mode does about the loss, including a
+                // loss the underwriter eats: the underwriter buys back a rung,
+                // not a life somebody else was carrying.
+                if let Some((id, _)) = self.passenger.take() {
+                    self.loadout.remove_anywhere(id);
+                    self.owned.retain(|&o| o != id);
+                    settlement.lost_passenger = true;
+                }
                 // Underwritten: one fight, once, and it says which one.
                 //
                 // Read before the mode's own answer rather than after, because
@@ -1679,7 +1832,7 @@ impl Run {
 
         // New shelves after every battle, win or lose.
         let need = self.needs_a_weapon();
-        self.shop.restock(&mut self.rng, need);
+        self.restock(need);
 
         let ended = settlement.run_ended;
         self.last_settlement = Some(settlement);
@@ -1737,7 +1890,7 @@ impl Run {
         self.gold += paid;
         self.best_rung = self.best_rung.max(self.rung);
         let need = self.needs_a_weapon();
-        self.shop.restock(&mut self.rng, need);
+        self.restock(need);
         // Quests want a fight to have happened, so a skipped rung does not
         // advance them. Skipping past a quest is the cost of skipping.
         self.last_settlement = None;
@@ -2045,7 +2198,7 @@ impl Run {
         }
         self.doubled = Some(choice.name);
         let need = self.needs_a_weapon();
-        self.shop.restock(&mut self.rng, need);
+        self.restock(need);
         true
     }
 
@@ -2159,7 +2312,7 @@ impl Run {
         self.classes.push(choice);
         self.refresh_class_effects();
         let need = self.needs_a_weapon();
-        self.shop.restock(&mut self.rng, need);
+        self.restock(need);
         Some(choice)
     }
 
@@ -2178,7 +2331,7 @@ impl Run {
         // so the ladder does not move. The shelves still turn over: drinking
         // is a moment between fights like any other.
         let need = self.needs_a_weapon();
-        self.shop.restock(&mut self.rng, need);
+        self.restock(need);
         class
     }
 
@@ -2619,6 +2772,7 @@ impl Run {
     pub fn player_stats(&self) -> Stats {
         let mut base = self.raw_player_stats();
         base.health += self.grown_health;
+        base += self.relic_pay().stats;
         // Effective, not held: a doubled Standing has to actually be double
         // on the character sheet, not only inside the fight.
         for c in self.effective_classes() {
@@ -2633,9 +2787,39 @@ impl Run {
         self.loadout.total_stats(&self.registry)
     }
 
+    /// What every relic on the board is paying right now.
+    ///
+    /// On the board, not in the tray: a relic costs a cell like anything else,
+    /// and a reward that pays from a pocket is a reward with no decision in
+    /// it. Summed rather than taken from the best, because two relics are two
+    /// cells.
+    pub fn relic_pay(&self) -> crate::relic::Payout {
+        let mut out = crate::relic::Payout::default();
+        for k in SlotKind::ALL {
+            for id in self.loadout.slot(k).pieces() {
+                let Some(r) = crate::relic::relic(self.registry.def(id).name) else { continue };
+                let p = (r.pays)(self);
+                out.stats += p.stats;
+                out.speed_pct += p.speed_pct;
+            }
+        }
+        out
+    }
+
     /// Activation profiles for every assembled item — what combat runs on.
     pub fn combat_items(&self) -> Vec<crate::loadout::ItemProfile> {
-        self.loadout.combat_items(&self.registry)
+        let mut items = self.loadout.combat_items(&self.registry);
+        // A relic's speed is not a `Stats` field, because no speed in this
+        // game is: every other one is a percentage on an item's cooldown, and
+        // this is applied in the same place and the same way.
+        let pct = self.relic_pay().speed_pct;
+        if pct > 0 {
+            for it in &mut items {
+                it.cooldown_ms =
+                    ((it.cooldown_ms as i64 * (100 - pct.min(75)) as i64) / 100).max(100) as u32;
+            }
+        }
+        items
     }
 
     /// Simulate the whole fight against `spec` and enter the replay phase.
@@ -2749,8 +2933,19 @@ impl Run {
     /// rather than a shopping trip.
     pub fn visit_town(&mut self, what: crate::town::Action) -> TownVisit {
         use crate::town::Action;
-        let Some(t) = self.town.take() else { return TownVisit::default() };
-        self.towns_seen.push(t.id);
+        // The Second Key: one more door in this town, and then it is gone.
+        // The only legal breach of the one-action rule anywhere in the game -
+        // and this is the only place the exception is written, which is what
+        // keeps it to one.
+        let second = self.second_key_ready;
+        let Some(t) = (if second { self.town } else { self.town.take() }) else {
+            return TownVisit::default();
+        };
+        if second {
+            self.second_key_ready = false;
+        } else {
+            self.towns_seen.push(t.id);
+        }
         let mut out = TownVisit { at: Some(t.name), did: Some(what), ..TownVisit::default() };
         match what {
             Action::Chapel => {

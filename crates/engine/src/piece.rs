@@ -9647,6 +9647,35 @@ pub fn town_shelf() -> &'static [&'static str] {
 }
 
 /// Is this piece bought in a town rather than off the road?
+/// The enchantment every curse on your board would rather land on.
+///
+/// Named here rather than in the chain, because the rule that reads it is in
+/// `combat.rs` and has to exist before the component does. Nothing carries
+/// this name yet.
+pub const LIGHTNING_ROD: &str = "the Lightning Rod";
+
+/// The nearest same-slot, same-kind piece worth about `by` more than this one.
+///
+/// What consignment gives back, and the same shape the crucible's melt uses:
+/// a piece is replaced by one of its own family rather than by anything at
+/// all, so the thing that comes back still fits the hole the old one left.
+pub fn dearer_than(def_index: usize, by: i32) -> Option<usize> {
+    let here = CATALOG.get(def_index)?;
+    let want = crate::rating::piece_rating(here) + by;
+    all_def_indices()
+        .into_iter()
+        .filter(|&i| {
+            let d = &CATALOG[i];
+            d.slot == here.slot
+                && d.kind == here.kind
+                && d.name != here.name
+                && !is_boss_only(d.name)
+                && !is_quest_reward(d.name)
+                && !is_event_only(d.name)
+        })
+        .min_by_key(|&i| (crate::rating::piece_rating(&CATALOG[i]) - want).abs())
+}
+
 /// Does this piece deal in the mind lane's pool at all?
 ///
 /// True for anything that banks Insight or stacks Dread. Both are locked

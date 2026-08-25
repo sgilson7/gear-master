@@ -59,8 +59,8 @@ re-pinned first**.
 | M4 | Road machinery, landed inert (A4) | **done** |
 | M5 | Frames and the four new themes (H4) | **done** |
 | M6 | Dungeon presentation, pedestals, route map (A8/A10/G6) | **done** |
-| M7 | Relics, crushables and consignment (H1) | next |
-| M8 | Phase-1 gate, and the stretch decision | |
+| M7 | Relics, crushables and consignment (H1) | **done** |
+| M8 | Phase-1 gate, and the stretch decision | next |
 | M9 | The catalogue lands once | |
 | M10 | The chain (Part B) | |
 | M11 | The dungeons and what they pay | |
@@ -343,3 +343,41 @@ a rung at all - a pedestal, and later THE FORK.
 
 Suite: **647 green**, 0 warnings. New: `route.rs` (9), `pedestal.rs` (5), one
 in `dungeon.rs`.
+
+
+---
+
+## M7 - Relics, crushables and consignment
+
+One commit. Ladder byte-identical. `relic.rs` is the reward vocabulary that is
+not gear.
+
+**A run-relic** is worth what the run has done - the only piece in the game
+whose card is different at rung forty from what it was at rung four. It pays
+from a **board** rather than from the tray, because a reward that pays from a
+pocket has no decision in it.
+
+One thing had to give. `Relic::pays` returns a `Payout` rather than a `Stats`,
+because **speed is not a `Stats` field** and never has been: every speed in
+this game is a percentage on an item's cooldown. So the Odometer's payout is
+carried separately and applied to the profiles in `Run::combat_items`, which is
+where the other speeds already live.
+
+**A crushable** is spent, which nothing else in this game is. The Second Key is
+the only legal breach of the one-action rule, and it is legal in exactly one
+place - `visit_town` reads `second_key_ready` once, which is what keeps the
+exception to one. All three refuse before destroying themselves if they cannot
+do their one thing.
+
+**The Lightning Rod** redirects any curse that picks a target on your board.
+Only one does - a stun - and the other three land on the fighter and always
+have; the spec is amended to say so. It asks for *covering* rather than the
+bond's *burying*, so a rod half under something still has a wire running into
+it. That makes it a decision: lay it under something you do not mind losing the
+use of.
+
+**Consignment** and `Run::restock`. Nine call sites turned the shelves over;
+they turn them over in one place now, because a shelf has two jobs at a restock
+and the second one is exactly what gets added to eight of nine.
+
+Suite: **666 green**, 0 warnings. New: `relics.rs` (16), 3 in `relic.rs`.

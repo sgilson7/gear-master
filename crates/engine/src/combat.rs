@@ -2634,6 +2634,9 @@ pub struct RunningItem {
     /// has paid. The budget belongs to the item, so the tally does too.
     pub gold_spent: i32,
     pub gold_paid: u32,
+    /// Standing on a Lightning Rod, so anything that picks a target on this
+    /// board picks this.
+    pub attracts_curses: bool,
     /// What this item multiplies its own damage by, in hundredths.
     pub power: i32,
     pub physical_damage: i32,
@@ -2676,6 +2679,7 @@ impl RunningItem {
         RunningItem {
             name: p.name.clone(),
             slot: Some(p.slot),
+            attracts_curses: p.attracts_curses,
             cooldown_ms: p.cooldown_ms,
             progress_ms: 0,
             stun_ms: 0,
@@ -2711,6 +2715,8 @@ impl RunningItem {
         RunningItem {
             name: a.name.to_string(),
             slot: None,
+            // A monster's own teeth stand on nothing.
+            attracts_curses: false,
             cooldown_ms: a.cooldown_ms.max(TICK_MS),
             progress_ms: 0,
             stun_ms: 0,
@@ -4220,6 +4226,19 @@ fn land_stun(victim: &mut Combatant, aim: StunAim, at_ms: u32) -> Option<(usize,
     }
     victim.stun_count = victim.stun_count.wrapping_add(1);
 
+    // The rod first, whatever the aim was.
+    //
+    // "Every curse applied to your board lands on whatever covers it", and a
+    // stun is the only curse in this game that has a target on the board at
+    // all - the other three land on the fighter and always have. So this is
+    // the whole of the rule, and it is a decision rather than a reward: lay
+    // the rod under something you do not mind losing the use of, and the thing
+    // you do mind stops being picked.
+    if let Some(i) = victim.items.iter().position(|it| it.attracts_curses) {
+        let item = &mut victim.items[i];
+        item.stun_ms = (item.stun_ms + duration).min(STUN_CAP_MS);
+        return Some((i, item.stun_ms));
+    }
     let idx = match aim {
         StunAim::Strongest => victim
             .items

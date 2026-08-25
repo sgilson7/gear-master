@@ -323,6 +323,22 @@ impl Shop {
         self.previous = outgoing;
     }
 
+    /// Put one particular thing on a shelf, whatever else was going to be
+    /// there.
+    ///
+    /// For things that are coming *back* rather than being offered - a piece
+    /// left on consignment - so the shelf it lands on is whichever one nobody
+    /// has pinned.
+    pub fn put_on_a_shelf(&mut self, def: usize) {
+        if self.stock.contains(&def) {
+            return;
+        }
+        match (0..self.stock.len()).find(|i| !self.locked.contains(i)) {
+            Some(at) => self.stock[at] = def,
+            None => self.stock.push(def),
+        }
+    }
+
     /// Pin or unpin a shelf. Returns whether it is pinned afterwards.
     pub fn toggle_lock(&mut self, slot: usize) -> bool {
         if let Some(at) = self.locked.iter().position(|&i| i == slot) {

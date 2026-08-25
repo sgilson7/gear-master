@@ -48,6 +48,13 @@ pub struct ItemProfile {
     pub adjacent_assembled_same_slot: usize,
     /// Empty cells touching this item - what `PerAdjacentEmpty` repeats over.
     pub open_cells: usize,
+    /// Whether this item is standing on a Lightning Rod.
+    ///
+    /// Curses that pick a target on your board pick this one instead. Which
+    /// makes the rod a decision rather than a reward: you lay it under
+    /// something you do not mind losing the use of, and everything you do mind
+    /// stops being picked.
+    pub attracts_curses: bool,
     /// Hundredths of weapon power that apply to THIS item alone - what the
     /// ink in a spell is worth. Never reaches the wearer's own total.
     pub power_bonus: i32,
@@ -766,6 +773,7 @@ impl Loadout {
             // what they cost) - so doubling it means the same thing in all five
             // grids rather than only in the one that swings.
             let mut raw_triggers = raw_triggers;
+            let mut attracts_curses = false;
             for eid in slot.pieces() {
                 if !reg.def(eid).kind.is_enchantment() {
                     continue;
@@ -782,6 +790,14 @@ impl Loadout {
                 if bonded {
                     power += 100;
                     raw_triggers.extend(reg.def(eid).triggers.iter().copied());
+                }
+                // The rod asks for less than the bond does: *covering* it is
+                // enough, and covering all of it is not required. A rod
+                // half-under something still has a wire running up into it.
+                if reg.def(eid).name == crate::piece::LIGHTNING_ROD {
+                    attracts_curses |= cells.iter().any(|&(x, y)| {
+                        slot.get(x, y).is_some_and(|on_top| item.pieces.contains(&on_top))
+                    });
                 }
             }
             let power = power;
@@ -842,6 +858,7 @@ impl Loadout {
                 pieces: item.pieces.clone(),
                 adjacent_assembled_same_slot: adjacent.len(),
                 open_cells: slot.open_cells_around(&item.pieces),
+                attracts_curses,
                 adjacent_items: adjacent,
                 aligned_items: aligned,
                 diagonal_items: diagonal,

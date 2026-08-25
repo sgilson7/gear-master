@@ -22,6 +22,7 @@ pub mod naming;
 pub mod pedestal;
 pub mod piece;
 pub mod rating;
+pub mod relic;
 pub mod rng;
 pub mod rumour;
 pub mod route;
