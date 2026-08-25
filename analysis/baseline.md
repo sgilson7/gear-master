@@ -1174,3 +1174,263 @@ turns against instead of trusting rung 31, and `growth_is_kept_after_a_loss_too`
 finds the deepest rung that beats its fixture *slowly* instead of assuming the
 last one does.
 
+
+---
+
+# Before the Unwinding — captured 2026-08-25
+
+The denominator for `design/the-unwinding.md`. Everything above this line
+belongs to the gear-slot rewrite, which is finished; nothing above is rewritten.
+
+Retaken because the last entry in this file was written two commits before the
+rewrite's final ones and the numbers under it moved. Retake with:
+
+    cargo test -p gearmaster-engine
+    cargo test -p gearmaster-engine --test baseline -- --ignored --nocapture --test-threads=1
+    cargo test -p gearmaster-engine --test catalog_shape -- --ignored
+    cargo test -p gearmaster-engine --test two_runs -- --ignored --nocapture
+
+| | last recorded | today |
+|---|---|---|
+| Suite | 538 green | **548 green**, 33 suites, 35 ignored, 0 warnings |
+| `the_catalog_keeps_every_rule` | 69 rules unmet, then green | **green**, 0 unmet, 0 identity mechanics on floating kinds |
+| Weapon damage share, owner at Medium | 74.9% | **75.2%** |
+| Owner's board | 50/50, median 10.50s | 50/50, median **10.50s** |
+| Board cadence, owner | 6.79/s | **6.69/s** |
+| Catalogue | 469, then 473 | **473**, inert 104 (22.0%) |
+
+## The casino corridor
+
+Both shallow-end doors key off rungs 1-10, so anything that touches the early
+ladder is inside them.
+
+| | now | needs | room |
+|---|---|---|---|
+| sharp run's best early win | 1,600ms | < 3,000ms | **1.4s of slack** |
+| plain run's best early win | 6,000ms | >= 3,000ms | 3.0s of slack |
+| plain run's worst early win | 39,000ms | > 10,000ms | not close |
+
+The binding constraint is still the sharp run's 1.4s: that is how much the early
+ladder may be hardened before the casino door shuts on the build it was written
+for. The plain run's best has moved from 4,500ms to 6,000ms since the last
+capture, which widens the other side.
+
+## The harness, in full
+
+```
+## Catalog census - 473 pieces
+                                               helmet    chest   gloves  greaves   weapon    total
+pieces                                             81       69       83       67      173      473
+inert (no trigger, effect or adjacency)            20        8       13        8       55      104
+positional (effect, adjacency or reaction)         11       15       56       19       24      125
+- effect                                            5        7        7        4        6       29
+- adjacency bonus                                   4        8        4       14        7       37
+curse application                                   3        4        3       30       19       59
+- searing                                           1        1        1        5       15       23
+- frost                                             0        0        0       12        1       13
+- stun                                              1        1        1        7        3       13
+- misfire                                           1        2        1        6        1       11
+reaction trigger                                    2        0       49        1        2       54
+- OnAdjacentActivate                                0        0       36        0        0       36
+- OnAlignedActivate                                 2        0       11        1        2       16
+- PerAdjacentItem                                   0        0        2        0        0        2
+OnBattleStart                                       0        0        0        6        0        6
+Drain                                               0        0       11        0        0       11
+StunStrongest                                       0        0        1        0        0        1
+Grow                                                0        7        0        0        0        7
+MindDamage                                         11        0        0        0        0       11
+GainEmpowerment                                     3        0        0        0        0        3
+GainShield                                          6        0        0        0        0        6
+GainForking                                         0        0        0        0        9        9
+ReduceCooldown                                      0        0        9       14        8       31
+pool spend (SpendMana / Spend / Consume)           13        4        9        5       24       55
+- Consume                                           6        0        0        0        0        6
+power_bonus                                         0        0        0        0       50       50
+speed_bonus                                         0        0        0       16       20       36
+mind_resist                                        28        0        0        0        0       28
+harden (physical or magic)                          0        6        0        0        0        6
+health above 15                                     4       49        3        4        1       61
+crosses grids (Material or Plating)                23        0       20       18        0       61
+### As a share of each slot
+                                               helmet    chest   gloves  greaves   weapon
+inert (no trigger, effect or adjacency)         24.7%    11.6%    15.7%    11.9%    31.8%
+positional (effect, adjacency or reaction)      13.6%    21.7%    67.5%    28.4%    13.9%
+- effect                                         6.2%    10.1%     8.4%     6.0%     3.5%
+- adjacency bonus                                4.9%    11.6%     4.8%    20.9%     4.0%
+.
+## starter - the opening weapon and nothing else
+rung                    result       ttk   helmet    chest   gloves  greaves   weapon    burn
+1 Cave Rat                 win     4.50s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+10 Warded Idol            loss     9.00s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+25 Cog Priest             loss     5.90s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+40 The Rust Parliament    loss     7.50s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+## preset - the auto-builder's five-slot board
+rung                    result       ttk   helmet    chest   gloves  greaves   weapon    burn
+1 Cave Rat                 win     1.50s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+10 Warded Idol             win    19.50s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+25 Cog Priest             loss    39.00s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+40 The Rust Parliament    loss    44.00s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+## owner - a finished run - 75 pieces, Berserker and Chronomancer
+rung                    result       ttk   helmet    chest   gloves  greaves   weapon    burn
+1 Cave Rat                 win     1.50s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+10 Warded Idol             win     2.80s     0.5%     0.0%    24.8%     0.3%    74.4%    0.0%
+25 Cog Priest              win    12.00s     1.0%     1.7%    18.0%     3.4%    75.8%    0.0%
+40 The Rust Parliament     win    22.50s     0.8%     0.8%    18.2%     3.4%    76.8%    0.0%
+## friend - a finished run - 76 pieces, half of it deliberately loose
+rung                    result       ttk   helmet    chest   gloves  greaves   weapon    burn
+1 Cave Rat                 win     2.60s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+10 Warded Idol             win     4.75s    13.4%     0.9%     9.8%     0.9%    75.0%    0.0%
+25 Cog Priest              win     7.75s     0.8%     0.5%     0.9%     0.0%    97.9%    0.0%
+40 The Rust Parliament     win    13.55s     0.3%     0.3%     1.1%     0.5%    97.9%    0.0%
+## Weapon share across the whole ladder
+build          cleared    weapon %  median ttk    burn %
+starter           2/50      100.0%      45.00s      0.0%
+preset            9/50      100.0%       9.00s      0.0%
+owner            50/50       75.2%      10.50s      0.0%
+friend           48/50       97.6%       7.75s      0.0%
+## Board cadence - friendly activations a second
+build              items activations/s    per item
+starter                1          0.50       0.502
+preset                 8          2.05       0.257
+owner                 19          6.69       0.352
+friend                17          3.21       0.189
+## Mind damage across the whole ladder (max health removed, not in the shares above)
+build          helmet    chest   gloves  greaves   weapon
+starter             0        0        0        0        0
+preset              0        0        0        0        0
+owner              62        0        0       59        0
+friend            595        0        0        0        0
+.
+## With the weapon grid emptied
+(rung 15 is The Hollow King)
+build       rungs won  best rung     rung 15      ttk         what carried it
+starter          1/50         42      Defeat     2.8s                 nothing
+preset           0/50       none      Defeat     5.6s                 nothing
+owner           45/50         50      Defeat    47.0s the clock, not the gear
+friend          35/50         46     Victory    44.6s the clock, not the gear
+.
+## preset - time-to-kill with one grid emptied
+rung                        intact     helmet      chest     gloves    greaves     weapon
+10 Warded Idol              19.50s        15%        23%        62%         0%      flips
+25 Cog Priest                    -          -          -          -          -          -
+40 The Rust Parliament           -          -          -          -          -          -
+## owner - time-to-kill with one grid emptied
+rung                        intact     helmet      chest     gloves    greaves     weapon
+10 Warded Idol               2.80s         7%         0%        61%         0%       168%
+25 Cog Priest               12.00s        25%         0%      flips         0%       275%
+40 The Rust Parliament      22.50s        27%         7%        96%         7%       100%
+## friend - time-to-kill with one grid emptied
+rung                        intact     helmet      chest     gloves    greaves     weapon
+10 Warded Idol               4.75s         8%         8%        15%         8%       141%
+25 Cog Priest                7.75s        66%         0%       199%         0%      flips
+40 The Rust Parliament      13.55s        40%         0%       151%         0%       232%
+.
+## preset - health left at the end, one grid emptied
+rung                        intact     helmet      chest     gloves    greaves     weapon
+10 Warded Idol                 495         0%        64%         1%        15%        95%
+25 Cog Priest                   28       196%       121%       -32%        25%        61%
+40 The Rust Parliament          91        12%        60%         1%        10%         0%
+## owner - health left at the end, one grid emptied
+rung                        intact     helmet      chest     gloves    greaves     weapon
+10 Warded Idol                2346        39%        37%         0%        20%         0%
+25 Cog Priest                 2446        37%        39%        63%        19%        61%
+40 The Rust Parliament        2546        35%        42%        70%        19%        63%
+## friend - health left at the end, one grid emptied
+rung                        intact     helmet      chest     gloves    greaves     weapon
+10 Warded Idol                1755         0%        78%         0%        16%        -2%
+25 Cog Priest                 1785        -2%        79%         0%        16%        83%
+40 The Rust Parliament        1811         1%        79%        -4%        15%        83%
+.
+```
+
+## The ratchet, in full
+
+```
+## Exclusivity - pieces out of place
+
+mechanic                                         home     away   budget
+power_bonus                                   50/50          0        0
+the casting kinds (Ink/Spell/Alignment/Book/Orb)  93/93          0        0
+GainForking                                    9/9           0        0
+OnOtherCast                                   30/30          0        0
+PerAdjacentEmpty                               9/9           0        0
+searing                                       15/23          0        0
+Consume                                        6/6           0        0
+GainEmpowerment                                3/3           0        0
+GainShield                                     6/6           0        0
+MindDamage                                    11/11          0        0
+mind_resist                                   28/28          0        0
+Grow                                           7/7           0        0
+reflect                                       20/20          0        0
+harden                                         6/6           0        0
+health above 15                               49/61          0        0
+OnAdjacentActivate                            36/36          0        0
+PerAdjacentItem                                2/2           0        0
+Drain                                         11/11          0        0
+StunStrongest                                  1/1           0        0
+DoubleAdjacentItemStat                         2/2           0        0
+OnAlignedActivate                             11/16          0        0
+OnBattleStart                                  6/6           0        0
+speed_bonus outside the weapon                16/36          0        0
+ReduceCooldown outside the weapon             14/31          0        0
+enchantment                                    1/5           0        0
+frost, stun and misfire                       25/37          0        0
+
+## Rarity of the catalogue, per slot
+
+slot           common     rare     epic   legend    total
+Helmet             79        0        2        0       81
+Chest              68        0        0        1       69
+Gloves             81        2        0        0       83
+Greaves            66        0        0        1       67
+Weapon            172        0        1        0      173
+
+## Quotas  (filler is held at 30% for this rewrite, 15% after it)
+
+slot        quota                                  of    share     wanted   away
+Helmet      expresses its own axis                 81    77.8%   60-100%      0
+Helmet      expresses its bleed axis               81    21.0%    20-25%      0
+Helmet      plain flat-stat filler                 81    24.7%     0-30%      0
+Helmet      the dearest third interacts            26    42.3%   35-100%      0
+Chest       expresses its own axis                 69    98.6%   60-100%      0
+Chest       expresses its bleed axis               69    24.6%    20-25%      0
+Chest       plain flat-stat filler                 69    11.6%     0-30%      0
+Chest       the dearest third interacts            22    40.9%   35-100%      0
+Chest       pool-spend texture                     69     5.8%     0-15%      0
+Gloves      expresses its own axis                 83    63.9%   60-100%      0
+Gloves      expresses its bleed axis               83    21.7%    20-25%      0
+Gloves      plain flat-stat filler                 83    15.7%     0-30%      0
+Gloves      the dearest third interacts            27    63.0%   35-100%      0
+Gloves      pool-spend texture                     83    10.8%     0-15%      0
+Greaves     expresses its own axis                 67    76.1%   60-100%      0
+Greaves     expresses its bleed axis               67    22.4%    20-25%      0
+Greaves     plain flat-stat filler                 67    11.9%     0-30%      0
+Greaves     the dearest third interacts            22    50.0%   35-100%      0
+Greaves     pool-spend texture                     67     7.5%     0-15%      0
+Weapon      the dearest third interacts            57    38.6%   35-100%      0
+Weapon      pool-spend texture                    173    13.9%     0-15%      0
+
+## Identity mechanics on floating kinds: 0
+```
+
+## What this capture says
+
+**1. Criterion 1 holds with a point and a half to spare.** 75.2% against
+66-76%. The rewrite's last recorded figure was 74.9%; the drift is the two
+commits since, not an error in either reading.
+
+**2. The owner's board clears the ladder and the friend's does not.** 50/50
+against 48/50. That is a reversal from the capture before it and it is the
+honest state: the friend's board is half deliberately loose, so it feels a
+catalogue that has learned to reward adjacency less than a packed one does.
+
+**3. Mind damage is small and it is about to matter.** Owner 62 on the helmet
+and 59 on the greaves; friend 595 on the helmet. Insight and Dread multiply
+exactly this channel, and it is currently a rounding error on two boards out of
+four. Anything the third lane does will be visible against these figures rather
+than lost in them.
+
+**4. Cadence is 6.69 activations a second against the 2.0 `rating.rs`
+assumes.** Unchanged in character from the rewrite's finding and still
+unaddressed: anything that watches is under-priced on a good board by roughly
+three times. It is a Phase-4 correction, listed at M16.

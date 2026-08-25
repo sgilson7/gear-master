@@ -74,6 +74,148 @@ predates it; these deltas are the current truth.
 
 ---
 
+# RECONCILIATION II — 2026-08-25, execution (wins over the body and over the block above)
+
+Written at the start of execution, after running the suite and reading the
+modules this spec names. The block above was written from the gear-slot
+rewrite's finish line; these are the places where the *code* and this document
+disagree, plus the four decisions the reconciliation left open. Numbered from
+9 so the two blocks read as one list.
+
+9. **`LADDER` is fifty and `Rust Golem` is rung 4.** It is spliced into the
+   table by name (`pub const RUST_GOLEM`, `combat.rs:646`) rather than written
+   inline, so every text search of the ladder comes back one short and every
+   rung above three reads one low. Bounties by displayed rung: 4 -> 10g,
+   11 -> 34g, 16 -> 93g, 27 -> 188g, 33 -> 233g, 50 -> 500g (Francis).
+
+10. **`LadderEvent::at` and `Town::after` are zero-based indices. The displayed
+    rung is `at + 1`.** `the-casino` is `at: 8` and its own comment calls it
+    rung 9. Every rung number in Parts B, D, F, G and H is written in displayed
+    numbers and must be converted once, deliberately, on the way into the
+    tables. `every_event_stands_where_it_thinks_it_does` is the guard.
+
+11. **Two of `branching-events.md`'s five gaps are already closed.**
+    `Outcome::Give` and `Requirement::Holding` both ship and are in use.
+    `Outcome::Stock` is also a curated shelf, though it *empties* the shop and
+    restocks it rather than opening a one-visit one, so A4's `OpenShop` is a
+    new outcome beside it and not a replacement for it.
+
+12. **A7's pop order is amended to the order the game already resolves in:
+    town gate, then fountain, then events by `EVENTS` order.** The body says
+    "fountain, then gate, then events". The code puts the gate first in both
+    places it decides (`run.rs::road_is_blocked`, and the GUI's screen
+    dispatch), and `pending_event` returns `None` at a fountain. The two
+    genuinely collide - `Run::FOUNTAINS` is `&[7, 14]` and Sump Bottom stands
+    at rung index 7 - so this is not a hypothetical. E6 criterion 2 requires
+    the three shipped towns' tests to pass unmodified, which settles it: the
+    stack is a data structure for the order the road already has, not a new
+    order.
+
+13. **`MonsterTheme` does not exist in the engine.** The six themes are a
+    test-local `enum Theme` in `tests/pack_francis.rs`. `MonsterFrame` is
+    specified as engine data carrying a theme, so the table is promoted into
+    the engine and the packer and the GUI read it from there. The four new
+    themes (Hollow, Swarm, Beast, Warden) arrive in the promoted table.
+
+14. **`Run::banked_all_run` is `[i32; 4]` and `Resource::index()` already
+    returns up to 6.** No live panic today - a fusion emits `Event::Fused`
+    rather than `Event::GainResource`, so the out-of-range indices are never
+    written - but Insight is index 7 and the array is grown before the pool is
+    added, not after.
+
+15. **`Nine of Ashes` is rung 47, not 46** (Part C's note on the theme already
+    naming a creature "Nibbalonius the Wise"), and **the packer can address
+    `ALTERNATES`**: `gui/src/pack.rs::everyone()` chains them onto the ladder.
+    `HANDOFF.md` says it cannot; that is stale.
+
+## 16. Gold: every figure is a multiple of the standing rung's bounty
+
+There is no milestone table and the body's absolute figures were written
+against one. Measured against the real economy they are not merely wrong,
+they are wrong by an order of magnitude at one end and correct at the other:
+starting gold is 28g, and a run has earned about 61g by rung 4, 223g by rung
+11, 604g by rung 16 and 2,177g by rung 27. So F1's 150g at rung 4 is two and a
+half times everything the run has ever seen, while the Slagworks foreman's
+250g at rung 33 is one bounty and needs no change at all.
+
+**Every gold constant in this document is replaced by a multiple of the bounty
+of the rung the thing stands on**, resolved at the moment it resolves - which
+is the idiom `Outcome::BuyOff { times }` already uses (`run.rs:622`,
+`LADDER[rung].bounty * times`). Three tiers:
+
+| tier | multiple | what it is |
+|---|---:|---|
+| small | 1x | a toll, a bribe, a consolation |
+| medium | 3x | a real purchase, a real payout |
+| large | 10x | the big-ticket item, the jackpot |
+
+| Where | Body | Tier | At its earliest rung |
+|---|---|---|---|
+| F1, leave the parcel on the milestone | 150g | medium | ~30g at rung 4 |
+| F2 THE TELLER, the short version | 750g | large | ~340g at rung 11 |
+| F3 THE DISPENSER, one coin | 100g | small | ~90g at rung 16 |
+| F3 THE DISPENSER, the red one | 1,000g | large | ~930g at rung 16 |
+| THE ASTRONOMER, buy the lens | 400g | medium | ~350g at rung 18 |
+| G1 THE BIGGER SIGN, forget you saw it | 200g | medium | ~225g at rung 13 |
+| F5 THE BIRD PROBLEM, pay the toll | 300g | small | ~190g at rung 27 |
+| The Slagworks foreman, if the Manse is found | 250g | small | ~250g at rung 33 |
+| MOLE TOWN, trade a curse off a piece | 400g | medium | by where you entered |
+| THE THRUMBUS RACE, back a runner | 300g | medium | by where you entered |
+| THE PAYOUT | 400g | medium | by where you entered |
+
+The last three stand at destinations a run can reach at two very different
+depths - Extra Large opens after rung 13 and High Wick after rung 31, and both
+hold a pedestal - so their figures are the multiple and nothing else. That is
+the rule's real payoff: **a price expressed in bounties is worth the same thing
+wherever the road is when you meet it.**
+
+Untouched: the Slagworks tempering ("half a rung's bounty") and the Manse
+gallery ("sell at double") were already relative; THE BUYER's prices are
+seeded; the casino and the VIP area belong to the last mission.
+
+## 17. THE UNWOUND's target is 16-29s at Medium
+
+The density curve gives `target(51) = 2.8 + 0.4 x 51 = 23.2s` and a +/-30% band
+of 16.2-30.2s. Sudden death takes the fight over at 30s, so **the band's top
+edge is clipped at 29s** - the same rule the whole ladder is packed under, and
+the reason the curve's slope is 0.4s a rung in the first place. Nothing about
+rung 51 may sit where escalation decides it.
+
+"Harder than Francis" is E6.5's replay test and not a number: Francis himself is
+pinned only by "not walked through" (a victory must cost 15s or more), so there
+is no Francis TTK to be a multiple of.
+
+## 18. Mind damage is answered by `mind_resist` alone
+
+A1 takes empowerment and the shield out of the physical lane. The shield also
+blunts **mind** damage today (`combat.rs:3198`, "whatever the damage type"),
+and A3 then arms mind damage with Insight and Dread - so as written this spec
+removes the mind lane's only flat mitigation in the same change that amplifies
+it, and never says what replaces it.
+
+It replaces it with nothing, on purpose. Three lanes, three answers: the mana
+shield answers magic, Deflection answers physical, and **`mind_resist` answers
+mind**. It already exists, it is helmet-exclusive with 28 carriers, and it makes
+the helmet the mind lane's defence as well as its offence - which is the same
+shape the other two lanes have. A1 therefore reads: the shield reduces magic
+only; physical and mind both skip it.
+
+## 19. The catalogue lands once, and it lands like a rating change
+
+Reconciliation #4 says a `rating.rs` weight change re-gears every monster on
+three settings through `stepped_component`. **So does appending to `CATALOG`**,
+and the body never says so. `stepped_component` sorts a piece's *footprint
+family* - same kind, same slot, same cells - by `monster_value`, so a new piece
+that shares a footprint with an existing one inserts itself into that family and
+shifts every stepped board wearing a sibling.
+
+Every new component in this spec therefore lands in **one** Phase-2 milestone
+with one measured re-pin, rather than arriving in five content PRs with five
+uncontrolled re-gearings. `CATALOG` is closed from that milestone until the
+Phase-4 rating pin.
+
+---
+
 # PART A — MECHANICS
 
 ## A1. Empowerment and shield become magic-only

@@ -158,7 +158,7 @@ nothing), `decode_build` (share codes), `prose` (the words), `avail`,
 printers report damage share by slot), `catalog_shape` (the slot-identity
 ratchet: budgets only go down), `fixtures` (the manifest of tests that name a
 piece as their example of a mechanic, so a sweep fails there rather than
-downstream). **538 tests, green, no warnings.** When one fails after your
+downstream). **548 tests, green, no warnings.** When one fails after your
 change, it is telling you which doctrine you brushed.
 
 ---
@@ -172,12 +172,13 @@ weapon's side-monopolies moved out (gloves hold 47 reaction triggers to its
 2), the interaction primitives ship (`Watch`, the diagonal relation, three
 fused pools, the **Enchantment** layer, reflection), `catalog_shape`'s
 ratchet closed from 69 rules unmet to green, and the weapon's damage share
-sits at **74.9%** inside the 66–76% band. `analysis/baseline.md` holds every
+sits at **75.2%** inside the 66–76% band. `analysis/baseline.md` holds every
 number; `HANDOFF.md` §5 and §7 hold the lessons.
 
 **The mission now** is `design/the-unwinding.md` — read it in full,
-including its dated reconciliation block, which wins wherever it and the
-body disagree. Short form: an overarching event chain across the back half
+including its **two** dated reconciliation blocks, which win wherever they and
+the body disagree; the second is dated at the start of execution and wins over
+the first. Short form: an overarching event chain across the back half
 of the ladder that ends with a super boss at **rung 51**, unlocked only by
 finishing the chain and beating Francis; two hidden towns and five mini
 dungeons; four Orbs of Travel and their destinations; typed combat lanes
@@ -228,13 +229,24 @@ Phase 3, and **no board authored until Phase 4**, by hand, in `make pack`.
 8. **`ALTERNATES` and the empty `CREVICE` are the frame precedent** —
    creatures without authored boards already exist in the repo. The
    mission's frames extend that pattern rather than inventing one.
+9. **`LadderEvent::at` and `Town::after` are zero-based indices; the
+   displayed rung is `at + 1`.** And `LADDER` is fifty because `Rust Golem`
+   is spliced in by name at rung 4 rather than written inline, so counting
+   the table by eye comes back one short.
 
-**Your first three moves:** (1) run the suite — 538 green, and if not, that
+**The mission is under way.** It is being executed on the branch
+**`unwinding`**, milestone by milestone, and `HANDOFF-unwinding.md` is the
+running ledger — read it before anything else, because it says which milestone
+is open and what the last one moved. `analysis/baseline.md`'s *Before the
+Unwinding* section is the denominator every figure since is measured against.
+
+**Your first three moves:** (1) run the suite — 548 green, and if not, that
 is the news; (2) run the two printers to capture today's numbers
 (`--test baseline -- --ignored --nocapture --test-threads=1` and
 `--test catalog_shape -- --ignored`), because they move under you; (3) read
-`design/the-unwinding.md` Part E, then its reconciliation block, then start
-Phase 1, PR 1 — the typed lanes, which merge alone.
+`design/the-unwinding.md` Part E, then **both** reconciliation blocks — the
+second one is dated at the start of execution and wins over the first — then
+pick up whichever milestone `HANDOFF-unwinding.md` says is open.
 
 ---
 
