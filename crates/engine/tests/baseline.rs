@@ -30,9 +30,15 @@ use gearmaster_engine::run::Run;
 use gearmaster_engine::share;
 use gearmaster_engine::stats::Stats;
 
-/// Difficulty every measurement is taken at. A run opens here, so this is the
-/// setting the balance story is actually told in.
-const AT: Difficulty = Difficulty::Easy;
+/// Difficulty every measurement is taken at.
+///
+/// Medium, because Medium is one times: it is the setting with no multiplier
+/// on it, and therefore the one the balance is meant to sit at. Everything in
+/// `analysis/baseline.md` before the re-baseline entry was measured on Easy -
+/// a run opens there, which is why it was picked, but opening difficulty and
+/// reference difficulty are not the same question and reading one for the
+/// other quietly understates every fight in the file.
+const AT: Difficulty = Difficulty::Medium;
 
 /// The ladder is indexed from zero and spoken about from one: the spec's
 /// "rung 15 (The Hollow King)" is `LADDER[14]`, and its rungs 10, 25 and 40 are

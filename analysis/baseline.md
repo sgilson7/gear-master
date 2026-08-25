@@ -443,3 +443,30 @@ sweep here has taught: the creatures wear the catalogue too, and arming a slot
 arms them first. Spreading reflection across the chest is a sweep of its own,
 and it wants the monster boards handled in the same change - which is exactly
 what the greaves sweep needed and got.
+
+---
+
+## Re-baselined at Medium — one times
+
+Every figure above this line was measured on **Easy**. A run opens there, which
+is why it was picked, but opening difficulty and reference difficulty are not
+the same question, and Medium is the setting with no multiplier on it. The
+whole file above therefore reads one setting easier than the balance is meant
+to sit.
+
+| Build | Cleared | Median TTK | Weapon share |
+|---|---|---|---|
+| starter | 1/50 | 4.50s | 100.0% |
+| preset | 10/50 | 12.00s | 97.5% |
+| owner | 46/50 | 14.40s | **79.5%** |
+| friend | 46/50 | 5.45s | 99.8% |
+
+Against the Easy figures: the owner drops from 49 rungs cleared to 46, and the
+starter's first fight goes from 3.00s to 4.50s — half again as long on the rung
+the game opens with, which is worth knowing before anything makes the early
+ladder denser.
+
+Weapon share reads **79.5%**, not 82.9%. Lower, because the fights are longer
+and the slots that pay over time - reflection, burn, reaction damage - get more
+of the fight to pay in. That is the honest number against the 66-76% band, and
+it is three and a half points from the top of it rather than seven.
