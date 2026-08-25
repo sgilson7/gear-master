@@ -98,7 +98,6 @@ const LEANED_ON: &[(&str, &str, Needs, &str)] = &[
     ("Braced Plating", "effects::a_prepared_item_only_opens_once", Needs::OpensTheFight, "greaves"),
     ("Opening Grudge", "effects::a_prepared_item_only_opens_once", Needs::OpensTheFight, "greaves"),
     ("Twinning Mold", "effects", Needs::Forks, "weapon"),
-    ("Tin Frame", "effects", Needs::CarriesRealHealth, "chest"),
     ("Hermit's Band", "effects", Needs::CarriesRealHealth, "chest"),
     ("Gluttonous Fang", "progression", Needs::Grows, "chest"),
     ("Slash and Burn", "slash_and_burn", Needs::SpendsAWholePool, "helmet"),

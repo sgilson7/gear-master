@@ -264,12 +264,22 @@ fn every_slot_assembles_on_the_preset_loadout() {
 #[test]
 fn an_adjacency_bonus_stays_dormant_until_the_item_assembles() {
     let mut run = Run::with_all_pieces();
-    // Runed Material alone: base +25 health, and its +75 bonus must NOT fire.
+    // Runed Material alone: base +12 armour, and its +75 health bonus must NOT
+    // fire.
+    //
+    // Read on two different stats on purpose. It used to carry base health and
+    // a health bonus, so "base only" and "base plus bonus" were 25 and 100 -
+    // one number doing two jobs, and a zero would have looked like either. The
+    // sweep took the base health off it, because a Material floats between
+    // gloves and greaves and health above fifteen is the body's; what it gives
+    // now is armour, which belongs to nobody. Base in one currency and bonus in
+    // another says which is which.
     equip(&mut run, "Runed Material", SlotKind::Greaves, 0, 0);
 
     let r = run.report(SlotKind::Greaves);
     assert_eq!(r.assembled_count(), 0);
-    assert_eq!(r.stats.health, 25, "only the base contribution");
+    assert_eq!(r.stats.armor, 12, "only the base contribution");
+    assert_eq!(r.stats.health, 0, "and the bonus is dormant");
     assert!(r.notes().is_empty());
 
     // Add the mold next to it and the greaves come together.
@@ -277,7 +287,7 @@ fn an_adjacency_bonus_stays_dormant_until_the_item_assembles() {
 
     let r = run.report(SlotKind::Greaves);
     assert_eq!(r.assembled_count(), 1, "{}", r.summary());
-    assert_eq!((r.stats.health, r.stats.regen), (100, 1), "base 25 + bonus 75 health, +1 regen");
+    assert_eq!((r.stats.armor, r.stats.health, r.stats.regen), (12, 75, 1), "base armour kept, bonus health added, +1 regen");
     assert_eq!(r.notes(), vec!["Runed: +75 health"]);
 }
 
@@ -286,7 +296,7 @@ fn breaking_the_assembly_switches_the_bonus_back_off() {
     let mut run = Run::with_all_pieces();
     equip(&mut run, "Runed Material", SlotKind::Greaves, 0, 0);
     equip(&mut run, "Greave Mold", SlotKind::Greaves, 2, 0);
-    assert_eq!(run.report(SlotKind::Greaves).stats.health, 100);
+    assert_eq!(run.report(SlotKind::Greaves).stats.health, 75);
 
     // Slide the mold away so nothing touches any more.
     let mold = piece(&run, "Greave Mold");
@@ -294,7 +304,8 @@ fn breaking_the_assembly_switches_the_bonus_back_off() {
 
     let r = run.report(SlotKind::Greaves);
     assert_eq!(r.assembled_count(), 0);
-    assert_eq!(r.stats.health, 25, "the +75 bonus is withdrawn");
+    assert_eq!(r.stats.health, 0, "the +75 bonus is withdrawn");
+    assert_eq!(r.stats.armor, 12, "and the base is still there");
     assert!(r.notes().is_empty());
 }
 

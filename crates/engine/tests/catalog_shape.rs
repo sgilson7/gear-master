@@ -287,7 +287,7 @@ const RULES: &[Rule] = &[
         budget: 7, target: 0,
         carries: |d| d.base.physical_harden != 0 || d.base.magic_harden != 0 },
     Rule { what: "health above 15", home: SlotKind::Chest, level: Level::Mostly(70),
-        shared_with: &[], budget: 30, target: 0, carries: |d| d.base.health > 15 },
+        shared_with: &[], budget: 2, target: 0, carries: |d| d.base.health > 15 },
 
     // Gloves - Reaction. The hands answer.
     Rule { what: "OnAdjacentActivate", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
@@ -419,7 +419,7 @@ const EVENTUAL_FILLER_PCT: usize = 15;
 /// How far each slot is from each quota today, read off `report_shape`. Lower a
 /// figure in the commit that earns it; never raise one.
 const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
-    (SlotKind::Helmet, "expresses its own axis", 1),
+    (SlotKind::Helmet, "expresses its own axis", 0),
     (SlotKind::Helmet, "expresses its bleed axis", 3),
     (SlotKind::Helmet, "plain flat-stat filler", 0),
     (SlotKind::Helmet, "the dearest third interacts", 0),
@@ -508,7 +508,7 @@ fn identity_carriers() -> Vec<(&'static str, &'static str)> {
 /// Forty-three pieces of a floating kind carry something the table calls an
 /// identity mechanic. Most are `health above 15` on a Material or Plating,
 /// which the chest sweep takes; the rest go as their mechanic finds its home.
-const FLOATING_CARRIER_BUDGET: usize = 39;
+const FLOATING_CARRIER_BUDGET: usize = 23;
 
 /// §10.2 as written: rarity buys interestingness. Exactly four non-weapon
 /// pieces are epic or better - two helmets, one chest, one greave - and today
