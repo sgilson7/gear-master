@@ -278,6 +278,27 @@ Capture **baseline first** with deterministic CLI replays (fixed seed, scripted 
    that turned out to be wrong, and chasing it would have meant designing
    against a number nobody had ever measured.
 2. **Slot-mattering test:** stripping any one non-weapon slot from a rung-25 reference build flips the outcome or regresses time-to-kill ≥25%. Today, stripping the helmet mostly costs stats; after, it should cost the build's engine.
+
+   *Amended, 2026-08-25 — the body is measured in health, not in seconds.*
+   Time-to-kill is the right instrument for four slots and the wrong one for the
+   fifth. A slot that deals damage, denies tempo, or pays for casting all show up
+   on the clock; the body does not. Strip it and the fight takes the same time —
+   you simply arrive at the end of it with less left. Chest read **0–3%** on this
+   criterion for the whole rewrite and the conclusion drawn was that chest did
+   nothing.
+
+   It is doing more than any other slot. Measured as the health a build walks
+   away with, emptying the chest costs **29% / 29% / 28%** on the owner's board
+   at rungs 10/25/40, **48%** flat on the friend's, and **43% / 37% / 36%** on
+   the preset — the most consistent contribution of any of the five.
+
+   Reflection was meant to close the gap on the clock and structurally cannot:
+   it pays a share of what your **armour** ate, armour resets to zero every
+   fight, and a board that kills a rung-25 creature in twelve seconds never
+   carries much of it. Arming six more chest pieces with reflection moved the
+   time-to-kill figures by *nothing at all*, which is the measurement that says
+   the percentage was never the constraint. `report_what_a_slot_is_worth_in_health`
+   is the reading for this slot, and the bar is the same 25%.
 3. **No-weapon viability:** a best-effort build with an empty weapon grid clears rung 15 (The Hollow King). This is the existence proof that the other four axes carry agency.
 4. **Early game preserved:** rungs 1–10 TTK within ±20% of baseline (new players should feel nothing).
 5. **Suite green** with every re-pinned constant documented in the commit message.

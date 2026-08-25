@@ -784,3 +784,60 @@ fn report_no_weapon_viability() {
         );
     }
 }
+
+/// Criterion two for a defensive slot, measured in the currency it trades in.
+///
+/// The chest is the slot that answers "how long do I last", and criterion 2
+/// asks every slot to change *time-to-kill*. Those are different questions, and
+/// for four slots out of five they happen to have the same answer: a slot that
+/// deals damage, denies tempo or pays for casting all show up on the clock.
+/// The body does not. Strip it and the fight takes the same time - you simply
+/// arrive at the end of it with less left.
+///
+/// Reflection was meant to close that gap and structurally cannot: it pays a
+/// share of what your *armour* ate, armour resets to zero every fight, and a
+/// board that kills a rung-25 creature in twelve seconds is never carrying much
+/// of it. Arming six more chest pieces with it moved the time-to-kill figures
+/// by nothing at all, which is the measurement that says the percentage was
+/// never the constraint.
+///
+/// So this reports what a chest is worth on its own terms: the health a build
+/// walks away with.
+#[test]
+#[ignore]
+fn report_what_a_slot_is_worth_in_health() {
+    for b in reference_builds().into_iter().filter(|b| b.profiles().len() > 3) {
+        println!("\n## {} - health left at the end, one grid emptied\n", b.name);
+        print!("{:<24}{:>10}", "rung", "intact");
+        for s in SlotKind::ALL {
+            print!("{:>11}", short(s));
+        }
+        println!();
+        for &r in AT_RUNGS.iter().skip(1) {
+            let spec = &LADDER[r];
+            let left = |log: &CombatLog| -> i32 {
+                log.entries
+                    .iter()
+                    .rev()
+                    .find_map(|e| match e.event {
+                        Event::Hit { by: Side::Enemy, target_health, .. } => Some(target_health),
+                        _ => None,
+                    })
+                    .unwrap_or(log.player.health)
+            };
+            let full = b.fight(spec);
+            let whole = left(&full);
+            print!("{:<24}{:>10}", rung(r), whole);
+            for s in SlotKind::ALL {
+                let log = b.without(s).fight(spec);
+                let bare = left(&log);
+                if whole > 0 {
+                    print!("{:>10.0}%", 100.0 * (whole - bare) as f64 / whole as f64);
+                } else {
+                    print!("{:>11}", "-");
+                }
+            }
+            println!();
+        }
+    }
+}

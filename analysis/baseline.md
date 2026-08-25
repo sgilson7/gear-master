@@ -973,3 +973,63 @@ always said "that last one took eleven seconds".
 | Skipped | Rust Colossus - the weakest wall buildable at rung 12 still takes 4.5s against a 3.0s target |
 | Casino corridor | sharp 1600ms, plain 4500ms - unmoved from before the repack began |
 | Owner's board | clears 45 of 50, median 9.00s |
+
+---
+
+## The body was never doing nothing; it was being asked the wrong question
+
+Criterion 2 strips one grid and reads time-to-kill. Chest has read **0-3%** on
+that for the whole rewrite, and the conclusion drawn - written into the handoff,
+the spec and this file - was that chest does nothing.
+
+It is doing more than any other slot.
+
+Time-to-kill is the right instrument for four slots and the wrong one for the
+fifth. A slot that deals damage, denies tempo or pays for casting all show up on
+the clock. The body does not: strip it and the fight takes the same time, you
+simply arrive at the end of it with less left. Measured that way:
+
+```
+## owner - health left at the end, one grid emptied
+rung                        intact     helmet      chest     gloves    greaves     weapon
+10 Warded Idol                2941        44%        29%        -3%        23%         0%
+25 Cog Priest                 3141        49%        29%        88%        15%        -5%
+40 The Rust Parliament        3261        49%        28%        25%        14%        -4%
+
+## friend - health left at the end, one grid emptied
+10 Warded Idol                2865         9%        48%        19%        21%         0%
+25 Cog Priest                 2865         9%        48%        24%        21%        85%
+40 The Rust Parliament        2862         9%        48%        63%        21%        84%
+
+## preset - health left at the end, one grid emptied
+10 Warded Idol                 710        21%        43%         2%        21%        56%
+25 Cog Priest                  143        18%        37%         1%        35%         0%
+40 The Rust Parliament         149        17%        36%       -54%        34%         0%
+```
+
+Chest costs **28-48%** of the health a build walks away with, on every board at
+every rung - the most consistent contribution of any of the five. The criterion
+was reading a defensive slot in an offensive currency.
+
+### And the remedy that did not work
+
+The plan for chest was to arm reflection more widely on the gear the finished
+boards wear. Six pieces were armed at five to nine percent - Adamant Base, Plate
+Layer, Riveted Layer, Runic Weave, Rimeguard Base, Becalming Layer, all of them
+on the owner's or the friend's chest.
+
+**It moved the time-to-kill figures by nothing at all.** Not a little: the table
+came back byte-identical.
+
+The reason is in the mechanic. Reflection pays a share of what your *armour*
+ate, armour resets to zero every fight, and a board that kills a rung-25
+creature in twelve seconds is never carrying much of it - so `absorbed_total`
+is the binding constraint and the percentage is not. Arming more of it is
+pushing on the wrong end.
+
+The six were reverted. What they did do was re-gear every creature on three of
+the four difficulty settings, through `stepped_component`, and take two tests
+red - which is a lot of movement to buy a column of zeros.
+
+`report_what_a_slot_is_worth_in_health` is the reading for this slot now, and
+the spec says so at criterion 2.
