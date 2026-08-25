@@ -1652,6 +1652,10 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
         Action::GainEmpowerment(_) | Action::GainShield(_) | Action::GainForking(_) => {
             note("mana", out)
         }
+        // The physical twins want no mana, so they read as what they are:
+        // one sharpens the blow and one turns it aside.
+        Action::GainSpellblade(_) => note("damage", out),
+        Action::GainDeflection(_) => note("armor", out),
         Action::Grow(_) => note("health", out),
         Action::Fuse { into, .. } => note(into.name(), out),
     } }
@@ -2432,6 +2436,9 @@ struct FoeView {
     watch_pops: Vec<(String, u32)>,
     empower: u32,
     shield: u32,
+    /// The physical twins, which want no mana and so read on their own.
+    whetted: u32,
+    deflect: u32,
     fork: u32,
     flash: f64,
     schedule: Vec<Vec<u32>>,
@@ -2474,6 +2481,8 @@ struct Playback {
     done: bool,
     player_empower: u32,
     player_shield: u32,
+    player_whetted: u32,
+    player_deflect: u32,
     player_fork: u32,
     /// When each of the player's items fired, indexed the same way as the
     /// combatant's item list. Cooldown bars are drawn straight from these,
@@ -2585,6 +2594,8 @@ impl Playback {
                     watch_pops: Vec::new(),
                     empower: 0,
                     shield: 0,
+                    whetted: 0,
+                    deflect: 0,
                     fork: 0,
                     flash: -10.0,
                     schedule: schedule_for(log, Side::Enemy, i as u8, body.items.len()),
@@ -2617,6 +2628,8 @@ impl Playback {
             done: false,
             player_empower: 0,
             player_shield: 0,
+            player_whetted: 0,
+            player_deflect: 0,
             player_fork: 0,
             player_schedule: schedule_for(log, Side::Player, 0, log.player.items.len()),
             player_profiles: pprof,
@@ -2823,6 +2836,20 @@ impl Playback {
                     self.player_shield = *total;
                 } else {
                     self.foe_mut(who).shield = *total;
+                }
+            }
+            Event::Whetted { side, total, .. } => {
+                if *side == Side::Player {
+                    self.player_whetted = *total;
+                } else {
+                    self.foe_mut(who).whetted = *total;
+                }
+            }
+            Event::Deflecting { side, total, .. } => {
+                if *side == Side::Player {
+                    self.player_deflect = *total;
+                } else {
+                    self.foe_mut(who).deflect = *total;
                 }
             }
             Event::Forking { side, total } => {
@@ -4933,6 +4960,8 @@ fn render_battle(
         Some(pb.player_mana),
         pb.player_empower,
         pb.player_shield,
+        pb.player_whetted,
+        pb.player_deflect,
         pb.player_fork,
         &pb.player_curses,
         pb.now_ms,
@@ -5008,6 +5037,8 @@ fn render_battle(
             None,
             foe.empower,
             foe.shield,
+            foe.whetted,
+            foe.deflect,
             foe.fork,
             &foe.curses,
             pb.now_ms,
@@ -7975,6 +8006,8 @@ fn render_battle_side(
     mana: Option<i32>,
     empower: u32,
     shield: u32,
+    whetted: u32,
+    deflect: u32,
     fork: u32,
     curses: &[ActiveCurse],
     // Playback clock, so a curse chip can count itself down.
@@ -8062,6 +8095,29 @@ fn render_battle_side(
                 false,
             ));
         }
+    }
+    // The physical twins sit outside the mana block, because that is the
+    // whole difference between the two pairs: these are worth the same
+    // whatever the pool is holding, so they are drawn whether or not there is
+    // a mana figure to read them against.
+    if whetted > 0 {
+        let per = whetted as i32 * gearmaster_engine::combat::SPELLBLADE_POWER;
+        chips.push((
+            format!("spellblade x{} (+{}.{:02}x)", whetted, per / 100, per % 100),
+            Color::from_rgba(228, 186, 150, 255),
+            false,
+        ));
+    }
+    if deflect > 0 {
+        chips.push((
+            format!(
+                "deflection x{} (-{})",
+                deflect,
+                deflect as i32 * gearmaster_engine::combat::DEFLECTION_FLAT
+            ),
+            Color::from_rgba(228, 186, 150, 255),
+            false,
+        ));
     }
     if fork > 0 {
         chips.push((

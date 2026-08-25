@@ -696,6 +696,21 @@ pub const EMPOWERED_CAST_PCT: i32 = 200;
 /// Two, always. A class can raise it; nothing lowers it.
 pub const BALL_VOICES: u32 = 2;
 
+/// What one stack of Spellblade adds to a physical hit, in power-hundredths.
+///
+/// Half a multiplier. Flat, unconditional, and the physical lane's answer to
+/// empowerment - which buys 0.05x a stack per point of mana, so it passes this
+/// at ten mana and keeps going. The twin is the better opening and the worse
+/// ceiling, which is the trade the two lanes are meant to have.
+pub const SPELLBLADE_POWER: i32 = 50;
+
+/// What one stack of Deflection turns off an incoming physical hit.
+///
+/// Flat ten, ahead of armour, on the same terms: the mana shield takes one
+/// point per point of mana, so it passes this at ten mana as well. The two
+/// numbers are deliberately the same crossing point.
+pub const DEFLECTION_FLAT: i32 = 10;
+
 /// The rung past which everything on the road pierces, and past which it also
 /// hardens. Both are exclusive: rung 30 does not, rung 31 does.
 pub const PIERCE_FROM: usize = 30;
@@ -2791,8 +2806,21 @@ pub struct Combatant {
     /// Stacks of mana empowerment and mana shield. Both scale off *current*
     /// mana, and both are bought with mana — so stacking them hard drains the
     /// very pool they multiply. That tension is the point.
+    ///
+    /// Both are the **magic** lane's and only the magic lane's. Empowerment
+    /// multiplies magic-typed hits and the shield reduces magic-typed damage;
+    /// a physical swing is computed as though neither stack were there.
     pub empowerment: u32,
     pub shield: u32,
+    /// Stacks of Spellblade and Deflection: the same pair in the physical
+    /// lane, and **not** scaled by mana.
+    ///
+    /// That is the whole difference between the two pairs. Mana scaling is
+    /// what makes the mana pair conditional - a ceiling to build towards and a
+    /// pool to keep full - so the twins have neither, and are worth the same
+    /// to every board that manages to gain one.
+    pub spellblade: u32,
+    pub deflection: u32,
     /// Stacks of spell forking: every cast lands once more per stack.
     pub forking: u32,
     pub items: Vec<RunningItem>,
@@ -2932,6 +2960,8 @@ impl Combatant {
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
+            spellblade: 0,
+            deflection: 0,
             forking: 0,
             items: profiles.iter().map(RunningItem::from_profile).collect(),
             dot_milli: 0,
@@ -3036,6 +3066,8 @@ impl Combatant {
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
+            spellblade: 0,
+            deflection: 0,
             forking: 0,
             items,
             dot_milli: 0,
@@ -3140,20 +3172,47 @@ impl Combatant {
         self.magic_resist + self.held_bonus().magic_resist
     }
 
+    /// Weapon power on a **magic** hit: 0.05x per stack per point of mana.
     pub fn effective_power(&self) -> i32 {
-        self.power + self.empowerment as i32 * 5 * self.mana.max(0)
+        self.power + self.magic_empower()
     }
 
-    /// Flat reduction mana shield applies to any incoming damage.
+    /// Weapon power on a **physical** hit: 0.50x flat per Spellblade stack.
+    pub fn effective_physical_power(&self) -> i32 {
+        self.power + self.physical_empower()
+    }
+
+    /// What empowerment adds to a magic hit, in power-hundredths.
+    pub fn magic_empower(&self) -> i32 {
+        self.empowerment as i32 * 5 * self.mana.max(0)
+    }
+
+    /// What Spellblade adds to a physical hit, in power-hundredths.
+    ///
+    /// Flat, and that is the design: half a multiplier a stack, whatever the
+    /// board is holding.
+    pub fn physical_empower(&self) -> i32 {
+        self.spellblade as i32 * SPELLBLADE_POWER
+    }
+
+    /// Flat reduction the mana shield applies to an incoming **magic** hit.
     pub fn damage_reduction(&self) -> i32 {
         self.shield as i32 * self.mana.max(0)
+    }
+
+    /// Flat reduction Deflection applies to an incoming **physical** hit.
+    pub fn physical_reduction(&self) -> i32 {
+        self.deflection as i32 * DEFLECTION_FLAT
     }
 
     /// Mana shield first, then armour, then health. Returns (absorbed by
     /// armour, through to health).
     /// Take `amount` of `kind`, from an attacker with `pierce` percent
     /// piercing of that type.
-    fn take_typed(&mut self, amount: i32, kind: DamageType, pierce: i32) -> (i32, i32) {
+    /// Public because the lanes are a rule rather than an implementation
+    /// detail: `typed_lanes.rs` asks this directly, which is the only way to
+    /// put one number in and read what each lane did to it.
+    pub fn take_typed(&mut self, amount: i32, kind: DamageType, pierce: i32) -> (i32, i32) {
         let amount = match kind {
             DamageType::Physical => crate::stats::after_defences(
                 amount,
@@ -3168,7 +3227,14 @@ impl Combatant {
                 self.magic_harden,
             ),
         };
-        let amount = (amount - self.damage_reduction()).max(0);
+        // Each lane has its own flat answer, and neither answers the other:
+        // the mana shield takes magic, Deflection takes physical. Before this
+        // the shield took everything, which is what made the mana pair the
+        // only defensive stack worth owning.
+        let amount = match kind {
+            DamageType::Physical => (amount - self.physical_reduction()).max(0),
+            DamageType::Magic => (amount - self.damage_reduction()).max(0),
+        };
         if amount <= 0 {
             return (0, 0);
         }
@@ -3194,9 +3260,12 @@ impl Combatant {
     }
 
     /// Mind damage eats maximum health, so it can never be healed back off.
-    fn take_mind(&mut self, raw: i32) -> i32 {
-        // "whatever the damage type" — mana shield blunts mind damage too.
-        let raw = (raw - self.damage_reduction()).max(0);
+    pub fn take_mind(&mut self, raw: i32) -> i32 {
+        // The mind lane's only answer is `mind_resist`, which is the helmet's,
+        // and that is deliberate. The mana shield used to blunt this too -
+        // "whatever the damage type" - which made mana the answer to two lanes
+        // out of three. Three lanes, three answers: the shield takes magic,
+        // Deflection takes physical, and mind resistance takes this.
         let dealt = mind_damage_after_resist(raw, self.mind_resist);
         if dealt <= 0 {
             return 0;
@@ -3278,6 +3347,10 @@ pub enum Event {
     /// A mana buff gained stacks. `total` is the new stack count.
     Empowered { side: Side, total: u32, power_bonus: i32 },
     Shielded { side: Side, total: u32, reduction: i32 },
+    /// The physical twins. Same shape as the pair above, because they are the
+    /// same pair in the other lane.
+    Whetted { side: Side, total: u32, power_bonus: i32 },
+    Deflecting { side: Side, total: u32, reduction: i32 },
     /// Spell forking gained. Every cast lands once more per stack.
     Forking { side: Side, total: u32 },
     Fell { side: Side },
@@ -3536,7 +3609,15 @@ impl CombatLog {
                 *by_ms as f32 / 1000.0
             ),
             Event::Empowered { side, total, power_bonus } => format!(
-                "{} {} empowered x{} (+{}.{:02}x power)",
+                "{} {} empowered x{} (+{}.{:02}x power on magic)",
+                t,
+                self.who(*side),
+                total,
+                power_bonus / 100,
+                power_bonus % 100
+            ),
+            Event::Whetted { side, total, power_bonus } => format!(
+                "{} {} spellblade x{} (+{}.{:02}x power on iron)",
                 t,
                 self.who(*side),
                 total,
@@ -3551,7 +3632,14 @@ impl CombatLog {
                 total + 1
             ),
             Event::Shielded { side, total, reduction } => format!(
-                "{} {} mana shield x{} (-{} per hit)",
+                "{} {} mana shield x{} (-{} per magic hit)",
+                t,
+                self.who(*side),
+                total,
+                reduction
+            ),
+            Event::Deflecting { side, total, reduction } => format!(
+                "{} {} deflection x{} (-{} per physical hit)",
                 t,
                 self.who(*side),
                 total,
@@ -4256,12 +4344,13 @@ fn activate(
     let is_weapon = item.slot.map(|s| s == SlotKind::Weapon).unwrap_or(true);
     if is_weapon {
         // Strength reaches every weapon; power does not reach past the one
-        // carrying it. Empowerment is the exception and is meant to be: it is
-        // bought with mana, at five hundredths a stack a point, and it applies
-        // to whatever is swinging.
-        let (strength, empower) = {
+        // carrying it. The two amplifiers are the exception and are meant to
+        // be - they apply to whatever is swinging - but each one applies to
+        // its own lane only. Empowerment is bought with mana and sharpens
+        // magic; Spellblade is bought flat and sharpens iron.
+        let (strength, empower, whetted) = {
             let me = pick(p, foes, me);
-            (me.strength, me.empowerment as i32 * 5 * me.mana.max(0))
+            (me.strength, me.magic_empower(), me.physical_empower())
         };
         // The wearer's power, plus whatever ink is bound into this item alone.
         // Rage held sharpens the physical half.
@@ -4271,18 +4360,28 @@ fn activate(
         };
         // The item's own numbers already carry its power - it was applied
         // when the profile was built, so the card and the fight agree. What
-        // the wearer brings does not, so it picks the multiplier up here.
-        let mult = |flat: i32| -> i32 { ((flat as i64) * (100 + empower) as i64 / 100).max(0) as i32 };
+        // the wearer brings does not, so it picks the multiplier up here -
+        // and which multiplier depends on which lane the number is landing
+        // in. A board holding twenty empowerment stacks swings iron exactly
+        // as hard as a board holding none.
+        let mult_magic =
+            |flat: i32| -> i32 { ((flat as i64) * (100 + empower) as i64 / 100).max(0) as i32 };
+        let mult_phys =
+            |flat: i32| -> i32 { ((flat as i64) * (100 + whetted) as i64 / 100).max(0) as i32 };
         let from_wearer =
             (((rage + strength) as i64 * item.power as i64) / 100).max(0) as i32;
-        let physical = mult(item.physical_damage + from_wearer);
-        // Transmute: part of the iron lands again as magic.
+        let physical = mult_phys(item.physical_damage + from_wearer);
+        // Transmute: part of the iron lands again as magic. Taken off the
+        // physical number after it is settled, so what crosses is a blow that
+        // was already whetted rather than one that is about to be empowered -
+        // a conversion, not a second amplifier.
         let transmute = pick(p, foes, me).transmute;
-        let magic = mult(item.magic_damage) + physical * transmute / 100;
-        // Momentum: the longer the fight runs, the harder you swing.
+        let magic = mult_magic(item.magic_damage) + physical * transmute / 100;
+        // Momentum: the longer the fight runs, the harder you swing. Iron, so
+        // it is Spellblade's.
         let momentum = pick(p, foes, me).momentum * (t / 1000) as i32;
         let physical =
-            physical + mult((((momentum as i64) * item.power as i64) / 100) as i32);
+            physical + mult_phys((((momentum as i64) * item.power as i64) / 100) as i32);
         // A fork copies the cast, and only a cast: a blade swings once
         // however many stacks are up.
         let forks = if item.casts.is_empty() { 0 } else { pick(p, foes, me).forking };
@@ -5016,6 +5115,22 @@ fn apply(
             c.shield += n;
             let (total, reduction) = (c.shield, c.damage_reduction());
             log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::Shielded { side, total, reduction } });
+        }
+        Action::GainSpellblade(n) => {
+            let c = pick(p, foes, me);
+            c.spellblade += n;
+            let (total, bonus) = (c.spellblade, c.physical_empower());
+            log.push(LogEntry {
+                who,
+                at_ms: t,
+                event: Event::Whetted { side, total, power_bonus: bonus },
+            });
+        }
+        Action::GainDeflection(n) => {
+            let c = pick(p, foes, me);
+            c.deflection += n;
+            let (total, reduction) = (c.deflection, c.physical_reduction());
+            log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::Deflecting { side, total, reduction } });
         }
         Action::GainForking(n) => {
             let c = pick(p, foes, me);

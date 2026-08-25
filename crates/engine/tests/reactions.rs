@@ -258,7 +258,7 @@ fn mana_empowerment_scales_power_with_the_mana_you_still_hold() {
 }
 
 #[test]
-fn mana_shield_blunts_every_kind_of_damage() {
+fn a_ward_can_turn_activations_into_deflection_and_the_iron_stops_landing() {
     let mut hitter = item("Hitter", SlotKind::Weapon, 1000, Stats::physical(30));
     hitter.triggers = vec![];
     const PUNCHER: MonsterSpec = MonsterSpec {
@@ -279,19 +279,26 @@ fn mana_shield_blunts_every_kind_of_damage() {
         items: &[],
     };
 
-    // A battery to bank mana, and a ward that turns it into a shield.
+    // A battery to bank mana, and a ward that turns it into Deflection.
+    //
+    // It used to bank a mana shield, and the puncher's jab is physical - a
+    // monster's innate attack has no slot and counts as a weapon swing. Since
+    // the lanes were separated the shield does not answer iron at all, so the
+    // fixture reads the twin instead. What the test is about is unchanged: a
+    // ward that spends its way into mitigation, and mitigation arriving on the
+    // blow rather than in the log.
     let battery = item("Battery", SlotKind::Chest, 500, Stats::mana(4));
     let mut ward = item("Ward", SlotKind::Helmet, 600, Stats::ZERO);
     ward.triggers = vec![Trigger::SpendMana {
         cost: 3,
-        on_success: Action::GainShield(1),
+        on_success: Action::GainDeflection(1),
         on_failure: Action::GainArmor(0),
     }];
 
     let log = simulate(Stats::new(2000, 0, 0, 100), &[battery, ward], &PUNCHER);
     assert!(
-        log.entries.iter().any(|e| matches!(e.event, Event::Shielded { .. })),
-        "the ward should be converting mana into shield"
+        log.entries.iter().any(|e| matches!(e.event, Event::Deflecting { .. })),
+        "the ward should be converting mana into deflection"
     );
 
     // Once shielded, the puncher's 20s stop getting through in full.
@@ -327,7 +334,7 @@ fn mana_shield_blunts_every_kind_of_damage() {
         .expect("the puncher landed something in the first thirty seconds");
     assert!(
         hp_before_overtime > 1500,
-        "shield should have absorbed most of it, hp {}",
+        "deflection should have turned most of it, hp {}",
         hp_before_overtime
     );
 }

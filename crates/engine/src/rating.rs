@@ -125,6 +125,18 @@ mod weight {
     /// so their real worth depends on a build the rating cannot see; this is
     /// the value of a stack in a build that is actually banking mana.
     pub const STACK_PS: f32 = 11.0;
+    /// A stack of Spellblade or Deflection per second - the physical lane's
+    /// twins of the pair above.
+    ///
+    /// Neither scales off a pool, so neither has the mana pair's ceiling and
+    /// neither has its condition: a stack is worth the same to a board that
+    /// banks nothing as to one that banks forty. Spellblade sits level with a
+    /// mana stack because those two things cancel. Deflection sits under it
+    /// because it answers one lane where the shield answers one lane and asks
+    /// for mana to do it - the discount is for the half of the fight it is not
+    /// in, not for the mana it does not want.
+    pub const SPELLBLADE_PS: f32 = 11.0;
+    pub const DEFLECTION_PS: f32 = 9.0;
     /// A stack of spell forking: every cast lands once more.
     ///
     /// Worth more than a shield stack because it multiplies a payload rather
@@ -439,6 +451,8 @@ fn action_points(a: &Action) -> f32 {
         Action::ReduceCooldown(ms) => *ms as f32 / 1000.0 * weight::HASTE_PS,
         Action::GainEmpowerment(n) => *n as f32 * weight::STACK_PS,
         Action::GainShield(n) => *n as f32 * weight::STACK_PS,
+        Action::GainSpellblade(n) => *n as f32 * weight::SPELLBLADE_PS,
+        Action::GainDeflection(n) => *n as f32 * weight::DEFLECTION_PS,
         // A fork copies a cast, so a stack is worth roughly what the cast was
         // - which is more than a shield stack, and only to a build that has
         // something worth copying.

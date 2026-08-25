@@ -520,8 +520,27 @@ pub enum Action {
     /// point of mana you are currently holding.
     GainEmpowerment(u32),
     /// Gain stacks of mana shield: each stack cuts 1 point off every incoming
-    /// hit per point of mana you are holding, whatever the damage type.
+    /// **magic** hit per point of mana you are holding.
+    ///
+    /// Magic only. Empowerment and the shield are the magic lane's pair, and
+    /// what makes them the *mana* pair is that both scale off held mana. The
+    /// physical lane has its own two below, which do not.
     GainShield(u32),
+    /// Gain stacks of Spellblade: each stack adds a flat 0.50x to weapon power
+    /// on **physical** hits.
+    ///
+    /// The physical twin of empowerment, and deliberately not mana-scaled - a
+    /// stack is worth the same to a board that banks nothing as to one that
+    /// banks forty. So it has no ceiling to build towards and no condition to
+    /// meet, which is the trade against the pair that does.
+    GainSpellblade(u32),
+    /// Gain stacks of Deflection: each stack turns a flat 10 points off every
+    /// incoming **physical** hit, ahead of armour.
+    ///
+    /// The physical twin of the mana shield, on the same terms. Distinct from
+    /// `reflect`, which is the chest's other answer to being hit: Deflection
+    /// reduces the blow, reflection pays it back.
+    GainDeflection(u32),
     /// Gain stacks of spell forking: every cast lands once more per stack.
     ///
     /// Only a spell forks. A blade swings once however many stacks are up -
@@ -582,6 +601,8 @@ impl Action {
             }
             Action::GainEmpowerment(n) => format!("gain {} mana empowerment", n),
             Action::GainShield(n) => format!("gain {} mana shield", n),
+            Action::GainSpellblade(n) => format!("gain {} spellblade", n),
+            Action::GainDeflection(n) => format!("gain {} deflection", n),
             Action::GainForking(n) => format!("gain {} spell forking", n),
             Action::Grow(n) => format!("gain {} maximum health for the rest of the fight", n),
         }
@@ -9780,7 +9801,8 @@ mod tests {
                         Action::Damage { .. } => "harm",
                         Action::MindDamage { .. } => "harm",
                         Action::Curse { .. } => "harm",
-                        Action::GainArmor(_) | Action::GainShield(_) => "defence",
+                        Action::GainArmor(_) | Action::GainShield(_)
+                        | Action::GainDeflection(_) => "defence",
                         Action::Grow(_) => "growth",
                         Action::GainMana(_) | Action::Gain { .. } => "pool",
                         _ => "other",
