@@ -607,17 +607,17 @@ pub const RUST_GOLEM: MonsterSpec = MonsterSpec {
         curse_resist: 0,
     attacks: &[],
     gear: &[
-        ("Executioner's Haft", SlotKind::Weapon, 0, 0, 0),
-        ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
-        ("Padded Base", SlotKind::Chest, 0, 0, 0),
-        ("Ironbark Layer", SlotKind::Chest, 0, 3, 0),
+        ("Chained Codex", SlotKind::Weapon, 0, 0, 1),
+        ("Kingsblood Ink", SlotKind::Weapon, 3, 0, 0),
+        ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+        ("Bloodstone Bead", SlotKind::Weapon, 4, 1, 1),
     ],
     gear_offset: 0,
     bounty: 10,
     sprite: MonsterSprite::Golem,
     rank: Rank::Ordinary,
     drops: &[],
-    items: &[],
+    items: &[4],
 };
 
 /// The monster ladder, easiest first.
@@ -684,19 +684,19 @@ pub const LADDER: &[MonsterSpec] = &[
         magic_resist: 2,
         curse_resist: 0,
         attacks: &[],
-        // A crude club and nothing else.
+        // Fast hands, and something sharp.
         gear: &[
-            ("Oak Handle", SlotKind::Weapon, 0, 0, 0),
-            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
-            ("Bloodbank Base", SlotKind::Chest, 0, 0, 0),
-            ("Seedbed Layer", SlotKind::Chest, 2, 0, 0),
+            ("Godsteel Haft", SlotKind::Weapon, 0, 0, 1),
+            ("Iron Blade", SlotKind::Weapon, 0, 1, 1),
+            ("Worldweave Material", SlotKind::Gloves, 0, 0, 0),
+            ("Bramble Mold", SlotKind::Gloves, 3, 0, 0),
         ],
         gear_offset: 0,
         bounty: 8,
     sprite: MonsterSprite::Toad,
         rank: Rank::Ordinary,
         drops: &[],
-        items: &[],
+        items: &[2, 2],
     },
     MonsterSpec {
         name: "Bone Archer",
@@ -708,19 +708,19 @@ pub const LADDER: &[MonsterSpec] = &[
         magic_resist: 3,
         curse_resist: 0,
         attacks: &[],
-        // Fast, light hits: a duelling grip made faster still.
+        // Fast hands, and something sharp.
         gear: &[
-            ("Duelist's Grip", SlotKind::Weapon, 0, 0, 0),
-            ("Bonesaw", SlotKind::Weapon, 1, 0, 0),
-            ("Leather Material", SlotKind::Gloves, 0, 0, 0),
-            ("Featherweight Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Emberheart Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Cometfall", SlotKind::Weapon, 3, 0, 0),
+            ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+            ("Cometfall", SlotKind::Weapon, 4, 1, 1),
         ],
         gear_offset: 0,
         bounty: 9,
     sprite: MonsterSprite::Archer,
         rank: Rank::Ordinary,
         drops: &[],
-        items: &[],
+        items: &[4],
     },
     RUST_GOLEM,
     MonsterSpec {
@@ -733,19 +733,20 @@ pub const LADDER: &[MonsterSpec] = &[
         magic_resist: 3,
         curse_resist: 25,
         attacks: &[],
-        // A witch's hat freezes your gear every few seconds.
+        // Fast hands, and something sharp.
         gear: &[
-            ("Witch's Hat", SlotKind::Helmet, 0, 0, 0),
-            ("Iron Plating", SlotKind::Helmet, 0, 3, 0),
-            ("Oak Handle", SlotKind::Weapon, 0, 0, 0),
-            ("Hexbolt", SlotKind::Weapon, 1, 0, 0),
+            ("Emberheart Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Unmaking", SlotKind::Weapon, 3, 0, 1),
+            ("Hollow Lance", SlotKind::Weapon, 5, 0, 0),
+            ("Worldweave Material", SlotKind::Gloves, 0, 0, 0),
+            ("Flaying Mold", SlotKind::Gloves, 3, 0, 0),
         ],
         gear_offset: 0,
         bounty: 12,
     sprite: MonsterSprite::Wisp,
         rank: Rank::Ordinary,
         drops: &[],
-        items: &[],
+        items: &[3, 2],
     },
     MonsterSpec {
         name: "Plague Hound",
@@ -757,19 +758,20 @@ pub const LADDER: &[MonsterSpec] = &[
         magic_resist: 4,
         curse_resist: 0,
         attacks: &[],
-        // Claws that chill, and a mana engine to keep hexing.
+        // Fast hands, and something sharp.
         gear: &[
-            ("Witch's Claw", SlotKind::Gloves, 0, 0, 0),
-            ("Hexer's Mold", SlotKind::Gloves, 2, 0, 0),
-            ("Mage's Rod", SlotKind::Weapon, 0, 0, 0),
-            ("Iron Blade", SlotKind::Weapon, 1, 0, 0),
+            ("Emberheart Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 0, 0),
+            ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+            ("Sanctified Material", SlotKind::Gloves, 0, 0, 1),
+            ("Sovereign Mold", SlotKind::Gloves, 2, 0, 0),
         ],
         gear_offset: 0,
         bounty: 14,
     sprite: MonsterSprite::Hound,
         rank: Rank::Ordinary,
         drops: &[],
-        items: &[],
+        items: &[3, 2],
     },
     MonsterSpec {
         name: "The Iron Warden",

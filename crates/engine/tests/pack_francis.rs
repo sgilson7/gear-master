@@ -22,6 +22,7 @@ use gearmaster_engine::piece::{
 };
 use gearmaster_engine::rating::piece_rating;
 use gearmaster_engine::rng::Rng;
+use gearmaster_engine::combat::{HARDEN_FROM, PIERCE_FROM};
 use gearmaster_engine::slot::{SLOT_H, SLOT_W};
 
 mod common;
@@ -41,6 +42,32 @@ fn mine() -> String {
     std::env::var("PACK_TROPHY").unwrap_or_else(|_| {
         if who() == "Francis" { "The Money Jacket".into() } else { String::new() }
     })
+}
+
+/// How many boards to try.
+///
+/// Three hundred is enough for most rungs and not for all of them. The search
+/// is a sample of a very large space, and the early rungs are the hard ones:
+/// four pieces of themed gear is a narrow target and the band down there is
+/// only a second and a half wide. Raise it for a rung that refuses rather than
+/// widening the band, which would let every other rung through too.
+fn trials() -> u64 {
+    std::env::var("PACK_TRIALS").ok().and_then(|v| v.parse().ok()).unwrap_or(300)
+}
+
+/// A seed of the creature's own, so two creatures do not pack the same board.
+///
+/// The search ran from the same three hundred seeds for everybody, and a search
+/// from the same seeds over the same pool with the same piece budget finds the
+/// same answer. The first themed cluster came out as **two** boards across five
+/// creatures - Bog Toad, Bone Archer and Rust Golem in identical gear down to
+/// the rotations. Density is the curve and theme is the character, but neither
+/// is an identity: fifty creatures that pack six ways is six creatures.
+///
+/// The same fold `Loadout::name_seed` uses, for the same reason - a given
+/// creature packs the same way every time, and a different creature does not.
+fn name_seed() -> u64 {
+    who().bytes().fold(0xA5A5_u64, |a, b| a.rotate_left(7) ^ b as u64)
 }
 
 /// How far down the rating order to start drawing.
@@ -290,7 +317,17 @@ fn pool(slot: SlotKind, kind: PieceKind) -> Vec<usize> {
             // No theme - the run-in, or a creature off the ladder - means the
             // old behaviour: everything that fits the slot.
             let fits_theme = themes.is_empty() || themes.iter().any(|t| t.allows(d));
-            d.kind == kind && d.slots().contains(&slot) && fits_theme
+            // Piercing and hardening are the deep ladder's, and the ladder
+            // hands them out by rung (`combat.rs:403`). Gear can carry them
+            // too, and a themed board that happens to pick some undoes the
+            // teaching order: `the_deep_ladder_pierces_and_then_hardens` says
+            // the early game is where a player learns what resistance is for,
+            // and rung 6 came back piercing for 35.
+            let too_early = (rung <= PIERCE_FROM
+                && (d.base.physical_pierce > 0 || d.base.magic_pierce > 0))
+                || (rung <= HARDEN_FROM
+                    && (d.base.physical_harden > 0 || d.base.magic_harden > 0));
+            d.kind == kind && d.slots().contains(&slot) && fits_theme && !too_early
         })
         // Quest rewards are the far side of somebody's quest and are not gear
         // anybody wears.
@@ -507,8 +544,8 @@ fn pieces_for(rung: usize) -> usize {
 ///
 /// Read off the owner's board at Medium: Medium is one times, and the owner's
 /// is the only reference board that clears far enough to give a reading at
-/// every rung. Rising four tenths of a second a rung, from a floor of 2.8s -
-/// rung 1 is 3.2s, rung 25 is 12.4s, rung 50 is 22.4s.
+/// every rung. Flat at 2.0s across rungs 1-10, then rising - rung 25 is 9.4s,
+/// rung 50 is 21.6s.
 ///
 /// The slope is set by **sudden death**, which begins at 30s. The band is ±30%,
 /// so the top edge at rung 50 is 29.1s - just inside the point where the clock
@@ -533,8 +570,50 @@ fn pieces_for(rung: usize) -> usize {
 /// linearly, and a curve nobody can predict from its own shape is one nobody
 /// can author against.
 fn target_ms(rung: usize) -> u32 {
-    2_800 + 400 * rung as u32
+    if rung < FLAT_UNTIL {
+        FLOOR_MS
+    } else {
+        FLOOR_MS + 490 * (rung + 1 - FLAT_UNTIL) as u32
+    }
 }
+
+/// Flat while the density is flat, and rising where it rises.
+///
+/// `pieces_for` holds the early ladder at four or five pieces on purpose - a
+/// ladder that thickens from rung one shuts the casino door before a player
+/// can reach it - and the line used to keep climbing four tenths of a second a
+/// rung straight through that window. Which asks the search to make the same
+/// four pieces harder every rung out of nothing but better gear, and at rungs 3
+/// and 6 nothing could: every board strong enough for the line was a board an
+/// ordinary build could not get past, and every board an ordinary build could
+/// get past was too weak for the line. The two halves of the gate were pulling
+/// against each other, and the reason was here.
+///
+/// So the difficulty curve follows the density curve. Rungs 1-10 all want two
+/// seconds; from rung 11 the line climbs, a little faster than before so that
+/// it still reaches 21.6s at rung 50 and keeps its top edge inside sudden
+/// death.
+const FLAT_UNTIL: usize = 10;
+
+/// Where the line starts, and the only part of it that is measured rather than
+/// chosen.
+///
+/// It was 2,800 against an owner's board that came back holding thirteen items
+/// instead of nineteen. Against the board its owner actually built, nothing at
+/// rungs 2, 3, 5 or 6 could reach the bottom of the band: the hardest striker
+/// the search can build at rung 3 dies in **2.0s** and the band began at 2.52s.
+/// The early ladder is not the creatures saturating, it is the yardstick - a
+/// finished seventy-five-piece build kills a four-piece creature in about two
+/// seconds however that creature is arranged, and no floor above that is
+/// reachable by anything.
+///
+/// Measured, per the rule this floor has always been set by. The binding rung
+/// is 3, whose best is 2.0s and which therefore needs a target no higher than
+/// 2.857s; at 400ms a rung that puts the intercept at 2,057 or below, and 2,000
+/// is the round number under it. Rung 1 becomes 2.0s and rung 50 becomes 21.6s,
+/// whose upper band edge is 28.1s - still inside the 30s where sudden death
+/// takes the fight over.
+const FLOOR_MS: u32 = 2_000;
 
 /// How far off the curve a candidate lands, as a fraction. Zero is exact, and
 /// a loss is infinitely far - a creature the reference board cannot beat is
@@ -550,6 +629,54 @@ fn off_curve(owner_medium: Beat, rung: usize) -> f64 {
 /// How far off a board may land and still be accepted.
 const BAND: f64 = 0.30;
 
+/// Does a board a player might actually have at this rung still get past it?
+///
+/// The curve is read off the owner's finished seventy-five-piece build, and the
+/// early ladder is not played by that. A creature sitting perfectly on the
+/// curve - two and a half seconds against a board that has cleared the game -
+/// can be a wall to the board eleven rungs old, and the first themed cluster
+/// proved it: rungs 2 to 6 landed inside the band, and an ordinary run then
+/// died at **rung 3**, a complete board lost the casino's third table, and the
+/// preset won nothing at all in the shallow end.
+///
+/// `boards()` has always fought the preset first, and its own comment says the
+/// preset "is the one that matters for the early ladder ... it loses to an
+/// over-packed creature the moment one exists". It was fought and never read.
+///
+/// Not the old sameness gate. Forty boards were attempted with "near enough the
+/// same fight" and all forty were skipped, because a themed board is a
+/// different fight on purpose. This asks the weaker and more honest question:
+/// **a fight the preset used to win, it must still win** - and not take more
+/// than twice as long doing it. Deeper than the preset can reach it says
+/// nothing, which is right, because down there it is not the yardstick.
+fn preset_holds(before: Beat, after: Beat) -> bool {
+    if !before.won {
+        return true;
+    }
+    after.won && after.ms as f64 <= before.ms as f64 * 2.0
+}
+
+/// The casino's bar, which the shallow end must stay the wrong side of.
+///
+/// Two doors open in rungs 2-10 and they are exclusive: a run whose quickest
+/// win there is under three seconds finds the casino, and a run whose slowest
+/// is over ten finds the long way. The casino is meant to be earned by a build
+/// that has gone all in on damage early, and the ordinary board is meant to
+/// meet the other door - so if a shallow creature dies to the preset in under
+/// three seconds, the run that was supposed to walk the long way is handed a
+/// chip instead. The first themed cluster did exactly that.
+///
+/// A per-creature rule for an aggregate property, which is sound in the
+/// direction that matters: `best_fight_ms` is the minimum across the window, so
+/// if no shallow creature falls in under three seconds, neither does the
+/// minimum.
+const CASINO_BAR_MS: u32 = 3_000;
+
+/// Is this rung one of the ones the two doors are judged on?
+fn in_the_shallow_window(rung: usize) -> bool {
+    gearmaster_engine::event::SHALLOW.contains(&rung)
+}
+
 /// One fight: who won, and how long it took.
 ///
 /// Outcome alone is not enough and the ladder proved it. The preset board
@@ -564,21 +691,6 @@ struct Beat {
     ms: u32,
 }
 
-#[allow(dead_code)]
-impl Beat {
-    /// Near enough the same fight. Within a quarter either way, which is the
-    /// band `analysis/baseline.md` has been reading time-to-kill against since
-    /// the baseline was captured.
-    fn like(self, other: Beat) -> bool {
-        if self.won != other.won {
-            return false;
-        }
-        let (a, b) = (self.ms.max(1) as f64, other.ms.max(1) as f64);
-        (a / b).max(b / a) <= 1.25
-    }
-}
-
-#[allow(dead_code)]
 fn want() -> Vec<[Beat; 4]> {
     let base = *subject_spec();
     fight(base.gear, base.items)
@@ -613,19 +725,50 @@ fn boards() -> Vec<(&'static str, gearmaster_engine::run::Run)> {
     // as it went, which is the fault `common::board_from` exists to end - and
     // it mattered here more than anywhere, because the curve every creature is
     // packed against is read off the owner's board.
-    // The preset first, and it is the one that matters for the early ladder.
-    // Two finished ladder-clearing boards beat a rung-two creature whatever it
-    // is wearing, so scoring only against them left the search free to pack
-    // Bog Toad to fifty-six pieces and call the profile unchanged - it *was*
-    // unchanged, because neither yardstick could feel the difference. The
-    // preset clears eleven rungs, which is roughly what a player has in hand
-    // early, and it loses to an over-packed creature the moment one exists.
-    [("preset", ""), ("owner", share::A_WINNING_RUN), ("friend", share::A_FRIENDS_RUN)]
+    // Weakest first. Two finished ladder-clearing boards beat a rung-two
+    // creature whatever it is wearing, so scoring only against them left the
+    // search free to pack Bog Toad to fifty-six pieces and call the profile
+    // unchanged - it *was* unchanged, because neither yardstick could feel the
+    // difference.
+    //
+    // The preset clears eleven rungs, which is roughly what a player has in
+    // hand early. **Four pieces is what they have before that**, and the
+    // preset could not feel that either: with the preset alone holding the
+    // gate, the first themed cluster left a handle-and-blade board winning
+    // *nothing* in the shallow end, and the earned-events doors are judged on
+    // exactly those wins. So the four-piece board is a yardstick too, and it is
+    // the one the bottom of the ladder is really written for.
+    [("early", ""), ("preset", ""), ("owner", share::A_WINNING_RUN), ("friend", share::A_FRIENDS_RUN)]
         .into_iter()
         .map(|(label, code)| {
             if code.is_empty() {
                 let mut r = Run::new();
                 r.mode = Mode::Grinder;
+                if label == "early" {
+                    // What `earned_events` walks the shallow end with: a
+                    // handle, a blade, and something to stand up in.
+                    let mut r = gearmaster_engine::run::Run::with_all_pieces();
+                    r.mode = Mode::Grinder;
+                    for name in ["Oak Handle", "Iron Blade", "Adamant Base", "Riveted Layer"] {
+                        let Some(id) = r
+                            .owned
+                            .iter()
+                            .copied()
+                            .find(|&i| r.registry.def(i).name == name && !r.is_equipped(i))
+                        else {
+                            continue;
+                        };
+                        let slot = r.registry.def(id).slot;
+                        'seat: for y in 0..8u8 {
+                            for x in 0..6u8 {
+                                if r.equip(id, slot, x, y).is_ok() {
+                                    break 'seat;
+                                }
+                            }
+                        }
+                    }
+                    return (label, r);
+                }
                 r.apply_preset();
                 return (label, r);
             }
@@ -637,10 +780,14 @@ fn boards() -> Vec<(&'static str, gearmaster_engine::run::Run)> {
 #[test]
 #[ignore = "generator; run with --ignored"]
 fn pack() {
+    // The fight this creature already gives. Read once: the preset half of the
+    // gate is measured against it, and it is what the summary prints beside
+    // what the winner does.
+    let was = want();
     let mut best: Option<(usize, usize, String, Vec<usize>, Vec<[Beat; 4]>)> = None;
 
-    for trial in 0..300u64 {
-        let mut rng = Rng::new(0x5EED_0000 + trial);
+    for trial in 0..trials() {
+        let mut rng = Rng::new(name_seed() ^ (0x5EED_0000 + trial));
         let mut lines: Vec<String> = Vec::new();
         let mut gear: Vec<(&'static str, SlotKind, u8, u8, u8)> = Vec::new();
         let mut chunks: Vec<usize> = Vec::new();
@@ -757,13 +904,21 @@ fn pack() {
         // is a generator that runs once by hand; the alternative is threading a
         // lifetime through `MonsterSpec` for the benefit of one test.
         let got = fight(Box::leak(gear.into_boxed_slice()), Box::leak(chunks.clone().into_boxed_slice()));
-        // Boards are [preset, owner, friend]; difficulties [Easy, Medium,
-        // Hard, Insane]. The owner at Medium is the reading.
+        // Boards are [early, preset, owner, friend]; difficulties [Easy,
+        // Medium, Hard, Insane]. The owner at Medium is the reading, and the
+        // two weak boards hold the gate.
         let (rung, _) = subject();
-        let miss = off_curve(got[1][1], rung);
+        let miss = off_curve(got[2][1], rung);
         // Whole percent off, inverted, so closer sorts higher and the tuple
         // below still compares cleanly against density.
-        let hits = if miss == f64::MAX { 0 } else { 1000 - (miss * 1000.0).min(1000.0) as usize };
+        let holds = preset_holds(was[0][1], got[0][1])
+            && preset_holds(was[1][1], got[1][1])
+            && (!in_the_shallow_window(rung) || got[1][1].ms >= CASINO_BAR_MS);
+        let hits = if miss == f64::MAX || !holds {
+            0
+        } else {
+            1000 - (miss * 1000.0).min(1000.0) as usize
+        };
         // Outcome first, density second: a board that fights right at seventy
         // percent is worth more than one that fights wrong at ninety.
         let key = (hits, total);
@@ -781,7 +936,28 @@ fn pack() {
     // records a skip and leaves the creature exactly as it was, which is the
     // right answer for any board this search cannot match.
     let (rung, _) = subject();
-    let miss = off_curve(got[1][1], rung);
+    for (i, which) in [(0usize, "four-piece"), (1, "preset")] {
+        assert!(
+            preset_holds(was[i][1], got[i][1]),
+            "nothing at rung {} let an ordinary board past it: the {which} board {} in {:.1}s \
+             before and {} in {:.1}s against the best candidate. Leaving it alone.",
+            rung + 1,
+            if was[i][1].won { "won" } else { "lost" },
+            was[i][1].ms as f64 / 1000.0,
+            if got[i][1].won { "won" } else { "lost" },
+            got[i][1].ms as f64 / 1000.0,
+        );
+    }
+    assert!(
+        !in_the_shallow_window(rung) || got[1][1].ms >= CASINO_BAR_MS,
+        "rung {} would fall to an ordinary board in {:.1}s, and anything under {:.1}s in the \
+         shallow window hands the casino to a run that was meant to walk the long way. \
+         Leaving it alone.",
+        rung + 1,
+        got[1][1].ms as f64 / 1000.0,
+        CASINO_BAR_MS as f64 / 1000.0,
+    );
+    let miss = off_curve(got[2][1], rung);
     assert!(
         miss <= BAND,
         "nothing landed on the curve for rung {}: wanted {:.1}s within {:.0}%, best was {}. \
@@ -789,15 +965,15 @@ fn pack() {
         rung + 1,
         target_ms(rung) as f64 / 1000.0,
         BAND * 100.0,
-        if got[1][1].won {
-            format!("{:.1}s", got[1][1].ms as f64 / 1000.0)
+        if got[2][1].won {
+            format!("{:.1}s", got[2][1].ms as f64 / 1000.0)
         } else {
             "a loss".into()
         },
     );
     let cap = SLOT_W as usize * SLOT_H as usize * 5;
     println!("BEST {total}/{cap} cells ({:.0}%), {hits}/8 outcomes on target", 100.0 * total as f32 / cap as f32);
-    for (want, have) in want().iter().zip(&got) {
+    for (want, have) in was.iter().zip(&got) {
         let show = |r: &[Beat; 4]| {
             r.iter()
                 .map(|b| format!("{}{:.1}s", if b.won { "W" } else { "L" }, b.ms as f64 / 1000.0))
