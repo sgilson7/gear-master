@@ -945,6 +945,28 @@ pub static TURTLE_DICK: Theme = Theme {
              acres of rice, working quietly on your behalf.",
         ),
         (
+            "DRUIDIC MIGHT",
+            "MULCH",
+            "Rage and Harvest, fused. Two points become one and that one pays for both at \
+             double - so it is only worth doing once your income outruns what the two \
+             pools were paying you separately. Nothing spends a fused pool; it sits there \
+             working. The hands can drink it off you, mind.",
+        ),
+        (
+            "COMMUNION",
+            "THE COLLECTION",
+            "Belief and Harvest, fused, and worth both at double while you hold it. Same \
+             bad exchange by volume and same good one by rate: a decision late in a fight \
+             rather than a thing to do on sight.",
+        ),
+        (
+            "ZEALOTRY",
+            "THE FERVOUR",
+            "Belief and Rage, fused. Worth twice what its parents were, paid out passively, \
+             and unspendable by anything - which is the point. A pool with no sink is a \
+             pool nobody can waste.",
+        ),
+        (
             "MIND DAMAGE",
             "IDIOT MODE",
             "Small numbers, but it eats your MAXIMUM health, so no amount of regeneration \
