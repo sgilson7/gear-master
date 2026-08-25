@@ -164,6 +164,13 @@ fn attribute(log: &CombatLog) -> Damage {
                     lit[slot_ix(sl)] += 1;
                 }
             }
+            // Reflection is the body's, always. It answers a blow rather than
+            // an activation, so the last-thing-to-activate evidence every
+            // other hit uses says nothing about it - and it does not need to,
+            // because `catalog_shape` makes the mechanic chest-exclusive.
+            Event::Reflected { side: Side::Player, damage } => {
+                d.by_slot[slot_ix(SlotKind::Chest)] += *damage as i64;
+            }
             // A burn is logged against whoever is burning, so the player's
             // burn damage is the one landing on the other side.
             //

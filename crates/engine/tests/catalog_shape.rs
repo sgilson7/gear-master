@@ -144,6 +144,7 @@ fn reserve(def: &PieceDef) -> bool {
         || def.base.regen != 0
         || def.base.physical_harden != 0
         || def.base.magic_harden != 0
+        || def.base.reflect != 0
         || does(def, |a| matches!(a, Action::Grow(_) | Action::GainArmor(_)))
 }
 
@@ -276,6 +277,12 @@ const RULES: &[Rule] = &[
     // Chest - Reserve. Outlasting is its offence.
     Rule { what: "Grow", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
         budget: 10, target: 0, carries: |d| does(d, |a| matches!(a, Action::Grow(_))) },
+    // Reflection is the body's attack and the body's alone. It is the one
+    // offensive verb that *is* outlasting - it pays only what the armour ate,
+    // so it does nothing on a board that dies fast - which is why it belongs
+    // to the slot the spec otherwise gives no way to hurt anybody.
+    Rule { what: "reflect", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
+        budget: 0, target: 0, carries: |d| d.base.reflect != 0 },
     Rule { what: "harden", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
         budget: 8, target: 0,
         carries: |d| d.base.physical_harden != 0 || d.base.magic_harden != 0 },

@@ -47,6 +47,10 @@ pub struct Stats {
     pub magic_resist: i32,
     pub magic_pierce: i32,
     pub magic_harden: i32,
+    /// Percent of what your armour absorbs that is turned back on whoever
+    /// swung. The body's only attack: it does nothing on a board that dies
+    /// fast, and everything on one built to be hit.
+    pub reflect: i32,
 
     // ---- stacking resources ---------------------------------------------
     //
@@ -152,6 +156,7 @@ impl StatKind {
 
 impl Stats {
     pub const ZERO: Stats = Stats {
+        reflect: 0,
         health: 0,
         strength: 0,
         regen: 0,
@@ -404,6 +409,7 @@ impl Stats {
     pub fn scaled(self, percent: i32) -> Stats {
         let pct = |v: i32| (v as i64 * percent as i64 / 100) as i32;
         Stats {
+            reflect: pct(self.reflect),
             health: pct(self.health),
             strength: pct(self.strength),
             regen: pct(self.regen),
@@ -432,6 +438,7 @@ impl Add for Stats {
     type Output = Stats;
     fn add(self, o: Stats) -> Stats {
         Stats {
+            reflect: self.reflect + o.reflect,
             health: self.health + o.health,
             strength: self.strength + o.strength,
             regen: self.regen + o.regen,

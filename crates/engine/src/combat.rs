@@ -2760,6 +2760,8 @@ pub struct Combatant {
     pub magic_resist: i32,
     pub magic_pierce: i32,
     pub magic_harden: i32,
+    /// Percent of absorbed damage turned back on whoever swung.
+    pub reflect: i32,
     /// Banked resources. Each is spent by triggers and worth something merely
     /// by being held - see `held_bonus`.
     pub rage: i32,
@@ -2890,6 +2892,7 @@ impl Combatant {
             magic_resist: stats.magic_resist,
             magic_pierce: stats.magic_pierce,
             magic_harden: stats.magic_harden,
+            reflect: stats.reflect,
             rage: 0,
             faith: 0,
             nature: 0,
@@ -2992,6 +2995,7 @@ impl Combatant {
             magic_resist: stats.magic_resist,
             magic_pierce: stats.magic_pierce,
             magic_harden: stats.magic_harden,
+            reflect: stats.reflect,
             rage: 0,
             faith: 0,
             nature: 0,
@@ -3223,6 +3227,8 @@ pub enum Event {
     Regen { side: Side, amount: i32, health: i32 },
     /// A reaction pushed an item's cooldown forward.
     Hastened { side: Side, item: String, by_ms: u32 },
+    /// Armour turned a blow back on whoever threw it.
+    Reflected { side: Side, damage: i32 },
     /// Two pools became one of a fused pool. `total` is what is now held of
     /// it, and `from`/`and` are the parents with what each has left.
     ///
@@ -3389,6 +3395,9 @@ impl CombatLog {
             ),
             Event::GainResource { side, what, amount, total } => {
                 format!("{} {} gains {} {} ({})", t, self.who(*side), amount, what, total)
+            }
+            Event::Reflected { side, damage } => {
+                format!("{} {} turns back {}", t, self.who(*side), damage)
             }
             Event::Fused { side, what, total, from, and } => format!(
                 "{} {} fuses 1 {} ({}) - {} {} and {} {} left",
@@ -4271,6 +4280,26 @@ fn activate(
                 let target = pick(p, foes, at);
                 let (absorbed, _) = target.take_typed(amount, kind, pierce);
                 absorbed_total += absorbed;
+            }
+            // Reflection. What the armour ate is turned back on whoever swung
+            // it, which is why this is the body's attack and nothing else's: it
+            // needs the blow to land and be absorbed first, so it pays nothing
+            // to a board that dies quickly and everything to one built to be
+            // hit. Taken as physical, and it cannot itself be reflected - the
+            // return is dealt directly rather than back through this path, so
+            // two reflecting boards cannot bounce a hit between them for ever.
+            let pct = pick(p, foes, at).reflect;
+            if pct > 0 && absorbed_total > 0 {
+                let back = absorbed_total * pct / 100;
+                if back > 0 {
+                    let swinger = pick(p, foes, me);
+                    swinger.health -= back;
+                    log.push(LogEntry {
+                        who: me.logged_as(aim),
+                        at_ms: t,
+                        event: Event::Reflected { side: at.side, damage: back },
+                    });
+                }
             }
             if swing > 0 {
                 let target = pick(p, foes, at);

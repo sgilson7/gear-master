@@ -407,3 +407,39 @@ rather than a rebalance. Forty-four pieces instead of fifty; the packer's two
 dials are density and power, and this pull request needed the second one down.
 
 Weapon share stands at 83.6% against a target of 55-65%.
+
+### The band, re-derived
+
+Criterion 1 asked for 55–65%, stated against an expected baseline of "~75–85%".
+The measured baseline was **96.1%** — the estimate was twenty points low,
+because it predated burn attribution, mind damage counting, and any replay of
+the ladder at all.
+
+The band was never an independent target. It was "take twenty to thirty points
+off what we think the weapon is doing." Against the figure the game actually
+has, that intent is **66–76%**, and the spec now says so.
+
+Standing at 82.9%, that is seven points short rather than eighteen. It is still
+short, which is why chest gets a way to deal damage.
+
+### Reflection — the body gets an attack
+
+`Stats::reflect` is a percentage of what your armour absorbs, turned back on
+whoever swung. It is chest-exclusive, and it is the only offensive verb that
+*is* outlasting: it needs the blow to land and be soaked first, so it pays
+nothing to a board that dies quickly and everything to one built to be hit.
+It cannot be reflected in turn - the return is dealt directly - so two
+reflecting boards cannot bounce a blow between them for ever.
+
+One carrier for now, Thorn Layer at ten percent. Four were armed and three
+came back out: `Adamant Base` and `Bastion Base` are worn by Francis, and
+reflection on his chest cost the friend's board the Medium setting. A fourth,
+at eight percent, shifted a fight by a single activation and tripped the guard
+in `debt_is_a_debt_and_takes_real_time_to_pay_off`, which compares two runs and
+checks the same items fired in both.
+
+Neither is an argument against the mechanic. Both are the same lesson every
+sweep here has taught: the creatures wear the catalogue too, and arming a slot
+arms them first. Spreading reflection across the chest is a sweep of its own,
+and it wants the monster boards handled in the same change - which is exactly
+what the greaves sweep needed and got.

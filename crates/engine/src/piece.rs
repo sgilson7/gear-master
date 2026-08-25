@@ -6024,7 +6024,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Chest,
         kind: PieceKind::Layer,
         cells: &[(0,0),(0,1),(1,1)],
-        base: Stats { armor: 9, physical_damage: 7, ..Stats::ZERO },
+        base: Stats { armor: 9, physical_damage: 7, reflect: 10, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,

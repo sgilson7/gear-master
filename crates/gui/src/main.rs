@@ -2640,7 +2640,9 @@ impl Playback {
                     }
                 }
             }
-            Event::Watched { .. } => {}
+            // Reads as a plain line: the health bar it moves is the other
+            // side's, and that already animates.
+            Event::Reflected { .. } | Event::Watched { .. } => {}
             // Growth changes the bar itself, not just what is in it.
             Event::Grew { side, total, .. } => match side {
                 Side::Player => self.player_max = *total,
