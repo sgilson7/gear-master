@@ -57,8 +57,8 @@ re-pinned first**.
 | M2 | Insight and Dread, dark (A3) | **done** |
 | M3 | The road stack, receipts, tooltips (A7/A9/A6) | **done** |
 | M4 | Road machinery, landed inert (A4) | **done** |
-| M5 | Frames and the four new themes (H4) | next |
-| M6 | Dungeon presentation, pedestals, route map (A8/A10/G6) | |
+| M5 | Frames and the four new themes (H4) | **done** |
+| M6 | Dungeon presentation, pedestals, route map (A8/A10/G6) | next |
 | M7 | Relics, crushables and consignment (H1) | |
 | M8 | Phase-1 gate, and the stretch decision | |
 | M9 | The catalogue lands once | |
@@ -273,3 +273,41 @@ accept the rung.
 
 Suite: **621 green**, 0 warnings. New: `hidden_towns.rs` (6),
 `road_machinery.rs` (23).
+
+
+---
+
+## M5 - Frames, and the four new themes
+
+One commit. Ladder byte-identical.
+
+**`crates/engine/src/bestiary.rs`** is the theme table, moved out of
+`tests/pack_francis.rs`. It was test-local for as long as the only thing that
+needed it was the search that authors boards; a `MonsterFrame` carries a theme
+and a frame is engine data, so it came home, and the packer and the interface
+read one of it now.
+
+**Hollow, Swarm, Beast and Warden**, all four standing beside the road rather
+than on it - `theme_for` is unchanged and a test says the four are not on it.
+Two amendments to `design/monster-themes.md`:
+
+- "Every slot appears in exactly two themes" was a property of six and not a
+  rule. Swarm and Slower fill the same pair of grids and are not the same
+  creature, because a theme is a pair of grids **and** a vocabulary.
+- **Hollow needs no weapon**, which is the difference between it and the Wall.
+  Mind damage is the helmet's, so it can already reach you through a grid it
+  fills. What it cannot do is appear in a damage share.
+
+**`MonsterFrame` and the frame lint.** `FRAMES` is empty, so
+`no_frame_ships_without_a_board` is green today; it goes red on the first frame
+Phase 2 declares and green again only when the last board is authored in Phase
+4. Debug builds shout UNPACKED over a creature standing on the road with
+nothing on.
+
+One thing worth knowing: `pack_francis::pack` - the `#[ignore]`d generator, not
+a test - now refuses Francis, because M1 took the reference board's magic
+multiplier off its iron and it no longer beats him at Medium. The generator
+refusing is the generator working; Francis keeps his hand-authored board either
+way.
+
+Suite: **630 green**, 0 warnings. New: 9 tests in `bestiary.rs`.

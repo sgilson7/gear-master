@@ -35,6 +35,42 @@ read at a glance, and five is what made every creature the same creature.
 Every slot appears in exactly two themes, so no grid goes unrepresented and no
 theme is a superset of another.
 
+*Amended, 2026-08-25 - four more, and the table moves into the engine.*
+
+`the-unwinding.md` H4 adds four themes for the things that stand **beside** the
+road: dungeon floors, the four destinations, and the thing after Francis. §4's
+existing rule already exempts those from the curve and the clusters both, and
+these four are exempt from the rung table for the same reason.
+
+| Theme | Slots | Vocabulary | Reads as |
+|---|---|---|---|
+| **Hollow** | Helmet, Chest | mind damage, `Drain`, Dread, Insight, curse resist | takes your maximum away, and none of it comes back |
+| **Swarm** | Gloves, Greaves | speed, `ReduceCooldown`, reactions, small blows | everywhere at once, and nowhere for long |
+| **Beast** | Weapon, Chest | strength, rage, health, physical damage | no trick at all, and enough of everything else |
+| **Warden** | Chest, Greaves | armour, harden, `GainDeflection`, frost/stun/misfire | out-waits you rather than out-hitting you |
+
+**"Every slot appears in exactly two themes" was a property of six, not a
+rule.** Ten themes cannot have it, and two of them - Swarm and Slower - fill
+the same pair of grids. They are not remotely the same creature, because a
+theme is a pair of grids *and* a vocabulary: one is quick and small, the other
+lands curses and deals almost nothing. Where the six overlap, the vocabulary is
+the whole of the difference, and `every_theme_can_find_something_to_wear_in_
+every_grid_it_fills` is what keeps a vocabulary from being empty in a grid it
+claims.
+
+**Hollow has no weapon and does not need one.** That is the difference between
+it and the Wall, which had to be given one: mind damage is the helmet's, so a
+Hollow can already reach you through a grid it fills. What it cannot do is
+appear in a damage share - mind damage removes maximum health and never touches
+`Event::Hit` - so anything measuring whether a Hollow can hurt you has to read
+the mind table.
+
+**The table lives in `crates/engine/src/bestiary.rs` now.** It was a test-local
+enum in `tests/pack_francis.rs` for as long as the only thing that needed it was
+the search that authors boards. A `MonsterFrame` carries a theme and a frame is
+engine data - a creature that exists before its board does - so the table came
+home, and the packer and the interface read it from there.
+
 **Wall is where reflection lives.** It is the only theme where paying back
 absorbed damage earns its keep, and confining it there is what lets reflection
 spread across the chest catalogue without arming every creature on the ladder —

@@ -4398,6 +4398,22 @@ fn render_enemy_preview(r: Rect, spec: &MonsterSpec, difficulty: Difficulty, run
 
     let mname = words::monster(spec.name);
     ui_text(mname, r.x + 18.0, r.y + 28.0, 20.0, Color::from_rgba(235, 145, 122, 255));
+    // A frame with no board on it, shouted about, in debug builds only.
+    //
+    // A creature standing on the road with nothing on is not a bug you notice
+    // by looking at it - it fights, it just fights like a bare character - so
+    // it gets a label rather than a subtlety. Gone from a release build,
+    // because by then there are none.
+    #[cfg(debug_assertions)]
+    if gearmaster_engine::bestiary::is_unpacked(spec.name) {
+        ui_text(
+            "UNPACKED",
+            r.x + r.w - 18.0 - text_width("UNPACKED", 16.0),
+            r.y + 28.0,
+            16.0,
+            Color::from_rgba(255, 90, 90, 255),
+        );
+    }
     let sub = format!(
         "rung {} of {}   {} hp   {} strength   {} regen/s",
         rung + 1,
