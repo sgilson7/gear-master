@@ -36,7 +36,7 @@ The engine half. The catalogue half is the larger one and is not.
   69 rules unmet** (from 79). Lower a budget in the commit that earns it; never
   raise one.
 - **Four primitives**: `Trigger::Watch` + `Watched`, the diagonal relation, fused
-  pools (`Resource` grew to 7), and `PieceKind::Terrain` (underlay, a second
+  pools (`Resource` grew to 7), and `PieceKind::Enchantment` (a second
   layer in `Slot`). Plus **reflection** (`Stats::reflect`), which the spec never
   asked for and the chest now owns exclusively.
 - **All five slots swept once.** The two monopolies are gone: gloves hold 47
@@ -119,7 +119,7 @@ and re-tune so `a_slots_ceiling_is_full_marks` holds.
 **M5 — The rating re-audit.** Reaction triggers are priced on the carrier item's
 cadence rather than the neighbour's; frost is knowingly under-priced and is
 greaves' now; `Grow` was tuned when it was a weapon mechanic; `Fuse` is a flat
-constant; terrain has no arm. Watch `stepped_component` — it re-gears every
+constant; the enchantment arm is `BOND_POINTS`. Watch `stepped_component` — it re-gears every
 monster on three of the four difficulty settings.
 
 **M6 — The shape sweep, 69 → 0.** 15 exclusivity lines + 7 quota lines + 43
@@ -182,7 +182,7 @@ Insane, through `stepped_component`. Almost nothing pins non-Medium outcomes.
 
 - **Measure before designing.** Two whole damage channels were invisible and the
   target band was arithmetic on a baseline nobody had taken.
-- **Land primitives inert, arm them separately.** Watch, fusion and underlay all
+- **Land primitives inert, arm them separately.** Watch, fusion and the enchantment layer all
   shipped with the ladder byte-identical.
 - **Sweep a slot and repack the creatures wearing it in the same change.** The
   greaves sweep failed until Francis was repacked with it. Everything that arms a

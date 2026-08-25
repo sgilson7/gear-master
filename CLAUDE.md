@@ -63,19 +63,19 @@ disagree, this is the bug report"* (`design/branching-events.md`).
 
 | Module | Lines | Owns |
 |---|---:|---|
-| `piece.rs` | ~9,600 | Everything a piece is: `PieceDef`, `PieceKind` (including `Terrain`, the underlay), `Trigger` (`Watch` among them), `Action` (`Fuse` among them), `EffectKind`, `Adjacency`, `Resource` (7 — three of them fused), recipes (:810), per-slot default cooldowns (:860), and the **469**-entry `CATALOG` (:960) |
+| `piece.rs` | ~9,600 | Everything a piece is: `PieceDef`, `PieceKind` (including `Enchantment`, the layer under the grid), `Trigger` (`Watch` among them), `Action` (`Fuse` among them), `EffectKind`, `Adjacency`, `Resource` (7 — three of them fused), recipes (:810), per-slot default cooldowns (:860), and the **473**-entry `CATALOG` (:960) |
 | `combat.rs` | ~5,350 | The fight: tick loop, hit math, typed damage, reflection, curses in effect, `MonsterSpec` + all creature boards (**54**: `LADDER` 50, `ALTERNATES` 4 for dungeon floors and event fights, `CREVICE` empty. The file holds 57 `MonsterSpec` tokens; two are the struct and its `impl`), `Difficulty {Easy, Medium, Hard, Insane}` |
 | `run.rs` | ~2,060 | A run: `Mode {Grinder, Rogue}` (knock-back farming vs three lives), gold, rung, fountains, lives, `best_fight_ms`, scenes seen, towns visited, the theme in use, and `apply_preset` |
 | `theme.rs` | ~1,400 | The turtle theme: names, story, cutscenes, vocabulary, glossary — all display-only |
 | `class.rs` | ~1,200 | `ClassDef { name, blurb, requires: &[(Axis, i32)], power }`; fountains score your build on axes and hand out classes; stacking classes (Piety → Ticket to Ride) |
 | `rating.rs` | ~900 | Item worth: effectiveness scale, price, and rarity — `RARE_AT=90, EPIC_AT=130, LEGENDARY_AT=170` (:203) |
-| `loadout.rs` | ~920 | Boards, placement, assembly, `lock_assembled_in`. **No auto-builder** — the nearest thing is `Run::apply_preset`, twenty-one hard-coded placements, which is also a reference build the baseline is measured against |
+| `loadout.rs` | ~920 | Boards, placement, assembly, `lock_assembled_in`. **No auto-builder** — the nearest thing is `Run::apply_preset`, twenty-two hard-coded placements (twenty-one pieces and one bonded enchantment), which is also a reference build the baseline is measured against |
 | `event.rs` | ~760 | Events: stand in front of a rung, ask a question, never resolve themselves; adding one = adding to `EVENTS` |
 | `naming.rs` | ~700 | Generated item names: earned qualifier + hash-stable base + suffix; **names grow with rarity** — Common 3 words, Rare 4, Epic 5, Legendary 6 |
 | `stats.rs` | ~480 | `Stats`; note `power` is a multiplier in **hundredths** (`power: 250` = 2.50x) |
 | `slot.rs` | ~450 | Grids: `SLOT_W`×`SLOT_H` = 6×8 **base** — boards can be *granted extra rows* as rewards, and resizing must never move a placed piece (`tests/taller_boards.rs`) |
 | `curse.rs` | ~400 | Searing (damage over time), Frost (slows gear, capped), Stun (one item), Misfire (every Nth activation fizzles) — all deterministic |
-| `shop.rs` | ~370 | Shelves, one uniform pool, reroll, and a repair that guarantees a buildable weapon. **No pool routing and no milestone pricing** — both are asked for by the mission and neither exists. Town stock and underlays are excluded from the road's shelves and sold only in towns |
+| `shop.rs` | ~370 | Shelves dealt a slot at a time (`SHELF_TILT`), reroll, and a repair that guarantees a buildable weapon. **No milestone pricing** — the mission asks for it and it does not exist. Town stock and enchantments are excluded from the road's shelves and sold only in towns |
 | `share.rs` | ~300 | Build share codes: base-32, a *record* of a board, not a save file |
 | `rumour.rs` | ~240 | Rumours: 1-cell components that are *conditions*, not gear — they sit in the tray and unlock events |
 | `town.rs` | ~215 | Towns: rungs with nothing to fight — three pinned (after rungs 6, 17, 31), one action per visit, or walk on for the bounty again |
@@ -96,7 +96,7 @@ stand *in front of* rungs; dungeons stand *beside* them; nothing on the road
 gets walked past (`tests/the_road.rs`). Fountains appear before each boss and
 score the build on axes to grant classes; the third can double a class.
 Named creatures leave their gear behind. A town sells five curated components
-and every **underlay** — ground is bought where somebody has a floor to sell,
+and every **enchantment** — the layer under a grid is bought where somebody has one to sell,
 never off the road.
 A sharp early build (a kill under 2s, rungs 1–10) opens the casino, once.
 
@@ -167,19 +167,28 @@ helmet and chest). The rewrite gives each slot a basis vector — Weapon
 Helmet **Economy** — with a directed bleed cycle, an exclusivity table, per-slot
 quotas, and an **Interaction Fabric** (Part II): `Watch` counters, the diagonal
 relation, fusion pools (Druidic Might / Communion / Zealotry), and
-underlay/overlap terrain.
+and the enchantment layer under every grid.
 
 **What is done.** The engine half. All five primitives ship, reflection among
 them, and the catalogue has moved a long way: gloves hold 47 reaction triggers
 against the weapon's 2, greaves hold 26 curse applications against the weapon's
 20, and the share of the catalogue that is inert has gone from 44% to 21%.
 
-**What is not.** The catalogue half, and it is the larger half. Run
-`cargo test -p gearmaster-engine --test catalog_shape -- --ignored` and it says
-how far: **69 rules unmet**. No creature wears a reflecting chest or stands on an
-underlay, no piece in the catalogue fuses a pool, and the weapon still deals 86%
-of a finished board's damage against a target band of 66–76%. `HANDOFF.md` is the
-ledger; `analysis/baseline.md` is every number and how it moved.
+**What is not, and what since became so.** The catalogue half was the larger
+half and it is done: `cargo test -p gearmaster-engine --test catalog_shape --
+--ignored` was **69 rules unmet** and is **green**. Every mechanic the
+exclusivity table names is in its slot, every axis quota is in band on all five
+slots, no floating kind carries an identity mechanic, and the weapon deals
+**74.9%** of a finished board's damage against a 66–76% band. `analysis/baseline.md`
+is every number and how it moved.
+
+What is left is on the creatures rather than in the catalogue. **Seventeen of
+fifty rungs sit outside the difficulty band**, and the last six are the ones that
+matter: rungs 45–50 all finish past the 30s where sudden death takes the fight
+over, because their *stat blocks* put them there and `pack_francis` authors a
+board rather than a creature. The repack was halted as too slow — see
+`analysis/second-order.md` — and creature boards are to be hand-authored with a
+build tool instead. `HANDOFF.md` is the ledger.
 
 The spec now carries its own dated amendments inline — read them where they
 sit rather than trusting the line above each one. What follows is the short list
@@ -189,8 +198,8 @@ of things a fresh agent gets wrong first.
 older than the repo; these amendments win):
 
 1. Spec §4 says "grids stay 6×8" — grids are 6×8 **base** and can gain rows
-   (`taller_boards.rs`). `catalog_shape.rs` and the underlay primitive must
-   tolerate resized boards; underlay legality checks run against the board's
+   (`taller_boards.rs`). `catalog_shape.rs` and the enchantment layer must
+   tolerate resized boards; placement legality runs against the board's
    *current* dims, not the constants.
 2. The rename-propagation checklist (spec §8) now also includes `event.rs`,
    `rumour.rs`, `town.rs`, and `dungeon.rs` — events can require carried
