@@ -132,3 +132,21 @@ fn both_shared_runs_still_seat_the_gear_they_were_built_from() {
     assert_eq!(friend.iter().filter(|n| **n == "Runed Plating").count(), 3);
     assert!(friend.contains(&"The Seeker's Tears"));
 }
+
+#[test]
+fn the_perfect_run_reads_back_as_what_it_says_it_is() {
+    // Transcribed off a screenshot, so it is checked rather than trusted: a
+    // share code stores pieces by catalogue index, and a mistyped character
+    // does not fail, it seats somebody else's gear.
+    use gearmaster_engine::share;
+    let r = share::import(share::A_PERFECT_RUN).expect("the perfect run reads");
+    assert_eq!(r.rung, 50, "it finished the ladder");
+    assert_eq!((r.wins, r.losses), (50, 0), "fifty fights and nothing lost");
+    assert_eq!(r.placed.len(), 62, "sixty-two pieces");
+    assert_eq!(r.classes.len(), 4, "four titles");
+    // Every index it names is a real component, which is what catches a
+    // transcription slip that happens to stay in range.
+    for &(d, ..) in &r.placed {
+        assert!(d < gearmaster_engine::piece::CATALOG.len(), "index {d} is not a component");
+    }
+}

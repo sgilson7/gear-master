@@ -141,6 +141,18 @@ pub const A_FRIENDS_RUN: &str = "2-1J-1J-2-74K-0-0-4-4-R-M-P-2C-1GR02-11441-H881
 /// what a finished build looks like should start here.
 pub const A_WINNING_RUN: &str = "1-1J-1J-2-72W-1-2-2-0-2B-1H400-1D831-7441-10W15-13036-GM0C-B03D-M81G-1GR3J-740Q-1GG2R-11C4R-A0G3-HCH0-144H4-18M4-14RK9-1CGC-1K4MD-1JGGG-148GM-A0KN-158MR-KMGY-1HN00-16D11-KD20-FD41-6104-1AD34-17D08-16129-8X48-1813F-250H-1A15G-494M-2X0R-992R-16X5S-1FS0W-1FN4W-111G2-85J1-185M1-10NN1-18HG4-119J8-15XM8-85GC-HNJH-KHMG-5SGN-HSMN-BDGS-1E9KR-DJ00-X611-DA20-Y233-YE40-XP51-1KY18-WP48-YJ1C-YT2C-1JT0G-K61G-XY1H-1H23H-YA3M-XP4Q-XT5N-X62R-GY0X";
 
+/// A run that lost nothing at all.
+///
+/// Fifty fights, fifty wins, and it is the only board in the project that never
+/// gave a rung back - the owner's dropped one and the friend's two. Sixty-two
+/// pieces and four titles.
+///
+/// Kept for the same reason as the other two, and for one more: the acceptance
+/// gate the monster packer runs on reads difficulty off a single reference
+/// board, because the owner's was the only one clearing far enough up the
+/// ladder to give a reading at every rung. This one clears all of it.
+pub const A_PERFECT_RUN: &str = "2-1J-1J-0-8G6-0-0-4-A-C-M-P-1Y-11400-12M22-ZG60-11MA0-ZM08-1MW49-7468-1GR8E-1180G-H84K-1306H-1180R-1PWAS-10G4Y-EWG0-134R0-1N0M4-1MP8-7RGC-150PC-78TD-A0GN-KMJN-1F4MQ-14MPM-7RPR-19N44-7D67-HN4B-1HNA8-6D0C-1T90E-N98D-8X4G-1NX0M-1X4R-8H8R-650W-19S2W-1T56W-1FSAW-1RHG2-3SJ0-1J1P0-FSGE-3SJC-JHRJ-F1MM-75GR-191JW-3NRX-DJ01-8A81-DY04-3244-DA84-1GYA4-1BT2H-X68H-4TAN-PT6T-KA6X";
+
 pub fn export(run: &Run) -> String {
     let mut vals: Vec<u32> = vec![VERSION, run.rung as u32, run.wins, run.losses, run.gold.max(0) as u32];
     // Theme and classes by index, so the code carries no words of its own.
