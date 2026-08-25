@@ -48,6 +48,16 @@ pub struct Pack {
     pub page: usize,
     /// Whether the creature picker is up.
     pub picking: bool,
+    /// Which setting the grids are showing.
+    ///
+    /// Medium is the board. The other three are what `stepped_component` makes
+    /// of it, and are shown rather than edited - there is nothing to edit in a
+    /// board nobody wrote, and stepping is not invertible, so an edit made on
+    /// Hard could not be written back to the thing Hard was derived from.
+    pub setting: Difficulty,
+    /// The authored board, held while a stepped one is on the grids so it can
+    /// be put back exactly.
+    pub authored: Option<(Vec<GearPlacement>, Vec<usize>)>,
 }
 
 impl Default for Pack {
@@ -58,6 +68,8 @@ impl Default for Pack {
             search: String::new(),
             page: 0,
             picking: false,
+            setting: Difficulty::Medium,
+            authored: None,
         }
     }
 }
@@ -65,6 +77,34 @@ impl Default for Pack {
 impl Pack {
     pub fn spec(&self) -> &'static MonsterSpec {
         everyone()[self.who.min(everyone().len() - 1)]
+    }
+
+    /// Is what is on the grids the board, or a step of it?
+    pub fn editing(&self) -> bool {
+        self.setting == Difficulty::Medium
+    }
+}
+
+/// Show `run`'s board at `want`, keeping the authored one safe.
+///
+/// Switching away from Medium stashes what is on the grids and puts the stepped
+/// board there instead; switching back puts the original one down again exactly
+/// as it was. Anything done to a stepped board is discarded on the way back,
+/// which is the honest outcome: stepping is not invertible, so there is nowhere
+/// for such an edit to go.
+pub fn show_at(run: &mut Run, pk: &mut Pack, want: Difficulty) {
+    if want == pk.setting {
+        return;
+    }
+    if pk.authored.is_none() {
+        pk.authored = Some(emit_gear(run));
+    }
+    let (gear, chunks) = pk.authored.clone().expect("just stashed");
+    let show = if want == Difficulty::Medium { gear.clone() } else { stepped(&gear, want) };
+    load_gear_into(run, &show, &chunks);
+    pk.setting = want;
+    if want == Difficulty::Medium {
+        pk.authored = None;
     }
 }
 
@@ -77,6 +117,12 @@ impl Pack {
 /// the fifty-four holding different items from the ones they are written as
 /// holding.
 pub fn load_into(run: &mut Run, spec: &MonsterSpec) -> usize {
+    load_gear_into(run, spec.gear, spec.items)
+}
+
+/// The same, from a gear list that is not a `MonsterSpec`'s own - which is what
+/// a stepped board is, since stepping rewrites every name.
+pub fn load_gear_into(run: &mut Run, gear: &[GearPlacement], items: &[usize]) -> usize {
     for kind in SlotKind::ALL {
         run.loadout.slot_mut(kind).clear();
     }
@@ -84,15 +130,15 @@ pub fn load_into(run: &mut Run, spec: &MonsterSpec) -> usize {
     run.owned.clear();
     let mut dropped = 0;
 
-    let mut chunks: Vec<usize> = spec.items.to_vec();
+    let mut chunks: Vec<usize> = items.to_vec();
     if chunks.is_empty() {
-        chunks = vec![spec.gear.len()];
+        chunks = vec![gear.len()];
     }
     let mut at = 0usize;
     for take in chunks {
-        let end = (at + take).min(spec.gear.len());
+        let end = (at + take).min(gear.len());
         let mut touched: Vec<SlotKind> = Vec::new();
-        for &(name, slot, x, y, rot) in &spec.gear[at..end] {
+        for &(name, slot, x, y, rot) in &gear[at..end] {
             let Some(def) = CATALOG.iter().position(|d| d.name == name) else {
                 dropped += 1;
                 continue;

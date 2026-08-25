@@ -6718,21 +6718,43 @@ fn render_pack_bar(pk: &pack::Pack, run: &Run, searching: bool, mx: f32, my: f32
     let r = Rect::new(0.0, 0.0, w, 30.0);
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(24, 22, 14, 244));
     draw_line(0.0, r.h, w, r.h, 1.0, col_gold());
+    // A stepped board gets a border all the way round the grids, so there is
+    // no way to be looking at one and think it is yours.
+    if !pk.editing() {
+        draw_rectangle_lines(2.0, 2.0, w - 4.0, LOGICAL_H - 4.0, 3.0, col_bad());
+    }
 
     let rung = LADDER.iter().position(|m| m.name == spec.name);
     let where_ = match rung {
         Some(n) => format!("rung {}", n + 1),
         None => "off the road".to_string(),
     };
-    ui_text("PACKING", 12.0, 20.0, 13.0, col_gold());
-    ui_text(spec.name, 82.0, 20.0, 15.0, col_ok());
+    // The setting comes first and says outright which of the two things you
+    // are looking at, because they look identical and only one of them saves.
+    let on_board = pk.editing();
+    let banner = if on_board { "MEDIUM" } else { pk.setting.name() };
+    let banner_col = if on_board { col_ok() } else { col_bad() };
+    draw_rectangle(0.0, 0.0, 96.0, r.h, if on_board { Color::from_rgba(24, 42, 26, 244) } else { Color::from_rgba(52, 22, 20, 244) });
+    ui_text(banner, 12.0, 20.0, 15.0, banner_col);
+
+    ui_text(spec.name, 106.0, 20.0, 15.0, col_ok());
+    let after = 106.0 + text_width(spec.name, 15.0) + 14.0;
     ui_text(
         &format!("{where_}  ·  {:?}  ·  {} health", spec.rank, spec.health),
-        82.0 + text_width(spec.name, 15.0) + 14.0,
+        after,
         20.0,
         12.0,
         col_dim(),
     );
+    if !on_board {
+        ui_text(
+            "stepped from the board - looked at, not edited.  D returns to MEDIUM",
+            after + text_width(&format!("{where_}  ·  {:?}  ·  {} health", spec.rank, spec.health), 12.0) + 16.0,
+            20.0,
+            12.0,
+            col_bad(),
+        );
+    }
 
     // The shelf, and what is being searched for.
     let found = pack::shelf(&pk.search);
@@ -6744,15 +6766,20 @@ fn render_pack_bar(pk: &pack::Pack, run: &Run, searching: bool, mx: f32, my: f32
     };
     // Right-aligned, and stopping where the side panel starts - the bar spans
     // the whole window and the panel is drawn over its right-hand end.
-    let shelf_line = format!("SHELF  {hint}  ·  page {} of {pages}", pk.page + 1);
-    let edge = LOGICAL_W - PANEL_W - 12.0;
-    ui_text(
-        &shelf_line,
-        edge - text_width(&shelf_line, 12.0),
-        20.0,
-        12.0,
-        if searching { col_gold() } else { col_dim() },
-    );
+    // Only while the board is the board. Off Medium the shelf is no use -
+    // anything bought there goes when the setting does - and the warning that
+    // says so needs the room.
+    if on_board {
+        let shelf_line = format!("SHELF  {hint}  ·  page {} of {pages}", pk.page + 1);
+        let edge = LOGICAL_W - PANEL_W - 12.0;
+        ui_text(
+            &shelf_line,
+            edge - text_width(&shelf_line, 12.0),
+            20.0,
+            12.0,
+            if searching { col_gold() } else { col_dim() },
+        );
+    }
 
     // What is wrong with the board, worst first. This is the reason to pack
     // inside the game rather than beside it: the complaint arrives on the frame
@@ -9110,7 +9137,9 @@ async fn main() {
         p
     });
     let mut message = if packing.is_some() {
-        String::from("Packing. F to choose a creature, / to search the shelves, Cmd-S to save.")
+        String::from(
+            "Packing MEDIUM - the board itself. F creature, D setting, / search, Cmd-S save.",
+        )
     } else {
         String::from("Drag components into a slot. Pieces must touch to become gear.")
     };
@@ -9128,6 +9157,13 @@ async fn main() {
             .map(|&i| gearmaster_engine::piece::CATALOG[i].name)
             .collect();
         run.shop.stock_exactly(&names);
+        // GEARMASTER_PACK_AT=<setting> opens on a stepped board, which is the
+        // only way to point a headless capture at one.
+        if let Ok(want) = std::env::var("GEARMASTER_PACK_AT") {
+            if let Some(&d) = Difficulty::ALL.iter().find(|d| d.name().eq_ignore_ascii_case(&want)) {
+                pack::show_at(&mut run, p, d);
+            }
+        }
     }
 
     // Debug hooks so this window can be inspected without a human at the
@@ -9883,6 +9919,8 @@ async fn main() {
                 if let Some(i) = chosen {
                     pk.who = i;
                     pk.picking = false;
+                    pk.setting = Difficulty::Medium;
+                    pk.authored = None;
                     let dropped = pack::load_into(&mut run, pk.spec());
                     drag = Drag::None;
                     pk.status = if dropped > 0 {
@@ -9934,16 +9972,41 @@ async fn main() {
                 }
             } else {
                 if is_key_pressed(KeyCode::F) {
+                    pack::show_at(&mut run, pk, Difficulty::Medium);
                     pk.picking = true;
                     picker_page = pk.who / 25;
+                }
+                // D walks the settings. Medium is the board; the rest are what
+                // stepping makes of it, so they are looked at and not written.
+                if is_key_pressed(KeyCode::D) {
+                    let all = Difficulty::ALL;
+                    let at = all.iter().position(|&d| d == pk.setting).unwrap_or(0);
+                    let want = all[(at + 1) % all.len()];
+                    pack::show_at(&mut run, pk, want);
+                    drag = Drag::None;
+                    message = if pk.editing() {
+                        "Back on the board. This is the one that saves.".into()
+                    } else {
+                        format!(
+                            "{} - what stepping makes of the board. Looked at, not edited.",
+                            pk.setting.name()
+                        )
+                    };
                 }
                 if is_key_pressed(KeyCode::Slash) {
                     searching = true;
                 }
                 if cmd && is_key_pressed(KeyCode::S) {
-                    message = match pack::save(&run, pk.spec()) {
-                        Ok(m) => m,
-                        Err(e) => format!("NOT SAVED - {e}"),
+                    message = if !pk.editing() {
+                        format!(
+                            "NOT SAVED - {} is stepped, not authored. D back to MEDIUM.",
+                            pk.setting.name()
+                        )
+                    } else {
+                        match pack::save(&run, pk.spec()) {
+                            Ok(m) => m,
+                            Err(e) => format!("NOT SAVED - {e}"),
+                        }
                     };
                     pk.status = message.clone();
                 }

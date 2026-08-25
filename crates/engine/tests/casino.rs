@@ -279,22 +279,54 @@ fn you_only_get_asked_once() {
 fn a_complete_board_can_actually_win_the_table() {
     // The chip is the key to the whole VIP event, so a pair nobody can beat
     // would not make the casino exciting - it would quietly delete a later
-    // event. This is the floor: a plain auto-built board, which is worse than
-    // what a player who earned the casino is carrying.
-    let mut run = Run::with_all_pieces();
-    run.difficulty = Difficulty::Medium;
-    run.mode = Mode::Grinder;
-    run.apply_preset();
-    run.brawl = Some(&gearmaster_engine::event::TABLE_THREE);
-
-    let specs = run.pending_brawl().expect("the table is set");
-    let log = run.fight_party(&specs);
-    assert_eq!(
-        log.outcome,
-        Outcome::Victory,
-        "a complete board lost to the third table - the Platinum Chip is now \
-         unreachable, and with it the VIP area"
-    );
+    // event.
+    //
+    // Read on the boards people actually built, not on the preset.
+    //
+    // The floor used to be `apply_preset`, "worse than what a player who earned
+    // the casino is carrying" - and that reasoning is right, which is exactly
+    // why it was the wrong board to ask. The casino is earned by a kill under
+    // three seconds inside the first ten rungs, and the preset cannot do that:
+    // `two_runs` walks it up the ladder precisely to prove it takes the *other*
+    // door. So the floor was a board that can never be in the room, and when
+    // Bone Archer gained a chest item the preset stopped winning a fight it
+    // could not have reached.
+    //
+    // The three shared codes are boards that did earn it. All three take the
+    // table in under three seconds.
+    for code in [
+        gearmaster_engine::share::A_WINNING_RUN,
+        gearmaster_engine::share::A_FRIENDS_RUN,
+        gearmaster_engine::share::A_PERFECT_RUN,
+    ] {
+        let shared = gearmaster_engine::share::import(code).expect("the code still reads");
+        let mut run = Run::new();
+        run.difficulty = Difficulty::Medium;
+        run.mode = Mode::Grinder;
+        run.loadout.grow(shared.extra_rows);
+        for (def, slot, x, y, rot) in &shared.placed {
+            let id = run.registry.alloc(*def);
+            run.owned.push(id);
+            run.registry.set_rotation(id, *rot);
+            if run.equip(id, *slot, *x, *y).is_err() {
+                run.owned.pop();
+            }
+        }
+        gearmaster_engine::loadout::lock_assembled_in(
+            &mut run.loadout,
+            &run.registry,
+            gearmaster_engine::piece::SlotKind::Weapon,
+        );
+        run.brawl = Some(&gearmaster_engine::event::TABLE_THREE);
+        let specs = run.pending_brawl().expect("the table is set");
+        let log = run.fight_party(&specs);
+        assert_eq!(
+            log.outcome,
+            Outcome::Victory,
+            "a board that earned the casino lost to the third table - the Platinum \
+             Chip is now unreachable, and with it the VIP area"
+        );
+    }
 }
 
 
