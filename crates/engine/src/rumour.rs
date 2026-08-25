@@ -67,6 +67,31 @@ pub enum Condition {
     BankedAllRun { what: crate::piece::Resource, at_least: i32 },
 }
 
+impl Condition {
+    /// What the rumour is waiting on, in plain words.
+    ///
+    /// The hint is vague on purpose - working out what it means is the whole of
+    /// it - but vague and *silent* are different things. Two authored events
+    /// sat behind four gates with no feedback of any kind, and the result was
+    /// that nobody ever saw them. This says what is being asked. It does not
+    /// say whether you are meeting it, which wants the run in hand and is a
+    /// separate job.
+    pub fn describe(self) -> String {
+        match self {
+            Condition::Crowded { slot, under } => format!(
+                "it only matters with fewer than {} empty cells left in the {}",
+                under,
+                slot.name()
+            ),
+            Condition::BankedAllRun { what, at_least } => format!(
+                "it only matters once you have banked {} {} across the whole run",
+                at_least,
+                what.name()
+            ),
+        }
+    }
+}
+
 pub struct Rumour {
     pub name: &'static str,
     /// What the hover says. Vague on purpose - see the module note.

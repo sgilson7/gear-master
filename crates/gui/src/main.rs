@@ -3814,6 +3814,12 @@ fn render_def_tooltip_inner(
             format!("they want {} for it", words::retell(&word.price.label())),
             col_gold(),
         ));
+        // What it is waiting on. The hint stays cryptic - that is the point of
+        // a rumour - but a gate nobody can see is a gate nobody gets through,
+        // and these two events were going unseen.
+        for l in wrap_px(&word.needs.describe(), 420.0, 14.0) {
+            lines.push((l, col_dim()));
+        }
         lines.push((
             words::word("rumour-note", "It never goes on a board. It only has to be carried.")
                 .to_string(),
