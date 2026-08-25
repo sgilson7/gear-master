@@ -270,7 +270,7 @@ const RULES: &[Rule] = &[
     Rule { what: "GainShield", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::GainShield(_))) },
     Rule { what: "MindDamage", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
-        budget: 9, target: 0, carries: |d| does(d, |a| matches!(a, Action::MindDamage { .. })) },
+        budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::MindDamage { .. })) },
     Rule { what: "mind_resist", home: SlotKind::Helmet, level: Level::Only, shared_with: &[],
         budget: 4, target: 0, carries: |d| d.base.mind_resist != 0 },
 

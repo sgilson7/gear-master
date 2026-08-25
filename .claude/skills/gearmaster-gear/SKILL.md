@@ -1,6 +1,6 @@
 ---
 name: gearmaster-gear
-description: Author new gear for Gear Master and give it its Turtle Dick name in the same change. Use whenever adding, renaming, or rebalancing a PieceDef in crates/engine/src/piece.rs, or when a component exists in the base game but not in the themed catalogue. Covers the PieceDef fields, the traps that fail silently, the theme table, and the tests that hold both halves together.
+description: Author new gear for Gear Master and give it its Turtle Dick name in the same change. Use whenever adding, renaming, or rebalancing a PieceDef in crates/engine/src/piece.rs, or when a component exists in the base game but not in the themed catalogue. Covers which slot may carry which mechanic under the gear-slot basis rewrite, the PieceDef fields, the traps that fail silently, the theme table, and the tests that hold both halves together.
 ---
 
 # Adding gear to Gear Master
@@ -25,6 +25,97 @@ table change in the same commit, or the change is not finished.**
 Nothing else needs to know. Names are **keys**, not labels: recipes, monster
 loadouts, quest targets and most of the test suite are string-keyed on the
 canonical name, and the theme is a lookup applied at draw time.
+
+---
+
+## Part 0 — which slot, and what it is allowed to do
+
+**Read this before writing a `PieceDef`.** Since the gear-slot rewrite each slot
+has a *basis vector*, and `crates/engine/tests/catalog_shape.rs` enforces it. A
+piece written without this in mind fails the ratchet the moment you run the
+suite, and the failure names a rule four hundred lines from your piece.
+
+| Slot | Basis | Answers |
+|---|---|---|
+| **Weapon** | Conversion | turns time and banked pools into typed damage |
+| **Gloves** | Reaction | acts when *other things* act |
+| **Greaves** | Tempo | who moves, how often, and first |
+| **Chest** | Reserve | how long you last |
+| **Helmet** | Economy | income, what the pools are *for*, the mind |
+
+### The exclusivity table
+
+"Exclusive" means only that slot's pieces may carry it at all. "Majority" means
+at least 70% of the catalogue's instances live there — **the minority is legal
+and load bearing**: taking a helmet's only misfire away failed
+`the_time_curses_are_reachable_from_every_slot`, which says every slot must be
+able to land each time curse.
+
+| Mechanic | Home | Level |
+|---|---|---|
+| `power_bonus`, Ink/Spell/Alignment/Book/Orb kinds, `GainForking`, `OnOtherCast`, `PerAdjacentEmpty` | Weapon | exclusive |
+| searing | Weapon | majority (greaves share it) |
+| `Consume`, `GainEmpowerment`, `GainShield`, `MindDamage`, `mind_resist` | Helmet | exclusive |
+| `Grow`, `physical_harden`/`magic_harden`, `reflect` | Chest | exclusive |
+| health above 15 per piece | Chest | majority |
+| `OnAdjacentActivate`, `PerAdjacentItem`, `Drain`, `StunStrongest`, `DoubleAdjacentItemStat` | Gloves | exclusive |
+| `OnAlignedActivate` | Gloves | majority |
+| `OnBattleStart`, `speed_bonus` outside the weapon | Greaves | exclusive |
+| `ReduceCooldown` outside the weapon | Greaves | exclusive, shared with Gloves |
+| frost / stun / misfire | Greaves | majority |
+| terrain (`PieceKind::Terrain`) | Chest and Greaves | exclusive |
+
+Positional *stat* effects — `Adjacency`, `DoubleNeighbor`, `SoleIf`,
+`SelfPerNeighborKind`, `SelfPerEmptyCell`, `Flat` — are pan-slot texture and
+belong to nobody. Reach for those when a piece needs an interaction and its
+slot's own verbs do not fit.
+
+### Materials and Platings may carry no identity mechanic at all
+
+`PieceDef::fits` lets a **Material** sit in gloves or greaves and a **Plating**
+in helmet or greaves, so a rule keyed on `def.slot` cannot promise where they
+end up. They are the deliberate bleed carriers: stats, adjacency, and nothing
+from the table above. Three separate pieces in the sweep were caught carrying
+two or three at once.
+
+### Quotas, if you are filling a gap
+
+Per non-weapon slot: **≥60%** of its pieces express its own axis, **20-25%**
+express its bleed axis, **≤30%** are plain filler (15% after the rewrite), and
+**≥35% of the dearest third** carry an interaction. Every epic-or-better
+non-weapon piece must carry one. Pool-spend texture (`SpendMana`/`Spend`/
+`Consume`) is capped at 15% per slot outside the helmet.
+
+The bleed cycle is **W→G→Gr→C→H→W**: a piece expressing its slot's *next*
+neighbour's axis is filling the bleed quota, not breaking a rule.
+
+### Two habits the sweep paid for
+
+**Translate the verb, keep the sentence.** A piece has a shape as well as a
+mechanic — a cost, a cooldown, a condition — and the shape is usually load
+bearing even when the mechanic is in the wrong slot. Warded Sabatons bought a
+mana shield for three mana; rewriting it as an *unconditional* cooldown
+reduction was the right verb with the gate dropped, and every creature wearing
+the piece got it free. A board that had cleared to rung 22 on the hardest
+setting stopped at 20.
+
+**Do not empty a mechanic of carriers.** Taking the last `DoubleAdjacentItemStat`
+off a weapon left the rule naming something the catalogue no longer contained,
+which is a rule that can never fail again. If a mechanic's only carrier is in
+the wrong slot, the move is to *author one in the right slot*, not to delete it.
+`every_rule_names_a_mechanic_that_exists` will tell you.
+
+### The ratchet, and how to leave it
+
+`catalog_shape.rs` carries a `budget` (today's distance) and a `target` (zero)
+for every rule. `the_catalog_stays_within_its_budgets` fails if you make
+something worse; `no_budget_is_slack` fails if you make it *better* and do not
+record it. So **every catalogue commit is a two-file commit** — the piece and
+the budget it moved. Lower a budget in the commit that earns it; never raise
+one.
+
+Run `cargo test -p gearmaster-engine --test catalog_shape -- --ignored` to see
+the whole distance, and `report_shape` for the per-slot tables.
 
 ---
 
@@ -150,6 +241,10 @@ Run `scripts/check-parity.sh` at the start and the end. It lists every catalogue
 entry with no themed name and every themed key pointing at a component that no
 longer exists, so "am I done" is a question with an answer.
 
+0. Decide the slot from Part 0, and check the mechanic you have in mind is
+   allowed there. If it is not, the question is what this piece does *in its
+   own slot's vocabulary* - that is the sweep's whole method and it is almost
+   always a better piece than the one you started with.
 1. Write the `PieceDef`. Reuse a footprint if the piece belongs to a family.
 2. `cargo test -p gearmaster-engine` — before naming anything. A rating outside
    the band or a shifted ceiling is easier to fix now.
@@ -158,7 +253,8 @@ longer exists, so "am I done" is a question with an answer.
 4. Add `("Canonical Name", "Themed Name")` to `TURTLE_DICK.pieces`, sorted.
    The table opens with a bare `    pieces: &[` — `PLAIN`'s is `pieces: &[],`
    and matching on the prefix will drop your entry into the story array.
-5. `cargo test` — the whole suite.
+5. `cargo test` — the whole suite, and `--test catalog_shape -- --ignored` for
+   the distance left. If a budget moved, lower it in this commit.
 6. `scripts/check-parity.sh` — expect "In parity."
 7. Look at it. `GEARMASTER_THEME=td GEARMASTER_SKIP_INTRO=1` with
    `GEARMASTER_SHOT`: a name that satisfies every test can still be two words

@@ -2778,9 +2778,15 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        // Paid in your own maximum health, which never comes back.
-        triggers: &[Trigger::OnActivate(Action::MindDamage {
-            amount: 2,
+        // Paid in your own blood, which does come back - slowly.
+        //
+        // It was paid in maximum health, and mind damage is the helmet's by the
+        // table even when it is aimed at yourself. An ink with 240 power has to
+        // cost something, and what a weapon can spend that belongs to nobody is
+        // the wearer's own hit points.
+        triggers: &[Trigger::OnActivate(Action::Damage {
+            amount: 14,
+            kind: DamageType::Physical,
             target: Target::Yourself,
         })],
         quest: None,
@@ -4403,10 +4409,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         // Hollow: it is worth what is not there.
-        triggers: &[Trigger::PerAdjacentEmpty(&Trigger::OnActivate(Action::MindDamage {
-            amount: 2,
-            target: Target::Enemy,
-        }))],
+        triggers: &[Trigger::PerAdjacentEmpty(&Trigger::OnActivate(Action::Damage { amount: 2, kind: DamageType::Magic, target: Target::Enemy }))],
         quest: None,
         power_bonus: 150,
         price: 18,
@@ -4480,7 +4483,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::MindDamage { amount: 4, target: Target::Enemy })],
+        triggers: &[Trigger::OnActivate(Action::Damage { amount: 4, kind: DamageType::Magic, target: Target::Enemy })],
         quest: None,
         power_bonus: 185,
         price: 26,
@@ -4594,7 +4597,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnOtherCast(Action::MindDamage { amount: 2, target: Target::Enemy })],
+        triggers: &[Trigger::OnOtherCast(Action::Damage { amount: 2, kind: DamageType::Magic, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 21,
@@ -4733,12 +4736,12 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Spell,
         cells: &[(0,0),(0,1),(1,1)],
-        base: Stats { mind: 4, magic_damage: 4, ..Stats::ZERO },
+        base: Stats { magic_damage: 8, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnOtherCast(Action::MindDamage { amount: 3, target: Target::Enemy })],
+        triggers: &[Trigger::OnOtherCast(Action::Damage { amount: 3, kind: DamageType::Magic, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 25,
@@ -4917,13 +4920,13 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Weapon,
         kind: PieceKind::Alignment,
         cells: &[(0,0),(1,0),(1,1),(2,1)],
-        base: Stats { magic_pierce: 25, mind: 2, ..Stats::ZERO },
+        base: Stats { magic_pierce: 25, magic_damage: 2, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
         // The hole in the ball: their gear forgets what it was doing.
-        triggers: &[Trigger::OnActivate(Action::MindDamage { amount: 3, target: Target::Enemy })],
+        triggers: &[Trigger::OnActivate(Action::Damage { amount: 3, kind: DamageType::Magic, target: Target::Enemy })],
         quest: None,
         power_bonus: 100,
         price: 27,
@@ -6888,7 +6891,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2400,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::MindDamage { amount: 3, target: Target::Enemy })],
+        triggers: &[Trigger::OnActivate(Action::Damage { amount: 3, kind: DamageType::Magic, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 20,
@@ -6942,7 +6945,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 3200,
         speed_bonus: 0,
-        triggers: &[Trigger::OnOtherCast(Action::MindDamage { amount: 2, target: Target::Enemy })],
+        triggers: &[Trigger::OnOtherCast(Action::Damage { amount: 2, kind: DamageType::Magic, target: Target::Enemy })],
         quest: None,
         power_bonus: 40,
         price: 7,
@@ -8582,10 +8585,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::MindDamage {
-            amount: 6,
-            target: Target::Enemy,
-        })],
+        triggers: &[Trigger::OnActivate(Action::Damage { amount: 6, kind: DamageType::Magic, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 560,
