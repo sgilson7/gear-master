@@ -25,14 +25,22 @@
 //!
 //!   make pack                  # or: cargo run -p gearmaster-packer
 //!
-//! Left, the creatures. Middle, the five grids. Right, the catalogue.
+//! Left, the creatures. Middle, the five grids. Right, the catalogue. Along the
+//! top, the four settings - and only **Medium** can be edited, because Medium
+//! is the board and the other three are what `stepped_component` makes of it.
+//! Looking at them is the point: a board that is fine as authored can step into
+//! one that lands nothing at all, and until now the only way anybody found that
+//! out was a failing test in another file.
+//!
 //! Click a component to pick it up, click a cell to put it down, `Tab` turns it,
 //! right-click takes something off the board, and `Cmd-S` saves. The letter keys
 //! are left alone because both search boxes are always listening.
 
 use macroquad::prelude::*;
 
-use gearmaster_engine::combat::{MonsterSpec, ALTERNATES, LADDER};
+use gearmaster_engine::combat::{
+    stepped_component, Difficulty, GearPlacement, MonsterSpec, ALTERNATES, LADDER,
+};
 use gearmaster_engine::loadout::Loadout;
 use gearmaster_engine::piece::{
     is_boss_only, is_event_only, is_quest_reward, is_town_stock, PieceId, PieceKind,
@@ -133,6 +141,12 @@ impl Board {
     /// real state the ladder has been in, and a tool that refuses to open it is
     /// a tool that cannot fix it.
     fn load(spec: &MonsterSpec) -> (Self, usize) {
+        Board::from_gear(spec.gear, spec.items)
+    }
+
+    /// The same, from a gear list that is not a `MonsterSpec`'s own - which is
+    /// what a difficulty view is, since stepping rewrites every name.
+    fn from_gear(gear: &[GearPlacement], items: &[usize]) -> (Self, usize) {
         let mut reg = PieceRegistry::new();
         let mut lo = Loadout::new();
         let mut dropped = 0;
@@ -142,15 +156,15 @@ impl Board {
         // over-full thing that assembles into nothing. Loading a creature
         // without it showed forty-four of the fifty-four holding different
         // items from the ones they are written as holding.
-        let mut chunks: Vec<usize> = spec.items.to_vec();
+        let mut chunks: Vec<usize> = items.to_vec();
         if chunks.is_empty() {
-            chunks = vec![spec.gear.len()];
+            chunks = vec![gear.len()];
         }
         let mut at = 0usize;
         for take in chunks {
-            let end = (at + take).min(spec.gear.len());
+            let end = (at + take).min(gear.len());
             let mut touched: Vec<SlotKind> = Vec::new();
-            for &(name, slot, x, y, rot) in &spec.gear[at..end] {
+            for &(name, slot, x, y, rot) in &gear[at..end] {
                 let Some(def) = CATALOG.iter().position(|d| d.name == name) else {
                     dropped += 1;
                     continue;
@@ -186,18 +200,24 @@ impl Board {
     /// single piece, which is harmless, and the alternative - leaving it out of
     /// the partition - is a sum that does not match.
     fn emit(&self) -> (Vec<String>, Vec<usize>) {
-        let mut lines = Vec::new();
+        let (gear, chunks) = self.emit_gear();
+        let lines = gear
+            .iter()
+            .map(|&(name, slot, x, y, rot)| {
+                format!("            (\"{name}\", SlotKind::{slot:?}, {x}, {y}, {rot}),")
+            })
+            .collect();
+        (lines, chunks)
+    }
+
+    /// The board as the fight would read it: placements in item order, and the
+    /// partition that keeps them apart.
+    fn emit_gear(&self) -> (Vec<GearPlacement>, Vec<usize>) {
+        let mut lines: Vec<GearPlacement> = Vec::new();
         let mut chunks = Vec::new();
-        let push = |lines: &mut Vec<String>, id: PieceId, slot: SlotKind| {
+        let push = |lines: &mut Vec<GearPlacement>, id: PieceId, slot: SlotKind| {
             let (x, y) = self.lo.slot(slot).anchor_of(id).unwrap_or((0, 0));
-            lines.push(format!(
-                "            (\"{}\", SlotKind::{:?}, {}, {}, {}),",
-                self.reg.def(id).name,
-                slot,
-                x,
-                y,
-                self.reg.rotation(id)
-            ));
+            lines.push((self.reg.def(id).name, slot, x, y, self.reg.rotation(id)));
         };
         // Written order is kept wherever it can be.
         //
@@ -302,6 +322,59 @@ impl Board {
 }
 
 // ------------------------------------------------------------------ saving
+
+/// Can this board land anything at all?
+///
+/// "Weapons swing; everything else just does its job" (`combat.rs`), so a
+/// creature holding no weapon has no offence except what its triggers do. Four
+/// of the six themes hold no weapon, and seven creatures once stood on the road
+/// at Medium doing nothing whatsoever because of it - which nothing noticed,
+/// because the test that asks read `simulate`, and `simulate` is Easy.
+///
+/// Read off the board rather than simulated, so it can run every frame at every
+/// setting. Innate attacks count; a finished weapon item counts; and any
+/// trigger that damages, eats maximum health or burns counts wherever it sits.
+fn can_hurt(spec: &MonsterSpec, board: &Board) -> bool {
+    use gearmaster_engine::curse::CurseKind;
+    use gearmaster_engine::piece::{walk_actions, Action};
+    if !spec.attacks.is_empty() {
+        return true;
+    }
+    for slot in SlotKind::ALL {
+        let report = board.lo.report(&board.reg, slot);
+        for item in report.items.iter().filter(|i| i.assembled) {
+            if slot == SlotKind::Weapon {
+                return true;
+            }
+            for &p in &item.pieces {
+                // `mind` is a stat rather than an action and it eats maximum
+                // health every time the item comes round, which is how The Rust
+                // Parliament lands fifteen blows on Easy out of a board whose
+                // every trigger is a drain.
+                if board.reg.def(p).base.mind != 0 {
+                    return true;
+                }
+                let mut lands = false;
+                for t in board.reg.def(p).triggers {
+                    walk_actions(t, &mut |a| {
+                        if matches!(
+                            a,
+                            Action::Damage { .. }
+                                | Action::MindDamage { .. }
+                                | Action::Curse { kind: CurseKind::Searing, .. }
+                        ) {
+                            lands = true;
+                        }
+                    });
+                }
+                if lands {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
 
 /// Every creature in the game, ladder first, in the order they are written.
 fn everyone() -> Vec<&'static MonsterSpec> {
@@ -436,6 +509,7 @@ async fn main() {
     let mut slot_tab: Option<SlotKind> = None;
     let mut kind_tab: Option<PieceKind> = None;
     let mut held: Option<PieceId> = None;
+    let mut setting = Difficulty::Medium;
     let mut status = if notes.is_empty() {
         format!("{} creatures loaded", specs.len())
     } else {
@@ -488,6 +562,35 @@ async fn main() {
             None => format!("alternate   {:?}   {} health", spec.rank, spec.health),
         };
         text(&sub, 14.0, 44.0, 15.0, col_dim());
+
+        // Which setting the grids are showing.
+        //
+        // Only Medium is editable, and that is not a limitation to work around:
+        // Medium *is* the board, and the other three are what
+        // `stepped_component` makes of it - every piece swapped for another of
+        // the same kind and footprint, one rung up or down its family. There is
+        // nothing to edit in a board nobody wrote. What there is, is something
+        // to look at: a board that is fine as authored can step into one that
+        // lands nothing at all, and the only way anybody found that out before
+        // was a test three files away.
+        let mut tx = 250.0;
+        for &d in Difficulty::ALL {
+            let label = d.name();
+            let w = measure_text(label, None, 14, 1.0).width + 16.0;
+            let on = d == setting;
+            rect(tx, 12.0, w, 26.0, if on { col_cell_a() } else { col_panel() });
+            if d != Difficulty::Medium {
+                draw_rectangle_lines(tx, 12.0, w, 26.0, 1.0, col_dim());
+            } else {
+                draw_rectangle_lines(tx, 12.0, w, 26.0, 1.0, col_good());
+            }
+            text(label, tx + 8.0, 30.0, 14.0, if on { col_text() } else { col_dim() });
+            if click && hit(tx, 12.0, w, 26.0, mx, my) {
+                setting = d;
+                held = None;
+            }
+            tx += w + 4.0;
+        }
 
         let save_r = (W - 150.0, 12.0, 130.0, 30.0);
         let hot = hit(save_r.0, save_r.1, save_r.2, save_r.3, mx, my);
@@ -569,7 +672,47 @@ async fn main() {
         // ---- middle: the five grids ----
         let gx0 = LIST_W + 20.0;
         let gy0 = TOP + 40.0;
-        let board = &mut boards[who];
+
+        // Away from Medium the grids show a board nobody wrote: the authored
+        // one with every piece stepped up or down its footprint family. Built
+        // from the *current* board rather than from the file, so it steps what
+        // is on the screen including edits that have not been saved.
+        let mut stepped: Option<Board> = if setting == Difficulty::Medium {
+            None
+        } else {
+            let (gear, chunks) = boards[who].emit_gear();
+            let step = setting.gear_step();
+            let walked: Vec<GearPlacement> = gear
+                .into_iter()
+                .map(|(n, s, x, y, r)| (stepped_component(n, step), s, x, y, r))
+                .collect();
+            Some(Board::from_gear(&walked, &chunks).0)
+        };
+        // Whether it can land anything, at every setting, whichever one is on
+        // screen. This is the check the ladder needed and did not have: seven
+        // creatures were standing on the road at Medium landing nothing at all,
+        // and stepping is how a board that is fine as authored becomes one of
+        // them. Worked out here, before the board is borrowed to draw it.
+        let mut toothless: Vec<(String, Color)> = Vec::new();
+        {
+            let (gear, chunks) = boards[who].emit_gear();
+            for &d in Difficulty::ALL {
+                let walked: Vec<GearPlacement> = gear
+                    .iter()
+                    .map(|&(n, s, x, y, r)| (stepped_component(n, d.gear_step()), s, x, y, r))
+                    .collect();
+                let (at, _) = Board::from_gear(&walked, &chunks);
+                if !can_hurt(spec, &at) {
+                    toothless.push((format!("lands nothing at all on {}", d.name()), col_bad()));
+                }
+            }
+        }
+
+        let editable = stepped.is_none();
+        let board: &mut Board = match stepped.as_mut() {
+            Some(b) => b,
+            None => &mut boards[who],
+        };
         for (n, &slot) in SlotKind::ALL.iter().enumerate() {
             let ox = gx0 + n as f32 * (GRID_W + 18.0);
             let rows = board.lo.slot(slot).rows();
@@ -597,7 +740,13 @@ async fn main() {
                     }
                     if hit(cx, cy, CELL, CELL, mx, my) {
                         draw_rectangle_lines(cx, cy, CELL - 1.0, CELL - 1.0, 2.0, col_text());
-                        if click {
+                        if click && !editable {
+                            status = format!(
+                                "{} is what stepping makes of the board - edit it on MEDIUM",
+                                setting.name()
+                            );
+                        }
+                        if click && editable {
                             if let Some(id) = held {
                                 if board.lo.can_place(&board.reg, id, slot, gx, gy).is_ok() {
                                     board.lo.slot_mut(slot).place(&board.reg, id, gx, gy);
@@ -611,7 +760,7 @@ async fn main() {
                                 }
                             }
                         }
-                        if rclick {
+                        if rclick && editable {
                             let s = board.lo.slot(slot);
                             if let Some(id) = s.get(gx, gy).or_else(|| s.enchant_at(gx, gy)) {
                                 board.lo.slot_mut(slot).remove(id);
@@ -641,11 +790,29 @@ async fn main() {
 
         // What is wrong with it, while somebody is still looking.
         let mut cy = gy0 + 8.0 * CELL + 120.0;
-        let complaints = board.complaints(spec);
+        let mut complaints = board.complaints(spec);
+
+        for c in toothless.into_iter().rev() {
+            complaints.insert(0, c);
+        }
+
+        if !editable {
+            text(
+                &format!(
+                    "{} - stepped, not authored. Edits go on MEDIUM.",
+                    setting.name()
+                ),
+                gx0,
+                cy,
+                15.0,
+                col_warn(),
+            );
+            cy += 20.0;
+        }
         if complaints.is_empty() {
             text("nothing to complain about", gx0, cy, 15.0, col_good());
         } else {
-            for (line, c) in complaints.iter().take(14) {
+            for (line, c) in complaints.iter().take(13) {
                 text_capped(line, gx0, cy, W - LIB_W - gx0 - 20.0, 14.0, *c);
                 cy += 16.0;
             }
@@ -918,6 +1085,43 @@ mod tests {
         assert!(out.contains("name: \"Cave Rat\","), "it lost the name it was aiming at");
         assert!(out.contains("(\"Oak Handle\", SlotKind::Weapon, 0, 0, 0),"), "the gear did not land");
         assert!(out.contains("items: &[1]"), "the chunks did not land");
+    }
+
+    /// The check that would have saved a day.
+    ///
+    /// Every creature on the ladder has to be able to land something at every
+    /// setting, and `can_hurt` reads that off the board rather than simulating
+    /// it - so the tool can say so on the frame you make the mistake instead of
+    /// three files away in a test run. This holds it to the same answer the
+    /// suite gets by actually fighting.
+    #[test]
+    fn nothing_on_the_ladder_is_toothless_at_any_setting() {
+        let mut bad = Vec::new();
+        for spec in everyone() {
+            let (board, _) = Board::load(spec);
+            let (gear, chunks) = board.emit_gear();
+            for &d in Difficulty::ALL {
+                let walked: Vec<GearPlacement> = gear
+                    .iter()
+                    .map(|&(n, s, x, y, r)| (stepped_component(n, d.gear_step()), s, x, y, r))
+                    .collect();
+                let (at, _) = Board::from_gear(&walked, &chunks);
+                if !can_hurt(spec, &at) {
+                    bad.push(format!("{} on {}", spec.name, d.name()));
+                }
+            }
+        }
+        assert!(bad.is_empty(), "boards that land nothing: {bad:?}");
+    }
+
+    /// And that the check is not simply always true.
+    #[test]
+    fn a_board_with_nothing_on_it_is_reported_as_toothless() {
+        let spec = LADDER.iter().find(|m| m.name == "Bog Toad").expect("a toad");
+        let (empty, _) = Board::from_gear(&[], &[]);
+        assert!(!can_hurt(spec, &empty), "an empty board was called dangerous");
+        let (full, _) = Board::load(spec);
+        assert!(can_hurt(spec, &full), "the toad's own board was called harmless");
     }
 
     #[test]
