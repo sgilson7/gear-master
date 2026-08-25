@@ -2201,12 +2201,16 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Material,
         cells: &[(0,0),(1,0),(0,1),(1,1)],
-        base: Stats { physical_harden: 30, magic_harden: 30, ..Stats::ZERO },
+        base: Stats { armor: 14, ..Stats::health(70) },
         adjacency: None,
         effect: None,
         cooldown_ms: 3000,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::GainShield(1))],
+        // Two identity mechanics on a floating kind, which may carry none:
+        // hardening is the body's and a mana shield is the mind's, and a
+        // Material sits in gloves or greaves as the wearer likes. An anchor is
+        // weight, so weight is what it gives - and weight belongs to nobody.
+        triggers: &[],
         quest: None,
         power_bonus: 0,
         price: 24,
@@ -4202,11 +4206,9 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::SpendMana {
-            cost: 4,
-            on_success: Action::GainShield(1),
-            on_failure: Action::GainArmor(12),
-        }],
+        // A shield bought with mana is the helmet's whole defensive idea. The
+        // body does not buy anything: it puts armour on.
+        triggers: &[Trigger::OnActivate(Action::GainArmor(18))],
         quest: None,
         power_bonus: 0,
         price: 13,
@@ -4221,9 +4223,14 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
+        // Warded boots bought a mana shield, which is the mind's. What boots
+        // ward off is the clock - but they still pay for it. Unconditional it
+        // was a large tempo buff on every creature wearing the piece, and the
+        // ladder felt it immediately: a board that had cleared to rung 22 on
+        // the hardest setting stopped at 20.
         triggers: &[Trigger::SpendMana {
             cost: 3,
-            on_success: Action::GainShield(1),
+            on_success: Action::ReduceCooldown(500),
             on_failure: Action::GainArmor(9),
         }],
         quest: None,
@@ -4680,7 +4687,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::Spend { what: Resource::Faith, cost: 4, on_success: Action::GainShield(1), on_failure: Action::GainArmor(12) }],
+        triggers: &[Trigger::Spend { what: Resource::Faith, cost: 4, on_success: Action::GainArmor(20), on_failure: Action::GainArmor(12) }],
         quest: None,
         power_bonus: 0,
         price: 20,
@@ -4772,7 +4779,7 @@ pub static CATALOG: &[PieceDef] = &[
         triggers: &[Trigger::PerAdjacentEmpty(&Trigger::Spend {
             what: Resource::Faith,
             cost: 4,
-            on_success: Action::GainShield(1),
+            on_success: Action::GainForking(1),
             on_failure: Action::Gain { what: Resource::Faith, amount: 2 },
         })],
         quest: None,
@@ -7035,7 +7042,7 @@ pub static CATALOG: &[PieceDef] = &[
         triggers: &[Trigger::Spend {
             what: Resource::Faith,
             cost: 9,
-            on_success: Action::GainShield(1),
+            on_success: Action::GainForking(1),
             on_failure: Action::Gain { what: Resource::Faith, amount: 3 },
         }],
         quest: None,
@@ -8009,9 +8016,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnBattleStart(Action::GainShield(1))],
+        // It opened the fight holding a mana shield, which is two slots'
+        // property at once - `OnBattleStart` is the feet's and `GainShield` is
+        // the mind's, on a weapon accessory. A bead on a weapon sharpens it.
+        triggers: &[],
         quest: None,
-        power_bonus: 0,
+        power_bonus: 18,
         price: 28,
     },
     PieceDef {

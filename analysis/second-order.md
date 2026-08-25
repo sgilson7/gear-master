@@ -127,3 +127,28 @@ anybody thinking about helmet density.
 That is the ratchet working, but it means a quota reaching zero is not proof the
 slot was designed at. Worth re-reading the density quotas at the end and asking
 whether they say what they were meant to say.
+
+---
+
+## 7. Event tests were hanging on combat balance
+
+`the_winning_board_can_walk_the_road_and_collect_on_it` and
+`trundle_no_longer_costs_the_road` are about the road: that asking rather than
+taking leaves a note, and that the note is honoured twelve rungs later. Both
+were *fighting* those twelve rungs, so every catalogue edit that moved a
+mid-ladder creature took them red for reasons that had nothing to do with roads.
+
+The fixture behind them had already been re-blunted three times - weapon off,
+then gloves off as well, then the setting dropped from Insane to Hard - each
+time to keep one board simultaneously slow enough to open the road and strong
+enough to finish the walk. Those are two requirements and they were being asked
+of one board.
+
+They walk the intervening rungs now (`play_or_walk`) rather than fighting them.
+Whether a given board beats rung 20 on a given setting is a combat question and
+`progression` answers it.
+
+**Worth a sweep at the end:** any other test that walks many rungs to reach the
+thing it is actually about. They are cheap to spot - a fixture, a `play` to a
+deep rung, and an assertion about an event - and each one is a test that will
+fail for an unrelated reason sooner or later.
