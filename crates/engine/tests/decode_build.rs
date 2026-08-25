@@ -413,12 +413,43 @@ fn as_a_creature_board() {
     let sh = share::import(code).expect("reads");
     let (reg, lo) = sh.loadout();
     let mut chunks: Vec<usize> = Vec::new();
+    let mut dropped: Vec<String> = Vec::new();
     println!("GEAR");
     for k in SlotKind::ALL {
         if skip.iter().any(|s| s == &k.name().to_lowercase()) {
             continue;
         }
         for item in lo.report(&reg, k).items.iter().filter(|i| i.assembled) {
+            // An item holding something a creature may not wear is dropped
+            // whole.
+            //
+            // A real run is full of gear a creature has no business owning:
+            // every one of the three shared boards carries somebody else's
+            // trophy, and between them they carry a quest reward, a town
+            // purchase and an event prize as well. `boss_gear_belongs_to_
+            // exactly_one_monster` and `no_creature_wears_what_only_a_door_
+            // hands_over` both say so, and they are right - a creature wearing
+            // the reward is the game showing it to you before you have earned
+            // it, on something that will not hand it over.
+            //
+            // Dropped whole rather than pruned, because an item missing a
+            // piece is not an item: the recipe would not come together and
+            // `MonsterSpec::unassembled` forbids a chunk that does not.
+            let forbidden: Vec<&str> = item
+                .pieces
+                .iter()
+                .map(|&p| reg.def(p).name)
+                .filter(|n| {
+                    gearmaster_engine::piece::is_boss_only(n)
+                        || gearmaster_engine::piece::is_event_only(n)
+                        || gearmaster_engine::piece::is_quest_reward(n)
+                        || CATALOG.iter().any(|d| d.name == *n && gearmaster_engine::piece::is_town_stock(d))
+                })
+                .collect();
+            if !forbidden.is_empty() {
+                dropped.push(format!("{} ({})", item.name.full, forbidden.join(", ")));
+                continue;
+            }
             chunks.push(item.pieces.len());
             for &p in &item.pieces {
                 let (x, y) = lo.slot(k).anchor_of(p).expect("a seated piece has an anchor");
@@ -435,4 +466,7 @@ fn as_a_creature_board() {
     }
     println!("ITEMS &{chunks:?}");
     println!("pieces: {}, items: {}", chunks.iter().sum::<usize>(), chunks.len());
+    for d in &dropped {
+        println!("dropped: {d}");
+    }
 }

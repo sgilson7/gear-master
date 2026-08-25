@@ -229,6 +229,37 @@ whose event an `Action` is able to cause.
 
 ---
 
+## 12. Over half of every shelf is the weapon
+
+Measured across 400 seeded runs and six restocks each - 14,400 shelf slots:
+
+| slot | share of shelves | share of catalogue |
+|---|---:|---:|
+| Weapon | **54.8%** | 36.7% |
+| Gloves | 13.2% | 17.5% |
+| Helmet | 11.6% | 17.1% |
+| Chest | 10.2% | 14.7% |
+| Greaves | 10.2% | 14.1% |
+
+The pool is uniform over the catalogue, so the weapon should take 36.7%. It
+takes half as much again, because `ensure_weapon` is not as rare as its comment
+believes: six shelves drawn at random often cannot build any of the three
+weapon recipes, the repair steps in, and each repair forces two or three weapon
+shelves.
+
+This is the damage-share problem wearing different clothes. The shop is the one
+surface where a player meets the catalogue, and on it the weapon is not 37% of
+the game, it is 55%. A rewrite that gives four other slots a job has to put
+their parts in front of somebody.
+
+The fix is not the one that was tried and reverted - reserving shelves by
+*kind* made handles and blades seven times over-represented. It is to draw the
+pool per slot rather than uniformly over a catalogue the weapon owns two fifths
+of, and leave `ensure_weapon` as the rare repair it was meant to be.
+
+
+---
+
 ## 9. What is worth checking at the end
 
 Running list, so the last mile is not guesswork.
@@ -254,3 +285,4 @@ Running list, so the last mile is not guesswork.
   should stop paying for it, and the first is a combat change.
 - **Watchers that can feed themselves (see 11).** Guarded for curses; any new
   `Watched` variant needs the same question asked of it before it ships.
+- **The shop's slot mix (see 12).** 54.8% weapon against a 36.7% share. M8.
