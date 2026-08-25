@@ -70,12 +70,21 @@ fn drains(log: &CombatLog, on: Side) -> Vec<(&'static str, i32)> {
 
 #[test]
 fn a_leech_takes_the_pool_off_the_other_side() {
-    // Sump Sole takes the lot rather than a slice, so any enemy that banks
-    // mana at all will show it.
-    let run = wearing(&["Rootwoven Material", "Sump Sole"]);
-    let stats = run.player_stats();
+    // Blightfinger takes three nature every time it comes round, so any enemy
+    // that banks nature at all will show it.
+    //
+    // It was Sump Sole taking mana, a greave, and taking a pool is the hands'
+    // verb - the sole takes somebody's footing now instead. Blightfinger is the
+    // same job in the slot that owns it, and it is the one drain in the
+    // catalogue that fires on its **own** activation: every other one answers a
+    // neighbour, which a fixture holding a single item has none of.
+    let run = wearing(&["Bloomguard", "Padded Mold", "Blightfinger"]);
+    let mut stats = run.player_stats();
     let items = run.combat_items();
-    assert!(!items.is_empty(), "the greave has to assemble to fire");
+    assert!(!items.is_empty(), "the glove has to assemble to fire");
+    // Enough health to still be there when a creature has banked something.
+    // A three-piece glove does not outlive the rungs that bank mana.
+    stats.health = 100_000;
 
     let taken: Vec<(&str, i32)> = LADDER
         .iter()
@@ -86,9 +95,9 @@ fn a_leech_takes_the_pool_off_the_other_side() {
         .collect();
     assert!(
         !taken.is_empty(),
-        "no creature on the ladder ever lost mana to a piece whose whole job is taking it"
+        "no creature on the ladder ever lost a pool to a piece whose whole job is taking it"
     );
-    assert!(taken.iter().all(|(w, n)| *w == "mana" && *n > 0), "{taken:?}");
+    assert!(taken.iter().all(|(w, n)| *w == "nature" && *n > 0), "{taken:?}");
 }
 
 #[test]

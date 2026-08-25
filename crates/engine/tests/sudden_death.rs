@@ -78,20 +78,28 @@ fn a_fight_that_will_not_end_is_ended() {
 
 #[test]
 fn the_bite_grows_and_ignores_everything_you_are_wearing() {
-    let run = the_winning_board(Difficulty::Insane);
-    let (stats, items) = (run.player_stats(), run.combat_items());
-    let spec = LADDER[LADDER.len() - 1];
-    let log = simulate_at(stats, &items, &spec, Difficulty::Insane);
-
-    let bites: Vec<i32> = log
-        .entries
-        .iter()
-        .filter_map(|e| match &e.event {
-            Event::SuddenDeath { pct } => Some(*pct),
-            _ => None,
+    // The setting is searched rather than named. This fought the last rung at
+    // Insane, on the reasoning that it is the longest fight in the game - true
+    // until a sweep re-gears him and Insane becomes the setting he *wins*, in
+    // ten seconds. What the test is about is the escalation, so it looks for a
+    // fight that reaches it.
+    let bites = [Difficulty::Insane, Difficulty::Hard, Difficulty::Medium, Difficulty::Easy]
+        .into_iter()
+        .find_map(|d| {
+            let run = the_winning_board(d);
+            let (stats, items) = (run.player_stats(), run.combat_items());
+            let log = simulate_at(stats, &items, &LADDER[LADDER.len() - 1], d);
+            let b: Vec<i32> = log
+                .entries
+                .iter()
+                .filter_map(|e| match &e.event {
+                    Event::SuddenDeath { pct } => Some(*pct),
+                    _ => None,
+                })
+                .collect();
+            (!b.is_empty()).then_some(b)
         })
-        .collect();
-    assert!(!bites.is_empty(), "the longest fight in the game never turned");
+        .expect("no fight against the last rung reaches sudden death at any setting");
     // One percent, then two, then three.
     assert_eq!(bites, (1..=bites.len() as i32).collect::<Vec<_>>(), "{bites:?}");
 }

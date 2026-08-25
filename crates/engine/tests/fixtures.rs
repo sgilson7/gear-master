@@ -31,6 +31,7 @@ use gearmaster_engine::piece::{Action, PieceDef, Trigger, CATALOG};
 enum Needs {
     OpensTheFight,
     BanksEmpowerment,
+    #[allow(dead_code)] // the drain fixture retired; the mechanic has not
     TakesAPool,
     Grows,
     Forks,
@@ -94,7 +95,6 @@ impl Needs {
 const LEANED_ON: &[(&str, &str, Needs, &str)] = &[
     ("Archmage's Primer", "curses_in_combat::a_stunning_caster", Needs::BanksEmpowerment, "helmet"),
     ("Empowering Focus", "curses_in_combat::a_stunning_caster", Needs::BanksEmpowerment, "helmet"),
-    ("Sump Sole", "drains::a_draining_board", Needs::TakesAPool, "gloves"),
     ("Vigil Crest", "drains", Needs::OpensTheFight, "greaves"),
     ("Braced Plating", "effects::a_prepared_item_only_opens_once", Needs::OpensTheFight, "greaves"),
     ("Opening Grudge", "effects::a_prepared_item_only_opens_once", Needs::OpensTheFight, "greaves"),

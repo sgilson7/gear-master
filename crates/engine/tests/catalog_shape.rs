@@ -295,7 +295,7 @@ const RULES: &[Rule] = &[
     Rule { what: "PerAdjacentItem", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::PerAdjacentItem { .. })) },
     Rule { what: "Drain", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
-        budget: 6, target: 0, carries: |d| does(d, |a| matches!(a, Action::Drain { .. })) },
+        budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::Drain { .. })) },
     Rule { what: "StunStrongest", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::StunStrongest { .. })) },
     Rule { what: "DoubleAdjacentItemStat", home: SlotKind::Gloves, level: Level::Only,
@@ -324,7 +324,7 @@ const RULES: &[Rule] = &[
         shared_with: &[SlotKind::Greaves], budget: 0, target: 0,
         carries: |d| d.kind.is_underlay() },
     Rule { what: "frost, stun and misfire", home: SlotKind::Greaves, level: Level::Mostly(70),
-        shared_with: &[], budget: 5, target: 0,
+        shared_with: &[], budget: 4, target: 0,
         carries: |d| does(d, |a| matches!(a, Action::Curse {
             kind: CurseKind::Frost | CurseKind::Stun | CurseKind::Misfire, .. })) },
 ];
@@ -419,8 +419,8 @@ const EVENTUAL_FILLER_PCT: usize = 15;
 /// How far each slot is from each quota today, read off `report_shape`. Lower a
 /// figure in the commit that earns it; never raise one.
 const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
-    (SlotKind::Helmet, "expresses its own axis", 3),
-    (SlotKind::Helmet, "expresses its bleed axis", 5),
+    (SlotKind::Helmet, "expresses its own axis", 1),
+    (SlotKind::Helmet, "expresses its bleed axis", 3),
     (SlotKind::Helmet, "plain flat-stat filler", 0),
     (SlotKind::Helmet, "the dearest third interacts", 0),
     (SlotKind::Chest, "expresses its own axis", 0),
@@ -433,7 +433,7 @@ const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
     (SlotKind::Gloves, "plain flat-stat filler", 0),
     (SlotKind::Gloves, "the dearest third interacts", 0),
     (SlotKind::Gloves, "pool-spend texture", 0),
-    (SlotKind::Greaves, "expresses its own axis", 1),
+    (SlotKind::Greaves, "expresses its own axis", 0),
     (SlotKind::Greaves, "expresses its bleed axis", 22),
     (SlotKind::Greaves, "plain flat-stat filler", 0),
     (SlotKind::Greaves, "the dearest third interacts", 0),

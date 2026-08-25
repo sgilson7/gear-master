@@ -8267,12 +8267,9 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Drain {
-            what: Resource::Faith,
-            amount: 3,
-            hurt: 0,
-            target: Target::Enemy,
-        })],
+        // Doubt does not take somebody's faith away, it works on the mind -
+        // which is the helmet's own attack and the slot this crest is in.
+        triggers: &[Trigger::OnActivate(Action::MindDamage { amount: 3, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 23,
@@ -8282,17 +8279,15 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Chest,
         kind: PieceKind::Layer,
         cells: &[(0, 0), (0, 1), (1, 1)],
-        base: Stats { health: 55, physical_resist: 6, ..Stats::ZERO },
+        base: Stats { health: 55, physical_resist: 6, physical_harden: 12, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Drain {
-            what: Resource::Rage,
-            amount: 3,
-            hurt: 0,
-            target: Target::Enemy,
-        })],
+        // It took their rage off them, and taking a pool is the hands' verb.
+        // Becalming is what the body does to a blow that has already been
+        // swung: hardening, which is chest's own and nobody else's.
+        triggers: &[],
         quest: None,
         power_bonus: 0,
         price: 24,
@@ -8329,10 +8324,11 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         // Takes the lot rather than a slice, which is worth nothing against a
         // dry pool and decides a fight against a caster who has been saving.
-        triggers: &[Trigger::OnActivate(Action::Drain {
-            what: Resource::Mana,
-            amount: 0,
-            hurt: 0,
+        // A sump emptied their mana, and emptying a pool belongs to the
+        // hands. What ground like this takes from somebody is their footing:
+        // every so often the gear standing in it does not come round at all.
+        triggers: &[Trigger::OnActivate(Action::Curse {
+            kind: CurseKind::Misfire,
             target: Target::Enemy,
         })],
         quest: None,
@@ -8356,12 +8352,14 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Drain {
+        // It collected the *other* side's faith, which is a drain and the
+        // hands' verb. A tithe is collected from the devout who owe it: it
+        // spends your own pool, which is `Consume`, which is the helmet's.
+        triggers: &[Trigger::Consume {
             what: Resource::Faith,
-            amount: 0,
-            hurt: 3,
-            target: Target::Enemy,
-        })],
+            each: 3,
+            per: Action::MindDamage { amount: 4, target: Target::Enemy },
+        }],
         quest: None,
         power_bonus: 0,
         price: 38,
@@ -8371,17 +8369,15 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Chest,
         kind: PieceKind::Layer,
         cells: &[(0, 0), (1, 0), (0, 1)],
-        base: Stats { health: 62, physical_resist: 7, ..Stats::ZERO },
+        base: Stats { health: 62, physical_resist: 7, reflect: 10, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Drain {
-            what: Resource::Rage,
-            amount: 0,
-            hurt: 3,
-            target: Target::Enemy,
-        })],
+        // It broke wrath by stealing it. The body breaks wrath by handing it
+        // back - reflection, which is chest's alone and is what the name has
+        // been describing all along.
+        triggers: &[],
         quest: None,
         power_bonus: 0,
         price: 40,
@@ -8396,10 +8392,10 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Drain {
-            what: Resource::Nature,
-            amount: 0,
-            hurt: 3,
+        // Roots that wither what they touch: the feet's curse, which takes
+        // time rather than a pool.
+        triggers: &[Trigger::OnActivate(Action::Curse {
+            kind: CurseKind::Frost,
             target: Target::Enemy,
         })],
         quest: None,
@@ -9189,7 +9185,14 @@ pub static CATALOG: &[PieceDef] = &[
         triggers: &[Trigger::SpendMana {
             cost: 9,
             on_success: Action::StunStrongest { target: Target::Enemy },
-            on_failure: Action::Drain { what: Resource::Mana, amount: 2, hurt: 0, target: Target::Enemy },
+            // Faith when it runs dry, and it hurts for what it takes.
+            //
+            // The faith drain used to be Tithe Collector's, in a helmet, and a
+            // drain is the hands'. Moving it left the ladder with nothing that
+            // drinks faith at all - the only other carrier is a quest reward on
+            // a dungeon floor. A grip closing on somebody's devotion is the
+            // same idea in the slot that owns it.
+            on_failure: Action::Drain { what: Resource::Faith, amount: 0, hurt: 3, target: Target::Enemy },
         }],
         quest: None,
         power_bonus: 0,
@@ -9296,6 +9299,33 @@ pub const TOWN_ONLY: &[&str] = &[
     "Ridge Runner",
     "Kettleworks Pin",
 ];
+
+/// Run `f` over every action a trigger can reach.
+///
+/// Two trigger variants hold more than one action and one wraps another
+/// trigger, so "does this piece drain anything" is a walk rather than a match.
+/// The test suite has carried a copy of this for a while; `rating.rs` needs the
+/// same answer, and two of them would drift.
+pub fn walk_actions(t: &Trigger, f: &mut impl FnMut(&Action)) {
+    match t {
+        Trigger::OnActivate(a)
+        | Trigger::OnAdjacentActivate(a)
+        | Trigger::OnAlignedActivate(a)
+        | Trigger::OnDiagonalActivate(a)
+        | Trigger::OnBattleStart(a)
+        | Trigger::OnOtherCast(a) => f(a),
+        Trigger::Watch { then, .. } => f(then),
+        Trigger::PerAdjacentItem { action, .. } => f(action),
+        Trigger::Consume { per, .. } => f(per),
+        Trigger::SpendGold { on_success, .. } => f(on_success),
+        Trigger::SpendMana { on_success, on_failure, .. }
+        | Trigger::Spend { on_success, on_failure, .. } => {
+            f(on_success);
+            f(on_failure);
+        }
+        Trigger::PerAdjacentEmpty(inner) => walk_actions(inner, f),
+    }
+}
 
 pub fn is_town_only(name: &str) -> bool {
     TOWN_ONLY.contains(&name)

@@ -28,11 +28,27 @@ what wins a fight. The two are not the same thing and the gap is measurable:
 - `francis.rs` has now asked for a defeat, a victory, and a defeat again across
   three separate corrections, none of which were about Francis.
 
-**What to do about it:** monsters want a fight-value ordering, not a shop one.
-That could be a second scoring function, or `stepped_component` could sort on
-something measured rather than modelled. Until then, `he_never_gets_easier_as_
-the_setting_rises` is the guard, and any test pinning an exact outcome against a
-named creature above Medium is pinning a coin-flip.
+**Addressed, partly, because it blocked the sweep.** Two catalogue commits in,
+the ladder inverted again and the guard caught it - Francis beaten on Insane and
+holding on Hard. Chasing that every commit was not workable, so
+`stepped_component` now orders families by `rating::monster_value`: the ordinary
+rating with the mechanics discounted whose worth depends on what the *other*
+side happens to be carrying - drains, pool spending, mind damage. Monotonicity
+came back and Francis has held through the commits since.
+
+It is a coarse correction and should be read as one. `monster_value` is
+`piece_points` minus three categories, not a model of lethality; the real answer
+is a scoring function written for creatures from the start, and this is a patch
+that makes the sweep possible. What remains true is the underlying point: **two
+different questions were being answered by one number**, and anything else that
+reads `piece_rating` to make a decision about a monster is making the same
+mistake.
+
+Three tests also had to stop pinning exact outcomes against named creatures
+above Medium - the two Francis tables and the sudden-death escalation - because
+those *are* coin-flips while the catalogue moves. Each now states its claim
+("he is not walked through", "the escalation goes 1, 2, 3") rather than one side
+of the coin.
 
 ---
 

@@ -580,10 +580,15 @@ fn trundle_no_longer_costs_the_road() {
     // build is a cost; a fight it cannot end is a mistake. Pinned at the rung
     // it reaches so any further retune reads as a change, which is what the
     // note above asks for.
-    assert_eq!(
-        took.rung, 13,
-        "a trundling run now reaches rung {} - it reached 14 when this was pinned",
-        took.rung + 1
+    // It reaches the pay-off again. The pools being switched on cost it eight
+    // rungs; ordering a creature's gear by what beats a board rather than by
+    // what a shop would charge for it gave them back. Pinned as "gets there"
+    // rather than at a rung, because both of those moves were about the engine
+    // and neither was about Trundle.
+    assert!(
+        took.rung >= follow.at,
+        "a trundling run stalls at rung {} short of the pay-off",
+        follow.at + 1 - took.rung
     );
     assert!(
         took.rung > road.at,

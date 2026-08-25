@@ -312,7 +312,19 @@ pub fn stepped_component(name: &str, step: i32) -> &'static str {
         // they are kept off the shelves.
         .filter(|d| !crate::piece::is_quest_reward(d.name))
         .collect();
-    family.sort_by_key(|d| crate::rating::piece_rating(d));
+    // Ordered by what a piece is worth to a *creature*, not to a shop.
+    //
+    // This sorted on `piece_rating`, which prices gear for a player who can
+    // build a run around it. A drain rates well on that reasoning and does
+    // nothing at all against a board banking no pools - so Francis's Insane
+    // step traded a damage crest for Tithe Collector and came out easier than
+    // his Hard step. A difficulty setting that lowers the difficulty is worse
+    // than any mispricing it was correcting.
+    family.sort_by(|a, b| {
+        crate::rating::monster_value(a)
+            .partial_cmp(&crate::rating::monster_value(b))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     let Some(at) = family.iter().position(|d| d.name == here.name) else { return here.name };
     let want = (at as i32 + step).clamp(0, family.len() as i32 - 1) as usize;
     family[want].name

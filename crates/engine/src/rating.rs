@@ -729,6 +729,49 @@ fn piece_points(def: &PieceDef, cooldown_ms: u32) -> f32 {
     points
 }
 
+/// What a piece is worth **to a creature**, which is not what it is worth in a
+/// shop.
+///
+/// `piece_rating` prices an item for a player who can build a run around it.
+/// `stepped_component` uses that ordering to choose a monster's gear above
+/// Medium, and the two questions are different enough to invert the difficulty
+/// ladder: a drain rates well because a build that banks pools will feel it,
+/// and against a board that banks nothing it does exactly nothing. Francis's
+/// Insane step picked up Tithe Collector over a damage crest on that reasoning
+/// and got *easier* than his Hard step.
+///
+/// So the mechanics whose worth depends on what the other side happens to be
+/// carrying are discounted here, and only here:
+///
+/// - **Drains** need the target to have banked the pool.
+/// - **Pool spending** - `Consume`, `Spend`, `SpendMana` - needs the creature
+///   to have banked it first, and a creature's gear is fixed, so it usually has
+///   not.
+/// - **Mind damage** is answered by `mind_resist`, which finished boards carry
+///   and the shop model does not know about.
+///
+/// Everything that lands regardless - damage, curses, health, armour,
+/// resistance, regeneration - counts in full. This is deliberately a *coarse*
+/// correction: the point is that the ordering a monster is dressed from should
+/// track what wins fights, not that this function is the last word on it.
+pub fn monster_value(def: &PieceDef) -> f32 {
+    let mut v = piece_points(def, def.cooldown_ms);
+    for t in def.triggers {
+        let mut discount = 0.0f32;
+        crate::piece::walk_actions(t, &mut |a| {
+            discount += match a {
+                Action::Drain { .. } | Action::MindDamage { .. } => action_points(a),
+                _ => 0.0,
+            };
+        });
+        if matches!(t, Trigger::Consume { .. } | Trigger::Spend { .. } | Trigger::SpendMana { .. }) {
+            discount += trigger_points(t).max(0.0);
+        }
+        v -= discount;
+    }
+    v
+}
+
 /// What one component contributes, on the shared scale where `FULL_MARKS` is
 /// the best its slot can do. This is the figure the shop shows, and item
 /// ratings are the sum of it - so a component's worth reads the same whether
