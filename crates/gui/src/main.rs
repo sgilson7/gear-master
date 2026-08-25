@@ -1574,6 +1574,12 @@ fn pool_index(what: &str) -> Option<usize> {
         "rage" => Some(0),
         "faith" => Some(1),
         "nature" => Some(2),
+        // The fusions. A player can hold Druidic Might and the interface said
+        // nothing about it at all, which for a pool worth four ordinary points
+        // a point is the one thing it cannot afford to be quiet about.
+        "druidic might" => Some(3),
+        "communion" => Some(4),
+        "zealotry" => Some(5),
         _ => None,
     }
 }
@@ -1839,6 +1845,11 @@ fn pool_color(which: &str) -> Color {
         "rage" => Color::from_rgba(232, 108, 92, 255),
         "faith" => Color::from_rgba(240, 208, 120, 255),
         "nature" => Color::from_rgba(140, 220, 150, 255),
+        // Each fusion is painted between its parents: nature-and-rage comes
+        // out amber, faith-and-nature pale green-gold, rage-and-faith orange.
+        "druidic might" => Color::from_rgba(196, 168, 90, 255),
+        "communion" => Color::from_rgba(196, 214, 130, 255),
+        "zealotry" => Color::from_rgba(238, 158, 96, 255),
         _ => Color::from_rgba(170, 190, 220, 255),
     }
 }
@@ -2409,7 +2420,7 @@ struct FoeView {
     hp: i32,
     max: i32,
     armor: i32,
-    pools: [i32; 3],
+    pools: [i32; 6],
     curses: Vec<ActiveCurse>,
     /// Stunned items, as (item index, started, ends).
     stuns: Vec<(usize, u32, u32)>,
@@ -2442,7 +2453,7 @@ struct Playback {
     player_mana: i32,
     /// What is left of the run's gold, for gear that spends it mid-fight.
     purse: i32,
-    player_pools: [i32; 3],
+    player_pools: [i32; 6],
     /// Curses on the player. The start is kept as well as the end because the
     /// stun meter fills against the whole span, not against a fixed 1.2s -
     /// stun stacks add to the clock, so no two stuns are the same length.
@@ -2561,7 +2572,7 @@ impl Playback {
                     hp: body.health,
                     max: body.max_health,
                     armor: 0,
-                    pools: [0; 3],
+                    pools: [0; 6],
                     curses: Vec::new(),
                     stuns: Vec::new(),
                     empower: 0,
@@ -2588,7 +2599,7 @@ impl Playback {
             player_armor: 0,
             player_mana: 0,
             purse: 0,
-            player_pools: [0; 3],
+            player_pools: [0; 6],
             player_curses: Vec::new(),
             player_stuns: Vec::new(),
             lines: Vec::new(),
@@ -2614,9 +2625,22 @@ impl Playback {
             // Worth a line: an item coming round and doing nothing is the sort
             // of thing you want to see explained rather than wonder about.
             Event::Misfired { .. } | Event::Warded { .. } => {}
-            // Both read as plain lines. The pool chips and the counter readout
-            // that would show them properly are the GUI pass, not this one.
-            Event::Fused { .. } | Event::Watched { .. } => {}
+            // A fusion moves three pools at once: one of each parent down,
+            // one of the child up. All three chips have to follow or the two
+            // that quietly emptied look like a bug.
+            Event::Fused { side, what, total, from, and } => {
+                let pools = if matches!(side, Side::Player) {
+                    &mut self.player_pools
+                } else {
+                    &mut self.foe_mut(who).pools
+                };
+                for (name, v) in [(*what, *total), (from.0, from.1), (and.0, and.1)] {
+                    if let Some(i) = pool_index(name) {
+                        pools[i] = v;
+                    }
+                }
+            }
+            Event::Watched { .. } => {}
             // Growth changes the bar itself, not just what is in it.
             Event::Grew { side, total, .. } => match side {
                 Side::Player => self.player_max = *total,
@@ -7582,7 +7606,7 @@ fn render_battle_side(
     // Playback clock, so a curse chip can count itself down.
     now_ms: u32,
     // Rage, faith and nature, in that order.
-    pools: [i32; 3],
+    pools: [i32; 6],
     flash: f64,
     tint: Color,
 ) {
@@ -7615,7 +7639,11 @@ fn render_battle_side(
     for (which, value) in [("armor", Some(armor)), ("mana", mana)]
         .into_iter()
         .chain(
-            ["rage", "faith", "nature"]
+            // Six now, in `pool_index` order. A fusion sits after its parents
+            // and only draws once there is one to draw - the row already drops
+            // an empty pool, so a board that never fuses looks exactly as it
+            // did.
+            ["rage", "faith", "nature", "druidic might", "communion", "zealotry"]
                 .into_iter()
                 .zip(pools.iter().copied())
                 .map(|(n, v)| (n, if v > 0 { Some(v) } else { None })),
