@@ -513,3 +513,29 @@ were armed and came back out - two are worn by Francis and cost the friend's
 board a setting, and a third shifted a fight by one activation and tripped a
 guard in `towns`. Spreading it is Phase 2's next job, and it wants the monster
 boards in the same change.
+
+### Reflection spread, and where it stopped
+
+Seventeen chest pieces carry reflection now, up from one: bases at five to ten
+percent, layers at four to seven. Suite green, and **nothing on the ladder
+moved** - because none of the seventeen is worn by any creature.
+
+That is also why chest still measures **0%** on criterion 2. The sixteen new
+carriers were safe to arm precisely because nothing uses them, and "nothing"
+includes the three reference boards. The owner's chest is Adamant Base, Bulwark
+Layer, Deep Roots Base, Emberplate, Riveted Layer, Runed Lining, Runic Weave,
+Scale Layer, Seedbed Layer, Thornmail Layer and Wellspring Base - and only Scale
+Layer and Thornmail Layer are armed.
+
+Arming six of those was tried and pulled back out. At five or six percent it
+cost the owner's board its one setting against Francis; halved, it still tripped
+`debt_is_a_debt_and_takes_real_time_to_pay_off`, which compares two runs and
+requires the same items to fire in both, so a single shifted activation breaks
+it.
+
+So the remaining work is exactly located: **the chest gear that matters is the
+gear creatures and finished boards share**, and arming it needs the monster
+repack and the `towns` fixture in the same change. `debt_is_a_debt` is not in
+`fixtures.rs` - it does not name a piece, it depends on activation counts being
+identical, which is a different and more brittle kind of coupling worth adding
+to that manifest.
