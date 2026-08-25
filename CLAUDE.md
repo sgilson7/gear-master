@@ -7,9 +7,10 @@ job is packing boards; the engine's job is making every fight a pure function
 of what was packed.
 
 Read this file top to bottom once. Then read
-`design/gear-slot-basis-rewrite.md` — that is **the mission** (§Mission,
-bottom of this file). It is **partly executed**: the engine work is done, the
-catalogue work is not. `HANDOFF.md` says what is left.
+`design/the-unwinding.md` — that is **the mission** (§6, bottom of this
+file). Nothing in it has been executed. The previous mission — the gear-slot
+rewrite, `design/gear-slot-basis-rewrite.md` — is **finished and deployed**;
+`HANDOFF.md` is its record and its habits section is worth your time.
 
 ---
 
@@ -153,81 +154,87 @@ you touch those.
 `classes` + `class_reaches_combat`, `prices`, `towns` / `casino` / `vip` /
 `earned_events` / `the_road` (road furniture), `taller_boards` (resize moves
 nothing), `decode_build` (share codes), `prose` (the words), `avail`,
-`slash_and_burn`, `two_runs`. When one fails after your change, it is telling
-you which doctrine you brushed.
+`slash_and_burn`, `baseline` (the measurement harness — `#[ignore]`d
+printers report damage share by slot), `catalog_shape` (the slot-identity
+ratchet: budgets only go down), `fixtures` (the manifest of tests that name a
+piece as their example of a mechanic, so a sweep fails there rather than
+downstream). **538 tests, green, no warnings.** When one fails after your
+change, it is telling you which doctrine you brushed.
 
 ---
 
-## 6. THE MISSION — the gear-slot rewrite (part done)
+## 6. THE MISSION — The Unwinding
 
-Read `design/gear-slot-basis-rewrite.md` in full, amendments and all. Short form:
+**What came before, in one paragraph.** The gear-slot rewrite is done and
+live: each slot owns a basis vector (Weapon **Conversion**, Gloves
+**Reaction**, Greaves **Tempo**, Chest **Reserve**, Helmet **Economy**), the
+weapon's side-monopolies moved out (gloves hold 47 reaction triggers to its
+2), the interaction primitives ship (`Watch`, the diagonal relation, three
+fused pools, the **Enchantment** layer, reflection), `catalog_shape`'s
+ratchet closed from 69 rules unmet to green, and the weapon's damage share
+sits at **74.9%** inside the 66–76% band. `analysis/baseline.md` holds every
+number; `HANDOFF.md` §5 and §7 hold the lessons.
 
-The weapon was the only slot with mechanical identity — it owned damage *and*
-hoarded the curse game and the reaction game, while Helmet/Chest/Gloves/Greaves
-were one stat-pile slot wearing four shapes (0.93 cosine similarity between
-helmet and chest). The rewrite gives each slot a basis vector — Weapon
-**Conversion**, Gloves **Reaction**, Greaves **Tempo**, Chest **Reserve**,
-Helmet **Economy** — with a directed bleed cycle, an exclusivity table, per-slot
-quotas, and an **Interaction Fabric** (Part II): `Watch` counters, the diagonal
-relation, fusion pools (Druidic Might / Communion / Zealotry), and
-and the enchantment layer under every grid.
+**The mission now** is `design/the-unwinding.md` — read it in full,
+including its dated reconciliation block, which wins wherever it and the
+body disagree. Short form: an overarching event chain across the back half
+of the ladder that ends with a super boss at **rung 51**, unlocked only by
+finishing the chain and beating Francis; two hidden towns and five mini
+dungeons; four Orbs of Travel and their destinations; typed combat lanes
+(empowerment/shield become magic-only, with **Spellblade** and
+**Deflection** as their physical twins); **Insight**, an eighth pool that is
+to mind damage what mana empowerment is to magic, locked behind a dungeon;
+five unconditional road events; a reward vocabulary (row grants, claim
+tickets, run-relics, crushable rule-benders, standing orders); the **road
+stack** that resolves everything standing on a rung; receipts and tooltips
+that describe themselves from the engine; and a Star Fox-style **route
+map** rendered purely from run state. Execution is phased and the phasing
+is the point: **all engine work first** (Part E, Phase 1), **all creatures
+authored as frames** — name, band, theme, note — through Phase 2, theme in
+Phase 3, and **no board authored until Phase 4**, by hand, in `make pack`.
 
-**What is done.** The engine half. All five primitives ship, reflection among
-them, and the catalogue has moved a long way: gloves hold 47 reaction triggers
-against the weapon's 2, greaves hold 26 curse applications against the weapon's
-20, and the share of the catalogue that is inert has gone from 44% to 21%.
+**The traps, in the order they will find you:**
 
-**What is not, and what since became so.** The catalogue half was the larger
-half and it is done: `cargo test -p gearmaster-engine --test catalog_shape --
---ignored` was **69 rules unmet** and is **green**. Every mechanic the
-exclusivity table names is in its slot, every axis quota is in band on all five
-slots, no floating kind carries an identity mechanic, and the weapon deals
-**74.9%** of a finished board's damage against a 66–76% band. `analysis/baseline.md`
-is every number and how it moved.
+1. **`CATALOG` is index-keyed by `share.rs:87`. Append-only for ever.** New
+   pieces go on the end; nothing moves, nothing is deleted.
+2. **`stepped_component` (`combat.rs:252`) re-gears every monster on Easy,
+   Hard and Insane whenever a `rating.rs` weight changes** — and the mission
+   adds weights (Spellblade, Deflection, Dread, Insight income, new
+   outcomes). Consequence, already folded into the spec: Phase 4 re-pins
+   rating **before** any board is authored, never after.
+3. **The reconstruction fault** (`HANDOFF.md` §5): a dense board does not
+   come back as the items its owner built unless each item is locked as it
+   assembles — every reconstruction goes through `common::board_from`. The
+   Claim Ticket's whole-board drop and the pedestal's returns are exactly
+   this fault's shape; build them on `board_from` from the first commit.
+4. **Sudden death owns everything past 30s**, and the difficulty band's top
+   edge at rung 50 is 29.1s. THE UNWOUND at rung 51 must be authored to
+   finish inside the measurable region, or the fight is decided by the
+   clock rather than the board. "Harder than Francis" is measured at
+   **Medium** — the open question of Francis-on-Hard (`HANDOFF.md` §4, M1)
+   stays open and uncoupled.
+5. **Enchantments are town stock** — ground is bought where somebody has a
+   floor to sell, never off the road. The mission's two enchantment rewards
+   (the Lightning Rod, Aisle 9's stock) already live in town shelves; keep
+   it that way.
+6. **There is no milestone pricing and no auto-builder.** Gold figures in
+   the spec anchor against real `SHELF_TILT` shelves and rung bounties;
+   reference builds for acceptance replays are authored presets in the
+   `apply_preset` mould.
+7. **Names are string keys** across `theme.rs`, monster boards, quests,
+   `event.rs`, `rumour.rs`, `town.rs`, `dungeon.rs`, and the tests. Grep
+   before and after. Grids are 6×8 **base** and can gain rows; legality
+   runs against current dims.
+8. **`ALTERNATES` and the empty `CREVICE` are the frame precedent** —
+   creatures without authored boards already exist in the repo. The
+   mission's frames extend that pattern rather than inventing one.
 
-What is left is on the creatures rather than in the catalogue. **Seventeen of
-fifty rungs sit outside the difficulty band**, and the last six are the ones that
-matter: rungs 45–50 all finish past the 30s where sudden death takes the fight
-over, because their *stat blocks* put them there and `pack_francis` authors a
-board rather than a creature. The repack was halted as too slow — see
-`analysis/second-order.md` — and creature boards are to be hand-authored with a
-build tool instead. `HANDOFF.md` is the ledger.
-
-The spec now carries its own dated amendments inline — read them where they
-sit rather than trusting the line above each one. What follows is the short list
-of things a fresh agent gets wrong first.
-
-**Corrections to the spec, discovered since it was written** (the spec is
-older than the repo; these amendments win):
-
-1. Spec §4 says "grids stay 6×8" — grids are 6×8 **base** and can gain rows
-   (`taller_boards.rs`). `catalog_shape.rs` and the enchantment layer must
-   tolerate resized boards; placement legality runs against the board's
-   *current* dims, not the constants.
-2. The rename-propagation checklist (spec §8) now also includes `event.rs`,
-   `rumour.rs`, `town.rs`, and `dungeon.rs` — events can require carried
-   items and rumours are catalog-adjacent components with names.
-3. **Share-code stability:** `share.rs` encodes a piece as its **`CATALOG`
-   index** (`share.rs:87`). Checked, not assumed. So the catalogue is
-   append-only for ever: nothing is reordered, nothing is deleted, and a sweep
-   rewrites a piece in place under its own name. Every code ever pasted into a
-   chat depends on it and `decode_build.rs` will say so.
-4. `Difficulty` lives in `combat.rs`, not `run.rs`. Monster count is **54**
-   creatures (`LADDER` 50 + `ALTERNATES` 4) — the board re-audit in spec §6
-   covers all of them, not just the ladder. Note `stepped_component`
-   (`combat.rs:252`) picks a creature's gear on Easy/Hard/Insane by walking a
-   footprint family sorted by `piece_rating`, so **any change to `rating.rs`
-   weights silently re-gears every monster on three of the four settings**.
-5. The Recycler spell ("spends a harvest") post-dates the census — pool-spend
-   texture counts in spec §10 should be re-measured, not trusted, before the
-   quotas are pinned into `catalog_shape.rs`.
-
-**Your first three moves:** (1) run the suite green — it should be, and if it is
-not, that is the news; (2) capture the current numbers, because they move under
-you (`--test baseline -- --ignored --nocapture --test-threads=1`, and
-`--test catalog_shape -- --ignored` for the distance left); (3) read `HANDOFF.md`
-§5, which is the fault that ran unnoticed for the whole rewrite and is the shape
-of the next one. Then work the milestones in `HANDOFF.md`.
+**Your first three moves:** (1) run the suite — 538 green, and if not, that
+is the news; (2) run the two printers to capture today's numbers
+(`--test baseline -- --ignored --nocapture --test-threads=1` and
+`--test catalog_shape -- --ignored`), because they move under you; (3) read
+`design/the-unwinding.md` Part E, then its reconciliation block, then start
+Phase 1, PR 1 — the typed lanes, which merge alone.
 
 ---
 

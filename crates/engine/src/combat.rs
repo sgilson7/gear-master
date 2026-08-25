@@ -472,7 +472,24 @@ impl MonsterSpec {
         let (reg, loadout) = self.loadout();
         for kind in SlotKind::ALL {
             for item in loadout.report(&reg, kind).items {
-                if !item.assembled {
+                if item.assembled {
+                    continue;
+                }
+                // Some gear is better left in bits. A piece whose effect is
+                // gated on `When::NotAssembled` - the Vast Tapestry's +550
+                // health while it stays loose - is doing its whole job sitting
+                // there unfinished, so calling it a broken loadout is calling a
+                // deliberate build a typo. An enchantment is loose for the same
+                // reason: no recipe names its kind.
+                let on_purpose = item.pieces.iter().all(|&p| {
+                    let def = reg.def(p);
+                    def.kind.is_enchantment()
+                        || def
+                            .effect
+                            .as_ref()
+                            .is_some_and(|e| matches!(e.when, crate::piece::When::NotAssembled))
+                });
+                if !on_purpose {
                     missing.push(format!("{} item: {}", kind.name(), item.status));
                 }
             }
@@ -823,17 +840,19 @@ pub const LADDER: &[MonsterSpec] = &[
         gear: &[
             ("Zealot's Haft", SlotKind::Weapon, 0, 0, 1),
             ("Gluttonous Fang", SlotKind::Weapon, 3, 0, 1),
+            ("Bonesaw", SlotKind::Weapon, 1, 1, 0),
             ("Ossuary Frame", SlotKind::Helmet, 0, 0, 1),
             ("Lonely Plating", SlotKind::Helmet, 2, 0, 0),
-            ("Grove Base", SlotKind::Chest, 0, 0, 0),
-            ("Vast Tapestry", SlotKind::Chest, 2, 1, 1),
+            ("Grove Base", SlotKind::Chest, 1, 6, 0),
+            ("Rag Layer", SlotKind::Chest, 3, 7, 0),
+            ("Vast Tapestry", SlotKind::Chest, 2, 0, 1),
         ],
         gear_offset: 0,
         bounty: 22,
         sprite: MonsterSprite::Warden,
         rank: Rank::Ordinary,
         drops: &[],
-        items: &[2, 2, 2],
+        items: &[3, 2, 2, 1],
     },
     MonsterSpec {
         name: "Iron Sentinel",
@@ -1002,13 +1021,20 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Overflow Plate", SlotKind::Helmet, 4, 0, 0),
             ("Heartwood Base", SlotKind::Chest, 0, 0, 0),
             ("Berserker's Plate", SlotKind::Chest, 3, 0, 0),
+            ("Polished Orb", SlotKind::Weapon, 0, 6, 0),
+            ("Crimson Alignment", SlotKind::Weapon, 2, 4, 0),
+            ("Last Rite", SlotKind::Weapon, 0, 4, 1),
+            ("Sympathetic Bloom", SlotKind::Weapon, 3, 5, 0),
+            ("Wildgrowth", SlotKind::Weapon, 2, 5, 0),
+            ("Fumbler's Mold", SlotKind::Greaves, 2, 3, 0),
+            ("Ashwoven Material", SlotKind::Greaves, 2, 2, 0),
         ],
         gear_offset: 0,
         bounty: 75,
         sprite: MonsterSprite::Marshal,
         rank: Rank::Ordinary,
         drops: &[],
-        items: &[3, 3, 2],
+        items: &[3, 3, 2, 5, 2],
     },
     MonsterSpec {
         name: "Grave Chorus",
@@ -1789,13 +1815,23 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Consecrated Plating", SlotKind::Helmet, 1, 5, 0),
             ("Reckoning Plate", SlotKind::Helmet, 0, 6, 3),
             ("Martyr's Crest", SlotKind::Helmet, 3, 6, 0),
+            ("Scale Layer", SlotKind::Chest, 2, 3, 0),
+            ("Seedbed Layer", SlotKind::Chest, 2, 4, 0),
+            ("Emberplate", SlotKind::Chest, 2, 5, 0),
+            ("Heartwood Base", SlotKind::Chest, 2, 1, 0),
+            ("Studded Sole", SlotKind::Greaves, 3, 2, 0),
+            ("Scaled Plating", SlotKind::Greaves, 4, 2, 0),
+            ("Anchor Material", SlotKind::Greaves, 1, 2, 0),
+            ("Zealot's Sole", SlotKind::Greaves, 0, 5, 0),
+            ("Reliquary Sole", SlotKind::Greaves, 1, 6, 0),
+            ("Reckoning Plate", SlotKind::Greaves, 3, 6, 0),
         ],
         gear_offset: 0,
         bounty: 251,
         sprite: MonsterSprite::Gearwright,
         rank: Rank::Ordinary,
         drops: &[],
-        items: &[5, 4, 3, 4],
+        items: &[5, 4, 3, 4, 4, 3, 3],
     },
     MonsterSpec {
         name: "Rimefather",

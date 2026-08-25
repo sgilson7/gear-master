@@ -686,8 +686,21 @@ fn every_monsters_gear_still_assembles_at_every_setting() {
             let (reg, loadout) = spec.loadout_at(d);
             for kind in gearmaster_engine::piece::SlotKind::ALL {
                 for item in loadout.report(&reg, kind).items {
+                    // Gear that is better in bits is allowed to stay in bits.
+                    // A piece gated on `When::NotAssembled` - the Vast
+                    // Tapestry's +550 health while it stays loose - is doing
+                    // its whole job unfinished, and an enchantment can never
+                    // finish because no recipe names its kind. Same rule as
+                    // `MonsterSpec::unassembled`.
+                    let on_purpose = item.pieces.iter().all(|&p| {
+                        let def = reg.def(p);
+                        def.kind.is_enchantment()
+                            || def.effect.as_ref().is_some_and(|e| {
+                                matches!(e.when, gearmaster_engine::piece::When::NotAssembled)
+                            })
+                    });
                     assert!(
-                        item.assembled,
+                        item.assembled || on_purpose,
                         "{} at {:?}: {} {}",
                         spec.name,
                         d,
