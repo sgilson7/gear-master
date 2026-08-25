@@ -19,6 +19,7 @@ catalogue work is not. `HANDOFF.md` says what is left.
 cargo test -p gearmaster-engine          # the whole safety net (~27 suites)
 cargo run  -p gearmaster-cli             # headless REPL: play the real game in a terminal
 cargo run  -p gearmaster-gui             # macroquad GUI (native window)
+make pack                                # board packer: dress creatures by hand
 # docs/ holds the published wasm web build (index.html + gearmaster.wasm)
 ```
 
@@ -29,7 +30,8 @@ CLI REPL verbs (the same engine the GUI drives): `help`, `show [slot]`, `inv`,
 that is not a convenience, it is the design contract.
 
 **Workspace:** `crates/engine` (all rules, no graphics), `crates/cli`,
-`crates/gui`. `design/` holds living design documents — and the repo's stated
+`crates/gui`, `crates/packer` (a local tool that edits creature boards and
+writes them back into `combat.rs`; never deployed). `design/` holds living design documents — and the repo's stated
 rule is *"code follows this document, not the other way round — when they
 disagree, this is the bug report"* (`design/branching-events.md`).
 

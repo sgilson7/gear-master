@@ -8,6 +8,7 @@
 CARGO ?= cargo
 GUI   := gearmaster-gui
 CLI   := gearmaster-cli
+PACKER := gearmaster-packer
 
 # Absolute path to this directory, so `make install`'s launcher works from
 # anywhere the user happens to be.
@@ -17,7 +18,7 @@ BINDIR := $(PREFIX)/bin
 BIN    := $(BINDIR)/gearmaster
 
 .DEFAULT_GOAL := gearmaster
-.PHONY: gearmaster play run release geared cli test build check clean help install uninstall \
+.PHONY: gearmaster play run release geared cli pack test build check clean help install uninstall \
         package package-macos package-windows package-web web serve publish icon
 
 ## gearmaster: build if needed, then play
@@ -34,6 +35,10 @@ release:
 ## geared: play with every slot pre-filled, to skip straight to a fight
 geared:
 	@GEARMASTER_PRESET=1 $(CARGO) run -p $(GUI)
+
+## pack: open the board packer, to dress creatures by hand
+pack:
+	@$(CARGO) run -p $(PACKER)
 
 ## cli: play headlessly in the terminal
 cli:
