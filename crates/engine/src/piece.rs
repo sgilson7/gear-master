@@ -1103,6 +1103,19 @@ impl PieceRegistry {
 // Plain Rust data. Every slot below is buildable from the starting inventory,
 // and exactly one piece per slot carries an adjacency bonus.
 
+/// How hard a reaction is to set off decides how much it pays.
+///
+/// Reaction damage was one to seven, against a weapon swing of twenty to forty,
+/// on a slot whose entire identity is answering. Two physical on an adjacent
+/// activation is not a mechanic, it is a rounding error, and gloves were
+/// carrying forty-seven reaction triggers' worth of it.
+///
+/// Scaled against `rating::watched_per_s`, which already models how often each
+/// trigger fires on a real board: aligned 0.3, adjacent 0.2, diagonal 0.15 of
+/// the board's activations. The rarer the trigger, the larger the answer -
+/// diagonal sevenfold, adjacent fivefold, aligned fourfold, and
+/// `PerAdjacentItem` threefold because the count multiplies it again. Capped at
+/// twenty-six so the top of the range answers a swing rather than replacing it.
 pub static CATALOG: &[PieceDef] = &[
     // ---- Gear that is going somewhere ----
     //
@@ -1408,7 +1421,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 2, kind: DamageType::Physical, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 10, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 15,
@@ -1929,7 +1942,7 @@ pub static CATALOG: &[PieceDef] = &[
         }),
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 1, kind: DamageType::Physical, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 5, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 9,
@@ -1975,7 +1988,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 1, kind: DamageType::Magic, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 5, kind: DamageType::Magic, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 13,
@@ -1990,7 +2003,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 2, kind: DamageType::Physical, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 10, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 12,
@@ -2065,7 +2078,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 2, kind: DamageType::Physical, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 10, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 15,
@@ -2116,7 +2129,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 55,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 1, kind: DamageType::Physical, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 5, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 17,
@@ -2261,7 +2274,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 2, kind: DamageType::Magic, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 10, kind: DamageType::Magic, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 13,
@@ -3194,7 +3207,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 1, kind: DamageType::Physical, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 5, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 4,
@@ -3852,7 +3865,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[Trigger::OnAlignedActivate(Action::Damage {
-            amount: 2,
+            amount: 8,
             kind: DamageType::Magic,
             target: Target::Enemy,
         })],
@@ -4441,7 +4454,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         // Lines up with whatever shares its rows.
         triggers: &[Trigger::OnAlignedActivate(Action::Damage {
-            amount: 7,
+            amount: 26,
             kind: DamageType::Magic,
             target: Target::Enemy,
         })],
@@ -6339,7 +6352,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 2, kind: DamageType::Physical, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 10, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 12,
@@ -6399,7 +6412,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 2, kind: DamageType::Physical, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 10, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 18,
@@ -6414,7 +6427,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAlignedActivate(Action::Damage { amount: 1, kind: DamageType::Physical, target: Target::Enemy })],
+        triggers: &[Trigger::OnAlignedActivate(Action::Damage { amount: 4, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 15,
@@ -6429,7 +6442,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 2, kind: DamageType::Physical, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 10, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 16,
@@ -6444,7 +6457,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::PerAdjacentItem { action: Action::Damage { amount: 1, kind: DamageType::Physical, target: Target::Enemy }, same_slot_only: false }],
+        triggers: &[Trigger::PerAdjacentItem { action: Action::Damage { amount: 4, kind: DamageType::Physical, target: Target::Enemy }, same_slot_only: false }],
         quest: None,
         power_bonus: 0,
         price: 29,
@@ -6629,7 +6642,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 1, kind: DamageType::Magic, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 5, kind: DamageType::Magic, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 7,
@@ -6659,7 +6672,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 1, kind: DamageType::Magic, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 5, kind: DamageType::Magic, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 9,
@@ -6689,7 +6702,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 2, kind: DamageType::Magic, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 10, kind: DamageType::Magic, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 10,
@@ -6704,7 +6717,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAlignedActivate(Action::Damage { amount: 1, kind: DamageType::Physical, target: Target::Enemy })],
+        triggers: &[Trigger::OnAlignedActivate(Action::Damage { amount: 4, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 10,
@@ -6734,7 +6747,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 2, kind: DamageType::Physical, target: Target::Enemy })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 10, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 20,
@@ -7950,7 +7963,7 @@ pub static CATALOG: &[PieceDef] = &[
             Trigger::OnBattleStart(Action::Gain { what: Resource::Rage, amount: 14 }),
             // And the hand's answer on top, which is the axis it does belong to.
             Trigger::OnAdjacentActivate(Action::Damage {
-                amount: 5,
+                amount: 25,
                 kind: DamageType::Physical,
                 target: Target::Enemy,
             }),
@@ -9090,7 +9103,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         // The hands answer. The smallest possible statement of it.
         triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
-            amount: 3,
+            amount: 15,
             kind: DamageType::Physical,
             target: Target::Enemy,
         })],
@@ -9110,7 +9123,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         // Mirrorcast's answer, on the hand it belonged on.
         triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
-            amount: 7,
+            amount: 26,
             kind: DamageType::Magic,
             target: Target::Enemy,
         })],
@@ -9129,7 +9142,7 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
-            amount: 5,
+            amount: 25,
             kind: DamageType::Physical,
             target: Target::Enemy,
         })],
@@ -9150,7 +9163,7 @@ pub static CATALOG: &[PieceDef] = &[
         // Arc Lightning's jump, counted the hands' way: once for every
         // finished item standing anywhere on the five boards.
         triggers: &[Trigger::PerAdjacentItem {
-            action: Action::Damage { amount: 6, kind: DamageType::Magic, target: Target::Enemy },
+            action: Action::Damage { amount: 18, kind: DamageType::Magic, target: Target::Enemy },
             same_slot_only: false,
         }],
         quest: None,

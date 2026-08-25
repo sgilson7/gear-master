@@ -173,6 +173,36 @@ the sentence.
 
 ---
 
+## 10. Damage stats on a piece that is not a weapon do nothing
+
+`combat.rs` decides in one line who swings: *"Weapons swing; everything else
+just does its job."* A helmet, a chest, a pair of gloves or greaves activates,
+runs its triggers, and never takes a blow. Its `physical_damage` and
+`magic_damage` are read only inside the `is_weapon` branch, so on any other
+slot they are decoration.
+
+**Twenty-three components carry raw damage they can never land** - twelve
+gloves, seven chest, three greaves, one helmet - and `rating.rs` prices every
+point of it. That is a mispricing in the direction that matters: it flatters
+exactly the slots the rewrite is trying to give a real job to, so a piece can
+look like it earns its place and contribute nothing.
+
+It also has a sharper consequence on the ladder. A themed creature holds two
+slots, and four of the six themes hold no weapon at all. Such a creature's
+entire offence is its triggers. Seven of them had none that dealt damage, and
+so they stood on the road at Medium - the setting every figure in this project
+is measured at - and did nothing whatsoever. `every_monster_can_actually_hurt_you`
+did not notice because it read `simulate`, which is Easy, and Easy is the only
+setting that steps a board *down*.
+
+Both halves are fixed as far as the red went: the test now sweeps all four
+settings, and six creatures each traded one draining ring for one that answers
+a neighbour. Neither the twenty-three components nor the rating that flatters
+them has been touched.
+
+
+---
+
 ## 9. What is worth checking at the end
 
 Running list, so the last mile is not guesswork.
@@ -193,3 +223,6 @@ Running list, so the last mile is not guesswork.
   function written for creatures rather than borrowed from the shop.
 - Reflection's trigger (see 3), if the body is ever meant to matter on the clock
   as well as in health.
+- **Damage stats outside the weapon (see 10).** Twenty-three components price
+  damage they cannot deal. Either the stat should reach the slot or the rating
+  should stop paying for it, and the first is a combat change.

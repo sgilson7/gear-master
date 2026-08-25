@@ -601,17 +601,34 @@ fn every_monster_actually_assembles_its_gear() {
 
 #[test]
 fn every_monster_can_actually_hurt_you() {
-    use gearmaster_engine::combat::{simulate, Event, Side};
+    // At every setting, not just the one `simulate` happens to default to.
+    //
+    // This read Easy alone, which is the only difficulty that steps a
+    // creature's gear *down*, and so it was watching the one setting where a
+    // board is least likely to be exactly as authored. Seven creatures were
+    // landing nothing at all on Medium - the setting every balance figure in
+    // the project is measured at - and nothing said so.
+    //
+    // They are the two-slot themed boards that carry no weapon. "Weapons
+    // swing; everything else just does its job", so a Drainer's or a Wall's
+    // whole offence is its triggers, and a ring that drains rather than
+    // damages leaves the creature with nothing to do but stand there. The six
+    // that needed it now each carry one ring that answers a neighbour.
+    use gearmaster_engine::combat::{simulate_at, Difficulty, Event, Side};
     use gearmaster_engine::stats::Stats;
-    for m in LADDER {
-        // A punching bag with plenty of health and no offence of its own.
-        let log = simulate(Stats::new(100_000, 0, 0, 100), &[], m);
-        let hurt = log.entries.iter().any(|e| {
-            matches!(e.event, Event::Hit { by: Side::Enemy, .. })
-                || matches!(e.event, Event::MindHit { by: Side::Enemy, .. })
-                || matches!(e.event, Event::Burn { side: Side::Player, .. })
-        });
-        assert!(hurt, "{} never lands anything", m.name);
+    for difficulty in
+        [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard, Difficulty::Insane]
+    {
+        for m in LADDER {
+            // A punching bag with plenty of health and no offence of its own.
+            let log = simulate_at(Stats::new(100_000, 0, 0, 100), &[], m, difficulty);
+            let hurt = log.entries.iter().any(|e| {
+                matches!(e.event, Event::Hit { by: Side::Enemy, .. })
+                    || matches!(e.event, Event::MindHit { by: Side::Enemy, .. })
+                    || matches!(e.event, Event::Burn { side: Side::Player, .. })
+            });
+            assert!(hurt, "{} never lands anything on {difficulty:?}", m.name);
+        }
     }
 }
 

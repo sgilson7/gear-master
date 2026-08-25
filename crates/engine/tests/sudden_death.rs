@@ -109,12 +109,21 @@ fn going_down_together_goes_to_whoever_was_further_up() {
     // The player wins a dead heat, and loses when the other side was ahead.
     // Driven through whole fights rather than constructed, because what is
     // under test is `check_down`'s reading of a real simultaneous knockout.
-    let run = the_winning_board(Difficulty::Insane);
+    // Swept across all four settings rather than pinned to one. A dead heat is
+    // a coincidence of arithmetic - it needs the two boards to cross zero in
+    // the same 50ms step - so which fight produces one moves whenever the
+    // catalogue moves. Pinning Insane meant the test stopped exercising
+    // `check_down` at all the moment a single ring changed price. Sweeping
+    // checks strictly more fights and keeps the canary honest.
+    let mut both_down = 0;
+    for difficulty in
+        [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard, Difficulty::Insane]
+    {
+    let run = the_winning_board(difficulty);
     let (stats, items) = (run.player_stats(), run.combat_items());
 
-    let mut both_down = 0;
     for spec in LADDER.iter() {
-        let log = simulate_at(stats, &items, spec, Difficulty::Insane);
+        let log = simulate_at(stats, &items, spec, difficulty);
         let player_fell = log
             .entries
             .iter()
@@ -134,6 +143,7 @@ fn going_down_together_goes_to_whoever_was_further_up() {
             "{}: player on {player}, foe on {foe}, called {:?}",
             spec.name, log.outcome
         );
+    }
     }
     assert!(both_down > 0, "nothing in the game ever went down together; this proves nothing");
 }
