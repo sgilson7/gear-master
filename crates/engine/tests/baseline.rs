@@ -135,10 +135,25 @@ fn attribute(log: &CombatLog) -> Damage {
                 },
                 None => d.unattributed += *damage as i64,
             },
+            // Mind damage counts toward the share now, at one for one.
+            //
+            // It was tallied apart and left out, on the reading that it is not
+            // damage because it never reaches `Event::Hit`. That reading does
+            // not survive contact with what it does: it takes maximum health,
+            // permanently, and nothing heals it back - which is worth at least
+            // what a point of ordinary damage is worth, and arguably more. The
+            // same asymmetry was in `catalog_shape::conversion`, where it meant
+            // the one slot whose bleed the spec spells out could not express
+            // it; this is that bug in the other file.
+            //
+            // Still tallied separately as well, because a slot that kills by
+            // shrinking the health bar rather than emptying it is worth being
+            // able to see on its own.
             Event::MindHit { by: Side::Player, amount, .. } => {
                 if let Some(Some(s)) = acting.and_then(|i| log.player.items.get(i)).map(|i| i.slot)
                 {
                     d.mind[slot_ix(s)] += *amount as i64;
+                    d.by_slot[slot_ix(s)] += *amount as i64;
                 }
             }
             // Who lit the fire. A curse is applied by whatever last activated,

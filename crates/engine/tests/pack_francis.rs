@@ -248,7 +248,34 @@ fn ceiling() -> usize {
     (now * 2).max(now + 8).min(44)
 }
 
-fn want() -> Vec<[bool; 4]> {
+/// One fight: who won, and how long it took.
+///
+/// Outcome alone is not enough and the ladder proved it. The preset board
+/// already loses to a mid-rung creature on Insane; it still loses after a
+/// repack, so a win-and-loss table came back unchanged while the fight behind
+/// it had got materially harder - and the run that has to walk through that
+/// rung to reach an event twelve rungs later stopped arriving. A board can get
+/// much worse to fight without flipping a single bit.
+#[derive(Copy, Clone, Default, PartialEq)]
+struct Beat {
+    won: bool,
+    ms: u32,
+}
+
+impl Beat {
+    /// Near enough the same fight. Within a quarter either way, which is the
+    /// band `analysis/baseline.md` has been reading time-to-kill against since
+    /// the baseline was captured.
+    fn like(self, other: Beat) -> bool {
+        if self.won != other.won {
+            return false;
+        }
+        let (a, b) = (self.ms.max(1) as f64, other.ms.max(1) as f64);
+        (a / b).max(b / a) <= 1.25
+    }
+}
+
+fn want() -> Vec<[Beat; 4]> {
     use gearmaster_engine::combat::LADDER;
     let base = *LADDER.iter().find(|m| m.name == who()).expect("on the ladder");
     fight(base.gear, base.items)
@@ -256,7 +283,7 @@ fn want() -> Vec<[bool; 4]> {
 
 /// Fight a candidate board with both finished builds.
 fn fight(gear: &'static [(&'static str, SlotKind, u8, u8, u8)], chunks: &'static [usize])
-    -> Vec<[bool; 4]>
+    -> Vec<[Beat; 4]>
 {
     use gearmaster_engine::combat::{simulate_at, Difficulty, Outcome, LADDER};
     let base = *LADDER.iter().find(|m| m.name == who()).expect("on the ladder");
@@ -265,9 +292,10 @@ fn fight(gear: &'static [(&'static str, SlotKind, u8, u8, u8)], chunks: &'static
         .iter()
         .map(|(_, run)| {
             let (st, items) = (run.player_stats(), run.combat_items());
-            let mut row = [false; 4];
+            let mut row = [Beat::default(); 4];
             for (i, d) in Difficulty::ALL.iter().enumerate() {
-                row[i] = simulate_at(st, &items, &spec, *d).outcome == Outcome::Victory;
+                let log = simulate_at(st, &items, &spec, *d);
+                row[i] = Beat { won: log.outcome == Outcome::Victory, ms: log.duration_ms };
             }
             row
         })
@@ -321,7 +349,7 @@ fn boards() -> Vec<(&'static str, gearmaster_engine::run::Run)> {
 #[test]
 #[ignore = "generator; run with --ignored"]
 fn pack() {
-    let mut best: Option<(usize, usize, String, Vec<usize>, Vec<[bool; 4]>)> = None;
+    let mut best: Option<(usize, usize, String, Vec<usize>, Vec<[Beat; 4]>)> = None;
 
     for trial in 0..300u64 {
         let mut rng = Rng::new(0x5EED_0000 + trial);
@@ -410,7 +438,7 @@ fn pack() {
         let hits: usize = target
             .iter()
             .zip(&got)
-            .map(|(want, have)| want.iter().zip(have).filter(|(a, b)| a == b).count())
+            .map(|(want, have)| want.iter().zip(have).filter(|(a, b)| a.like(**b)).count())
             .sum();
         // Outcome first, density second: a board that fights right at seventy
         // percent is worth more than one that fights wrong at ninety.
@@ -421,11 +449,27 @@ fn pack() {
     }
 
     let (hits, total, out, chunks, got) = best.expect("something was packed");
+    // A minimum bar, not just a ranking. The search takes the best candidate it
+    // found, and "best" is not the same as "good enough": Rust Colossus came
+    // back turning seven-second fights into forty-three-second stalemates and
+    // still counted as the winner of its own trial set, because nothing closer
+    // existed. Failing here rather than printing a board means the batch runner
+    // records a skip and leaves the creature exactly as it was, which is the
+    // right answer for any board this search cannot match.
+    let needed = want().len() * 4;
+    assert!(
+        hits == needed,
+        "no candidate matched the fight this creature already gives: {hits}/{needed} \
+         beats within a quarter. Leaving it alone.",
+    );
     let cap = SLOT_W as usize * SLOT_H as usize * 5;
     println!("BEST {total}/{cap} cells ({:.0}%), {hits}/8 outcomes on target", 100.0 * total as f32 / cap as f32);
     for (want, have) in want().iter().zip(&got) {
-        let show = |r: &[bool; 4]| {
-            r.iter().map(|w| if *w { "W" } else { "L" }).collect::<Vec<_>>().join("")
+        let show = |r: &[Beat; 4]| {
+            r.iter()
+                .map(|b| format!("{}{:.1}s", if b.won { "W" } else { "L" }, b.ms as f64 / 1000.0))
+                .collect::<Vec<_>>()
+                .join(" ")
         };
         println!("  board want {} got {}", show(want), show(have));
     }
