@@ -247,7 +247,7 @@ const RULES: &[Rule] = &[
         carries: |d| matches!(d.kind, PieceKind::Ink | PieceKind::Spell | PieceKind::Alignment
             | PieceKind::Book | PieceKind::Orb) },
     Rule { what: "GainForking", home: SlotKind::Weapon, level: Level::Only, shared_with: &[],
-        budget: 5, target: 0, carries: |d| does(d, |a| matches!(a, Action::GainForking(_))) },
+        budget: 4, target: 0, carries: |d| does(d, |a| matches!(a, Action::GainForking(_))) },
     Rule { what: "OnOtherCast", home: SlotKind::Weapon, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnOtherCast(_))) },
     Rule { what: "PerAdjacentEmpty", home: SlotKind::Weapon, level: Level::Only, shared_with: &[],
@@ -284,7 +284,7 @@ const RULES: &[Rule] = &[
     Rule { what: "reflect", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| d.base.reflect != 0 },
     Rule { what: "harden", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
-        budget: 5, target: 0,
+        budget: 2, target: 0,
         carries: |d| d.base.physical_harden != 0 || d.base.magic_harden != 0 },
     Rule { what: "health above 15", home: SlotKind::Chest, level: Level::Mostly(70),
         shared_with: &[], budget: 0, target: 0, carries: |d| d.base.health > 15 },
@@ -308,9 +308,9 @@ const RULES: &[Rule] = &[
     // Greaves - Tempo. Who moves, how often, and first. The weapon keeps its
     // own cadence tools; everything else gives them up.
     Rule { what: "OnBattleStart", home: SlotKind::Greaves, level: Level::Only, shared_with: &[],
-        budget: 7, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnBattleStart(_))) },
+        budget: 6, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnBattleStart(_))) },
     Rule { what: "speed_bonus outside the weapon", home: SlotKind::Greaves, level: Level::Only,
-        shared_with: &[SlotKind::Weapon], budget: 10, target: 0, carries: |d| d.speed_bonus != 0 },
+        shared_with: &[SlotKind::Weapon], budget: 8, target: 0, carries: |d| d.speed_bonus != 0 },
     // Gloves share this one. The bleed cycle has the hands bleeding into the
     // feet, and §3.4 names the piece that does it: a reaction whose payout is
     // tempo. Barring gloves outright made the slot's own designed bleed
@@ -324,7 +324,7 @@ const RULES: &[Rule] = &[
         shared_with: &[SlotKind::Greaves], budget: 0, target: 0,
         carries: |d| d.kind.is_underlay() },
     Rule { what: "frost, stun and misfire", home: SlotKind::Greaves, level: Level::Mostly(70),
-        shared_with: &[], budget: 4, target: 0,
+        shared_with: &[], budget: 3, target: 0,
         carries: |d| does(d, |a| matches!(a, Action::Curse {
             kind: CurseKind::Frost | CurseKind::Stun | CurseKind::Misfire, .. })) },
 ];
@@ -420,7 +420,7 @@ const EVENTUAL_FILLER_PCT: usize = 15;
 /// figure in the commit that earns it; never raise one.
 const QUOTA_BUDGETS: &[(SlotKind, &str, usize)] = &[
     (SlotKind::Helmet, "expresses its own axis", 0),
-    (SlotKind::Helmet, "expresses its bleed axis", 3),
+    (SlotKind::Helmet, "expresses its bleed axis", 1),
     (SlotKind::Helmet, "plain flat-stat filler", 0),
     (SlotKind::Helmet, "the dearest third interacts", 0),
     (SlotKind::Chest, "expresses its own axis", 0),
@@ -506,10 +506,11 @@ fn identity_carriers() -> Vec<(&'static str, &'static str)> {
 }
 
 /// Pieces of a floating kind carrying something the table calls an identity
-/// mechanic. It was forty-three; the greaves sweep took six of them, and what
-/// is left is mostly `health above 15` on a Material or Plating, which the
-/// chest sweep takes. The rest go as their mechanic finds its home.
-const FLOATING_CARRIER_BUDGET: usize = 17;
+/// mechanic. It was forty-three, and it is none - which is what makes the rest
+/// of the table a claim about the board rather than about the source. Keep it
+/// at zero: a Material or a Plating may carry stats, pools, resistances and
+/// `Watch`, and nothing that belongs to a slot.
+const FLOATING_CARRIER_BUDGET: usize = 0;
 
 /// §10.2 as written: rarity buys interestingness. Exactly four non-weapon
 /// pieces are epic or better - two helmets, one chest, one greave - and today

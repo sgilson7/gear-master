@@ -246,7 +246,7 @@ const MEMBERSHIP: &[(&str, &[(SlotKind, &str)])] = &[
     ("owner", &[
         (SlotKind::Helmet, "Aegis Crown + Warding Plate"),
         (SlotKind::Helmet, "Bone Frame + Crown of the Deep + Layered Plating"),
-        (SlotKind::Helmet, "Eighth Ray Crown + Heartwood Crest + Swiftplate"),
+        (SlotKind::Helmet, "Eighth Ray Crown + Heartwood Crest + Reckoning Plate"),
         (SlotKind::Chest, "Adamant Base + Seedbed Layer"),
         (SlotKind::Chest, "Deep Roots Base + Emberplate + Runic Weave + Scale Layer"),
         (SlotKind::Chest, "Riveted Layer + Runed Lining + Wellspring Base"),
@@ -293,7 +293,7 @@ const MEMBERSHIP: &[(&str, &[(SlotKind, &str)])] = &[
         (SlotKind::Gloves, "Deft Mold + Mage's Sandals + Signet of Iron"),
         (SlotKind::Gloves, "Plaguewalkers + Spiked Vambrace"),
         (SlotKind::Greaves, "Greave Mold + Rootbound Material"),
-        (SlotKind::Greaves, "Leather Material + Stormstep Mold + Swiftplate"),
+        (SlotKind::Greaves, "Leather Material + Reckoning Plate + Stormstep Mold"),
         (SlotKind::Greaves, "Pilgrim's Sole + Witch's Claw"),
         (SlotKind::Greaves, "Rootbound Material + Stumblefoot Mold"),
         (SlotKind::Weapon, "Balance Weight + Bulwark Vial + Cull + Iron Blade + Oak Handle"),

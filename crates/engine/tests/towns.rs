@@ -154,8 +154,13 @@ fn the_ticket_eats_exactly_half_of_what_they_swing() {
     let ticket = *CLASSES.iter().find(|c| c.name == "Ticket to Ride").expect("authored");
     let (stats, items) = (run.player_stats(), run.combat_items());
 
+    // The whole ladder, not the first twenty. A fight has to last four swings
+    // before the halving is visible, and the board this is measured on keeps
+    // getting better at ending the early rungs before that - which read as
+    // "the rule stopped working" when it only meant the sample had gone. The
+    // deep rungs are where the long fights are.
     let mut checked = 0;
-    for spec in LADDER.iter().take(20) {
+    for spec in LADDER.iter() {
         let log = gearmaster_engine::combat::simulate_with_class(
             stats,
             &items,

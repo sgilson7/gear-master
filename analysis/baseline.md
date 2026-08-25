@@ -1068,3 +1068,47 @@ Criterion 1 moved the wrong way by a point, which is what taking stats off a
 slot does to a share measured in damage. It is M7's problem and the levers for
 it are still untouched.
 
+---
+
+## Drift — the floating carriers, and criterion 1 lands
+
+Forty-three pieces of a floating kind carried an identity mechanic when the
+ratchet was written. It is **zero**. `PieceDef::fits` lets a Material into the
+gloves and greaves grids and a Plating into the helmet and greaves grids, so
+until this held, every "greaves-exclusive" line in the table was a claim about
+where a piece was *written*, not where it can sit.
+
+Fifteen pieces changed. Five gloves Materials traded base health for armour and
+regeneration; three Platings traded hardening for resistance; every curse came
+off a floating kind, because all four curses belong to a slot; and three pieces
+that had nothing left took a `Watch` instead, which belongs to nobody.
+
+One rename. `Swiftplate` was forty-five percent haste and an empty stat line,
+and haste outside the weapon is the feet's - a promise a Plating cannot keep. It
+is **Reckoning Plate** now: it counts the board and settles every sixth
+activation. Propagated through `combat.rs` (7 boards), `theme.rs`,
+`decode_build.rs` (2 membership rows).
+
+Eleven rules unmet, from twenty-eight.
+
+### Criterion 1
+
+| build | cleared | weapon share | median ttk |
+|---|---|---|---|
+| starter | 3/50 | 100.0% | 45.00s |
+| preset | 9/50 | 100.0% | 7.50s |
+| **owner** | **50/50** | **75.1%** | 10.15s |
+| friend | 49/50 | 98.0% | 7.75s |
+
+**75.1% is inside the 66-76% band.** It was 86.0% when this pass began and
+81.4% one commit ago. The move came from arming the floating kinds: a piece
+that answers the board deals damage the attribution can see, where the base
+`physical_damage` and `magic_damage` those pieces used to carry never landed at
+all outside a weapon (see second-order 10). The owner's board also clears the
+whole ladder for the first time.
+
+Criterion 4 holds. Criterion 2 is unchanged and unchanged in character: helmet,
+gloves and weapon cost 19-100% of TTK on the owner's board, chest and greaves
+cost 0-12% of TTK and 18-44% of the health left, which is the reading that
+matches what those two slots do.
+

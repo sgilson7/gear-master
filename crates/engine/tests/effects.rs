@@ -483,10 +483,15 @@ fn a_prepared_item_is_already_holding_something_on_the_first_tick() {
     use gearmaster_engine::piece::SlotKind;
     use gearmaster_engine::run::Run;
 
+    // Read on mana rather than armour. This was a helmet Plating bracing with
+    // armour, and opening the fight is the feet's - a Plating floats into the
+    // greaves grid and back out, so it could not keep the promise. The doc
+    // above says armour *and all four pools*, so the same claim reads on a pool
+    // just as well, and this fixture is where the mechanic actually lives.
     let mut run = Run::with_all_pieces();
-    equip(&mut run, "Steel Frame", SlotKind::Helmet, 0, 0);
-    equip(&mut run, "Braced Plating", SlotKind::Helmet, 0, 2);
-    assert_eq!(run.report(SlotKind::Helmet).assembled_count(), 1, "the fixture must assemble");
+    equip(&mut run, "Pathfinder Material", SlotKind::Greaves, 0, 0);
+    equip(&mut run, "Standing Start", SlotKind::Greaves, 0, 1);
+    assert_eq!(run.report(SlotKind::Greaves).assembled_count(), 1, "the fixture must assemble");
 
     let profiles = run.combat_items();
     let mut stats = run.player_stats();
@@ -494,13 +499,13 @@ fn a_prepared_item_is_already_holding_something_on_the_first_tick() {
     let foe = LADDER.iter().find(|m| m.name == "Cave Rat").unwrap();
     let log = simulate(stats, &profiles, foe);
 
-    // The armour is there before anything has had a turn.
+    // The mana is there before anything has had a turn.
     let first = log
         .entries
         .iter()
-        .find(|e| matches!(e.event, Event::GainArmor { side: Side::Player, .. }))
-        .expect("the plating should have braced");
-    assert_eq!(first.at_ms, 0, "it braces before the clock starts, not on a cooldown");
+        .find(|e| matches!(e.event, Event::GainMana { side: Side::Player, .. }))
+        .expect("the sole should have opened holding something");
+    assert_eq!(first.at_ms, 0, "it opens before the clock starts, not on a cooldown");
 }
 
 /// It fires once, not once a second - otherwise it is just a fast cooldown

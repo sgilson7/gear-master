@@ -11,8 +11,12 @@ use gearmaster_engine::combat::{
 use gearmaster_engine::run::{Mode, Run};
 
 fn the_winning_board(difficulty: Difficulty) -> Run {
-    let shared = gearmaster_engine::share::import(gearmaster_engine::share::A_WINNING_RUN)
-        .expect("the winning code still reads");
+    a_board(gearmaster_engine::share::A_WINNING_RUN, difficulty)
+}
+
+/// Any shared board, rebuilt at a setting.
+fn a_board(code: &str, difficulty: Difficulty) -> Run {
+    let shared = gearmaster_engine::share::import(code).expect("the code still reads");
     let mut run = Run::new();
     run.difficulty = difficulty;
     run.mode = Mode::Grinder;
@@ -109,17 +113,23 @@ fn going_down_together_goes_to_whoever_was_further_up() {
     // The player wins a dead heat, and loses when the other side was ahead.
     // Driven through whole fights rather than constructed, because what is
     // under test is `check_down`'s reading of a real simultaneous knockout.
-    // Swept across all four settings rather than pinned to one. A dead heat is
-    // a coincidence of arithmetic - it needs the two boards to cross zero in
+    // Every board the project keeps a code for, at every setting. A dead heat
+    // is a coincidence of arithmetic - it needs the two sides to cross zero in
     // the same 50ms step - so which fight produces one moves whenever the
-    // catalogue moves. Pinning Insane meant the test stopped exercising
-    // `check_down` at all the moment a single ring changed price. Sweeping
-    // checks strictly more fights and keeps the canary honest.
+    // catalogue moves. Pinned to one board at one setting, this stopped
+    // exercising `check_down` at all the moment a single ring changed price.
+    // Sweeping checks strictly more fights than any narrower version, and the
+    // count below says how many it actually found.
     let mut both_down = 0;
+    for code in [
+        gearmaster_engine::share::A_WINNING_RUN,
+        gearmaster_engine::share::A_FRIENDS_RUN,
+        gearmaster_engine::share::A_PERFECT_RUN,
+    ] {
     for difficulty in
         [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard, Difficulty::Insane]
     {
-    let run = the_winning_board(difficulty);
+    let run = a_board(code, difficulty);
     let (stats, items) = (run.player_stats(), run.combat_items());
 
     for spec in LADDER.iter() {
@@ -143,6 +153,7 @@ fn going_down_together_goes_to_whoever_was_further_up() {
             "{}: player on {player}, foe on {foe}, called {:?}",
             spec.name, log.outcome
         );
+    }
     }
     }
     assert!(both_down > 0, "nothing in the game ever went down together; this proves nothing");

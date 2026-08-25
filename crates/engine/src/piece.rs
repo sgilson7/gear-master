@@ -1431,7 +1431,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Material,
         cells: &[(0,0),(1,0),(0,1),(1,1)],
-        base: Stats { physical_resist: 20, physical_harden: 25, ..Stats::ZERO },
+        base: Stats { physical_resist: 34, armor: 12, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 3400,
@@ -2090,16 +2090,25 @@ pub static CATALOG: &[PieceDef] = &[
     // other four - and, since a build that outruns you had no answer, so do
     // the things that slow gear down and blunt a heavy hit.
     PieceDef {
-        name: "Swiftplate",
+        name: "Reckoning Plate",
         slot: SlotKind::Helmet,
         kind: PieceKind::Plating,
         cells: &[(0,0),(1,0),(0,1)],
-        base: Stats::ZERO,
+        base: Stats { armor: 20, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
-        speed_bonus: 45,
-        triggers: &[],
+        speed_bonus: 0,
+        // It was forty-five percent haste and nothing else, and haste outside
+        // the weapon is the feet's - which a Plating cannot promise, since
+        // it floats into the greaves grid and out again. So it keeps a
+        // reckoning of the board instead and settles it every sixth time.
+        triggers: &[Trigger::Watch {
+            what: Watched::AnyActivation,
+            count: 6,
+            then: Action::Damage { amount: 34, kind: DamageType::Magic, target: Target::Enemy },
+            repeats: true,
+        }],
         quest: None,
         power_bonus: 0,
         price: 16,
@@ -2321,7 +2330,13 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 2800,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Curse { kind: CurseKind::Searing, target: Target::Enemy })],
+        // Searing is the weapon's, and this is a Material. The plague still
+        // walks; it just arrives all at once.
+        triggers: &[Trigger::OnActivate(Action::Damage {
+            amount: 14,
+            kind: DamageType::Magic,
+            target: Target::Enemy,
+        })],
         quest: None,
         power_bonus: 0,
         price: 19,
@@ -3668,8 +3683,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 3000,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Curse {
-            kind: CurseKind::Frost,
+        // Every curse in the game belongs to a slot - searing to the
+        // weapon, the other three to the feet - so no floating kind may
+        // carry one. A claw can simply cut instead.
+        triggers: &[Trigger::OnActivate(Action::Damage {
+            amount: 16,
+            kind: DamageType::Physical,
             target: Target::Enemy,
         })],
         quest: None,
@@ -4224,7 +4243,7 @@ pub static CATALOG: &[PieceDef] = &[
         speed_bonus: 0,
         triggers: &[Trigger::SpendMana {
             cost: 3,
-            on_success: Action::GainEmpowerment(1),
+            on_success: Action::Damage { amount: 30, kind: DamageType::Magic, target: Target::Enemy },
             on_failure: Action::GainArmor(8),
         }],
         quest: None,
@@ -5639,7 +5658,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Helmet,
         kind: PieceKind::Plating,
         cells: &[(0,0),(1,0),(0,1),(1,1)],
-        base: Stats { armor: 24, physical_harden: 18, ..Stats::ZERO },
+        base: Stats { armor: 24, physical_resist: 18, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -5654,7 +5673,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Helmet,
         kind: PieceKind::Plating,
         cells: &[(0,0),(0,1),(0,2)],
-        base: Stats { armor: 13, magic_harden: 20, ..Stats::ZERO },
+        base: Stats { armor: 13, magic_resist: 20, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -6162,7 +6181,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Material,
         cells: &[(0,0),(1,0),(0,1),(1,1)],
-        base: Stats { health: 50, strength: 1, ..Stats::ZERO },
+        base: Stats { armor: 10, regen: 4, strength: 1, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 3200,
@@ -6177,7 +6196,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Material,
         cells: &[(0,0),(1,0),(0,1),(1,1)],
-        base: Stats { health: 90, strength: 3, ..Stats::ZERO },
+        base: Stats { armor: 18, regen: 7, strength: 3, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 3200,
@@ -6192,7 +6211,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Material,
         cells: &[(0,0),(1,0),(0,1),(1,1)],
-        base: Stats { health: 130, strength: 5, physical_resist: 8, ..Stats::ZERO },
+        base: Stats { armor: 26, regen: 10, strength: 5, physical_resist: 8, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 3200,
@@ -6287,10 +6306,12 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 3200,
         speed_bonus: 0,
-        // Dusk: they can no longer quite see what they are doing.
+        // Dusk fell in the shape of a misfire, which is the feet's curse and
+        // not a Material's to carry. What is left of the idea is that it
+        // costs mana and it lands in the dark.
         triggers: &[Trigger::SpendMana {
             cost: 3,
-            on_success: Action::Curse { kind: CurseKind::Misfire, target: Target::Enemy },
+            on_success: Action::Damage { amount: 24, kind: DamageType::Magic, target: Target::Enemy },
             on_failure: Action::GainMana(1),
         }],
         quest: None,
@@ -7578,7 +7599,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Material,
         cells: &[(0,0),(1,0),(0,1),(1,1)],
-        base: Stats { rage: 2, ..Stats::health(35) },
+        base: Stats { rage: 2, armor: 7, regen: 3, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -7828,7 +7849,7 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Greaves,
         kind: PieceKind::Material,
         cells: &[(0,0),(1,0),(0,1),(1,1),(0,2),(1,2)],
-        base: Stats { health: 1200, armor: 60, physical_resist: 34, magic_resist: 34, ..Stats::ZERO },
+        base: Stats { armor: 60, regen: 80, physical_resist: 34, magic_resist: 34, ..Stats::ZERO },
         adjacency: Some(Adjacency {
             // A Material floats between gloves and greaves, so it may not
             // carry an identity mechanic - `ReduceCooldown` is the feet's and
@@ -7920,12 +7941,15 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Helmet,
         kind: PieceKind::Plating,
         cells: &[(0,0),(1,0),(0,1),(1,1)],
-        base: Stats { mana: 1, armor: 13, ..Stats::ZERO },
+        base: Stats { mana: 1, armor: 40, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnBattleStart(Action::GainArmor(90))],
+        // It braced once, at the bell. Opening the fight is the feet's, and
+        // a Plating floats into their grid - so it braces on the clock
+        // instead, and carries more of the slab to begin with.
+        triggers: &[Trigger::OnActivate(Action::GainArmor(20))],
         quest: None,
         power_bonus: 0,
         price: 30,
@@ -8565,12 +8589,21 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Material,
         cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
-        base: Stats { health: 120, mana: 10, ..Stats::ZERO },
+        base: Stats { armor: 24, regen: 10, mana: 10, curse_resist: 12, ..Stats::ZERO },
         adjacency: None,
         effect: None,
         cooldown_ms: 2000,
-        speed_bonus: 30,
-        triggers: &[Trigger::OnActivate(Action::GainForking(1))],
+        speed_bonus: 0,
+        // It keeps a tally and the tally comes due. Forking and haste are
+        // both spoken for - one the weapon's, one the feet's - and a
+        // Material may not carry either wherever it is sitting. Counting
+        // is nobody's, and it is the thing the name was always about.
+        triggers: &[Trigger::Watch {
+            what: Watched::AnyActivation,
+            count: 6,
+            then: Action::Damage { amount: 40, kind: DamageType::Physical, target: Target::Enemy },
+            repeats: true,
+        }],
         quest: None,
         power_bonus: 0,
         price: 500,

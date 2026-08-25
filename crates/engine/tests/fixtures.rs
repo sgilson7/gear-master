@@ -95,7 +95,6 @@ impl Needs {
 /// bound for is named too — those rows are the ones expected to go.
 const LEANED_ON: &[(&str, &str, Needs, &str)] = &[
     ("Vigil Crest", "drains", Needs::OpensTheFight, "greaves"),
-    ("Braced Plating", "effects::a_prepared_item_only_opens_once", Needs::OpensTheFight, "greaves"),
     ("Opening Grudge", "effects::a_prepared_item_only_opens_once", Needs::OpensTheFight, "greaves"),
     ("Twinning Mold", "effects", Needs::Forks, "weapon"),
     ("Hermit's Band", "effects", Needs::CarriesRealHealth, "chest"),
