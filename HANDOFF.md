@@ -11,7 +11,7 @@ rather than trusting the line above each one.
   serves `docs/` from `main`.
 - **`phase-2`** is the working branch and is not merged. Everything below lands
   there; `main` is touched once, at the end.
-- Suite: **537 tests, green, no warnings.** `cargo test -p gearmaster-engine`.
+- Suite: **538 tests, green, no warnings.** `cargo test -p gearmaster-engine`.
 
 ## 2. What the rewrite was for
 
@@ -49,23 +49,34 @@ The engine half. The catalogue half is the larger one and is not.
 - **`tests/fixtures.rs`** — a manifest of the tests that name a piece as their
   example of a mechanic, so a sweep fails there rather than downstream.
 - **Documents reconciled** and every harness figure retaken at Medium on boards
-  that assemble correctly (`analysis/baseline.md`, last entry). Underlays are
-  town stock now: ground is bought where somebody has a floor to sell.
+  that assemble correctly (`analysis/baseline.md`). Underlays are town stock now:
+  ground is bought where somebody has a floor to sell.
+- **M0 and M1 of §4 are done.** The spec lives in `design/` with ten dated
+  amendments, `CLAUDE.md` matches the code, and there is one way to rebuild a
+  shared board.
 
 ## 4. What is left, in order
 
 Nine milestones. Each ends green, with its numbers written into
 `analysis/baseline.md`.
 
-**M1 — One way to rebuild a board.** `Shared::loadout` locks each item as it
-assembles; three test-side reconstructions still hand-roll `run.equip` in a loop
-and reproduce the fault it fixed — `towns.rs:36` (17 tests), `francis.rs:22`,
-`pack_francis.rs:575`. Route them all through one helper. Then pin item
-*membership* by name rather than counts, and add `debt_is_a_debt` to
-`fixtures.rs`. Until this lands, every figure taken through those three is taken
-on a board nobody built.
+**M1 — One way to rebuild a board. Done.** All three reconstructions go through
+`common::board_from`, which is `Shared::loadout` and nothing else.
+`decode_build::the_boards_come_back_holding_exactly_these_items` pins all
+fifty-one items across the three shared boards by member name, and
+`debt_is_a_debt_and_takes_real_time_to_pay_off` no longer depends on two runs
+firing the same items.
 
-**M2 — Clear the road for the repack.** Six tests refuse a themed board by
+**Open question it raised.** The friend's board beats Francis on **Hard** once it
+assembles properly — in 17.1s, against the 9.5s the repack was written to fix.
+`francis.rs` pinned that setting as a defeat, measured on a board holding twelve
+items instead of seventeen, and is now pinned by the clock instead. Whether the
+final boss should stop the best board in the project at Hard rather than at
+Insane is a design decision. Settling it means repacking him against the
+corrected curve, deliberately, and `design/monster-themes.md` §3 otherwise says
+to leave him alone.
+
+**M2 — Clear the road for the repack.** *Next.* Six tests refuse a themed board by
 construction and the packer cannot address `ALTERNATES` at all. Decide each once,
 here, rather than discovering them three boards into a batch: the five-slot
 requirement in `progression::the_named_fights_pack_their_boards`, the overkill
@@ -117,11 +128,11 @@ nearly everything touches everything; deriving items in one pass at the end
 merges whole grids. The owner's 19 weapon pieces came back as **one** item; the
 perfect run's 11 came back as **none**.
 
-Fixed in `share.rs` and in `pack_francis.rs`. **Not** fixed in the three
-reconstructions M1 names, which is why M1 is first. Consequence: every drift
-figure in `analysis/baseline.md` before the correction entry **understates the
-weapon**, and anything measured through `towns.rs`, `francis.rs` or
-`pack_francis.rs`'s reference boards still does.
+Fixed in `share.rs`, in `pack_francis.rs`, and — as of M1 — in the three
+reconstructions that hand-rolled it. What survives: every drift figure in
+`analysis/baseline.md` before the correction entry **understates the weapon**,
+and any figure quoted from `towns.rs` or `francis.rs` before M1 was taken on a
+board nobody built.
 
 **The repack's own gate is calibrated on that fault.** `design/monster-themes.md`
 §6 sets `target(rung) = 2.8s + 0.4s × rung`, ±30%, read off the owner's board at
