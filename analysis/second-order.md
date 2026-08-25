@@ -1,0 +1,113 @@
+# Second-order effects, for after the sweep
+
+Things the catalogue rewrite has turned up that are *not* the catalogue's
+problem, and that would be a mistake to fix in the middle of it. Each one is
+real, each one has evidence, and none of them blocks the sweep.
+
+Written down as they appear rather than at the end, because the useful detail is
+what was happening when they surfaced.
+
+---
+
+## 1. Rating decides monster difficulty, and rating is a shop model
+
+`stepped_component` (`combat.rs:252`) picks a creature's gear above Medium by
+walking its footprint family in `piece_rating` order. So **every edit to a piece
+or to `rating.rs` re-gears every creature on three of the four settings.**
+
+Rating is a model of what an item is worth *in a shop*. What a monster needs is
+what wins a fight. The two are not the same thing and the gap is measurable:
+
+- Halving what `Grow` is worth - a defensible model with no fault behind it -
+  moved Grow-carrying pieces down their families, Francis's Insane step swapped
+  a damage crest for **Tithe Collector**, a drain, against a board that banks
+  nothing, and the best board in the project then lost to him on Hard and beat
+  him on **Insane**. A final boss who gets easier as the setting rises.
+- Giving `reflect` a weight - correcting a stat that had none - took two
+  unrelated tests red the same way.
+- `francis.rs` has now asked for a defeat, a victory, and a defeat again across
+  three separate corrections, none of which were about Francis.
+
+**What to do about it:** monsters want a fight-value ordering, not a shop one.
+That could be a second scoring function, or `stepped_component` could sort on
+something measured rather than modelled. Until then, `he_never_gets_easier_as_
+the_setting_rises` is the guard, and any test pinning an exact outcome against a
+named creature above Medium is pinning a coin-flip.
+
+---
+
+## 2. A sweep can empty a rule of carriers
+
+Taking `DoubleAdjacentItemStat` off Cursed Handle left the mechanic with **no
+carrier anywhere**, which makes its exclusivity rule vacuous - a rule naming
+something the catalogue no longer contains can never fail again.
+
+`every_rule_names_a_mechanic_that_exists` catches it, and it will keep catching
+it: the sweep's whole job is moving mechanics out of slots, and a mechanic with
+one carrier in the wrong slot has nowhere to go but a new piece in the right
+one. That is authoring, not sweeping, and it should be recognised as such when
+it comes up rather than treated as a blocked move.
+
+---
+
+## 3. Reflection cannot reach the criterion it was built for
+
+Reflection pays a share of what your **armour** absorbed. Armour resets to zero
+every fight, so a board that kills a rung-25 creature in twelve seconds is never
+carrying much of it: `absorbed_total` binds and the percentage does not.
+
+Arming six chest pieces the finished boards wear, at five to nine percent,
+returned a time-to-kill table that was **byte-identical**. That is the
+measurement that says the mechanic, not the tuning, is what limits it.
+
+The criterion was restated instead - the body is read in health, where it is
+worth 28-48% - and that is the right answer for the criterion. It is not an
+answer for the mechanic. If reflection is ever meant to be a damage channel
+rather than a punishment for hitting a wall, the trigger has to change: a share
+of damage *taken* rather than of damage *absorbed*.
+
+---
+
+## 4. Tests that pass for reasons unrelated to their subject
+
+Two found so far, both only exposed by moving the ladder underneath them:
+
+- `curses_in_combat::frost_slows_everything...` searched the whole ladder for a
+  fight lasting six seconds, and its three-piece fixture died before the window
+  closed on every rung. It was not measuring frost; it was measuring whether any
+  rung was slow enough to keep the fixture alive.
+- `slash_and_burn::it_reaches_a_real_fight` is documented as "a board wearing
+  the spell, with enough nature banking to feed it" and its fixture was
+  `apply_preset()`, whose twenty-one pieces carry **no searing at all**. It had
+  never once watched the spell it is named after.
+
+`fixtures.rs` exists for this and covers eleven rows. **A sweep of the whole
+suite asking "does this fixture actually carry what its test is named for" is
+worth doing**, and the sweep is the moment to do it, because a fixture that was
+passing by accident fails loudly the first time its accident stops.
+
+---
+
+## 5. A static fixture models a build, not a run
+
+The road's two tests wanted one board to grind rungs 2-9 *and* reach rung 21.
+After the burner cluster no board is both: the weapon has to come off to grind,
+and a weaponless board is stopped at 19. A player was never stuck with that
+choice - they ground the shallow end and then bought a weapon.
+
+The fixture now grinds, arms up, and walks. Every other test that walks many
+rungs with a fixed board has the same latent problem, and it only shows when the
+ladder moves.
+
+---
+
+## 6. Quota progress is not independent evidence
+
+Giving the crown and the gift something to do satisfied helmet's
+`the dearest third interacts` quota as a side effect - two of the helmet's
+dearest pieces are those two trophies. The quota went from 2 to 0 without
+anybody thinking about helmet density.
+
+That is the ratchet working, but it means a quota reaching zero is not proof the
+slot was designed at. Worth re-reading the density quotas at the end and asking
+whether they say what they were meant to say.
