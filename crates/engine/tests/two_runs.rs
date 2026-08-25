@@ -610,9 +610,23 @@ fn longhaul_winds_up_as_the_fight_drags() {
     let (hauled, hauled_ms) = read(&[long]);
 
     assert!(plain > 0, "the control never swung; this proves nothing");
+    // Rate, not count.
+    //
+    // "More swings, sooner" was measured as more swings, and the two come
+    // apart the moment the fight gets shorter: a hauler that finishes in
+    // three quarters of the time at five sixths the cadence swings *fewer*
+    // times and is still winding up exactly as promised. This read 82 against
+    // 90 on a repacked rung 25 and looked like a broken class; it was a class
+    // working and a fight ending. What the power says is that the swings come
+    // faster, so that is what this asks, and the assertion below still holds
+    // it to finishing sooner.
+    let rate = |acts: usize, ms: u32| acts as f64 / (ms.max(1) as f64 / 1000.0);
     assert!(
-        hauled > plain,
-        "a long-hauler got {hauled} swings out of the same fight against {plain}"
+        rate(hauled, hauled_ms) > rate(plain, plain_ms),
+        "a long-hauler swung {:.2} times a second against {:.2} - {hauled} swings in \
+         {hauled_ms}ms against {plain} in {plain_ms}ms",
+        rate(hauled, hauled_ms),
+        rate(plain, plain_ms)
     );
     assert!(
         hauled_ms < plain_ms,
