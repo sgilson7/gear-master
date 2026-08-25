@@ -226,3 +226,155 @@ fn a_shared_board_comes_back_as_the_items_it_was_built_from() {
         }
     }
 }
+
+/// The three shared boards, item by item, by name.
+///
+/// The floors above say a dense board must not collapse. This says what it
+/// comes back as. Counts and ladder results agreed while the reconstruction
+/// was wrong - nineteen weapon pieces coming back as one item is still one
+/// item, and one item still fights - so the only thing that could have caught
+/// it was looking at *which pieces ended up in which item*, which nothing did.
+///
+/// Written out in full rather than derived, because a derived expectation
+/// would be the same code twice and would agree with itself while both halves
+/// were wrong. This is what the boards hold; a diff here is a board coming
+/// back different, and the reason has to be found before the table is edited.
+///
+/// Regenerate with `probe_membership`.
+#[allow(clippy::type_complexity)]
+const MEMBERSHIP: &[(&str, &[(SlotKind, &str)])] = &[
+    ("owner", &[
+        (SlotKind::Helmet, "Aegis Crown + Warding Plate"),
+        (SlotKind::Helmet, "Bone Frame + Crown of the Deep + Layered Plating"),
+        (SlotKind::Helmet, "Eighth Ray Crown + Heartwood Crest + Swiftplate"),
+        (SlotKind::Chest, "Adamant Base + Seedbed Layer"),
+        (SlotKind::Chest, "Deep Roots Base + Emberplate + Runic Weave + Scale Layer"),
+        (SlotKind::Chest, "Riveted Layer + Runed Lining + Wellspring Base"),
+        (SlotKind::Gloves, "Bloomguard + Padded Mold"),
+        (SlotKind::Gloves, "Breaker's Fist + Sovereign Mold"),
+        (SlotKind::Gloves, "Channeling Mold + Henpeck's Cell Keys + Rootwoven Material"),
+        (SlotKind::Gloves, "Gripping Mold + Plaguewalkers"),
+        (SlotKind::Gloves, "Iron Band + Quickfinger Mold + Seal of Power + Spun Material"),
+        (SlotKind::Gloves, "Ring of Embers + Thornweald Grip + Wrathful Talons"),
+        (SlotKind::Greaves, "Anchor Material + Anchored Sole + Warded Plating"),
+        (SlotKind::Greaves, "Anchor Material + Plain Sole + Scaled Plating"),
+        (SlotKind::Greaves, "Mage's Sandals + Studded Sole"),
+        (SlotKind::Greaves, "Scaled Material + Striding Mold + Tin Plating"),
+        (SlotKind::Greaves, "Scrying Lens + Sevenleague Boots + Widow's Sole"),
+        (SlotKind::Weapon, "Forking Bead + Gravebound Haft + Loaded Fob + Witchglass Shard + Worldsplitter"),
+        (SlotKind::Weapon, "Iron Blade + Oak Handle + Sawtooth Edge"),
+    ]),
+    ("friend", &[
+        (SlotKind::Helmet, "Asker's Monocle + Mage's Circlet + Runed Plating"),
+        (SlotKind::Helmet, "Runed Plating + Scaled Plating + Tin Frame"),
+        (SlotKind::Helmet, "Visor of Focus + Witch's Hat"),
+        (SlotKind::Chest, "Adamant Base + Lightweave + Plate Layer + Wickstub"),
+        (SlotKind::Chest, "Becalming Layer + Quilted Base + Sigil Layer"),
+        (SlotKind::Chest, "Becalming Layer + Wellspring Base"),
+        (SlotKind::Chest, "Rimeguard Base + Seedbed Layer"),
+        (SlotKind::Gloves, "Boiled Leather + Bramble Mold"),
+        (SlotKind::Gloves, "Braced Mold + Mage's Sandals + Seal of the Grove + Tithe Ring"),
+        (SlotKind::Gloves, "Empowering Mold + Tallykeeper's Weave"),
+        (SlotKind::Gloves, "Hexer's Reckoning + Scaled Material + Seal of the Grove"),
+        (SlotKind::Greaves, "Anchor Material + Layered Plating + Tarpit Sole"),
+        (SlotKind::Greaves, "Anchored Sole + Ironthread Material"),
+        (SlotKind::Greaves, "Pilgrim's Sole + Spun Material"),
+        (SlotKind::Greaves, "Thornweald Grip + Treadmill Sole"),
+        (SlotKind::Weapon, "Blood Rite + Mirrorcast + The Seeker's Tears"),
+        (SlotKind::Weapon, "Hollow Sphere + Last Rite + Mirror Ward + Tidal Alignment"),
+    ]),
+    ("perfect", &[
+        (SlotKind::Helmet, "Bronze Frame + Runed Plating + Warlord's Crest"),
+        (SlotKind::Helmet, "Deadweight Plating + Warded Frame"),
+        (SlotKind::Chest, "Rimeguard Base + Starlit Mantle + Wrathbreaker"),
+        (SlotKind::Chest, "Sackcloth Base + Woven Underlayer"),
+        (SlotKind::Gloves, "Bloodring + Bulwark Material + Flaying Mold + Henpeck's Cell Keys"),
+        (SlotKind::Gloves, "Coven Mold + Tallykeeper's Weave"),
+        (SlotKind::Gloves, "Deft Mold + Mage's Sandals + Signet of Iron"),
+        (SlotKind::Gloves, "Plaguewalkers + Spiked Vambrace"),
+        (SlotKind::Greaves, "Greave Mold + Rootbound Material"),
+        (SlotKind::Greaves, "Leather Material + Stormstep Mold + Swiftplate"),
+        (SlotKind::Greaves, "Pilgrim's Sole + Witch's Claw"),
+        (SlotKind::Greaves, "Rootbound Material + Stumblefoot Mold"),
+        (SlotKind::Weapon, "Balance Weight + Bulwark Vial + Cull + Iron Blade + Oak Handle"),
+        (SlotKind::Weapon, "Codex Interminable + Shatterbolt + Tidewrack Ink"),
+        (SlotKind::Weapon, "Sawtooth Edge + Toolwright's Grip"),
+    ]),
+];
+
+#[test]
+fn the_boards_come_back_holding_exactly_these_items() {
+    use gearmaster_engine::share;
+    let code_for = |label: &str| match label {
+        "owner" => share::A_WINNING_RUN,
+        "friend" => share::A_FRIENDS_RUN,
+        "perfect" => share::A_PERFECT_RUN,
+        other => panic!("no code called {other}"),
+    };
+    for &(label, want) in MEMBERSHIP {
+        let sh = share::import(code_for(label)).expect("reads");
+        let (reg, lo) = sh.loadout();
+        let mut got: Vec<(SlotKind, String)> = Vec::new();
+        for k in SlotKind::ALL {
+            for i in lo.report(&reg, k).items.iter().filter(|i| i.assembled) {
+                let mut n: Vec<&str> = i.pieces.iter().map(|&p| reg.def(p).name).collect();
+                n.sort_unstable();
+                got.push((k, n.join(" + ")));
+            }
+        }
+        got.sort_by(|a, b| {
+            let ai = SlotKind::ALL.iter().position(|k| *k == a.0);
+            let bi = SlotKind::ALL.iter().position(|k| *k == b.0);
+            ai.cmp(&bi).then_with(|| a.1.cmp(&b.1))
+        });
+        let want: Vec<(SlotKind, String)> =
+            want.iter().map(|&(k, s)| (k, s.to_string())).collect();
+        for (g, w) in got.iter().zip(want.iter()) {
+            assert_eq!(g, w, "{label} came back holding a different item");
+        }
+        assert_eq!(
+            got.len(),
+            want.len(),
+            "{label} came back with {} items and was built from {}",
+            got.len(),
+            want.len()
+        );
+    }
+}
+
+/// Print `MEMBERSHIP` as it stands, for pasting back over it.
+///
+/// Regenerating is the last step of understanding why it moved, never the
+/// first.
+#[test]
+#[ignore = "generator; run with --ignored"]
+fn probe_membership() {
+    use gearmaster_engine::share;
+    for (label, code) in [
+        ("owner", share::A_WINNING_RUN),
+        ("friend", share::A_FRIENDS_RUN),
+        ("perfect", share::A_PERFECT_RUN),
+    ] {
+        println!("    (\"{label}\", &[");
+        let sh = share::import(code).expect("reads");
+        let (reg, lo) = sh.loadout();
+        for k in SlotKind::ALL {
+            let mut items: Vec<String> = lo
+                .report(&reg, k)
+                .items
+                .iter()
+                .filter(|i| i.assembled)
+                .map(|i| {
+                    let mut n: Vec<&str> = i.pieces.iter().map(|&p| reg.def(p).name).collect();
+                    n.sort_unstable();
+                    format!("\"{}\"", n.join(" + "))
+                })
+                .collect();
+            items.sort();
+            for it in items {
+                println!("        (SlotKind::{:?}, {}),", k, it);
+            }
+        }
+        println!("    ]),");
+    }
+}

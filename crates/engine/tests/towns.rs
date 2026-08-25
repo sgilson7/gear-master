@@ -11,6 +11,8 @@ use gearmaster_engine::piece::{SlotKind, CATALOG, TOWN_ONLY};
 use gearmaster_engine::run::{Mode, Run, PIETY_FOR_A_TICKET};
 use gearmaster_engine::town::{self, Action, TOWNS};
 
+mod common;
+
 /// A run standing at the gate of the first town, having won its way there.
 fn at_the_gate() -> Run {
     let mut run = Run::with_all_pieces();
@@ -34,21 +36,10 @@ fn at_the_gate() -> Run {
 /// all, so anything measured on it says "this board does nothing" rather than
 /// "this class does nothing" - which is a mistake this suite has made before.
 fn the_winning_board() -> Run {
-    let sh = gearmaster_engine::share::import(gearmaster_engine::share::A_WINNING_RUN)
-        .expect("the winning code still reads");
-    let mut run = Run::new();
-    run.difficulty = Difficulty::Medium;
-    run.mode = Mode::Grinder;
-    run.loadout.grow(sh.extra_rows);
-    for (def, slot, x, y, rot) in &sh.placed {
-        let id = run.registry.alloc(*def);
-        run.owned.push(id);
-        run.registry.set_rotation(id, *rot);
-        if run.equip(id, *slot, *x, *y).is_err() {
-            run.owned.pop();
-        }
-    }
-    run
+    // Without its classes: every test below hands it the one class it is
+    // about, and Berserker and Chronomancer on top of that would be measuring
+    // three things at once.
+    common::board_from(gearmaster_engine::share::A_WINNING_RUN)
 }
 
 fn give(run: &mut Run, name: &str) {
@@ -342,9 +333,45 @@ fn debt_is_a_debt_and_takes_real_time_to_pay_off() {
     let debt = shifts.len() as i32 * 3;
 
     assert!(owing[0].1 < 0, "{} stacks left the pool on {}, which is not a debt", shifts.len(), owing[0].1);
-    assert_eq!(owing.len(), free.len(), "the debt changed which items fired, so this compares nothing");
-    for (i, ((t, a), (_, b))) in free.iter().zip(owing.iter()).enumerate() {
-        assert_eq!(a - b, debt, "at {}ms (income {i}) the gap was {} and not {}", t, a - b, debt);
+    assert_eq!(
+        free[0].1 - owing[0].1,
+        debt,
+        "the fight opened {} short and the debt is {debt}",
+        free[0].1 - owing[0].1
+    );
+
+    // Lined up by the clock, and asking whether the debt is ever an advantage
+    // rather than whether it is a constant offset.
+    //
+    // This used to require the two runs to have exactly as many income events
+    // as each other and then assert the gap was the debt at every one of them.
+    // Both halves held while the owner's board came back holding thirteen
+    // items and neither holds now that it comes back holding nineteen. The
+    // curve records income, not spending, so what sits between two income
+    // events is everything the board paid for in between - and a board with a
+    // debt cannot always pay. A spend that fails leaves the pool *higher* than
+    // it would have been, which closes the gap without any of the debt being
+    // repaid. That is the mechanic working, not a fault, and a test that
+    // demanded a constant offset was demanding a board too poor to spend.
+    let by_ms = |c: &[(u32, i32)]| -> std::collections::BTreeMap<u32, i32> {
+        // A repeated timestamp is two incomes in one tick; the later value is
+        // the running total after both, which is the one to compare.
+        c.iter().copied().collect()
+    };
+    let (unowed, owed) = (by_ms(&free), by_ms(&owing));
+    let shared: Vec<u32> = unowed.keys().copied().filter(|t| owed.contains_key(t)).collect();
+    assert!(
+        shared.len() >= 8,
+        "the two runs share only {} moments, which compares almost nothing",
+        shared.len()
+    );
+    for t in &shared {
+        assert!(
+            owed[t] <= unowed[t],
+            "at {t}ms the indebted run held {} against {}, so owing mana paid it something",
+            owed[t],
+            unowed[t]
+        );
     }
 
     // And it is time, not just a number: the pool has to climb all the way

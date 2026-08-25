@@ -24,6 +24,8 @@ use gearmaster_engine::rating::piece_rating;
 use gearmaster_engine::rng::Rng;
 use gearmaster_engine::slot::{SLOT_H, SLOT_W};
 
+mod common;
+
 /// Which creature is being packed. Francis by default, because he is the one
 /// this search was written for and the one whose board is hardest to author.
 fn who() -> String {
@@ -563,6 +565,11 @@ fn fight(gear: &'static [(&'static str, SlotKind, u8, u8, u8)], chunks: &'static
 fn boards() -> Vec<(&'static str, gearmaster_engine::run::Run)> {
     use gearmaster_engine::run::{Mode, Run};
     use gearmaster_engine::share;
+    // The two finished boards come back through the one reconstruction there
+    // is. This function used to hand-roll the placement loop without locking
+    // as it went, which is the fault `common::board_from` exists to end - and
+    // it mattered here more than anywhere, because the curve every creature is
+    // packed against is read off the owner's board.
     // The preset first, and it is the one that matters for the early ladder.
     // Two finished ladder-clearing boards beat a rung-two creature whatever it
     // is wearing, so scoring only against them left the search free to pack
@@ -579,27 +586,7 @@ fn boards() -> Vec<(&'static str, gearmaster_engine::run::Run)> {
                 r.apply_preset();
                 return (label, r);
             }
-            let sh = share::import(code).expect("reads");
-            let mut r = Run::new();
-            r.mode = Mode::Grinder;
-            r.loadout.grow(sh.extra_rows);
-            for (d, sl, x, y, rot) in &sh.placed {
-                let id = r.registry.alloc(*d);
-                r.owned.push(id);
-                r.registry.set_rotation(id, *rot);
-                if r.equip(id, *sl, *x, *y).is_err() {
-                    r.owned.pop();
-                }
-            }
-            for c in &sh.classes {
-                if let Some(k) =
-                    gearmaster_engine::class::CLASSES.iter().find(|k| k.name == *c)
-                {
-                    r.classes.push(k);
-                }
-            }
-            r.refresh_class_effects();
-            (label, r)
+            (label, common::run_from(code))
         })
         .collect()
 }

@@ -783,3 +783,74 @@ on the greaves now; friend 0 before, 476 on the helmet now. Both boards are the
 same boards. This is the reconstruction fix showing up in a channel nobody was
 watching, and it is the clearest single illustration that figures taken before
 it are not comparable to figures taken after.
+
+---
+
+## One way to rebuild a board, and what the other three were hiding
+
+`Shared::loadout` locks each item the moment it assembles. Three tests
+hand-rolled the same placement loop without that step — `towns.rs` (seventeen
+tests stand on it), `francis.rs`, and the packer's own reference boards — so the
+fault that was fixed in `share.rs` went on running everywhere it was measured
+from. The engine never locks on its own; locking is something the player does,
+with a button. Replaying placements without replaying the locks replays half of
+what was done.
+
+All three go through `common::board_from` now. What that changed:
+
+### Francis, against the two finished boards
+
+| board | setting | rebuilt wrong | rebuilt right |
+|---|---|---|---|
+| owner | Easy | Victory 43.00s | Victory 43.00s |
+| owner | Medium | Defeat 43.00s | Defeat 43.00s |
+| owner | Hard | Defeat 40.00s | Defeat **32.00s** |
+| owner | Insane | Defeat 39.00s | Defeat **27.75s** |
+| friend | Easy | Victory 14.00s | Victory **9.50s** |
+| friend | Medium | Victory 11.40s | Victory **9.50s** |
+| friend | Hard | **Defeat 8.35s** | **Victory 17.10s** |
+| friend | Insane | Defeat 6.95s | Defeat 8.70s |
+
+Two things worth reading twice. **The friend's board beats Francis on Hard**,
+and `francis.rs` pinned that as a defeat — a pin taken against a board holding
+twelve items instead of the seventeen its owner built. And the repack did work:
+Hard went from the nine and a half seconds the module doc complains about to
+**seventeen**. The pin has been re-aimed at that, by the clock rather than by an
+outcome, because the clock is what actually moved. Whether the final boss ought
+to stop the best board in the project at Hard rather than at Insane is a design
+question, and it is recorded rather than answered here.
+
+The owner's board **dies faster** properly assembled — 40.0s to 32.0s on Hard,
+39.0s to 27.75s on Insane. A board that merges into a handful of over-full items
+acts less often and holds more, which is a different fight, not a weaker one.
+
+### The debt guard was standing on the same board
+
+`towns::debt_is_a_debt_and_takes_real_time_to_pay_off` required both runs to
+have the same number of income events and then asserted the gap between their
+mana curves was exactly the debt. Both halves held while the board came back
+holding thirteen items and neither holds now that it holds nineteen.
+
+The reason is worth keeping. The curve records income, not spending, so what
+sits between two income events is everything the board paid for in between — and
+a board in debt cannot always pay. A spend that fails leaves the pool *higher*
+than it would otherwise have been, which closes the gap without a point of the
+debt being repaid. A test demanding a constant offset was demanding a board too
+poor to spend. It asks three things now: the fight opens exactly the debt short,
+the indebted pool is never above the free one at any shared moment, and climbing
+back to zero takes real time.
+
+### And the boards are pinned by name now
+
+`decode_build::the_boards_come_back_holding_exactly_these_items` writes out all
+fifty-one items across the three shared boards, by member name. Counts and ladder
+results agreed for the whole rewrite while the reconstruction was wrong —
+nineteen weapon pieces coming back as one item is still one item, and one item
+still fights. Checked against the fault rather than assumed: reverting the
+incremental lock fails it with `owner came back holding a different item / left:
+(Helmet, "Aegis Crown + Asker's Monocle + Bulwark Plating + Overflow Plate") /
+right: (Helmet, "Aegis Crown + Warding Plate")`.
+
+**The packer's reference boards are correct from here on**, which is what the
+monster repack was waiting for: its acceptance curve is read off the owner's
+board, and it was reading a board nobody built.

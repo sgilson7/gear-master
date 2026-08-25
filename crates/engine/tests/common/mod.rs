@@ -67,3 +67,42 @@ pub fn equip(run: &mut Run, name: &str, slot: SlotKind, ax: u8, ay: u8) {
 pub fn build_full_loadout(run: &mut Run) {
     run.apply_preset();
 }
+
+/// The board a share code describes, seated the way its owner seated it.
+///
+/// One way to do this, because there used to be four. `Shared::loadout` locks
+/// each item the moment it assembles; three tests hand-rolled the same
+/// placement loop without that step and got a different board out of the same
+/// code. The engine never locks on its own - locking is something the player
+/// does, with a button - so replaying placements without replaying the locks
+/// replays half of what was done. On a board packed to ninety-seven percent of
+/// its cells the difference is not subtle: the owner's nineteen weapon pieces
+/// came back as one item, and the perfect run's eleven came back as none.
+///
+/// The classes the code recorded are *not* applied here. A class is a rule
+/// about how the board fights rather than part of the board, and most callers
+/// want the gear on its own. `run_from` is the one that wants both.
+pub fn board_from(code: &str) -> Run {
+    let sh = gearmaster_engine::share::import(code).expect("the code still reads");
+    let (reg, lo) = sh.loadout();
+    let mut run = Run::new();
+    run.owned = (0..reg.count()).map(|i| PieceId(i as u32)).collect();
+    run.registry = reg;
+    run.loadout = lo;
+    run.mode = gearmaster_engine::run::Mode::Grinder;
+    run.difficulty = gearmaster_engine::combat::Difficulty::Medium;
+    run
+}
+
+/// The same board, wearing the classes the run finished with.
+pub fn run_from(code: &str) -> Run {
+    let sh = gearmaster_engine::share::import(code).expect("the code still reads");
+    let mut run = board_from(code);
+    for c in &sh.classes {
+        if let Some(k) = gearmaster_engine::class::CLASSES.iter().find(|k| k.name == *c) {
+            run.classes.push(k);
+        }
+    }
+    run.refresh_class_effects();
+    run
+}
