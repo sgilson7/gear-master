@@ -1916,7 +1916,17 @@ pub static CATALOG: &[PieceDef] = &[
         cells: &[(0,0)],
         base: Stats { health: 110, ..Stats::ZERO },
         adjacency: None,
-        effect: None,
+        effect: Some(Effect {
+            // The doubling comes home. `DoubleAdjacentItemStat` is gloves' by
+            // the exclusivity table and its only carrier was a weapon handle,
+            // so taking it off the handle left the mechanic with nowhere to
+            // live - a rule naming something the catalogue no longer contains.
+            // A signet of vigour doubling the strength of what it touches is
+            // what the name says anyway.
+            label: "other assembled items touching it give double strength",
+            when: When::Assembled,
+            kind: EffectKind::DoubleAdjacentItemStat { stat: StatKind::Strength },
+        }),
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 1, kind: DamageType::Physical, target: Target::Enemy })],
@@ -3318,9 +3328,13 @@ pub static CATALOG: &[PieceDef] = &[
         base: Stats::power(30),
         adjacency: None,
         effect: Some(Effect {
-            label: "other assembled items touching it give double strength",
-            when: When::Assembled,
-            kind: EffectKind::DoubleAdjacentItemStat { stat: StatKind::Strength },
+            // It used to double the strength of whatever touched it, which is
+            // the hands' verb - `DoubleAdjacentItemStat` is gloves' and this is
+            // a handle. A cursed thing wants room around it instead, which is
+            // pan-slot texture and belongs to nobody.
+            label: "+2 strength per empty cell touching it",
+            when: When::Always,
+            kind: EffectKind::SelfPerEmptyCell { stat: StatKind::Strength, per: 2 },
         }),
         // 0.5 attacks a second.
         cooldown_ms: 2000,
@@ -3328,7 +3342,10 @@ pub static CATALOG: &[PieceDef] = &[
         triggers: &[Trigger::SpendMana {
             cost: 5,
             on_success: Action::Curse { kind: CurseKind::Searing, target: Target::Enemy },
-            on_failure: Action::Curse { kind: CurseKind::Frost, target: Target::Yourself },
+            // Frost is the feet's curse. What a weapon does to itself when the
+            // mana runs out is burn, which is damage wearing a curse costume
+            // and the one the weapon keeps.
+            on_failure: Action::Curse { kind: CurseKind::Searing, target: Target::Yourself },
         }],
         quest: None,
         power_bonus: 0,
@@ -3771,16 +3788,16 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Chest,
         kind: PieceKind::Layer,
         cells: &[(0, 0), (1, 0), (2, 0)],
-        base: Stats { armor: 9, ..Stats::health(40) },
+        base: Stats { armor: 9, reflect: 8, ..Stats::health(40) },
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
-            amount: 3,
-            kind: DamageType::Physical,
-            target: Target::Enemy,
-        })],
+        // Thorns answer being touched, and the body already has a word for
+        // that: reflection, which pays out of what the armour ate rather than
+        // off a neighbour's cooldown. The reaction was the hands' verb on a
+        // chest piece; this is the same idea in the body's own vocabulary.
+        triggers: &[],
         quest: None,
         power_bonus: 0,
         price: 8,
@@ -3795,7 +3812,10 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::GainMana(1))],
+        // An eye that only saw its neighbours was answering like a glove.
+        // Corners are what the helmet's tense is for: perception, past the
+        // things already touching you.
+        triggers: &[Trigger::OnDiagonalActivate(Action::GainMana(1))],
         quest: None,
         power_bonus: 0,
         price: 8,

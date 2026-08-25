@@ -87,12 +87,26 @@ fn the_strongest_board_in_the_project_no_longer_walks_through_him() {
     // against the corrected curve, deliberately.
     assert!(wins(share::A_FRIENDS_RUN, Difficulty::Easy), "he is now unbeatable, which is not the ask");
     assert!(wins(share::A_FRIENDS_RUN, Difficulty::Medium));
+    // On Hard he either stops it or makes it work, and which of the two is
+    // not something this test should be pinning.
+    //
+    // It has asked for a defeat, then a victory, then a defeat again, and every
+    // flip was real: the board was being rebuilt without locking its items, then
+    // the pools were switched on, then `Grow` moved and moved back. None of
+    // those were about Francis. `stepped_component` picks his gear above Medium
+    // by sorting footprint families on rating, so **every edit to `rating.rs` or
+    // to a piece's stats re-gears him on two settings** - and the catalogue
+    // sweep ahead of this will do that a hundred times.
+    //
+    // What the test is named for is that he is not walked through. A loss says
+    // that. So does a win that costs fifteen seconds. A nine-second win does
+    // not, and that is the thing to catch.
     let (hard, ms) = against(share::A_FRIENDS_RUN, Difficulty::Hard);
-    assert_eq!(hard, Outcome::Victory, "Hard now stops it, which is a change worth knowing about");
     assert!(
-        ms >= 15_000,
-        "Hard took {:.1}s. It used to take 9.5s against a board that assembled wrong, and \
-         the repack put it near seventeen - under fifteen means he is being walked through again",
+        hard != Outcome::Victory || ms >= 15_000,
+        "Hard was a {:.1}s victory. It used to take 9.5s against a board that assembled \
+         wrong, and the repack put it near seventeen - a quick win here means he is being \
+         walked through again",
         ms as f32 / 1000.0
     );
     assert!(!wins(share::A_FRIENDS_RUN, Difficulty::Insane), "Insane is still a walk");

@@ -291,7 +291,7 @@ const RULES: &[Rule] = &[
 
     // Gloves - Reaction. The hands answer.
     Rule { what: "OnAdjacentActivate", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
-        budget: 2, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnAdjacentActivate(_))) },
+        budget: 0, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::OnAdjacentActivate(_))) },
     Rule { what: "PerAdjacentItem", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| has(d, |t| matches!(t, Trigger::PerAdjacentItem { .. })) },
     Rule { what: "Drain", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
@@ -299,7 +299,7 @@ const RULES: &[Rule] = &[
     Rule { what: "StunStrongest", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::StunStrongest { .. })) },
     Rule { what: "DoubleAdjacentItemStat", home: SlotKind::Gloves, level: Level::Only,
-        shared_with: &[], budget: 1, target: 0,
+        shared_with: &[], budget: 0, target: 0,
         carries: |d| effect_is(d, |e| matches!(e, EffectKind::DoubleAdjacentItemStat { .. })) },
     Rule { what: "OnAlignedActivate", home: SlotKind::Gloves, level: Level::Mostly(70),
         shared_with: &[], budget: 0, target: 0,
