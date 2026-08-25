@@ -993,6 +993,48 @@ pub static TURTLE_DICK: Theme = Theme {
             "Money. The going rate on an Lxirp Strangler Beast is a hundred and twenty-five \
              billion of them, so the numbers here are modest by comparison.",
         ),
+        (
+            "REFLECTION",
+            "SPITE",
+            "Armour that hits back. A share of whatever your plating soaks is turned round \
+             on whoever swung, so it pays nothing at all if you die quickly and rather a lot \
+             if you do not. It is the only way a chest hurts anybody, and it is the only \
+             attack in the game you never choose to make.",
+        ),
+        (
+            "FUSED POOLS",
+            "DOUBLE ACTS",
+            "Two banked things put together into one better thing. A point of nature and a \
+              point of rage make a point of Druidic Might, which pays what both of them paid \
+              and pays it twice over. Nothing spends a double act - it is the punchline, not \
+              the setup - but somebody else can still take it off you, so a deep one is worth \
+              guarding.",
+        ),
+        (
+            "WATCHERS",
+            "TALLIES",
+            "Gear that counts. A tally sits there totting up whatever it was told to watch - \
+             your own gear going off, a neighbour going off, curses landing on anybody - and \
+             pays out every so many. It runs on the board's clock rather than its own, which \
+             is why a slow tally on a busy board is worth more than a fast one on an empty \
+             one.",
+        ),
+        (
+            "DIAGONAL",
+            "CORNER-WISE",
+            "Two items touching at a corner and nowhere along an edge. Ordinary neighbours \
+             share a side; these share a point, and a few pieces care only about them. An \
+             item packed tight against three things has spent its sides - corner-wise is how \
+             it reaches past them.",
+        ),
+        (
+            "TERRAIN",
+            "GROUND",
+            "A piece you stand on. It lies under the grid instead of in it, other gear may \
+             be packed straight on top, and what it is worth depends entirely on what ends \
+             up covering it. Ground never joins an item and never acts - it is not gear, it \
+             is the floor.",
+        ),
     ],
     cutscenes: &[(
         // The first act ends here, and it ends by turning out not to be the

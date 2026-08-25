@@ -3023,6 +3023,26 @@ fn render_slots(
                 let (cx, cy) = view.cell_origin(gx, gy);
                 let c = if (gx + gy) % 2 == 0 { col_cell_a() } else { col_cell_b() };
                 draw_rectangle(cx, cy, SLOT_CELL, SLOT_CELL, c);
+                // Ground with something standing on it. Terrain draws beneath
+                // the gear that covers it and is therefore invisible exactly
+                // where it is doing its job - and its whole worth is what
+                // covers it, so a covered cell has to say so. Hatched rather
+                // than tinted: a tint reads as another piece.
+                let slot = run.loadout.slot(view.kind);
+                if slot.under_at(gx, gy).is_some() && slot.get(gx, gy).is_some() {
+                    let n = 4;
+                    for k in 0..n {
+                        let off = SLOT_CELL * (k as f32 + 0.5) / n as f32;
+                        draw_line(
+                            cx,
+                            cy + off,
+                            cx + off,
+                            cy,
+                            1.0,
+                            Color::from_rgba(210, 200, 160, 70),
+                        );
+                    }
+                }
             }
         }
 
@@ -4031,6 +4051,21 @@ fn draw_stun_bar(track_x: f32, y: f32, track_w: f32, h: f32, left: f32, t: f64) 
     draw_rectangle_lines(track_x, y, track_w, h, 1.0, Color::from_rgba(158, 126, 40, 255));
 }
 
+/// The first watcher on an item, as "seen so far" and "counting to".
+///
+/// First rather than all of them: two watchers on one item is rare, the row is
+/// one line high, and a readout nobody can fit is worse than the one that fits.
+fn watch_of(it: &gearmaster_engine::combat::RunningItem) -> Option<(u32, u32)> {
+    use gearmaster_engine::piece::Trigger;
+    it.triggers.iter().enumerate().find_map(|(k, t)| match t {
+        Trigger::Watch { count, .. } if *count > 0 => {
+            let seen = it.watched.get(k).copied().unwrap_or(0);
+            Some((seen % count, *count))
+        }
+        _ => None,
+    })
+}
+
 fn render_cooldown_row(
     x: f32,
     y: f32,
@@ -4046,6 +4081,11 @@ fn render_cooldown_row(
     // `stun` is set while this item's owner is stunned: how much of the stun
     // is left, and how long that is. Every row on a stunned side gets it.
     stun: Option<(f32, u32)>,
+    // How far a watcher on this item has counted, and what it is counting to.
+    // A watcher runs on the board's clock rather than its own cooldown, so the
+    // bar beside it says nothing about when it will pay - this is the only
+    // thing that does.
+    watch: Option<(u32, u32)>,
 ) {
     let icon = 24.0;
     let label_w = 232.0;
@@ -4095,6 +4135,28 @@ fn render_cooldown_row(
             y + 12.0,
             12.0,
             col_stun(),
+        );
+        return;
+    }
+
+    // A watcher counts the board rather than its own clock, so it gets a tally
+    // where everything else gets a cooldown. Drawn in the same track so the
+    // rows still line up, hollow rather than filled, because it is a count and
+    // not a countdown.
+    if let Some((seen, of)) = watch {
+        draw_rectangle(track_x, y, track_w, h, Color::from_rgba(26, 26, 38, 255));
+        let step = track_w / of as f32;
+        for k in 0..of {
+            let cx = track_x + k as f32 * step;
+            let c = if k < seen { tint } else { Color::from_rgba(52, 52, 70, 255) };
+            draw_rectangle(cx + 1.0, y + 3.0, (step - 2.0).max(1.0), h - 6.0, c);
+        }
+        ui_text(
+            &format!("{}/{}", seen, of),
+            track_x + track_w + 8.0,
+            y + 12.0,
+            12.0,
+            tint,
         );
         return;
     }
@@ -4966,6 +5028,7 @@ fn render_battle(
                 tint,
                 Rarity::of(it.rating),
                 stun,
+                watch_of(it),
             );
         }
         if shown < order.len() {
