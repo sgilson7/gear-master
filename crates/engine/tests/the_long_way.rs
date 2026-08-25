@@ -16,7 +16,7 @@ fn long_way() -> &'static gearmaster_engine::event::LadderEvent {
 fn slow_run() -> Run {
     let mut run = Run::with_all_pieces();
     run.rung = 4;
-    run.worst_fight_ms = Some(12_000);
+    run.worst_fight_ms = Some(22_000);
     run
 }
 
@@ -25,8 +25,13 @@ fn a_slow_win_in_the_shallow_end_opens_it() {
     let mut run = slow_run();
     assert_eq!(run.pending_event().map(|e| e.id), Some("the-long-way"));
 
-    // Ten seconds is the line, and it is a floor rather than a ceiling.
-    for (ms, open) in [(10_001u32, true), (10_000, false), (4_000, false)] {
+    // Twenty seconds is the line, and it is a floor rather than a ceiling.
+    // It was ten. The themed ladder makes fights longer - a creature carries a
+    // piece a rung now - so ten seconds stopped meaning "this run is grinding"
+    // and started meaning "this run is ordinary". The line moved with the
+    // fights it measures, the same way the casino's did in the other
+    // direction.
+    for (ms, open) in [(20_001u32, true), (20_000, false), (4_000, false)] {
         run.worst_fight_ms = Some(ms);
         assert_eq!(
             run.pending_event().map(|e| e.id) == Some("the-long-way"),
@@ -37,7 +42,7 @@ fn a_slow_win_in_the_shallow_end_opens_it() {
     }
 
     // And never before rung two.
-    run.worst_fight_ms = Some(12_000);
+    run.worst_fight_ms = Some(22_000);
     run.rung = 0;
     assert!(run.pending_event().map(|e| e.id) != Some("the-long-way"));
 }
@@ -49,7 +54,7 @@ fn the_casino_shuts_this_door_behind_it() {
     let mut run = Run::with_all_pieces();
     run.rung = 4;
     run.best_fight_ms = Some(2_000);
-    run.worst_fight_ms = Some(12_000);
+    run.worst_fight_ms = Some(22_000);
     assert_eq!(
         run.pending_event().map(|e| e.id),
         Some("the-casino"),
@@ -75,7 +80,7 @@ fn the_long_way_alone_opens_when_the_casino_was_never_earned() {
     let mut run = Run::with_all_pieces();
     run.rung = 4;
     run.best_fight_ms = Some(9_000); // nowhere near quick enough
-    run.worst_fight_ms = Some(12_000);
+    run.worst_fight_ms = Some(22_000);
     assert_eq!(run.pending_event().map(|e| e.id), Some("the-long-way"));
 }
 

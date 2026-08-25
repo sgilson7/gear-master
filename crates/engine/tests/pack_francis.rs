@@ -440,7 +440,17 @@ fn seat_item(
 /// became authoring them to a curve. It is why Bog Toad, on rung two, came back
 /// with fifteen pieces when the curve asks for five.
 fn pieces_for(rung: usize) -> usize {
-    3 + rung
+    // Flat across the casino's window, then the curve. The casino is earned by
+    // a quick kill inside the first ten rungs, and a ladder that thickens from
+    // rung one closes that door before a player can reach it - which is how
+    // the first themed run took the casino test down with it. Below eleven a
+    // creature carries four or five; from eleven the line climbs a piece a
+    // rung, reaching fifty-three at rung fifty as it always did.
+    if rung < 10 {
+        4 + rung / 4
+    } else {
+        3 + rung
+    }
 }
 
 
@@ -656,8 +666,8 @@ fn pack() {
             // candidate: the loop fills a slot at a time, so a board that is
             // going to be too big is too big from early on, and rejecting it
             // afterwards simply threw every candidate away.
-            let room = pieces_for(subject().0).saturating_sub(gear.len());
-            while stalled < 40 && here < cap && gear.len() < pieces_for(subject().0) && room > 0 {
+            let cap_here = pieces_for(subject().0);
+            while stalled < 40 && here < cap && gear.len() < cap_here {
                 let r = recs[rng.below(recs.len())];
                 let defs = choose(slot, r, &mut rng);
                 if defs.is_empty() {
@@ -665,6 +675,24 @@ fn pack() {
                     continue;
                 }
                 match seat_item(&mut reg, &mut lo, slot, &defs, &mut rng) {
+                    // An item that would carry the board past the curve is
+                    // refused and its cells given back. Checking the bound
+                    // before seating let a whole item through, which is nothing
+                    // at rung thirty and forty percent at rung two - and rung
+                    // two is where the early ladder can least afford it.
+                    Some(p) if gear.len() + p.len() > cap_here => {
+                        for (name, ..) in &p {
+                            if let Some(id) = lo
+                                .slot(slot)
+                                .pieces()
+                                .into_iter()
+                                .find(|&q| reg.def(q).name == *name)
+                            {
+                                lo.slot_mut(slot).remove(id);
+                            }
+                        }
+                        stalled += 1;
+                    }
                     Some(p) => {
                         here += 1;
                         chunks.push(p.len());

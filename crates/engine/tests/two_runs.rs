@@ -10,6 +10,7 @@
 
 use gearmaster_engine::combat::{Difficulty, Outcome};
 use gearmaster_engine::event::{Outcome as ChoiceOutcome, EVENTS};
+use gearmaster_engine::piece::SlotKind;
 use gearmaster_engine::run::{Mode, Run};
 
 /// A run with a complete, properly assembled board.
@@ -167,7 +168,17 @@ fn a_grinding_run() -> Run {
     // gloves sweep moved that line: a board that answers its neighbours kills
     // fast enough on Hard to earn the casino, which blocks the road by design.
     // The difficulty is the knob that makes it slow, so the difficulty moved.
-    the_winning_board(Difficulty::Insane)
+    let mut run = the_winning_board(Difficulty::Insane);
+    // And blunted for real, by taking the weapon off. Insane alone no longer
+    // does it: the road wants a fight over twenty seconds now, and this board's
+    // slowest on Insane was 14.4s. The fixture's whole job is to be the run
+    // that grinds, and grinding is what a board with no weapon does - the
+    // other four slots still fight, which is the rewrite's own point.
+    run.loadout.slot_mut(SlotKind::Weapon).clear();
+    let still: Vec<_> =
+        SlotKind::ALL.iter().flat_map(|&k| run.loadout.slot(k).pieces()).collect();
+    run.loadout.locks.retain(|l| l.pieces.iter().all(|p| still.contains(p)));
+    run
 }
 
 #[test]

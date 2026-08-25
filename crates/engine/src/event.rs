@@ -376,7 +376,7 @@ pub const EVENTS: &[LadderEvent] = &[
         // Rung two at the earliest: flattening the Cave Rat is not a
         // demonstration of anything, and the door being open before you have
         // built anything makes the first real decision of the run a coin toss.
-        trigger: Trigger::QuickKill { within_ms: 3_000, from: 1 },
+        trigger: Trigger::QuickKill { within_ms: 3_500, from: 1 },
         blocked_by: &[],
         expects: "Whisperling",
         title: "THE GALAPAGOS EMPORIUM",
@@ -417,7 +417,7 @@ pub const EVENTS: &[LadderEvent] = &[
     LadderEvent {
         id: "the-long-way",
         at: 8,
-        trigger: Trigger::SlowKill { over_ms: 10_000, from: 1 },
+        trigger: Trigger::SlowKill { over_ms: 20_000, from: 1 },
         blocked_by: &["the-casino"],
         expects: "Whisperling",
         title: "GERALD",

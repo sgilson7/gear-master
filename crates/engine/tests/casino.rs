@@ -319,10 +319,14 @@ fn the_door_is_shut_on_rung_one_however_fast_you_were() {
 }
 
 #[test]
-fn three_seconds_is_the_line() {
+fn three_and_a_half_seconds_is_the_line() {
     let mut run = Run::with_all_pieces();
     run.rung = 4;
-    for (ms, open) in [(2_999u32, true), (3_000, false), (3_500, false)] {
+    // Three and a half, not three. The themed ladder makes the early rungs
+    // denser - a creature on rung two carries five pieces where it carried
+    // four - and a door earned by a sub-three-second kill closes before a
+    // player can reach it. The window moved with the fights it is measuring.
+    for (ms, open) in [(3_499u32, true), (3_500, false), (4_000, false)] {
         run.best_fight_ms = Some(ms);
         assert_eq!(
             run.pending_event().map(|e| e.id) == Some("the-casino"),
