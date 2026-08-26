@@ -124,12 +124,14 @@ fn declining_a_door_is_not_answering_it() {
     answer(&mut run, 25, "the-locked-gate", "Walk on");
     assert!(!run.answered.contains(&"the-locked-gate"), "walking on answered it");
 
-    // Not here.
+    // Not here. Asked about the gate rather than about the rung, because the
+    // road has unconditional doors on it too and one of them stands at 27.
+    let standing = |run: &Run| run.road_stack().iter().any(|i| i.id() == "the-locked-gate");
     run.rung = 26;
-    assert!(run.pending_event().is_none(), "it found you again immediately");
+    assert!(!standing(&run), "it found you again immediately");
     // And here.
     run.rung = 28;
-    assert_eq!(run.pending_event().map(|e| e.id), Some("the-locked-gate"));
+    assert!(standing(&run), "it never came back");
 }
 
 #[test]
@@ -144,6 +146,9 @@ fn a_rumour_door_stands_in_a_window_rather_than_on_a_rung() {
         panic!("the astronomer stopped being a rumour door")
     };
     assert!(e.at > from, "the window is one rung wide");
+    // A rumour door goes first wherever it stands, so `pending_event` is the
+    // right question inside the window and the wrong one outside it - the
+    // road has unconditional doors of its own.
     for rung in from..=e.at {
         run.rung = rung;
         assert_eq!(
@@ -154,7 +159,10 @@ fn a_rumour_door_stands_in_a_window_rather_than_on_a_rung() {
         );
     }
     run.rung = from - 1;
-    assert!(run.pending_event().is_none(), "it stands before its own window");
+    assert!(
+        !run.road_stack().iter().any(|i| i.id() == "the-astronomer"),
+        "it stands before its own window"
+    );
 }
 
 // ------------------------------------------------------------- the towns

@@ -45,7 +45,18 @@ fn every_locked_choice_in_the_game_can_say_why() {
             }
             let said = c.requires.describe();
             assert!(!said.is_empty(), "{}: {} cannot say what it wants", e.id, c.label);
-            assert!(said.starts_with("Requires: "), "{}: {}", e.id, said);
+            // "Requires: X" for a thing you have to hold or have done, and
+            // "Costs X" for a price - because a price is not a condition, it
+            // is a transaction, and a tooltip that called it a requirement
+            // would not say that the gold goes.
+            assert!(
+                said.starts_with("Requires: ")
+                    || said.starts_with("Costs ")
+                    || said.starts_with("Name a figure"),
+                "{}: {}",
+                e.id,
+                said
+            );
             // And the flavour line is still there, which is a different job.
             assert!(!c.unmet.is_empty(), "{}: {} lost its prose", e.id, c.label);
         }

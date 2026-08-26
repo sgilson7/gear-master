@@ -5820,6 +5820,26 @@ pub const ALTERNATES: &[MonsterSpec] = &[
         drops: &[],
         items: &[],
     },
+    // The birds. Annoying before deadly, which is the whole of a swarm: no
+    // one of them is the problem and the aim moving along is.
+    MonsterSpec {
+        name: "THE FLOCK",
+        health: 420,
+        strength: 9,
+        regen: 0,
+        mind_resist: 0,
+        physical_resist: 4,
+        magic_resist: 4,
+        curse_resist: 5,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 188,
+        sprite: MonsterSprite::Wisp,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
 ];
 
 /// The floors of Bunko's Cavern, pp. 84-85. Authored by the packing tool like

@@ -997,7 +997,18 @@ impl Run {
             // Anybody can say a figure. What happens to the figure is the
             // door's business, and it happens in `take_choice_with`.
             Requirement::Figure { .. } => true,
+            Requirement::Purse { times } => self.gold >= self.rung_bounty() * times,
         }
+    }
+
+    /// What the rung in front of you is worth.
+    ///
+    /// The unit every price in this mission is quoted in. A figure written as
+    /// a constant means one thing at rung four and something else entirely at
+    /// rung forty - thirty gold is three fights down there and a rounding
+    /// error up here - and the road is forty-six rungs long.
+    pub fn rung_bounty(&self) -> i32 {
+        LADDER[self.rung.min(LADDER.len() - 1)].bounty
     }
 
     /// How many times something silently counted has happened.
@@ -1093,7 +1104,19 @@ impl Run {
             self.forced_event = None;
         }
         self.took.push(c.label);
-        let (gave, receipt) = self.apply_outcome(&c.outcome, c.requires);
+        // A price is paid when the choice is *taken*, which is what makes it a
+        // price rather than a test of wealth - and here rather than inside
+        // `apply_outcome`, because two outcomes recurse into it and a price
+        // charged once per nested outcome is a price charged twice.
+        let cost = match c.requires {
+            crate::event::Requirement::Purse { times } => self.rung_bounty() * times,
+            _ => 0,
+        };
+        self.gold -= cost;
+        let (gave, mut receipt) = self.apply_outcome(&c.outcome, c.requires);
+        if cost > 0 {
+            receipt.insert(0, format!("-{}g", cost));
+        }
         self.last_receipt = Some(receipt);
         gave
     }
@@ -1205,6 +1228,34 @@ impl Run {
             }
             ChoiceOutcome::Scout => self.scouting = true,
             ChoiceOutcome::UnlockInsight => self.unlock_insight(),
+            ChoiceOutcome::All(each) => {
+                receipt.clear();
+                for o in each {
+                    let (g, lines) = self.apply_outcome(o, req);
+                    gave = gave.or(g);
+                    receipt.extend(lines);
+                }
+            }
+            ChoiceOutcome::Pay { times } => {
+                let paid = self.rung_bounty() * times;
+                self.gold += paid;
+                receipt = vec![format!("+{}g", paid)];
+            }
+            ChoiceOutcome::Health(n) => {
+                self.grown_health += n;
+                receipt = vec![if n < 0 {
+                    format!("{} maximum health, and it does not come back", n)
+                } else {
+                    format!("+{} maximum health", n)
+                }];
+            }
+            ChoiceOutcome::Gamble { wins, outof, won, lost } => {
+                // Out of the run's own PRNG, never combat. Two replays of a
+                // seed gamble the same way, which is the whole of E6.1.
+                let roll = self.rng.below(outof.max(1) as usize) as u32;
+                let (_, lines) = self.apply_outcome(if roll < wins { won } else { lost }, req);
+                receipt = lines;
+            }
             ChoiceOutcome::Defer { rungs } => {
                 // Declining is not answering. The door comes off `answered`
                 // and goes onto the list of things that will find you again,

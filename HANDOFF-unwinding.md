@@ -64,8 +64,8 @@ re-pinned first**.
 | M9 | The catalogue lands once | **done** |
 | M10 | The chain (Part B) | **done** |
 | M11 | The dungeons and what they pay | **done** |
-| M12 | Extra Large and the Orbs of Travel (Part G) | next |
-| M13 | The five unconditional events (Part F) | |
+| M12 | Extra Large and the Orbs of Travel (Part G) | next - after M13, which it waits on |
+| M13 | The five unconditional events (Part F) | **done** |
 | M14 | The nine structures and the three pairs (H2/D) | |
 | M15 | The words (Phase 3) | |
 | M16 | Rating re-pinned first (Phase 4) | |
@@ -543,3 +543,46 @@ destinations are M12's, which the reachability test holds as a shrinking list
 rather than an exemption.
 
 Suite: **697 green**, 0 warnings.
+
+
+---
+
+## M13 - The five unconditional events (taken before M12)
+
+Out of order on purpose: G1 waits on `Took("Plug your ears")` from the Teller,
+so Part G cannot be built before Part F. E2 says the Phase-2 PRs may land in
+any order and this is the one place the order is forced.
+
+Five doors that ask for nothing, at rungs 4, 11, 17, 24 and 27. The dispenser
+moved off 16 because Henpeck is still talking on that one, and the table off 24
+for the same reason a rung with two doors on it is a rung where one of them is
+a surprise.
+
+**Four new outcome shapes**, and each one exists because a bargain could not be
+written without it.
+
+- **`Outcome::All`** - several things at once. Most choices are worth exactly
+  one thing; the ones that are not are the ones where the *trade* is the
+  content, and a variant per bargain is not a design.
+- **`Outcome::Pay { times }`** and **`Requirement::Purse { times }`** - the
+  whole of the gold amendment, in the two places gold moves. `BuyOff` has
+  priced things in bounties since the toad first counted fnorp onto a stone;
+  these are the same arithmetic without the rung being bought.
+- **`Outcome::Health`** - the Teller takes it and the Manse's long table gives
+  it, and nothing else in the game touches maximum health at all.
+- **`Outcome::Gamble`** - seeded from the run's own PRNG, never combat. Its
+  `describe` says what it *might* do, for a tooltip; the receipt says what it
+  did and never the odds, because a machine at the roadside does not print its
+  probabilities on the front.
+
+**One bug the composites turned up.** A price was charged inside
+`apply_outcome`, and two outcomes recurse into it - so a gamble behind a price
+charged twice. It is charged where the choice is *taken* now, which is the only
+place a price can be charged once.
+
+`unconditional_events.rs` has a lint for the gold rule itself: nothing in these
+five prices anything in absolute gold, and every multiple is between one and
+twenty bounties.
+
+Suite: **709 green**, 0 warnings. Frame budget 14 - THE FLOCK is the only
+creature in the mission that arrives *with* a rung rather than instead of one.

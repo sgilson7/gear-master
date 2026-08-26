@@ -55,6 +55,18 @@ pub enum Requirement {
     /// The inspector's question, and the reason building *for* an event is a
     /// strategy: it reads the live board rather than the tray.
     AlignedItems(usize),
+    /// Gold, priced in what the rung in front of you is worth.
+    ///
+    /// Every figure in this mission is a multiple of the standing rung's
+    /// bounty rather than a constant, and this is the requirement half of
+    /// that. A price written as a number is a price that means one thing at
+    /// rung four and something else entirely at rung forty; the spec's own
+    /// figures were two and a half times everything a run had ever seen at one
+    /// end and one bounty at the other.
+    ///
+    /// Spent when the choice is taken, which is what makes it a price rather
+    /// than a test of wealth.
+    Purse { times: i32 },
     /// A number, named by the player, inside these bounds.
     ///
     /// Always open - anybody can say a figure - so `choice_open` is true and
@@ -149,6 +161,30 @@ pub enum Outcome {
     /// you have to be given is a thing that happens once, and the road that
     /// gives it is the whole of what THE THRESHOLD is for.
     UnlockInsight,
+    /// Several things at once.
+    ///
+    /// A choice used to be worth exactly one thing, and most of them still
+    /// are. The ones that are not are the ones where the *trade* is the
+    /// content - a hundred of your maximum health for the best piece off
+    /// somebody's back - and writing that as one outcome would mean inventing
+    /// a variant per bargain.
+    All(&'static [Outcome]),
+    /// Gold, priced in what the rung in front of you is worth.
+    ///
+    /// `BuyOff` has paid this way since the toad first counted fnorp onto a
+    /// stone; this is the same arithmetic without the rung being bought.
+    Pay { times: i32 },
+    /// Maximum health, for the rest of the run. Negative takes it.
+    ///
+    /// Nothing else in the game trades this away, which is the whole reason
+    /// the Teller is worth meeting - and the Manse's long table is its mirror.
+    Health(i32),
+    /// A seeded gamble: `wins` times in `outof`, from the run's own PRNG.
+    ///
+    /// The receipt shows what happened and never the odds. A machine at the
+    /// roadside does not print its own probabilities on the front, and being
+    /// told them afterwards would turn a story into a spreadsheet.
+    Gamble { wins: u32, outof: u32, won: &'static Outcome, lost: &'static Outcome },
     /// Leave it standing, and let it find you again `rungs` further on.
     ///
     /// The one outcome that does not close the door it was offered at.
@@ -273,6 +309,25 @@ impl Outcome {
             }
             Outcome::Scout => vec!["You can read a boss's board before you fight it".into()],
             Outcome::UnlockInsight => vec!["Insight unlocked".into()],
+            Outcome::All(each) => each.iter().flat_map(|o| o.describe()).collect(),
+            Outcome::Pay { times } => {
+                vec![format!("{} times this rung's bounty, into your purse", times)]
+            }
+            Outcome::Health(n) if *n < 0 => {
+                vec![format!("{} maximum health, for the rest of the run", n)]
+            }
+            Outcome::Health(n) => {
+                vec![format!("+{} maximum health, for the rest of the run", n)]
+            }
+            // What it *might* do, for a tooltip before it is taken. What it
+            // did is the receipt's, and the receipt never says the odds.
+            Outcome::Gamble { won, lost, .. } => {
+                let mut out = vec!["A gamble. Either:".into()];
+                out.extend(won.describe().into_iter().map(|l| format!("  {}", l)));
+                out.push("or:".into());
+                out.extend(lost.describe().into_iter().map(|l| format!("  {}", l)));
+                out
+            }
             Outcome::Defer { rungs } => {
                 vec![format!("It finds you again {} rungs further on", rungs)]
             }
@@ -410,6 +465,30 @@ pub static THE_BACK_ROOM: Brawl = Brawl {
     win: "Sprocketman's Gratitude",
     and_grow: 1,
     forgiving: false,
+};
+
+/// What the table sets a piece to become.
+///
+/// The only content anywhere that touches the quest system, which is why it is
+/// one line rather than a table: a piece that has gone off thirty times has
+/// been *used*, and the table's whole trick is telling a thing what it is for.
+pub static TABLE_TASK: crate::piece::Quest = crate::piece::Quest {
+    label: "the table said what it is for",
+    goal: 30,
+    track: crate::piece::QuestTrack::SelfActivations,
+    becomes: "Kingmaker Hilt",
+};
+
+/// The birds, past the next ridge, arriving with the rung.
+///
+/// The only event that changes the shape of the *next* fight rather than
+/// standing in front of it, and the first adversarial use of a party outside
+/// the casino's table.
+pub static THE_FLOCK: Brawl = Brawl {
+    with: &["THE FLOCK"],
+    win: "",
+    and_grow: 0,
+    forgiving: true,
 };
 
 /// Your shadow, and what your shadow carries.
@@ -995,6 +1074,233 @@ pub const EVENTS: &[LadderEvent] = &[
             },
         ],
     },
+
+    // -------------------------------------------- five that always happen
+    //
+    // No requirement, no rumour, no chain. A run that touches nothing meets
+    // all five, which is the guarantee they exist for: the road is never bare,
+    // and F1 is how a blind run learns the chain is in the game at all.
+    //
+    // Every figure in them is a multiple of the rung's own bounty rather than
+    // a number. The spec's constants were written against a milestone table
+    // that does not exist, and measured against the real economy they were two
+    // and a half times everything a run had ever seen at one end and one
+    // bounty at the other. See RECONCILIATION II #16.
+    LadderEvent {
+        id: "back-in-a-minute",
+        at: 3,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Rust Golem",
+        title: "BACK IN A MINUTE",
+        prose: &[
+            "A man on the road hands you something to hold. He does it the way \
+             you hand a thing to somebody you have known for years, and you \
+             have not known him for any years at all.",
+            "He says he is going to get a drink and asks whether you are \
+             coming. You are not coming. He goes anyway, off the road and up \
+             the bank, and does not come back, and after a while it becomes \
+             clear that not coming back was always the plan.",
+            "The wrapping is a page torn out of a star chart. Somebody has \
+             drawn a ring round a shop two towns up - the one with the odd \
+             words on the back shelf - and written HE IS RIGHT under it, and \
+             underlined it once.",
+        ],
+        choices: &[
+            Choice {
+                label: "Keep it",
+                blurb: "Whatever it is, it is yours now. So is the page it came in.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("The Stranger's Parcel"),
+                unmet: "",
+            },
+            Choice {
+                label: "Leave it on the milestone",
+                blurb: "Somebody will take it. Somebody pays for the trouble of not having it.",
+                requires: Requirement::None,
+                outcome: Outcome::Pay { times: 3 },
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-teller",
+        at: 10,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Mirror Fiend",
+        title: "THE TELLER",
+        prose: &[
+            "There is a windowless store here the size of a county and its \
+             entire sign says LARGE. Inside it a man called Songil has been \
+             carrying a story for eleven years that he is not able to put \
+             down, and he will pay to say it to somebody who is still \
+             standing afterwards.",
+            "He has tried three people. He describes what happened to all \
+             three of them in a level voice and with a great deal of \
+             sympathy, and then asks whether you are interested.",
+            "He is not lying and he is not selling. He genuinely wants to be \
+             rid of it, and what it costs to take is exactly what it costs \
+             him to keep.",
+        ],
+        choices: &[
+            Choice {
+                label: "Hear it all",
+                blurb: "The whole thing. He takes the best piece off his own back for it.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::Health(-100),
+                    Outcome::Give("The Cracked Lens"),
+                ]),
+                unmet: "",
+            },
+            Choice {
+                label: "Hear the short version",
+                blurb: "Half of it, and half of what half of it costs, and he pays cash.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[Outcome::Health(-50), Outcome::Pay { times: 10 }]),
+                unmet: "",
+            },
+            Choice {
+                label: "Plug your ears",
+                blurb: "He trudges on. You keep what a head can hold, which turns out to matter.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-dispenser",
+        // Sixteen rather than fifteen: Henpeck is still talking on that one,
+        // and a rung with two doors on it is a rung where one of them is a
+        // surprise.
+        at: 16,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Salt Idol",
+        title: "THE DISPENSER",
+        prose: &[
+            "A machine at the roadside, humming, plugged into nothing anybody \
+             can find. Every light on it works. The whole front is lit up and \
+             every row is stocked and there is a bottle wedged sideways \
+             between the glass and the coil where somebody's last coin went.",
+            "The one behind the red panel costs ten times what anything else \
+             in the machine costs. There is a small brass plate under it and \
+             the plate says WORTH IT, which is either a claim or a price.",
+        ],
+        choices: &[
+            Choice {
+                label: "One coin",
+                blurb: "The cheapest row. It has been known to wedge.",
+                requires: Requirement::Purse { times: 1 },
+                outcome: Outcome::Gamble {
+                    wins: 2,
+                    outof: 3,
+                    won: &Outcome::Give("The Stranger's Parcel"),
+                    lost: &Outcome::FightAsWritten,
+                },
+                unmet: "The slot wants a coin and you are counting lint.",
+            },
+            Choice {
+                label: "The red one behind the glass",
+                blurb: "Ten times the price and it comes out with ceremony.",
+                requires: Requirement::Purse { times: 10 },
+                outcome: Outcome::Give("The Cracked Lens"),
+                unmet: "The red one is behind the glass and the glass has a price on it.",
+            },
+            Choice {
+                label: "Shake it",
+                blurb: "Free. Two might fall at once. Somebody might hear.",
+                requires: Requirement::None,
+                outcome: Outcome::Gamble {
+                    wins: 1,
+                    outof: 2,
+                    won: &Outcome::Pay { times: 2 },
+                    lost: &Outcome::Count("shook-the-machine"),
+                },
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "what-the-table-said",
+        at: 23,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Crowned Hollow",
+        title: "WHAT THE TABLE SAID",
+        prose: &[
+            "The inn at this crossroads has one long table in it and nobody \
+             sits at the middle of it. The landlord is called Petonkle and \
+             will tell you why if you ask, in a tone that says he has stopped \
+             finding it interesting.",
+            "Set a thing down at the centre and the table says what the thing \
+             is trying to become. Not what it is. What it is *for*, which is \
+             a different question and one nothing else in the world has ever \
+             asked out loud.",
+            "It has been right every time. It has also, twice, been right \
+             about things nobody wanted to be right about.",
+        ],
+        choices: &[
+            Choice {
+                label: "Set a piece on it",
+                blurb: "It speaks the task aloud, in full, and then halves it.",
+                requires: Requirement::None,
+                outcome: Outcome::GrantQuest(&TABLE_TASK),
+                unmet: "",
+            },
+            Choice {
+                label: "Keep your gear to yourself",
+                blurb: "The table says nothing. It says nothing very pointedly.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-bird-problem",
+        at: 26,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Vermin Sovereign",
+        title: "THE BIRD PROBLEM",
+        prose: &[
+            "A courier hands you a memo. It is four pages, it is CC'd to \
+             three governing bodies, and its subject line is THE COMING \
+             TERRITORIAL WAR WITH THE BIRDS.",
+            "Page two lists three potential outcomes. Two of them are bad. \
+             The third is described as 'bad, but ours', which is the sort of \
+             sentence that takes a committee eleven weeks.",
+            "Page four is about armament and recommends racquets. The memo is \
+             absurd from end to end and it is also, past the next ridge and \
+             getting closer, entirely correct.",
+        ],
+        choices: &[
+            Choice {
+                label: "Arm up",
+                blurb: "The courier has one spare and is glad to be rid of it.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("Vicegrip Mold"),
+                unmet: "",
+            },
+            Choice {
+                label: "Pay the toll",
+                blurb: "One rung's bounty and the flock parts. Nothing follows.",
+                requires: Requirement::Purse { times: 1 },
+                outcome: Outcome::FightAsWritten,
+                unmet: "The birds do not take promises and the courier has stopped listening.",
+            },
+            Choice {
+                label: "Ignore the memo",
+                blurb: "It is four pages about birds. The next one arrives with company.",
+                requires: Requirement::None,
+                outcome: Outcome::Step(&THE_FLOCK),
+                unmet: "",
+            },
+        ],
+    },
 ];
 
 /// The event standing on `rung`, if there is one.
@@ -1135,6 +1441,9 @@ impl Requirement {
             Requirement::Figure { min, max } => {
                 format!("Name a figure between {} and {}", min, max)
             }
+            Requirement::Purse { times } => {
+                format!("Costs {} times this rung's bounty", times)
+            }
         }
     }
 
@@ -1149,6 +1458,7 @@ impl Requirement {
             | Requirement::Counter { .. }
             | Requirement::AssembledOfRarity(_)
             | Requirement::AlignedItems(_)
+            | Requirement::Purse { .. }
             | Requirement::Figure { .. } => true,
             Requirement::LooseItemOfSize { w, h } => {
                 let (mut mx, mut my) = (0u8, 0u8);
