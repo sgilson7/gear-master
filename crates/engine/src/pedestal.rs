@@ -46,8 +46,11 @@ pub struct Destination {
 /// town built at ankle height.
 pub const DESTINATIONS: &[Destination] = &[
     Destination {
+        // The id is a key and stays put; the name is prose and is the event's
+        // own title, which nothing lints against the event. Change one and
+        // change the other.
         id: "the-thrumbus-race",
-        name: "THE THRUMBUS RACE",
+        name: "THE BOLTER RACE",
         via_orb: "Wayfarer's Orb",
         kind: Where::Event("the-thrumbus-race"),
     },

@@ -260,6 +260,108 @@ fn every_counter_can_reach_the_number_it_is_asked_for() {
     }
 }
 
+/// A silent counter with no door is a promise nothing keeps.
+///
+/// `Outcome::Count`'s own doc says what it is for: "Nothing says a word; a door
+/// forty rungs later reads the tally and says what it noticed." That is the
+/// watcher pattern, and it is the closest this game gets to being haunted -
+/// but it only works if somebody is watching. Three of the four counters in
+/// the game are written by a choice and read by nothing at all:
+///
+/// - `shook-the-machine`, set by THE DISPENSER losing its gamble
+/// - `moles-paid`, set by paying Tibb in MOLE TOWN
+/// - `crossed`, set by crossing THE PICKET LINE
+///
+/// `crucible-melts` is the one with a door on the other end, and THE FOUNDRY
+/// REMEMBERS is what a working one looks like.
+///
+/// This is the mirror of `no_flag_is_waited_on_forever`, which catches a flag
+/// waited on and never set; nothing was catching a counter set and never
+/// waited on. Shipped as a budget rather than a fix, because closing it means
+/// authoring three doors and that is a content mission, not a prose one. It
+/// goes down or it does not move.
+const COUNTERS_NOBODY_READS: usize = 3;
+
+fn counters_set() -> Vec<&'static str> {
+    let mut out: Vec<&'static str> = Vec::new();
+    for c in EVENTS.iter().flat_map(|e| e.choices) {
+        for o in every_outcome(&c.outcome) {
+            if let Outcome::Count(what) = o {
+                if !out.contains(what) {
+                    out.push(what);
+                }
+            }
+        }
+    }
+    for a in TOWNS.iter().flat_map(|t| t.actions) {
+        if let Some(what) = a.counts() {
+            if !out.contains(&what) {
+                out.push(what);
+            }
+        }
+    }
+    out
+}
+
+fn counters_read() -> Vec<&'static str> {
+    let mut out: Vec<&'static str> = Vec::new();
+    for c in EVENTS.iter().flat_map(|e| e.choices) {
+        if let Requirement::Counter { what, .. } = c.requires {
+            if !out.contains(&what) {
+                out.push(what);
+            }
+        }
+    }
+    out
+}
+
+fn unread_counters() -> Vec<&'static str> {
+    let read = counters_read();
+    let mut out: Vec<&'static str> = counters_set().into_iter().filter(|w| !read.contains(w)).collect();
+    out.sort_unstable();
+    out
+}
+
+#[test]
+fn no_more_counters_go_unread_than_already_do() {
+    let found = unread_counters();
+    assert!(
+        found.len() <= COUNTERS_NOBODY_READS,
+        "{} counters are set and read by nothing, over a budget of {}:\n{:#?}",
+        found.len(),
+        COUNTERS_NOBODY_READS,
+        found
+    );
+}
+
+#[test]
+fn the_unread_counter_budget_is_not_slack() {
+    let found = unread_counters();
+    assert_eq!(
+        found.len(),
+        COUNTERS_NOBODY_READS,
+        "the list shrank to {} - lower COUNTERS_NOBODY_READS in the commit that earned it",
+        found.len()
+    );
+}
+
+/// And every counter that is read can also be written, which is the half that
+/// was already covered and is worth stating from this side too.
+#[test]
+fn every_counter_a_door_reads_is_one_something_writes() {
+    let set = counters_set();
+    for what in counters_read() {
+        assert!(set.contains(&what), "a door reads {what:?}, which nothing anywhere counts");
+    }
+}
+
+/// The target, for the day the three of them have doors.
+#[test]
+#[ignore]
+fn every_counter_is_read_by_something() {
+    assert_eq!(unread_counters(), Vec::<&str>::new());
+}
+
 /// Every door's window is honest about when it can first stand.
 ///
 /// A window that opens ten rungs before its own key can exist is not wrong so

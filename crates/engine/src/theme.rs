@@ -1287,7 +1287,30 @@ pub static TURTLE_DICK: Theme = Theme {
             title: "THE TETRAHEDRON WATCHER",
             prose: &[], entry: &[], landings: &[],
         },
-        Retold { id: "the-locked-gate", title: "EGGBERT'S GATE", prose: &[], entry: &[], landings: &[] },
+        // Prose, not just a title, because the canonical scene stopped
+        // saying EGGBERT. The plate on the middle post is a *proper noun* -
+        // no word-swap reaches it - so the canonical column gave itself its
+        // own name and this keeps the book's, which is what the two columns
+        // are for. Without it the turtle title would stand over a scene whose
+        // gate says something else.
+        Retold {
+            id: "the-locked-gate",
+            title: "EGGBERT'S GATE",
+            prose: &[
+                "A gate, in good repair, hung on two posts, with a lock on it \
+                 that somebody oils. There is no wall on either side of it and \
+                 no road behind it, and the grass behind it has not been \
+                 walked on by anything with feet.",
+                "The word Halloway gave you is not a key. It is a thing to \
+                 say, and he said it to himself twice before he said it to \
+                 you, to be sure he had it in the right order.",
+                "There is a brass plate screwed to the middle post. It says \
+                 EGGBERT and then a number that is longer than a house number \
+                 needs to be.",
+            ],
+            entry: &[],
+            landings: &[],
+        },
         Retold {
             id: "the-glow-over-the-ridge",
             title: "THE GLOW OVER THE WEIRDEIRS",
@@ -1440,7 +1463,26 @@ pub static TURTLE_DICK: Theme = Theme {
         Retold { id: "the-bird-problem", title: "UNSOLICITED PROPOSAL", prose: &[], entry: &[], landings: &[] },
         // ---- Extra Large, and the four places a bauble goes -----------------
         Retold { id: "the-bigger-sign", title: "THE SIGN BEHIND THE SIGN", prose: &[], entry: &[], landings: &[] },
-        Retold { id: "the-thrumbus-race", title: "THE 45TH ANNUAL THRUMBUS RACE", prose: &[], entry: &[], landings: &[] },
+        // A thrumbus is the book's animal, p. 29, and the canonical race is
+        // run by bolters now for the same reason the gate says HOLLIS. Cobb
+        // keeps the form either way: a canonical name standing in a turtle
+        // scene is what Merrik and Halloway have always done.
+        Retold {
+            id: "the-thrumbus-race",
+            title: "THE 45TH ANNUAL THRUMBUS RACE",
+            prose: &[
+                "The 45th running, and the paddock is nine deep in people who \
+                 have an opinion about a thrumbus. A thrumbus is the fastest \
+                 thing that has ever been bred and looks, standing still, like \
+                 a mistake.",
+                "There is a book taking bets and a rail you can lean on and a \
+                 steward called Cobb who will let anybody run who signs the \
+                 form, and the form is one line long and the line is about \
+                 teeth.",
+            ],
+            entry: &[],
+            landings: &[],
+        },
         Retold { id: "mole-town", title: "HIGHWAY TO MOLE TOWN", prose: &[], entry: &[], landings: &[] },
         // ---- the structures --------------------------------------------------
         Retold { id: "the-inspection", title: "THE RICE INSPECTION", prose: &[], entry: &[], landings: &[] },

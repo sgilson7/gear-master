@@ -262,7 +262,12 @@ fn every_scene_names_something() {
 /// to write the name into the middle of a sentence somewhere, which is better
 /// prose in any case - not to widen the proxy, which would mean keeping a list
 /// of the cast in a test file and fitting the test to its data.
-const DIGIT_PROPS: usize = 10;
+///
+/// 7 once the fourth batch named Nettle on the picket, Cobb at the paddock
+/// rail and Tibb with his case of tools - taking "6 demands", "3 storeys" and
+/// the last of the props in the events with them. What is left is one town
+/// gate and six dungeon lines, which is P5.
+const DIGIT_PROPS: usize = 7;
 
 fn leaning_on_a_number() -> Vec<String> {
     every_scene()

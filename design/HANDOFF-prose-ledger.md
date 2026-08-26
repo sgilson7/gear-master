@@ -320,3 +320,63 @@ would mean keeping the cast list in a test file and fitting the test to its
 data, which is the fault this file's own comments warn about.
 
 **Suites:** engine **780 green, 40 ignored, 0 warnings**; gui **61 green**.
+
+---
+
+## P4 batch 4 - rungs 37 to 51, and the two off the road
+
+Ten scenes. **`DIGIT_PROPS` 10 -> 7.** Everything left on that list is a town
+gate or a dungeon, which is P5.
+
+| Scene | What changed |
+|---|---|
+| `the-fork` | **nothing.** Ossery is named, the seam is concrete, and the third paragraph states the choice plainly. One of the best in the game |
+| `the-picket-line` | "somebody on this line has been raking up after people like you" -> **Nettle**, who put demand four on the board herself. "6 demands" -> "six demands"; the count is load-bearing because demand four is quoted, but the digit was the prop |
+| `the-locked-gate` | The plate said **EGGBERT**, which is the book's. It says **HOLLIS** |
+| `the-thrumbus-race` | A thrumbus is the book's animal. The canonical race is run by **bolters**, the title is **THE BOLTER RACE**, and the steward is **Cobb**. `pedestal.rs::Destination::name` carries the title as a second literal and was changed with it |
+| `mole-town` | "an older mole with a case of tools" -> **Tibb**; "3 storeys" spelled out |
+| `the-passenger` | "A courier" -> **Larkin**, the second of the two couriers this pass has had to tell apart |
+| `the-glow-over-the-ridge` | "A carter coming the other way" -> **a carter called Gull** |
+| `the-foundry-remembers` | "a man at the roadside in Slagworks overalls" -> **Rusk**, and *Ossery sent him*, which is what the scene was always implying and never said |
+| `through-the-cracked-lens` | Halloway "was thrown out of six observatories"; THE ASTRONOMER says "every observatory on this road". The same man, two counts, thirty rungs apart. It says every observatory now |
+| `the-second-shadow` | **nothing.** It is carrying your build, the same pieces in the same corners with the same one crooked, and then "It has stopped waiting." Leave it alone |
+
+### The turtle keeps its own words
+
+Two `Retold.prose` entries added - `the-locked-gate` and `the-thrumbus-race`.
+Nothing already in `told` was touched. They exist because those two scenes had
+been reaching the turtle column by **fall-through**, so moving the canonical
+text off EGGBERT and off thrumbus would have left EGGBERT'S GATE standing over
+a gate that says HOLLIS. The new entries are the new canonical text with the
+book's word put back, so Cobb is at the paddock rail in both voices and the
+plate says what each column's plate should say.
+
+### A second thing found by reading: three counters nobody reads
+
+THE PICKET LINE's "Cross it" blurb promised *"This rung's shelf, cheap. The
+next three arrive better dressed."* Its outcome is `Pay { times: 2 }` and
+`Count("crossed")`. There is no shelf and no discount, and **nothing anywhere
+reads `crossed`**.
+
+`Outcome::Count`'s own doc says what the mechanic is for: *"Nothing says a word;
+a door forty rungs later reads the tally and says what it noticed."* Three of
+the four counters in the game have no such door:
+
+| Counter | Written by | Read by |
+|---|---|---|
+| `crucible-melts` | the Slagworks' crucible | THE FOUNDRY REMEMBERS |
+| `shook-the-machine` | THE DISPENSER, losing its gamble | **nothing** |
+| `moles-paid` | paying Tibb in MOLE TOWN | **nothing** |
+| `crossed` | crossing THE PICKET LINE | **nothing** |
+
+This is the mirror of `no_flag_is_waited_on_forever`, which catches a flag
+waited on and never set. Nothing was catching a counter set and never waited on.
+`completable.rs` now carries `COUNTERS_NOBODY_READS = 3` as a budget, with an
+`#[ignore]`d target at zero and a third test asserting the other direction.
+
+**Shipped as a budget rather than a fix on purpose.** Closing it means authoring
+three doors, which is a content mission and not a prose one. What was in scope
+was the blurb, which promised a discount that does not exist and now says what
+crossing actually pays.
+
+**Suites:** engine **783 green, 41 ignored, 0 warnings**; gui **61 green**.

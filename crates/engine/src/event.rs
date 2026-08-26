@@ -1062,7 +1062,7 @@ pub const EVENTS: &[LadderEvent] = &[
              and he said it to himself twice before he said it to you, to be \
              sure he had it in the right order.",
             "There is a brass plate screwed to the middle post. It says \
-             EGGBERT and then a number that is longer than a house number \
+             HOLLIS and then a number that is longer than a house number \
              needs to be.",
         ],
         choices: &[
@@ -1097,9 +1097,9 @@ pub const EVENTS: &[LadderEvent] = &[
              time. The interesting part is what it has been melting: not ore, \
              which comes out of the ground, but *finished things*, which have \
              to be carried in - and the road to it goes only one way.",
-            "A carter coming the other way says it is the Slagworks, says it \
-             the way you would say a word you had been told not to, and does \
-             not slow down while saying it.",
+            "A carter called Gull, coming the other way, says it is the \
+             Slagworks, says it the way you would say a word you had been told \
+             not to, and does not slow down while saying it.",
         ],
         choices: &[
             Choice {
@@ -1451,14 +1451,14 @@ pub const EVENTS: &[LadderEvent] = &[
         trigger: Trigger::WhenFlagged { flag: "never", from: 40 },
         blocked_by: &[],
         expects: "Sootmother",
-        title: "THE THRUMBUS RACE",
+        title: "THE BOLTER RACE",
         prose: &[
             "The 45th running, and the paddock is nine deep in people who have \
-             an opinion about a thrumbus. A thrumbus is the fastest thing that \
-             has ever been bred and looks, standing still, like a mistake.",
+             an opinion about a bolter. A bolter is the fastest thing that has \
+             ever been bred and looks, standing still, like a mistake.",
             "There is a book taking bets and a rail you can lean on and a \
-             steward who will let anybody run who signs the form, and the form \
-             is one line long and the line is about teeth.",
+             steward called Cobb who will let anybody run who signs the form, \
+             and the form is one line long and the line is about teeth.",
         ],
         choices: &[
             Choice {
@@ -1491,11 +1491,13 @@ pub const EVENTS: &[LadderEvent] = &[
         title: "MOLE TOWN",
         prose: &[
             "The highway ends at a town built entirely at ankle height. Not \
-             ruined and not small - finished, to plan, at that height, with 3 \
-             storeys of it above ground and every storey under your knee.",
+             ruined and not small - finished, to plan, at that height, with \
+             three storeys of it above ground and every storey under your \
+             knee.",
             "Everybody here is perfectly polite about the size of you. One of \
-             them, an older mole with a case of tools, has been looking at \
-             what you are carrying since you arrived and has an offer.",
+             them is called Tibb, who is older than the rest, carries a case \
+             of tools, and has been looking at what you are carrying since you \
+             arrived.",
         ],
         choices: &[
             Choice {
@@ -1510,7 +1512,7 @@ pub const EVENTS: &[LadderEvent] = &[
                 blurb: "Four rungs' worth, and he takes a curse off a piece and keeps it.",
                 requires: Requirement::Purse { times: 4 },
                 outcome: Outcome::All(&[Outcome::Uncurse, Outcome::Count("moles-paid")]),
-                unmet: "He looks at your purse, and then at you, and says nothing at all.",
+                unmet: "Tibb looks at your purse, and then at you, and says nothing at all.",
             },
         ],
     },
@@ -1685,15 +1687,15 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "The Quiet Hour",
         title: "THE PASSENGER",
         prose: &[
-            "A courier on the road is carrying something in both hands and has \
-             been carrying it in both hands for a long time, judging by the \
-             arms.",
+            "A courier called Larkin is carrying something in both hands on \
+             the road and has been carrying it in both hands for a long time, \
+             judging by the arms.",
             "It is a calf. It is a sacred calf and it is the size of a loaf \
              and it has to be at the Last Oxen before the road gets there, and \
-             the courier is not going to make it and knows it.",
+             Larkin is not going to make it and knows it.",
             "It will not travel in a bag. It rides wrapped in sacking, sitting \
              somewhere on you in the open and taking up room you were using - \
-             which is exactly the rent, and the courier says so without being \
+             which is exactly the rent, and Larkin says so without being \
              asked. Everybody who sees it will call it a parcel and nobody \
              will be told otherwise.",
         ],
@@ -1707,7 +1709,7 @@ pub const EVENTS: &[LadderEvent] = &[
             },
             Choice {
                 label: "Wish him luck",
-                blurb: "He says thank you and means it, which does not help either of you.",
+                blurb: "Larkin says thank you and means it, which does not help either of you.",
                 requires: Requirement::None,
                 outcome: Outcome::FightAsWritten,
                 unmet: "",
@@ -1808,8 +1810,9 @@ pub const EVENTS: &[LadderEvent] = &[
         prose: &[
             "The glow is behind you and a long way behind you, and there is a \
              man at the roadside in Slagworks overalls who has walked further \
-             than that to be standing here.",
-            "He says the foundry keeps a book. He says it the way you say a \
+             than that to be standing here. His name is Rusk and Ossery sent \
+             him.",
+            "He says the foundry keeps a book. Rusk says it the way you say a \
              thing you have been asked to pass on exactly, and then he passes \
              it on exactly.",
             "Nobody mentioned a book. Nobody mentioned that the crucible was \
@@ -1825,7 +1828,7 @@ pub const EVENTS: &[LadderEvent] = &[
             },
             Choice {
                 label: "Say nothing",
-                blurb: "He nods, notes it, and walks back. Prices run ahead of you after that.",
+                blurb: "Rusk nods, notes it, and walks back. Prices run ahead of you after that.",
                 requires: Requirement::None,
                 outcome: Outcome::Markup(10),
                 unmet: "",
@@ -1841,8 +1844,8 @@ pub const EVENTS: &[LadderEvent] = &[
         title: "THROUGH THE CRACKED LENS",
         prose: &[
             "This high up the air stops arguing with light and the lens does \
-             what Halloway said it would do, which is a thing he was thrown \
-             out of six observatories for describing.",
+             what Halloway said it would do, which is the thing he was thrown \
+             out of every observatory on this road for describing.",
             "It does not magnify. It focuses - on a thing rather than at a \
              distance - and what comes into focus is whatever is standing \
              between you and the top, in the gear it is standing in, from \
@@ -1854,7 +1857,7 @@ pub const EVENTS: &[LadderEvent] = &[
                 blurb: "Every board ahead of you, from the loadout screen, for the rest of it.",
                 requires: Requirement::Holding("The Cracked Lens"),
                 outcome: Outcome::Scout,
-                unmet: "You would need the lens. He offered it to you once, at a price.",
+                unmet: "You would need the lens. Halloway offered it to you once, at a price.",
             },
             Choice {
                 label: "Keep your eyes on the road",
@@ -1912,13 +1915,13 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "Gallowglass",
         title: "THE PICKET LINE",
         prose: &[
-            "The arena workers have downed tools. There are 6 demands chalked \
-             on the board at the gate, they are numbered, and every one of \
-             them is about the sand.",
+            "The arena workers have downed tools. There are six demands \
+             chalked on the board at the gate, they are numbered, and every \
+             one of them is about the sand.",
             "Demand four is about armour. Demand four is about *your* armour, \
              which is an odd thing to find on somebody else's picket, and it \
-             is there because somebody on this line has been raking up after \
-             people like you for eleven years.",
+             is there because Nettle has been raking up after people like you \
+             for eleven years and put it on the board herself.",
         ],
         choices: &[
             Choice {
@@ -1930,7 +1933,7 @@ pub const EVENTS: &[LadderEvent] = &[
             },
             Choice {
                 label: "Cross it",
-                blurb: "This rung's shelf, cheap. The next three arrive better dressed.",
+                blurb: "Two rungs' worth in your hand, and your name on the board at the gate.",
                 requires: Requirement::None,
                 outcome: Outcome::All(&[Outcome::Pay { times: 2 }, Outcome::Count("crossed")]),
                 unmet: "",
