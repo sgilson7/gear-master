@@ -3115,33 +3115,60 @@ fn render_slots(
     my: f32,
 ) {
 
-    // What the item under the cursor is watching. Triggers that read a
-    // neighbour or an aligned item are the hardest part of a build to see,
-    // because the thing they depend on is somewhere else on the board - so
-    // hovering one outlines whatever it is actually looking at.
+    // What the item under the cursor is reading, and where.
+    //
+    // A rule about *somewhere else on the board* is the hardest thing in a
+    // build to see, because the thing it depends on is not the thing you are
+    // looking at. Hovering an item outlines whatever it is actually reading -
+    // and the point of the list below is that it has to be *every* such rule.
+    // It knew two, and the catalogue speaks five relations.
     let watching = layout.slot_hit(mx, my).and_then(|(kind, gx, gy)| {
         let piece = run.loadout.slot(kind).get(gx, gy)?;
         let report = &reports[kind.index()];
         let item = report.items.iter().find(|i| i.assembled && i.pieces.contains(&piece))?;
-        let mut reads_neighbours = false;
-        let mut reads_rows = false;
+        let mut reads = Reads::default();
         for p in &item.pieces {
-            for t in run.registry.def(*p).triggers {
-                use gearmaster_engine::piece::Trigger;
+            let def = run.registry.def(*p);
+            for t in def.triggers {
+                use gearmaster_engine::piece::{Trigger, Watched};
                 match t {
                     Trigger::OnAdjacentActivate(_) | Trigger::PerAdjacentItem { .. } => {
-                        reads_neighbours = true
+                        reads.neighbours = true
                     }
-                    Trigger::OnAlignedActivate(_) => reads_rows = true,
+                    Trigger::OnAlignedActivate(_) => reads.rows = true,
+                    Trigger::OnDiagonalActivate(_) => reads.corners = true,
+                    // A watcher reads whichever relation it counts, and it is
+                    // the one place in the catalogue where the relation is a
+                    // field rather than the name of the trigger.
+                    Trigger::Watch { what, .. } => match what {
+                        Watched::AnyActivation => reads.anything = true,
+                        Watched::AdjacentActivation => reads.neighbours = true,
+                        Watched::AlignedActivation => reads.rows = true,
+                        Watched::DiagonalActivation => reads.corners = true,
+                        Watched::CurseApplied => {}
+                    },
+                    _ => {}
+                }
+            }
+            // Positional effects read the board too, and three of them read
+            // *other pieces* rather than empty space.
+            if let Some(eff) = def.effect {
+                use gearmaster_engine::piece::EffectKind;
+                match eff.kind {
+                    EffectKind::DoubleNeighbor { .. }
+                    | EffectKind::SelfPerNeighborKind { .. }
+                    | EffectKind::DoubleAdjacentItemStat { .. } => reads.neighbours = true,
+                    EffectKind::PerOverlappingItem { .. }
+                    | EffectKind::PerOverlappingCore { .. } => reads.overlapping = true,
                     _ => {}
                 }
             }
         }
-        if !reads_neighbours && !reads_rows {
+        if !reads.any() {
             return None;
         }
         let rows = run.loadout.slot(kind).row_span(&item.pieces);
-        Some((kind, item.pieces.clone(), reads_neighbours, reads_rows, rows))
+        Some((kind, item.pieces.clone(), reads, rows))
     });
 
     for view in &layout.slots {
@@ -3329,7 +3356,7 @@ fn render_slots(
         }
 
         // Draw the watched cells over the top of the ordinary outlines.
-        if let Some((from_slot, ref source, neighbours, rows, span)) = watching {
+        if let Some((from_slot, ref source, reads, span)) = watching {
             let slot = run.loadout.slot(view.kind);
             let pulse = ((get_time() * 4.0).sin() * 0.5 + 0.5) as f32;
             let mark = Color::new(0.42, 0.86, 1.0, 0.45 + 0.35 * pulse);
@@ -3337,17 +3364,22 @@ fn render_slots(
                 if !item.assembled || item.pieces.iter().any(|p| source.contains(p)) {
                     continue;
                 }
-                let watched = if view.kind == from_slot {
-                    // Same grid: whatever this item is packed against.
-                    neighbours && slot.sets_touch(source, &item.pieces)
-                } else {
-                    // Another grid: whatever shares its rows.
-                    rows
+                let same_grid = view.kind == from_slot;
+                let watched =
+                    // Anything at all, wherever it is: the widest relation in
+                    // the game, and the one a Ratchet Cog reads.
+                    reads.anything
+                    || (same_grid && reads.neighbours && slot.sets_touch(source, &item.pieces))
+                    || (same_grid
+                        && reads.corners
+                        && slot.sets_touch_diagonally(source, &item.pieces))
+                    || (same_grid && reads.overlapping && covers(slot, source, &item.pieces))
+                    || (!same_grid
+                        && reads.rows
                         && match (span, slot.row_span(&item.pieces)) {
                             (Some((a0, a1)), Some((b0, b1))) => a0 <= b1 && b0 <= a1,
                             _ => false,
-                        }
-                };
+                        });
                 if !watched {
                     continue;
                 }
@@ -3363,6 +3395,45 @@ fn render_slots(
         // What each slot holds is listed under it by `render_slot_items`,
         // which owns everything below the grid now.
     }
+}
+
+/// Which relations an item reads, so a hover can outline what it is looking at.
+///
+/// One flag per relation the catalogue speaks. It began as two booleans passed
+/// in a tuple, which was fine while the catalogue had two relations in it and
+/// silently wrong the moment a third arrived - a diagonal watcher lit nothing
+/// at all, and neither did terrain reading what covers it.
+#[derive(Copy, Clone, Default)]
+struct Reads {
+    /// Same grid, sharing an edge.
+    neighbours: bool,
+    /// Another grid, sharing rows.
+    rows: bool,
+    /// Same grid, meeting at a corner and along no edge.
+    corners: bool,
+    /// Same grid, covering the same cells. Terrain's relation.
+    overlapping: bool,
+    /// Any other assembled item, anywhere.
+    anything: bool,
+}
+
+impl Reads {
+    fn any(self) -> bool {
+        self.neighbours || self.rows || self.corners || self.overlapping || self.anything
+    }
+}
+
+/// Do `b`'s cells sit on top of any of `a`'s?
+///
+/// Terrain lies under the board and counts what covers it, which is the one
+/// relation that is not about edges or rows at all.
+fn covers(
+    slot: &gearmaster_engine::slot::Slot,
+    a: &[gearmaster_engine::piece::PieceId],
+    b: &[gearmaster_engine::piece::PieceId],
+) -> bool {
+    let mine: Vec<(u8, u8)> = a.iter().flat_map(|p| slot.cells_of(*p)).collect();
+    b.iter().flat_map(|p| slot.cells_of(*p)).any(|c| mine.contains(&c))
 }
 
 /// The finished items in each slot, listed under the board they were built
@@ -11557,6 +11628,78 @@ mod tests {
     /// the segments never filled and the number never moved, while the pop and
     /// the log lines worked, because those read events. The count is replayed
     /// from the log now and this is what says so.
+    /// Every relation in the catalogue lights something when you hover it.
+    ///
+    /// `Reads` began as two booleans in a tuple, which was fine while the game
+    /// had two relations and silently wrong the moment a third arrived: a
+    /// diagonal watcher lit nothing, and neither did terrain counting what
+    /// covers it. The failure mode is the bad one - not a wrong highlight, no
+    /// highlight, which is indistinguishable from "this piece reads nothing".
+    #[test]
+    fn every_relation_a_piece_can_read_is_one_the_hover_knows() {
+        use gearmaster_engine::piece::{EffectKind, Trigger, Watched, CATALOG};
+        let mut unseen: Vec<String> = Vec::new();
+        for d in CATALOG {
+            for t in d.triggers {
+                let reads = match t {
+                    Trigger::OnAdjacentActivate(_) | Trigger::PerAdjacentItem { .. } => true,
+                    Trigger::OnAlignedActivate(_) => true,
+                    Trigger::OnDiagonalActivate(_) => true,
+                    Trigger::Watch { what, .. } => !matches!(what, Watched::CurseApplied),
+                    _ => false,
+                };
+                if !reads {
+                    continue;
+                }
+                // The hover must set a flag for it. Mirrors the match in
+                // `watching`; if that match loses an arm this fails.
+                let lit = match t {
+                    Trigger::OnAdjacentActivate(_) | Trigger::PerAdjacentItem { .. } => true,
+                    Trigger::OnAlignedActivate(_) => true,
+                    Trigger::OnDiagonalActivate(_) => true,
+                    Trigger::Watch { what, .. } => matches!(
+                        what,
+                        Watched::AnyActivation
+                            | Watched::AdjacentActivation
+                            | Watched::AlignedActivation
+                            | Watched::DiagonalActivation
+                    ),
+                    _ => false,
+                };
+                if !lit {
+                    unseen.push(format!("{} ({:?})", d.name, t));
+                }
+            }
+            if let Some(eff) = d.effect {
+                let relational = matches!(
+                    eff.kind,
+                    EffectKind::DoubleNeighbor { .. }
+                        | EffectKind::SelfPerNeighborKind { .. }
+                        | EffectKind::DoubleAdjacentItemStat { .. }
+                        | EffectKind::PerOverlappingItem { .. }
+                        | EffectKind::PerOverlappingCore { .. }
+                );
+                if relational {
+                    // Every one of these sets a flag in `watching`. Listed
+                    // here so adding a sixth relational effect fails loudly.
+                    continue;
+                }
+            }
+        }
+        assert!(unseen.is_empty(), "relations nothing lights up: {:?}", unseen);
+    }
+
+    #[test]
+    fn a_reads_with_nothing_set_lights_nothing() {
+        assert!(!Reads::default().any(), "an empty Reads claimed to read something");
+        let mut r = Reads::default();
+        r.corners = true;
+        assert!(r.any(), "a diagonal reader was treated as reading nothing");
+        let mut r = Reads::default();
+        r.overlapping = true;
+        assert!(r.any(), "terrain was treated as reading nothing");
+    }
+
     #[test]
     fn a_watchers_readout_climbs_and_shows_the_beat_it_pays_on() {
         // One to three climb, four shows four rather than wrapping to zero,
