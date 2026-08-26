@@ -248,3 +248,25 @@ TELLER, and "the figure" twice in one sentence.
 `DIGIT_PROPS` unchanged at 18 - none of this batch's scenes were on that list,
 which is itself the point: the eighteen are the *worst*, and these seven were
 merely vague.
+
+---
+
+## P4 batch 2 - rungs 14 to 24
+
+Seven scenes. Six rewritten, one left alone. **`DIGIT_PROPS` 18 -> 15.**
+
+| Scene | What changed |
+|---|---|
+| `what-to-do-with-henpeck` | "The overseer" -> **the Hollow King**, which is `LADDER[14]` and the rung you cleared to get here. No invention needed: M15 stripped a name the base game already owned and put a job title in its place. "All 3 copies" -> "All three copies", the digit no longer load-bearing |
+| `the-dispenser` | **nothing.** It is a scene about a machine with nobody at it, and "there is a bottle wedged sideways where somebody's last coin went" says the person is absent rather than withholding who they were. "WORTH IT, which is either a claim or a price" is the best line in the batch |
+| `the-crownwright` | "The crownwright" -> **Padgett the crownwright**, once at the top and once at the bottom where the ledger is |
+| `the-inspection` | "A woman with a clipboard and a folding stool ... without introducing herself" -> **Nance Twiss**, who gives her name and nothing else. "She is not from anywhere" - a `HEDGES` tell, and the withholding written out loud - is gone, and so is "rice for the trade board for 19 years". She still grades rice; the number was the prop, not the rice. Her second choice also stopped mentioning a cart she does not have |
+| `where-it-was-going` | "The man has been paid" -> **Rowe** has been paid. Gerald was always the tortoise, and now both halves of that pair have names in both scenes |
+| `the-green-ledger` | "The tally man" -> **Creel**. "He will not say who asked him to" stays: that is Creel refusing, which is the hook, not the narrator hedging |
+| `what-the-table-said` | "The inn at this crossroads ... for 40 years. The landlord" -> **Salter's inn**, and nobody has sat at the middle of the table for as long as Salter has held the licence. The forty years were a prop; the licence is a fact about a man |
+
+The ratchet caught the improvement rather than the other way round: the suite
+failed with *"the list shrank to 15 - lower DIGIT_PROPS in the commit that
+earned it"*, which is exactly what a budget that cannot be slack is for.
+
+**Suites:** engine **779 green, 40 ignored, 0 warnings**; gui **61 green**.

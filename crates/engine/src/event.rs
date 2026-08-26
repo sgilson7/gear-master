@@ -601,15 +601,15 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "Bone Cantor",
         title: "THE CROWNWRIGHT",
         prose: &[
-            "The crownwright works out of one room over a fish shop and does \
-             not turn round when you come in, on the grounds that he can hear \
-             how full your head is from where he is sitting.",
+            "Padgett the crownwright works out of one room over a fish shop \
+             and does not turn round when you come in, on the grounds that he \
+             can hear how full your head is from where he is sitting.",
             "\"Full,\" he says. \"Good. Most of them come up those stairs \
              empty and want me to put something in it. I make hats. I am not \
              a philanthropist and I am very much not a doctor.\"",
             "He will not sell you a hat. He will take a measurement, for the \
              record. The record is a ledger four inches thick that lives \
-             under the bench, and he will not let you look in it.",
+             under the bench, and Padgett will not let you look in it.",
         ],
         choices: &[
             Choice {
@@ -636,12 +636,12 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "The Gearwright",
         title: "THE GREEN LEDGER",
         prose: &[
-            "The tally man has had the same column open for eleven years. He \
-             turns the ledger round so you can read the figure at the bottom. \
+            "Creel has had the same column open for eleven years. He turns \
+             the ledger round so you can read the figure at the bottom. \
              It is a large number and it is in green ink, because everything \
              in this ledger is in green ink, including the corrections.",
             "The figure is roughly what you have put into the ground and \
-             pulled back out of it since the Cave Rat. He has been keeping \
+             pulled back out of it since the Cave Rat. Creel has been keeping \
              count the whole way up, in fives, four strokes and a bar. He \
              will not say who asked him to.",
             "\"Sign it off,\" he says, \"and it closes, and I go home, and my \
@@ -658,7 +658,7 @@ pub const EVENTS: &[LadderEvent] = &[
             },
             Choice {
                 label: "Add your own line",
-                blurb: "Eleven years is not so long. He says so himself, twice.",
+                blurb: "Eleven years is not so long. Creel says so himself, twice.",
                 requires: Requirement::None,
                 outcome: Outcome::Claim("Longhauler"),
                 unmet: "",
@@ -679,9 +679,9 @@ pub const EVENTS: &[LadderEvent] = &[
         prose: &[
             "Kettleworks, twelve rungs and some weeks on, and there is Gerald \
              in the yard with the harness off, eating.",
-            "The four tons went in through the doors nine days ago. The man \
-             has been paid, has bought a hat with some of it, and is wearing \
-             the hat. He is extremely pleased that you asked.",
+            "The four tons went in through the doors nine days ago. Rowe has \
+             been paid, has bought a hat with some of it, and is wearing the \
+             hat. He is extremely pleased that you asked.",
             "\"Ahead of schedule,\" he says, for the second time in your \
              acquaintance, and this time he has the docket for it, and makes \
              you look at the docket.",
@@ -692,7 +692,7 @@ pub const EVENTS: &[LadderEvent] = &[
                 blurb: "Whatever he did, he did by not stopping. Nothing starts fast.",
                 requires: Requirement::Took("Ask how he does it"),
                 outcome: Outcome::Claim("Longhauler"),
-                unmet: "You never asked him anything on the road, so he has nothing for you at Kettleworks",
+                unmet: "You never asked Rowe anything on the road, so he has nothing for you at Kettleworks.",
             },
             Choice {
                 label: "Let them eat",
@@ -877,13 +877,13 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "The Curator",
         title: "HE IS STILL TALKING",
         prose: &[
-            "The overseer is on the floor of his own counting house with a \
+            "The Hollow King is on the floor of his own counting house with a \
              broken hip and an excellent view of the ceiling, and he is \
              talking.",
             "He has been talking since he went down. He has names. He has \
              routes. He has the clearance order for the works, filed \
              correctly, in triplicate, because he is exactly the sort of man \
-             who would. All 3 copies are available for the obvious \
+             who would. All three copies are available for the obvious \
              consideration.",
             "He is having a marvellous time. He has asked you twice now \
              whether you are getting all this.",
@@ -1317,10 +1317,10 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "Crowned Hollow",
         title: "WHAT THE TABLE SAID",
         prose: &[
-            "The inn at this crossroads has one long table in it and nobody \
-             sits at the middle of it, and it has been that way for 40 years. \
-             The landlord will tell you why if you ask, in a tone that says he \
-             has stopped finding it interesting.",
+            "Salter's inn at this crossroads has one long table in it and \
+             nobody sits at the middle of it, and nobody has for as long as \
+             Salter has held the licence. He will tell you why if you ask, in \
+             a tone that says he has stopped finding it interesting.",
             "Set a thing down at the centre and the table says what the thing \
              is trying to become. Not what it is. What it is *for*, which is \
              a different question and one nothing else in the world has ever \
@@ -1530,13 +1530,14 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "Bone Cantor",
         title: "THE INSPECTION",
         prose: &[
-            "A woman with a clipboard and a folding stool sets up in the road \
-             in front of you and asks, without introducing herself, to see \
-             what you are wearing.",
-            "She is not from anywhere. She grades things - rice for the trade \
-             board for 19 years, and ropes before that - and she says the \
-             principle does not change and that people who think it does are \
-             the reason she still has work.",
+            "Nance Twiss sets a folding stool down in the road in front of \
+             you, sits on it, and asks to see what you are wearing. She gives \
+             her name and nothing else about herself, and treats that as the \
+             whole of an introduction, which it is.",
+            "She grades things. Rice for the trade board, and ropes before \
+             that, and she says the principle does not change between them \
+             and that people who think it does are the reason she still has \
+             work.",
             "What she is looking for is whether the things you have built \
              agree with each other. She is entirely uninterested in whether \
              any of them is good.",
@@ -1551,7 +1552,7 @@ pub const EVENTS: &[LadderEvent] = &[
             },
             Choice {
                 label: "Show her the good half",
-                blurb: "Two that agree. She will take something off the cart for it.",
+                blurb: "Two that agree. Twiss grades the pair, and a graded thing is worth more.",
                 requires: Requirement::AlignedItems(2),
                 outcome: Outcome::Pay { times: 2 },
                 unmet: "Nothing you own agrees with anything else you own. She notes it.",
@@ -1562,7 +1563,7 @@ pub const EVENTS: &[LadderEvent] = &[
             // happening this month.
             Choice {
                 label: "Decline the inspection",
-                blurb: "She folds the stool and says, packing it, where else people are refusing.",
+                blurb: "She folds the stool and says, packing it, where else people are refusing this month.",
                 requires: Requirement::None,
                 outcome: Outcome::Give("A Word About the Picket"),
                 unmet: "",

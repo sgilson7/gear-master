@@ -245,7 +245,12 @@ fn every_scene_names_something() {
 // symptom. The fix is a name.
 
 /// How many scenes still name nothing but a figure. It goes down.
-const DIGIT_PROPS: usize = 18;
+///
+/// 18 at `a46294a`. 15 once P4's second batch named the Hollow King on the
+/// floor of his own counting house, Nance Twiss on her folding stool, and
+/// Salter behind the bar of the inn with the long table - three scenes that
+/// had been standing on "All 3 copies", "19 years" and "40 years".
+const DIGIT_PROPS: usize = 15;
 
 fn leaning_on_a_number() -> Vec<String> {
     every_scene()
