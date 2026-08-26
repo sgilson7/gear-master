@@ -180,18 +180,23 @@ fn both_routes_to_the_mainspring_are_walkable() {
 
 // ------------------------------------------------ 3. nothing has been dressed
 
+/// Every creature the mission added is a frame, and every frame is dressed.
+///
+/// This asserted the opposite until Phase 4, and that was the point: the frame
+/// lint is red before it and green after, which is E6.8's own wording. What
+/// survives the inversion is the half that was always the real claim - a frame
+/// carries what its packer needs, whether or not it has been packed yet.
 #[test]
-fn every_creature_the_mission_added_is_still_a_frame() {
-    let naked = bestiary::unpacked();
-    assert!(
-        !naked.is_empty(),
-        "the frame lint is green before Phase 4, which means a board was authored early"
-    );
-    for f in &naked {
-        assert!(bestiary::is_unpacked(f.name), "{} disagrees with itself", f.name);
+fn every_creature_the_mission_added_is_a_frame_with_a_brief() {
+    for f in bestiary::FRAMES {
         assert!(f.band >= 1, "{} has no band, so nothing can pack it", f.name);
         assert!(!f.note.is_empty(), "{} tells its packer nothing", f.name);
     }
+    assert!(
+        bestiary::unpacked().is_empty(),
+        "Phase 4 is finished and {:?} still has no board",
+        bestiary::unpacked().iter().map(|f| f.name).collect::<Vec<_>>()
+    );
 }
 
 // ------------------------------------------------------ 4. a run reaches them

@@ -102,9 +102,9 @@ re-pinned first**.
 | M14 | The nine structures and the three pairs (H2/D) | **done** - Phase 2 closed |
 | M15 | The words (Phase 3) | **done** |
 | M16 | Rating re-pinned first (Phase 4) | **done** |
-| M17 | Every frame gets its board | next |
-| M18 | Reference builds and the acceptance sweep | |
-| M19 | Final verification, then one merge | |
+| M17 | Every frame gets its board | **done** |
+| M18 | Reference builds and the acceptance sweep | **done** |
+| M19 | Final verification, then one merge | next |
 
 ---
 
@@ -903,3 +903,105 @@ place from the milestones that landed them.
 
 Suite: **750 green**, 0 warnings. From here to M17, nothing touches `rating.rs`
 or `CATALOG`.
+
+
+---
+
+## M17 - Every frame gets its board
+
+The mission's plan said this milestone was done by hand in `make pack`. The
+owner's instruction changed it: **the generator authors a sample board for
+every frame, at the rung it is met on, and the owner rebuilds them by hand
+afterwards.** What follows is what that took.
+
+### Three things stood in the way, and all three were the tool being right
+
+**The generator refuses to dress a naked creature.** Its acceptance guards
+compare a candidate against *the fight this creature already gives* and reject
+anything that makes an ordinary board lose where it used to win. That is the
+right question for a creature that is already dressed and exactly the wrong one
+for a frame, whose current fight is a walkover because it is standing there
+with nothing on - every possible board fails a comparison against nothing. The
+guards are skipped for an unpacked frame and only for one, and the run says so
+in its output. **The curve guard is not skipped**: that one asks whether the
+board is *right* rather than whether it is an improvement, and it is the whole
+quality bar.
+
+**The frames had no stats.** They were authored in M5 and M11 with placeholder
+health and strength - THE LAST LANDING carried 1,200 health and 12 strength at
+band 26, where the ladder's own creature carries 2,230 and 61. Nothing had
+noticed because nothing fights a frame. Each frame now takes the stats of the
+ladder creature at its own band, which is what a band *means*.
+
+**A dungeon floor is not a lesser fight.** The first pass scaled floors to
+seventy-five or eighty percent of their band on the theory that a floor is an
+extra fight on the way to something. The generator refused them: it measures a
+candidate against the curve at its band, and a board built for eighty percent
+of rung 30 lands eighty percent of the way down the curve. A band is the rung
+whose difficulty it packs to, so a floor packs to it.
+
+### What the generator writes
+
+Twenty-odd pieces, seven to nine items, thirty to forty percent of the cells -
+which is a real board rather than a dense one, and the right shape for a sample
+somebody is going to replace. `PACK_MONSTER`, `PACK_RUNG` and `PACK_ITEMS` are
+the whole interface; the output is pasted into `combat.rs` by a splice script
+rather than by the GUI's save, which is why no creature nobody was editing got
+rewritten this time.
+
+### What it took, creature by creature
+
+| Landed | How |
+|---|---|
+| 6 | First pass, straight off the generator |
+| 4 | After the auto-tuner scaled the creature's health by how far off the curve it was |
+| 2 | After `PACK_BAND` - the tool's own *power* dial - was raised to 6 |
+| 1 | THE UNWOUND, at band 20, then scaled x1.5 by measurement |
+| 2 | DOORKEEP and THE STAIR THAT LISTENS, by the owner, by hand |
+
+**The tuner is the part worth keeping.** The generator refuses with a number -
+"wanted 11.8s, best was 8.0s" - which is a gradient, not a rejection. Scaling
+the creature by that ratio and trying again lands most of them in one step.
+Where it does not, the answer was the other dial: a candidate board that beats
+the reference build outright is a board made of pieces that are too good, and
+`PACK_BAND` is what draws weaker ones. Halving health four times taught nothing
+and drove two creatures down to 206 health before the band was tried.
+
+### THE UNWOUND, measured rather than asserted
+
+Packed at band 20 - 43 pieces, thirteen items - and then scaled by
+measurement rather than by taste. The sweep:
+
+| Scale | friend | owner | perfect |
+|---|---|---|---|
+| x1.0 | won 10s | won 22s | lost |
+| **x1.5** | **lost** | **won 28s** | **lost** |
+| x2.0 | lost | lost | lost |
+
+**x1.5** is the answer: two of three lose, and the fight that is won finishes
+at 28 seconds - inside the 16-29s window, with two seconds of daylight before
+sudden death takes it. That is E6.5 and RECONCILIATION #17 at once.
+
+### Two things the measurement corrected
+
+**The three Francis-beating builds are two.** E6.5's sentence reads as a fact
+about the repo and is not one: `francis.rs` measures the friend's run and the
+owner's, and the perfect run is a *packing* fixture - ninety-eight percent of
+its cells full, which is a density record rather than a win. It cannot beat
+Francis on any setting and never could. Written down rather than quietly
+measured around.
+
+**"Harder than Francis" is measured at Medium**, per RECONCILIATION #4, and
+not at whichever setting each board happens to win on - comparing two bosses
+at two different settings compares the settings.
+
+### The fourth build
+
+Authored for the mind lane: two helmet items paying Insight and Dread, a chest
+built entirely of Deflection, greaves that add to it, and the lane's own book.
+Its first draft came back as **zero items** - a list of frames and crests with
+no plating in it, which is a legal set of components and not a legal recipe.
+That is the hand-seating fault this repo has now learned four times, and the
+reason the other three references are share codes.
+
+Suite: **764 green**, 0 warnings. Frame budget **0**.

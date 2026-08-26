@@ -622,18 +622,14 @@ mod tests {
     /// asserts zero. Lower the budget in the commit that dresses a creature;
     /// never raise it.
     ///
-    /// Two moves in M15, in opposite directions, which is why the number is
-    /// not the one either of them implies on its own.
+    /// **Zero, since M17.** Every frame has a board.
     ///
-    /// **Up one:** THE UNWOUND had no frame and no spec at all - rung 51's
-    /// boss existed as a label on the route map, a theme entry and a
-    /// `past_the_top` that could never be true. A creature the mission is
-    /// built around should have been a frame since Phase 2, and the ratchet is
-    /// what noticed it was not.
-    ///
-    /// **Down two:** DOORKEEP and THE STAIR THAT LISTENS were packed by hand
-    /// in `make pack`, ahead of Phase 4. Fifteen frames, thirteen still naked.
-    const UNDRESSED: usize = 13;
+    /// The number went 14 -> 15 in M15, when THE UNWOUND turned out to be a
+    /// label on the route map with no creature under it, and 15 -> 13 when the
+    /// owner packed two by hand. M17 packed the remaining thirteen with the
+    /// generator and it is at its target, where it stays: a frame that ships
+    /// without a board now fails the suite outright rather than eating budget.
+    const UNDRESSED: usize = 0;
 
     #[test]
     fn the_frames_are_no_more_undressed_than_they_were() {

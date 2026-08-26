@@ -769,6 +769,17 @@ fn pack() {
     );
     let mut best: Option<Candidate> = None;
 
+    // A frame has no board to regress, so the two "did this make it worse"
+    // guards cannot say anything about one. Computed here rather than at the
+    // assertion because the *scoring* asks the same question: with `holds`
+    // false for every candidate they all tie at zero hits and the winner is
+    // whichever filled the most cells, which is how a boss came back not
+    // wearing what a boss owes.
+    let dressing_a_frame = gearmaster_engine::bestiary::is_unpacked(&who());
+    if dressing_a_frame {
+        println!("FRAME: no board to regress, so the preset guards do not apply");
+    }
+
     for trial in 0..trials() {
         let mut rng = Rng::new(name_seed() ^ (0x5EED_0000 + trial));
         let mut lines: Vec<String> = Vec::new();
@@ -780,7 +791,17 @@ fn pack() {
         // creature this design exists to stop being.
         let (rung, ordinary) = subject();
         let drawn = themes_of(rung, ordinary);
-        let wanted: Vec<SlotKind> = if drawn.is_empty() {
+        // A boss wears everything, whatever its theme says.
+        //
+        // `themes_of` hands back the character a creature speaks in, and a
+        // character is two or three slots - which is the whole point of the
+        // theme table and exactly wrong for a boss, who is checked slot by
+        // slot further down and owes gear in all five. Francis gets away with
+        // it because a mini-boss rung draws several themes between them; THE
+        // UNWOUND is one theme off the end of the ladder, and drew two.
+        let wanted: Vec<SlotKind> = if drawn.is_empty()
+            || subject_spec().rank == gearmaster_engine::combat::Rank::Boss
+        {
             SlotKind::ALL.to_vec()
         } else {
             let mut v: Vec<SlotKind> = Vec::new();
@@ -931,8 +952,8 @@ fn pack() {
         // anything worth calling a fight.
         let reaches = got[1][1].hurt;
         let holds = reaches
-            && preset_holds(was[0][1], got[0][1])
-            && preset_holds(was[1][1], got[1][1])
+            && (dressing_a_frame || preset_holds(was[0][1], got[0][1]))
+            && (dressing_a_frame || preset_holds(was[1][1], got[1][1]))
             && (!in_the_shallow_window(rung) || got[1][1].ms >= CASINO_BAR_MS)
             && rank_is_satisfied(subject_spec().rank, &gear_for_rank, &chunks);
         let hits = if miss == f64::MAX || !holds {
@@ -971,7 +992,7 @@ fn pack() {
     );
     for (i, which) in [(0usize, "four-piece"), (1, "preset")] {
         assert!(
-            preset_holds(was[i][1], got[i][1]),
+            dressing_a_frame || preset_holds(was[i][1], got[i][1]),
             "nothing at rung {} let an ordinary board past it: the {which} board {} in {:.1}s \
              before and {} in {:.1}s against the best candidate. Leaving it alone.",
             rung + 1,
