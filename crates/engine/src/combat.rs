@@ -3445,7 +3445,11 @@ pub enum Event {
     /// fight, so a count the log does not record is a count the interface
     /// cannot draw. It read zero for the whole fight, because the combatant a
     /// log stores is the one from *before* it.
-    Watched { side: Side, item: String, what: &'static str, seen: u32, count: u32, paid: bool },
+    /// `what` is the relation itself rather than a sentence about it. A log
+    /// entry storing prose is a log entry that cannot be re-worded, themed, or
+    /// pluralised by whoever is drawing it - and the wording is exactly what
+    /// was wrong here.
+    Watched { side: Side, item: String, what: Watched, seen: u32, count: u32, paid: bool },
     /// A mana buff gained stacks. `total` is the new stack count.
     Empowered { side: Side, total: u32, power_bonus: i32 },
     Shielded { side: Side, total: u32, reduction: i32 },
@@ -3619,16 +3623,24 @@ impl CombatLog {
             ),
             Event::Watched { side, item, what, seen, count, paid } => {
                 if *paid {
-                    format!("{} {}'s {} has counted enough {}s", t, self.who(*side), item, what)
-                } else {
                     format!(
-                        "{} {}'s {} counts {} of {} {}s",
+                        "{} {}'s {} has counted its {}",
+                        t,
+                        self.who(*side),
+                        item,
+                        what.counted(*count)
+                    )
+                } else {
+                    // "3 of 8" and then what they are, said once. The phrase
+                    // carries its own number, so the count goes in front of it
+                    // rather than being bolted to a noun that cannot take one.
+                    format!(
+                        "{} {}'s {} counts {} of {}",
                         t,
                         self.who(*side),
                         item,
                         seen % count.max(&1),
-                        count,
-                        what
+                        what.counted(*count)
                     )
                 }
             }
@@ -5047,7 +5059,16 @@ fn tick_watchers(
         log.push(LogEntry {
             who,
             at_ms: t,
-            event: Event::Watched { side, item, what: what.name(), seen: count_so_far, count, paid },
+            event: Event::Watched {
+                side,
+                item,
+                // The whole phrase, not the bare noun: the log line reads
+                // "counts 3 of 8 activations by your other items".
+                what,
+                seen: count_so_far,
+                count,
+                paid,
+            },
         });
     }
     for (action, item) in due {

@@ -753,6 +753,13 @@ pub enum Trigger {
 ///
 /// Each is an event the fight already emits, so a watcher never needs the
 /// engine to invent bookkeeping - it reads the same stream the log does.
+///
+/// **None of them counts the watcher's own item.** `notify_watchers` skips the
+/// item that just acted and walks only the same side's board, so every variant
+/// here means "somebody else on your board came round". That is easy to say in
+/// a doc comment and was not being said anywhere a player could read it: the
+/// tooltip said "every 8 activations, gain 1 Spellblade", which reads as *its*
+/// activations and is the one thing it does not mean.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Watched {
     /// Any other friendly item activating.
@@ -768,13 +775,40 @@ pub enum Watched {
 }
 
 impl Watched {
+    /// One of the things this counts, as a noun phrase. For the combat log.
+    ///
+    /// Says *whose* in every case. "activation" was the whole bug: it is the
+    /// only reading of the word that is wrong, and it was the one on screen.
     pub fn name(self) -> &'static str {
         match self {
-            Watched::AnyActivation => "activation",
-            Watched::AdjacentActivation => "neighbour activation",
-            Watched::DiagonalActivation => "diagonal activation",
-            Watched::AlignedActivation => "aligned activation",
-            Watched::CurseApplied => "curse",
+            Watched::AnyActivation => "activation by another of your items",
+            Watched::AdjacentActivation => "activation by a neighbour",
+            Watched::DiagonalActivation => "activation by a corner-neighbour",
+            Watched::AlignedActivation => "activation by an item on its rows",
+            Watched::CurseApplied => "curse landing",
+        }
+    }
+
+    /// `n` of them, pluralised where the plural belongs.
+    ///
+    /// Not `name() + "s"`: the plural of "activation by another of your items"
+    /// is not "activation by another of your itemss", and a format string that
+    /// bolts an s onto a phrase can only ever handle a phrase that is one
+    /// word. That is why the old name *was* one word.
+    pub fn counted(self, n: u32) -> String {
+        match self {
+            Watched::AnyActivation if n == 1 => "1 activation by another of your items".into(),
+            Watched::AnyActivation => format!("{} activations by your other items", n),
+            Watched::AdjacentActivation if n == 1 => "1 activation by a neighbour".into(),
+            Watched::AdjacentActivation => format!("{} activations by items touching it", n),
+            Watched::DiagonalActivation if n == 1 => "1 activation by a corner-neighbour".into(),
+            Watched::DiagonalActivation => {
+                format!("{} activations by items meeting it at a corner", n)
+            }
+            Watched::AlignedActivation if n == 1 => "1 activation by an item on its rows".into(),
+            Watched::AlignedActivation => format!("{} activations by items sharing its rows", n),
+            Watched::CurseApplied if n == 1 => "1 curse landing on either side".into(),
+            Watched::CurseApplied => format!("{} curses landing on either side", n),
         }
     }
 }
@@ -832,10 +866,8 @@ impl Trigger {
                 format!("when an item touching only a corner of this one acts, {}", a.describe())
             }
             Trigger::Watch { what, count, then, repeats } => format!(
-                "every {} {}{}, {}",
-                count,
-                what.name(),
-                if *count == 1 { "" } else { "s" },
+                "every {}, {}",
+                what.counted(*count),
                 then.describe(),
             ) + if *repeats { "" } else { " (once a fight)" },
             Trigger::SpendGold { cost, budget, on_success } => format!(

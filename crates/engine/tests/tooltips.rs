@@ -183,3 +183,66 @@ fn an_event_knows_whether_it_stands_on_a_rung_or_roams_a_window() {
     let toad = EVENTS.iter().find(|e| e.id == "the-toads-offer").expect("authored");
     assert_eq!(toad.where_it_stands(), "rung 3");
 }
+
+
+// ------------------------------------------------- whose activation, exactly
+
+/// A watcher's description says *whose* activation it counts.
+///
+/// The Ratchet Cog said "every 8 activations, gain 1 spellblade". It counts
+/// activations by your **other** items - `notify_watchers` skips the item that
+/// acted and walks only its own side - so the one reading the words invited
+/// was the one thing it does not do. Thirty pieces carried a watcher and every
+/// one of them said it the same wrong way, because they all go through
+/// `Trigger::describe`.
+#[test]
+fn a_watcher_says_whose_activation_it_is_counting() {
+    use gearmaster_engine::piece::{Trigger, CATALOG};
+    let mut checked = 0;
+    for d in CATALOG {
+        for t in d.triggers {
+            let Trigger::Watch { .. } = t else { continue };
+            checked += 1;
+            let said = t.describe();
+            assert!(
+                said.contains("by your other items")
+                    || said.contains("by another of your items")
+                    || said.contains("by items ")
+                    || said.contains("by a neighbour")
+                    || said.contains("by an item ")
+                    || said.contains("by a corner-neighbour")
+                    || said.contains("curse"),
+                "{} does not say whose: {:?}",
+                d.name,
+                said
+            );
+        }
+    }
+    assert!(checked > 20, "only {} watchers found - did the catalogue lose some?", checked);
+}
+
+/// And the plural lands on the right word.
+///
+/// The old line was `name() + "s"`, which is why the name had to be one word:
+/// the plural of "activation by another of your items" is not that phrase with
+/// an s on the end.
+#[test]
+fn a_watchers_phrase_pluralises_where_the_plural_belongs() {
+    use gearmaster_engine::piece::Watched;
+    for w in [
+        Watched::AnyActivation,
+        Watched::AdjacentActivation,
+        Watched::DiagonalActivation,
+        Watched::AlignedActivation,
+        Watched::CurseApplied,
+    ] {
+        let one = w.counted(1);
+        let many = w.counted(8);
+        assert!(one.starts_with("1 "), "{:?} says {:?} for one", w, one);
+        assert!(many.starts_with("8 "), "{:?} says {:?} for eight", w, many);
+        assert!(!one.contains("ss"), "{:?} doubled an s: {:?}", w, one);
+        assert!(!many.contains("itemss"), "{:?} bolted a plural on a phrase: {:?}", w, many);
+        // The singular is singular and the plural is not.
+        assert!(!one.contains("activations"), "{:?} pluralised one: {:?}", w, one);
+    }
+}
