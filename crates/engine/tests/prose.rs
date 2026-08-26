@@ -21,8 +21,10 @@
 //! The rest are guards rather than detectors: they hold today and would catch
 //! the drift coming back.
 
+use gearmaster_engine::combat::Difficulty;
 use gearmaster_engine::dungeon::DUNGEONS;
 use gearmaster_engine::event::EVENTS;
+use gearmaster_engine::run::Mode;
 use gearmaster_engine::town::{Action, TOWNS};
 
 /// Everything the player reads, with a label for the failure and whether it is
@@ -57,6 +59,14 @@ fn scenes() -> Vec<(String, &'static str, bool)> {
             out.push((format!("{} landing", d.id), p, true));
         }
     }
+    // The two lines under the headings on the setup screen. They are the only
+    // prose in the game a player reads before the road starts, and until this
+    // file could see them they were the only prose nothing checked - which is
+    // how both of them came to be knowing epigrams restating the cards
+    // underneath. Neither is a paragraph: a line on a screen is allowed to be
+    // plain, and these two are supposed to be.
+    out.push(("mode screen subtitle".into(), Mode::WHAT_THE_CHOICE_IS, false));
+    out.push(("difficulty screen subtitle".into(), Difficulty::WHAT_THE_CHOICE_IS, false));
     out
 }
 
@@ -99,6 +109,14 @@ fn no_scene_withholds_the_noun() {
         "there is a sense",
         "somehow both",
         "and yet",
+        // The setup screen's own register, which is not the scenes' register
+        // and went unchecked for as long as this file could not see it. Both
+        // of these are the game standing outside itself and passing comment:
+        // "Medium is the fight the game was built around", "It just does not
+        // get you past the thing that beat you". A game that names itself in
+        // copy a player reads has stopped being the thing they are in.
+        "the game",
+        "it just does not",
     ];
     for (where_, text, _) in scenes() {
         let low = text.to_lowercase();
@@ -106,6 +124,45 @@ fn no_scene_withholds_the_noun() {
             assert!(
                 !low.contains(h),
                 "{where_}: {h:?} is mood standing in for a fact. Say what the thing is.\n  {text}"
+            );
+        }
+    }
+}
+
+/// A subtitle says what its screen is asking. It does not grade the cards.
+///
+/// Both of the two the setup screen ships failed this, and neither was
+/// checkable until `scenes()` could reach them. "Bigger numbers mean tougher,
+/// meaner monsters. Medium is the fight the game was built around" singles out
+/// an option standing directly underneath it - in a card that already says
+/// "the intended fight" on its own face - so the subtitle is spending its one
+/// line saying a thing the screen was going to say anyway.
+///
+/// The proxy: a subtitle may not name any of the options it sits above. It is
+/// cheap and it is not literary judgement, but a line that has to single one
+/// out is a line doing the cards' job instead of the heading's.
+#[test]
+fn a_subtitle_does_not_name_the_options_under_it() {
+    let screens: [(&str, &str, Vec<&str>); 2] = [
+        (
+            "the mode screen",
+            Mode::WHAT_THE_CHOICE_IS,
+            vec![Mode::Grinder.name(), Mode::Rogue.name()],
+        ),
+        (
+            "the difficulty screen",
+            Difficulty::WHAT_THE_CHOICE_IS,
+            Difficulty::ALL.iter().map(|d| d.name()).collect(),
+        ),
+    ];
+    for (screen, subtitle, options) in screens {
+        assert!(!subtitle.is_empty(), "{screen}: no line under the heading");
+        let low = subtitle.to_lowercase();
+        for o in options {
+            assert!(
+                !low.contains(&o.to_lowercase()),
+                "{screen}: the line under the heading names {o}, which is a card \
+                 directly below it.\n  {subtitle}"
             );
         }
     }

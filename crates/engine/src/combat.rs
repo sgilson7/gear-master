@@ -532,6 +532,18 @@ pub enum Difficulty {
 }
 
 impl Difficulty {
+    /// The line under the heading on the screen where a setting is picked.
+    ///
+    /// Beside `Mode::WHAT_THE_CHOICE_IS` and for the same reason. The one that
+    /// was here said "Bigger numbers mean tougher, meaner monsters. Medium is
+    /// the fight the game was built around" - which names an option standing
+    /// directly below it, in a card that already says "the intended fight" on
+    /// its own face, and which is wrong about the mechanism besides: most of a
+    /// setting is `gear_step`, and the numbers are what is left over.
+    pub const WHAT_THE_CHOICE_IS: &'static str =
+        "Set once, for the whole run. It steps the gear the opposition wears \
+         before it touches any of its numbers.";
+
     pub const ALL: &'static [Difficulty] =
         &[Difficulty::Easy, Difficulty::Medium, Difficulty::Hard, Difficulty::Insane];
 

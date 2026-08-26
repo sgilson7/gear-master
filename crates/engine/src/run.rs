@@ -36,6 +36,21 @@ pub enum Mode {
 }
 
 impl Mode {
+    /// The line under the heading on the screen where a mode is picked.
+    ///
+    /// It lives here rather than in the interface for two reasons. The screen
+    /// is not the only thing that has to be able to say this - the CLI picks a
+    /// mode too - and a line of prose kept in a crate the prose lint cannot
+    /// reach is a line of prose nothing checks. The one that was here said
+    /// "Losing pays either way. It just does not get you past the thing that
+    /// beat you", which is a verdict on both cards rather than a statement of
+    /// what the screen is asking.
+    ///
+    /// What the screen is asking is which of one thing you want, and both
+    /// cards below already say what their own answer costs.
+    pub const WHAT_THE_CHOICE_IS: &'static str =
+        "The two differ in one thing: what a loss takes off you.";
+
     pub fn name(self) -> &'static str {
         match self {
             Mode::Grinder => "GRINDER",

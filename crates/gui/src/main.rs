@@ -7873,13 +7873,7 @@ fn render_mode_select(
 ) -> ([(Mode, Rect); 2], Vec<(Difficulty, Rect)>, Vec<(&'static gearmaster_engine::theme::Theme, Rect)>) {
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, col_bg());
     centered_text("HOW DO YOU WANT TO PLAY?", LOGICAL_W / 2.0, 84.0, 28.0, col_gold());
-    centered_text(
-        "Losing pays either way. It just does not get you past the thing that beat you.",
-        LOGICAL_W / 2.0,
-        122.0,
-        15.0,
-        col_dim(),
-    );
+    centered_text(Mode::WHAT_THE_CHOICE_IS, LOGICAL_W / 2.0, 122.0, 15.0, col_dim());
 
     // ---- which words ----
     //
@@ -8022,14 +8016,7 @@ fn render_mode_select(
     // ---- difficulty ----
     let dy = y0 + ch + 46.0;
     centered_text("HOW HARD?", LOGICAL_W / 2.0, dy, 22.0, col_gold());
-    centered_text(
-        "Bigger numbers mean tougher, meaner monsters. Medium is the fight the game was \
-         built around.",
-        LOGICAL_W / 2.0,
-        dy + 30.0,
-        14.0,
-        col_dim(),
-    );
+    centered_text(Difficulty::WHAT_THE_CHOICE_IS, LOGICAL_W / 2.0, dy + 30.0, 14.0, col_dim());
 
     let n = Difficulty::ALL.len() as f32;
     let dw = 250.0;
