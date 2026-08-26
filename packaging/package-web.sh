@@ -237,6 +237,20 @@ cat > "$WEB/index.html" <<'HTML'
 </html>
 HTML
 
+# Stamp the wasm's own hash into the page that loads it.
+#
+# A browser will hold a two-megabyte wasm for as long as it is allowed to, and
+# GitHub Pages lets it: publishing a new build and being told "that is the same
+# screen as before" is the same bug every time. The token is a hash of the
+# binary rather than a timestamp, so it changes exactly when the game does -
+# which keeps `make publish` honest about "docs/ unchanged, nothing to publish"
+# instead of churning a new index.html on every build.
+STAMP=$(shasum -a 256 "$WEB/gearmaster.wasm" | cut -c1-12)
+TMP="$WEB/index.html.tmp"
+sed "s|load(\"gearmaster.wasm\")|load(\"gearmaster.wasm?v=$STAMP\")|" \
+    "$WEB/index.html" > "$TMP" && mv "$TMP" "$WEB/index.html"
+say "Stamped $STAMP"
+
 say "Zipping"
 ( cd "$WEB" && zip -q -r "$ZIP" index.html gearmaster.wasm mq_js_bundle.js )
 
