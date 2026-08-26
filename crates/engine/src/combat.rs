@@ -2850,6 +2850,12 @@ pub struct Combatant {
     /// nothing at all while held - and Dread is what turns it into damage.
     pub insight: i32,
     pub dread: u32,
+    /// Whether this fighter still owes itself one blow that cannot be stopped.
+    ///
+    /// Set by Wumpus Hunter and spent by the first hit that lands. Two things
+    /// in this game can eat a swing outright - a ward and a deflection - and
+    /// this is the only answer to either.
+    pub first_blood: bool,
     /// Percentage of the target's mind resistance the mind damage this fighter
     /// deals goes straight through.
     ///
@@ -3007,6 +3013,7 @@ impl Combatant {
             shield: 0,
             insight: 0,
             dread: 0,
+            first_blood: false,
             mind_pierce: 0,
             spellblade: 0,
             deflection: 0,
@@ -3116,6 +3123,7 @@ impl Combatant {
             shield: 0,
             insight: 0,
             dread: 0,
+            first_blood: false,
             mind_pierce: 0,
             spellblade: 0,
             deflection: 0,
@@ -3274,6 +3282,21 @@ impl Combatant {
     /// detail: `typed_lanes.rs` asks this directly, which is the only way to
     /// put one number in and read what each lane did to it.
     pub fn take_typed(&mut self, amount: i32, kind: DamageType, pierce: i32) -> (i32, i32) {
+        self.take_typed_with(amount, kind, pierce, false)
+    }
+
+    /// The same, with the option of walking past the flat answer entirely.
+    ///
+    /// `unstoppable` is Wumpus Hunter's first blow, and it is the only thing
+    /// in the game that skips a shield or a deflection rather than reducing
+    /// what is left after one.
+    pub fn take_typed_with(
+        &mut self,
+        amount: i32,
+        kind: DamageType,
+        pierce: i32,
+        unstoppable: bool,
+    ) -> (i32, i32) {
         let amount = match kind {
             DamageType::Physical => crate::stats::after_defences(
                 amount,
@@ -3292,9 +3315,13 @@ impl Combatant {
         // the mana shield takes magic, Deflection takes physical. Before this
         // the shield took everything, which is what made the mana pair the
         // only defensive stack worth owning.
-        let amount = match kind {
-            DamageType::Physical => (amount - self.physical_reduction()).max(0),
-            DamageType::Magic => (amount - self.damage_reduction()).max(0),
+        let amount = if unstoppable {
+            amount
+        } else {
+            match kind {
+                DamageType::Physical => (amount - self.physical_reduction()).max(0),
+                DamageType::Magic => (amount - self.damage_reduction()).max(0),
+            }
         };
         if amount <= 0 {
             return (0, 0);
@@ -3808,6 +3835,10 @@ pub fn simulate_party(
             crate::class::ClassPower::Overflowing(n) => start_player.overflowing = n,
             crate::class::ClassPower::Leeching(pct) => start_player.leech = pct,
             crate::class::ClassPower::WrongSense(pct) => start_player.mind_pierce = pct,
+            crate::class::ClassPower::FirstBlood => start_player.first_blood = true,
+            // Not a combat rule at all: it changes what a corpse leaves
+            // behind, which is `Run::settle`'s business.
+            crate::class::ClassPower::Prospector(_) => {}
             crate::class::ClassPower::Standing(_) => {}
             crate::class::ClassPower::Echo(n) => start_player.echo_every = n,
             crate::class::ClassPower::Bastion(pct) => start_player.bastion = pct,
@@ -4040,7 +4071,14 @@ pub fn simulate_party(
                         // simply is not the one that goes quiet - so building
                         // one buys reliability for that item and hands the
                         // fizzle to the next one round.
-                        c.curses.misfires(c.misfire_count) && !c.items[idx].steady
+                        //
+                        // And the hunter's first blow cannot miss, which is
+                        // the other half of "cannot miss and cannot be
+                        // deflected" - a fizzle is the only thing in this game
+                        // that eats a swing of yours outright.
+                        c.curses.misfires(c.misfire_count)
+                            && !c.items[idx].steady
+                            && !c.first_blood
                     };
                     if fizzled {
                         let name = pick(&mut p, &mut foes, me).items[idx].name.clone();
@@ -4510,6 +4548,16 @@ fn activate(
             let aim = aim_of(foes, p.aim);
             let at = me.other(aim);
             let mut absorbed_total = 0;
+            // Wumpus Hunter: the first blow of a fight goes through whatever
+            // they have flat in front of it. Read and spent here rather than
+            // at each damage site, because "the first hit" has to mean one
+            // hit however many ways an activation can reach somebody.
+            let unstoppable = {
+                let me = pick(p, foes, me);
+                let owed = me.first_blood;
+                me.first_blood = false;
+                owed
+            };
             for (amount, kind, pierce) in [
                 (physical, DamageType::Physical, phys_pierce),
                 (magic, DamageType::Magic, magic_pierce),
@@ -4518,7 +4566,7 @@ fn activate(
                     continue;
                 }
                 let target = pick(p, foes, at);
-                let (absorbed, _) = target.take_typed(amount, kind, pierce);
+                let (absorbed, _) = target.take_typed_with(amount, kind, pierce, unstoppable);
                 absorbed_total += absorbed;
             }
             // Reflection. What the armour ate is turned back on whoever swung
@@ -5621,6 +5669,154 @@ pub const ALTERNATES: &[MonsterSpec] = &[
         bounty: 180,
         sprite: MonsterSprite::Wisp,
         rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    // THE UNDER-MINE, two floors of Wardens who dug in and stayed.
+    MonsterSpec {
+        name: "THE DIGGERS",
+        health: 1800,
+        strength: 14,
+        regen: 6,
+        mind_resist: 10,
+        physical_resist: 26,
+        magic_resist: 20,
+        curse_resist: 30,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 251,
+        sprite: MonsterSprite::Golem,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    MonsterSpec {
+        name: "WHAT THE SEAM HID",
+        health: 2100,
+        strength: 16,
+        regen: 8,
+        mind_resist: 15,
+        physical_resist: 30,
+        magic_resist: 24,
+        curse_resist: 40,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 262,
+        sprite: MonsterSprite::Golem,
+        rank: Rank::Mini,
+        drops: &[],
+        items: &[],
+    },
+    // THE UNDERTOW, where the water sets the pace.
+    MonsterSpec {
+        name: "THE CURRENT",
+        health: 1500,
+        strength: 12,
+        regen: 4,
+        mind_resist: 8,
+        physical_resist: 18,
+        magic_resist: 22,
+        curse_resist: 45,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 251,
+        sprite: MonsterSprite::Wisp,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    MonsterSpec {
+        name: "THE THING ON THE HOOK",
+        health: 1900,
+        strength: 20,
+        regen: 6,
+        mind_resist: 12,
+        physical_resist: 20,
+        magic_resist: 26,
+        curse_resist: 55,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 273,
+        sprite: MonsterSprite::Wisp,
+        rank: Rank::Mini,
+        drops: &[],
+        items: &[],
+    },
+    // DEN RIVALS, which is exactly what the exhibit promised.
+    MonsterSpec {
+        name: "THE DEN MOUTH",
+        health: 1400,
+        strength: 28,
+        regen: 5,
+        mind_resist: 0,
+        physical_resist: 16,
+        magic_resist: 10,
+        curse_resist: 10,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 224,
+        sprite: MonsterSprite::Rat,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    MonsterSpec {
+        name: "THE THOUSANDTH BEAR",
+        health: 2400,
+        strength: 40,
+        regen: 10,
+        mind_resist: 0,
+        physical_resist: 22,
+        magic_resist: 12,
+        curse_resist: 15,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 242,
+        sprite: MonsterSprite::Rat,
+        rank: Rank::Mini,
+        drops: &[],
+        items: &[],
+    },
+    // WUMPUS WORLD. Something in the dark already knows your footsteps.
+    MonsterSpec {
+        name: "DARK FLOOR",
+        health: 600,
+        strength: 10,
+        regen: 0,
+        mind_resist: 0,
+        physical_resist: 6,
+        magic_resist: 6,
+        curse_resist: 5,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 224,
+        sprite: MonsterSprite::Wisp,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    MonsterSpec {
+        name: "THE WUMPUS",
+        health: 2200,
+        strength: 34,
+        regen: 4,
+        mind_resist: 20,
+        physical_resist: 20,
+        magic_resist: 18,
+        curse_resist: 35,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 242,
+        sprite: MonsterSprite::Rat,
+        rank: Rank::Mini,
         drops: &[],
         items: &[],
     },

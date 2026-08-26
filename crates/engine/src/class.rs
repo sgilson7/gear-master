@@ -455,6 +455,19 @@ pub enum ClassPower {
     /// Every item takes `pct` of the best multiplier on the board on top of
     /// its own - the wisdom, split into pieces and handed round.
     Splintered(i32),
+    /// Named creatures leave `n` more pieces of their gear behind.
+    ///
+    /// A trophy is the only way any of that gear is ever obtainable, and it is
+    /// one piece off a creature carrying fifteen. This is the only thing in
+    /// the game that changes what a corpse is worth.
+    Prospector(usize),
+    /// Your first hit each fight cannot miss and cannot be turned aside.
+    ///
+    /// A rule rather than a number, and the one class that answers the two
+    /// mechanics nothing else can be built against: Ticket to Ride eats every
+    /// second swing and Deflection turns a flat share off every one. The first
+    /// one goes through.
+    FirstBlood,
     /// Mind damage you deal ignores this percentage of their mind resistance.
     ///
     /// The third lane had an amplifier, a pool and an answer, and no way at
@@ -505,6 +518,10 @@ impl ClassPower {
             Confluence(p) => Confluence(p * 2),
             Splintered(p) => Splintered(p * 2),
             WrongSense(p) => WrongSense((p * 2).min(100)),
+            Prospector(n) => Prospector(n * 2),
+            // A switch has no second helping, so the fountain does not offer
+            // it - `doubled` returning None is how that is said.
+            FirstBlood => return None,
             Avenged(n) => Avenged(n * 2),
             // Twice as often, which for these means halving the interval.
             Echo(n) => Echo((n / 2).max(2)),
@@ -565,6 +582,8 @@ impl ClassPower {
             ClassPower::WrongSense(pct) => {
                 format!("your mind damage pierces {}% of mind resist", pct)
             }
+            ClassPower::Prospector(n) => format!("named creatures drop {} more piece(s)", n),
+            ClassPower::FirstBlood => "your first hit each fight always lands".into(),
             ClassPower::Splintered(pct) => {
                 format!("every item shares {}% of the best", pct)
             }
@@ -715,6 +734,17 @@ impl ClassPower {
                  mind resistance is the only thing standing in front of that - so this \
                  is the third lane's piercing, and until now the third lane had none.",
                 pct
+            ),
+            ClassPower::Prospector(n) => format!(
+                "Every named creature leaves {} more piece(s) of its gear behind. A trophy \
+                 is the only way any of that gear is ever obtainable - it is barred from \
+                 every shelf in the game - and a boss is carrying fifteen items of it.",
+                n
+            ),
+            ClassPower::FirstBlood => String::from(
+                "The 1st hit you land in a fight cannot miss and cannot be turned aside. \
+                 Ticket to Ride eats every 2nd swing and Deflection takes 10 off every one \
+                 per stack; neither of them touches the first. It comes back every fight.",
             ),
             ClassPower::Adaptable(n) => format!(
                 "every time any of your items fires, you bank {} of all four pools at once - \
@@ -942,6 +972,22 @@ pub static CLASSES: &[ClassDef] = &[
         // wrong sense, and what you can see is *more* of what you are holding.
         power: ClassPower::WrongSense(60),
     },
+    // The two the destinations pay. Neither is on any axis, because neither is
+    // a way of building - one changes what a corpse leaves behind and one
+    // changes what the first swing of a fight is worth, and no fountain has
+    // anything to read.
+    ClassDef {
+        name: "Prospector",
+        blurb: "You have learned what is worth prying off a thing that has stopped moving.",
+        requires: &[],
+        power: ClassPower::Prospector(1),
+    },
+    ClassDef {
+        name: "Wumpus Hunter",
+        blurb: "The first one counts. It counted for the wumpus and now it counts for you.",
+        requires: &[],
+        power: ClassPower::FirstBlood,
+    },
 ];
 
 /// How well a build matches one class.
@@ -1057,6 +1103,8 @@ pub const CLASS_ORDER: &[&str] = &[
     "Tired",
     "Recycler",
     "Threshold-Sighted",
+    "Prospector",
+    "Wumpus Hunter",
 ];
 
 pub fn is_earned(name: &str) -> bool {

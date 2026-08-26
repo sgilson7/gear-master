@@ -294,6 +294,12 @@ pub static TURTLE_DICK: Theme = Theme {
         // with the wrong sense - residents of the Mansus are seen with the
         // ears and heard with the eyes, pp. 64-67.
         ("Threshold-Sighted", "Mansus-Sighted"),
+        // The vein under the seam the Sprocketmen were told was empty, p. 44.
+        ("Prospector", "Deep Chocolatier"),
+        // CSV #12 gives the place its name and keeps it; the sibling title
+        // *How to Train Your Wumpus* gives the class one of its own, which is
+        // a better joke and stops a canonical name mapping to itself.
+        ("Wumpus Hunter", "Wumpus Trainer"),
         ("Avenged", "Sprocket Avenged"),
         ("Wanderer", "Plane Tourist"),          // half-tourist, half-catastrophe
         ("Warpriest", "Acolyte of Dobira"),     // the Master and Baylon, pp. 46-50

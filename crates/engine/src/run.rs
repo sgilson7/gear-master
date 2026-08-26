@@ -218,6 +218,8 @@ pub struct Settlement {
     pub underwrote: Option<&'static str>,
     /// Whether a passenger was riding, and is not any more.
     pub lost_passenger: bool,
+    /// Gear pried off a named creature by a Prospector, beyond its trophy.
+    pub pried_off: Vec<&'static str>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1740,6 +1742,7 @@ impl Run {
                 rows_won: 0,
                 underwrote: None,
                 lost_passenger: false,
+                pried_off: Vec::new(),
             };
             if outcome == Outcome::Victory {
                 self.wins += 1;
@@ -1781,6 +1784,7 @@ impl Run {
             rows_won: 0,
             underwrote: None,
             lost_passenger: false,
+            pried_off: Vec::new(),
         };
 
         // How fast, and how slow, the shallow end went. The two doors of the
@@ -1821,8 +1825,10 @@ impl Run {
                     if !lines.is_empty() {
                         self.last_receipt = Some(lines);
                     }
-                    if let Some(c) =
-                        crate::class::CLASSES.iter().find(|c| c.name == d.reward)
+                    if let Some(c) = crate::class::CLASSES
+                        .iter()
+                        .filter(|_| !d.reward.is_empty())
+                        .find(|c| c.name == d.reward)
                     {
                         if !self.classes.iter().any(|k| k.name == c.name) {
                             self.classes.push(c);
@@ -1853,6 +1859,33 @@ impl Run {
                 // who wants the trophy can make space and beat the thing
                 // again.
                 let spec = &LADDER[self.rung.min(LADDER.len() - 1)];
+                // Prospector: one more piece off it, and the only thing in
+                // the game that changes what a corpse is worth. Off the
+                // *board* rather than off `drops`, because `drops` is the one
+                // trophy a creature owns and a boss is standing there wearing
+                // fifteen items nobody can buy.
+                let extra: usize = self
+                    .effective_classes()
+                    .iter()
+                    .filter_map(|c| match c.power {
+                        crate::class::ClassPower::Prospector(n) => Some(n),
+                        _ => None,
+                    })
+                    .sum();
+                if extra > 0 && spec.rank.is_named() {
+                    let mut taken = 0;
+                    for &(name, ..) in spec.gear {
+                        if taken >= extra || self.inventory().len() >= INVENTORY_CAP {
+                            break;
+                        }
+                        if crate::piece::CATALOG.iter().any(|d| d.name == name)
+                            && self.give(name).is_some()
+                        {
+                            taken += 1;
+                            settlement.pried_off.push(name);
+                        }
+                    }
+                }
                 if !spec.drops.is_empty() && self.inventory().len() < INVENTORY_CAP {
                     let pick = self.rng.below(spec.drops.len());
                     let name = spec.drops[pick];
@@ -3126,15 +3159,21 @@ impl Run {
             Action::Gallery => {
                 if let Some(id) = self.inventory().first().copied() {
                     let def = self.registry.def(id);
-                    let dear = crate::rating::Rarity::of(crate::rating::piece_rating(def))
-                        > crate::rating::Rarity::Common;
+                    let worth = crate::rating::Rarity::of(crate::rating::piece_rating(def));
                     let paid = crate::rating::resale_price(def) * 2;
                     self.loadout.remove_anywhere(id);
                     self.owned.retain(|&o| o != id);
                     self.gold += paid;
                     out.paid = paid;
-                    if dear {
+                    // Double for anything. A good piece gets you mentioned to,
+                    // and a very good one gets you told where the last one
+                    // like it was fished up - which is a place, and the place
+                    // is at the bottom of some water.
+                    if worth > crate::rating::Rarity::Common {
                         self.give("A Word About the Glow");
+                    }
+                    if worth >= crate::rating::Rarity::Legendary {
+                        self.enter_dungeon("the-undertow");
                     }
                 }
             }

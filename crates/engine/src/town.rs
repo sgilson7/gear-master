@@ -125,6 +125,19 @@ impl Action {
         }
     }
 
+    /// The dungeon this door opens, if it opens one.
+    ///
+    /// The gallery's is conditional - it wants something Legendary to sell -
+    /// and this says what it *can* open rather than what it will, which is the
+    /// question "is there any way into that dungeon at all" needs.
+    pub fn opens(self) -> Option<&'static str> {
+        match self {
+            Action::CellarDoor => Some("the-threshold"),
+            Action::Gallery => Some("the-undertow"),
+            _ => None,
+        }
+    }
+
     /// One line under the name: what you walk out with.
     pub fn blurb(self) -> &'static str {
         match self {

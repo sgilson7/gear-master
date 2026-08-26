@@ -63,8 +63,8 @@ re-pinned first**.
 | M8 | Phase-1 gate, and the stretch decision | **done** |
 | M9 | The catalogue lands once | **done** |
 | M10 | The chain (Part B) | **done** |
-| M11 | The dungeons and what they pay | next |
-| M12 | Extra Large and the Orbs of Travel (Part G) | |
+| M11 | The dungeons and what they pay | **done** |
+| M12 | Extra Large and the Orbs of Travel (Part G) | next |
 | M13 | The five unconditional events (Part F) | |
 | M14 | The nine structures and the three pairs (H2/D) | |
 | M15 | The words (Phase 3) | |
@@ -506,3 +506,40 @@ The **frame lint is red**, as a ratchet: five undressed creatures, a budget
 that can only go down, and an `#[ignore]`d target at zero.
 
 Suite: **683 green**, 0 warnings.
+
+
+---
+
+## M11 - The dungeons and what they pay
+
+Four more, eight more frames, two new classes, and the ladder does not move.
+
+**Two of the four pay no class at all**, which needed `Dungeon::reward` to be
+allowed to be empty and `Dungeon::also` to carry the rest. THE UNDERTOW pays a
+row on a board of your choice (H3 cuts its class in favour of exactly that) and
+DEN RIVALS pays a hide. A dungeon that pays neither a class nor an outcome is
+caught by a new lint: "three fights and a walk home".
+
+**Two new class powers**, because a class that shares a power plays the same as
+the class it shares with and a test says so.
+
+- **Prospector** is the only thing in the game that changes what a corpse is
+  worth. It pries gear off the creature's *board* rather than off its `drops`,
+  because `drops` is the one trophy it owns and a boss is standing there
+  wearing fifteen items nobody can buy.
+- **Wumpus Hunter** is the one answer to the two mechanics nothing else can be
+  built against: a ward eats every second swing and Deflection takes a flat
+  share off every one, and the first blow of a fight goes through both. A
+  misfire cannot eat it either, which is the "cannot miss" half.
+
+**Every floor packs to its entry band**, not to the rung whose event opened it
+- a dungeon met by a formed build is a dungeon that can be hard. There is a
+test that the floors of one dungeon share a theme and get harder as they go
+down, with WUMPUS WORLD as the deliberate exception: what lives near a wumpus
+is not a wumpus.
+
+The frame budget is **13**. THE UNDER-MINE's opener is THE FORK (M14) and two
+destinations are M12's, which the reachability test holds as a shrinking list
+rather than an exemption.
+
+Suite: **697 green**, 0 warnings.
