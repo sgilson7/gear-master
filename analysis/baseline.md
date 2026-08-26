@@ -1933,3 +1933,76 @@ applied when their milestones landed and are still in place: frost doubled by
 Spellblade at 11.0 level with a mana stack and Deflection at 9.0 under it.
 
 **From here to M17, nothing touches `rating.rs` or `CATALOG`.**
+
+## Drift — M17 and M18, the boards land
+
+### The four-board table, at Medium, after everything
+
+| build | cleared | weapon % | median ttk |
+|---|---|---:|---:|
+| starter | 2/50 | 100.0% | 45.00s |
+| preset | 9/50 | 100.0% | 9.00s |
+| owner | 48/50 | 75.5% | 9.00s |
+| friend | 48/50 | 97.4% | 8.15s |
+
+**Unmoved from M16**, which is the point: fifteen creatures got boards and not
+one of them is on the ladder. Weapon share **75.5%**, inside the 66-76% band it
+has held since M1.
+
+### THE UNWOUND, and how its number was chosen
+
+Packed by the generator at `PACK_BAND=20` — 43 pieces, 13 items — then scaled
+by measurement:
+
+| Scale | health | strength | friend | owner | perfect |
+|---|---:|---:|---|---|---|
+| x1.0 | 10,000 | 230 | won 10s | won 22s | lost |
+| **x1.5** | **15,000** | **345** | **lost** | **won 28s** | **lost** |
+| x2.0 | 20,000 | 460 | lost | lost | lost |
+
+Two of three lose, and the fight that is won finishes at **28.0s** — inside
+16-29s, with two seconds before sudden death would take it. At x2.0 nothing
+beats it at all, which is not a boss but a wall.
+
+### The frame stat curve
+
+The frames shipped with placeholder health and strength and nothing had noticed
+because nothing fights a frame. Each now takes the ladder creature's stats at
+its own band, adjusted where the generator's curve guard said otherwise:
+
+| Creature | Band | Health | Strength |
+|---|---:|---:|---:|
+| THE LAST LANDING | 26 | 2,007 | 54 |
+| THE FLOCK | 27 | 1,298 | 35 |
+| THE DEN MOUTH | 30 | 3,245 | 85 |
+| DARK FLOOR | 30 | 3,244 | 84 |
+| THE THOUSANDTH BEAR | 32 | 2,140 | 56 |
+| THE WUMPUS | 32 | 748 | 19 |
+| THE DIGGERS | 33 | 2,512 | 65 |
+| THE CURRENT | 33 | 2,512 | 65 |
+| WHAT THE SEAM HID | 34 | 3,106 | 80 |
+| THE THING ON THE HOOK | 35 | 3,306 | 87 |
+| THE SHADOW | 43 | 3,568 | 89 |
+| THE LANTERN | 43 | 2,470 | 62 |
+| THE UNWOUND | 51 | 15,000 | 345 |
+
+THE WUMPUS is the outlier and it is not an error: a Beast board at band 32 came
+back turning the reference build's fight into forty-five seconds, and the
+generator refused it four times. Its health is low because its *board* is
+heavy, which is the whole of what the two dials are for.
+
+### Census, at the end
+
+| | |
+|---|---:|
+| Catalogue | **504** pieces |
+| Events | 33 |
+| Towns | 6 (3 pinned, 3 hidden) |
+| Dungeons | 6 |
+| Rumours | 8 (5 on the bar) |
+| Destinations | 4 |
+| Frames | 15, **all dressed** |
+| Classes | 31 |
+| Suite | **764 green**, 0 warnings |
+
+Two CLI replays of the same script diff clean.

@@ -67,8 +67,8 @@ disagree, this is the bug report"* (`design/branching-events.md`).
 
 | Module | Lines | Owns |
 |---|---:|---|
-| `piece.rs` | ~9,600 | Everything a piece is: `PieceDef`, `PieceKind` (including `Enchantment`, the layer under the grid), `Trigger` (`Watch` among them), `Action` (`Fuse` among them), `EffectKind`, `Adjacency`, `Resource` (7 — three of them fused), recipes (:810), per-slot default cooldowns (:860), and the **473**-entry `CATALOG` (:960) |
-| `combat.rs` | ~5,350 | The fight: tick loop, hit math, typed damage, reflection, curses in effect, `MonsterSpec` + all creature boards (**54**: `LADDER` 50, `ALTERNATES` 4 for dungeon floors and event fights, `CREVICE` empty. The file holds 57 `MonsterSpec` tokens; two are the struct and its `impl`), `Difficulty {Easy, Medium, Hard, Insane}` |
+| `piece.rs` | ~9,600 | Everything a piece is: `PieceDef`, `PieceKind` (including `Enchantment`, the layer under the grid), `Trigger` (`Watch` among them), `Action` (`Fuse` among them), `EffectKind`, `Adjacency`, `Resource` (8 — three of them fused, and Insight), recipes (:810), per-slot default cooldowns (:860), and the **504**-entry `CATALOG` (:960) |
+| `combat.rs` | ~5,350 | The fight: tick loop, hit math, typed damage, reflection, curses in effect, `MonsterSpec` + all creature boards (**69**: `LADDER` 50, `ALTERNATES` 19 for dungeon floors, event fights and rung 51, `CREVICE` empty), `Difficulty {Easy, Medium, Hard, Insane}` |
 | `run.rs` | ~2,060 | A run: `Mode {Grinder, Rogue}` (knock-back farming vs three lives), gold, rung, fountains, lives, `best_fight_ms`, scenes seen, towns visited, the theme in use, and `apply_preset` |
 | `theme.rs` | ~1,400 | The turtle theme: names, story, cutscenes, vocabulary, glossary — all display-only |
 | `class.rs` | ~1,200 | `ClassDef { name, blurb, requires: &[(Axis, i32)], power }`; fountains score your build on axes and hand out classes; stacking classes (Piety → Ticket to Ride) |
@@ -158,97 +158,72 @@ nothing), `decode_build` (share codes), `prose` (the words), `avail`,
 printers report damage share by slot), `catalog_shape` (the slot-identity
 ratchet: budgets only go down), `fixtures` (the manifest of tests that name a
 piece as their example of a mechanic, so a sweep fails there rather than
-downstream). **548 tests, green, no warnings.** When one fails after your
+downstream). **764 tests, green, no warnings.** When one fails after your
 change, it is telling you which doctrine you brushed.
 
 ---
 
-## 6. THE MISSION — The Unwinding
+## 6. WHERE THINGS STAND
 
-**What came before, in one paragraph.** The gear-slot rewrite is done and
-live: each slot owns a basis vector (Weapon **Conversion**, Gloves
-**Reaction**, Greaves **Tempo**, Chest **Reserve**, Helmet **Economy**), the
-weapon's side-monopolies moved out (gloves hold 47 reaction triggers to its
-2), the interaction primitives ship (`Watch`, the diagonal relation, three
-fused pools, the **Enchantment** layer, reflection), `catalog_shape`'s
-ratchet closed from 69 rules unmet to green, and the weapon's damage share
-sits at **75.2%** inside the 66–76% band. `analysis/baseline.md` holds every
-number; `HANDOFF.md` §5 and §7 hold the lessons.
+**The Unwinding is finished and merged.** Twenty milestones, M0 to M19: the
+event chain across the back half of the ladder, the super boss at rung 51,
+three hidden towns, six dungeons, the four Orbs of Travel, the third combat
+lane, the reward vocabulary, the road stack, the route map. `HANDOFF.md` is the
+summary and `HANDOFF-unwinding.md` is the milestone-by-milestone record;
+`design/the-unwinding.md` carries three reconciliation blocks and amendments
+numbered to 23, and those win over its body wherever they disagree.
 
-**The mission now** is `design/the-unwinding.md` — read it in full,
-including its **two** dated reconciliation blocks, which win wherever they and
-the body disagree; the second is dated at the start of execution and wins over
-the first. Short form: an overarching event chain across the back half
-of the ladder that ends with a super boss at **rung 51**, unlocked only by
-finishing the chain and beating Francis; two hidden towns and five mini
-dungeons; four Orbs of Travel and their destinations; typed combat lanes
-(empowerment/shield become magic-only, with **Spellblade** and
-**Deflection** as their physical twins); **Insight**, an eighth pool that is
-to mind damage what mana empowerment is to magic, locked behind a dungeon;
-five unconditional road events; a reward vocabulary (row grants, claim
-tickets, run-relics, crushable rule-benders, standing orders); the **road
-stack** that resolves everything standing on a rung; receipts and tooltips
-that describe themselves from the engine; and a Star Fox-style **route
-map** rendered purely from run state. Execution is phased and the phasing
-is the point: **all engine work first** (Part E, Phase 1), **all creatures
-authored as frames** — name, band, theme, note — through Phase 2, theme in
-Phase 3, and **no board authored until Phase 4**, by hand, in `make pack`.
+**The suite is 764 green, no warnings**, and the frame lint is at zero: every
+creature in the game has a board.
 
-**The traps, in the order they will find you:**
+**What is open, in the order it matters:**
 
-1. **`CATALOG` is index-keyed by `share.rs:87`. Append-only for ever.** New
-   pieces go on the end; nothing moves, nothing is deleted.
-2. **`stepped_component` (`combat.rs:252`) re-gears every monster on Easy,
-   Hard and Insane whenever a `rating.rs` weight changes** — and the mission
-   adds weights (Spellblade, Deflection, Dread, Insight income, new
-   outcomes). Consequence, already folded into the spec: Phase 4 re-pins
-   rating **before** any board is authored, never after.
-3. **The reconstruction fault** (`HANDOFF.md` §5): a dense board does not
-   come back as the items its owner built unless each item is locked as it
-   assembles — every reconstruction goes through `common::board_from`. The
-   Claim Ticket's whole-board drop and the pedestal's returns are exactly
-   this fault's shape; build them on `board_from` from the first commit.
-4. **Sudden death owns everything past 30s**, and the difficulty band's top
-   edge at rung 50 is 29.1s. THE UNWOUND at rung 51 must be authored to
-   finish inside the measurable region, or the fight is decided by the
-   clock rather than the board. "Harder than Francis" is measured at
-   **Medium** — the open question of Francis-on-Hard (`HANDOFF.md` §4, M1)
-   stays open and uncoupled.
-5. **Enchantments are town stock** — ground is bought where somebody has a
-   floor to sell, never off the road. The mission's two enchantment rewards
-   (the Lightning Rod, Aisle 9's stock) already live in town shelves; keep
-   it that way.
-6. **There is no milestone pricing and no auto-builder.** Gold figures in
-   the spec anchor against real `SHELF_TILT` shelves and rung bounties;
-   reference builds for acceptance replays are authored presets in the
-   `apply_preset` mould.
+1. **The fifteen new creatures wear generated boards.** They were packed by
+   `tests/pack_francis.rs` at the rung each is met on - correctly sized, shaped
+   by theme, and samples rather than authored fights. The owner is rebuilding
+   them by hand in `make pack`. Nothing depends on that happening; the boards
+   are legal and measured.
+2. **The fourth reference build does not beat THE UNWOUND.** Two of the three
+   shipped boards lose to it and the third wins at 28 seconds, which is the
+   acceptance criterion. What is missing is a board that wins *because* of
+   Deflection and Insight - the demonstration that the mind lane answers the
+   thing at the top.
+3. **Engraving and the Brain Farm slipped**, on measured cost, at the Phase-1
+   gate. Amendment #20 says what would unblock Engraving: it is the only thing
+   in the mission that reopens `share.rs`'s index-keyed format.
+4. **Nobody has played this.** Every claim in either handoff comes from the
+   test suite and from two CLI replays that diff clean.
+
+**The traps, still true, in the order they will find you:**
+
+1. **`CATALOG` is index-keyed by `share.rs`. Append-only for ever.**
+2. **`stepped_component` re-gears every monster on Easy, Hard and Insane
+   whenever a `rating.rs` weight moves** - 33 boards on Easy, last time. Settle
+   the weights before authoring anything measured against them.
+3. **The reconstruction fault.** A dense board does not come back as the items
+   its owner built unless each is locked as it assembles. Every rebuild goes
+   through `common::board_from`, and a hand-seated name list is not a board -
+   this repo has learned that four times, most recently in M18.
+4. **Sudden death owns everything past 30s.** THE UNWOUND is authored to 28.0s
+   at Medium and there is no room above it.
+5. **Enchantments are town stock.** Never on the road.
+6. **`LadderEvent::at` and `Town::after` are zero-based; the displayed rung is
+   `at + 1`.** `LADDER` is fifty because `Rust Golem` is spliced in by name.
 7. **Names are string keys** across `theme.rs`, monster boards, quests,
-   `event.rs`, `rumour.rs`, `town.rs`, `dungeon.rs`, and the tests. Grep
-   before and after. Grids are 6×8 **base** and can gain rows; legality
-   runs against current dims.
-8. **`ALTERNATES` and the empty `CREVICE` are the frame precedent** —
-   creatures without authored boards already exist in the repo. The
-   mission's frames extend that pattern rather than inventing one.
-9. **`LadderEvent::at` and `Town::after` are zero-based indices; the
-   displayed rung is `at + 1`.** And `LADDER` is fifty because `Rust Golem`
-   is spliced in by name at rung 4 rather than written inline, so counting
-   the table by eye comes back one short.
+   `event.rs`, `rumour.rs`, `town.rs`, `dungeon.rs` and the tests.
+8. **The base game does not speak turtle.** A proper noun out of the book
+   belongs in `theme.rs`; the canonical column names the role.
+   `tests/two_voices.rs` is the ratchet and its budget is five, all of them
+   piece names that cannot be changed.
+9. **A guard that refuses your change is usually right** - and the packer's
+   refusals are gradients. "wanted 11.8s, best was 8.0s" is a ratio to scale by.
 
-**The mission is under way.** It is being executed on the branch
-**`unwinding`**, milestone by milestone, and `HANDOFF-unwinding.md` is the
-running ledger — read it before anything else, because it says which milestone
-is open and what the last one moved. `analysis/baseline.md`'s *Before the
-Unwinding* section is the denominator every figure since is measured against.
-
-**Your first three moves:** (1) run the suite — 548 green, and if not, that
-is the news; (2) run the two printers to capture today's numbers
-(`--test baseline -- --ignored --nocapture --test-threads=1` and
-`--test catalog_shape -- --ignored`), because they move under you; (3) read
-`design/the-unwinding.md` Part E, then **both** reconciliation blocks — the
-second one is dated at the start of execution and wins over the first — then
-pick up whichever milestone `HANDOFF-unwinding.md` says is open.
-
----
+**Running the suite.** 46 test binaries, and every engine edit relinks all of
+them. Iterate with `cargo test -p gearmaster-engine --lib` (0.13s) or one
+`--test <name>`; run the whole thing once, at the end. `[profile.test]` carries
+line tables only - for a full backtrace on one run,
+`CARGO_PROFILE_TEST_DEBUG=2 cargo test ... --test <name>`. Never start a second
+cargo while one is running.
 
 ## 7. Etiquette
 
