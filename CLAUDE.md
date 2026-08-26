@@ -1,234 +1,340 @@
 # CLAUDE.md — Gear Master, for a fresh agent
 
-You are working on **Gear Master**: a deterministic, browser-playable
-puzzle-autobattler written in Rust. Five gear grids, polyomino pieces, a
-fifty-rung ladder of creatures, and a final boss named Francis. The player's
-job is packing boards; the engine's job is making every fight a pure function
-of what was packed.
+Written against commit `46a2fa5` (2026-08-26), at the end of the prose pass.
+Every count below was read off that tip; if `git log --oneline -1` says
+something else, the numbers are quotes and the printers in §5 are the
+measurements.
 
-Read this file top to bottom once. Then read
-`design/the-unwinding.md` — that is **the mission** (§6, bottom of this
-file). Nothing in it has been executed. The previous mission — the gear-slot
-rewrite, `design/gear-slot-basis-rewrite.md` — is **finished and deployed**;
-`HANDOFF.md` is its record and its habits section is worth your time.
+You are working on **Gear Master**: a deterministic, browser-playable
+puzzle-autobattler in Rust. Five gear grids, polyomino pieces, a fifty-rung
+ladder of creatures, a final boss named Francis, and a fifty-first rung behind
+him. The player's job is packing boards; the engine's job is making every
+fight a pure function of what was packed.
+
+Read this file top to bottom once. Then read `design/rl-agent-plan.md` -
+that is **the mission** (§6). The previous two missions are finished and
+deployed: the gear-slot rewrite (`design/gear-slot-basis-rewrite.md`,
+`design/HANDOFF.md`'s predecessor) and the Unwinding (`design/the-unwinding.md`,
+`design/HANDOFF.md`, `design/HANDOFF-unwinding.md`). `design/post-unwinding.md`
+is the audit of the second against the code and is more recent than either
+handoff. The prose pass that followed both is `HANDOFF-prose.md` (the brief)
+and `design/HANDOFF-prose-ledger.md` (what it did).
 
 ---
 
 ## 1. Orientation in five minutes
 
 ```
-cargo test -p gearmaster-engine          # the whole safety net (~27 suites)
+cargo test -p gearmaster-engine          # the safety net: 781 tests, 49 binaries + lib, ~100s cold
+cargo test -p gearmaster-gui             # 61 more; cargo build does NOT compile them
 cargo run  -p gearmaster-cli             # headless REPL: play the real game in a terminal
 cargo run  -p gearmaster-gui             # macroquad GUI (native window)
-make pack                                # board packer: dress creatures by hand
+make pack                                # board packer: dress creatures by hand, saves into combat.rs
 # docs/ holds the published wasm web build (index.html + gearmaster.wasm)
 ```
 
-CLI REPL verbs (the same engine the GUI drives): `help`, `show [slot]`, `inv`,
-`stats`, `equip <name> <slot> <x> <y>`, `unequip <name>`, `rotate <name>`,
-`preset`, `clear`, `sandbox`, `shop`, `buy <n>`, `sell <name>`, `ladder`,
-`items`, `fight`, `quit`. A scripted run piped into stdin replays identically —
-that is not a convenience, it is the design contract.
+**Toolchain.** `Cargo.toml` says `rust-version = "1.75"`. The code needs
+**1.83** or later (`Option::is_none_or`, const references to statics in
+`event.rs`). The declaration is wrong; fix one or the other before you trust
+it. This machine builds it under **1.95**, warning-free - the two warnings §5
+used to record are a 1.75 artefact and are not there any more.
 
-**Workspace:** `crates/engine` (all rules, no graphics), `crates/cli`,
-`crates/gui`. `make pack` runs the GUI in packing mode (`gui/src/pack.rs`):
-the same screen, editing a creature's board instead of yours, with a free
-shop over the whole catalogue and a save that writes back into `combat.rs`. `design/` holds living design documents — and the repo's stated
-rule is *"code follows this document, not the other way round — when they
-disagree, this is the bug report"* (`design/branching-events.md`).
+CLI REPL verbs (the same engine the GUI drives): `help`, `show [slot]`, `inv`,
+`stats`, `equip <n> <slot> <x> <y>`, `unequip <n>`, `rotate <n>`, `preset`,
+`clear`, `sandbox`, `shop`, `buy <n>`, `sell <n>`, `ladder`, `items`,
+`fight`, `road`, `map`, `answer <n>`, `town`, `town on`, `town <door>`,
+`drink`, `quit`. A scripted run piped into stdin replays identically - that is
+the design contract, not a convenience.
+
+**Workspace:** `crates/engine` (all rules, **zero dependencies** -
+`crates/engine/Cargo.toml` has an empty `[dependencies]` and a comment saying
+why), `crates/cli` (562 lines), `crates/gui` (macroquad; `main.rs` 12,211
+lines, `pack.rs` 617). `design/` holds the living design documents and the
+repo's rule is *"code follows this document, not the other way round - when
+they disagree, this is the bug report"*. `analysis/` holds measurements.
+`.claude/skills/gearmaster-gear` is the checklist for adding a piece.
 
 ---
 
 ## 2. The four doctrines (violate none of them)
 
-1. **Determinism is load-bearing.** Combat consults no RNG anywhere —
-   `combat.rs` is a pure function of the two boards. The engine owns one tiny
-   seeded PRNG (`rng.rs`) for out-of-combat things like shop stock, seeded per
-   run so tests replay. Even "50% chance to miss" (the Ticket to Ride class)
-   is implemented deterministically. Share codes, the balance story, and half
-   the test suite depend on this.
+1. **Determinism is load-bearing.** Combat consults no RNG anywhere -
+   `combat.rs` is a pure function of the two boards (`simulate_party`,
+   `combat.rs:3862`). The engine owns one seeded xorshift64* (`rng.rs`), held
+   privately by `Run` (`run.rs:683`), for out-of-combat things: shop stock,
+   the crucible's melt, the sealed bid's reserve, the dispenser's gamble, a
+   Rogue wipe's next seed. `Run::seeded(seed)` / `Run::start(seed, mode,
+   difficulty)` (`run.rs:705, :787`) are the only ways in. Share codes, the
+   balance story, `acceptance::e6_1` and half the suite depend on this.
 2. **Canonical names are string keys.** Piece and monster names key the theme
-   layer (`theme.rs`), monster gear boards (`combat.rs`), quest `becomes`
-   targets, event/rumour conditions, and dozens of tests. Renaming a piece
-   without propagating is the classic repo mistake; the assembly test exists
-   to catch it. Grep before and after.
-3. **Tests pin behavior on purpose.** Distribution tests pin the rarity curve
-   "so a batch of new components cannot quietly make everything legendary";
-   progression tests pin fight outcomes. When your change moves a pinned
-   number, re-pin it *with a one-line justification in the commit* — never
-   loosen a test to make it pass.
+   layer (`theme.rs`), monster boards (`combat.rs`), quest `becomes` targets,
+   event and rumour conditions, town and dungeon tables, and dozens of tests.
+   Renaming without propagating is the classic repo mistake; `assembly` and
+   `two_voices` exist to catch it. Grep before and after.
+3. **Tests pin behavior on purpose.** Distribution tests pin the rarity curve;
+   progression tests pin fight outcomes; `catalog_shape` is a ratchet whose
+   budgets only go down. When your change moves a pinned number, re-pin it
+   *with the reason in the assertion* - never loosen a test to make it pass.
 4. **A theme cannot break the game.** `theme.rs` is display-only lookup;
    missing entries fall through to canonical names. Never route game logic
-   through themed strings.
+   through a themed string. `tests/two_voices.rs` is the ratchet (budget 5).
 
 ---
 
-## 3. Engine map (`crates/engine/src/`)
+## 3. Engine map (`crates/engine/src/`, 35,019 lines)
 
 | Module | Lines | Owns |
 |---|---:|---|
-| `piece.rs` | ~9,600 | Everything a piece is: `PieceDef`, `PieceKind` (including `Enchantment`, the layer under the grid), `Trigger` (`Watch` among them), `Action` (`Fuse` among them), `EffectKind`, `Adjacency`, `Resource` (8 — three of them fused, and Insight), recipes (:810), per-slot default cooldowns (:860), and the **504**-entry `CATALOG` (:960) |
-| `combat.rs` | ~5,350 | The fight: tick loop, hit math, typed damage, reflection, curses in effect, `MonsterSpec` + all creature boards (**69**: `LADDER` 50, `ALTERNATES` 19 for dungeon floors, event fights and rung 51, `CREVICE` empty), `Difficulty {Easy, Medium, Hard, Insane}` |
-| `run.rs` | ~2,060 | A run: `Mode {Grinder, Rogue}` (knock-back farming vs three lives), gold, rung, fountains, lives, `best_fight_ms`, scenes seen, towns visited, the theme in use, and `apply_preset` |
-| `theme.rs` | ~1,400 | The turtle theme: names, story, cutscenes, vocabulary, glossary — all display-only |
-| `class.rs` | ~1,200 | `ClassDef { name, blurb, requires: &[(Axis, i32)], power }`; fountains score your build on axes and hand out classes; stacking classes (Piety → Ticket to Ride) |
-| `rating.rs` | ~900 | Item worth: effectiveness scale, price, and rarity — `RARE_AT=90, EPIC_AT=130, LEGENDARY_AT=170` (:203) |
-| `loadout.rs` | ~920 | Boards, placement, assembly, `lock_assembled_in`. **No auto-builder** — the nearest thing is `Run::apply_preset`, twenty-two hard-coded placements (twenty-one pieces and one bonded enchantment), which is also a reference build the baseline is measured against |
-| `event.rs` | ~760 | Events: stand in front of a rung, ask a question, never resolve themselves; adding one = adding to `EVENTS` |
-| `naming.rs` | ~700 | Generated item names: earned qualifier + hash-stable base + suffix; **names grow with rarity** — Common 3 words, Rare 4, Epic 5, Legendary 6 |
-| `stats.rs` | ~480 | `Stats`; note `power` is a multiplier in **hundredths** (`power: 250` = 2.50x) |
-| `slot.rs` | ~450 | Grids: `SLOT_W`×`SLOT_H` = 6×8 **base** — boards can be *granted extra rows* as rewards, and resizing must never move a placed piece (`tests/taller_boards.rs`) |
-| `curse.rs` | ~400 | Searing (damage over time), Frost (slows gear, capped), Stun (one item), Misfire (every Nth activation fizzles) — all deterministic |
-| `shop.rs` | ~370 | Shelves dealt a slot at a time (`SHELF_TILT`), reroll, and a repair that guarantees a buildable weapon. **No milestone pricing** — the mission asks for it and it does not exist. Town stock and enchantments are excluded from the road's shelves and sold only in towns |
-| `share.rs` | ~300 | Build share codes: base-32, a *record* of a board, not a save file |
-| `rumour.rs` | ~240 | Rumours: 1-cell components that are *conditions*, not gear — they sit in the tray and unlock events |
-| `town.rs` | ~215 | Towns: rungs with nothing to fight — three pinned (after rungs 6, 17, 31), one action per visit, or walk on for the bounty again |
-| `dungeon.rs` | ~140 | Side fight-chains ending in classes you cannot get elsewhere; exiting puts you back where you entered |
-| `shape.rs`, `rng.rs`, `glossary` etc. | small | Polyomino math; the seeded PRNG; words |
-
-`design/towns.md` and `design/branching-events.md` are the intent documents
-for the newest systems — read them before touching towns, events, rumours, or
-dungeons.
+| `piece.rs` | 10,636 | Everything a piece is: `SlotKind` (5), `PieceKind` (16, `Enchantment` among them), `EffectKind`, `Resource` (8: Mana, Rage, Faith, Nature, three fusions, Insight), `Action`, `Trigger` (`Watch` among them), `Quest`, recipes (`:1039`), per-slot default cooldowns (`:1089`: weapon 1500 ms, gloves 3000, greaves 3500, helmet 4000, chest 5000), `PieceRegistry` (instance = def index + rotation, `:1120`), and the **504**-entry `CATALOG` (`:1202`; helmet 96, chest 71, gloves 83, greaves 67, weapon 187). `BOSS_ONLY`, `EVENT_ONLY`, `VIP_ONLY`, `TOWN_ONLY` lists at the bottom |
+| `combat.rs` | 6,425 | The fight: 50 ms ticks (`curse::TICK_MS`), `SUDDEN_DEATH_MS = 30_000` (`:40`), `MAX_DURATION_MS = 60_000`, `Difficulty {Easy, Medium, Hard, Insane}` (`:527`; Medium is gear-as-written, others step gear via `stepped_component`, `:292`), `MonsterSpec` (`:234`), **69 creatures**: `LADDER` 50 (`:755`, `RUST_GOLEM` spliced in by name at `:825`), `ALTERNATES` 19 (`:5412`), `CREVICE` 0 (`:6312`). `CombatLog { outcome, duration_ms, entries, .. }` (`:3513`) |
+| `run.rs` | 3,749 | A run: `Mode {Grinder, Rogue}`, `Phase`, gold, rung, lives, the shop, classes, every road flag and counter, `road_stack()` (derived, `:912`), `take_choice`/`apply_outcome`, `visit_town`, `enter_dungeon`, `melt`, `crush`, `fight_next` (`:3437`), `settle` (`:2043`), `apply_preset` (`:3224`), `skip_to`/`force_win` (`:2440`, `:2434` - test and picker helpers that win without fighting) |
+| `event.rs` | 2,363 | `EVENTS` - **33**, a `pub const` (`:590`), each `LadderEvent { id, at (zero-based), trigger, choices }`; `Requirement` (12 variants), `Outcome` (35), `Trigger` (Rung, QuickKill, SlowKill, Whispered, WhenFlagged - the last three carry `from`, a window); six `Brawl`s; reverse indexes `set_by`, `every_outcome`, `opened_by_taking` |
+| `theme.rs` | 2,032 | The turtle theme: names, story, `vocabulary`, `told: &[Retold]` keyed by road id - all display-only |
+| `class.rs` | 1,370 | `CLASSES` - **31**; `ClassPower` (SlowTime, Overflowing, Leeching, WrongSense, FirstBlood, ...); fountains score axes; Piety and Unionized stack |
+| `rating.rs` | 1,231 | Worth: `piece_rating`, `monster_value` (`:815`, the creature-side correction), `RARE_AT=90, EPIC_AT=130, LEGENDARY_AT=170` (`:230`), `ACTIVATIONS_PER_S = 5.0` (`:497`) |
+| `loadout.rs` | 1,014 | Five `Slot`s, `ItemProfile`, assembly, `lock_assembled_in` (`:243`), `combat_items` (`:658`). **No player-build solver anywhere** - the nearest things are `Run::apply_preset` (twenty-two hard-coded placements) and the three share codes in `share.rs` |
+| `naming.rs` | 737 | Generated item names; names grow with rarity (3/4/5/6 words) |
+| `bestiary.rs` | 680 | `MonsterTheme` (**10**: Striker, Wall, Burner, Slower, Drainer, Caster, Hollow, Swarm, Beast, Warden; slots per theme at `:119-134`), `theme_for(rung)` (`:343`), `MonsterFrame` and `FRAMES` (**15**, all dressed, `:400`), the frame lint |
+| `slot.rs` | 603 | One grid: `SLOT_W = 6`, `SLOT_H = 8` base (`:5, :8`), growable by rows; `can_place` (`:221`), `legal_anchors` (`:289`), items, neighbours, groups, `sets_touch_diagonally` |
+| `town.rs` | 577 | `TOWNS` - **6** (3 pinned after rung indices 6, 17, 31; 3 hidden), `Action` (17 doors), one action a visit |
+| `shop.rs` | 510 | `SHOP_SIZE = 6`, `STARTING_GOLD = 28`, `REROLL_COST = 1`, `SHELF_TILT`, `insight_open`, standing orders; town stock and enchantments never dealt on the road |
+| `route.rs` | 507 | `route(run)` (`:124`) and `ascii(run)` (`:265`): the road drawn from the tables plus the run |
+| `stats.rs` | 491 | `Stats`; `power` is a multiplier in hundredths |
+| `rumour.rs` | 446 | **8** rumours; 1-cell conditions that sit in the tray and open doors |
+| `curse.rs` | 396 | Searing, Frost, Stun, Misfire; `TICK_MS = 50` (`:12`) |
+| `share.rs` | 356 | Share codes, version 3, base-32; a placement is `def<<12 \| slot<<9 \| x<<6 \| y<<2 \| rot` (`:182`); `A_FRIENDS_RUN`, `A_WINNING_RUN`, `A_PERFECT_RUN` (`:159-180`). **Index-keyed into `CATALOG`** |
+| `dungeon.rs` | 349 | **6** dungeons; floors fought in order, exit returns you |
+| `relic.rs` | 188 | **4** run-relics (pay from a board, off run counters), crushables |
+| `pedestal.rs` | 129 | **4** destinations, once a run |
+| `shape.rs`, `rng.rs`, `lib.rs` | 100, 94, 36 | Polyomino math; the PRNG; exports |
 
 ---
 
 ## 4. The game, mechanically
 
-**The road.** Fifty creature rungs, three bosses, seven mini-bosses; three
-towns *between* rungs (a run that enters all three stands on 53 rungs); events
-stand *in front of* rungs; dungeons stand *beside* them; nothing on the road
-gets walked past (`tests/the_road.rs`). Fountains appear before each boss and
-score the build on axes to grant classes; the third can double a class.
-Named creatures leave their gear behind. A town sells five curated components
-and every **enchantment** — the layer under a grid is bought where somebody has one to sell,
-never off the road.
-A sharp early build (a kill under 2s, rungs 1–10) opens the casino, once.
+**The road.** Fifty creature rungs and a fifty-first (THE UNWOUND, opened by a
+finished chain and a beaten Francis), three bosses, seven mini-bosses. Towns
+stand *between* rungs (six, three hidden until revealed), events stand *in
+front of* rungs (thirty-three), dungeons stand *beside* them (six), pedestals
+send you to four destinations. Nothing on the road gets walked past
+(`tests/the_road.rs`); the road stack pops gate, then fountain, then events
+(`the-unwinding.md` #12). Fountains before each boss score the build on axes
+and grant classes; the third can double one. Named creatures leave gear
+behind. Enchantments are town stock only. A kill under 2 s in rungs 1-10 opens
+the casino, once.
 
-**A fight.** Both sides' boards tick in 50ms steps. Items activate on
-cooldown (piece `cooldown_ms`, else the slot default at `piece.rs:860`). A
-hit is `(flat damage + strength) × power`, typed **physical** or **magic**;
-the defender answers with the matching `*_resist`, punched through by
-`*_pierce`, shored up by `*_harden`. Armor absorbs first and **resets to zero
-every fight**. Regen heals per second; `Grow` raises max health mid-fight;
-mind damage *lowers* max health and cannot be healed. Curses stack by kind
-with caps and floors. Stalemates go to the full clock.
+**A fight.** Both boards tick in 50 ms steps; items fire on cooldown. A hit is
+`(flat + strength) × power`, typed **physical**, **magic** or **mind**; the
+defender answers with `*_resist`, punched through by `*_pierce`, shored up by
+`*_harden`. Three lanes, three answers: the mana shield blunts magic,
+Deflection blunts physical, `mind_resist` alone answers mind. Empowerment
+multiplies magic hits; Spellblade multiplies physical. Armour absorbs first
+and resets to zero every fight. Mind damage lowers max health and never heals.
+Curses stack by kind with caps. **Sudden death from 30 s**: both sides bleed a
+growing share of max health each second; nothing runs past ~44 s. A fight past
+30 s was decided by the clock, not the boards.
 
-**Pools.** Mana is fuel (spent by `SpendMana`/`Spend`/`Consume` triggers;
-empowerment and shield scale off it). The other three are passive holdings
-with exact per-point rates (`combat.rs`): rage → +1 physical damage, faith →
-+2 physical *and* +2 magic resist, nature → +1 regen. `Drain` steals pools.
+**Pools.** Mana is fuel. Rage → +1 physical damage a point, faith → +2 both
+resists, nature → +1 regen. Insight is fuel for Dread (mind damage gains
+`dread × insight / 2`), locked until THE THRESHOLD is cleared. `Drain` steals.
 
-**A piece** (`PieceDef`): name, slot, kind, polyomino `cells`, base `Stats`,
-optional `Adjacency { label, stats }`, optional positional `Effect`
-(`DoubleNeighbor`, `SoleIf`, `SelfPerEmptyCell`, `SelfPerNeighborKind`,
-`DoubleAdjacentItemStat`, `Flat(When)` — `When::NotAssembled` powers
-deliberately-loose gear), triggers, cooldown, price, `power_bonus`/
-`speed_bonus`, and sometimes a `Quest` (the piece *becomes* another piece
-when its condition is met).
+**A piece.** `PieceDef`: name, slot, kind, polyomino `cells`, base `Stats`,
+optional `Adjacency`, optional positional `Effect`, triggers, cooldown, price,
+`power_bonus`/`speed_bonus`, sometimes a `Quest`.
 
 **Assembly.** Loose pieces contribute passive stats; pieces connected into a
-**recipe** become an *item* that acts in combat. Recipes (`piece.rs:810`):
+recipe become an *item* that acts. Recipes (`piece.rs:1039`):
 
 | Slot | Recipes |
 |---|---|
-| Weapon | Handle + 1–2 Damaging + 0–2 Accessory · Book + Ink + Spell + 0–1 Accessory · Orb + 2–3 Spells + 0–1 Alignment |
-| Helmet | Frame + 1–2 Plating + 0–1 Crest |
-| Chest | Base + 1–3 Layers |
-| Gloves | Material + Mold + 0–2 Rings |
-| Greaves | Material + Mold + 0–1 Plating |
+| Weapon | Handle + 1-2 Damaging + 0-2 Accessory · Book + Ink + Spell + 0-1 Accessory · Orb + 2-3 Spell + 0-1 Alignment |
+| Helmet | Frame + 1-2 Plating + 0-1 Crest |
+| Chest | Base + 1-3 Layer |
+| Gloves | Material + Mold + 0-2 Ring |
+| Greaves | Material + Mold + 0-1 Plating |
 
-**Worth.** `rating.rs` scores a board; rating sets price and rarity; rarity
-sets the generated name's length (3/4/5/6 words). Adjust worth by weights,
-never by moving the rarity thresholds — every item name in the game shifts if
-you touch those.
+Only weapons swing; every other slot acts through triggers
+(`analysis/second-order.md` §10). A dense board comes back as the items its
+owner built **only if each is locked as it assembles** - `common::board_from`
+does this and hand-seated name lists do not (`design/HANDOFF.md` §5).
+
+**Worth.** `rating.rs` prices a piece; price sets rarity; rarity sets name
+length. Adjust by weights, never thresholds. `stepped_component` re-gears
+every creature on Easy, Hard and Insane when a weight moves **or when
+`CATALOG` grows a footprint sibling** (`the-unwinding.md` #19).
 
 ---
 
 ## 5. The test suite is the map of what matters
 
-`assembly` (names place correctly — catches renames), `packing` +
-`pack_francis` (the authoring tool's locked named boards still pack),
-`progression` + `the_long_way` + `two_runs` (whole runs played end to end),
-`effects`/`reactions`/`drains`/`curses_in_combat` (per-mechanic), `fight` /
-`sudden_death` / `brawl` (combat edges), `francis` (the man himself),
-`classes` + `class_reaches_combat`, `prices`, `towns` / `casino` / `vip` /
-`earned_events` / `the_road` (road furniture), `taller_boards` (resize moves
-nothing), `decode_build` (share codes), `prose` (the words), `avail`,
-`slash_and_burn`, `baseline` (the measurement harness — `#[ignore]`d
-printers report damage share by slot), `catalog_shape` (the slot-identity
-ratchet: budgets only go down), `fixtures` (the manifest of tests that name a
-piece as their example of a mechanic, so a sweep fails there rather than
-downstream). **764 tests, green, no warnings.** When one fails after your
-change, it is telling you which doctrine you brushed.
+49 integration binaries in `crates/engine/tests/` plus the lib's 156.
+**781 green, 40 ignored** at the tip, and the whole workspace builds with
+**no warnings** under rustc 1.95.
+
+| Group | Binaries (tests) |
+|---|---|
+| Catalogue and assembly | `assembly` (66), `catalog_shape` (3 + 2 ignored, the ratchet), `fixtures` (3), `prices` (1 ignored), `enchantment` (21), `primitives` (17) |
+| Combat | `fight` (22), `effects` (26), `reactions` (12), `drains` (3), `curses_in_combat` (4), `sudden_death` (6), `brawl` (7), `typed_lanes` (8), `insight` (13), `slash_and_burn` (4), `class_reaches_combat` (2), `classes` (20) |
+| Whole runs | `progression` (82, 12.8 s), `the_long_way` (9), `two_runs` (13 + 1 ignored), `taller_boards` (7), `decode_build` (6 + 4 ignored) |
+| The road | `the_road` (6), `towns` (32), `casino` (15), `vip` (10), `earned_events` (6), `hidden_towns` (8), `road_stack` (11), `road_machinery` (23), `unconditional_events` (12), `structures` (24), `chain` (13), `dungeons` (14), `pedestal` (9), `relics` (17), `tooltips` (13), `phase_two` (7), **`completable` (4)** - can every key exist before its door shuts |
+| Bosses and references | `francis` (6), `reference_builds` (4), `acceptance` (10; E6 criterion by criterion), `packing` (19 ignored generators), `pack_francis` (2 ignored: the board generator and `probe_the_curve`) |
+| Words | `prose` (8 + 1 ignored printer), `two_voices` (6 + 1 ignored), `avail` (5, **43 s** - 400 seeded runs) |
+| Measurement | `baseline` (4 + 6 ignored printers) |
+
+The printers, which write `analysis/`:
+
+```
+cargo test -p gearmaster-engine --test baseline -- --ignored --nocapture --test-threads=1
+cargo test -p gearmaster-engine --test catalog_shape -- --ignored --nocapture
+cargo test -p gearmaster-engine --test prose -- --ignored --nocapture read
+PACK_MONSTER="Cog Priest" cargo test --release -p gearmaster-engine --test pack_francis pack -- --ignored --nocapture --exact
+```
+
+At the tip: owner 48/50, 75.5% weapon share, median 9.00 s; friend 48/50,
+97.4%, 8.15 s; preset 9/50; starter 2/50. Ratchet green, 0 away. Oracle cost
+in release: 0.03-1.4 ms a fight, whole ladder 31 ms.
+
+The third one is not a measurement, it is the **road read aloud** - every
+scene, town gate and dungeon landing in the order a player meets them, wrapped
+the way the screen wraps them, choices underneath. It asserts nothing. It is
+there because every lint in `prose.rs` is a cheap mechanical proxy and says so
+at the top, and four fixes a batch came out of reading its output rather than
+out of a failing test.
+
+**Running the suite.** Every engine edit relinks all 49 binaries. Iterate with
+`cargo test -p gearmaster-engine --lib` or one `--test <n>`; run the whole
+thing once at the end. `[profile.test]` carries line tables only; for a full
+backtrace on one run, `CARGO_PROFILE_TEST_DEBUG=2 cargo test ... --test <n>`.
+Never start a second cargo while one is running.
 
 ---
 
 ## 6. WHERE THINGS STAND
 
-**The Unwinding is finished and merged.** Twenty milestones, M0 to M19: the
-event chain across the back half of the ladder, the super boss at rung 51,
-three hidden towns, six dungeons, the four Orbs of Travel, the third combat
-lane, the reward vocabulary, the road stack, the route map. `HANDOFF.md` is the
-summary and `HANDOFF-unwinding.md` is the milestone-by-milestone record;
-`design/the-unwinding.md` carries three reconciliation blocks and amendments
-numbered to 23, and those win over its body wherever they disagree.
+**The Unwinding is merged and published.** `design/post-unwinding.md` is
+the audit: what landed (nearly all of it), what changed shape (fifteen things,
+listed), what slipped (Engraving, the Brain Farm), what is not met (a fourth
+reference build that beats THE UNWOUND *because of* the mind lane), and the
+eight post-merge commits no ledger records - two of which found doors whose
+keys could not exist in time behind a green suite.
 
-**The suite is 764 green, no warnings**, and the frame lint is at zero: every
-creature in the game has a board.
+**The prose pass is merged and published.** The base game had been calling its
+people by their jobs since M15 - "the crownwright", "the man who runs the
+place", "a woman with a clipboard" - because that milestone correctly moved the
+book's proper nouns into `theme.rs` and left the *roles* behind in the
+canonical column. It has its own cast now, invented and plain-port, and the
+scenes say what the buttons under them say.
+`design/HANDOFF-prose-ledger.md` is the record; `HANDOFF-prose.md` is the brief
+it was executed from. Rogue also gets a fourth life (`ROGUE_LIVES`, and five is
+the eventual intent).
 
-**What is open, in the order it matters:**
+**The mission is `design/rl-agent-plan.md`**: make the game playable by a
+reinforcement-learning agent, with no generative AI anywhere in the loop, so
+that a trained agent becomes a better validity solver than the repo has. Read
+`design/rl-research.md` first for the stack recommendation. Its milestone 1 is
+a non-learning search baseline, and every later milestone reports against it.
 
-1. **The fifteen new creatures wear generated boards.** They were packed by
-   `tests/pack_francis.rs` at the rung each is met on - correctly sized, shaped
-   by theme, and samples rather than authored fights. The owner is rebuilding
-   them by hand in `make pack`. Nothing depends on that happening; the boards
-   are legal and measured.
-2. **The fourth reference build does not beat THE UNWOUND.** Two of the three
-   shipped boards lose to it and the third wins at 28 seconds, which is the
-   acceptance criterion. What is missing is a board that wins *because* of
-   Deflection and Insight - the demonstration that the mind lane answers the
-   thing at the top.
-3. **Engraving and the Brain Farm slipped**, on measured cost, at the Phase-1
-   gate. Amendment #20 says what would unblock Engraving: it is the only thing
-   in the mission that reopens `share.rs`'s index-keyed format.
-4. **Nobody has played this.** Every claim in either handoff comes from the
-   test suite and from two CLI replays that diff clean.
+**What the repo uses today to say a build is valid or a rung is clearable**,
+which is what the mission has to beat:
 
-**The traps, still true, in the order they will find you:**
+1. `tests/pack_francis.rs::pack` - a seeded stochastic sampler over themed
+   recipes, 300 trials, scored by the combat oracle against four reference
+   boards at four settings and a TTK curve (`target_ms`, floor 2,000 ms, +490
+   ms a rung past 10, ±30%). It authors **monster** boards. 39.5 s a creature
+   in release here.
+2. Three share codes (`share.rs:159-180`) and `apply_preset` - **player**
+   boards somebody built by hand, replayed through the oracle by `francis`,
+   `reference_builds`, `baseline`, `progression`.
+3. `force_win` and `skip_to` - the road walked with fights won by fiat
+   (`tests/chain.rs:275-308` proves the chain "completable" this way; 25
+   `skip_to` call sites in `progression.rs`).
 
-1. **`CATALOG` is index-keyed by `share.rs`. Append-only for ever.**
-2. **`stepped_component` re-gears every monster on Easy, Hard and Insane
-   whenever a `rating.rs` weight moves** - 33 boards on Easy, last time. Settle
-   the weights before authoring anything measured against them.
-3. **The reconstruction fault.** A dense board does not come back as the items
-   its owner built unless each is locked as it assembles. Every rebuild goes
-   through `common::board_from`, and a hand-seated name list is not a board -
-   this repo has learned that four times, most recently in M18.
-4. **Sudden death owns everything past 30s.** THE UNWOUND is authored to 28.0s
-   at Medium and there is no room above it.
-5. **Enchantments are town stock.** Never on the road.
-6. **`LadderEvent::at` and `Town::after` are zero-based; the displayed rung is
-   `at + 1`.** `LADDER` is fifty because `Rust Golem` is spliced in by name.
-7. **Names are string keys** across `theme.rs`, monster boards, quests,
-   `event.rs`, `rumour.rs`, `town.rs`, `dungeon.rs` and the tests.
-8. **The base game does not speak turtle.** A proper noun out of the book
-   belongs in `theme.rs`; the canonical column names the role.
-   `tests/two_voices.rs` is the ratchet and its budget is five, all of them
-   piece names that cannot be changed.
-9. **A guard that refuses your change is usually right** - and the packer's
-   refusals are gradients. "wanted 11.8s, best was 8.0s" is a ratio to scale by.
+Nothing demonstrates that a build a *seed's own shop economy* can produce
+fights its way to any given door. That is the gap.
 
-**Running the suite.** 46 test binaries, and every engine edit relinks all of
-them. Iterate with `cargo test -p gearmaster-engine --lib` (0.13s) or one
-`--test <name>`; run the whole thing once, at the end. `[profile.test]` carries
-line tables only - for a full backtrace on one run,
-`CARGO_PROFILE_TEST_DEBUG=2 cargo test ... --test <name>`. Never start a second
-cargo while one is running.
+**The traps, re-derived from this tip, in the order they will find you:**
+
+1. **The MSRV is a lie.** 1.75 declared, 1.83 required.
+2. **`CATALOG` is index-keyed by `share.rs`. Append-only for ever.**
+3. **`stepped_component` re-gears every creature on Easy, Hard and Insane
+   whenever a `rating.rs` weight moves or a footprint sibling is appended.**
+   Settle weights before authoring anything measured against them.
+4. **The reconstruction fault.** Every rebuild goes through
+   `common::board_from`; a name list is not a board. Learned four times, the
+   last at M17 (`THE_FOURTH` came back as zero items).
+5. **Sudden death owns everything past 30 s.** THE UNWOUND is authored to
+   28.0 s at Medium. Both no-weapon "clears" of rung 15 are the clock's.
+6. **"Completable" today means `force_win`.** See above.
+7. **`EVENTS` is a `const`.** Every `&EVENTS[i].choices[j]` in another crate
+   is a reference to a copy. Compare by value. `ptr::eq` on it refused every
+   choice from a test binary, silently, for a milestone.
+8. **A key that arrives after its door's window shuts survives the suite.**
+   `completable.rs` is the audit; it knows four shapes. `Trigger::from`
+   returns 0 for `Rung`, which is not the earliest a door can be met. Add a
+   row when you add a requirement kind.
+9. **`LadderEvent::at` and `Town::after` are zero-based; displayed rung is
+   `at + 1`.** `LADDER` is fifty because `RUST_GOLEM` is spliced in by name;
+   every grep of the table comes back one short.
+10. **Names are string keys** across `theme.rs`, monster boards, quests,
+    `event.rs`, `rumour.rs`, `town.rs`, `dungeon.rs`, `class.rs`, the tests.
+11. **Enchantments are town stock.** Never on the road (`is_town_stock`).
+12. **The base game does not speak turtle.** Proper nouns from the book go
+    in `theme.rs`; `two_voices` is the ratchet at budget 5.
+13. **`Run::begin_fight` fights Rust Golem** whatever rung you are on. The
+    road's fight is `fight_next`; a brawl's is `fight_party`.
+14. **`cargo build` does not compile the GUI's `cfg(test)` module.** It
+    rotted for eight milestones. `cargo test -p gearmaster-gui`.
+15. **`make pack`'s save rewrites `combat.rs` in place** and once rewrote a
+    creature nobody was editing (The Iron Warden, M15). Read the diff.
+16. **A `Watch` trigger whose payload can produce the event it counts
+    recurses.** Guarded for curses (`analysis/second-order.md` §11); any new
+    `Watched` variant needs the same question asked.
+17. **A guard that refuses your change is usually right, and its refusal is
+    a gradient.** "wanted 11.8s, best was 8.0s" is a ratio to scale by.
+18. **The book-word ratchet was blind to capitals for its whole life.**
+    `two_voices::leaks()` compared exact case, and this game puts its proper
+    nouns on signs and brass plates - so EGGBERT on a gate post, BUNKO on a
+    boat transom, HENPECK stamped on the Under-Mine's boards and THRUMBUS in a
+    whole event's title all shipped in the canonical column behind a green
+    budget of 5. It compares case-insensitively now, and `pedestal.rs` is
+    walked too, which it never was. Add a `BOOK` word in the case the book uses
+    and trust the lint.
+19. **A silent counter with no door is dead content, and only half of that was
+    linted.** `no_flag_is_waited_on_forever` catches a flag waited on and never
+    set; nothing caught the mirror until `completable.rs` gained
+    `COUNTERS_NOBODY_READS`, which is **3** - `shook-the-machine`, `moles-paid`
+    and `crossed` are written by a choice and read by no door at all.
+20. **`LadderEvent::at` is zero-based and prose is not.** THE CONTRACT promised
+    "rung 28" for a payout standing on rung 29, and a player who signed and
+    walked there would have found empty road. That is trap 9's fourth bug.
+    `structures.rs::the_contract_names_the_rung_the_payout_actually_stands_on`
+    pins that one; nothing pins the general case, because nothing can tell
+    which figure in a scene is meant to be a rung.
+21. **A lint can be satisfied by the wrong thing.** `every_scene_names_something`
+    passed on any digit, so the scenes M15 left anonymous grew numbers - "the 3
+    chairs", "19 years", "40 years" - and stayed anonymous. Eighteen of them.
+    The loophole is closed and the budget retired at zero; if you write a new
+    lint, ask what the cheapest way to satisfy it is before you ship it.
+
+One blind spot in `prose.rs` worth knowing before it finds you: a name that
+only ever **opens** a sentence is invisible to `names_something`, because at a
+sentence start it cannot tell "Vell" from "The". Four scenes named their people
+and failed the lint anyway. Write the name into the middle of a sentence; do
+not widen the proxy, which would mean keeping the cast list in a test file.
+
+Retired since the last version of this file: "there is no milestone pricing"
+(the mission that wanted it is over and priced in bounties instead), "the
+frame lint is red" (it is green; `FRAMES` are all dressed), "`MonsterTheme`
+does not exist in the engine" (`bestiary.rs`).
 
 ## 7. Etiquette
 
 Match the module doc-comment voice (deadpan, first principles, one idea per
-paragraph) — the codebase reads like it was written by one careful person,
-and it should stay that way. Keep the engine free of graphics dependencies.
-Never let a themed string reach game logic. And when a design document and
-the code disagree, the document is right and the code has a bug report.
+paragraph) - the codebase reads like it was written by one careful person and
+should stay that way. Keep the engine free of every dependency, not only
+graphics ones: `crates/engine/Cargo.toml` is empty on purpose and the RL work
+lives in its own crate. Never let a themed string reach game logic. When a
+design document and the code disagree, the document is right and the code has
+a bug report - unless the document is a *record* of what shipped, in which
+case the code is the news and the document does. Write down which commit a
+number came from.
