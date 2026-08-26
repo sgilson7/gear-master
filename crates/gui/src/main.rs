@@ -9334,6 +9334,21 @@ fn render_panel(
             if opp_hot { Color::from_rgba(190, 190, 210, 255) } else { col_dim() },
         );
     }
+    // The map's own key, on the row that is already about the road.
+    //
+    // A key nobody is told about is a feature nobody has. This sits where
+    // "hover for their board" sits twenty pixels above - right-aligned on a row
+    // that has the space, costing no layout - because the alternative was a
+    // seventh button on a panel that had to squeeze the sixth onto a shared
+    // row to fit at all.
+    let map_hint = words::word("map-hint", "M for the road");
+    ui_text(
+        map_hint,
+        x + PANEL_W - 20.0 - text_width(map_hint, 11.0),
+        y,
+        11.0,
+        Color::from_rgba(112, 112, 134, 255),
+    );
     y += 16.0;
     // How far off the next named fight is, and which kind. A boss carries
     // fifteen items of gear and a mini-boss ten; walking into one having just

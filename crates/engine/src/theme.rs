@@ -993,6 +993,11 @@ pub static TURTLE_DICK: Theme = Theme {
         ("gold-lower", "fnorp"),
         ("gold-suffix", "fnorp"),
         ("shop", "GALAPAGOS EMPORIUM"),
+        // The road, and the key that draws it. The hint sits on the opponent
+        // panel's rung row, so it has to stay short enough to fit beside a
+        // rung count.
+        ("the-road", "THE LONG WALK"),
+        ("map-hint", "M for the walk"),
         ("shop-hint", "right-click a card to hold it for Jim"),
         ("reroll", "SKOOGLE IT"),
         ("inventory", "SALVAGE"),
@@ -1844,6 +1849,10 @@ mod tests {
             "inventory-hint", "your-items", "fountain", "fountain-blurb",
             "fountain-take", "class", "classes", "begin-fight", "character",
             "opponent", "glossary",
+            // The map's noun and the key that opens it. On the list because a
+            // slug the interface asks for and the theme has no answer to is a
+            // plain English word in a screen full of Fnorp.
+            "the-road", "map-hint",
         ];
         let unanswered: Vec<&str> =
             ASKED.iter().copied().filter(|k| TURTLE_DICK.word(k, "") == "").collect();
