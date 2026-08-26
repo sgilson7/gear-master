@@ -185,6 +185,42 @@ pub static RUMOURS: &[Rumour] = &[
         opens: "the-glow-over-the-ridge",
         needs: Condition::Carried,
     },
+    // ---- the three standalone pairs --------------------------------------
+    //
+    // Not chain, not bets. Each one is a piece of local business that is going
+    // to happen whether or not you are there, and the word is how you find out
+    // in time to be. Two of them are bar talk. The third is told to you by a
+    // woman who grades things and has just been refused, which is the only
+    // door in the game where declining is what pays.
+    Rumour {
+        name: "A Word About the Thirsty Wizard",
+        on_the_bar: true,
+        hint: "There is a wizard up the road who wants what is left when you \
+               have finished the thing, and has a room full of what is left, \
+               and will not say what for.",
+        price: Barter::Kind(PieceKind::Ring),
+        opens: "the-wizards-thirst",
+        needs: Condition::Carried,
+    },
+    Rumour {
+        name: "A Word About the Exhibition",
+        on_the_bar: true,
+        hint: "Two men who were the best in the world at a thing have been \
+               retired for six years and are, between them, about as bored as \
+               it is possible for two people to be.",
+        price: Barter::Kind(PieceKind::Mold),
+        opens: "the-exhibition",
+        needs: Condition::Carried,
+    },
+    Rumour {
+        name: "A Word About the Picket",
+        on_the_bar: false,
+        hint: "The arena has stopped. There are six demands on the gate and \
+               one of them is, oddly, about you.",
+        price: Barter::Rumour("A Word About the Exhibition"),
+        opens: "the-picket-line",
+        needs: Condition::Carried,
+    },
 ];
 
 /// What the bar will hand over, in shelf order.
@@ -205,6 +241,8 @@ const SHELVES: &[&str] = &[
     "A Word About the Crownwright",
     "A Word About the Green Ledger",
     "A Word About the Wrong Stars",
+    "A Word About the Thirsty Wizard",
+    "A Word About the Exhibition",
     TROPHY_SHELF,
 ];
 

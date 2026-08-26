@@ -162,6 +162,24 @@ pub const LIBRARY_GAIN: i32 = 25;
 /// What the long table is worth, for the rest of the run.
 pub const LONG_TABLE_HEALTH: i32 = 100;
 
+/// How much slower everything runs while a contract is being honoured.
+///
+/// Fifty, which is what a stack of frost does. The point of the arrangement is
+/// that the handicap is real and that you chose it - a difficulty setting
+/// priced by the player, local and transactional, rather than a dial in a
+/// menu.
+pub const CONTRACT_SLOWER: i64 = 50;
+
+/// How much slower an item carrying a permanently cursed piece runs.
+///
+/// Half a contract, and for the right reason: a contract is every slot for
+/// three rungs and you asked for it, while this is one item for the rest of
+/// the run and somebody did it to you. A price you can see is a price you can
+/// decide about - the Manse library charges it, the thirsty wizard charges it
+/// for being refused, and the mole with the tools is the only thing that lifts
+/// it.
+pub const CURSED_SLOWER: i64 = 25;
+
 /// How much better a piece comes back from consignment.
 pub const CONSIGNMENT_GAIN: i32 = 30;
 /// How many shops it is away for.
@@ -530,6 +548,25 @@ pub struct Run {
     pub second_key_ready: bool,
     /// Pieces sold on consignment, and how many shops until they come back.
     pub consigned: Vec<(usize, u32)>,
+    /// A shelf owed once whatever is in front of you is over.
+    ///
+    /// The Fork's other half: shopping before a fight and shopping after one
+    /// are two different decisions, and the only way to offer the second is to
+    /// hold the shelf back.
+    pub shop_owed: Option<&'static [&'static str]>,
+    /// Percentage every shelf costs above the list price, for the rest of the
+    /// run. The foundry noticing it was snubbed.
+    pub markup: i32,
+    /// The rung a taken contract runs to, if one is running.
+    ///
+    /// Frost on all your gear, accepted deliberately, and the only handicap in
+    /// the game a player asks for. `THE PAYOUT` verifies it was honoured by
+    /// reading this rather than by trusting a flag.
+    pub contract_until: Option<usize>,
+    /// Whether a contract ever ran to its end.
+    pub contract_honoured: bool,
+    /// What the courier pays for a passenger delivered.
+    pub passenger_pays: &'static str,
     /// Destinations a pedestal has already sent this run to, by id.
     ///
     /// One set for both pedestals. Each destination fires once a run.
@@ -661,6 +698,11 @@ impl Run {
             passenger: None,
             second_key_ready: false,
             consigned: Vec::new(),
+            shop_owed: None,
+            markup: 0,
+            contract_until: None,
+            contract_honoured: false,
+            passenger_pays: "",
             forced_event: None,
             flags: Vec::new(),
             counters: Vec::new(),
@@ -1006,6 +1048,11 @@ impl Run {
             // door's business, and it happens in `take_choice_with`.
             Requirement::Figure { .. } => true,
             Requirement::Purse { times } => self.gold >= self.rung_bounty() * times,
+            Requirement::HoldingRumour => self
+                .inventory()
+                .iter()
+                .any(|&id| crate::rumour::is_rumour(self.registry.def(id).name)),
+            Requirement::Classes(n) => self.classes.len() >= n,
         }
     }
 
@@ -1101,7 +1148,15 @@ impl Run {
         // interface only ever offered that door's choices. The chain's windows
         // are wide enough that two can be open at once, and answering one with
         // the other's choice marked the wrong event answered.
-        if !ev.choices.iter().any(|k| std::ptr::eq(k, c)) {
+        //
+        // By value rather than by address. `EVENTS` is a static holding
+        // promoted arrays, and a caller in another crate can hold a reference
+        // to a *copy* of the same choice - the address test passes inside the
+        // engine, passes in the interface, and fails in a test binary, which
+        // is the worst of the three places to find out. What "belongs to this
+        // door" means is that the door has this choice on it, and that is what
+        // this asks.
+        if !ev.choices.iter().any(|k| k == c) {
             return None;
         }
         if !self.choice_open(c) {
@@ -1236,10 +1291,105 @@ impl Run {
             }
             ChoiceOutcome::Scout => self.scouting = true,
             ChoiceOutcome::UnlockInsight => self.unlock_insight(),
+            ChoiceOutcome::SealedBid { lots } => {
+                // The reserve is the run's own, and it is drawn *here* rather
+                // than held on the event, so two replays of a seed bid against
+                // the same number and a reload cannot re-roll it.
+                let lot = lots[self.rng.below(lots.len().max(1)).min(lots.len() - 1)];
+                let reserve = self.rung_bounty() * (1 + self.rng.below(6) as i32);
+                let bid = self.last_figure.unwrap_or(0);
+                receipt = vec![format!("The reserve was {}g", reserve)];
+                if bid >= reserve {
+                    self.gold -= reserve;
+                    receipt.push(format!("-{}g, and the lot is yours", reserve));
+                    let (_, lines) = self.apply_outcome(&ChoiceOutcome::Give(lot), req);
+                    receipt.extend(lines);
+                } else {
+                    receipt.push("Under. The lot goes to somebody who guessed better".into());
+                }
+            }
+            ChoiceOutcome::ShopAfter { shelves } => self.shop_owed = Some(shelves),
+            ChoiceOutcome::Markup(pct) => self.markup += pct,
+            ChoiceOutcome::Passenger { rungs, pays } => {
+                // The passenger arrives as a component, because the rent is
+                // cells and cells are what components cost. It goes in the
+                // tray like anything else; seating it is the player's job and
+                // `passenger_is_seated` is what checks they did it.
+                match self.give("The Stranger's Parcel") {
+                    Some(id) => {
+                        self.take_passenger(id, rungs);
+                        self.passenger_pays = pays;
+                        receipt.push(format!("Riding: {}", self.registry.def(id).name));
+                    }
+                    None => {
+                        receipt.clear();
+                        receipt.push("Somebody else is already riding on you".into());
+                    }
+                }
+            }
+            ChoiceOutcome::Contract { rungs } => {
+                self.contract_until = Some(self.rung + rungs);
+                receipt.push(format!("It runs out after rung {}", self.rung + rungs + 1));
+            }
             ChoiceOutcome::Uncurse => match self.cursed_for_good.pop() {
                 Some(id) => receipt = vec![format!("Lifted: {}", self.registry.def(id).name)],
                 None => receipt = vec!["Nothing of yours is cursed".into()],
             },
+            // The Multicity buyer's three purchases. Each one takes something
+            // away that the run cannot buy back, which is the only reason the
+            // numbers next to them are as large as they are.
+            ChoiceOutcome::SellWord => {
+                let held = self
+                    .owned
+                    .iter()
+                    .copied()
+                    .find(|&id| crate::rumour::is_rumour(self.registry.def(id).name));
+                match held {
+                    // Selling the word *is* shutting the door: a rumour door
+                    // opens on the piece being in hand, so handing the piece
+                    // over is the whole of the mechanism and no second flag is
+                    // needed to remember it.
+                    Some(id) => {
+                        let name = self.registry.def(id).name;
+                        self.loadout.remove_anywhere(id);
+                        self.owned.retain(|&o| o != id);
+                        self.forget_undo();
+                        receipt = vec![format!("Sold: {}", name)];
+                    }
+                    None => receipt = vec!["You are carrying nothing anybody told you".into()],
+                }
+            }
+            ChoiceOutcome::SellTitle => match self.classes.pop() {
+                Some(c) => {
+                    self.refresh_class_effects();
+                    receipt = vec![format!("Sold: {}", c.name)];
+                }
+                None => receipt = vec!["You are nobody in particular".into()],
+            },
+            // The library's curse, laid by a wizard instead. Permanent, on a
+            // piece rather than a fighter, and chosen by the run's own PRNG so
+            // that two replays of a seed chill the same thing.
+            ChoiceOutcome::Chill => {
+                // Something that *acts*, not something that merely sits there.
+                // Frost slows gear, and a loose component has no cooldown to
+                // slow - freezing one would be a receipt line and nothing
+                // else, which is the shape of the bug this arm was written
+                // after.
+                let out: Vec<PieceId> = self
+                    .combat_items()
+                    .iter()
+                    .flat_map(|i| i.pieces.clone())
+                    .filter(|id| !self.cursed_for_good.contains(id))
+                    .collect();
+                match out.len() {
+                    0 => receipt = vec!["Nothing of yours is out where it could freeze".into()],
+                    n => {
+                        let id = out[self.rng.below(n)];
+                        self.cursed_for_good.push(id);
+                        receipt = vec![format!("Chilled: {}", self.registry.def(id).name)];
+                    }
+                }
+            }
             ChoiceOutcome::All(each) => {
                 receipt.clear();
                 for o in each {
@@ -1546,12 +1696,21 @@ impl Run {
         self.rung >= LADDER.len() && !self.past_the_top()
     }
 
+    /// What a shelf costs this run, which is not always what it is worth.
+    ///
+    /// The foundry noticing it was snubbed is the only thing that moves it,
+    /// and it moves everything at once - which is what "prices run ten percent
+    /// ahead" means when nobody will say why.
+    pub fn price(&self, slot: usize) -> Option<i32> {
+        self.shop.price(slot).map(|p| p + p * self.markup / 100)
+    }
+
     /// Buy the component on shelf `slot`.
     pub fn buy(&mut self, slot: usize) -> Result<PieceId, RuleError> {
         if self.phase != Phase::Loadout {
             return Err(RuleError::LoadoutLocked);
         }
-        let price = self.shop.price(slot).ok_or(RuleError::NothingThere)?;
+        let price = self.price(slot).ok_or(RuleError::NothingThere)?;
         if self.gold < price {
             return Err(RuleError::NotEnoughGold { need: price, have: self.gold });
         }
@@ -2027,9 +2186,55 @@ impl Run {
             }
         }
 
+        // Showstopper: a win inside the window pays more. Read off the log's
+        // own clock rather than a stopwatch anybody kept, which is the same
+        // number the casino's door is decided by.
+        if outcome == Outcome::Victory {
+            let ms = self.log.as_ref().map(|l| l.duration_ms).unwrap_or(u32::MAX);
+            let pct: i32 = self
+                .effective_classes()
+                .iter()
+                .filter_map(|c| match c.power {
+                    crate::class::ClassPower::Showstopper { pct, under_ms } if ms < under_ms => {
+                        Some(pct)
+                    }
+                    _ => None,
+                })
+                .sum();
+            if pct > 0 {
+                let extra = bounty * pct / 100;
+                self.gold += extra;
+                settlement.reward += extra;
+            }
+        }
+
+        // A contract that has run its course is a contract honoured, and the
+        // Payout reads this rather than trusting a flag somebody set.
+        if self.contract_until.is_some_and(|until| self.rung > until) {
+            self.contract_until = None;
+            self.contract_honoured = true;
+        }
+        // A passenger that has gone far enough is a passenger delivered, and
+        // the courier is waiting wherever you got to.
+        if self.passenger.is_some_and(|(_, until)| self.rung >= until) && self.passenger_is_seated()
+        {
+            let pays = self.passenger_pays;
+            if self.deliver_passenger() && !pays.is_empty() {
+                self.give(pays);
+                self.last_receipt = Some(vec![
+                    "Delivered, and in one piece".into(),
+                    format!("The courier hands over: {}", pays),
+                ]);
+            }
+        }
+
         // New shelves after every battle, win or lose.
         let need = self.needs_a_weapon();
         self.restock(need);
+        // And a shelf somebody promised for afterwards.
+        if let Some(shelves) = self.shop_owed.take() {
+            self.shop.stock_exactly(shelves);
+        }
 
         let ended = settlement.run_ended;
         self.last_settlement = Some(settlement);
@@ -3016,7 +3221,38 @@ impl Run {
                     ((it.cooldown_ms as i64 * (100 - pct.min(75)) as i64) / 100).max(100) as u32;
             }
         }
+        // A curse that outlasts the fight is still a curse, and the only kind
+        // of curse a *piece* can carry. It is frost, because frost is the one
+        // curse that means anything to a thing rather than to a fighter, and
+        // it is applied here for the same reason the contract is: this is
+        // where every speed in this game is applied.
+        //
+        // Until this existed, `cursed_for_good` was a list nothing read - the
+        // library's price was a word in a receipt, and `Outcome::Uncurse`
+        // undid nothing.
+        if !self.cursed_for_good.is_empty() {
+            for it in &mut items {
+                if it.pieces.iter().any(|p| self.cursed_for_good.contains(p)) {
+                    it.cooldown_ms =
+                        ((it.cooldown_ms as i64 * (100 + CURSED_SLOWER) as i64) / 100) as u32;
+                }
+            }
+        }
+        // A contract is frost you asked for. Frost slows gear, so this slows
+        // gear - in the one place every other speed in this game is applied,
+        // rather than by teaching `simulate` about a piece of paper.
+        if self.under_contract() {
+            for it in &mut items {
+                it.cooldown_ms =
+                    ((it.cooldown_ms as i64 * (100 + CONTRACT_SLOWER) as i64) / 100) as u32;
+            }
+        }
         items
+    }
+
+    /// Is a contract running right now?
+    pub fn under_contract(&self) -> bool {
+        self.contract_until.is_some_and(|until| self.rung <= until)
     }
 
     /// Simulate the whole fight against `spec` and enter the replay phase.

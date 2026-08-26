@@ -182,8 +182,15 @@ fn main() {
                 }
             }
             ["answer", n] => match n.parse::<usize>() {
-                Ok(i) => answer(&mut run, i),
+                Ok(i) => answer(&mut run, i, None),
                 Err(_) => println!("error: answer <n>"),
+            },
+            // One door in the game asks for a number, and a number cannot be
+            // guessed on the player's behalf: a default bid is a bid nobody
+            // made.
+            ["answer", n, fig] => match (n.parse::<usize>(), fig.parse::<i32>()) {
+                (Ok(i), Ok(f)) => answer(&mut run, i, Some(f)),
+                _ => println!("error: answer <n> <figure>"),
             },
             ["town"] => show_town(&run),
             ["town", "on"] => {
@@ -306,7 +313,7 @@ fn help() {
     println!("  fight                    simulate and print the whole bout");
     println!("  road                     what is standing on this rung");
     println!("  map                      the whole road, as this run has it");
-    println!("  answer <n>               take choice n at the event in front of you");
+    println!("  answer <n> [figure]      take choice n at the event in front of you");
     println!("  town | town on | town <door>   the gate, walking past it, or going in");
     println!("  drink                    take what the fountain is offering");
     println!("  slots: helmet chest gloves greaves weapon");
@@ -365,7 +372,7 @@ fn show_road(run: &Run) {
     }
 }
 
-fn answer(run: &mut Run, i: usize) {
+fn answer(run: &mut Run, i: usize, figure: Option<i32>) {
     let Some(e) = run.pending_event() else {
         println!("Nothing is asking you anything.");
         return;
@@ -374,7 +381,11 @@ fn answer(run: &mut Run, i: usize) {
         println!("error: {} has {} choices", e.title, e.choices.len());
         return;
     };
-    if run.take_choice(c).is_none() && run.last_receipt.is_none() {
+    let took = match figure {
+        Some(f) => run.take_choice_with(c, f),
+        None => run.take_choice(c),
+    };
+    if took.is_none() && run.last_receipt.is_none() {
         println!("{}", c.requires.describe());
         println!("{}", c.unmet);
         return;

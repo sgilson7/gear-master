@@ -66,8 +66,8 @@ re-pinned first**.
 | M11 | The dungeons and what they pay | **done** |
 | M12 | Extra Large and the Orbs of Travel (Part G) | **done** |
 | M13 | The five unconditional events (Part F) | **done** |
-| M14 | The nine structures and the three pairs (H2/D) | next |
-| M15 | The words (Phase 3) | |
+| M14 | The nine structures and the three pairs (H2/D) | **done** - Phase 2 closed |
+| M15 | The words (Phase 3) | next |
 | M16 | Rating re-pinned first (Phase 4) | |
 | M17 | Every frame gets its board, in `make pack` | |
 | M18 | Reference builds and the acceptance sweep | |
@@ -617,3 +617,117 @@ is a trade rather than a mistake: the mole with the tools is the only thing
 that undoes it.
 
 Suite: **713 green**, 0 warnings. Phase 2 is one milestone from done.
+
+
+---
+
+## M14 - The nine structures and the three pairs
+
+Ladder byte-identical. Phase 2 is done: every event, town, dungeon, word,
+reward and class in the mission exists, is reachable, and not one creature has
+been dressed.
+
+**Eight of H2's nine.** THE INSPECTION, THE SEALED BID, THE CONTRACT -> THE
+PAYOUT, THE PASSENGER, THE BUYER, THE FORK, THE FOUNDRY REMEMBERS, THROUGH THE
+CRACKED LENS. The Brain Farm slipped at the Phase-1 gate with Engraving and is
+recorded in amendment #20.
+
+They are shapes rather than questions, and each one needed something the
+`Choice` table could not already say:
+
+- **THE INSPECTION** reads the board that is standing in front of her -
+  `Requirement::AlignedItems`, a live count of items that agree with each
+  other, which is the only requirement in the game that looks at what you
+  *built* rather than what you have. Tier three is the Tally.
+- **THE SEALED BID** wants a number. `Requirement::Figure` carries its own
+  range and the reserve is drawn from the run's own PRNG *at the moment the
+  choice is taken*, so two replays of a seed bid against the same number and a
+  reload cannot re-roll it. The receipt reads the reserve out **either way**,
+  which is what makes losing teach rather than sting.
+- **THE CONTRACT** is frost you asked for, applied in `combat_items` where
+  every other speed in this game is applied, rather than by teaching `simulate`
+  about a piece of paper. Three rungs, every slot, no early exit. **THE
+  PAYOUT** reads `contract_honoured` rather than asking anybody, which is the
+  same trick the watcher pattern uses and the reason the man behind the table
+  knows to the rung how cold you were.
+- **THE PASSENGER** rides as The Stranger's Parcel - a component, because the
+  rent is cells and cells are what components cost. Seating it is the player's
+  job; a passenger in the tray is paying nothing.
+- **THE BUYER's** menu is **gated rather than generated**. `Choice` is static
+  data; generating choices would mean the event table stopped being a table.
+  Three doors that open on what you hold, and the shut ones say why.
+- **THE FORK** is one question - which half first - and both halves are legal.
+  A shelf before a fight is different gear; a shelf after one is different
+  money. `Outcome::ShopAfter` exists for the second order.
+- **THE FOUNDRY REMEMBERS** is the watcher pattern's payoff: nobody mentioned
+  the crucible was counting, and it was.
+- **THROUGH THE CRACKED LENS** is the scouting flag reaching a door, and E6.12
+  said as a test - it grants zero stats.
+
+**Part D's three pairs**, and the two classes they pay. **Unionized** is the
+second stacking class in the game after Piety, and the only thing anywhere that
+hands out armour before a blow is struck - armour resets to zero every fight
+and soaks before health does, so a stack before the first exchange is worth
+more than it reads. **Showstopper** pays more for a win inside ten seconds and
+is the only thing besides the casino's door that rewards being quick.
+
+**Where the third word comes from.** The bar draws exactly `SHOP_SIZE` shelves
+and it now has six things on it, so A Word About the Picket had to be come by
+somewhere else. It comes from THE INSPECTION, **refused**: she is a labour
+professional being turned away, and on the way out she says where else that is
+happening this month. That makes THE INSPECTION the second door in the game
+where declining is what pays.
+
+### Two bugs, and they are the same bug twice
+
+Both are checks that read less than they thought they did, and both were found
+by content rather than by review.
+
+**A pointer test is not a portable test.** M10's ownership check compared
+choices with `std::ptr::eq`. `EVENTS` is a static holding promoted arrays and a
+caller in another crate can hold a reference to a *copy* - so the check passed
+in the engine, passed in the GUI, and silently refused every choice made from a
+test binary. Not a wrong answer: a silent no, which is the worse failure. It
+compares by value now, which is what "belongs to this door" means.
+
+**A composite outcome hid everything inside it.** `class::is_earned`,
+`event::set_by` and the event reachability lint all matched on `c.outcome`
+directly, and half this mission's bargains are an `Outcome::All`. A class
+claimed inside one read as a class no door hands out - and a fountain could
+have poured it. `event::every_outcome` unpacks `All` and `Gamble`; the three
+callers go through it, and the reachability lint now also checks what a door
+gives, what it auctions, what town it reveals and who it steps you in with.
+
+### A third, and it had been sitting there since M12
+
+`Run::cursed_for_good` was documented as "pieces carrying a curse for the rest
+of the run" and nothing read it. The library set it, `Outcome::Uncurse` popped
+it, and no fight was any different for either. THE WIZARD'S THIRST's refusal
+would have inherited the hole, so it is closed: `CURSED_SLOWER = 25` on any
+item holding a cursed piece, applied in `combat_items` beside the contract.
+The chill picks something that *acts* rather than something that merely sits
+there - a loose component has no cooldown to slow.
+
+### The Phase-2 exit, E6.8
+
+`tests/phase_two.rs`, six assertions:
+
+1. Every door can be arrived at - a rung, a word somebody sells or gives, or a
+   flag something sets. `"never"` is allowed only for a destination a pedestal
+   pushes.
+2. Every hidden town is revealed by something and every dungeon has a mouth.
+3. Every reward the mission promises is in somebody's gift - a door, a town, a
+   floor, or a curated shelf.
+4. **Both routes to the Mainspring are walkable** - the Herald's brawl and the
+   courier's delivery.
+5. Every creature the mission added is still a frame, and the lint is still
+   red.
+6. A run that answers everything meets every door that stands on a rung. A
+   sweep rather than a replay: fifty rungs, every word in the tray, the flags
+   set, a packed board, and a list of what it never met. The list is empty.
+
+Suite: **743 green**, 0 warnings. Frame budget 14, unchanged since M11.
+
+**Phase 3 next.** M15 is the words: Part C's table plus F6, G5 and H5, the
+entry cutscenes in both voices, the existing events' turtle nouns migrated into
+theme entries, the glossary, and the three design docs brought up to date.

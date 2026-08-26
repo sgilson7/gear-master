@@ -298,6 +298,83 @@ one with the other's choice marked the wrong event answered.
 
 ---
 
+## 22. What the structures turned out to be, and what a composite hides
+
+Written while building H2 and Part D, which closes Phase 2. Corrections, in
+the order they were found.
+
+1. **THE BUYER's menu is gated rather than generated.** H2 describes a menu
+   built from what the run is holding. `Choice` is static data and an event is
+   a table; generating choices would mean the table stopped being a table. So
+   the menu is three doors that open on what you hold -
+   `Requirement::HoldingRumour`, `Requirement::Classes(1)`, and a hundred of
+   your maximum, which anybody can sell - and the shut ones say why. The
+   effect is the one the body wanted and the mechanism is the one the file
+   already has.
+2. **The Contract is frost you asked for.** It is applied in `combat_items`,
+   where every other speed in this game is applied, rather than by teaching
+   `simulate` about a piece of paper. `CONTRACT_SLOWER = 50` on every item's
+   cooldown, three rungs, no early exit, and THE PAYOUT reads
+   `contract_honoured` rather than asking anybody.
+3. **The passenger rides as The Stranger's Parcel.** The rent is cells, and
+   cells are what components cost - so the calf arrives as the component M9
+   already appended for it, goes in the tray like anything else, and the
+   player has to find it a seat. `passenger_is_seated` is what checks they
+   did. The prose says so: it travels wrapped, and everybody who sees it will
+   call it a parcel.
+4. **Showstopper is claimed when you agree to headline, not when you win.** A
+   `Brawl`'s `win` field is a *component*, and nothing in the game grants a
+   class for winning a fight. Requiring a Rare assembled item is what makes
+   the billing mean something; the bout is what you do with it.
+5. **Unionized is the second stacking class**, after Piety - a picket line
+   honoured twice is two picket lines. It is also the only thing in the game
+   that hands out armour before a blow is struck, which is worth more than it
+   reads: armour resets to zero every fight and soaks before health does.
+6. **A Word About the Picket comes from THE INSPECTION, refused.** The bar
+   draws exactly `SHOP_SIZE` shelves and it now has six things on it, so the
+   third of Part D's words had to be come by somewhere else. The woman with
+   the clipboard is a labour professional being refused, and on her way out
+   she says where else that is happening this month - which makes THE
+   INSPECTION the second door in the game where **declining is what pays**,
+   after the Teller's third choice.
+7. **The sealed bid is capped at 5,000.** `Requirement::Figure` carries its
+   own range and the reserve is drawn as one to six times the standing rung's
+   bounty, so the ceiling is roughly three times the largest reserve the door
+   can name. A door that will take any number is a door with no shape.
+
+**Where they stand** (indices, displayed rung is one more): THE INSPECTION 19,
+THE CONTRACT 24, THE PAYOUT 28, THE BUYER 31, THE SEALED BID 35, THE FORK 36,
+THE PASSENGER 41, THE FOUNDRY REMEMBERS 46, THROUGH THE CRACKED LENS 47. The
+three pairs: THE WIZARD'S THIRST 30, THE EXHIBITION 33, THE PICKET LINE 38.
+The foundry's three wait on `slagworks-known`, which the glow now sets
+alongside its town reveal.
+
+**Two real bugs, and they are the same bug twice.** Both are about a check
+that reads less than it thinks it does.
+
+- **`Run::take_choice` compared choices by address.** The ownership check that
+  #21 added used `std::ptr::eq`. `EVENTS` is a static holding promoted arrays,
+  and a caller in another crate can hold a reference to a *copy* of the same
+  choice - so the test passed inside the engine, passed in the interface, and
+  refused every choice in a test binary, which is the worst of the three
+  places to find out. It compares by value now, which is what "belongs to this
+  door" actually means.
+- **`Run::cursed_for_good` was a list nothing read.** Documented since M12 as
+  pieces carrying a curse for the rest of the run; the library set it,
+  `Outcome::Uncurse` popped it, and no fight was any different for either.
+  `CURSED_SLOWER = 25` closes it, in `combat_items` beside the contract, and
+  the chill picks something that *acts* - a loose component has no cooldown to
+  slow.
+- **Every lint over `EVENTS` stopped at the top of an outcome.** Half this
+  mission's bargains are an `Outcome::All`, and `class::is_earned`,
+  `event::set_by` and the reachability lint all matched on `c.outcome`
+  directly - so a class claimed inside an `All` read as a class no door hands
+  out, and a fountain could have poured it. `event::every_outcome` unpacks
+  `All` and `Gamble`, and everything that asks "does any door do X" asks it
+  through there.
+
+---
+
 # PART A — MECHANICS
 
 ## A1. Empowerment and shield become magic-only

@@ -300,6 +300,10 @@ pub static TURTLE_DICK: Theme = Theme {
         // *How to Train Your Wumpus* gives the class one of its own, which is
         // a better joke and stops a canonical name mapping to itself.
         ("Wumpus Hunter", "Wumpus Trainer"),
+        // The gortball players' union, which shuts a stadium over sand, p. 29.
+        ("Unionized", "Gortball Organized"),
+        // What Hanglo Chiemstar was called for eleven seasons, p. 31.
+        ("Showstopper", "Top of the Bill"),
         ("Avenged", "Sprocket Avenged"),
         ("Wanderer", "Plane Tourist"),          // half-tourist, half-catastrophe
         ("Warpriest", "Acolyte of Dobira"),     // the Master and Baylon, pp. 46-50

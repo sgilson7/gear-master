@@ -1749,3 +1749,74 @@ because it was two faults: `take_choice` verifies ownership now, and
 `Run::with_all_pieces` hands out every piece of *gear* rather than every entry
 in the catalogue - a rumour is a key, and a fixture holding all of them opens
 every rumour door in the game at once.
+
+## Drift — M11 through M14, and the Phase-2 close
+
+**None, from M9 to here.** Four content milestones — the dungeons, Extra Large
+and the orbs, the five unconditional events, and the nine structures with Part
+D's three pairs — and the ladder is byte-identical to the capture M9 left. That
+is the phase working rather than luck: Phase 2's diffs are events, towns,
+dungeons, words and classes, and not one of them is a creature, a weight or a
+board.
+
+The frame budget is unchanged at **14**. The frame lint is still red, which
+E6.8 requires it to be: it goes green in M17, by hand, in `make pack`, and only
+after M16 has re-pinned the rating that decides what `stepped_component` hands
+every monster on three of the four settings.
+
+### What the structures cost, measured
+
+| | |
+|---|---|
+| Events in the table | 33 (nine structures, three pairs, and the twenty-one that were there) |
+| Classes | 31 — Unionized and Showstopper appended, never inserted |
+| Rumours | 8, of which 5 are on the bar and the bar draws exactly `SHOP_SIZE` |
+| New engine surface | `every_outcome`, `Choice: PartialEq`, `Requirement::{HoldingRumour, Classes}`, `Outcome::{SealedBid, ShopAfter, Markup, Passenger, Contract, SellWord, SellTitle, Chill}` |
+| Combat | one constant, `CONTRACT_SLOWER = 50`, applied where every other speed is |
+
+### Two lints that were reading half of what they thought
+
+Worth recording in this file rather than only in the ledger, because both are
+measurement faults rather than design faults, and this file is where the
+measurements live.
+
+**A pointer test is not a portable test.** `take_choice`'s ownership check
+compared choices with `std::ptr::eq`. `EVENTS` is a static holding promoted
+arrays, and a caller in another crate can hold a reference to a copy — so the
+check passed in the engine, passed in the GUI, and refused every choice made
+from a test binary. The failure mode is the bad one: not a wrong answer, a
+silent no. It compares by value now.
+
+**A composite outcome hid everything inside it.** `class::is_earned`,
+`event::set_by` and the event reachability lint all matched on `c.outcome`
+directly, and half this mission's bargains are an `Outcome::All`. A class
+claimed inside one read as a class no door hands out — which is exactly the
+condition `every_class_but_the_floor_asks_for_something` exists to catch, and
+it caught it. `event::every_outcome` unpacks `All` and `Gamble`, and the three
+callers go through it.
+
+### Phase 2, closed
+
+`tests/phase_two.rs` is E6.8 said as six assertions: every door can be arrived
+at, every hidden town and every dungeon has a mouth, every reward the mission
+promises is in somebody's gift, both routes to the Mainspring are walkable,
+every creature the mission added is still a frame, and a run that answers
+everything meets every door that stands on a rung. The last one is a sweep
+rather than a replay — it walks all fifty rungs holding every word, with the
+flags set and a packed board, and reports what it never met. It reports
+nothing.
+
+### One field that was doing nothing
+
+`Run::cursed_for_good` has been documented since M12 as "pieces carrying a
+curse for the rest of the run" and **nothing read it**. The Manse library set
+it, `Outcome::Uncurse` popped it, and no fight was any different for either.
+The thirsty wizard's refusal would have inherited the same hole, so it is
+closed here: `CURSED_SLOWER = 25` on any item holding a cursed piece, applied
+in `combat_items` beside the contract's own frost, which is where every speed
+in this game is applied.
+
+It chills something that **acts**, not something that merely sits there —
+drawn from `combat_items`, because a loose component has no cooldown to slow
+and freezing one would be a receipt line and nothing else. Nothing pinned
+moves: neither the library nor the wizard is on the ladder.

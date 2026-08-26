@@ -6570,6 +6570,7 @@ fn render_receipt(run: &Run, mx: f32, my: f32) -> bool {
 fn render_event(
     run: &Run,
     ev: &'static gearmaster_engine::event::LadderEvent,
+    figure: &str,
     mx: f32,
     my: f32,
 ) -> Option<&'static gearmaster_engine::event::Choice> {
@@ -6650,6 +6651,14 @@ fn render_event(
         for l in wrap_px(&words::retell_naming(text), cell.w - 28.0, 13.0) {
             ui_text(&l, cell.x + 14.0, cy, 13.0, if open { col_ok() } else { col_bad() });
             cy += 16.0;
+        }
+        // A door that asked for a number shows the number. There is one of
+        // these in the game and it is sealed, so the figure is typed into the
+        // cell itself rather than into anything that looks like a form.
+        if let gearmaster_engine::event::Requirement::Figure { .. } = c.requires {
+            cy += 6.0;
+            let said = if figure.is_empty() { "type a figure".to_string() } else { format!("{}g", figure) };
+            ui_text(&said, cell.x + 14.0, cy, 16.0, col_gold());
         }
         if open && is_mouse_button_pressed(MouseButton::Left) && cell.contains(Vec2::new(mx, my)) {
             chosen = Some(c);
@@ -6799,6 +6808,10 @@ fn town_message(run: &Run, v: &gearmaster_engine::run::TownVisit) -> String {
         Some(Action::Shop) => {
             format!("Five things you will not see again. {} gold in hand.", run.gold)
         }
+        // Every door a hidden town brought. Its receipt already says exactly
+        // what happened, line by line, so the strip says where you were rather
+        // than repeating it in worse words.
+        Some(other) => format!("{}. {} gold in hand.", words::retell(other.name()), run.gold),
         None => String::new(),
     }
 }
@@ -6844,6 +6857,48 @@ fn town_note(run: &Run, a: gearmaster_engine::town::Action) -> String {
             }
         }
         Action::Shop => format!("{} in hand.", run.gold),
+        // A hidden town's doors, and the pedestal. Their blurbs already say
+        // what they do; the note is for the ones whose worth depends on this
+        // particular run.
+        Action::Crucible => match run.counted("crucible-melts") {
+            0 => "Nothing has gone in yet.".to_string(),
+            n => format!("{} melted so far. Somebody is counting.", n),
+        },
+        Action::Tempering => format!("{} in hand, and it wants half a bounty.", run.gold),
+        Action::Foreman => {
+            if run.holds("A Word About the Cellar") {
+                "You already know what he heard.".to_string()
+            } else {
+                "He has been down there.".to_string()
+            }
+        }
+        Action::CellarDoor => {
+            if run.insight_unlocked {
+                "You have been down. It has not stopped.".to_string()
+            } else {
+                "It is not locked.".to_string()
+            }
+        }
+        Action::Gallery => format!("{} loose to sell.", run.inventory().len()),
+        Action::LongTable => format!(
+            "+{} maximum health, for the rest of it.",
+            gearmaster_engine::run::LONG_TABLE_HEALTH
+        ),
+        Action::Pedestal => {
+            let orbs = run
+                .inventory()
+                .into_iter()
+                .filter(|&id| {
+                    gearmaster_engine::pedestal::is_orb_of_travel(run.registry.def(id).name)
+                })
+                .count();
+            match orbs {
+                0 => "It takes a key you have not got.".to_string(),
+                n => format!("{} orb{} in the bag.", n, if n == 1 { "" } else { "s" }),
+            }
+        }
+        Action::MoldLine | Action::Library | Action::Aisle9 | Action::ReturnsDesk
+        | Action::SampleCounter | Action::Manager => String::new(),
     }
 }
 
@@ -9552,6 +9607,10 @@ async fn main() {
         }
         p
     });
+    // What the player has typed at a door that asked for a number. Held here
+    // rather than on the run, because a bid nobody has committed to is not
+    // part of a run - it is somebody deciding.
+    let mut figure = String::new();
     let mut message = if packing.is_some() {
         String::from(
             "Packing MEDIUM - the board itself. F creature, D setting, / search, Cmd-S save.",
@@ -10294,10 +10353,31 @@ async fn main() {
         // An event sits over everything while it is being answered, the same
         // way a fountain does.
         if let Some(ev) = run.pending_event() {
-            let picked = render_event(&run, ev, mx, my);
+            // Digits reach a door that asked for one, and nothing else does.
+            if ev.choices.iter().any(|c| {
+                matches!(c.requires, gearmaster_engine::event::Requirement::Figure { .. })
+            }) {
+                while let Some(ch) = get_char_pressed() {
+                    match ch {
+                        '\u{8}' => {
+                            figure.pop();
+                        }
+                        d if d.is_ascii_digit() && figure.len() < 9 => figure.push(d),
+                        _ => {}
+                    }
+                }
+            }
+            let picked = render_event(&run, ev, &figure, mx, my);
             render_stack_strip(&run, mx, my);
             if let Some(c) = picked {
-                let gave = run.take_choice(c);
+                let gave = match c.requires {
+                    gearmaster_engine::event::Requirement::Figure { .. } => {
+                        let said = figure.parse::<i32>().unwrap_or(0);
+                        figure.clear();
+                        run.take_choice_with(c, said)
+                    }
+                    _ => run.take_choice(c),
+                };
                 message = match gave {
                     Some(name) => format!(
                         "You hand over the {}. It counts it out twice.",

@@ -3839,6 +3839,14 @@ pub fn simulate_party(
             // Not a combat rule at all: it changes what a corpse leaves
             // behind, which is `Run::settle`'s business.
             crate::class::ClassPower::Prospector(_) => {}
+            // Armour before the first blow, and it stacks - so this one adds
+            // where nearly every other arm here assigns.
+            crate::class::ClassPower::Unionized { armor } => {
+                start_player.armor += armor;
+            }
+            // Not a combat rule either: it changes what a win is worth, which
+            // is `Run::settle`'s business.
+            crate::class::ClassPower::Showstopper { .. } => {}
             crate::class::ClassPower::Standing(_) => {}
             crate::class::ClassPower::Echo(n) => start_player.echo_every = n,
             crate::class::ClassPower::Bastion(pct) => start_player.bastion = pct,
