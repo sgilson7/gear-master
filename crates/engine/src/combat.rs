@@ -3434,9 +3434,18 @@ pub enum Event {
         from: (&'static str, i32),
         and: (&'static str, i32),
     },
-    /// A watcher reached its count and paid out. The payload logs itself; this
-    /// says which item was counting, so a log reads as cause then effect.
-    Watched { side: Side, item: String, what: &'static str },
+    /// A watcher counted something. `seen` is where its counter stands
+    /// afterwards, out of `count`, and `paid` is whether that sighting was the
+    /// one that came round.
+    ///
+    /// Logged on **every** sighting rather than only on the payout, and that is
+    /// the whole reason it carries numbers. A watcher runs on the board's clock
+    /// rather than its own, so its counter is the only thing on the row that
+    /// says when it will pay - and the interface replays a log rather than the
+    /// fight, so a count the log does not record is a count the interface
+    /// cannot draw. It read zero for the whole fight, because the combatant a
+    /// log stores is the one from *before* it.
+    Watched { side: Side, item: String, what: &'static str, seen: u32, count: u32, paid: bool },
     /// A mana buff gained stacks. `total` is the new stack count.
     Empowered { side: Side, total: u32, power_bonus: i32 },
     Shielded { side: Side, total: u32, reduction: i32 },
@@ -3608,8 +3617,20 @@ impl CombatLog {
                 and.1,
                 and.0
             ),
-            Event::Watched { side, item, what } => {
-                format!("{} {}'s {} has counted enough {}s", t, self.who(*side), item, what)
+            Event::Watched { side, item, what, seen, count, paid } => {
+                if *paid {
+                    format!("{} {}'s {} has counted enough {}s", t, self.who(*side), item, what)
+                } else {
+                    format!(
+                        "{} {}'s {} counts {} of {} {}s",
+                        t,
+                        self.who(*side),
+                        item,
+                        seen % count.max(&1),
+                        count,
+                        what
+                    )
+                }
             }
             Event::Hit { by, damage, absorbed, target_health, target_armor } => {
                 let soak = if *absorbed > 0 {
@@ -4996,6 +5017,10 @@ fn tick_watchers(
     t: u32,
     log: &mut Vec<LogEntry>,
 ) {
+    // Every sighting, and whether it was the one that came round. `due` holds
+    // only the ones that pay; `seen` holds all of them, because the interface
+    // needs the count between payouts and has nowhere else to get it.
+    let mut seen: Vec<(String, u32, u32, bool)> = Vec::new();
     let due: Vec<(Action, String)> = {
         let it = &mut pick(p, foes, me).items[j];
         let mut due = Vec::new();
@@ -5007,7 +5032,9 @@ fn tick_watchers(
             // The counter ticks after the event it watched has resolved, and
             // the payload runs immediately after that.
             it.watched[k] += 1;
-            if it.watched[k] % count == 0 {
+            let paid = it.watched[k] % count == 0;
+            seen.push((it.name.clone(), it.watched[k], count, paid));
+            if paid {
                 it.watch_paid[k] = true;
                 due.push((then, it.name.clone()));
             }
@@ -5016,12 +5043,15 @@ fn tick_watchers(
     };
     let front = aim_of(foes, p.aim);
     let (side, who) = (me.side, me.logged_as(front));
-    for (action, item) in due {
+    for (item, count_so_far, count, paid) in seen {
         log.push(LogEntry {
             who,
             at_ms: t,
-            event: Event::Watched { side, item, what: what.name() },
+            event: Event::Watched { side, item, what: what.name(), seen: count_so_far, count, paid },
         });
+    }
+    for (action, item) in due {
+        let _ = item;
         apply(p, foes, me, action, t, log, Some(j));
     }
 }
@@ -5721,14 +5751,14 @@ pub const ALTERNATES: &[MonsterSpec] = &[
             ("Flaying Mold", SlotKind::Gloves, 4, 5, 2),
             ("Deepdraught Ring", SlotKind::Gloves, 1, 7, 0),
             ("Seal of the Deep", SlotKind::Gloves, 4, 7, 0),
-            ("Overseer's Circlet", SlotKind::Helmet, 0, 0, 0),
+            ("Antechamber Crown", SlotKind::Helmet, 0, 0, 0),
             ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
             ("Overflow Plate", SlotKind::Helmet, 0, 2, 0),
             ("Martyr's Crest", SlotKind::Helmet, 5, 0, 1),
             ("Overseer's Circlet", SlotKind::Helmet, 2, 2, 0),
             ("Overflow Plate", SlotKind::Helmet, 1, 4, 0),
             ("Consecrated Plating", SlotKind::Helmet, 3, 4, 0),
-            ("The Empty Crown", SlotKind::Helmet, 5, 3, 1),
+            ("Third Eye", SlotKind::Helmet, 5, 3, 1),
             ("Overseer's Circlet", SlotKind::Helmet, 0, 6, 0),
             ("Overflow Plate", SlotKind::Helmet, 3, 6, 0),
         ],

@@ -2457,6 +2457,12 @@ struct FoeView {
     /// not an activation - it happens on the board's clock, between this
     /// item's own beats - so it gets its own note and its own animation.
     watch_pops: Vec<(String, u32)>,
+    /// Where each watcher's counter stands, as (item, seen, count).
+    ///
+    /// Replayed from the log rather than read off the combatant: the combatant
+    /// a log stores is the one from before the fight, so its own counters are
+    /// zeros and stay zeros.
+    watch_counts: Vec<(String, u32, u32)>,
     empower: u32,
     shield: u32,
     /// The physical twins, which want no mana and so read on their own.
@@ -2500,6 +2506,7 @@ struct Playback {
     /// rather than a whole side, so this is per item and not per fighter.
     player_stuns: Vec<(usize, u32, u32)>,
     player_watch_pops: Vec<(String, u32)>,
+    player_watch_counts: Vec<(String, u32, u32)>,
     lines: Vec<String>,
     flash_player: f64,
     now_ms: u32,
@@ -2529,6 +2536,27 @@ impl Playback {
 
     fn is_brawl(&self) -> bool {
         self.foes.len() > 1
+    }
+}
+
+/// Where a watcher's readout stands, from the running total the log recorded.
+///
+/// Show `count` on the beat it pays rather than a wrap to zero. `seen % count`
+/// is the honest remainder and it hides the one moment anybody is watching
+/// for: the readout went 9/10 and then straight back to 0/10, so the payout
+/// never appeared on screen.
+///
+/// Separate from the struct that holds it because a frame clock has no
+/// business in a rule this small - and because `Playback::apply` needs a
+/// window and this needs testing.
+fn shown_count(seen: u32, count: u32) -> u32 {
+    if count == 0 {
+        return 0;
+    }
+    if seen > 0 && seen % count == 0 {
+        count
+    } else {
+        seen % count
     }
 }
 
@@ -2618,6 +2646,7 @@ impl Playback {
                     curses: Vec::new(),
                     stuns: Vec::new(),
                     watch_pops: Vec::new(),
+                    watch_counts: Vec::new(),
                     empower: 0,
                     shield: 0,
                     whetted: 0,
@@ -2649,6 +2678,7 @@ impl Playback {
             player_curses: Vec::new(),
             player_stuns: Vec::new(),
             player_watch_pops: Vec::new(),
+            player_watch_counts: Vec::new(),
             lines: Vec::new(),
             flash_player: -10.0,
             now_ms: 0,
@@ -2697,15 +2727,29 @@ impl Playback {
             // on somebody else's clock, so nothing else on the row shows it:
             // the cooldown bar is mid-sweep and the count has just wrapped to
             // zero. Noted here so the row can be made to jump.
-            Event::Watched { side, item, .. } => {
-                let pops = if matches!(side, Side::Player) {
-                    &mut self.player_watch_pops
+            Event::Watched { side, item, seen, count, paid, .. } => {
+                // Two things off one event now. The count, which the row draws
+                // as segments and a number, and - only when it *paid* - the
+                // pop. Popping on every sighting would make the row jump five
+                // times a second and mean nothing.
+                let (pops, counts) = if matches!(side, Side::Player) {
+                    (&mut self.player_watch_pops, &mut self.player_watch_counts)
                 } else {
-                    &mut self.foe_mut(who).watch_pops
+                    let f = self.foe_mut(who);
+                    (&mut f.watch_pops, &mut f.watch_counts)
                 };
-                match pops.iter_mut().find(|(n, _)| n == item) {
-                    Some(slot) => slot.1 = entry.at_ms,
-                    None => pops.push((item.clone(), entry.at_ms)),
+                match counts.iter_mut().find(|(n, ..)| n == item) {
+                    Some(slot) => {
+                        slot.1 = *seen;
+                        slot.2 = *count;
+                    }
+                    None => counts.push((item.clone(), *seen, *count)),
+                }
+                if *paid {
+                    match pops.iter_mut().find(|(n, _)| n == item) {
+                        Some(slot) => slot.1 = entry.at_ms,
+                        None => pops.push((item.clone(), entry.at_ms)),
+                    }
                 }
             }
             // Growth changes the bar itself, not just what is in it.
@@ -2963,6 +3007,20 @@ impl Playback {
         list.iter()
             .find(|(n, _)| n == name)
             .map(|&(_, at)| self.now_ms.saturating_sub(at))
+    }
+
+    /// Where a watcher on this item has counted to, as the row should show it.
+    ///
+    /// `None` when the log has not mentioned this item yet, which is how a row
+    /// with a watcher that has seen nothing still draws its empty segments -
+    /// the trigger says how many there are and the log says how many are
+    /// filled.
+    fn watch_count_of(&self, side: Side, who: usize, name: &str) -> Option<(u32, u32)> {
+        let list = match side {
+            Side::Player => &self.player_watch_counts,
+            Side::Enemy => &self.foes[who.min(self.foes.len() - 1)].watch_counts,
+        };
+        list.iter().find(|(n, ..)| n == name).map(|&(_, seen, count)| (shown_count(seen, count), count))
     }
 
     fn stunned_count(&self, side: Side, who: usize) -> usize {
@@ -4198,18 +4256,22 @@ fn draw_stun_bar(track_x: f32, y: f32, track_w: f32, h: f32, left: f32, t: f64) 
 ///
 /// First rather than all of them: two watchers on one item is rare, the row is
 /// one line high, and a readout nobody can fit is worse than the one that fits.
+/// Does this item watch anything, and how many does it count to?
+///
+/// The *shape* of the readout, from the item's own triggers. How far it has got
+/// is a different question and a different source: `Playback::watch_count_of`,
+/// replayed from the log.
+///
+/// It used to be one function reading `it.watched`, and that was the bug. The
+/// combatant a `CombatLog` stores is `start_player` - the fighter as it was
+/// before the first tick - so its counters are zeros and stay zeros for the
+/// length of the replay. The segments never filled and the number never moved,
+/// while the pop animation and the log lines worked perfectly, because both of
+/// those read *events*.
 fn watch_of(it: &gearmaster_engine::combat::RunningItem) -> Option<(u32, u32)> {
     use gearmaster_engine::piece::Trigger;
-    it.triggers.iter().enumerate().find_map(|(k, t)| match t {
-        Trigger::Watch { count, .. } if *count > 0 => {
-            let seen = it.watched.get(k).copied().unwrap_or(0);
-            // Show `count` on the beat it pays rather than a wrap to zero.
-            // `seen % count` is the honest remainder and it hides the one
-            // moment anybody is watching for: the readout went 9/10 and then
-            // straight back to 0/10, so the payout never appeared on screen.
-            let shown = if seen > 0 && seen % count == 0 { *count } else { seen % count };
-            Some((shown, *count))
-        }
+    it.triggers.iter().find_map(|t| match t {
+        Trigger::Watch { count, .. } if *count > 0 => Some((0, *count)),
         _ => None,
     })
 }
@@ -5234,7 +5296,9 @@ fn render_battle(
                 tint,
                 Rarity::of(it.rating),
                 stun,
-                watch_of(it),
+                // The shape from the item, the progress from the log.
+                watch_of(it)
+                    .map(|(_, count)| pb.watch_count_of(side, who, &it.name).unwrap_or((0, count))),
                 pb.watch_pop_of(side, who, &it.name),
             );
         }
@@ -11474,14 +11538,40 @@ mod tests {
             stats: gearmaster_engine::stats::Stats::ZERO,
             triggers: Vec::new(),
             adjacent_assembled_same_slot: 0,
-        diagonal_items: Vec::new(),
-        open_cells: 0,
-        power: 100,
-        rating: 0,
-        power_bonus: 0,
-        casts: Vec::new(),
+            diagonal_items: Vec::new(),
+            open_cells: 0,
+            power: 100,
+            rating: 0,
+            power_bonus: 0,
+            casts: Vec::new(),
             sigil_seed: 0,
+            attracts_curses: false,
+            steady: false,
         }
+    }
+
+    /// The row's tally climbs as the log is replayed, and only pops when paid.
+    ///
+    /// The bug this covers: `watch_of` read `RunningItem::watched`, and the
+    /// combatant a `CombatLog` carries is the one from *before* the fight - so
+    /// the segments never filled and the number never moved, while the pop and
+    /// the log lines worked, because those read events. The count is replayed
+    /// from the log now and this is what says so.
+    #[test]
+    fn a_watchers_readout_climbs_and_shows_the_beat_it_pays_on() {
+        // One to three climb, four shows four rather than wrapping to zero,
+        // and five starts again. The wrap is the whole reason this is not just
+        // `seen % count`.
+        let of = 4;
+        assert_eq!(shown_count(0, of), 0, "nothing seen is an empty strip");
+        assert_eq!(shown_count(1, of), 1);
+        assert_eq!(shown_count(2, of), 2);
+        assert_eq!(shown_count(3, of), 3);
+        assert_eq!(shown_count(4, of), 4, "the payout beat has to be visible");
+        assert_eq!(shown_count(5, of), 1, "and then it starts again");
+        assert_eq!(shown_count(8, of), 4, "every payout, not just the first");
+        // A watcher with no count is not a watcher; it must not divide by it.
+        assert_eq!(shown_count(3, 0), 0);
     }
 
     #[test]

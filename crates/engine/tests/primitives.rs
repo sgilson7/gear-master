@@ -76,7 +76,11 @@ fn payouts(log: &CombatLog, name: &str) -> Vec<u32> {
     log.entries
         .iter()
         .filter_map(|e| match &e.event {
-            Event::Watched { side: Side::Player, item, .. } if item == name => Some(e.at_ms),
+            // `paid` only: a `Watched` is logged on every sighting now, and a
+            // sighting is not a payout.
+            Event::Watched { side: Side::Player, item, paid: true, .. } if item == name => {
+                Some(e.at_ms)
+            }
             _ => None,
         })
         .collect()
@@ -113,6 +117,54 @@ fn a_watcher_pays_out_every_nth_thing_it_sees() {
     // The gaps are what matters, not the absolute times: four activations
     // apart at one a second is four seconds apart.
     assert_eq!(paid[1] - paid[0], 4000, "payouts were {:?}", paid);
+}
+
+/// The log records where a watcher's counter stands, on every sighting.
+///
+/// It used not to, and that was a bug the interface wore for months: the
+/// segments under a cooldown bar never filled and the number beside it never
+/// moved, while the payout animation and the log lines worked perfectly. Those
+/// two read *events*; the counter was read off `CombatLog::player`, which is
+/// the fighter as it was **before** the first tick - so it was zeros, and it
+/// stayed zeros for the length of the replay.
+///
+/// The fix is that a sighting is a logged fact rather than private state, and
+/// this is the test that keeps it one. What it asserts is the shape the
+/// interface actually needs: the counter climbs 1, 2, 3, 4 and only the fourth
+/// says it paid.
+#[test]
+fn the_log_says_where_a_watcher_has_counted_to() {
+    let driver = item("Driver", SlotKind::Weapon, 1000);
+    let mut watcher = item("Watcher", SlotKind::Helmet, 600_000);
+    watcher.triggers = vec![Trigger::Watch {
+        what: Watched::AnyActivation,
+        count: 4,
+        then: Action::GainMana(1),
+        repeats: true,
+    }];
+    let log = simulate(me(), &[driver, watcher], &DUMMY);
+
+    let counts: Vec<(u32, bool)> = log
+        .entries
+        .iter()
+        .filter_map(|e| match &e.event {
+            Event::Watched { item, seen, count, paid, .. } if item == "Watcher" => {
+                assert_eq!(*count, 4, "the readout forgot what it counts to");
+                Some((*seen, *paid))
+            }
+            _ => None,
+        })
+        .collect();
+
+    assert!(counts.len() > 4, "only {} sighting(s) logged - the ones between are missing", counts.len());
+    // It climbs, one at a time, and never repeats a number.
+    for (i, (seen, _)) in counts.iter().enumerate() {
+        assert_eq!(*seen, i as u32 + 1, "the counter jumped: {:?}", counts);
+    }
+    // And exactly every fourth one is a payout.
+    for (seen, paid) in &counts {
+        assert_eq!(*paid, seen % 4 == 0, "sighting {} disagrees about paying", seen);
+    }
 }
 
 #[test]
