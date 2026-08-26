@@ -54,6 +54,29 @@ pub enum Action {
     LongTable,
     /// One piece is cursed for good and worth more for it.
     Library,
+
+    // ---- Extra Large -----------------------------------------------------
+    //
+    // A store the size of a weather system, all ground floor, no windows. Its
+    // four doors follow the one-action rule like every town's. The pedestal
+    // does not, and is the only thing in the game that does not.
+    /// A curated shelf of Orb-kind pieces, and the two relics that restock.
+    Aisle9,
+    /// Sell at full price, or leave it on consignment.
+    ReturnsDesk,
+    /// A free common piece, seeded.
+    SampleCounter,
+    /// He confirms the store is the only one, on any plane.
+    Manager,
+    /// Feed it an orb and go where the orb goes.
+    ///
+    /// **The one thing in the game outside the one-action rule.** It is not a
+    /// door: it stands in the entryway and takes its own key, and a run that
+    /// walks in without an orb sees furniture. Two of them exist and they
+    /// share one visited-set, because the second is there so a run whose orbs
+    /// arrived late can still spend them and not so a patient one spends them
+    /// twice.
+    Pedestal,
 }
 
 impl Action {
@@ -62,7 +85,7 @@ impl Action {
 
     /// Every door in the game, so a lint over "does this explain itself" does
     /// not quietly stop covering the ones a hidden town brought.
-    pub const EVERY: [Action; 12] = [
+    pub const EVERY: [Action; 17] = [
         Action::Chapel,
         Action::Pub,
         Action::Factory,
@@ -75,7 +98,21 @@ impl Action {
         Action::Gallery,
         Action::LongTable,
         Action::Library,
+        Action::Aisle9,
+        Action::ReturnsDesk,
+        Action::SampleCounter,
+        Action::Manager,
+        Action::Pedestal,
     ];
+
+    /// Does using this cost you the town's one action?
+    ///
+    /// Everything does, except the pedestal, which is not a door - and the
+    /// Second Key, which is not a door either and is the only *thing* that
+    /// ever breaks the rule.
+    pub fn costs_the_visit(self) -> bool {
+        !matches!(self, Action::Pedestal)
+    }
 
     /// The key a theme looks the name up under. Never shown raw.
     pub fn key(self) -> &'static str {
@@ -92,6 +129,11 @@ impl Action {
             Action::Gallery => "town-gallery",
             Action::LongTable => "town-long-table",
             Action::Library => "town-library",
+            Action::Aisle9 => "town-aisle-nine",
+            Action::ReturnsDesk => "town-returns",
+            Action::SampleCounter => "town-samples",
+            Action::Manager => "town-manager",
+            Action::Pedestal => "town-pedestal",
         }
     }
 
@@ -109,6 +151,11 @@ impl Action {
             Action::Gallery => "THE GALLERY",
             Action::LongTable => "THE LONG TABLE",
             Action::Library => "THE LIBRARY",
+            Action::Aisle9 => "AISLE 9",
+            Action::ReturnsDesk => "THE RETURNS DESK",
+            Action::SampleCounter => "THE SAMPLE COUNTER",
+            Action::Manager => "THE MANAGER",
+            Action::Pedestal => "THE PEDESTAL",
         }
     }
 
@@ -196,6 +243,30 @@ impl Action {
                  for good and is worth twenty-five more for having read it. \
                  The book was worth it. Probably."
             }
+            Action::Aisle9 => {
+                "Orbs, and two things that are not orbs and are shelved with \
+                 them anyway. It is the only place on any plane that reliably \
+                 has an Orb of Travel in stock."
+            }
+            Action::ReturnsDesk => {
+                "They take anything back at what it cost, which nobody else \
+                 does - or they will put it out on consignment and you will \
+                 see it again three shops later, worth more."
+            }
+            Action::SampleCounter => {
+                "A free one. It is a common and it is genuinely free and the \
+                 woman behind the counter would like you to take two."
+            }
+            Action::Manager => {
+                "He will confirm, at length and with documents, that this \
+                 store is the only one, on any plane, and that the sign \
+                 behind the sign is not a second store."
+            }
+            Action::Pedestal => {
+                "It stands in the entryway and takes an Orb of Travel. Feed it \
+                 one and you go where the orb goes and come back here. It is \
+                 not a door and it does not cost you your one."
+            }
         }
     }
 }
@@ -279,7 +350,11 @@ pub const TOWNS: &[Town] = &[
     Town {
         id: "high-wick",
         unlock: Unlock::Pinned,
-        actions: &Action::ALL,
+        // The four, and the second pedestal - which is not a door. It is here
+        // because the orbs are shop finds: a run whose orbs arrived late still
+        // gets to spend them, and one passing here at rung 32 meets the
+        // destinations at the band they were packed for.
+        actions: &[Action::Chapel, Action::Pub, Action::Factory, Action::Shop, Action::Pedestal],
         after: 31,
         name: "HIGH WICK",
         blurb: &[
@@ -302,6 +377,34 @@ pub const TOWNS: &[Town] = &[
     // mind lane, and a lane earned at rung forty is a lane nobody uses. The
     // Slagworks is one clear of High Wick so the two never share a stretch of
     // road.
+    // EXTRA LARGE. Behind the sign that says LARGE there is a second sign,
+    // further back and taller, and only somebody who kept their head whole
+    // notices it - which is what makes the Teller's "nothing" choice the
+    // secret best one.
+    Town {
+        id: "extra-large",
+        unlock: Unlock::Hidden,
+        actions: &[
+            Action::Aisle9,
+            Action::ReturnsDesk,
+            Action::SampleCounter,
+            Action::Manager,
+            Action::Pedestal,
+        ],
+        after: 13,
+        name: "EXTRA LARGE",
+        blurb: &[
+            "It is one room. It is one room the size of a weather system, all \
+             ground floor and no windows, and the far wall is a rumour rather \
+             than a thing anybody in here has seen.",
+            "The aisles are numbered and the numbers go past four figures. \
+             Aisle 9 is close enough to the door to walk to, which is the \
+             only reason anybody knows what is in it.",
+            "In the entryway, between the doors and the trolleys, there is a \
+             stone pedestal with a socket in the top of it. Nobody who works \
+             here will discuss the pedestal.",
+        ],
+    },
     Town {
         id: "the-manse",
         unlock: Unlock::Hidden,
@@ -437,7 +540,12 @@ mod tests {
     #[test]
     fn the_three_shipped_towns_are_still_pinned_and_still_have_their_four() {
         for t in TOWNS.iter().filter(|t| matches!(t.unlock, Unlock::Pinned)) {
-            assert_eq!(t.actions, &Action::ALL, "{} lost a door", t.id);
+            // Their four doors, unchanged. High Wick also has the second
+            // pedestal, which is not a door: it costs no visit, and a town's
+            // *doors* are the things that do.
+            let doors: Vec<Action> =
+                t.actions.iter().copied().filter(|a| a.costs_the_visit()).collect();
+            assert_eq!(doors, Action::ALL, "{} lost a door", t.id);
         }
     }
 

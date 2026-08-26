@@ -28,7 +28,12 @@ fn the_three_shipped_towns_are_pinned_and_carry_the_same_four_doors() {
     let pinned: Vec<&Town> = TOWNS.iter().filter(|t| t.unlock == Unlock::Pinned).collect();
     assert_eq!(pinned.len(), 3, "a town that was furniture stopped being it, or the reverse");
     for t in pinned {
-        assert_eq!(t.actions, &Action::ALL, "{} lost a door", t.id);
+        // Their four doors, unchanged. High Wick also has the second
+        // pedestal, which is not a door: it costs no visit, and what makes a
+        // door a door is that it does.
+        let doors: Vec<Action> =
+            t.actions.iter().copied().filter(|a| a.costs_the_visit()).collect();
+        assert_eq!(doors, Action::ALL, "{} lost a door", t.id);
     }
 }
 
@@ -47,6 +52,9 @@ fn a_hidden_town_has_doors_of_its_own_and_shares_none_of_the_four() {
                 a
             );
         }
+        // Four doors, like everywhere else. A pedestal is not one.
+        let doors = t.actions.iter().filter(|a| a.costs_the_visit()).count();
+        assert_eq!(doors, 4, "{} has {} doors", t.id, doors);
     }
 }
 

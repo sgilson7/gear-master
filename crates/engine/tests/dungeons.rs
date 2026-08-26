@@ -233,7 +233,7 @@ fn every_dungeon_can_be_reached_by_something() {
     // A ratchet, not an exemption: these are the ones whose opener has not
     // been authored yet, and the list only ever gets shorter. THE FORK is
     // M14's and the two destinations are M12's.
-    const NOT_YET: &[&str] = &["the-under-mine", "den-rivals", "wumpus-world"];
+    const NOT_YET: &[&str] = &["the-under-mine"];
     for d in DUNGEONS {
         let by_event = gearmaster_engine::event::EVENTS.iter().any(|e| {
             e.choices.iter().any(|c| {

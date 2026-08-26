@@ -23,11 +23,99 @@ fn a_run() -> Run {
 }
 
 #[test]
+fn the_four_orbs_are_four_keys_to_four_places() {
+    assert_eq!(DESTINATIONS.len(), 4);
+    let mut kinds = 0;
+    for d in DESTINATIONS {
+        assert!(pedestal::is_orb_of_travel(d.via_orb));
+        let def = gearmaster_engine::piece::CATALOG
+            .iter()
+            .find(|p| p.name == d.via_orb)
+            .expect("a real component");
+        // A piece first, and a ticket second. An orb that is only a ticket is
+        // a reward that punishes buying one before you find the pedestal.
+        assert_eq!(def.kind, gearmaster_engine::piece::PieceKind::Orb, "{}", d.via_orb);
+        assert!(
+            !gearmaster_engine::piece::is_event_only(def.name),
+            "{} cannot be bought, which is what makes it a ticket and nothing else",
+            def.name
+        );
+        if matches!(d.kind, Where::Dungeon(_)) {
+            kinds += 1;
+        }
+    }
+    assert_eq!(kinds, 2, "the four destinations are two fights and two places");
+}
+
+#[test]
+fn feeding_it_an_orb_spends_the_orb_and_goes_where_the_orb_goes() {
+    let mut run = a_run();
+    let d = &DESTINATIONS[1];
+    let id = run.give(d.via_orb).expect("a real orb");
+    let got = run.feed_pedestal(id).expect("it took the key");
+    assert_eq!(got.id, d.id);
+    assert!(!run.owned.contains(&id), "the orb survived the socket");
+    assert!(run.destinations_visited.contains(&d.id));
+    match d.kind {
+        Where::Dungeon(x) => assert_eq!(run.dungeon.map(|(x2, _)| x2.id), Some(x)),
+        Where::Event(x) => assert_eq!(run.forced_event, Some(x)),
+    }
+    let receipt = run.take_receipt().expect("a resolution");
+    assert!(receipt[0].contains(d.via_orb), "{:?}", receipt);
+}
+
+#[test]
+fn a_second_copy_of_an_orb_is_a_weapon_and_not_a_second_trip() {
+    let mut run = a_run();
+    let d = &DESTINATIONS[0];
+    let first = run.give(d.via_orb).expect("a real orb");
+    let second = run.give(d.via_orb).expect("and another");
+    assert!(run.feed_pedestal(first).is_some());
+    assert!(run.feed_pedestal(second).is_none(), "it went twice");
+    assert!(run.owned.contains(&second), "and the spare was eaten for nothing");
+}
+
+#[test]
+fn the_pedestal_costs_no_visit_and_is_the_only_thing_that_does_not() {
+    use gearmaster_engine::town::{Action, TOWNS};
+    let mut with: Vec<&str> = TOWNS
+        .iter()
+        .filter(|t| t.actions.contains(&Action::Pedestal))
+        .map(|t| t.id)
+        .collect();
+    with.sort_unstable();
+    assert_eq!(with, vec!["extra-large", "high-wick"], "there are two of them and only two");
+    for a in Action::EVERY {
+        assert_eq!(
+            a.costs_the_visit(),
+            a != Action::Pedestal,
+            "{:?} is the wrong side of the one-action rule",
+            a
+        );
+    }
+
+    // And the town survives it, which is the whole of "no door consumed".
+    let mut run = a_run();
+    run.reveal_town("extra-large");
+    run.rung = gearmaster_engine::town::by_id("extra-large").expect("authored").after;
+    run.force_win();
+    run.settle();
+    assert!(run.town.is_some());
+    run.visit_town(Action::Pedestal);
+    assert!(run.town.is_some(), "walking up to the pedestal spent the visit");
+    run.visit_town(Action::SampleCounter);
+    assert!(run.town.is_none(), "a door did not spend it");
+}
+
+#[test]
 fn an_orbless_run_meets_a_pedestal_and_nothing_happens() {
     // Never an error. A pedestal with nothing to take is furniture, and the
     // road already has plenty of that.
     let mut run = a_run();
     for id in run.inventory() {
+        if pedestal::is_orb_of_travel(run.registry.def(id).name) {
+            continue;
+        }
         assert!(run.feed_pedestal(id).is_none(), "something that is not a key opened something");
     }
     assert!(run.destinations_visited.is_empty());
@@ -48,11 +136,14 @@ fn the_two_pedestals_share_one_visited_set() {
     // The second exists so a run whose orbs arrived late can still spend them,
     // not so a patient run spends them twice. There is one list, and it is on
     // the run rather than on either pedestal.
+    // One list, on the run, and nothing in it says which pedestal was fed.
     let mut run = a_run();
-    run.destinations_visited.push("somewhere");
-    assert!(run.destinations_visited.contains(&"somewhere"));
-    // Nothing about the list mentions which pedestal was fed.
-    assert_eq!(run.destinations_visited.len(), 1);
+    let d = &DESTINATIONS[3];
+    let id = run.give(d.via_orb).expect("a real orb");
+    assert!(run.feed_pedestal(id).is_some());
+    assert_eq!(run.destinations_visited, vec![d.id]);
+    let again = run.give(d.via_orb).expect("another");
+    assert!(run.feed_pedestal(again).is_none(), "the other pedestal ran the same trip");
 }
 
 #[test]

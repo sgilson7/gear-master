@@ -64,9 +64,9 @@ re-pinned first**.
 | M9 | The catalogue lands once | **done** |
 | M10 | The chain (Part B) | **done** |
 | M11 | The dungeons and what they pay | **done** |
-| M12 | Extra Large and the Orbs of Travel (Part G) | next - after M13, which it waits on |
+| M12 | Extra Large and the Orbs of Travel (Part G) | **done** |
 | M13 | The five unconditional events (Part F) | **done** |
-| M14 | The nine structures and the three pairs (H2/D) | |
+| M14 | The nine structures and the three pairs (H2/D) | next |
 | M15 | The words (Phase 3) | |
 | M16 | Rating re-pinned first (Phase 4) | |
 | M17 | Every frame gets its board, in `make pack` | |
@@ -586,3 +586,34 @@ twenty bounties.
 
 Suite: **709 green**, 0 warnings. Frame budget 14 - THE FLOCK is the only
 creature in the mission that arrives *with* a rung rather than instead of one.
+
+
+---
+
+## M12 - Extra Large and the Orbs of Travel
+
+Ladder byte-identical. A third hidden town, five more doors, four destinations
+and the one thing in the game outside the one-action rule.
+
+**The pedestal is not a door.** `Action::costs_the_visit` is where that lives,
+and it is the only place either exception is written - the other being the
+Second Key, which is a *thing* rather than a door and is legal because it costs
+you the key. Two pedestals, one visited-set, and a run that walks in without an
+orb sees furniture rather than an error.
+
+**An orb is a piece first.** All four are ordinary Orb-kind weapon cores in the
+shop's pool with real effects on the spells slotted into them, and a duplicate
+is refused by the pedestal and stays a working weapon. A ticket that is useless
+once spent and a duplicate that is useless on arrival would both be rewards
+that punish luck.
+
+**THE BIGGER SIGN is the one door in the game that opens because of something
+you declined.** It waits on `Took("Plug your ears")`, which is why M13 had to
+come first: keeping your head whole is what lets you see the second sign, and
+that retroactively makes the Teller's third choice the secret best one.
+
+`Outcome::Uncurse` is new and small, and it exists so the Manse library's price
+is a trade rather than a mistake: the mole with the tools is the only thing
+that undoes it.
+
+Suite: **713 green**, 0 warnings. Phase 2 is one milestone from done.

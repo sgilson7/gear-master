@@ -185,6 +185,11 @@ pub enum Outcome {
     /// roadside does not print its own probabilities on the front, and being
     /// told them afterwards would turn a story into a spreadsheet.
     Gamble { wins: u32, outof: u32, won: &'static Outcome, lost: &'static Outcome },
+    /// Take a curse off a piece, for good.
+    ///
+    /// The only thing that undoes the Manse library's price, and the only
+    /// reason that price is a trade rather than a mistake.
+    Uncurse,
     /// Leave it standing, and let it find you again `rungs` further on.
     ///
     /// The one outcome that does not close the door it was offered at.
@@ -309,6 +314,7 @@ impl Outcome {
             }
             Outcome::Scout => vec!["You can read a boss's board before you fight it".into()],
             Outcome::UnlockInsight => vec!["Insight unlocked".into()],
+            Outcome::Uncurse => vec!["One piece stops being cursed".into()],
             Outcome::All(each) => each.iter().flat_map(|o| o.describe()).collect(),
             Outcome::Pay { times } => {
                 vec![format!("{} times this rung's bounty, into your purse", times)]
@@ -466,6 +472,10 @@ pub static THE_BACK_ROOM: Brawl = Brawl {
     and_grow: 1,
     forgiving: false,
 };
+
+/// What the little shop has out, at a permanent discount.
+pub const MOLE_SHELF: &[&str] =
+    &["Ring of Hours", "Signet of Iron", "Tin Band", "Iron Band", "Oathring"];
 
 /// What the table sets a piece to become.
 ///
@@ -1298,6 +1308,121 @@ pub const EVENTS: &[LadderEvent] = &[
                 requires: Requirement::None,
                 outcome: Outcome::Step(&THE_FLOCK),
                 unmet: "",
+            },
+        ],
+    },
+
+    // ---------------------------------------------- the sign behind the sign
+    //
+    // The one door in the game that opens because of something you *declined*.
+    // Keeping your head whole is what lets you see a second sign further back
+    // and taller, which retroactively makes the Teller's third choice the
+    // secret best one.
+    LadderEvent {
+        id: "the-bigger-sign",
+        at: 40,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Sootmother",
+        title: "THE BIGGER SIGN",
+        prose: &[
+            "The store called LARGE is behind you and has been for some rungs \
+             now, and something about it has been sitting wrong the whole way.",
+            "It is the sign. The sign says LARGE and it is nailed to a hoarding \
+             and the hoarding is not the building - and behind the hoarding, \
+             further back and a good deal taller, there is a second sign, and \
+             the second sign says EXTRA LARGE.",
+            "Nobody else on this road has looked up. Songil's story takes the \
+             part of you that would have.",
+        ],
+        choices: &[
+            Choice {
+                label: "Follow the sign",
+                blurb: "Off the road, round the hoarding, and in. It stands after the next rung.",
+                requires: Requirement::Took("Plug your ears"),
+                outcome: Outcome::RevealTown("extra-large"),
+                unmet: "You heard the story. Whatever part of you looks up is not looking up.",
+            },
+            Choice {
+                label: "Forget you saw it",
+                blurb: "Some knowledge is for selling, and somebody up the road is buying.",
+                requires: Requirement::None,
+                outcome: Outcome::Pay { times: 3 },
+                unmet: "",
+            },
+        ],
+    },
+    // ------------------------------------------------------ the destinations
+    //
+    // Neither of these stands on a rung. They are pushed onto the stack by a
+    // pedestal, which is why they need no window and no trigger anybody will
+    // ever meet by climbing - `Run::forced_event` is what asks them.
+    LadderEvent {
+        id: "the-thrumbus-race",
+        at: 40,
+        trigger: Trigger::WhenFlagged { flag: "never", from: 40 },
+        blocked_by: &[],
+        expects: "Sootmother",
+        title: "THE THRUMBUS RACE",
+        prose: &[
+            "The 45th running, and the paddock is nine deep in people who have \
+             an opinion about a thrumbus. A thrumbus is the fastest thing that \
+             has ever been bred and looks, standing still, like a mistake.",
+            "There is a book taking bets and a rail you can lean on and a \
+             steward who will let anybody run who signs the form, and the form \
+             is one line long and the line is about teeth.",
+        ],
+        choices: &[
+            Choice {
+                label: "Back a runner",
+                blurb: "Three rungs' worth on the nose. The jackpot is a claim on a whole board.",
+                requires: Requirement::Purse { times: 3 },
+                outcome: Outcome::Gamble {
+                    wins: 1,
+                    outof: 4,
+                    won: &Outcome::ClaimTicket,
+                    lost: &Outcome::FightAsWritten,
+                },
+                unmet: "The book has seen your purse and has gone back to the book.",
+            },
+            Choice {
+                label: "Ride",
+                blurb: "No stake. Finish, and take something off the paddock rail.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("Sevenleague Sole"),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "mole-town",
+        at: 40,
+        trigger: Trigger::WhenFlagged { flag: "never", from: 40 },
+        blocked_by: &[],
+        expects: "Sootmother",
+        title: "MOLE TOWN",
+        prose: &[
+            "The highway ends at a town built entirely at ankle height. Not \
+             ruined and not small - finished, to plan, at that height, with 3 \
+             storeys of it above ground and every storey under your knee.",
+            "Everybody here is perfectly polite about the size of you. One of \
+             them, an older mole with a case of tools, has been looking at \
+             what you are carrying since you arrived and has an offer.",
+        ],
+        choices: &[
+            Choice {
+                label: "The little shop",
+                blurb: "A curated shelf, at a permanent discount, because nobody your size shops here.",
+                requires: Requirement::None,
+                outcome: Outcome::OpenShop { shelves: MOLE_SHELF },
+                unmet: "",
+            },
+            Choice {
+                label: "The mole with the tools",
+                blurb: "Four rungs' worth, and he takes a curse off a piece and keeps it.",
+                requires: Requirement::Purse { times: 4 },
+                outcome: Outcome::All(&[Outcome::Uncurse, Outcome::Count("moles-paid")]),
+                unmet: "He looks at your purse, and then at you, and says nothing at all.",
             },
         ],
     },

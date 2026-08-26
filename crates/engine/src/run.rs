@@ -142,6 +142,14 @@ impl TownVisit {
     }
 }
 
+/// What Aisle 9 has out.
+///
+/// The only place on any plane that reliably stocks an Orb of Travel, and the
+/// two relics that are shelved with the orbs because nobody working here could
+/// think of a better aisle for them.
+pub const AISLE_NINE: &[&str] =
+    &["Wayfarer's Orb", "Pilgrim's Orb", "Ferry Orb", "Stray Orb", "The Odometer", "The Ledger"];
+
 /// What the Slagworks' mold line lays out. Ground, and things that go under
 /// gear - and the rod, always, because that is what the line is known for.
 pub const MOLD_LINE: &[&str] =
@@ -1228,6 +1236,10 @@ impl Run {
             }
             ChoiceOutcome::Scout => self.scouting = true,
             ChoiceOutcome::UnlockInsight => self.unlock_insight(),
+            ChoiceOutcome::Uncurse => match self.cursed_for_good.pop() {
+                Some(id) => receipt = vec![format!("Lifted: {}", self.registry.def(id).name)],
+                None => receipt = vec!["Nothing of yours is cursed".into()],
+            },
             ChoiceOutcome::All(each) => {
                 receipt.clear();
                 for o in each {
@@ -3118,16 +3130,19 @@ impl Run {
     /// rather than a shopping trip.
     pub fn visit_town(&mut self, what: crate::town::Action) -> TownVisit {
         use crate::town::Action;
-        // The Second Key: one more door in this town, and then it is gone.
-        // The only legal breach of the one-action rule anywhere in the game -
-        // and this is the only place the exception is written, which is what
-        // keeps it to one.
-        let second = self.second_key_ready;
+        // Two things do not spend the visit. The pedestal is not a door - it
+        // stands in the entryway and takes its own key - and the Second Key
+        // is the one *thing* that ever breaks the rule, which is legal
+        // because it costs you the key. Both exceptions live here, which is
+        // what keeps them to two.
+        let second = self.second_key_ready || !what.costs_the_visit();
         let Some(t) = (if second { self.town } else { self.town.take() }) else {
             return TownVisit::default();
         };
         if second {
-            self.second_key_ready = false;
+            if what.costs_the_visit() {
+                self.second_key_ready = false;
+            }
         } else {
             self.towns_seen.push(t.id);
         }
@@ -3231,6 +3246,59 @@ impl Run {
             Action::LongTable => {
                 self.grown_health += LONG_TABLE_HEALTH;
             }
+            // ---- Extra Large ---------------------------------------------
+            Action::Aisle9 => {
+                self.shop.stock_exactly(AISLE_NINE);
+                out.stocked = AISLE_NINE.len();
+            }
+            Action::ReturnsDesk => {
+                // Full price, which nobody else pays - or consignment, which
+                // is the standing arrangement rather than this one sale.
+                if let Some(id) = self.inventory().first().copied() {
+                    let def = self.registry.def(id);
+                    let paid = crate::rating::shop_price(def);
+                    self.loadout.remove_anywhere(id);
+                    self.owned.retain(|&o| o != id);
+                    self.gold += paid;
+                    out.paid = paid;
+                    if !self.standing_orders.contains(&crate::event::Standing::Consignment) {
+                        self.standing_orders.push(crate::event::Standing::Consignment);
+                    }
+                }
+            }
+            Action::SampleCounter => {
+                // Free, seeded, and genuinely a common. A sample counter that
+                // handed out anything better would be the shop.
+                let pool: Vec<usize> = crate::piece::all_def_indices()
+                    .into_iter()
+                    .filter(|&i| {
+                        let d = &CATALOG[i];
+                        crate::rating::Rarity::of(crate::rating::piece_rating(d))
+                            == crate::rating::Rarity::Common
+                            && !crate::piece::is_boss_only(d.name)
+                            && !crate::piece::is_quest_reward(d.name)
+                            && !crate::piece::is_event_only(d.name)
+                            && !crate::piece::is_town_stock(d)
+                            && (self.insight_unlocked || !crate::piece::touches_insight(d))
+                    })
+                    .collect();
+                if let Some(&pick) = pool.get(self.rng.below(pool.len().max(1))) {
+                    let id = self.registry.alloc(pick);
+                    self.owned.push(id);
+                }
+            }
+            Action::Manager => {
+                if !self.holds("A Word About the Wrong Stars") {
+                    self.give("A Word About the Wrong Stars");
+                } else {
+                    let paid = self.last_bounty;
+                    self.gold += paid;
+                    out.paid = paid;
+                }
+            }
+            // The pedestal is answered by `feed_pedestal` with an orb in hand;
+            // walking up to it without one is looking at furniture.
+            Action::Pedestal => {}
             Action::Library => {
                 if let Some(id) = self.inventory().first().copied() {
                     let def = self.registry.def_index(id);

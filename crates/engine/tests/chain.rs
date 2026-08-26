@@ -168,11 +168,13 @@ fn a_rumour_door_stands_in_a_window_rather_than_on_a_rung() {
 // ------------------------------------------------------------- the towns
 
 #[test]
-fn the_two_hidden_towns_stand_clear_of_everything_else() {
+fn every_hidden_town_stands_clear_of_everything_else() {
     use gearmaster_engine::town::{Unlock, TOWNS};
+    // Three, not two: the chain finds two and the sign behind the sign finds
+    // the third, which is Part G's rather than Part B's.
     let hidden: Vec<&gearmaster_engine::town::Town> =
         TOWNS.iter().filter(|t| t.unlock == Unlock::Hidden).collect();
-    assert_eq!(hidden.len(), 2);
+    assert_eq!(hidden.len(), 3);
     for t in &hidden {
         // Not sharing a gap with anything, which would make one of them
         // unreachable - `between` takes the first match.

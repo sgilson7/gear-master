@@ -39,8 +39,37 @@ pub struct Destination {
     pub kind: Where,
 }
 
-/// The four, in Phase 2. Empty on purpose until then.
-pub const DESTINATIONS: &[Destination] = &[];
+/// The four.
+///
+/// Two events and two dungeons, and the split is the point: an orb is a
+/// ticket to *somewhere*, and somewhere is sometimes a fight and sometimes a
+/// town built at ankle height.
+pub const DESTINATIONS: &[Destination] = &[
+    Destination {
+        id: "the-thrumbus-race",
+        name: "THE THRUMBUS RACE",
+        via_orb: "Wayfarer's Orb",
+        kind: Where::Event("the-thrumbus-race"),
+    },
+    Destination {
+        id: "den-rivals",
+        name: "DEN RIVALS",
+        via_orb: "Pilgrim's Orb",
+        kind: Where::Dungeon("den-rivals"),
+    },
+    Destination {
+        id: "mole-town",
+        name: "MOLE TOWN",
+        via_orb: "Ferry Orb",
+        kind: Where::Event("mole-town"),
+    },
+    Destination {
+        id: "wumpus-world",
+        name: "WUMPUS WORLD",
+        via_orb: "Stray Orb",
+        kind: Where::Dungeon("wumpus-world"),
+    },
+];
 
 pub fn by_orb(orb: &str) -> Option<&'static Destination> {
     DESTINATIONS.iter().find(|d| d.via_orb == orb)
