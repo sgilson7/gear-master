@@ -16,7 +16,7 @@ use gearmaster_engine::piece::{
 };
 use gearmaster_engine::rating::{resale_price, shop_price, Rarity};
 use gearmaster_engine::combat::Difficulty;
-use gearmaster_engine::run::{Mode, ROGUE_LIVES};
+use gearmaster_engine::run::{lives_in_words, Mode, ROGUE_LIVES};
 use gearmaster_engine::run::{Phase, Run};
 use gearmaster_engine::shape::Shape;
 use gearmaster_engine::slot::{SLOT_H, SLOT_W};
@@ -6283,7 +6283,7 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("DIFFICULTY", "Medium is the game as intended. Easy is half as hard, hard three times, insane nine. Most of that comes from the gear the opposition is wearing rather than from its numbers: a harder setting steps every one of its components up a rung, so the same creature turns up better equipped instead of merely inflated. What is left over splits evenly between staying alive and hitting back."),
     ("PASSIVE", "A standing rule on a combatant, granted by the difficulty. Hardened regenerates, Warded resists mind and curse, Relentless runs every item faster."),
     ("GRINDER", "A mode. Losing drops you to the rung you last cleared, so there is always something easier to farm."),
-    ("ROGUE", "A mode. Losing costs one of three lives; the third ends the run and takes everything with it."),
+    ("ROGUE", "A mode. Losing costs one of four lives; the fourth ends the run and takes everything with it."),
     ("BOUNTY", "Paid whether you win or lose. Losing never moves you up the ladder, but it does pay - a run with no income cannot buy its way past whatever just beat it."),
     ("UNDO", "Steps the board back one change. It covers placing, moving, turning and clearing, but never a purchase."),
     ("PHYSICAL / MAGIC", "The two damage types. Every number a piece of gear deals is one or the other, and each has its own set of defences, so resistance is always worth something. Mind damage is the exception: it is not reduced by either, only by mind resistance."),
@@ -7963,7 +7963,7 @@ fn render_mode_select(
         centered_text(mode.name(), rect.x + rect.w / 2.0, rect.y + 52.0, 26.0, WHITE);
 
         let mut y = rect.y + 100.0;
-        for line in wrap_px(mode.blurb(), rect.w - 36.0, 15.0) {
+        for line in wrap_px(&mode.blurb(), rect.w - 36.0, 15.0) {
             centered_text(&line, rect.x + rect.w / 2.0, y, 15.0, LIGHTGRAY);
             y += line_h(15.0);
         }
@@ -7993,8 +7993,14 @@ fn render_mode_select(
                 );
             }
             Mode::Rogue => {
+                // Centred on the count. The row used to be spaced with the
+                // arithmetic for exactly three - `w/2 - 60 + life * 60` - so
+                // the fourth pip landed off the middle of its own card the
+                // day the constant moved.
+                let step = 60.0;
+                let x0 = rect.x + rect.w / 2.0 - (ROGUE_LIVES - 1) as f32 * step / 2.0;
                 for life in 0..ROGUE_LIVES {
-                    let sx = rect.x + rect.w / 2.0 - 60.0 + life as f32 * 60.0;
+                    let sx = x0 + life as f32 * step;
                     if life < ROGUE_LIVES - 1 {
                         draw_circle(sx, y + 10.0, 13.0, col_foe());
                     } else {
@@ -8002,7 +8008,7 @@ fn render_mode_select(
                     }
                 }
                 centered_text(
-                    "three lives, then you start over",
+                    &format!("{} lives, then you start over", lives_in_words()),
                     rect.x + rect.w / 2.0,
                     y + 50.0,
                     14.0,
@@ -11318,6 +11324,23 @@ mod glossary_tests {
                 meaning
             );
         }
+    }
+
+    /// The glossary counts the lives the engine actually grants.
+    ///
+    /// The fourth place that said "three" and was not reading `ROGUE_LIVES`.
+    /// It is a `const` table so it cannot format itself; this is the guard
+    /// instead, and it names the constant so the failure says what to edit.
+    #[test]
+    fn the_rogue_entry_counts_the_lives_the_engine_grants() {
+        let (_, meaning) =
+            GLOSSARY.iter().find(|(t, _)| *t == "ROGUE").expect("the glossary defines ROGUE");
+        assert!(
+            meaning.contains(lives_in_words()),
+            "ROGUE_LIVES is {} and the glossary says {:?}",
+            ROGUE_LIVES,
+            meaning
+        );
     }
 }
 

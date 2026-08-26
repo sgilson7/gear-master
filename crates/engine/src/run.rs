@@ -31,7 +31,7 @@ pub enum Mode {
     /// Losing knocks you back down to the rung you last cleared, so there is
     /// always an easier fight to farm before trying again.
     Grinder,
-    /// Losing costs a life. Three of them and the run is over.
+    /// Losing costs a life. Run out of them and the run is over.
     Rogue,
 }
 
@@ -43,22 +43,64 @@ impl Mode {
         }
     }
 
-    pub fn blurb(self) -> &'static str {
+    /// One paragraph under the name on the mode card.
+    ///
+    /// A `String` rather than a literal because the Rogue one counts the
+    /// lives, and the number is `ROGUE_LIVES`. It was written out as a word
+    /// in three places across two crates and none of them was reading the
+    /// constant, so raising it left the game telling the player a number that
+    /// was no longer true in every one of them.
+    pub fn blurb(self) -> String {
         match self {
-            Mode::Grinder => {
-                "Lose and you slide back a rung. You still get paid, so grind \
+            Mode::Grinder => "Lose and you slide back a rung. You still get paid, so grind \
                  the easy one until you can take the hard one."
-            }
-            Mode::Rogue => {
-                "Three losses and it is over. Everything you own goes with it. \
-                 You still get paid, so a loss buys you one more shot."
-            }
+                .into(),
+            Mode::Rogue => format!(
+                "{} losses and it is over. Everything you own goes with it. \
+                 You still get paid, so a loss buys you one more shot.",
+                capitalised(lives_in_words())
+            ),
         }
     }
 }
 
 /// How many losses a Rogue run survives.
-pub const ROGUE_LIVES: u32 = 3;
+///
+/// Four, at the owner's asking. Balancing around **five** is the eventual
+/// intent and this is the number to raise when that work happens - nothing
+/// else has to move with it, because everything that quotes the count now
+/// reads it from here.
+pub const ROGUE_LIVES: u32 = 4;
+
+/// The life count as a word, for the prose that quotes it.
+///
+/// "4 losses and it is over" is not a sentence anybody writes, so the three
+/// lines that say the number say it in words - and they all say it from here
+/// rather than each spelling it out and drifting apart, which is what happened
+/// the first time.
+pub fn lives_in_words() -> &'static str {
+    match ROGUE_LIVES {
+        1 => "one",
+        2 => "two",
+        3 => "three",
+        4 => "four",
+        5 => "five",
+        6 => "six",
+        // Past six it stops being a number a player counts on their fingers,
+        // and a mode card that says "seven lives" has stopped being a card
+        // about scarcity anyway.
+        _ => "several",
+    }
+}
+
+/// The same word with its first letter up, for the head of a sentence.
+fn capitalised(word: &'static str) -> String {
+    let mut cs = word.chars();
+    match cs.next() {
+        Some(f) => f.to_uppercase().collect::<String>() + cs.as_str(),
+        None => String::new(),
+    }
+}
 
 /// How many board changes can be taken back.
 pub const UNDO_DEPTH: usize = 40;

@@ -519,8 +519,12 @@ fn a_grinder_loss_drops_you_to_the_rung_you_last_cleared() {
 }
 
 #[test]
-fn a_rogue_run_dies_after_three_losses() {
-    use gearmaster_engine::run::{Mode, ROGUE_LIVES};
+fn a_rogue_run_dies_when_it_runs_out_of_lives() {
+    // Four losses, not three. `ROGUE_LIVES` went 3 -> 4 at the owner's asking
+    // and this loop always read the constant, so the body needed nothing - the
+    // *name* said three and so did the last assertion, which is the half a
+    // constant cannot keep honest.
+    use gearmaster_engine::run::{lives_in_words, Mode, ROGUE_LIVES};
     let mut run = Run::with_mode(Mode::Rogue);
     run.rung = 4;
     run.gold = 500;
@@ -535,9 +539,19 @@ fn a_rogue_run_dies_after_three_losses() {
             assert_eq!(run.rung, 4, "a rogue loss stays put");
             assert!(!s.run_ended);
         } else {
-            assert!(s.run_ended, "the third loss ends it");
+            assert!(s.run_ended, "the last of {ROGUE_LIVES} lives ends it");
         }
     }
+
+    // And the mode card says the number it actually grants. Three sentences
+    // across two crates quoted this in words and none of them read the
+    // constant; this is the engine's half of the guard.
+    assert!(
+        Mode::Rogue.blurb().to_lowercase().contains(lives_in_words()),
+        "ROGUE_LIVES is {} and the card says {:?}",
+        ROGUE_LIVES,
+        Mode::Rogue.blurb()
+    );
 
     // Everything is gone: gear, gold and ladder are back to a fresh run.
     assert_eq!(run.rung, 0);
