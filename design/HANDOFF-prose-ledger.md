@@ -207,3 +207,44 @@ matters because a character called Frost would be retold as "nut-freeze". All
 clear.
 
 **Suites:** engine **779 green, 39 ignored, 0 warnings**.
+
+---
+
+## P4 batch 1 - rungs 1 to 13
+
+Seven scenes in the batch. Six rewritten, one read and left alone.
+
+| Scene | What changed |
+|---|---|
+| `the-toads-offer` | **nothing.** The Bog Toad is a character, it is concrete, and "it will not say what it is for" is the toad refusing rather than the narrator withholding. One of the good ones |
+| `back-in-a-minute` | "A man on the road" -> **Wint**, who says his name and then does not come back, which is worse. The chart's ring is round "a pub two towns up - the one that trades in words rather than money" where it was "the one with the odd words on the back shelf" |
+| `the-casino` | "The card room" -> **the Parlour**. "A woman with a clipboard" -> **Marlow**, which also breaks the duplicate prop she shared with THE INSPECTION. The dealer stays the dealer: at a card table that is a job and not a withheld noun |
+| `the-long-way` | Rowe is named in the paragraph he is introduced in, so the second one is "Rowe's cart" rather than "His cart". Gerald is the tortoise and always was |
+| `the-shrine-fork` | "a works of some kind" -> **a seed line, three floors of it**, which is the dungeon behind the hole and now says so. "an old watchman" -> **an old analyst called Wenlock**, the same man THE CREVICE has at the bottom |
+| `the-teller` | "the man who runs the place" -> **Ollam**. "carrying a story for 11 years" - the digit prop - is gone. The abstraction goes with it: *"what it costs to take is exactly what it costs him to keep"* was a riddle over three buttons that say a hundred of your maximum, half of that, and nothing. It says maximum health now, because that is what it is |
+| `the-bigger-sign` | "something about it has been sitting wrong" - a `HEDGES` tell - becomes "The thing that has been wrong about it the whole way is the sign", which is the same beat without the fog. "The teller's story" -> "Ollam's story" |
+
+### The printer
+
+`read_the_road_aloud`, an `#[ignore]`d printer in `prose.rs`, in the style of
+the ones in `baseline`:
+
+```
+cargo test -p gearmaster-engine --test prose -- --ignored --nocapture read
+```
+
+Every scene, every town gate and door, every dungeon and its landings, sorted
+into the order a player meets them, wrapped the way the screen wraps them, with
+the choices under each. It asserts nothing.
+
+It exists because §9 of the handoff is right: every lint in that file is a cheap
+mechanical proxy and says so at the top, and the only way to find out whether a
+scene reads is to read it. Four fixes in this batch came out of reading the
+printer's output rather than out of a failing test - a tangled first sentence in
+BACK IN A MINUTE, an awkward name reveal in GERALD, a comma splice in THE
+TELLER, and "the figure" twice in one sentence.
+
+**Suites:** engine **779 green, 40 ignored, 0 warnings**; gui **61 green**.
+`DIGIT_PROPS` unchanged at 18 - none of this batch's scenes were on that list,
+which is itself the point: the eighteen are the *worst*, and these seven were
+merely vague.

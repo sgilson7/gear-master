@@ -780,7 +780,7 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "Whisperling",
         title: "THE CASINO",
         prose: &[
-            "The card room takes anybody who can walk in, which is how you got \
+            "The Parlour takes anybody who can walk in, which is how you got \
              in. There is a bowl of complimentary salted rice by the door and \
              a card over it reading ONE (1) HANDFUL - HONOUR SYSTEM - WE ARE \
              WATCHING YOU TAKE IT.",
@@ -789,14 +789,14 @@ pub const EVENTS: &[LadderEvent] = &[
              have the gold. You have taken your one handful.",
             "At the third table along, two players have stopped playing \
              Hold-Em and started on each other. The room has formed a ring \
-             around it. A woman with a clipboard is working through the ring \
+             around it. Marlow is working through the ring with a clipboard, \
              taking side bets in a very neat hand, and the dealer is standing \
              perfectly still with the wasp held out at arm's length.",
         ],
         choices: &[
             Choice {
                 label: "Step in",
-                blurb: "Both of them at once. The clipboard will want your name first.",
+                blurb: "Both of them at once. Marlow will want your name for the book first.",
                 requires: Requirement::None,
                 outcome: Outcome::Step(&TABLE_THREE),
                 unmet: "",
@@ -837,21 +837,21 @@ pub const EVENTS: &[LadderEvent] = &[
         prose: &[
             "That last one took eleven seconds. You know it took eleven \
              seconds because a man at the roadside was counting out loud, and \
-             when you finished he wrote the number in a notebook and said \
-             nothing else about it.",
-            "His cart is ahead of you on the road, pulled by an animal with a \
-             brass plate on its harness. The plate gives the species, which \
-             is Draught Tortoise, and the name, which is Gerald, and the top \
-             speed, which is given in metres per hour.",
+             when you finished he wrote the number in a notebook, said his \
+             name was Rowe, and said nothing else about it.",
+            "Rowe's cart is ahead of you on the road, pulled by an animal \
+             with a brass plate on its harness. The plate \
+             gives the species, which is Draught Tortoise, and the name, which \
+             is Gerald, and the top speed, which is given in metres per hour.",
             "Gerald is hauling four tons of ore to Kettleworks. \
-             They set off in the spring. The man says they are ahead of \
+             They set off in the spring. Rowe says they are ahead of \
              schedule, and shows you the notebook again at a different page, \
              as though that settles it.",
         ],
         choices: &[
             Choice {
                 label: "Ask how he does it",
-                blurb: "He will not say on the road. He says catch them up when they get there.",
+                blurb: "Rowe will not say on the road. He says catch them up when they get there.",
                 requires: Requirement::None,
                 outcome: Outcome::FightAsWritten,
                 unmet: "",
@@ -952,10 +952,10 @@ pub const EVENTS: &[LadderEvent] = &[
              always stands in the shrine: plated to the eyeballs, wound to \
              the last click, entirely ready for you.",
             "There is also a hole in the back wall, which was not in the back \
-             wall when you came in. Down the hole is a works of some kind, and \
-             on the floor of it an old watchman prays on stone that cuts his \
-             knees. He has been waiting a long while for somebody with \
-             shoulders.",
+             wall when you came in. Down the hole is a seed line, three floors \
+             of it, and on the bottom floor an old analyst called Wenlock \
+             prays on stone that cuts his knees. He has been waiting a long \
+             while for somebody with shoulders.",
             "And there is a third thing behind the altar, asleep, with a \
              shell on it like a walnut. Nobody who works here will look \
              straight at it. The idol does not look at it either, and the \
@@ -971,7 +971,7 @@ pub const EVENTS: &[LadderEvent] = &[
             },
             Choice {
                 label: "FOLLOW THE THING YOU SOLD",
-                blurb: "Three floors down, and the watchman at the bottom with something to hand over.",
+                blurb: "Three floors down, and Wenlock at the bottom with something to hand over.",
                 requires: Requirement::Took("TAKE THE DEAL"),
                 outcome: Outcome::Enter("the-crevice"),
                 unmet: "You never sold it, so it never came this way, so there is no hole in the wall.",
@@ -1179,22 +1179,23 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "Rust Golem",
         title: "BACK IN A MINUTE",
         prose: &[
-            "A man on the road hands you something to hold. He does it the way \
-             you hand a thing to somebody you have known for years, and you \
-             have not known him for any years at all.",
+            "A man on the road hands you something to hold. He says his name \
+             is Wint. He hands it over the way you hand a thing to somebody \
+             you have known for years, and you have not known him for any \
+             years at all.",
             "He says he is going to get a drink and asks whether you are \
-             coming. You are not coming. He goes anyway, off the road and up \
+             coming. You are not coming. Wint goes anyway, off the road and up \
              the bank, and does not come back, and after a while it becomes \
              clear that not coming back was always the plan.",
             "The wrapping is a page torn out of a star chart. Somebody has \
-             drawn a ring round a shop two towns up - the one with the odd \
-             words on the back shelf - and written HE IS RIGHT under it, and \
+             drawn a ring round a pub two towns up - the one that trades in \
+             words rather than money - and written HE IS RIGHT under it, and \
              underlined it once.",
         ],
         choices: &[
             Choice {
                 label: "Keep it",
-                blurb: "Whatever it is, it is yours now. So is the page it came in.",
+                blurb: "Whatever Wint left you, it is yours now. So is the page it came in.",
                 requires: Requirement::None,
                 outcome: Outcome::Give("The Stranger's Parcel"),
                 unmet: "",
@@ -1217,16 +1218,16 @@ pub const EVENTS: &[LadderEvent] = &[
         title: "THE TELLER",
         prose: &[
             "There is a windowless store here the size of a county and its \
-             entire sign says LARGE. Inside it the man who runs the place has \
-             been carrying a story for 11 years that he is not able to put \
-             down, and he will pay to say it to somebody who is still \
-             standing afterwards.",
-            "He has tried three people. He describes what happened to all \
+             entire sign says LARGE. The man who owns it is Ollam. He has been \
+             carrying a story he is not able to put down, and he will pay to \
+             say it to somebody who is still standing afterwards.",
+            "He has tried three people. Ollam describes what happened to all \
              three of them in a level voice and with a great deal of \
              sympathy, and then asks whether you are interested.",
-            "He is not lying and he is not selling. He genuinely wants to be \
-             rid of it, and what it costs to take is exactly what it costs \
-             him to keep.",
+            "He is not lying and he is not selling. What the story costs to \
+             hear is maximum health, for the rest of the run, and he says the \
+             figure out loud before you answer, because a man who has done \
+             this three times has stopped being delicate about it.",
         ],
         choices: &[
             Choice {
@@ -1248,7 +1249,7 @@ pub const EVENTS: &[LadderEvent] = &[
             },
             Choice {
                 label: "Plug your ears",
-                blurb: "He trudges on. You keep what a head can hold, which turns out to matter.",
+                blurb: "Ollam takes it well. You keep what a head can hold, which turns out to matter.",
                 requires: Requirement::None,
                 outcome: Outcome::FightAsWritten,
                 unmet: "",
@@ -1413,14 +1414,14 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "Ashen Marshal",
         title: "THE BIGGER SIGN",
         prose: &[
-            "The store called LARGE is behind you and has been for some rungs \
-             now, and something about it has been sitting wrong the whole way.",
-            "It is the sign. The sign says LARGE and it is nailed to a hoarding \
-             and the hoarding is not the building - and behind the hoarding, \
-             further back and a good deal taller, there is a second sign, and \
-             the second sign says EXTRA LARGE.",
-            "Nobody else on this road has looked up. The teller's story takes \
-             the part of you that would have.",
+            "Ollam's store is behind you and has been for some rungs now. The \
+             thing that has been wrong about it the whole way is the sign.",
+            "The sign says LARGE and it is nailed to a hoarding, and the \
+             hoarding is not the building. Behind the hoarding, further back \
+             and a good deal taller, there is a second sign, and the second \
+             sign says EXTRA LARGE.",
+            "Nobody else on this road has looked up. Ollam's story takes the \
+             part of you that would have.",
         ],
         choices: &[
             Choice {
@@ -1428,7 +1429,7 @@ pub const EVENTS: &[LadderEvent] = &[
                 blurb: "Off the road, round the hoarding, and in. It stands after the next rung.",
                 requires: Requirement::Took("Plug your ears"),
                 outcome: Outcome::RevealTown("extra-large"),
-                unmet: "You heard the story. Whatever part of you looks up is not looking up.",
+                unmet: "You heard Ollam out. Whatever part of you looks up is not looking up.",
             },
             Choice {
                 label: "Forget you saw it",

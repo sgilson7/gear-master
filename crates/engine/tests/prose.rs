@@ -390,3 +390,85 @@ fn a_shut_door_says_why_in_words_somebody_would_use() {
         }
     }
 }
+
+// ------------------------------------------------------------- the printer
+//
+// Every lint in this file is a cheap mechanical proxy and the file says so at
+// the top. The thing none of them can do is tell you whether a scene reads,
+// and the only way to find that out is to read it - in the order a player
+// meets it, with the choices under it, the way the screen has it.
+//
+//   cargo test -p gearmaster-engine --test prose -- --ignored --nocapture read
+//
+// Ignored, like the printers in `baseline`: it asserts nothing and it is not
+// part of the suite. It is here because four bugs in the last mission survived
+// a fully green suite, and every one of them was a thing no test was looking
+// at.
+
+/// The whole road, in the order it is walked, out loud.
+#[test]
+#[ignore]
+fn read_the_road_aloud() {
+    let mut stops: Vec<(usize, String)> = Vec::new();
+
+    for e in EVENTS {
+        let mut out = format!("\n{}  [{}]  {}\n", e.title, e.id, e.where_it_stands());
+        for p in e.prose {
+            out.push_str(&format!("\n    {}\n", wrapped(p)));
+        }
+        for c in e.choices {
+            out.push_str(&format!("\n  > {}\n      {}\n", c.label, wrapped(c.blurb)));
+            if !c.unmet.is_empty() {
+                out.push_str(&format!("      (shut) {}\n", wrapped(c.unmet)));
+            }
+        }
+        stops.push((e.at, out));
+    }
+    for t in TOWNS {
+        let mut out = format!("\n{}  [town, after rung {}]\n", t.name, t.after + 1);
+        for p in t.blurb {
+            out.push_str(&format!("\n    {}\n", wrapped(p)));
+        }
+        for a in t.actions {
+            out.push_str(&format!("\n  > {}\n      {}\n", a.name(), wrapped(a.blurb())));
+        }
+        stops.push((t.after, out));
+    }
+    for d in DUNGEONS {
+        let mut out = format!("\n{}  [dungeon, {}]\n", d.name, d.id);
+        for p in d.blurb.iter().chain(d.entry) {
+            out.push_str(&format!("\n    {}\n", wrapped(p)));
+        }
+        for (f, l) in d.floors.iter().zip(d.landings) {
+            out.push_str(&format!("\n  -- {} --\n    {}\n", f, wrapped(l)));
+        }
+        // A dungeon stands beside the road rather than on it; printed last so
+        // the rung order above stays the walk.
+        stops.push((usize::MAX, out));
+    }
+
+    stops.sort_by_key(|(at, _)| *at);
+    println!("\n================ THE ROAD, IN ORDER ================");
+    for (_, text) in stops {
+        println!("{}", text);
+    }
+}
+
+/// Hard-wrapped the way the screen wraps it, so a paragraph reads as a shape
+/// rather than as one line off the side of a terminal.
+fn wrapped(text: &str) -> String {
+    let mut out = String::new();
+    let mut col = 0;
+    for w in text.split_whitespace() {
+        if col > 0 && col + 1 + w.len() > 72 {
+            out.push_str("\n    ");
+            col = 0;
+        } else if col > 0 {
+            out.push(' ');
+            col += 1;
+        }
+        out.push_str(w);
+        col += w.len();
+    }
+    out
+}
