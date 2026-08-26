@@ -148,3 +148,86 @@ fn a_fight_an_event_arranged_stands_on_the_rung_too() {
     assert_eq!(stack.last().map(|i| i.kind()), Some("brawl"));
     assert!(stack.last().unwrap().blocks_a_rematch());
 }
+
+// ------------------------------------ what the strip promises, and the receipt
+
+/// Two rumour doors on one rung both show in the stack.
+///
+/// `whispered_event` was a `find`, so the strip showed one. The second still
+/// got asked - `standing_events` runs again after every answer - but nothing
+/// could see it coming, and two doors resolving back to back reads as a bug
+/// when the strip promised one.
+#[test]
+fn a_rung_carrying_two_words_says_it_carries_two() {
+    let mut run = a_run();
+    for r in gearmaster_engine::rumour::RUMOURS {
+        run.give(r.name);
+    }
+    run.banked_all_run[gearmaster_engine::piece::Resource::Nature.index()] = 1_000;
+
+    // Rung 23 carries the Green Ledger and the Locked Gate for a run holding
+    // both words.
+    run.rung = 22;
+    let strip: Vec<&str> = run.road_stack().iter().map(|i| i.kind()).collect();
+    assert!(
+        strip.iter().filter(|k| **k == "event").count() >= 2,
+        "the strip promised {:?}",
+        strip
+    );
+
+    // And both are answerable, back to back, without the rung moving.
+    let first = run.pending_event().expect("a door").id;
+    let c = run.pending_event().unwrap().choices.iter().find(|c| run.choice_open(c)).unwrap();
+    run.take_choice(c);
+    run.take_receipt();
+    let second = run.pending_event().expect("the second door").id;
+    assert_ne!(first, second, "the same door twice");
+}
+
+/// The receipt says what a choice opened, not only what it cost.
+///
+/// A choice that unlocks a door and reports nothing but its price sends the
+/// player back to the road thinking the answer was "go and fight the next
+/// thing", which is the one reading that is wrong.
+#[test]
+fn a_receipt_names_the_door_it_opened() {
+    // A word handed over says what it is a key to.
+    let mut run = a_run();
+    run.rung = 19;
+    let e = run.pending_event().expect("the inspection");
+    assert_eq!(e.id, "the-inspection");
+    let c = e.choices.iter().find(|c| c.label == "Decline the inspection").unwrap();
+    run.take_choice(c);
+    let receipt = run.take_receipt().expect("a receipt").join(" | ");
+    assert!(
+        receipt.contains("THE PICKET LINE"),
+        "the word was handed over and the receipt did not say what for: {}",
+        receipt
+    );
+
+    // A flag set names the door that waits on it.
+    let mut run = a_run();
+    run.give("A Word About the Glow");
+    run.rung = 44;
+    let e = run.pending_event().expect("the glow");
+    let c = e.choices.iter().find(|c| c.label == "Follow it").unwrap();
+    run.take_choice(c);
+    let receipt = run.take_receipt().expect("a receipt").join(" | ");
+    assert!(receipt.contains("Opened:"), "a flag opened nothing anybody was told about: {}", receipt);
+}
+
+/// A town revealed behind you says so.
+///
+/// `describe` says "Revealed: X (after rung N)", which reads as good news even
+/// when N is behind you and the road does not go back.
+#[test]
+fn a_town_revealed_too_late_says_it_is_behind_you() {
+    let mut run = a_run();
+    run.give("A Word About the Glow");
+    run.rung = 44; // the Slagworks stands after rung 34
+    let e = run.pending_event().expect("the glow");
+    let c = e.choices.iter().find(|c| c.label == "Follow it").unwrap();
+    run.take_choice(c);
+    let receipt = run.take_receipt().expect("a receipt").join(" | ");
+    assert!(receipt.contains("behind you"), "no warning at all: {}", receipt);
+}

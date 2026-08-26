@@ -83,6 +83,41 @@ fn every_door_in_the_game_can_be_arrived_at() {
     }
 }
 
+/// A reveal that arrives after its town's gate is a town nobody can enter.
+///
+/// `every_town_and_dungeon_has_a_way_in` asks whether *something* reveals a
+/// hidden town, and that is half the question. THE BIGGER SIGN stood on rung
+/// forty-one and revealed a town standing in the gap after rung fourteen: the
+/// reveal happened, the town went on the map, and the road had walked past the
+/// gap twenty-seven rungs earlier. Every test was green and the town was
+/// unreachable in every run the game could produce.
+///
+/// So: the **earliest** rung a reveal can happen on must be at or before the
+/// gate it opens. A door that roams a window is allowed to arrive too late -
+/// hearing a rumour late and missing the turning is a bet the player made -
+/// but it has to be able to arrive in time at all.
+#[test]
+fn a_reveal_can_happen_before_the_town_it_reveals() {
+    for e in EVENTS {
+        for c in e.choices {
+            for o in every_outcome(&c.outcome) {
+                let Outcome::RevealTown(id) = o else { continue };
+                let town = TOWNS.iter().find(|t| t.id == *id).expect("a real town");
+                let earliest = e.trigger.from();
+                assert!(
+                    earliest <= town.after,
+                    "{} can first stand on rung {} and reveals {}, whose gate is after rung {} - \
+                     nobody can ever reach it",
+                    e.id,
+                    earliest + 1,
+                    id,
+                    town.after + 1
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn every_town_and_dungeon_has_a_way_in() {
     for t in TOWNS {

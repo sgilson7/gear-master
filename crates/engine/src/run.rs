@@ -916,7 +916,7 @@ impl Run {
             .filter(|e| !self.answered.contains(&e.id))
             .into_iter()
             .collect();
-        if let Some(e) = self.whispered_event() {
+        for e in self.whispered_events() {
             if !out.iter().any(|o| o.id == e.id) {
                 out.push(e);
             }
@@ -961,23 +961,34 @@ impl Run {
         self.standing_event()
     }
 
-    /// A rumour door standing on this rung: one you are carrying the word
+    /// Every rumour door standing on this rung: ones you are carrying the word
     /// about, whose condition you have actually met.
     ///
     /// Separate from `event::at` because neither half can be answered from a
     /// rung and two stopwatches - one is about the board and one is about the
     /// whole run so far, and the run is the only thing that knows either.
-    fn whispered_event(&self) -> Option<&'static crate::event::LadderEvent> {
-        crate::event::EVENTS.iter().find(|e| {
-            let crate::event::Trigger::Whispered { rumour, from } = e.trigger else {
-                return false;
-            };
-            (from..=e.at).contains(&self.rung)
-                && !self.deferred_past(e.id)
-                && !self.answered.contains(&e.id)
-                && self.owned.iter().any(|&i| self.registry.def(i).name == rumour)
-                && crate::rumour::by_name(rumour).is_some_and(|r| self.meets(r.needs))
-        })
+    ///
+    /// **All of them, not the first.** This was a `find`, and the effect was
+    /// not that the second door went unasked - `standing_events` is called
+    /// again after each answer, so it did get asked - but that nothing could
+    /// *see* it coming. The road stack strip is built from this, so a rung
+    /// carrying two words showed one, the player answered it, and a second
+    /// door appeared out of nowhere. Two doors resolving back to back reads as
+    /// a bug when the strip promised one.
+    fn whispered_events(&self) -> Vec<&'static crate::event::LadderEvent> {
+        crate::event::EVENTS
+            .iter()
+            .filter(|e| {
+                let crate::event::Trigger::Whispered { rumour, from } = e.trigger else {
+                    return false;
+                };
+                (from..=e.at).contains(&self.rung)
+                    && !self.deferred_past(e.id)
+                    && !self.answered.contains(&e.id)
+                    && self.owned.iter().any(|&i| self.registry.def(i).name == rumour)
+                    && crate::rumour::by_name(rumour).is_some_and(|r| self.meets(r.needs))
+            })
+            .collect()
     }
 
     /// Is a rumour's condition true right now?
@@ -1156,9 +1167,13 @@ impl Run {
         // is the worst of the three places to find out. What "belongs to this
         // door" means is that the door has this choice on it, and that is what
         // this asks.
-        if !ev.choices.iter().any(|k| k == c) {
+        // Kept as the *table's* copy rather than the caller's. They are equal
+        // by value - that is what the check above establishes - but only the
+        // table's is `'static`, and the reverse indexes that say what a choice
+        // opened are all over static data.
+        let Some(chosen) = ev.choices.iter().find(|k| *k == c) else {
             return None;
-        }
+        };
         if !self.choice_open(c) {
             return None;
         }
@@ -1180,8 +1195,66 @@ impl Run {
         if cost > 0 {
             receipt.insert(0, format!("-{}g", cost));
         }
+        // And what it opened, if it opened anything. A receipt that says what
+        // changed on your board and nothing about the door you just unlocked
+        // sends the player back to the road thinking the answer was "fight the
+        // next thing", which is the one reading that is wrong.
+        receipt.extend(self.opened_by(&chosen.outcome));
         self.last_receipt = Some(receipt);
         gave
+    }
+
+    /// What taking this outcome has opened further up the road.
+    ///
+    /// Built from the reverse indexes the tables already carry rather than
+    /// from a second list that could drift: `event::set_by` walks the flags,
+    /// `rumour::conditions_line` walks the words, and a town knows where it
+    /// stands. Nothing here names a *condition* - a rumour's hint is vague on
+    /// purpose and this does not undo that. It says a door exists and roughly
+    /// where, which is the difference between a choice that felt like it did
+    /// something and one that felt like it did nothing.
+    fn opened_by(&self, outcome: &'static crate::event::Outcome) -> Vec<String> {
+        use crate::event::Outcome;
+        let mut out = Vec::new();
+        for o in crate::event::every_outcome(outcome) {
+            match o {
+                // A flag is read by doors that wait on it. Name them: the
+                // player set the flag deliberately and the door is the reason.
+                Outcome::Flag(f) => {
+                    for e in crate::event::EVENTS.iter() {
+                        let crate::event::Trigger::WhenFlagged { flag, from } = e.trigger else {
+                            continue;
+                        };
+                        if flag == *f && from >= self.rung {
+                            out.push(format!("Opened: {} (rung {} or later)", e.title, from + 1));
+                        }
+                    }
+                }
+                // A word is a key, and the tray already says what it is for in
+                // exactly these words. Saying it here too is the same fact in
+                // the place the player is looking.
+                Outcome::Give(name) if crate::rumour::is_rumour(name) => {
+                    if let Some(line) = crate::rumour::conditions_line(name) {
+                        out.push(line);
+                    }
+                }
+                // `describe` already says a town was revealed and where it
+                // stands. The only thing it cannot say is that the gate is
+                // *behind* you, which reads as good news and is not.
+                Outcome::RevealTown(id) => {
+                    if let Some(t) = crate::town::by_id(id) {
+                        if t.after < self.rung {
+                            out.push(format!(
+                                "{} stands behind you, and the road does not go back",
+                                t.name
+                            ));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
     }
 
     /// Do what an outcome says, and say what it did.

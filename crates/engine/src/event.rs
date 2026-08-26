@@ -1394,11 +1394,23 @@ pub const EVENTS: &[LadderEvent] = &[
     // and taller, which retroactively makes the Teller's third choice the
     // secret best one.
     LadderEvent {
+        // Rung thirteen, and the number is load-bearing.
+        //
+        // It stood on forty-one, which made the door it opens unreachable:
+        // EXTRA LARGE stands in the gap after rung fourteen, so a sign offered
+        // twenty-seven rungs later revealed a town the road had long since
+        // walked past. Every test passed - something *did* reveal it, and the
+        // town *was* on the road - because nothing was asking whether the
+        // reveal could happen in time. `a_reveal_can_happen_before_its_town`
+        // asks now.
+        //
+        // Thirteen is two clear of THE TELLER at eleven, where the ears get
+        // plugged, and one clear of the gate.
         id: "the-bigger-sign",
-        at: 40,
+        at: 12,
         trigger: Trigger::Rung,
         blocked_by: &[],
-        expects: "Sootmother",
+        expects: "Ashen Marshal",
         title: "THE BIGGER SIGN",
         prose: &[
             "The store called LARGE is behind you and has been for some rungs \
