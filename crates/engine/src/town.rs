@@ -219,8 +219,9 @@ impl Action {
                  every fight for the rest of the run."
             }
             Action::Shop => {
-                "The man with the cart has five things on it that the road does \
-                 not stock. He does take money, and he does want all of it."
+                "Whoever has the cart this week has five things on it that the \
+                 road does not stock. He does take money, and he does want all \
+                 of it."
             }
             Action::Crucible => {
                 "Throw something in. What comes out is the same slot and about \
@@ -236,13 +237,13 @@ impl Action {
                  worth ten more. Its name may grow a word. That is the point."
             }
             Action::Foreman => {
-                "He has been down there. He will say what he heard down there, \
-                 or - if you already know - he will pay you not to say it back."
+                "Ossery has been down there. He will say what he heard, or - \
+                 if you already know - he will pay you not to say it back."
             }
             Action::CellarDoor => {
-                "Stand at it and listen. The man on the other side sounds \
-                 insane, and everything he says turns out to be true, and the \
-                 door is not locked."
+                "Stand at it and listen. Corvin, on the other side, sounds \
+                 insane, and everything Corvin says turns out to be true, and \
+                 the door is not locked."
             }
             Action::Gallery => {
                 "They will take one piece off you at twice what anybody else \
@@ -269,13 +270,13 @@ impl Action {
                  see it again three shops later, worth more."
             }
             Action::SampleCounter => {
-                "A free one. It is a common and it is genuinely free and the \
-                 woman behind the counter would like you to take two."
+                "A free one. It is a common and it is genuinely free and \
+                 whoever is on the counter would like you to take two."
             }
             Action::Manager => {
-                "He will confirm, at length and with documents, that this \
-                 store is the only one, on any plane, and that the sign \
-                 behind the sign is not a second store."
+                "Mawes will confirm, at length and with documents, that this \
+                 store is the only one, on any plane, and that the sign behind \
+                 the sign is not a second store."
             }
             Action::Pedestal => {
                 "It stands in the entryway and takes an Orb of Travel. Feed it \
@@ -416,8 +417,9 @@ pub const TOWNS: &[Town] = &[
              Aisle 9 is close enough to the door to walk to, which is the \
              only reason anybody knows what is in it.",
             "In the entryway, between the doors and the trolleys, there is a \
-             stone pedestal with a socket in the top of it. Nobody who works \
-             here will discuss the pedestal.",
+             stone pedestal with a socket in the top of it. The manager is \
+             called Mawes, and nobody who works here will discuss the \
+             pedestal, Mawes least of all.",
         ],
     },
     Town {
@@ -439,7 +441,7 @@ pub const TOWNS: &[Town] = &[
              one of them is reading and all three of them are doing it in \
              rooms you can hear but not find, because the doors here do not \
              stay where they were put.",
-            "There is a cellar, and the plate on the gate said EGGBERT, and \
+            "There is a cellar, and the plate on the gate said HOLLIS, and \
              nobody inside will answer to it. Everybody in the house knows \
              where the cellar is and nobody in the house will take you to it.",
         ],

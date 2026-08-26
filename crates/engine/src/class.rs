@@ -967,7 +967,7 @@ pub static CLASSES: &[ClassDef] = &[
     // them off the fountain.
     ClassDef {
         name: "Piety",
-        blurb: "You knelt on a stone floor in a town that is mostly water, and it cut, and you stayed down.",
+        blurb: "You knelt on the chapel floor in Sump Bottom, and it cut, and you stayed down.",
         requires: &[],
         power: ClassPower::Piety { faith: 1 },
     },
@@ -985,7 +985,7 @@ pub static CLASSES: &[ClassDef] = &[
     },
     ClassDef {
         name: "Recycler",
-        blurb: "You carried a dead lord's coat into a bar and left with a way of looking at gear.",
+        blurb: "You carried a Scrap Ticket into a bar and left with a way of looking at gear.",
         requires: &[],
         power: ClassPower::Recycler { pct: 10 },
     },
@@ -1023,7 +1023,7 @@ pub static CLASSES: &[ClassDef] = &[
     // either.
     ClassDef {
         name: "Unionized",
-        blurb: "You did not cross. Six demands, and one of them was about armour.",
+        blurb: "You did not cross. Nettle chalked six demands and one of them was about armour.",
         requires: &[],
         power: ClassPower::Unionized { armor: 20 },
     },

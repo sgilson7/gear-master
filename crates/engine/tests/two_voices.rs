@@ -89,6 +89,14 @@ fn canonical_prose() -> Vec<(String, String)> {
     for d in gearmaster_engine::piece::CATALOG {
         push(format!("piece {}", d.name), d.name);
     }
+    // The pedestal's four destinations. Not walked here for its whole life,
+    // and it carries each event's or dungeon's title as a *second* literal -
+    // so THE THRUMBUS RACE was written down twice and this lint could see
+    // neither copy.
+    for d in gearmaster_engine::pedestal::DESTINATIONS {
+        push(format!("destination {}", d.id), d.name);
+        push(format!("destination {} orb", d.id), d.via_orb);
+    }
     out
 }
 
@@ -101,10 +109,22 @@ fn leaks() -> Vec<(String, &'static str)> {
             // are not on the list at all. Possessives count - "Henpeck's Cell
             // Keys" is Henpeck, and a lint that missed that would have passed
             // on the day it was written for.
+            //
+            // **Case-insensitively**, and that is not a nicety. This compared
+            // exact case for its whole life, and this game puts its proper
+            // nouns on signs and brass plates in capitals, so four of them
+            // walked straight past it and shipped: EGGBERT on the gate post
+            // and on the Manse's plate, BUNKO on a boat transom, HENPECK
+            // stamped on the boards of the Under-Mine, and THRUMBUS in an
+            // entire event's title and prose. The budget said five and meant
+            // nine. All four are fixed - the gate says HOLLIS, the boat says
+            // PATIENCE, the boards say HOLLOW KING, and the race is run by
+            // bolters - so this costs nothing to turn on, and it means the
+            // ratchet now sees a shouted word as the leak it is.
             if text
                 .split(|c: char| !c.is_alphanumeric() && c != '\'')
-                .map(|t| t.trim_end_matches("'s"))
-                .any(|t| t == *w)
+                .map(|t| t.trim_end_matches("'s").trim_end_matches("'S"))
+                .any(|t| t.eq_ignore_ascii_case(w))
             {
                 out.push((what.clone(), *w));
             }

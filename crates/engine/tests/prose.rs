@@ -21,6 +21,7 @@
 //! The rest are guards rather than detectors: they hold today and would catch
 //! the drift coming back.
 
+use gearmaster_engine::class::CLASSES;
 use gearmaster_engine::combat::Difficulty;
 use gearmaster_engine::dungeon::DUNGEONS;
 use gearmaster_engine::event::EVENTS;
@@ -58,6 +59,13 @@ fn scenes() -> Vec<(String, &'static str, bool)> {
         for p in d.landings {
             out.push((format!("{} landing", d.id), p, true));
         }
+    }
+    // A class blurb is the line under a title on the fountain screen, and it
+    // is read at the one moment a run is being told what it has become. It was
+    // out of this file's reach for no better reason than that nobody had put
+    // it in.
+    for c in CLASSES {
+        out.push((format!("class {}", c.name), c.blurb, false));
     }
     // The two lines under the headings on the setup screen. They are the only
     // prose in the game a player reads before the road starts, and until this
@@ -117,6 +125,34 @@ fn no_scene_withholds_the_noun() {
         // copy a player reads has stopped being the thing they are in.
         "the game",
         "it just does not",
+        // The prose pass's own seven. Every one of them was a shipped
+        // sentence: "a works of some kind", "something about it has been
+        // sitting wrong", "She is not from anywhere", "He does not say what
+        // their side is", "which is the whole of his trade", "somebody who
+        // should not have it", and the mouth of the Under-Mine, which was
+        // "worth thinking about for a moment and then worth thinking about
+        // again" - the tic twice inside one sentence.
+        "of some kind",
+        "sitting wrong",
+        "not from anywhere",
+        "does not say what",
+        "the whole of his",
+        "somebody who should not",
+        "worth thinking about",
+        // Two more were probed and deliberately left off, which is worth
+        // writing down so nobody adds them back:
+        //
+        // "either way" fires only on THE SEALED BID - "Sarn reads the reserve
+        // out either way" - which is a statement of fact and exactly what the
+        // rest of this file is asking for.
+        //
+        // "the worst of it" fires only on THE THRESHOLD's last landing, where
+        // the noun is said: the light is a person, it is pleased to see you,
+        // and the clause is a judgement rather than a withheld thing. The
+        // duplicate of it twenty rungs earlier is gone.
+        //
+        // "stops being strange" fires only on THE MANSE, which is the sentence
+        // the tic was copied *from*. The copy, in THE THRESHOLD, is gone.
     ];
     for (where_, text, _) in scenes() {
         let low = text.to_lowercase();
@@ -171,23 +207,37 @@ fn a_subtitle_does_not_name_the_options_under_it() {
 /// Does this text contain a proper noun?
 ///
 /// The cheap proof that a scene is about somebody or somewhere: Merrik,
-/// Gerald, Kettleworks, the Bog Toad, EGGBERT on a brass plate. The register
+/// Gerald, Kettleworks, the Bog Toad, HOLLIS on a brass plate. The register
 /// this file guards against has none - the old versions of nine of these
 /// events, between them, named one creature and one lord and nothing else,
 /// which is why they read as the same scene told nine times.
 ///
-/// `on_a_digit` is the loophole, kept as a parameter so the two tests below
-/// can measure it. A number satisfied the original test as cheaply as a name
-/// did, and M14 and M15 duly bolted numbers onto the scenes that had no names
-/// in them - "rice for the trade board for 19 years", "the 3 chairs" - which
-/// left the lint green and the scenes exactly as anonymous as they were.
+/// **A number used to count.** That was the loophole M15 went through: a scene
+/// with no name in it satisfied this as cheaply with a figure as with a
+/// person, so eighteen scenes had figures bolted onto them instead - "rice for
+/// the trade board for 19 years", "the 3 chairs", "40 years", "6 demands",
+/// "All 3 copies". Green lint, anonymous scenes. The digit branch was shipped
+/// as a budget that could only go down, it went 18 -> 15 -> 10 -> 7 -> 0 over
+/// the prose pass, and at zero it came out. Numbers are welcome in these
+/// scenes; they are simply no longer *evidence* of anything.
+///
+/// "I" does not count either. It is a capital in the middle of a sentence and
+/// it is nobody.
 ///
 /// Checked per scene rather than per paragraph. A middle paragraph is allowed
 /// to run on pronouns once the first one has said who is talking, and an
 /// earlier draft that demanded a name in every single paragraph ended up with
 /// a widening list of exceptions - which is a test being fitted to its data
 /// rather than checking it.
-fn names_something(text: &str, on_a_digit: bool) -> bool {
+///
+/// One blind spot, and it is worth knowing because it will find you: a name
+/// that only ever **opens** a sentence is invisible here, because at a sentence
+/// start this cannot tell "Vell" from "The". THE BUYER named its man twice and
+/// failed anyway; so did MOLE TOWN, THE UNDER-MINE and THE THRESHOLD. The
+/// answer each time was to write the name into the middle of a sentence, which
+/// is better prose in any case. Widening the proxy would mean keeping the cast
+/// list in a test file, which is the fitted-to-its-data fault again.
+fn names_something(text: &str) -> bool {
     let mut fresh = true;
     for w in text.split_whitespace() {
         let bare = w.trim_matches(|c: char| !c.is_alphanumeric());
@@ -195,10 +245,6 @@ fn names_something(text: &str, on_a_digit: bool) -> bool {
             &mut fresh,
             w.ends_with('.') || w.ends_with('!') || w.ends_with('?') || w.ends_with(','),
         );
-        if on_a_digit && bare.chars().any(|c| c.is_ascii_digit()) {
-            return true;
-        }
-        // "I" is a capital in the middle of a sentence and it is nobody.
         if !opener && bare != "I" && bare.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
             return true;
         }
@@ -206,7 +252,7 @@ fn names_something(text: &str, on_a_digit: bool) -> bool {
     false
 }
 
-/// Every scene, with the id to blame, for the two tests that walk them.
+/// Every scene, with the id to blame.
 fn every_scene() -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     for e in EVENTS {
@@ -226,86 +272,11 @@ fn every_scene() -> Vec<(String, String)> {
 fn every_scene_names_something() {
     for (where_, text) in every_scene() {
         assert!(
-            names_something(&text, true),
-            "{where_}: not one name, place, sign or number in it.\n  {text}"
+            names_something(&text),
+            "{where_}: nobody and nowhere in it. The fix is a name, not another \
+             adjective.\n  {text}"
         );
     }
-}
-
-// ----------------------------------------------- and the ratchet under it
-//
-// The test above is the one that has always been here, and it is satisfied by
-// a digit. These three are the same question asked without the loophole, shipped
-// as a budget the way `catalog_shape` and `two_voices` are: it goes down, or it
-// does not move.
-//
-// Eighteen, and every one of them is a scene that calls its people by their job
-// - "the tally man", "a woman with a clipboard", "The buyer" - and satisfies
-// the lint on a number bolted on for exactly that purpose. The number is the
-// symptom. The fix is a name.
-
-/// How many scenes still name nothing but a figure. It goes down.
-///
-/// 18 at `a46294a`. 15 once P4's second batch named the Hollow King on the
-/// floor of his own counting house, Nance Twiss on her folding stool, and
-/// Salter behind the bar of the inn with the long table - three scenes that
-/// had been standing on "All 3 copies", "19 years" and "40 years".
-///
-/// 10 once the third batch named Braddock at the milestone and again at the
-/// payout table, Vell in the hired room, Dorn and Ilder at the ring, and Sarn
-/// reading the reserve out - which took "the 4th one down", "the 3 chairs",
-/// "6 years each" and "1 lot a month" with them.
-///
-/// A note for whoever lowers this next: the proxy cannot see a name that only
-/// ever *opens* a sentence, because at a sentence start it cannot tell "Vell"
-/// from "The". THE BUYER named its man twice and failed anyway. The answer is
-/// to write the name into the middle of a sentence somewhere, which is better
-/// prose in any case - not to widen the proxy, which would mean keeping a list
-/// of the cast in a test file and fitting the test to its data.
-///
-/// 7 once the fourth batch named Nettle on the picket, Cobb at the paddock
-/// rail and Tibb with his case of tools - taking "6 demands", "3 storeys" and
-/// the last of the props in the events with them. What is left is one town
-/// gate and six dungeon lines, which is P5.
-const DIGIT_PROPS: usize = 7;
-
-fn leaning_on_a_number() -> Vec<String> {
-    every_scene()
-        .into_iter()
-        .filter(|(_, text)| !names_something(text, false))
-        .map(|(where_, _)| where_)
-        .collect()
-}
-
-#[test]
-fn no_more_scenes_lean_on_a_number_than_already_did() {
-    let found = leaning_on_a_number();
-    assert!(
-        found.len() <= DIGIT_PROPS,
-        "{} scenes name nothing but a figure, over a budget of {}:\n{:#?}",
-        found.len(),
-        DIGIT_PROPS,
-        found
-    );
-}
-
-#[test]
-fn the_digit_budget_is_not_slack() {
-    let found = leaning_on_a_number();
-    assert_eq!(
-        found.len(),
-        DIGIT_PROPS,
-        "the list shrank to {} - lower DIGIT_PROPS in the commit that earned it",
-        found.len()
-    );
-}
-
-/// The target: every scene names somebody or somewhere, and no scene needs a
-/// number to prove it is about anything.
-#[test]
-#[ignore]
-fn every_scene_names_a_person_or_a_place() {
-    assert_eq!(leaning_on_a_number(), Vec::<String>::new());
 }
 
 #[test]

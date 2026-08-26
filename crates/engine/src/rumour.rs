@@ -123,9 +123,9 @@ pub static RUMOURS: &[Rumour] = &[
     Rumour {
         name: "A Word About the Crownwright",
         on_the_bar: true,
-        hint: "He will not measure a head that has nothing in it. Everybody \
-               in the bar nods along at this and not one of them can tell you \
-               what it means.",
+        hint: "Padgett will not measure a head that has nothing in it. \
+               Everybody in the bar nods along at this and not one of them can \
+               tell you what it means.",
         price: Barter::Kind(PieceKind::Frame),
         opens: "the-crownwright",
         needs: Condition::Crowded { slot: crate::piece::SlotKind::Helmet, under: 10 },
@@ -133,9 +133,9 @@ pub static RUMOURS: &[Rumour] = &[
     Rumour {
         name: "A Word About the Green Ledger",
         on_the_bar: true,
-        hint: "There is a man in green ink who has been adding up the same \
-               column since before the bar had a roof. What he is counting, he \
-               is counting about you.",
+        hint: "There is a man called Creel who works in green ink and has \
+               been adding up the same column since before the bar had a roof. \
+               What Creel is counting, he is counting about you.",
         price: Barter::Rumour("A Word About the Crownwright"),
         opens: "the-green-ledger",
         needs: Condition::BankedAllRun {
@@ -159,9 +159,9 @@ pub static RUMOURS: &[Rumour] = &[
         // other word in this game is come by, and the two that follow it are
         // handed over by the chain itself.
         on_the_bar: true,
-        hint: "Somebody has been thrown out of every observatory on this road \
-               for saying one sentence, and the sentence is about the stars \
-               going the wrong way.",
+        hint: "A man called Halloway has been thrown out of every observatory \
+               on this road for saying one sentence, and the sentence is about \
+               the stars going the wrong way.",
         price: Barter::Kind(PieceKind::Crest),
         opens: "the-astronomer",
         needs: Condition::Carried,
@@ -170,7 +170,8 @@ pub static RUMOURS: &[Rumour] = &[
         name: "A Word About the Cellar",
         on_the_bar: false,
         hint: "There is a house on this road with a cellar door, and the man \
-               behind it is not shouting at anybody in this century.",
+               behind it is called Corvin, and Corvin is not shouting at \
+               anybody in this century.",
         price: Barter::Rumour("A Word About the Wrong Stars"),
         opens: "the-locked-gate",
         needs: Condition::Carried,
@@ -195,9 +196,9 @@ pub static RUMOURS: &[Rumour] = &[
     Rumour {
         name: "A Word About the Thirsty Wizard",
         on_the_bar: true,
-        hint: "There is a wizard up the road who wants what is left when you \
-               have finished the thing, and has a room full of what is left, \
-               and will not say what for.",
+        hint: "There is a wizard up the road, Sam the Wise, who wants what is \
+               left when you have finished the thing, and has a room full of \
+               what is left, and will not say what for.",
         price: Barter::Kind(PieceKind::Ring),
         opens: "the-wizards-thirst",
         needs: Condition::Carried,
@@ -205,9 +206,9 @@ pub static RUMOURS: &[Rumour] = &[
     Rumour {
         name: "A Word About the Exhibition",
         on_the_bar: true,
-        hint: "Two men who were the best in the world at a thing have been \
-               retired for six years and are, between them, about as bored as \
-               it is possible for two people to be.",
+        hint: "Dorn and Ilder were the best in the world at a thing and have \
+               been retired for six years and are, between them, about as \
+               bored as it is possible for two people to be.",
         price: Barter::Kind(PieceKind::Mold),
         opens: "the-exhibition",
         needs: Condition::Carried,
@@ -215,8 +216,8 @@ pub static RUMOURS: &[Rumour] = &[
     Rumour {
         name: "A Word About the Picket",
         on_the_bar: false,
-        hint: "The arena has stopped. There are six demands on the gate and \
-               one of them is, oddly, about you.",
+        hint: "The arena has stopped. A woman called Nettle has chalked six \
+               demands on the gate and one of them is, oddly, about you.",
         price: Barter::Rumour("A Word About the Exhibition"),
         opens: "the-picket-line",
         needs: Condition::Carried,

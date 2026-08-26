@@ -56,39 +56,39 @@ pub const DUNGEONS: &[Dungeon] = &[
         id: "the-crevice",
         name: "THE CREVICE IN THE ROCK",
         blurb: &[
-            "The thing you sold turns up three rungs later in the hands of \
-             somebody who should not have it, in a hamlet that is not on any \
-             map you have seen.",
-            "It has a new name now. It had an older one when it was a fishing \
-             village, before the company came and the boys were put on trains \
-             and the Home for Immature Men was turned into a seed facility. \
-             There is one old analyst left on the line. He still prays to the \
-             old gods, on a floor that cuts his knees, which he says helps him \
-             concentrate.",
+            "The thing you sold turns up three rungs later in a hamlet that is \
+             not on any map you have seen, in the hands of a line foreman who \
+             cannot possibly have paid for it.",
+            "The hamlet has a new name now. It was Fenmouth when it was a \
+             fishing village, before the company came and the boys were put on \
+             trains and the Home for Immature Men was turned into a seed \
+             facility. There is one old analyst left on the line, and Wenlock \
+             still prays to the old gods, on a floor that cuts his knees, \
+             which he says helps him concentrate.",
             "He has noticed a purple glint down between the shell and the \
-             rock that will not move. He has been noticing it for 6 years and \
-             has told nobody, because nobody who works here has the shoulders \
-             to widen a crack in a rock, and he has been very patient about \
-             waiting for somebody who does.",
+             rock that will not move. He has been noticing it for six years \
+             and has told nobody, because nobody who works here has the \
+             shoulders to widen a crack in a rock, and he has been very \
+             patient about waiting for somebody who does.",
         ],
         entry: &[
             "The hole in the back wall is a hole in the back wall for about \
              four feet, and then it is a staircase somebody cut, and then it \
              is not a staircase.",
-            "The old man is already ahead of you. He has been ahead of you \
-             for 6 years.",
+            "Wenlock is already ahead of you. He has been ahead of you for \
+             six years.",
         ],
         floors: &["The Reciter", "The Long Haul", "The Watchers"],
         landings: &[
             "The recitation stops mid-verse. Behind the pulpit, the shell has \
              grown out over a crack in the rock the way a lip grows over a bad \
-             tooth. The old man gets a bar under it. The old man is 71.",
+             tooth. Wenlock gets a bar under it. Wenlock is seventy-one.",
             "The train goes over on the bend. Whatever was in the cars is out \
              in the dark now, and it does not appear to want anything from \
-             you at all, and it does not appear to want anything from the old \
-             man either, who keeps walking and does not look at it once.",
+             you at all, and it does not appear to want anything from Wenlock \
+             either, who keeps walking and does not look at it once.",
             "The Core is soup and light with a piece of somewhere else \
-             sitting in the middle of it. The old man looks at it for a while, \
+             sitting in the middle of it. Wenlock looks at it for a while, \
              and stops being an old man, and there is a moment there where he \
              could have kept the lot. He splits it instead, the way he always \
              said he would, and puts your share in your hand on his way past. \
@@ -105,14 +105,13 @@ pub const DUNGEONS: &[Dungeon] = &[
         id: "the-threshold",
         name: "THE THRESHOLD",
         blurb: &[
-            "The man behind the cellar door has been talking for a long time \
-             and is not talking to you. He is describing a staircase. He is \
-             describing it very accurately.",
+            "The man behind the cellar door is called Corvin. He has been \
+             talking for a long time and he is not talking to you. He is \
+             describing a staircase. He is describing it very accurately.",
             "Behind the door there is a staircase.",
             "Nobody in the Manse comes down here, and everybody in the Manse \
-             knows exactly how many steps there are, which is the sort of \
-             thing that stops being strange about four minutes after you \
-             notice it.",
+             knows exactly how many steps there are, and Corvin is the only \
+             one who will say the number out loud.",
         ],
         entry: &[
             "The door was not locked. Doors like this never are.",
@@ -121,8 +120,9 @@ pub const DUNGEONS: &[Dungeon] = &[
         ],
         floors: &["DOORKEEP", "THE STAIR THAT LISTENS", "THE LAST LANDING"],
         landings: &[
-            "It stands aside. It was always going to stand aside. What it was \
-             doing was making sure you went down rather than in.",
+            "The thing at the top is called DOORKEEP and it stands aside. It \
+             was always going to stand aside. What it was doing was making \
+             sure you went down rather than in.",
             "The stair has been counting. Not the steps - there are 402 steps \
              and it has known that since before there were steps - it has been \
              counting *you*, and the number it has reached is one.",
@@ -142,22 +142,24 @@ pub const DUNGEONS: &[Dungeon] = &[
         name: "THE UNDER-MINE",
         blurb: &[
             "The mouth of it is boarded from the outside, and the boards are \
-             stamped HENPECK, which is worth thinking about for a moment and \
-             then worth thinking about again.",
+             stamped HOLLOW KING. He sealed it, and he sealed it from out \
+             here, and those are two separate things to have found out.",
             "Somebody sealed this in a hurry and somebody else has been \
              keeping the boards in repair for a very long time since, and the \
              two of them were not the same person and did not agree.",
         ],
         entry: &[
-            "The seam was sealed from the outside, which is worth thinking about.",
+            "The seam was sealed from the outside. Whatever the boards are \
+             for, they are not for keeping people out.",
             "Ossery said the foundry keeps melting down what keeps climbing \
              out of the melt. He did not say what climbs out of a seam.",
         ],
         floors: &["THE DIGGERS", "WHAT THE SEAM HID"],
         landings: &[
-            "There are 14 of them and they put their tools down when you come \
-             round the corner and pick them up again after, which is the only \
-             part of it that is frightening.",
+            "The diggers put their tools down when you come round the corner \
+             and pick them up again after, which is the only part of it that \
+             is frightening. There are fourteen of them, which is the number \
+             Ossery gave, and Ossery has never been down here.",
             "It was sealed for a reason and the reason is looking at you, and \
              behind the reason there is a vein of something the colour of a \
              very old bar of chocolate going down further than the lamp goes.",
@@ -171,10 +173,10 @@ pub const DUNGEONS: &[Dungeon] = &[
         id: "the-undertow",
         name: "THE UNDERTOW",
         blurb: &[
-            "The old man fished here for 60 years and the water goes down and \
-             does not come back up, and both of those things were true the \
-             whole time he was doing it.",
-            "There is a boat pulled up on the shingle with BUNKO painted on \
+            "Fenn fished here for sixty years and the water goes down and does \
+             not come back up, and both of those things were true the whole \
+             time he was doing it.",
+            "There is a boat pulled up on the shingle with PATIENCE painted on \
              the transom, and somebody has left it there, and the paint is \
              not old.",
         ],
@@ -185,11 +187,11 @@ pub const DUNGEONS: &[Dungeon] = &[
         floors: &["THE CURRENT", "THE THING ON THE HOOK"],
         landings: &[
             "The water decides how fast you are allowed to be. It decided that \
-             about him too, for 60 years, and there is no arguing with a \
+             about Fenn too, for sixty years, and there is no arguing with a \
              decision made by a quantity.",
             "It comes up on the line the way a thing comes up when it has \
              chosen to. Underneath it the water is deeper than the world is, \
-             and you understand, all at once, what he was patient about.",
+             and you understand, all at once, what Fenn was patient about.",
         ],
         // No class at all. What the Undertow pays is room - one board of your
         // choice, one row taller for the rest of the run - and H3 says the
@@ -203,8 +205,8 @@ pub const DUNGEONS: &[Dungeon] = &[
         id: "den-rivals",
         name: "DEN RIVALS",
         blurb: &[
-            "The exhibit at the Emporium promised the fury of a thousand \
-             bears and charged 4 gold for it and showed you a diorama.",
+            "The exhibit was called THE FURY OF A THOUSAND BEARS, it charged \
+             four gold, and what it showed you was a diorama.",
             "The museum never lied. It simply did not say where.",
         ],
         entry: &[
@@ -214,11 +216,12 @@ pub const DUNGEONS: &[Dungeon] = &[
         ],
         floors: &["THE DEN MOUTH", "THE THOUSANDTH BEAR"],
         landings: &[
-            "That was 100 of them and the den goes back further than a \
+            "That was a hundred of them and the den goes back further than a \
              hundred, and every one of them was in the way rather than in \
              front.",
-            "The thousandth is the one the diorama was of, and the diorama \
-             was to scale, and the placard did not say to what.",
+            "The thousandth is the one the diorama was of. The diorama was to \
+             scale. The placard said A THOUSAND BEARS and did not say to what \
+             scale.",
         ],
         reward: "",
         also: &[crate::event::Outcome::Give("Bearhide")],
@@ -228,8 +231,10 @@ pub const DUNGEONS: &[Dungeon] = &[
         id: "wumpus-world",
         name: "WUMPUS WORLD",
         blurb: &[
-            "There are 20 rooms and one of them has a wumpus in it and the \
-             wumpus does not stay in the room it is in.",
+            "There are twenty rooms and one of them has a wumpus in it and the \
+             wumpus does not stay in the room it is in. A card nailed up at \
+             the mouth of the first says ROOMS 20, HAZARDS SOME, WUMPUS ONE, \
+             and somebody has crossed out ONE and written it again.",
             "You will smell it before you see it. That is the good news and \
              it is also, on reflection, how it finds you.",
         ],
@@ -241,10 +246,11 @@ pub const DUNGEONS: &[Dungeon] = &[
         landings: &[
             "Whatever lives near a wumpus lives there by being too quick and \
              too many to be worth the trouble. Neither is a defence against \
-             somebody with a torch and 20 rooms to get through.",
+             somebody with a torch and twenty rooms to get through.",
             "It knew where you were the whole way in. What it did not know is \
              that you had stopped moving quietly a hundred yards back and had \
-             been listening to it work that out.",
+             been listening to it work that out. The card at the mouth said \
+             WUMPUS ONE, and the card was right about the number.",
         ],
         reward: "Wumpus Hunter",
         also: &[],

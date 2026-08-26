@@ -380,3 +380,89 @@ was the blurb, which promised a discount that does not exist and now says what
 crossing actually pays.
 
 **Suites:** engine **783 green, 41 ignored, 0 warnings**; gui **61 green**.
+
+---
+
+## P5 - everything the events point at
+
+Dungeons, town gates, the seventeen door blurbs, class blurbs and rumour hints.
+**`DIGIT_PROPS` 7 -> 0, and the budget came out of the file.**
+
+### Dungeons
+
+| Dungeon | What changed |
+|---|---|
+| `the-crevice` | "somebody who should not have it" -> **a line foreman who cannot possibly have paid for it**. "one old analyst left on the line. He still prays..." -> **Wenlock**, four times through the landings, which is the same man the shrine's hole leads down to. The hamlet has canonical names now: it was **Fenmouth** before the company renamed it. "The old man is 71" -> "Wenlock is seventy-one", which is a better line for being a name |
+| `the-threshold` | "The man behind the cellar door" -> **Corvin**, who is the only one in the Manse who will say the number of steps out loud - which sets up the stair that has counted 402 of them. The verbatim duplicate of THE MANSE's "the sort of thing that stops being strange about four minutes after you notice it" is gone; the original stays where it was written |
+| `the-under-mine` | The boards were stamped **HENPECK** and are stamped **HOLLOW KING**. "which is worth thinking about for a moment and then worth thinking about again" - the tic twice inside one sentence - says what there is to think about. The fourteen diggers are fourteen because **Ossery** said so, and Ossery has never been down there |
+| `the-undertow` | "The old man fished here for 60 years" -> **Fenn**, in the blurb and both landings. The transom said **BUNKO**, which is the book's, and says **PATIENCE** |
+| `den-rivals` | "The exhibit at the Emporium" - the Emporium is the turtle's - is **the exhibit called THE FURY OF A THOUSAND BEARS**. The placard now says A THOUSAND BEARS and does not say to what scale, which is the joke the landing was reaching for |
+| `wumpus-world` | A card nailed at the mouth says **ROOMS 20, HAZARDS SOME, WUMPUS ONE, and somebody has crossed out ONE and written it again**. Signs are this game's motif - LARGE, DAYS SINCE, WORTH IT, ONE (1) HANDFUL - and wumpus-world had none |
+
+### Towns, doors, classes, rumours
+
+- `the-manse` gate: the plate said **EGGBERT**, says **HOLLIS**.
+- `extra-large` gate: the manager is **Mawes**, and nobody who works there will
+  discuss the pedestal, Mawes least of all.
+- Doors: the Foreman is **Ossery** (the same man THE FORK and the Slagworks gate
+  name), the Cellar Door is **Corvin**, the Manager is **Mawes**. The Shop's
+  "The man with the cart" became "**Whoever** has the cart this week", which is
+  the true thing - it is a different man in each of three towns - and the
+  Sample Counter's "the woman behind the counter" the same way. A role that
+  really is a role is allowed to stay one.
+- Rumour hints name **who**, and stay vague about **what**, which is the
+  module doc's design and `the_hint_does_not_give_it_away` still holds:
+  Padgett, Creel, Halloway, Corvin, Sam the Wise, Dorn and Ilder, Nettle.
+- Three class blurbs. **"You carried a dead lord's coat into a bar"** was the
+  only "lord" left in the canonical column - a leftover from Lord Drabley
+  Henpeck - and the trophy the pub actually takes is a **Scrap Ticket** (whose
+  turtle name is, tellingly, "Henpeck's Chit"). Piety knelt in **Sump Bottom**;
+  Unionized did not cross **Nettle's** line. Class blurbs are also in
+  `prose.rs::scenes()` now, which they had never been.
+
+### The turtle keeps EGGBERT and HENPECK
+
+Two more `Retold.prose` entries - `the-manse` and `the-under-mine` - for the
+same reason as P4's two. Nothing already in `told` was touched; four entries
+that had been title-only now carry prose, because their titles name people the
+canonical column no longer does.
+
+### The seven hedges, and the three left off
+
+`HEDGES` gains the prose pass's own tells, each re-probed against the whole
+corpus after the rewrite: `of some kind`, `sitting wrong`, `not from anywhere`,
+`does not say what`, `the whole of his`, `somebody who should not`,
+`worth thinking about`.
+
+Three were deliberately left off, and the reason is written into the file so
+nobody adds them back:
+
+- **`either way`** fires only on THE SEALED BID - *"Sarn reads the reserve out
+  either way"* - which is a statement of fact.
+- **`the worst of it`** fires only on THE THRESHOLD's last landing, where the
+  noun is said: the light is a person and it is pleased to see you. The clause
+  is a judgement, not a withheld thing. Its twenty-rungs-earlier copy is gone.
+- **`stops being strange`** fires only on THE MANSE, which is the sentence the
+  tic was copied *from*. The copy is gone.
+
+### The ratchet the digit budget became
+
+`DIGIT_PROPS` went 18 -> 15 -> 10 -> 7 -> 0, and at zero the budget scaffolding
+came out: `names_something` simply no longer counts a digit, and
+`every_scene_names_something` is one test again. Numbers are welcome in these
+scenes. They are no longer *evidence* of anything.
+
+### And the ratchet that was blind to capitals
+
+`two_voices::leaks()` compares **case-insensitively** now. It compared exact
+case for its whole life, and this game puts proper nouns on signs and brass
+plates in capitals, so four of them walked past it and shipped. The budget of 5
+is untouched by the change - **proved by putting EGGBERT and THRUMBUS back and
+watching it report 7 over a budget of 5**, where before the fix it reported 5
+and passed.
+
+`pedestal.rs::DESTINATIONS` is walked now too. It had never been, and it
+carries each destination's title as a second literal, so THE THRUMBUS RACE was
+written down twice and this lint could see neither copy.
+
+**Suites:** engine **781 green, 40 ignored, 0 warnings**; gui **61 green**.

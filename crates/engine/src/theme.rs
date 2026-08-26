@@ -1317,7 +1317,29 @@ pub static TURTLE_DICK: Theme = Theme {
             prose: &[], entry: &[], landings: &[],
         },
         Retold { id: "the-second-shadow", title: "THE ANTICIPATION", prose: &[], entry: &[], landings: &[] },
-        Retold { id: "the-manse", title: "EGGBERT'S MANSION", prose: &[], entry: &[], landings: &[] },
+        // Prose for the same reason EGGBERT'S GATE has it: the plate is a
+        // proper noun, the canonical column gave itself HOLLIS, and a title
+        // reading EGGBERT'S MANSION over a gate that says something else is
+        // the theme contradicting itself rather than translating.
+        Retold {
+            id: "the-manse",
+            title: "EGGBERT'S MANSION",
+            prose: &[
+                "The gate had no road behind it and now there is a house \
+                 behind it, which is the sort of thing that stops being \
+                 strange about four minutes after you notice it.",
+                "Nobody in the Manse asks who you are. Two of them are eating \
+                 and one of them is reading and all three of them are doing it \
+                 in rooms you can hear but not find, because the doors here do \
+                 not stay where they were put.",
+                "There is a cellar, and the plate on the gate said EGGBERT, \
+                 and nobody inside will answer to it. Everybody in the house \
+                 knows where the cellar is and nobody in the house will take \
+                 you to it.",
+            ],
+            entry: &[],
+            landings: &[],
+        },
         Retold { id: "the-slagworks", title: "THE BURNWARP FOUNDRY", prose: &[], entry: &[], landings: &[] },
         Retold {
             id: "the-threshold",
@@ -1352,7 +1374,17 @@ pub static TURTLE_DICK: Theme = Theme {
         Retold {
             id: "the-under-mine",
             title: "THE DEEP CHOCOLATE MINE",
-            prose: &[],
+            // The boards were stamped HENPECK, which is the book's name for
+            // the man the base game calls the Hollow King. The canonical
+            // stamp is his canonical name now, and this keeps the book's.
+            prose: &[
+                "The mouth of it is boarded from the outside, and the boards \
+                 are stamped HENPECK. He sealed it, and he sealed it from out \
+                 here, and those are two separate things to have found out.",
+                "Somebody sealed this in a hurry and somebody else has been \
+                 keeping the boards in repair for a very long time since, and \
+                 the two of them were not the same person and did not agree.",
+            ],
             entry: &[
                 "The Sprocketmen were told this seam was empty. It was not \
                  empty. It was the single largest thing anybody has ever been \
