@@ -303,10 +303,14 @@ impl Layout {
         let slots = SlotKind::ALL
             .iter()
             .enumerate()
+            // Each board's own height. `SlotView` has carried a `rows` field
+            // since rows became a thing and has been handed the same number
+            // five times ever since; the Depth grows one board, so it stops
+            // being the same number.
             .map(|(i, &kind)| SlotView {
                 kind,
                 origin: (x0 + i as f32 * (gw + SLOT_GAP), SLOT_TOP),
-                rows,
+                rows: run.loadout.slot(kind).rows(),
             })
             .collect();
 
@@ -433,6 +437,18 @@ mod words {
     pub fn retell(prose: &str) -> String {
         current().retell(prose)
     }
+
+    /// What this theme calls the event, town or dungeon with that id.
+    pub fn place(id: &str, canonical: &'static str) -> &'static str {
+        current().place(id, canonical)
+    }
+
+    /// The scene it tells there - an event's paragraphs, or a dungeon's blurb.
+    pub fn scene(id: &str, canonical: &'static [&'static str]) -> &'static [&'static str] {
+        current().scene(id, canonical)
+    }
+
+
 
     /// The same, and then any class named in it swapped for its title in this
     /// theme.
@@ -1582,6 +1598,10 @@ fn pool_index(what: &str) -> Option<usize> {
         "druidic might" => Some(3),
         "communion" => Some(4),
         "zealotry" => Some(5),
+        // The mind lane's pool. It draws nothing until a run has been given
+        // it, which is the whole of "the pool renders nothing while locked":
+        // a chip only appears once there is a number in it.
+        "insight" => Some(6),
         _ => None,
     }
 }
@@ -1652,6 +1672,11 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
         Action::GainEmpowerment(_) | Action::GainShield(_) | Action::GainForking(_) => {
             note("mana", out)
         }
+        // The physical twins want no mana, so they read as what they are:
+        // one sharpens the blow and one turns it aside.
+        Action::GainSpellblade(_) => note("damage", out),
+        Action::GainDread(_) => note("mind", out),
+        Action::GainDeflection(_) => note("armor", out),
         Action::Grow(_) => note("health", out),
         Action::Fuse { into, .. } => note(into.name(), out),
     } }
@@ -1852,6 +1877,8 @@ fn pool_color(which: &str) -> Color {
         "druidic might" => Color::from_rgba(196, 168, 90, 255),
         "communion" => Color::from_rgba(196, 214, 130, 255),
         "zealotry" => Color::from_rgba(238, 158, 96, 255),
+        // Not painted between anything: Insight is nobody's child.
+        "insight" => Color::from_rgba(178, 150, 220, 255),
         _ => Color::from_rgba(170, 190, 220, 255),
     }
 }
@@ -2422,7 +2449,7 @@ struct FoeView {
     hp: i32,
     max: i32,
     armor: i32,
-    pools: [i32; 6],
+    pools: [i32; 7],
     curses: Vec<ActiveCurse>,
     /// Stunned items, as (item index, started, ends).
     stuns: Vec<(usize, u32, u32)>,
@@ -2432,6 +2459,11 @@ struct FoeView {
     watch_pops: Vec<(String, u32)>,
     empower: u32,
     shield: u32,
+    /// The physical twins, which want no mana and so read on their own.
+    whetted: u32,
+    deflect: u32,
+    /// The mind lane's stack.
+    dread: u32,
     fork: u32,
     flash: f64,
     schedule: Vec<Vec<u32>>,
@@ -2459,7 +2491,7 @@ struct Playback {
     player_mana: i32,
     /// What is left of the run's gold, for gear that spends it mid-fight.
     purse: i32,
-    player_pools: [i32; 6],
+    player_pools: [i32; 7],
     /// Curses on the player. The start is kept as well as the end because the
     /// stun meter fills against the whole span, not against a fixed 1.2s -
     /// stun stacks add to the clock, so no two stuns are the same length.
@@ -2474,6 +2506,9 @@ struct Playback {
     done: bool,
     player_empower: u32,
     player_shield: u32,
+    player_whetted: u32,
+    player_deflect: u32,
+    player_dread: u32,
     player_fork: u32,
     /// When each of the player's items fired, indexed the same way as the
     /// combatant's item list. Cooldown bars are drawn straight from these,
@@ -2579,12 +2614,15 @@ impl Playback {
                     hp: body.health,
                     max: body.max_health,
                     armor: 0,
-                    pools: [0; 6],
+                    pools: [0; 7],
                     curses: Vec::new(),
                     stuns: Vec::new(),
                     watch_pops: Vec::new(),
                     empower: 0,
                     shield: 0,
+                    whetted: 0,
+                    deflect: 0,
+                    dread: 0,
                     fork: 0,
                     flash: -10.0,
                     schedule: schedule_for(log, Side::Enemy, i as u8, body.items.len()),
@@ -2607,7 +2645,7 @@ impl Playback {
             player_armor: 0,
             player_mana: 0,
             purse: 0,
-            player_pools: [0; 6],
+            player_pools: [0; 7],
             player_curses: Vec::new(),
             player_stuns: Vec::new(),
             player_watch_pops: Vec::new(),
@@ -2617,6 +2655,9 @@ impl Playback {
             done: false,
             player_empower: 0,
             player_shield: 0,
+            player_whetted: 0,
+            player_deflect: 0,
+            player_dread: 0,
             player_fork: 0,
             player_schedule: schedule_for(log, Side::Player, 0, log.player.items.len()),
             player_profiles: pprof,
@@ -2823,6 +2864,27 @@ impl Playback {
                     self.player_shield = *total;
                 } else {
                     self.foe_mut(who).shield = *total;
+                }
+            }
+            Event::Dreading { side, total, .. } => {
+                if *side == Side::Player {
+                    self.player_dread = *total;
+                } else {
+                    self.foe_mut(who).dread = *total;
+                }
+            }
+            Event::Whetted { side, total, .. } => {
+                if *side == Side::Player {
+                    self.player_whetted = *total;
+                } else {
+                    self.foe_mut(who).whetted = *total;
+                }
+            }
+            Event::Deflecting { side, total, .. } => {
+                if *side == Side::Player {
+                    self.player_deflect = *total;
+                } else {
+                    self.foe_mut(who).deflect = *total;
                 }
             }
             Event::Forking { side, total } => {
@@ -3887,6 +3949,14 @@ fn render_def_tooltip_inner(
         for l in wrap_px(&word.needs.describe(), 420.0, 14.0) {
             lines.push((l, col_dim()));
         }
+        // And which door it is a key to, off the reverse index over EVENTS -
+        // so if the event moves, this moves with it and nobody has to
+        // remember. The hint is the puzzle; this is the address.
+        if let Some(line) = gearmaster_engine::rumour::conditions_line(def.name) {
+            for l in wrap_px(&words::retell_naming(&line), 420.0, 14.0) {
+                lines.push((l, Color::from_rgba(170, 186, 214, 255)));
+            }
+        }
         lines.push((
             words::word("rumour-note", "It never goes on a board. It only has to be carried.")
                 .to_string(),
@@ -4340,6 +4410,22 @@ fn render_enemy_preview(r: Rect, spec: &MonsterSpec, difficulty: Difficulty, run
 
     let mname = words::monster(spec.name);
     ui_text(mname, r.x + 18.0, r.y + 28.0, 20.0, Color::from_rgba(235, 145, 122, 255));
+    // A frame with no board on it, shouted about, in debug builds only.
+    //
+    // A creature standing on the road with nothing on is not a bug you notice
+    // by looking at it - it fights, it just fights like a bare character - so
+    // it gets a label rather than a subtlety. Gone from a release build,
+    // because by then there are none.
+    #[cfg(debug_assertions)]
+    if gearmaster_engine::bestiary::is_unpacked(spec.name) {
+        ui_text(
+            "UNPACKED",
+            r.x + r.w - 18.0 - text_width("UNPACKED", 16.0),
+            r.y + 28.0,
+            16.0,
+            Color::from_rgba(255, 90, 90, 255),
+        );
+    }
     let sub = format!(
         "rung {} of {}   {} hp   {} strength   {} regen/s",
         rung + 1,
@@ -4933,6 +5019,9 @@ fn render_battle(
         Some(pb.player_mana),
         pb.player_empower,
         pb.player_shield,
+        pb.player_whetted,
+        pb.player_deflect,
+        pb.player_dread,
         pb.player_fork,
         &pb.player_curses,
         pb.now_ms,
@@ -5008,6 +5097,9 @@ fn render_battle(
             None,
             foe.empower,
             foe.shield,
+            foe.whetted,
+            foe.deflect,
+            foe.dread,
             foe.fork,
             &foe.curses,
             pb.now_ms,
@@ -5991,9 +6083,42 @@ const GLOSSARY: &[(&str, &str)] = &[
     ),
     (
         "MANA SHIELD",
-        "Each stack cuts 1 off every incoming hit per point of mana you are still \
-         holding - damage of any kind, before armour. Same catch: it scales off \
-         what is left, not what you spent.",
+        "Each stack cuts 1 off every incoming MAGIC hit per point of mana you are \
+         still holding, before armour. Same catch: it scales off what is left, \
+         not what you spent. Iron and mind walk straight past it.",
+    ),
+    (
+        "SPELLBLADE",
+        "The physical twin of empowerment. Each stack adds a flat 0.50x weapon \
+         power on PHYSICAL hits, and wants no mana at all - so it is worth the \
+         same to a board that banks nothing, and never gets better than it \
+         starts.",
+    ),
+    (
+        "DEFLECTION",
+        "The physical twin of the mana shield. Each stack turns a flat 10 off \
+         every incoming PHYSICAL hit, before armour, and asks for nothing. \
+         Different from REFLECT: deflection reduces the blow, reflection pays \
+         it back.",
+    ),
+    (
+        "INSIGHT",
+        "The mind lane's pool, and the only one that has to be earned before it \
+         exists. Holding it does nothing whatsoever on its own - like mana, and \
+         for the same reason: what it is worth depends entirely on the stacks \
+         standing on it.",
+    ),
+    (
+        "DREAD",
+        "Each stack adds half the Insight you are holding to every point of mind \
+         damage you deal. A stack on an empty pool is worth nothing, and so is a \
+         full pool with no stacks.",
+    ),
+    (
+        "THE THREE LANES",
+        "Physical, magic and mind, each with one amplifier and one answer. Magic: \
+         mana empowerment, and the mana shield. Physical: Spellblade, and \
+         Deflection. Mind: Dread, and MIND RESIST. Nothing crosses.",
     ),
     ("COOLDOWN", "Seconds between one item's activations. Every item runs its own."),
     ("CORE", "The component a recipe needs exactly one of: handle, frame, base, material, book or crystal ball. It anchors an item, which is why two items can touch and still count separately."),
@@ -6006,6 +6131,8 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("MOLDS", "Gloves and greaves both need a mold, but the two do not interchange - a gloves mold will not go on a shin. The role under a card's name says which it is."),
     ("LOCKED ITEM", "Shift-click a finished item to lock it. A locked item stops looking for other pieces to join, turns as one piece, and moves in and out of the inventory whole. Shift-click again to release it."),
     ("PINNED CARD", "Right-click a shop card to pin it. A reroll leaves pinned cards where they are, so you can hold something you cannot yet afford."),
+    ("THE ROAD (M)", "The whole run drawn as a map: fifty rungs across the spine, with towns as diamonds and everything else hanging off the rung it stands on. Filled is behind you, ringed is where you are, hollow is ahead."),
+    ("MINI DUNGEON", "A short chain of fights off the side of the road, ending in something you can get nowhere else. It never moves the ladder - coming out puts you back in front of the fight you had not got to. While you are inside one the screen is edged in violet and the boards say which floor you are on."),
     ("SPELL", "A weapon built the arcane way: a book or a crystal ball, ink, and the spell itself. It fills the weapon slot like any other item."),
     ("GROWING", "A few pieces raise your maximum health every time they fire, and you keep it - the health won in one fight is health you start the next one with, for the rest of the run. That is what makes them the dearest things in the shop. A stalemate banks nothing: surviving the clock would otherwise be the most profitable thing you could do."),
     ("STANDING ALONE", "Some gear multiplies every number on its item, but only while that item is alone - nothing else finished sharing its rows, or nothing overlapping it once the five grids are laid on top of one another. The multipliers are large and the conditions are easy to break by accident. That is the trade."),
@@ -6238,9 +6365,224 @@ fn render_share_board(
 /// One screen for all of them. An event is data - `EVENTS` in the engine - so
 /// adding one is adding an entry there, and this draws whatever is in it.
 /// Returns the choice clicked.
+/// The whole road, drawn: a spine of rungs with everything that hangs off it.
+///
+/// Nothing here is authored. Nodes come from `LADDER`, `TOWNS`, `EVENTS` and
+/// `DUNGEONS`, fill comes from the run, and names go through the theme layer -
+/// which is why the map cannot drift from the road it depicts.
+/// A tint down the edge of the screen while you are inside a dungeon.
+///
+/// Three ways of saying the same thing - a cutscene on the way in, this, and
+/// the banner over the boards - because a fight you did not know you had
+/// chosen is the one kind this game should never hand out, and the middle of
+/// a three-floor dungeon is exactly where somebody forgets.
+fn render_dungeon_tint(run: &Run) {
+    if run.dungeon.is_none() {
+        return;
+    }
+    let c = Color::from_rgba(120, 96, 150, 90);
+    let t = 6.0;
+    draw_rectangle(0.0, 0.0, LOGICAL_W, t, c);
+    draw_rectangle(0.0, LOGICAL_H - t, LOGICAL_W, t, c);
+    draw_rectangle(0.0, 0.0, t, LOGICAL_H, c);
+    draw_rectangle(LOGICAL_W - t, 0.0, t, LOGICAL_H, c);
+}
+
+fn render_route(run: &Run, mx: f32, my: f32) {
+    use gearmaster_engine::route::{route, EdgeKind, Fill, NodeKind};
+    let map = route(run);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 246));
+    ui_text(
+        words::word("the-road", "THE ROAD"),
+        40.0,
+        52.0,
+        26.0,
+        col_gold(),
+    );
+    ui_text(
+        words::word(
+            "the-road-hint",
+            "filled is behind you, ringed is where you are, hollow is ahead. M or ESC to go back.",
+        ),
+        40.0,
+        76.0,
+        13.0,
+        col_dim(),
+    );
+
+    // The spine runs left to right across two rows, because fifty rungs down
+    // one column is a scrollbar and this is meant to be read at a glance.
+    let per_row = 26usize;
+    let x0 = 48.0;
+    let step = (LOGICAL_W - 2.0 * x0) / (per_row - 1) as f32;
+    let place = |at: usize| -> Vec2 {
+        let row = at / per_row;
+        let col = at % per_row;
+        Vec2::new(x0 + col as f32 * step, 210.0 + row as f32 * 230.0)
+    };
+
+    // Edges first, so nothing is drawn over a node.
+    for e in &map.edges {
+        let (a, b) = (&map.nodes[e.from], &map.nodes[e.to]);
+        let (pa, pb) = (place(a.at), place(b.at));
+        match e.kind {
+            EdgeKind::Spine if pa.y == pb.y => {
+                draw_line(pa.x, pa.y, pb.x, pb.y, 2.0, Color::from_rgba(70, 70, 96, 255));
+            }
+            // Wrapping to the next row: nothing sensible to draw, and the
+            // numbers say it.
+            EdgeKind::Spine => {}
+            EdgeKind::Branch => {}
+            EdgeKind::MergeAhead => {
+                draw_line(pa.x, pa.y - 26.0, pb.x, pb.y, 1.5, Color::from_rgba(120, 96, 60, 255));
+            }
+        }
+    }
+
+    let mut tip: Option<String> = None;
+    // Off-spine things stack upward from the rung they hang off.
+    let mut stacked: std::collections::HashMap<usize, i32> = Default::default();
+    for n in &map.nodes {
+        let p = place(n.at);
+        let ink = match n.fill {
+            Fill::Cleared => Color::from_rgba(150, 158, 190, 255),
+            Fill::Current => col_gold(),
+            Fill::Ahead => Color::from_rgba(78, 78, 104, 255),
+        };
+        if n.off_spine {
+            let k = stacked.entry(n.at).or_insert(0);
+            *k += 1;
+            let y = p.y - 18.0 - *k as f32 * 15.0;
+            draw_line(p.x, p.y - 8.0, p.x, y + 4.0, 1.0, Color::from_rgba(60, 60, 84, 255));
+            let r = Rect::new(p.x - 4.0, y - 5.0, 9.0, 9.0);
+            match n.kind {
+                NodeKind::Town { .. } => draw_poly(p.x, y, 4, 6.0, 45.0, ink),
+                NodeKind::Dungeon { .. } => draw_rectangle(r.x, r.y, r.w, r.h, ink),
+                _ => draw_circle(p.x, y, 3.5, ink),
+            }
+            if Rect::new(p.x - 8.0, y - 9.0, 17.0, 17.0).contains(Vec2::new(mx, my)) {
+                tip = Some(words::retell(n.label).to_string());
+            }
+            continue;
+        }
+        match n.kind {
+            NodeKind::Town { .. } => draw_poly(p.x, p.y, 4, 8.0, 45.0, ink),
+            NodeKind::PastTheTop => draw_poly(p.x, p.y, 3, 11.0, 0.0, Color::from_rgba(210, 80, 80, 255)),
+            NodeKind::Rung(rank) => {
+                let r = match rank {
+                    gearmaster_engine::combat::Rank::Boss => 9.0,
+                    gearmaster_engine::combat::Rank::Mini => 7.0,
+                    _ => 5.0,
+                };
+                match n.fill {
+                    Fill::Ahead => draw_circle_lines(p.x, p.y, r, 1.5, ink),
+                    Fill::Current => {
+                        draw_circle(p.x, p.y, r, ink);
+                        draw_circle_lines(p.x, p.y, r + 5.0, 2.0, col_gold());
+                    }
+                    Fill::Cleared => draw_circle(p.x, p.y, r, ink),
+                }
+            }
+            _ => draw_circle(p.x, p.y, 4.0, ink),
+        }
+        if Rect::new(p.x - 10.0, p.y - 10.0, 21.0, 21.0).contains(Vec2::new(mx, my)) {
+            tip = Some(format!("{} {}", n.at + 1, words::monster(n.label)));
+        }
+        // Every tenth rung numbered, so the eye can find where it is.
+        if n.at % 10 == 0 || n.at + 1 == gearmaster_engine::combat::LADDER.len() {
+            ui_text(&format!("{}", n.at + 1), p.x - 6.0, p.y + 26.0, 12.0, col_dim());
+        }
+    }
+    if let Some(t) = tip {
+        draw_tooltip(&[(t, WHITE)], mx, my);
+    }
+}
+
+/// The road stack, drawn.
+///
+/// Shown only when there is something to explain: two or more things queued on
+/// the rung, or the player standing inside one. A rung with a single event on
+/// it needs no strip - the event is the screen. The rung's own fight is always
+/// the last row, so the queue visibly ends somewhere rather than trailing off.
+fn render_stack_strip(run: &Run, mx: f32, my: f32) {
+    let stack = run.road_stack();
+    let inside = stack.iter().any(|i| matches!(i, gearmaster_engine::run::Interrupt::Dungeon(..)));
+    if stack.len() < 2 && !inside {
+        return;
+    }
+    let w = 300.0;
+    let row = 22.0;
+    let h = 34.0 + (stack.len() + 1) as f32 * row;
+    let r = Rect::new(18.0, 96.0, w, h);
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(12, 12, 20, 236));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.5, Color::from_rgba(70, 70, 96, 255));
+    ui_text(
+        words::word("on-this-rung", "ON THIS RUNG"),
+        r.x + 12.0,
+        r.y + 22.0,
+        13.0,
+        col_dim(),
+    );
+    let mut y = r.y + 34.0 + 14.0;
+    let mut tip: Option<String> = None;
+    for (i, it) in stack.iter().enumerate() {
+        let cell = Rect::new(r.x, y - 15.0, r.w, row);
+        if cell.contains(Vec2::new(mx, my)) {
+            tip = Some(it.describe());
+        }
+        let (mark, c) = if i == 0 {
+            ("\u{25b8}", col_gold())
+        } else {
+            (" ", Color::from_rgba(150, 154, 180, 255))
+        };
+        ui_text(mark, r.x + 12.0, y, 14.0, c);
+        ui_text(&words::retell(it.name()), r.x + 28.0, y, 14.0, c);
+        y += row;
+    }
+    // The floor. Always drawn, always last.
+    ui_text(" ", r.x + 12.0, y, 14.0, col_dim());
+    ui_text(&words::monster(run.monster().name), r.x + 28.0, y, 14.0, col_dim());
+    if let Some(t) = tip {
+        draw_tooltip(&[(words::retell_naming(&t), WHITE)], mx, my);
+    }
+}
+
+/// The receipt. Returns true when it has been dismissed.
+///
+/// Deliberately plain: no prose, no flavour, one line per thing that changed.
+/// A gamble reveals its *result* here and never its odds - the dispenser's
+/// receipt is where you learn "It wedged. Nothing."
+fn render_receipt(run: &Run, mx: f32, my: f32) -> bool {
+    let Some(lines) = run.last_receipt.as_ref() else { return false };
+    let w = 520.0;
+    let h = 96.0 + lines.len() as f32 * 24.0;
+    let r = Rect::new((LOGICAL_W - w) / 2.0, (LOGICAL_H - h) / 2.0, w, h);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 200));
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
+    ui_text(words::word("receipt", "AND SO"), r.x + 24.0, r.y + 36.0, 20.0, col_gold());
+    let mut y = r.y + 68.0;
+    for l in lines {
+        ui_text(&words::retell_naming(l), r.x + 24.0, y, 15.0, Color::from_rgba(206, 208, 226, 255));
+        y += 24.0;
+    }
+    let b = Rect::new(r.x + r.w - 130.0, r.y + r.h - 44.0, 106.0, 30.0);
+    let hot = b.contains(Vec2::new(mx, my));
+    draw_rectangle_lines(b.x, b.y, b.w, b.h, if hot { 2.5 } else { 1.5 }, col_gold());
+    ui_text(
+        words::word("on-you-go", "ON YOU GO"),
+        b.x + 12.0,
+        b.y + 20.0,
+        14.0,
+        if hot { col_gold() } else { col_dim() },
+    );
+    (hot && is_mouse_button_pressed(MouseButton::Left)) || is_key_pressed(KeyCode::Enter)
+}
+
 fn render_event(
     run: &Run,
     ev: &'static gearmaster_engine::event::LadderEvent,
+    figure: &str,
     mx: f32,
     my: f32,
 ) -> Option<&'static gearmaster_engine::event::Choice> {
@@ -6250,18 +6592,19 @@ fn render_event(
     // nothing between the last line and the buttons whenever an event is
     // brief, and there is no reason for a short scene to look like a long one
     // with something missing.
+    let scene = words::scene(ev.id, ev.prose);
     let lines: usize =
-        ev.prose.iter().map(|p| wrap_px(&words::retell_naming(p), w - 56.0, 15.0).len()).sum();
-    let prose_h = lines as f32 * 20.0 + ev.prose.len() as f32 * 10.0;
+        scene.iter().map(|p| wrap_px(&words::retell_naming(p), w - 56.0, 15.0).len()).sum();
+    let prose_h = lines as f32 * 20.0 + scene.len() as f32 * 10.0;
     let h = (78.0 + prose_h + 24.0 + 120.0 + 30.0).clamp(300.0, LOGICAL_H - 40.0);
     let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, w, h);
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
-    ui_text(&words::retell(ev.title), r.x + 28.0, r.y + 42.0, 24.0, col_gold());
+    ui_text(&words::retell(words::place(ev.id, ev.title)), r.x + 28.0, r.y + 42.0, 24.0, col_gold());
 
     let mut y = r.y + 78.0;
-    for para in ev.prose {
+    for para in scene {
         for l in wrap_px(&words::retell_naming(para), r.w - 56.0, 15.0) {
             ui_text(&l, r.x + 28.0, y, 15.0, Color::from_rgba(198, 200, 218, 255));
             y += 20.0;
@@ -6274,6 +6617,7 @@ fn render_event(
     let cw = (r.w - 56.0 - (n - 1) as f32 * gap) / n as f32;
     let top = r.y + r.h - 150.0;
     let mut chosen = None;
+    let mut locked_tip: Option<String> = None;
     for (i, c) in ev.choices.iter().enumerate() {
         let cell = Rect::new(r.x + 28.0 + i as f32 * (cw + gap), top, cw, 120.0);
         let open = run.choice_open(c);
@@ -6299,6 +6643,13 @@ fn render_event(
                 Color::from_rgba(52, 40, 40, 255)
             },
         );
+        // A shut door is hoverable too, and says the plain thing when it is.
+        // `unmet` is written for the moment after an attempt - "Merrik has not
+        // moved the rope in eleven years" - which is the right register and
+        // the wrong sentence for somebody working out what to build.
+        if !open && cell.contains(Vec2::new(mx, my)) {
+            locked_tip = Some(c.requires.describe());
+        }
         let mut cy = cell.y + 28.0;
         ui_text(
             &words::retell(c.label),
@@ -6314,8 +6665,22 @@ fn render_event(
             ui_text(&l, cell.x + 14.0, cy, 13.0, if open { col_ok() } else { col_bad() });
             cy += 16.0;
         }
+        // A door that asked for a number shows the number. There is one of
+        // these in the game and it is sealed, so the figure is typed into the
+        // cell itself rather than into anything that looks like a form.
+        if let gearmaster_engine::event::Requirement::Figure { .. } = c.requires {
+            cy += 6.0;
+            let said = if figure.is_empty() { "type a figure".to_string() } else { format!("{}g", figure) };
+            ui_text(&said, cell.x + 14.0, cy, 16.0, col_gold());
+        }
         if open && is_mouse_button_pressed(MouseButton::Left) && cell.contains(Vec2::new(mx, my)) {
             chosen = Some(c);
+        }
+    }
+    // Drawn last so it sits over the cells rather than under the next one.
+    if let Some(t) = locked_tip {
+        if !t.is_empty() {
+            draw_tooltip(&[(words::retell_naming(&t), col_gold())], mx, my);
         }
     }
     chosen
@@ -6336,19 +6701,24 @@ fn render_town(
     mx: f32,
     my: f32,
 ) -> Option<Option<gearmaster_engine::town::Action>> {
-    use gearmaster_engine::town::Action;
     let pad = 56.0;
     let h = 620.0;
     let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, LOGICAL_W - 2.0 * pad, h);
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 20, 26, 252));
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
-    ui_text(&words::retell(town.name), r.x + 28.0, r.y + 42.0, 24.0, col_gold());
+    ui_text(
+        &words::retell(words::place(town.id, town.name)),
+        r.x + 28.0,
+        r.y + 42.0,
+        24.0,
+        col_gold(),
+    );
     let sub = words::word("town-one-thing", "ONE OF THEM. NOT TWO.");
     ui_text(&sub, r.x + r.w - 28.0 - text_width(&sub, 13.0), r.y + 42.0, 13.0, col_dim());
 
     let mut y = r.y + 76.0;
-    for para in town.blurb {
+    for para in words::scene(town.id, town.blurb) {
         for l in wrap_px(&words::retell_naming(para), r.w - 56.0, 15.0) {
             ui_text(&l, r.x + 28.0, y, 15.0, Color::from_rgba(198, 200, 218, 255));
             y += 20.0;
@@ -6356,12 +6726,18 @@ fn render_town(
         y += 10.0;
     }
 
+    // The town's own doors, not the idea of a town's doors. Three towns had
+    // the same four for as long as there were only three of them; a hidden
+    // town is hidden because it is somewhere else, and somewhere else has a
+    // crucible or a cellar instead of a chapel.
+    let doors = town.actions;
+    let n = doors.len().max(1);
     let gap = 14.0;
-    let cw = (r.w - 56.0 - 3.0 * gap) / 4.0;
+    let cw = (r.w - 56.0 - (n - 1) as f32 * gap) / n as f32;
     let top = y + 14.0;
     let ch = (r.y + r.h - 108.0) - top;
     let mut picked = None;
-    for (i, a) in Action::ALL.into_iter().enumerate() {
+    for (i, a) in doors.iter().copied().enumerate() {
         let cell = Rect::new(r.x + 28.0 + i as f32 * (cw + gap), top, cw, ch);
         let hot = cell.contains(Vec2::new(mx, my));
         draw_rectangle(
@@ -6451,6 +6827,10 @@ fn town_message(run: &Run, v: &gearmaster_engine::run::TownVisit) -> String {
         Some(Action::Shop) => {
             format!("Five things you will not see again. {} gold in hand.", run.gold)
         }
+        // Every door a hidden town brought. Its receipt already says exactly
+        // what happened, line by line, so the strip says where you were rather
+        // than repeating it in worse words.
+        Some(other) => format!("{}. {} gold in hand.", words::retell(other.name()), run.gold),
         None => String::new(),
     }
 }
@@ -6496,6 +6876,48 @@ fn town_note(run: &Run, a: gearmaster_engine::town::Action) -> String {
             }
         }
         Action::Shop => format!("{} in hand.", run.gold),
+        // A hidden town's doors, and the pedestal. Their blurbs already say
+        // what they do; the note is for the ones whose worth depends on this
+        // particular run.
+        Action::Crucible => match run.counted("crucible-melts") {
+            0 => "Nothing has gone in yet.".to_string(),
+            n => format!("{} melted so far. Somebody is counting.", n),
+        },
+        Action::Tempering => format!("{} in hand, and it wants half a bounty.", run.gold),
+        Action::Foreman => {
+            if run.holds("A Word About the Cellar") {
+                "You already know what he heard.".to_string()
+            } else {
+                "He has been down there.".to_string()
+            }
+        }
+        Action::CellarDoor => {
+            if run.insight_unlocked {
+                "You have been down. It has not stopped.".to_string()
+            } else {
+                "It is not locked.".to_string()
+            }
+        }
+        Action::Gallery => format!("{} loose to sell.", run.inventory().len()),
+        Action::LongTable => format!(
+            "+{} maximum health, for the rest of it.",
+            gearmaster_engine::run::LONG_TABLE_HEALTH
+        ),
+        Action::Pedestal => {
+            let orbs = run
+                .inventory()
+                .into_iter()
+                .filter(|&id| {
+                    gearmaster_engine::pedestal::is_orb_of_travel(run.registry.def(id).name)
+                })
+                .count();
+            match orbs {
+                0 => "It takes a key you have not got.".to_string(),
+                n => format!("{} orb{} in the bag.", n, if n == 1 { "" } else { "s" }),
+            }
+        }
+        Action::MoldLine | Action::Library | Action::Aisle9 | Action::ReturnsDesk
+        | Action::SampleCounter | Action::Manager => String::new(),
     }
 }
 
@@ -7975,12 +8397,15 @@ fn render_battle_side(
     mana: Option<i32>,
     empower: u32,
     shield: u32,
+    whetted: u32,
+    deflect: u32,
+    dread: u32,
     fork: u32,
     curses: &[ActiveCurse],
     // Playback clock, so a curse chip can count itself down.
     now_ms: u32,
-    // Rage, faith and nature, in that order.
-    pools: [i32; 6],
+    // Rage, faith and nature, then the three fusions, then Insight.
+    pools: [i32; 7],
     flash: f64,
     tint: Color,
 ) {
@@ -8017,7 +8442,7 @@ fn render_battle_side(
             // and only draws once there is one to draw - the row already drops
             // an empty pool, so a board that never fuses looks exactly as it
             // did.
-            ["rage", "faith", "nature", "druidic might", "communion", "zealotry"]
+            ["rage", "faith", "nature", "druidic might", "communion", "zealotry", "insight"]
                 .into_iter()
                 .zip(pools.iter().copied())
                 .map(|(n, v)| (n, if v > 0 { Some(v) } else { None })),
@@ -8062,6 +8487,40 @@ fn render_battle_side(
                 false,
             ));
         }
+    }
+    // The physical twins sit outside the mana block, because that is the
+    // whole difference between the two pairs: these are worth the same
+    // whatever the pool is holding, so they are drawn whether or not there is
+    // a mana figure to read them against.
+    if whetted > 0 {
+        let per = whetted as i32 * gearmaster_engine::combat::SPELLBLADE_POWER;
+        chips.push((
+            format!("spellblade x{} (+{}.{:02}x)", whetted, per / 100, per % 100),
+            Color::from_rgba(228, 186, 150, 255),
+            false,
+        ));
+    }
+    if deflect > 0 {
+        chips.push((
+            format!(
+                "deflection x{} (-{})",
+                deflect,
+                deflect as i32 * gearmaster_engine::combat::DEFLECTION_FLAT
+            ),
+            Color::from_rgba(228, 186, 150, 255),
+            false,
+        ));
+    }
+    if dread > 0 {
+        // Read against the Insight standing behind it, the way the mana pair
+        // is read against the mana - a stack on an empty pool is worth saying
+        // so about.
+        let per = dread as i32 * pools[6].max(0) / gearmaster_engine::combat::DREAD_DIVISOR;
+        chips.push((
+            format!("dread x{} (+{} per mind)", dread, per),
+            pool_color("insight"),
+            false,
+        ));
     }
     if fork > 0 {
         chips.push((
@@ -8838,13 +9297,43 @@ fn render_panel(
     let bounty = coins(m.bounty);
     ui_text(&bounty, x + 20.0 + text_width(mname, 17.0) + 14.0, y, 15.0, col_gold());
     y += 18.0;
-    ui_text(
-        &format!("rung {} of {}  ·  {} hp", run.rung + 1, LADDER.len(), m.health),
-        x + 20.0,
-        y,
-        13.0,
-        if opp_hot { Color::from_rgba(190, 190, 210, 255) } else { col_dim() },
-    );
+    // Where you are, and inside a dungeon that is not a rung.
+    //
+    // A dungeon does not move the ladder, so the rung line goes on saying the
+    // same number for three fights in a row - which reads as nothing
+    // happening. Floor pips say the thing that is actually changing, and the
+    // banner above them says which door you went through.
+    if let Some((d, floor)) = run.dungeon {
+        ui_text(
+            &format!("{} - FLOOR {} OF {}", words::retell(d.name), floor + 1, d.floors.len()),
+            x + 20.0,
+            y,
+            13.0,
+            Color::from_rgba(196, 168, 220, 255),
+        );
+        let mut px = x + 20.0;
+        let py = y + 12.0;
+        for i in 0..d.floors.len() {
+            if i < floor {
+                draw_circle(px, py, 4.0, Color::from_rgba(150, 130, 176, 255));
+            } else if i == floor {
+                draw_circle(px, py, 4.5, Color::from_rgba(214, 186, 240, 255));
+                draw_circle_lines(px, py, 8.0, 1.5, Color::from_rgba(214, 186, 240, 255));
+            } else {
+                draw_circle_lines(px, py, 4.0, 1.5, Color::from_rgba(96, 84, 116, 255));
+            }
+            px += 22.0;
+        }
+        y += 12.0;
+    } else {
+        ui_text(
+            &format!("rung {} of {}  ·  {} hp", run.rung + 1, LADDER.len(), m.health),
+            x + 20.0,
+            y,
+            13.0,
+            if opp_hot { Color::from_rgba(190, 190, 210, 255) } else { col_dim() },
+        );
+    }
     y += 16.0;
     // How far off the next named fight is, and which kind. A boss carries
     // fifteen items of gear and a mini-boss ten; walking into one having just
@@ -8994,6 +9483,7 @@ async fn main() {
     // Kept between fights, and settable before one starts.
     let mut playback_speed = DEFAULT_SPEED;
     let mut glossary_open = std::env::var("GEARMASTER_GLOSSARY").is_ok();
+    let mut map_open = false;
     let mut fountain_open = std::env::var("GEARMASTER_FOUNTAIN").is_ok();
     let mut picker_open = std::env::var("GEARMASTER_PICKER").is_ok();
     let mut picker_page: usize = 0;
@@ -9136,6 +9626,10 @@ async fn main() {
         }
         p
     });
+    // What the player has typed at a door that asked for a number. Held here
+    // rather than on the run, because a bid nobody has committed to is not
+    // part of a run - it is somebody deciding.
+    let mut figure = String::new();
     let mut message = if packing.is_some() {
         String::from(
             "Packing MEDIUM - the board itself. F creature, D setting, / search, Cmd-S save.",
@@ -9174,6 +9668,9 @@ async fn main() {
     if std::env::var("GEARMASTER_WIN").is_ok() {
         if let Some(sh) = gearmaster_engine::share::import(gearmaster_engine::share::A_WINNING_RUN) {
             run.loadout.grow(sh.extra_rows);
+            for k in SlotKind::ALL {
+                run.loadout.grow_one(k, sh.slot_rows[k.index()]);
+            }
             for (def, slot, x, y, rot) in &sh.placed {
                 let id = run.registry.alloc(*def);
                 run.owned.push(id);
@@ -9815,10 +10312,36 @@ async fn main() {
             continue;
         }
 
+        // The receipt, before anything else: what the last thing you answered
+        // actually did, in plain numbers, sitting between that resolution and
+        // the next pop of the road stack. Flavour prose stays in the event;
+        // this is the accounting underneath it, and it has to be dismissed.
+        if run.last_receipt.is_some() {
+            if render_receipt(&run, mx, my) {
+                run.take_receipt();
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
+        }
+
         // The town gate, ahead of the events: a town is a rung of its own and
         // the event on the next rung has not been arrived at yet.
         if let Some(t) = run.pending_town() {
-            if let Some(pick) = render_town(&run, t, mx, my) {
+            let pick = render_town(&run, t, mx, my);
+            render_stack_strip(&run, mx, my);
+            if let Some(pick) = pick {
                 message = match pick {
                     None => {
                         let paid = run.skip_town();
@@ -9849,8 +10372,31 @@ async fn main() {
         // An event sits over everything while it is being answered, the same
         // way a fountain does.
         if let Some(ev) = run.pending_event() {
-            if let Some(c) = render_event(&run, ev, mx, my) {
-                let gave = run.take_choice(c);
+            // Digits reach a door that asked for one, and nothing else does.
+            if ev.choices.iter().any(|c| {
+                matches!(c.requires, gearmaster_engine::event::Requirement::Figure { .. })
+            }) {
+                while let Some(ch) = get_char_pressed() {
+                    match ch {
+                        '\u{8}' => {
+                            figure.pop();
+                        }
+                        d if d.is_ascii_digit() && figure.len() < 9 => figure.push(d),
+                        _ => {}
+                    }
+                }
+            }
+            let picked = render_event(&run, ev, &figure, mx, my);
+            render_stack_strip(&run, mx, my);
+            if let Some(c) = picked {
+                let gave = match c.requires {
+                    gearmaster_engine::event::Requirement::Figure { .. } => {
+                        let said = figure.parse::<i32>().unwrap_or(0);
+                        figure.clear();
+                        run.take_choice_with(c, said)
+                    }
+                    _ => run.take_choice(c),
+                };
                 message = match gave {
                     Some(name) => format!(
                         "You hand over the {}. It counts it out twice.",
@@ -10117,6 +10663,37 @@ async fn main() {
         }
         if is_key_pressed(KeyCode::G) {
             glossary_open = true;
+        }
+
+        // The route map, over everything, on its own key. Drawn entirely from
+        // `route::route`, which is a pure function of the tables and the run -
+        // so this can never depict a road the game does not have, and the
+        // headless driver prints the same one in ASCII.
+        if map_open {
+            render_route(&run, mx, my);
+            if is_key_pressed(KeyCode::Escape)
+                || is_key_pressed(KeyCode::M)
+                || is_mouse_button_pressed(MouseButton::Left)
+            {
+                map_open = false;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
+        }
+        if is_key_pressed(KeyCode::M) {
+            map_open = true;
         }
 
         // ----------------------------------------------------- input
@@ -10573,6 +11150,9 @@ async fn main() {
         {
             frame += 1;
         }
+        // Last, so it sits over the boards rather than under them.
+        render_dungeon_tint(&run);
+
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(path) = &shot_path {
             if frame >= shot_after {

@@ -455,6 +455,38 @@ pub enum ClassPower {
     /// Every item takes `pct` of the best multiplier on the board on top of
     /// its own - the wisdom, split into pieces and handed round.
     Splintered(i32),
+    /// Start every fight with `armor` per stack already on.
+    ///
+    /// The second stacking class, and the first one that is unambiguously
+    /// good: Piety stacks into something else and Tired is a debt. This just
+    /// accumulates, because a picket line honoured twice is two picket lines.
+    Unionized { armor: i32 },
+    /// A fight won inside `under_ms` pays `pct` more.
+    ///
+    /// Written to rhyme with the casino's door, which opens on a quick kill
+    /// and is the only other thing in the game that rewards speed as such.
+    Showstopper { pct: i32, under_ms: u32 },
+    /// Named creatures leave `n` more pieces of their gear behind.
+    ///
+    /// A trophy is the only way any of that gear is ever obtainable, and it is
+    /// one piece off a creature carrying fifteen. This is the only thing in
+    /// the game that changes what a corpse is worth.
+    Prospector(usize),
+    /// Your first hit each fight cannot miss and cannot be turned aside.
+    ///
+    /// A rule rather than a number, and the one class that answers the two
+    /// mechanics nothing else can be built against: Ticket to Ride eats every
+    /// second swing and Deflection turns a flat share off every one. The first
+    /// one goes through.
+    FirstBlood,
+    /// Mind damage you deal ignores this percentage of their mind resistance.
+    ///
+    /// The third lane had an amplifier, a pool and an answer, and no way at
+    /// all through the answer - which the other two lanes have had since the
+    /// day typed damage landed. This is that: piercing, for the one lane that
+    /// did not have it, handed out by the one dungeon that is about seeing
+    /// things the way a plane does not.
+    WrongSense(i32),
     /// Start every fight already holding `n` rage. You came in angry.
     Avenged(i32),
 }
@@ -496,6 +528,13 @@ impl ClassPower {
             Bloodscent(n) => Bloodscent(n * 2),
             Confluence(p) => Confluence(p * 2),
             Splintered(p) => Splintered(p * 2),
+            WrongSense(p) => WrongSense((p * 2).min(100)),
+            Prospector(n) => Prospector(n * 2),
+            Unionized { armor } => Unionized { armor: armor * 2 },
+            Showstopper { pct, under_ms } => Showstopper { pct: pct * 2, under_ms },
+            // A switch has no second helping, so the fountain does not offer
+            // it - `doubled` returning None is how that is said.
+            FirstBlood => return None,
             Avenged(n) => Avenged(n * 2),
             // Twice as often, which for these means halving the interval.
             Echo(n) => Echo((n / 2).max(2)),
@@ -553,6 +592,15 @@ impl ClassPower {
             ClassPower::Consecrate(pct) => format!("holding faith: {}% more armour", pct),
             ClassPower::Bloodscent(n) => format!("landing a curse banks {} rage", n),
             ClassPower::Confluence(pct) => format!("spending a pool refunds {}% to each other", pct),
+            ClassPower::WrongSense(pct) => {
+                format!("your mind damage pierces {}% of mind resist", pct)
+            }
+            ClassPower::Prospector(n) => format!("named creatures drop {} more piece(s)", n),
+            ClassPower::Unionized { armor } => format!("start every fight with {} armor", armor),
+            ClassPower::Showstopper { pct, under_ms } => {
+                format!("+{}% bounty on a win under {}s", pct, under_ms / 1000)
+            }
+            ClassPower::FirstBlood => "your first hit each fight always lands".into(),
             ClassPower::Splintered(pct) => {
                 format!("every item shares {}% of the best", pct)
             }
@@ -696,6 +744,37 @@ impl ClassPower {
                  takes {}% of that on top of its own - the wisdom split into pieces and \
                  handed round rather than kept",
                 pct
+            ),
+            ClassPower::WrongSense(pct) => format!(
+                "Mind damage you deal goes through {}% of whatever they have against it. \
+                 Mind damage takes maximum health and none of it ever comes back, and \
+                 mind resistance is the only thing standing in front of that - so this \
+                 is the third lane's piercing, and until now the third lane had none.",
+                pct
+            ),
+            ClassPower::Unionized { armor } => format!(
+                "Every fight starts with {} armour already on, for each stack of Unionized \
+                 you are carrying. Armour resets to zero at the start of every fight and \
+                 soaks damage before health does, so this is the only thing in the game \
+                 that hands you any of it before the first blow.",
+                armor
+            ),
+            ClassPower::Showstopper { pct, under_ms } => format!(
+                "A fight won in under {} seconds pays {}% more. Nothing else in the game \
+                 rewards being quick except the casino's door, and that opens once.",
+                under_ms / 1000,
+                pct
+            ),
+            ClassPower::Prospector(n) => format!(
+                "Every named creature leaves {} more piece(s) of its gear behind. A trophy \
+                 is the only way any of that gear is ever obtainable - it is barred from \
+                 every shelf in the game - and a boss is carrying fifteen items of it.",
+                n
+            ),
+            ClassPower::FirstBlood => String::from(
+                "The 1st hit you land in a fight cannot miss and cannot be turned aside. \
+                 Ticket to Ride eats every 2nd swing and Deflection takes 10 off every one \
+                 per stack; neither of them touches the first. It comes back every fight.",
             ),
             ClassPower::Adaptable(n) => format!(
                 "every time any of your items fires, you bank {} of all four pools at once - \
@@ -910,6 +989,50 @@ pub static CLASSES: &[ClassDef] = &[
         requires: &[],
         power: ClassPower::Recycler { pct: 10 },
     },
+    // Only from the antechamber under the Manse. The class is the marker; the
+    // prize is the pool, which is a thing a `ClassDef` cannot say and a
+    // `Dungeon`'s `also` list can.
+    ClassDef {
+        name: "Threshold-Sighted",
+        blurb: "You came back up seeing with the wrong sense, and it does not stop.",
+        requires: &[],
+        // The class is the marker and the pool is the prize, and a class that
+        // is only a stat bundle is a class that says nothing. So it says the
+        // one thing the antechamber is for: you came back seeing with the
+        // wrong sense, and what you can see is *more* of what you are holding.
+        power: ClassPower::WrongSense(60),
+    },
+    // The two the destinations pay. Neither is on any axis, because neither is
+    // a way of building - one changes what a corpse leaves behind and one
+    // changes what the first swing of a fight is worth, and no fountain has
+    // anything to read.
+    ClassDef {
+        name: "Prospector",
+        blurb: "You have learned what is worth prying off a thing that has stopped moving.",
+        requires: &[],
+        power: ClassPower::Prospector(1),
+    },
+    ClassDef {
+        name: "Wumpus Hunter",
+        blurb: "The first one counts. It counted for the wumpus and now it counts for you.",
+        requires: &[],
+        power: ClassPower::FirstBlood,
+    },
+    // Part D's two. Neither is on an axis: one is a promise you kept and one
+    // is a thing you did in under ten seconds, and no fountain can read
+    // either.
+    ClassDef {
+        name: "Unionized",
+        blurb: "You did not cross. Six demands, and one of them was about armour.",
+        requires: &[],
+        power: ClassPower::Unionized { armor: 20 },
+    },
+    ClassDef {
+        name: "Showstopper",
+        blurb: "They came to see a bout. You gave them an incident.",
+        requires: &[],
+        power: ClassPower::Showstopper { pct: 50, under_ms: 10_000 },
+    },
 ];
 
 /// How well a build matches one class.
@@ -949,7 +1072,8 @@ pub const TOWN_CLASSES: &[&str] = &["Piety", "Ticket to Ride", "Tired", "Recycle
 /// and be done. These two accumulate instead, so they are listed here rather
 /// than discovered by reading the match arms.
 pub fn stacks(name: &str) -> bool {
-    matches!(name, "Piety" | "Tired" | "Recycler")
+    // A picket line honoured twice is two picket lines.
+    matches!(name, "Piety" | "Tired" | "Recycler" | "Unionized")
 }
 
 /// "2nd", "3rd", "4th". Only ever small numbers, so no special cases past the
@@ -1024,21 +1148,38 @@ pub const CLASS_ORDER: &[&str] = &[
     "Ticket to Ride",
     "Tired",
     "Recycler",
+    "Threshold-Sighted",
+    "Prospector",
+    "Wumpus Hunter",
+    "Unionized",
+    "Showstopper",
 ];
 
 pub fn is_earned(name: &str) -> bool {
     if crate::dungeon::is_dungeon_only(name) || TOWN_CLASSES.contains(&name) {
         return true;
     }
-    crate::event::EVENTS.iter().any(|e| {
-        e.choices.iter().any(|c| match c.outcome {
-            crate::event::Outcome::Claim(n) => n == name,
-            // A class that comes bundled with a bargain is no more on offer
-            // at a fountain than one you claim outright.
-            crate::event::Outcome::Stock { class, .. } => class == name,
-            _ => false,
-        })
-    })
+    crate::event::EVENTS
+        .iter()
+        .any(|e| e.choices.iter().any(|c| claims(&c.outcome, name)))
+}
+
+/// Does this outcome hand over that class, at any depth?
+///
+/// `All` is a list of outcomes and a class claimed inside one is claimed just
+/// as hard as a class claimed on its own - the exhibition bills you and then
+/// starts the bout, in that order, in one choice. Written recursively because
+/// `All` is the only nesting there is and flattening it by hand somewhere else
+/// would be the same fact written down twice.
+fn claims(outcome: &crate::event::Outcome, name: &str) -> bool {
+    match *outcome {
+        crate::event::Outcome::Claim(n) => n == name,
+        // A class that comes bundled with a bargain is no more on offer
+        // at a fountain than one you claim outright.
+        crate::event::Outcome::Stock { class, .. } => class == name,
+        crate::event::Outcome::All(each) => each.iter().any(|o| claims(o, name)),
+        _ => false,
+    }
 }
 
 pub fn rank(fp: &Fingerprint) -> Vec<Match> {

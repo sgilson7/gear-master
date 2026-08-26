@@ -35,6 +35,42 @@ read at a glance, and five is what made every creature the same creature.
 Every slot appears in exactly two themes, so no grid goes unrepresented and no
 theme is a superset of another.
 
+*Amended, 2026-08-25 - four more, and the table moves into the engine.*
+
+`the-unwinding.md` H4 adds four themes for the things that stand **beside** the
+road: dungeon floors, the four destinations, and the thing after Francis. §4's
+existing rule already exempts those from the curve and the clusters both, and
+these four are exempt from the rung table for the same reason.
+
+| Theme | Slots | Vocabulary | Reads as |
+|---|---|---|---|
+| **Hollow** | Helmet, Chest | mind damage, `Drain`, Dread, Insight, curse resist | takes your maximum away, and none of it comes back |
+| **Swarm** | Gloves, Greaves | speed, `ReduceCooldown`, reactions, small blows | everywhere at once, and nowhere for long |
+| **Beast** | Weapon, Chest | strength, rage, health, physical damage | no trick at all, and enough of everything else |
+| **Warden** | Chest, Greaves | armour, harden, `GainDeflection`, frost/stun/misfire | out-waits you rather than out-hitting you |
+
+**"Every slot appears in exactly two themes" was a property of six, not a
+rule.** Ten themes cannot have it, and two of them - Swarm and Slower - fill
+the same pair of grids. They are not remotely the same creature, because a
+theme is a pair of grids *and* a vocabulary: one is quick and small, the other
+lands curses and deals almost nothing. Where the six overlap, the vocabulary is
+the whole of the difference, and `every_theme_can_find_something_to_wear_in_
+every_grid_it_fills` is what keeps a vocabulary from being empty in a grid it
+claims.
+
+**Hollow has no weapon and does not need one.** That is the difference between
+it and the Wall, which had to be given one: mind damage is the helmet's, so a
+Hollow can already reach you through a grid it fills. What it cannot do is
+appear in a damage share - mind damage removes maximum health and never touches
+`Event::Hit` - so anything measuring whether a Hollow can hurt you has to read
+the mind table.
+
+**The table lives in `crates/engine/src/bestiary.rs` now.** It was a test-local
+enum in `tests/pack_francis.rs` for as long as the only thing that needed it was
+the search that authors boards. A `MonsterFrame` carries a theme and a frame is
+engine data - a creature that exists before its board does - so the table came
+home, and the packer and the interface read it from there.
+
 **Wall is where reflection lives.** It is the only theme where paying back
 absorbed damage earns its keep, and confining it there is what lets reflection
 spread across the chest catalogue without arming every creature on the ladder —
@@ -215,3 +251,37 @@ and an item is two to four pieces, so it overshoots by up to one item. That is
 tolerable - a board is built of items, not pieces, and the alternative is
 refusing the last item and landing short - but the curve should be read as
 "about `3 + rung`" rather than exactly.
+
+---
+
+## 7. Four more themes, and the one creature packed by hand (2026-08-26)
+
+The table in §1 was six themes and the note under it said every slot appears in
+exactly two. That was a *property of six*, not a rule, and the Unwinding adds
+four more where the mission needs a character the six do not have.
+
+| Theme | Character | Slots it leans on |
+|---|---|---|
+| **Hollow** | mind pressure and drain; nothing hits hard and everything takes something | Helmet, Gloves |
+| **Swarm** | many small hits, aim moving along; annoying before deadly | Greaves, Gloves |
+| **Beast** | fury banked and spent; armour that digs in | Chest, Weapon |
+| **Warden** | it does not move and it does not stop | Chest, Greaves |
+
+`MonsterTheme` lives in the engine now rather than in `tests/pack_francis.rs` -
+the packer and the GUI read the same table, because a theme table that exists
+twice is a theme table that disagrees with itself.
+
+**Frames.** A `MonsterFrame` is a creature with a name, a band, a theme and a
+note, and no board at all. Fifteen of them, and the frame lint is a ratchet
+holding at fifteen until Phase 4 packs them: budget today, `#[ignore]`d target
+at zero. `ALTERNATES` and the empty `CREVICE` were the precedent - creatures
+without boards already existed here.
+
+**THE UNWOUND is the exception to §5.** Everything else on the road is packed
+by the tool against the density curve. Rung 51 is off the end of that curve -
+`2.8 + 0.4 x 51` is 23.2s and the curve stops at fifty - and it is packed **by
+hand**: Wall and Drainer vocabulary, dense past the curve, high reflect, heavy
+mind damage fed by its own Dread, Drain on every glove, curse resists near the
+cap. The target is **16-29 seconds at Medium**, which is the band with its top
+edge clipped: sudden death owns everything past 30s, and a boss decided by the
+clock is not a boss decided by the board.

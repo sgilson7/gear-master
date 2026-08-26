@@ -112,6 +112,101 @@ pub struct TownVisit {
     pub stocked: usize,
 }
 
+impl TownVisit {
+    /// The receipt: what one visit actually did, one line each.
+    ///
+    /// The struct already carries every number; this is those numbers said in
+    /// the same voice as an event's receipt, so the panel does not need to know
+    /// which sort of thing it is drawing.
+    pub fn receipt(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        if let (Some(at), Some(did)) = (self.at, self.did) {
+            out.push(format!("{}: {}", at, did.name()));
+        }
+        if self.paid != 0 {
+            out.push(format!("+{}g", self.paid));
+        }
+        if let Some(became) = self.became {
+            out.push(format!("Five became one: {}", became));
+        } else if let Some(c) = self.gained_class {
+            out.push(if self.stacks > 1 {
+                format!("Class: {} x{}", c, self.stacks)
+            } else {
+                format!("Class: {}", c)
+            });
+        }
+        if self.stocked > 0 {
+            out.push(format!("The shelves are {} things you will not see again", self.stocked));
+        }
+        out
+    }
+}
+
+/// What Aisle 9 has out.
+///
+/// The only place on any plane that reliably stocks an Orb of Travel, and the
+/// two relics that are shelved with the orbs because nobody working here could
+/// think of a better aisle for them.
+pub const AISLE_NINE: &[&str] =
+    &["Wayfarer's Orb", "Pilgrim's Orb", "Ferry Orb", "Stray Orb", "The Odometer", "The Ledger"];
+
+/// What the Slagworks' mold line lays out. Ground, and things that go under
+/// gear - and the rod, always, because that is what the line is known for.
+pub const MOLD_LINE: &[&str] =
+    &["the Lightning Rod", "Keystone Base", "Woven Underlayer", "Bulwark Plating", "Scaled Plating"];
+
+/// What the tempering adds to a piece.
+pub const TEMPERING_GAIN: i32 = 10;
+/// What the library's book adds, and what it costs is a curse for good.
+pub const LIBRARY_GAIN: i32 = 25;
+/// What the long table is worth, for the rest of the run.
+pub const LONG_TABLE_HEALTH: i32 = 100;
+
+/// How much slower everything runs while a contract is being honoured.
+///
+/// Fifty, which is what a stack of frost does. The point of the arrangement is
+/// that the handicap is real and that you chose it - a difficulty setting
+/// priced by the player, local and transactional, rather than a dial in a
+/// menu.
+pub const CONTRACT_SLOWER: i64 = 50;
+
+/// How much slower an item carrying a permanently cursed piece runs.
+///
+/// Half a contract, and for the right reason: a contract is every slot for
+/// three rungs and you asked for it, while this is one item for the rest of
+/// the run and somebody did it to you. A price you can see is a price you can
+/// decide about - the Manse library charges it, the thirsty wizard charges it
+/// for being refused, and the mole with the tools is the only thing that lifts
+/// it.
+pub const CURSED_SLOWER: i64 = 25;
+
+/// How much better a piece comes back from consignment.
+pub const CONSIGNMENT_GAIN: i32 = 30;
+/// How many shops it is away for.
+pub const CONSIGNMENT_SHOPS: u32 = 3;
+
+/// How far a melt may move a piece's rating, either way.
+///
+/// Fifteen: enough that the crucible is a gamble worth taking with something
+/// mediocre and not enough that it is a way of turning a common into a
+/// legendary. The bands are ninety, a hundred and thirty and a hundred and
+/// seventy apart, so one melt never crosses two of them.
+pub const MELT_SPREAD: i32 = 15;
+
+/// The relic that opens the road past Francis.
+///
+/// Named here rather than in the chain because the plumbing has to know it
+/// before the content does: share codes, scoring and the road all have to
+/// accept a rung fifty-one before there is anything standing on one.
+pub const MAINSPRING: &str = "An Unwound Mainspring";
+
+/// How many rungs an underwritten loss stays good for.
+///
+/// Five, and the number is the whole of the arrangement: long enough to be
+/// worth taking, short enough that it is a decision about the next stretch of
+/// road rather than a life in your pocket for the rest of the run.
+pub const UNDERWRITTEN_FOR: usize = 5;
+
 /// Prayers it takes before the chapel gives you the other thing.
 pub const PIETY_FOR_A_TICKET: usize = 5;
 
@@ -145,6 +240,12 @@ pub struct Settlement {
     /// Rows added to every grid by that win. Nothing else in the game hands
     /// out room.
     pub rows_won: u8,
+    /// The fight an underwritten loss was spent on, if one was.
+    pub underwrote: Option<&'static str>,
+    /// Whether a passenger was riding, and is not any more.
+    pub lost_passenger: bool,
+    /// Gear pried off a named creature by a Prospector, beyond its trophy.
+    pub pried_off: Vec<&'static str>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -186,6 +287,124 @@ impl From<PlaceError> for RuleError {
     }
 }
 
+/// Everything that stands on a rung besides the fight.
+///
+/// The road has always had this order and it has always been a discipline
+/// rather than a thing: `road_is_blocked` knew it, the interface knew it
+/// again in its own words, and the two agreed because somebody kept them
+/// agreeing. This is that order written down once.
+///
+/// **Derived, not stored.** The spec asks for `road_stack: Vec<Interrupt>` on
+/// `Run`, pushed on arrival and popped on resolution. It is a function here
+/// instead, and the reason is the same one that cost this project two
+/// milestones already: a schedule kept in a second place is a schedule that
+/// will one day disagree with the first. Every entry below is already decided
+/// by run state - `dungeon`, `pending_town`, `at_fountain`, `answered`,
+/// `brawl` - so a stored copy would have two sources of truth for one
+/// question. Derived, "resolving an interrupt may push more" needs no code at
+/// all: an event whose outcome sets `dungeon` simply appears with the dungeon
+/// on top of it next time the stack is read, and a dungeon exit resumes the
+/// pop where it left off because the rest of the stack never went anywhere.
+#[derive(Copy, Clone, Debug)]
+pub enum Interrupt {
+    /// A mini dungeon being walked, and which floor. Innermost: you are
+    /// standing inside it, so everything else is underneath you.
+    Dungeon(&'static crate::dungeon::Dungeon, usize),
+    /// A town's gate, standing between the rung just cleared and the next.
+    TownGate(&'static crate::town::Town),
+    /// A fountain owed at this rung. Carries the rung it stands on.
+    Fountain(usize),
+    /// An event standing in front of the fight.
+    Event(&'static crate::event::LadderEvent),
+    /// A fight an event arranged, waiting to be walked into.
+    Brawl(&'static crate::event::Brawl),
+}
+
+impl Interrupt {
+    /// What sort of thing this is, as a stable key. Never shown raw - the
+    /// theme layer looks the word up.
+    pub fn kind(self) -> &'static str {
+        match self {
+            Interrupt::Dungeon(..) => "dungeon",
+            Interrupt::TownGate(_) => "town",
+            Interrupt::Fountain(_) => "fountain",
+            Interrupt::Event(_) => "event",
+            Interrupt::Brawl(_) => "brawl",
+        }
+    }
+
+    /// The id of the thing, where it has one. Empty for the two that are not
+    /// table entries.
+    pub fn id(self) -> &'static str {
+        match self {
+            Interrupt::Dungeon(d, _) => d.id,
+            Interrupt::TownGate(t) => t.id,
+            Interrupt::Event(e) => e.id,
+            Interrupt::Fountain(_) | Interrupt::Brawl(_) => "",
+        }
+    }
+
+    /// What it calls itself. Canonical: the theme layer swaps the noun.
+    pub fn name(self) -> &'static str {
+        match self {
+            Interrupt::Dungeon(d, _) => d.name,
+            Interrupt::TownGate(t) => t.name,
+            Interrupt::Fountain(_) => "A FOUNTAIN",
+            Interrupt::Event(e) => e.title,
+            Interrupt::Brawl(_) => "A FIGHT ARRANGED",
+        }
+    }
+
+    /// One line for a hover: what it is, and where you are in it.
+    pub fn describe(self) -> String {
+        match self {
+            Interrupt::Dungeon(d, floor) => {
+                format!("{} - floor {} of {}", d.name, floor + 1, d.floors.len())
+            }
+            Interrupt::TownGate(t) => format!("{} - a town, and one thing to do in it", t.name),
+            Interrupt::Fountain(_) => {
+                "A fountain, which reads your build and names you something".into()
+            }
+            Interrupt::Event(e) => format!("{} - a question, and it will wait", e.title),
+            Interrupt::Brawl(b) => format!("{} - both of them at once", b.with.join(" and ")),
+        }
+    }
+
+    /// Does this stop a replay from walking straight into the next fight?
+    ///
+    /// Everything except a dungeon. A dungeon *is* where the fighting happens
+    /// while you are in one, so treating it as a blockage would stop the
+    /// thing it stands for.
+    pub fn blocks_a_rematch(self) -> bool {
+        !matches!(self, Interrupt::Dungeon(..))
+    }
+
+    /// The word `road_is_blocked` has always answered with.
+    pub fn blocking_name(self) -> &'static str {
+        match self {
+            Interrupt::TownGate(_) => "a town",
+            Interrupt::Fountain(_) => "a fountain",
+            _ => "something on the road",
+        }
+    }
+}
+
+impl PartialEq for Interrupt {
+    /// By what it is and which one, so two reads of the same road compare
+    /// equal without `LadderEvent` having to carry `PartialEq` down through
+    /// its prose.
+    fn eq(&self, other: &Self) -> bool {
+        let floor = |i: &Interrupt| match i {
+            Interrupt::Dungeon(_, f) => *f,
+            Interrupt::Fountain(r) => *r,
+            _ => 0,
+        };
+        self.kind() == other.kind() && self.id() == other.id() && floor(self) == floor(other)
+    }
+}
+
+impl Eq for Interrupt {}
+
 pub struct Run {
     pub registry: PieceRegistry,
     /// Every component the player owns, in a stable display order. What is in
@@ -218,6 +437,24 @@ pub struct Run {
     /// beside the rung rather than on it: whichever way it goes, the rung's
     /// own creature is still there afterwards.
     pub brawl: Option<&'static crate::event::Brawl>,
+    /// What the last thing you answered actually did, one line each.
+    ///
+    /// The receipt. Flavour prose stays in the event; this is the plain
+    /// accounting underneath it, and it sits between a resolution and the next
+    /// pop of the road stack. Engine-side, so the CLI prints the same lines the
+    /// interface draws and the theme layer swaps the nouns in both.
+    ///
+    /// A seeded gamble reveals its **result** here and never its odds: the
+    /// dispenser's receipt is where you learn "It wedged. Nothing."
+    pub last_receipt: Option<Vec<String>>,
+    /// Whether the mind lane's pool has been earned.
+    ///
+    /// False until THE THRESHOLD is cleared. While it is false nothing that
+    /// banks Insight or stacks Dread reaches a shelf and the pool draws
+    /// nothing, because there is never anything in it to draw. There is
+    /// exactly one way to set it - see `unlock_insight` - and it is never
+    /// unset: a run does not un-learn a thing.
+    pub insight_unlocked: bool,
     /// Extra rows this run has been given, on top of the eight every grid
     /// starts with. Only ever goes up: what grants them cannot be sold, so
     /// there is no way to end up with pieces sitting in a row that is about
@@ -237,7 +474,11 @@ pub struct Run {
     /// Nothing else in the game asks a question about a whole playthrough - a
     /// fight is the unit everything is measured in - so this is counted at
     /// settle time and kept nowhere else. Indexed by `Resource::index`.
-    pub banked_all_run: [i32; 4],
+    /// Eight, not four: `Resource::index` runs to seven and a fused pool or
+    /// an Insight gain arriving through `GainResource` would have indexed off
+    /// the end. Nothing does today - a fusion has an event of its own - which
+    /// is exactly why it was worth widening before something did.
+    pub banked_all_run: [i32; 8],
     /// What the last fight paid. The factory doubles it, and nothing else has
     /// ever needed to look back at a bounty after banking it.
     pub last_bounty: i32,
@@ -248,6 +489,102 @@ pub struct Run {
     /// Towns already answered, by id, so a Grinder knocked back through one
     /// does not get a second visit.
     pub towns_seen: Vec<&'static str>,
+    /// What this run has done, by name.
+    ///
+    /// The chain's stations set these and later stations read them. Strings
+    /// rather than a field each, because that is what buys the reverse index -
+    /// `event::set_by` finds which door sets a flag, so "a station nothing
+    /// reaches" is one assertion rather than a thing somebody has to notice.
+    pub flags: Vec<&'static str>,
+    /// Things counted without anybody being told they were being counted.
+    ///
+    /// The watcher pattern. Arming leaves a receipt line that explains
+    /// nothing; the door that reads the tally is thirty rungs later.
+    pub counters: Vec<(&'static str, u32)>,
+    /// The last figure the player named, for a door that asked for one.
+    pub last_figure: Option<i32>,
+    /// Rows granted but not yet spent. "One board of your choice" is a
+    /// decision, and an outcome cannot make it for you.
+    pub owed_rows: u8,
+    /// Claims on a named creature's whole board, unspent.
+    pub claim_tickets: u32,
+    /// Arrangements with the shop that outlive a restock.
+    pub standing_orders: Vec<crate::event::Standing>,
+    /// The last rung an underwritten loss will still be forgiven on.
+    ///
+    /// Set five rungs ahead when it is taken, and taken away by the loss it
+    /// eats. One fight, once - the receipt says which fight it was.
+    pub underwritten_until: Option<usize>,
+    /// Whether a boss's packed board can be read before it is fought.
+    ///
+    /// Grants no stats whatsoever. The board view is the entire reward, which
+    /// is a thing worth pinning rather than trusting.
+    pub scouting: bool,
+    /// Quests handed to pieces that were not born with one.
+    granted_quests: std::collections::HashMap<PieceId, &'static crate::piece::Quest>,
+    /// Pieces carrying a curse for the rest of the run, whatever they were.
+    ///
+    /// The library's price. A curse in this game lasts a few seconds and lives
+    /// on a fighter; this is the only one that lives on a *piece* and outlasts
+    /// the fight, which is why it is a list on the run rather than anything
+    /// combat knows about.
+    pub cursed_for_good: Vec<PieceId>,
+    /// Doors declined rather than answered, and the rung they come back on.
+    ///
+    /// The one thing an outcome can do that is not a decision: `Defer` leaves
+    /// the door standing and lets it find you again. Kept apart from
+    /// `answered` because an answered door is finished with and a deferred one
+    /// is not - and because the two lists are read by different questions.
+    pub deferred: Vec<(&'static str, usize)>,
+    /// A fragile thing riding on one of your boards, and until when.
+    ///
+    /// The rent is paid in dead cells: it occupies a cell that could have held
+    /// gear, for five rungs, and it is lost the moment you lose a fight. That
+    /// is the whole of it - a courier's job, priced in floor space rather than
+    /// in gold.
+    pub passenger: Option<(PieceId, usize)>,
+    /// A second town action, bought by crushing something. Cleared by the door
+    /// it pays for.
+    pub second_key_ready: bool,
+    /// Pieces sold on consignment, and how many shops until they come back.
+    pub consigned: Vec<(usize, u32)>,
+    /// A shelf owed once whatever is in front of you is over.
+    ///
+    /// The Fork's other half: shopping before a fight and shopping after one
+    /// are two different decisions, and the only way to offer the second is to
+    /// hold the shelf back.
+    pub shop_owed: Option<&'static [&'static str]>,
+    /// Percentage every shelf costs above the list price, for the rest of the
+    /// run. The foundry noticing it was snubbed.
+    pub markup: i32,
+    /// The rung a taken contract runs to, if one is running.
+    ///
+    /// Frost on all your gear, accepted deliberately, and the only handicap in
+    /// the game a player asks for. `THE PAYOUT` verifies it was honoured by
+    /// reading this rather than by trusting a flag.
+    pub contract_until: Option<usize>,
+    /// Whether a contract ever ran to its end.
+    pub contract_honoured: bool,
+    /// What the courier pays for a passenger delivered.
+    pub passenger_pays: &'static str,
+    /// Destinations a pedestal has already sent this run to, by id.
+    ///
+    /// One set for both pedestals. Each destination fires once a run.
+    pub destinations_visited: Vec<&'static str>,
+    /// An event the road must ask next, wherever the road happens to be.
+    ///
+    /// Every other event is found by rung. This is for the ones pushed onto
+    /// the stack from somewhere that is not a rung at all - a pedestal in a
+    /// shop the size of a weather system, or a fork that puts two futures in
+    /// front of you and asks only for the order.
+    pub forced_event: Option<&'static str>,
+    /// Hidden towns something has put on the road, by id.
+    ///
+    /// A pinned town is on the map before the run starts; a hidden one is not
+    /// on it until an event says so, and after that it is a town like any
+    /// other. Kept as a list rather than a flag per town because which towns
+    /// exist is a table and this is a fact about a run.
+    pub towns_revealed: Vec<&'static str>,
     /// The dungeon being walked and which floor, if any. A dungeon stands off
     /// the road: it never moves the rung, so coming out puts you back in front
     /// of the fight you had not got to.
@@ -348,10 +685,34 @@ impl Run {
             best_fight_ms: None,
             worst_fight_ms: None,
             took: Vec::new(),
-            banked_all_run: [0; 4],
+            banked_all_run: [0; 8],
+            insight_unlocked: false,
+            last_receipt: None,
             last_bounty: 0,
             town: None,
             towns_seen: Vec::new(),
+            towns_revealed: Vec::new(),
+            destinations_visited: Vec::new(),
+            cursed_for_good: Vec::new(),
+            deferred: Vec::new(),
+            passenger: None,
+            second_key_ready: false,
+            consigned: Vec::new(),
+            shop_owed: None,
+            markup: 0,
+            contract_until: None,
+            contract_honoured: false,
+            passenger_pays: "",
+            forced_event: None,
+            flags: Vec::new(),
+            counters: Vec::new(),
+            last_figure: None,
+            owed_rows: 0,
+            claim_tickets: 0,
+            standing_orders: Vec::new(),
+            underwritten_until: None,
+            scouting: false,
+            granted_quests: std::collections::HashMap::new(),
             dungeon: None,
             pending_landing: None,
             extra_lives: 0,
@@ -407,7 +768,16 @@ impl Run {
         let mut run = Self::new();
         run.owned.clear();
         run.registry = PieceRegistry::new();
-        run.owned = all_def_indices().into_iter().map(|d| run.registry.alloc(d)).collect();
+        run.owned = all_def_indices()
+            .into_iter()
+            // Every piece of *gear*. A rumour is a key rather than a
+            // component, and a fixture holding all of them opens every rumour
+            // door in the game at once - so a test about the VIP area found
+            // itself answering a locked gate instead, because a rumour door
+            // goes first and the chain's windows are wide.
+            .filter(|&d| !crate::rumour::is_rumour(CATALOG[d].name))
+            .map(|d| run.registry.alloc(d))
+            .collect();
         run
     }
 
@@ -419,6 +789,12 @@ impl Run {
     /// made the shop a formality rather than a decision. It resets after every
     /// fight, so the pressure is inside a single visit and never carries.
     pub fn reroll_cost(&self) -> i32 {
+        // A standing order makes the *first* one free and leaves the rest
+        // where they were, so it is a nudge to look again rather than a
+        // licence to roll the shop until it says what you want.
+        if self.rerolls == 0 && self.shop.free_first_reroll {
+            return 0;
+        }
         REROLL_COST << self.rerolls.min(16)
     }
 
@@ -457,20 +833,119 @@ impl Run {
     /// fountain without any of them being drawn. A board good enough to keep
     /// pressing it reached rung ten with no class at all.
     pub fn road_is_blocked(&self) -> Option<&'static str> {
-        if self.town.is_some() {
-            return Some("a town");
+        self.road_stack().into_iter().find(|i| i.blocks_a_rematch()).map(|i| i.blocking_name())
+    }
+
+    /// Everything standing on this rung, in the order it will be answered.
+    ///
+    /// The rung's own fight is not in it - the fight is the floor the stack
+    /// stands on, and it begins when the stack is empty. That is the whole
+    /// doctrine of `the_road.rs` said once in a data structure instead of in
+    /// four places that have to be kept agreeing.
+    ///
+    /// The order is the order the game has always resolved in: the town gate
+    /// first, then the fountain, then the events in table order, then a fight
+    /// an event arranged. A dungeon sits on top of all of it, because being
+    /// inside one is not something waiting for you - it is where you are.
+    ///
+    /// The spec asks for fountain before gate. It is amended: the two collide
+    /// for real (`FOUNTAINS` is 7 and 14, Sump Bottom's gate stands at rung 7)
+    /// and the shipped towns' tests read the gate first. Changing the order to
+    /// match a document would have been changing the game to match a document.
+    pub fn road_stack(&self) -> Vec<Interrupt> {
+        let mut out = Vec::new();
+        if let Some((d, floor)) = self.dungeon {
+            out.push(Interrupt::Dungeon(d, floor));
+        }
+        // `self.town`, not `pending_town`: the phase gate on that one asks
+        // "should this screen be drawn", which is no during a fight. This asks
+        // what is standing on the rung, and a town does not stop standing
+        // there because a replay is up. `road_is_blocked` has always had to be
+        // answerable from the battle screen, and reading the gated question
+        // here made `a_town_gate_blocks_the_road_even_mid_replay` pass on the
+        // fountain that happens to share rung seven with Sump Bottom.
+        if let Some(t) = self.town {
+            out.push(Interrupt::TownGate(t));
         }
         if self.at_fountain() || self.at_doubling_fountain() {
-            return Some("a fountain");
+            out.push(Interrupt::Fountain(self.rung));
         }
-        // The same question `pending_event` asks, without the phase gate.
-        if self.whispered_event().is_some() {
-            return Some("something on the road");
+        // Read without the fountain gate `pending_event` applies, so the strip
+        // can show what is standing underneath the fountain rather than
+        // pretending the rung is otherwise empty.
+        // Every event standing here, not just the one that would be asked
+        // next. The strip's whole job is to say what is underneath, and an
+        // event that is going to be asked the moment this one is answered is
+        // exactly that.
+        for e in self.standing_events() {
+            out.push(Interrupt::Event(e));
         }
-        let standing =
+        if let Some(b) = self.brawl {
+            out.push(Interrupt::Brawl(b));
+        }
+        out
+    }
+
+    /// The event standing on this rung, whatever else is also standing here.
+    ///
+    /// `pending_event` is this plus two gates - the loadout phase, and a
+    /// fountain taking precedence - which are about whether it is *askable*
+    /// now. This is about whether it is *there*.
+    fn standing_event(&self) -> Option<&'static crate::event::LadderEvent> {
+        self.standing_events().into_iter().next()
+    }
+
+    /// Is this door standing off until a later rung?
+    fn deferred_past(&self, id: &str) -> bool {
+        self.deferred.iter().any(|(d, until)| *d == id && self.rung < *until)
+    }
+
+    /// Every event standing on this rung, in the order they will be asked.
+    ///
+    /// Rumour doors first - having gone to the trouble of earning one you
+    /// should get to see it - then whatever `event::at` finds, which is one at
+    /// most because it takes the first match. So this is usually a list of one
+    /// and occasionally a list of two, and the second is the reason it is a
+    /// list at all.
+    fn standing_events(&self) -> Vec<&'static crate::event::LadderEvent> {
+        // Anything pushed here from off the road goes first. It is not waiting
+        // for a rung, so a rung is not what decides when it is asked.
+        let mut out: Vec<&'static crate::event::LadderEvent> = self
+            .forced_event
+            .and_then(|id| crate::event::EVENTS.iter().find(|e| e.id == id))
+            .filter(|e| !self.answered.contains(&e.id))
+            .into_iter()
+            .collect();
+        if let Some(e) = self.whispered_event() {
+            if !out.iter().any(|o| o.id == e.id) {
+                out.push(e);
+            }
+        }
+        // The chain's own doors: standing because of something the run did
+        // rather than because of where it is.
+        for e in crate::event::EVENTS.iter() {
+            let crate::event::Trigger::WhenFlagged { flag, from } = e.trigger else { continue };
+            if !(from..=e.at).contains(&self.rung)
+                || self.answered.contains(&e.id)
+                || self.deferred_past(e.id)
+                || !self.flags.contains(&flag)
+                || e.blocked_by.iter().any(|id| self.answered.contains(id))
+            {
+                continue;
+            }
+            if !out.iter().any(|o| o.id == e.id) {
+                out.push(e);
+            }
+        }
+        if let Some(e) =
             crate::event::at(self.rung, self.best_fight_ms, self.worst_fight_ms, &self.answered)
-                .filter(|e| !self.answered.contains(&e.id));
-        standing.map(|_| "something on the road")
+                .filter(|e| !self.answered.contains(&e.id))
+        {
+            if !out.iter().any(|o| o.id == e.id) {
+                out.push(e);
+            }
+        }
+        out
     }
 
     /// The event standing in front of this rung, if there is one and it has
@@ -481,12 +956,9 @@ impl Run {
         }
         // A rumour door first: it stands on the same rung as whatever else is
         // there, and having gone to the trouble of earning it you should get
-        // to see it.
-        if let Some(e) = self.whispered_event() {
-            return Some(e);
-        }
-        crate::event::at(self.rung, self.best_fight_ms, self.worst_fight_ms, &self.answered)
-            .filter(|e| !self.answered.contains(&e.id))
+        // to see it. `standing_event` is that question; the two gates above
+        // are the difference between "there" and "askable now".
+        self.standing_event()
     }
 
     /// A rumour door standing on this rung: one you are carrying the word
@@ -497,8 +969,11 @@ impl Run {
     /// whole run so far, and the run is the only thing that knows either.
     fn whispered_event(&self) -> Option<&'static crate::event::LadderEvent> {
         crate::event::EVENTS.iter().find(|e| {
-            let crate::event::Trigger::Whispered { rumour } = e.trigger else { return false };
-            e.at == self.rung
+            let crate::event::Trigger::Whispered { rumour, from } = e.trigger else {
+                return false;
+            };
+            (from..=e.at).contains(&self.rung)
+                && !self.deferred_past(e.id)
                 && !self.answered.contains(&e.id)
                 && self.owned.iter().any(|&i| self.registry.def(i).name == rumour)
                 && crate::rumour::by_name(rumour).is_some_and(|r| self.meets(r.needs))
@@ -513,6 +988,7 @@ impl Run {
             Condition::BankedAllRun { what, at_least } => {
                 self.banked_all_run[what.index()] >= at_least
             }
+            Condition::Carried => true,
         }
     }
 
@@ -561,7 +1037,91 @@ impl Run {
                 self.owned.iter().any(|&id| self.registry.def(id).name == name)
             }
             Requirement::LooseItemOfSize { .. } => !self.offerings(c.requires).is_empty(),
+            Requirement::Flag(what) => self.flags.contains(&what),
+            Requirement::Counter { what, at_least } => self.counted(what) >= at_least,
+            Requirement::AssembledOfRarity(want) => self
+                .combat_items()
+                .iter()
+                .any(|i| crate::rating::Rarity::of(i.rating) >= want),
+            Requirement::AlignedItems(n) => self.most_aligned() >= n,
+            // Anybody can say a figure. What happens to the figure is the
+            // door's business, and it happens in `take_choice_with`.
+            Requirement::Figure { .. } => true,
+            Requirement::Purse { times } => self.gold >= self.rung_bounty() * times,
+            Requirement::HoldingRumour => self
+                .inventory()
+                .iter()
+                .any(|&id| crate::rumour::is_rumour(self.registry.def(id).name)),
+            Requirement::Classes(n) => self.classes.len() >= n,
         }
+    }
+
+    /// What the rung in front of you is worth.
+    ///
+    /// The unit every price in this mission is quoted in. A figure written as
+    /// a constant means one thing at rung four and something else entirely at
+    /// rung forty - thirty gold is three fights down there and a rounding
+    /// error up here - and the road is forty-six rungs long.
+    pub fn rung_bounty(&self) -> i32 {
+        LADDER[self.rung.min(LADDER.len() - 1)].bounty
+    }
+
+    /// How many times something silently counted has happened.
+    pub fn counted(&self, what: &str) -> u32 {
+        self.counters.iter().find(|(k, _)| *k == what).map(|(_, v)| *v).unwrap_or(0)
+    }
+
+    /// Count one more of something, silently.
+    pub fn count(&mut self, what: &'static str) {
+        match self.counters.iter_mut().find(|(k, _)| *k == what) {
+            Some(e) => e.1 += 1,
+            None => self.counters.push((what, 1)),
+        }
+    }
+
+    /// The largest group of assembled items sharing one earned qualifier.
+    ///
+    /// The inspector's question, and "alignment" in the sense the naming layer
+    /// already uses it: a qualifier is the adjective an item earns from what
+    /// its pieces *do* - Searing, Warded, Hastening - so items sharing one are
+    /// items built around the same idea. Not `PieceKind::Alignment`, which is
+    /// a crystal ball's colour and belongs to one recipe out of eight.
+    ///
+    /// Read off the live board rather than the tray, which is what makes
+    /// building *for* an event a strategy rather than a thing you happen to
+    /// have in a pocket.
+    pub fn most_aligned(&self) -> usize {
+        let items = self.combat_items();
+        let words: Vec<Vec<&'static str>> = items
+            .iter()
+            .map(|i| crate::naming::qualifiers(&self.registry, &i.pieces))
+            .collect();
+        let mut best = 0usize;
+        for mine in &words {
+            for w in mine {
+                best = best.max(words.iter().filter(|other| other.contains(w)).count());
+            }
+        }
+        best
+    }
+
+    /// Answer a door that asked for a number.
+    ///
+    /// A choice whose requirement is a `Figure` cannot go through
+    /// `take_choice`, because there is nothing there to take it with. The
+    /// figure is remembered on the run so the outcome can read it and the
+    /// receipt can say what it was.
+    pub fn take_choice_with(
+        &mut self,
+        c: &crate::event::Choice,
+        figure: i32,
+    ) -> Option<&'static str> {
+        let crate::event::Requirement::Figure { min, max } = c.requires else { return None };
+        if figure < min || figure > max {
+            return None;
+        }
+        self.last_figure = Some(figure);
+        self.take_choice_unchecked(c)
     }
 
     /// Answer the event in front of you.
@@ -571,69 +1131,579 @@ impl Run {
     /// requirement is not met, so the offer cannot be widened by asking
     /// differently.
     pub fn take_choice(&mut self, c: &crate::event::Choice) -> Option<&'static str> {
-        use crate::event::Outcome as ChoiceOutcome;
+        // A door that wants a figure is answered with one. Refused here rather
+        // than resolved with a default, because a default bid is a bid nobody
+        // made.
+        if matches!(c.requires, crate::event::Requirement::Figure { .. }) {
+            return None;
+        }
+        self.take_choice_unchecked(c)
+    }
+
+    fn take_choice_unchecked(&mut self, c: &crate::event::Choice) -> Option<&'static str> {
         let Some(ev) = self.pending_event() else { return None };
+        // The choice has to belong to the door that is actually standing here.
+        //
+        // It did not have to before, because one door stood on a rung and the
+        // interface only ever offered that door's choices. The chain's windows
+        // are wide enough that two can be open at once, and answering one with
+        // the other's choice marked the wrong event answered.
+        //
+        // By value rather than by address. `EVENTS` is a static holding
+        // promoted arrays, and a caller in another crate can hold a reference
+        // to a *copy* of the same choice - the address test passes inside the
+        // engine, passes in the interface, and fails in a test binary, which
+        // is the worst of the three places to find out. What "belongs to this
+        // door" means is that the door has this choice on it, and that is what
+        // this asks.
+        if !ev.choices.iter().any(|k| k == c) {
+            return None;
+        }
         if !self.choice_open(c) {
             return None;
         }
         self.answered.push(ev.id);
+        if self.forced_event == Some(ev.id) {
+            self.forced_event = None;
+        }
         self.took.push(c.label);
+        // A price is paid when the choice is *taken*, which is what makes it a
+        // price rather than a test of wealth - and here rather than inside
+        // `apply_outcome`, because two outcomes recurse into it and a price
+        // charged once per nested outcome is a price charged twice.
+        let cost = match c.requires {
+            crate::event::Requirement::Purse { times } => self.rung_bounty() * times,
+            _ => 0,
+        };
+        self.gold -= cost;
+        let (gave, mut receipt) = self.apply_outcome(&c.outcome, c.requires);
+        if cost > 0 {
+            receipt.insert(0, format!("-{}g", cost));
+        }
+        self.last_receipt = Some(receipt);
+        gave
+    }
+
+    /// Do what an outcome says, and say what it did.
+    ///
+    /// Split out of `take_choice` because an outcome is not only an event's.
+    /// A town door hands one over too, and the two would otherwise be the same
+    /// twelve arms written twice - which is the shape of every "and then
+    /// somebody forgot to update the other one" bug in this file's history.
+    ///
+    /// `req` is the choice's requirement, and it is here for exactly one arm:
+    /// `BuyOff` takes the component the requirement named. A door with no
+    /// requirement passes `Requirement::None` and nothing is taken.
+    ///
+    /// Returns what was handed over, if anything, and the receipt.
+    pub fn apply_outcome(
+        &mut self,
+        outcome: &crate::event::Outcome,
+        req: crate::event::Requirement,
+    ) -> (Option<&'static str>, Vec<String>) {
+        use crate::event::Outcome as ChoiceOutcome;
+        // The receipt starts as what the outcome *is* and gains what it *did*
+        // as the arms below work out their numbers. A bounty depends on the
+        // rung and a life depends on the mode, and neither is knowable from a
+        // table.
+        let mut receipt = outcome.describe();
         let mut gave = None;
-        match c.outcome {
+        match *outcome {
             ChoiceOutcome::FightAsWritten => {}
             ChoiceOutcome::FightInstead(name) => {
                 self.substitute = crate::combat::alternate(name);
             }
-            ChoiceOutcome::Spare => self.grant_life(),
+            ChoiceOutcome::Spare => {
+                self.grant_life();
+                if let Some(left) = self.lives_left() {
+                    receipt.push(format!("Lives left: {}", left));
+                }
+            }
             ChoiceOutcome::Step(b) => {
                 self.brawl = Some(b);
             }
             ChoiceOutcome::Stock { shelves, class } => {
                 self.shop.stock_exactly(shelves);
-                if let Some(k) = crate::class::CLASSES.iter().find(|k| k.name == class) {
-                    if !self.classes.iter().any(|held| held.name == k.name) {
-                        self.classes.push(k);
-                        self.refresh_class_effects();
-                    }
-                }
+                self.claim_class(class);
             }
             ChoiceOutcome::Give(name) => {
                 if let Some(d) = crate::piece::CATALOG.iter().position(|d| d.name == name) {
                     let id = self.registry.alloc(d);
                     self.owned.push(id);
+                    receipt.push("It arrives loose, and takes up room".into());
+                } else {
+                    receipt.clear();
+                    receipt.push(format!("Nothing: {} is not a component", name));
                 }
             }
             ChoiceOutcome::Claim(name) => {
-                if let Some(c) = crate::class::CLASSES.iter().find(|c| c.name == name) {
-                    if !self.classes.iter().any(|k| k.name == c.name) {
-                        self.classes.push(c);
-                        self.refresh_class_effects();
+                self.claim_class(name);
+            }
+            ChoiceOutcome::Enter(id) => self.enter_dungeon(id),
+            ChoiceOutcome::Flag(what) => {
+                if !self.flags.contains(&what) {
+                    self.flags.push(what);
+                }
+            }
+            ChoiceOutcome::Count(what) => self.count(what),
+            ChoiceOutcome::RevealTown(id) => {
+                if !self.reveal_town(id) {
+                    receipt.clear();
+                    receipt.push("Nothing: there is no such place".into());
+                }
+            }
+            ChoiceOutcome::OpenShop { shelves } => self.shop.stock_exactly(shelves),
+            ChoiceOutcome::StartDungeon(id) => self.enter_dungeon(id),
+            ChoiceOutcome::GrantRow => self.owed_rows += 1,
+            ChoiceOutcome::GrantQuest(q) => match self.inventory().first().copied() {
+                Some(id) => {
+                    self.grant_quest(id, q);
+                    receipt.push(format!("Set on the table: {}", self.registry.def(id).name));
+                }
+                None => {
+                    receipt.clear();
+                    receipt.push("Nothing to put on the table".into());
+                }
+            },
+            ChoiceOutcome::ClaimTicket => self.claim_tickets += 1,
+            ChoiceOutcome::StandingOrder(o) => {
+                if !self.standing_orders.contains(&o) {
+                    self.standing_orders.push(o);
+                }
+                match o {
+                    crate::event::Standing::GuaranteedKind(k) => {
+                        if !self.shop.guaranteed.contains(&k) {
+                            self.shop.guaranteed.push(k);
+                        }
+                        let need = self.needs_a_weapon();
+                        self.restock(need);
+                    }
+                    crate::event::Standing::FreeFirstReroll => {
+                        self.shop.free_first_reroll = true;
+                    }
+                    // Nothing to arm: the shelf does not change, the sell does.
+                    crate::event::Standing::Consignment => {}
+                }
+            }
+            ChoiceOutcome::Underwrite => {
+                self.underwritten_until = Some(self.rung + UNDERWRITTEN_FOR);
+                receipt.push(format!("Good until rung {}", self.rung + UNDERWRITTEN_FOR + 1));
+            }
+            ChoiceOutcome::Scout => self.scouting = true,
+            ChoiceOutcome::UnlockInsight => self.unlock_insight(),
+            ChoiceOutcome::SealedBid { lots } => {
+                // The reserve is the run's own, and it is drawn *here* rather
+                // than held on the event, so two replays of a seed bid against
+                // the same number and a reload cannot re-roll it.
+                let lot = lots[self.rng.below(lots.len().max(1)).min(lots.len() - 1)];
+                let reserve = self.rung_bounty() * (1 + self.rng.below(6) as i32);
+                let bid = self.last_figure.unwrap_or(0);
+                receipt = vec![format!("The reserve was {}g", reserve)];
+                if bid >= reserve {
+                    self.gold -= reserve;
+                    receipt.push(format!("-{}g, and the lot is yours", reserve));
+                    let (_, lines) = self.apply_outcome(&ChoiceOutcome::Give(lot), req);
+                    receipt.extend(lines);
+                } else {
+                    receipt.push("Under. The lot goes to somebody who guessed better".into());
+                }
+            }
+            ChoiceOutcome::ShopAfter { shelves } => self.shop_owed = Some(shelves),
+            ChoiceOutcome::Markup(pct) => self.markup += pct,
+            ChoiceOutcome::Passenger { rungs, pays } => {
+                // The passenger arrives as a component, because the rent is
+                // cells and cells are what components cost. It goes in the
+                // tray like anything else; seating it is the player's job and
+                // `passenger_is_seated` is what checks they did it.
+                match self.give("The Stranger's Parcel") {
+                    Some(id) => {
+                        self.take_passenger(id, rungs);
+                        self.passenger_pays = pays;
+                        receipt.push(format!("Riding: {}", self.registry.def(id).name));
+                    }
+                    None => {
+                        receipt.clear();
+                        receipt.push("Somebody else is already riding on you".into());
                     }
                 }
             }
-            ChoiceOutcome::Enter(id) => {
-                self.dungeon = crate::dungeon::by_id(id).map(|d| (d, 0));
+            ChoiceOutcome::Contract { rungs } => {
+                self.contract_until = Some(self.rung + rungs);
+                receipt.push(format!("It runs out after rung {}", self.rung + rungs + 1));
+            }
+            ChoiceOutcome::Uncurse => match self.cursed_for_good.pop() {
+                Some(id) => receipt = vec![format!("Lifted: {}", self.registry.def(id).name)],
+                None => receipt = vec!["Nothing of yours is cursed".into()],
+            },
+            // The Multicity buyer's three purchases. Each one takes something
+            // away that the run cannot buy back, which is the only reason the
+            // numbers next to them are as large as they are.
+            ChoiceOutcome::SellWord => {
+                let held = self
+                    .owned
+                    .iter()
+                    .copied()
+                    .find(|&id| crate::rumour::is_rumour(self.registry.def(id).name));
+                match held {
+                    // Selling the word *is* shutting the door: a rumour door
+                    // opens on the piece being in hand, so handing the piece
+                    // over is the whole of the mechanism and no second flag is
+                    // needed to remember it.
+                    Some(id) => {
+                        let name = self.registry.def(id).name;
+                        self.loadout.remove_anywhere(id);
+                        self.owned.retain(|&o| o != id);
+                        self.forget_undo();
+                        receipt = vec![format!("Sold: {}", name)];
+                    }
+                    None => receipt = vec!["You are carrying nothing anybody told you".into()],
+                }
+            }
+            ChoiceOutcome::SellTitle => match self.classes.pop() {
+                Some(c) => {
+                    self.refresh_class_effects();
+                    receipt = vec![format!("Sold: {}", c.name)];
+                }
+                None => receipt = vec!["You are nobody in particular".into()],
+            },
+            // The library's curse, laid by a wizard instead. Permanent, on a
+            // piece rather than a fighter, and chosen by the run's own PRNG so
+            // that two replays of a seed chill the same thing.
+            ChoiceOutcome::Chill => {
+                // Something that *acts*, not something that merely sits there.
+                // Frost slows gear, and a loose component has no cooldown to
+                // slow - freezing one would be a receipt line and nothing
+                // else, which is the shape of the bug this arm was written
+                // after.
+                let out: Vec<PieceId> = self
+                    .combat_items()
+                    .iter()
+                    .flat_map(|i| i.pieces.clone())
+                    .filter(|id| !self.cursed_for_good.contains(id))
+                    .collect();
+                match out.len() {
+                    0 => receipt = vec!["Nothing of yours is out where it could freeze".into()],
+                    n => {
+                        let id = out[self.rng.below(n)];
+                        self.cursed_for_good.push(id);
+                        receipt = vec![format!("Chilled: {}", self.registry.def(id).name)];
+                    }
+                }
+            }
+            ChoiceOutcome::All(each) => {
+                receipt.clear();
+                for o in each {
+                    let (g, lines) = self.apply_outcome(o, req);
+                    gave = gave.or(g);
+                    receipt.extend(lines);
+                }
+            }
+            ChoiceOutcome::Pay { times } => {
+                let paid = self.rung_bounty() * times;
+                self.gold += paid;
+                receipt = vec![format!("+{}g", paid)];
+            }
+            ChoiceOutcome::Health(n) => {
+                self.grown_health += n;
+                receipt = vec![if n < 0 {
+                    format!("{} maximum health, and it does not come back", n)
+                } else {
+                    format!("+{} maximum health", n)
+                }];
+            }
+            ChoiceOutcome::Gamble { wins, outof, won, lost } => {
+                // Out of the run's own PRNG, never combat. Two replays of a
+                // seed gamble the same way, which is the whole of E6.1.
+                let roll = self.rng.below(outof.max(1) as usize) as u32;
+                let (_, lines) = self.apply_outcome(if roll < wins { won } else { lost }, req);
+                receipt = lines;
+            }
+            ChoiceOutcome::Defer { rungs } => {
+                // Declining is not answering. The door comes off `answered`
+                // and goes onto the list of things that will find you again,
+                // which is the whole difference between "no" and "not yet".
+                let id = self.answered.pop();
+                if let Some(id) = id {
+                    match self.deferred.iter_mut().find(|(d, _)| *d == id) {
+                        Some(e) => e.1 = self.rung + rungs,
+                        None => self.deferred.push((id, self.rung + rungs)),
+                    }
+                }
             }
             ChoiceOutcome::BuyOff { times } => {
-                if let Some(&id) = self.offerings(c.requires).first() {
+                if let Some(&id) = self.offerings(req).first() {
                     gave = Some(self.registry.def(id).name);
                     self.owned.retain(|&o| o != id);
+                    receipt[0] = format!("Handed over: {}", self.registry.def(id).name);
                 }
-                self.gold += LADDER[self.rung.min(LADDER.len() - 1)].bounty * times;
+                let paid = LADDER[self.rung.min(LADDER.len() - 1)].bounty * times;
+                if receipt.len() > 1 {
+                    receipt[1] = format!("+{}g, and the rung is behind you", paid);
+                }
+                self.gold += paid;
                 // Paid off rather than beaten: the rung is behind you, but it
                 // was never fought, so it is not a win.
                 self.rung += 1;
                 self.best_rung = self.best_rung.max(self.rung);
                 let need = self.needs_a_weapon();
-        self.shop.restock(&mut self.rng, need);
+                self.restock(need);
             }
         }
-        gave
+        (gave, receipt)
+    }
+
+    /// Take a class handed over rather than poured, if it is not already held.
+    fn claim_class(&mut self, name: &str) {
+        let Some(k) = crate::class::CLASSES.iter().find(|k| k.name == name) else { return };
+        if self.classes.iter().any(|held| held.name == k.name) {
+            return;
+        }
+        self.classes.push(k);
+        self.refresh_class_effects();
+    }
+
+    /// Take the receipt, so the road can move on.
+    ///
+    /// Read once. The panel that shows it dismisses it, and the next pop of
+    /// the stack happens after that - which is the whole of A9's ordering.
+    pub fn take_receipt(&mut self) -> Option<Vec<String>> {
+        self.last_receipt.take()
+    }
+
+    /// Open the mind lane. Once, and never closed again.
+    ///
+    /// The shelf is told at the same moment, because a flag on the run that
+    /// the shop has to be reminded of separately is a flag that will one day
+    /// be set without the reminder.
+    pub fn unlock_insight(&mut self) {
+        self.insight_unlocked = true;
+        self.shop.insight_open = true;
+    }
+
+    /// Step into a dungeon, and say so.
+    ///
+    /// The cutscene is the whole of the addition: a door that hands you three
+    /// fights and says nothing is a door you can walk through by accident,
+    /// and a fight you did not know you had chosen is the one kind this game
+    /// should never hand out. Played on the machinery the bosses use, so it
+    /// skips the same way everything else does.
+    pub fn enter_dungeon(&mut self, id: &'static str) {
+        let Some(d) = crate::dungeon::by_id(id) else { return };
+        self.dungeon = Some((d, 0));
+        let entry = self.theme.entry(d.id, d.entry);
+        if !entry.is_empty() {
+            self.pending_scene = Some(entry);
+        }
+    }
+
+    /// Feed a pedestal an orb, and go where the orb goes.
+    ///
+    /// The orb is consumed and the destination fires **once per run**, however
+    /// many pedestals a run finds - there are two of them and they share one
+    /// visited-set, because the second exists so that a player whose orbs
+    /// arrived late still gets to spend them, not so that a patient one gets
+    /// to spend them twice.
+    ///
+    /// A duplicate orb is refused and stays what it was, which is a working
+    /// weapon: an orb is a piece first and a ticket second.
+    pub fn feed_pedestal(&mut self, id: PieceId) -> Option<&'static crate::pedestal::Destination> {
+        if !self.owned.contains(&id) {
+            return None;
+        }
+        let name = self.registry.def(id).name;
+        let dest = crate::pedestal::by_orb(name)?;
+        if self.destinations_visited.contains(&dest.id) {
+            return None;
+        }
+        self.destinations_visited.push(dest.id);
+        self.loadout.remove_anywhere(id);
+        self.owned.retain(|&o| o != id);
+        self.forget_undo();
+        match dest.kind {
+            crate::pedestal::Where::Dungeon(d) => self.enter_dungeon(d),
+            crate::pedestal::Where::Event(e) => self.forced_event = Some(e),
+        }
+        self.last_receipt = Some(vec![
+            format!("Fed the pedestal: {}", name),
+            format!("It takes you to {}", dest.name),
+        ]);
+        Some(dest)
+    }
+
+    /// Break a one-cell unique, and get the one thing it is for.
+    ///
+    /// The only things in this game that are *spent*. Everything else you own
+    /// is either worn or sold; a crushable is destroyed by using it, which is
+    /// what makes carrying one a decision about when rather than whether.
+    ///
+    /// Returns what it did, or `None` if that piece is not one of them.
+    pub fn crush(&mut self, id: PieceId) -> Option<crate::relic::Crush> {
+        use crate::relic::Crush;
+        if !self.owned.contains(&id) {
+            return None;
+        }
+        let name = self.registry.def(id).name;
+        let what = crate::relic::crushable(name)?.what;
+        let mut receipt = vec![format!("Crushed: {}", name)];
+        match what {
+            // The one legal breach of the one-action rule, and it is legal
+            // because it costs you the key.
+            Crush::SecondKey => {
+                if self.town.is_none() {
+                    return None;
+                }
+                self.second_key_ready = true;
+                receipt.push("One more door, in this town".into());
+            }
+            // A door you walked away from, standing open again. The most
+            // recent one, because that is the one you are still thinking
+            // about.
+            Crush::Appeal => {
+                let Some(back) = self.answered.pop() else { return None };
+                self.took.retain(|_| true);
+                receipt.push(format!("They will hear you again: {}", back));
+            }
+            Crush::SkipStone => {
+                if self.rung + 1 > LADDER.len() {
+                    return None;
+                }
+                receipt.push(format!("Stepped over {}", LADDER[self.rung].name));
+                receipt.push("It pays nothing, and it is behind you".into());
+                self.rung += 1;
+                self.best_rung = self.best_rung.max(self.rung);
+            }
+        }
+        self.loadout.remove_anywhere(id);
+        self.owned.retain(|&o| o != id);
+        self.forget_undo();
+        self.last_receipt = Some(receipt);
+        Some(what)
+    }
+
+    /// Put a named component in the tray, if there is such a thing.
+    pub fn give(&mut self, name: &str) -> Option<PieceId> {
+        let d = CATALOG.iter().position(|d| d.name == name)?;
+        let id = self.registry.alloc(d);
+        self.owned.push(id);
+        Some(id)
+    }
+
+    /// Take a passenger aboard, for `rungs` rungs.
+    ///
+    /// It has to be somewhere on a board: the rent is dead cells, and a
+    /// passenger riding in the tray is paying nothing.
+    pub fn take_passenger(&mut self, id: PieceId, rungs: usize) -> bool {
+        if !self.owned.contains(&id) || self.passenger.is_some() {
+            return false;
+        }
+        self.passenger = Some((id, self.rung + rungs));
+        true
+    }
+
+    /// Is the passenger where it is supposed to be - on a board, not in a bag?
+    pub fn passenger_is_seated(&self) -> bool {
+        let Some((id, _)) = self.passenger else { return false };
+        SlotKind::ALL.iter().any(|&k| self.loadout.slot(k).pieces().contains(&id))
+    }
+
+    /// Deliver it, if the road has gone far enough.
+    pub fn deliver_passenger(&mut self) -> bool {
+        let Some((id, until)) = self.passenger else { return false };
+        if self.rung < until {
+            return false;
+        }
+        self.passenger = None;
+        self.loadout.remove_anywhere(id);
+        self.owned.retain(|&o| o != id);
+        self.forget_undo();
+        self.last_receipt = Some(vec!["Delivered, and in one piece".into()]);
+        true
+    }
+
+    /// Throw a piece into the melt and take back what comes out.
+    ///
+    /// A same-slot piece within `MELT_SPREAD` of what went in, drawn from the
+    /// run's own PRNG. Never combat, so determinism holds: two replays of a
+    /// seed melt the same thing into the same thing. Quest pieces and rumours
+    /// refuse the pot - one is the far side of a task and the other is a key,
+    /// and neither is gear in the sense a crucible understands.
+    ///
+    /// Returns the new piece, or `None` if it refused. Counts the melt
+    /// whichever way it goes, because the foundry is counting visits and not
+    /// successes.
+    pub fn melt(&mut self, id: PieceId) -> Option<PieceId> {
+        if self.phase != Phase::Loadout || !self.owned.contains(&id) {
+            return None;
+        }
+        let def = self.registry.def(id);
+        if crate::rumour::is_rumour(def.name)
+            || self.quest_of(id).is_some()
+            || crate::piece::is_quest_reward(def.name)
+            || crate::piece::is_boss_only(def.name)
+            || crate::piece::is_event_only(def.name)
+        {
+            return None;
+        }
+        let was = crate::rating::piece_rating(def);
+        let slot = def.slot;
+        let pool: Vec<usize> = crate::piece::all_def_indices()
+            .into_iter()
+            .filter(|&i| {
+                let d = &CATALOG[i];
+                d.slot == slot
+                    && d.name != def.name
+                    && (crate::rating::piece_rating(d) - was).abs() <= MELT_SPREAD
+                    && !crate::piece::is_boss_only(d.name)
+                    && !crate::piece::is_quest_reward(d.name)
+                    && !crate::piece::is_event_only(d.name)
+                    && (self.insight_unlocked || !crate::piece::touches_insight(d))
+            })
+            .collect();
+        self.count("crucible-melts");
+        let &pick = pool.get(self.rng.below(pool.len().max(1)))?;
+        self.loadout.remove_anywhere(id);
+        self.registry.transform(id, pick);
+        self.quest_progress.remove(&id);
+        self.granted_quests.remove(&id);
+        self.forget_undo();
+        self.last_receipt = Some(vec![
+            format!("Into the melt: {}", def.name),
+            format!("Out of it: {}", CATALOG[pick].name),
+        ]);
+        Some(id)
+    }
+
+    /// Is the road past Francis open?
+    ///
+    /// Rung 51 is not on the ladder and never will be: it appears when a run
+    /// has finished the chain and put the man at the top down, and it is the
+    /// only rung in the game that has to be earned twice.
+    ///
+    /// Dark until the chain exists. `THE_UNWOUND` names nothing yet, so this
+    /// is false for every run that can currently be played, and the plumbing
+    /// underneath it - share codes, scoring, the road stack - is being asked
+    /// to accept a rung that does not arrive.
+    pub fn past_the_top(&self) -> bool {
+        self.holds(MAINSPRING) && self.rung >= LADDER.len()
+    }
+
+    /// Does this run own a named component, worn or loose?
+    pub fn holds(&self, name: &str) -> bool {
+        self.owned.iter().any(|&id| self.registry.def(id).name == name)
     }
 
     /// True once the ladder has been cleared.
     pub fn ladder_complete(&self) -> bool {
-        self.rung >= LADDER.len()
+        self.rung >= LADDER.len() && !self.past_the_top()
+    }
+
+    /// What a shelf costs this run, which is not always what it is worth.
+    ///
+    /// The foundry noticing it was snubbed is the only thing that moves it,
+    /// and it moves everything at once - which is what "prices run ten percent
+    /// ahead" means when nobody will say why.
+    pub fn price(&self, slot: usize) -> Option<i32> {
+        self.shop.price(slot).map(|p| p + p * self.markup / 100)
     }
 
     /// Buy the component on shelf `slot`.
@@ -641,7 +1711,7 @@ impl Run {
         if self.phase != Phase::Loadout {
             return Err(RuleError::LoadoutLocked);
         }
-        let price = self.shop.price(slot).ok_or(RuleError::NothingThere)?;
+        let price = self.price(slot).ok_or(RuleError::NothingThere)?;
         if self.gold < price {
             return Err(RuleError::NotEnoughGold { need: price, have: self.gold });
         }
@@ -748,7 +1818,7 @@ impl Run {
         self.gold -= cost;
         self.rerolls += 1;
         let need = self.needs_a_weapon();
-        self.shop.restock(&mut self.rng, need);
+        self.restock(need);
         Ok(())
     }
 
@@ -767,7 +1837,45 @@ impl Run {
         // reporting an item that no longer exists.
         self.loadout.locks.retain(|l| !l.pieces.contains(&id));
         self.gold += refund;
+        // On consignment: it does not leave, it goes away for a while and
+        // comes back worth more. The order is a standing arrangement, so this
+        // happens to everything sold while it is held.
+        if self.standing_orders.contains(&crate::event::Standing::Consignment) {
+            let def = self.registry.def_index(id);
+            if let Some(better) = crate::piece::dearer_than(def, CONSIGNMENT_GAIN) {
+                self.consigned.push((better, CONSIGNMENT_SHOPS));
+            }
+        }
         Ok(refund)
+    }
+
+    /// Turn the shelves over.
+    ///
+    /// One place, rather than the nine `shop.restock` used to be called from,
+    /// because a shelf now has two things to do when it turns over and the
+    /// second one - handing back what was left on consignment - is exactly the
+    /// kind of thing that gets added to eight of nine call sites.
+    fn restock(&mut self, ensure_weapon: bool) {
+        self.shop.restock(&mut self.rng, ensure_weapon);
+        self.tick_consignments();
+    }
+
+    /// Move every consignment one shop closer, and put back whatever has come.
+    ///
+    /// Called on the restock rather than on the sale, because "three shops
+    /// later" is a fact about shops.
+    fn tick_consignments(&mut self) {
+        let mut arrived: Vec<usize> = Vec::new();
+        for (def, left) in self.consigned.iter_mut() {
+            *left = left.saturating_sub(1);
+            if *left == 0 {
+                arrived.push(*def);
+            }
+        }
+        self.consigned.retain(|(_, left)| *left > 0);
+        for def in arrived {
+            self.shop.put_on_a_shelf(def);
+        }
     }
 
     /// Bank the result of the fight just watched: pay the bounty, move the
@@ -855,6 +1963,9 @@ impl Run {
                 town: None,
                 won_item: None,
                 rows_won: 0,
+                underwrote: None,
+                lost_passenger: false,
+                pried_off: Vec::new(),
             };
             if outcome == Outcome::Victory {
                 self.wins += 1;
@@ -874,7 +1985,7 @@ impl Run {
             self.log = None;
             self.last_settlement = Some(settlement);
             let need = self.needs_a_weapon();
-            self.shop.restock(&mut self.rng, need);
+            self.restock(need);
             return Some(0);
         }
 
@@ -894,6 +2005,9 @@ impl Run {
             town: None,
             won_item: None,
             rows_won: 0,
+            underwrote: None,
+            lost_passenger: false,
+            pried_off: Vec::new(),
         };
 
         // How fast, and how slow, the shallow end went. The two doors of the
@@ -918,15 +2032,29 @@ impl Run {
                 // the fight you had not got to.
                 self.wins += 1;
                 let (d, floor) = self.dungeon.expect("just checked");
-                settlement.landing = d.landings.get(floor).copied();
+                // Through the theme, at the source. A landing is prose the
+                // run hands to whatever is drawing, and the two interfaces
+                // would otherwise have to remember to translate it twice.
+                settlement.landing = self.theme.landings(d.id, d.landings).get(floor).copied();
                 self.pending_landing = settlement.landing;
                 if floor + 1 < d.floors.len() {
                     self.dungeon = Some((d, floor + 1));
                 } else {
-                    // Out the other side, with the thing you went in for.
+                    // Out the other side, with the thing you went in for -
+                    // and with whatever else it pays, which for THE THRESHOLD
+                    // is the pool and not the class.
                     self.dungeon = None;
-                    if let Some(c) =
-                        crate::class::CLASSES.iter().find(|c| c.name == d.reward)
+                    let mut lines = Vec::new();
+                    for o in d.also {
+                        lines.extend(self.apply_outcome(o, crate::event::Requirement::None).1);
+                    }
+                    if !lines.is_empty() {
+                        self.last_receipt = Some(lines);
+                    }
+                    if let Some(c) = crate::class::CLASSES
+                        .iter()
+                        .filter(|_| !d.reward.is_empty())
+                        .find(|c| c.name == d.reward)
                     {
                         if !self.classes.iter().any(|k| k.name == c.name) {
                             self.classes.push(c);
@@ -935,7 +2063,7 @@ impl Run {
                         }
                     }
                 }
-                self.shop.restock(&mut self.rng, false);
+                self.restock(false);
             }
             Outcome::Victory => {
                 self.wins += 1;
@@ -957,6 +2085,33 @@ impl Run {
                 // who wants the trophy can make space and beat the thing
                 // again.
                 let spec = &LADDER[self.rung.min(LADDER.len() - 1)];
+                // Prospector: one more piece off it, and the only thing in
+                // the game that changes what a corpse is worth. Off the
+                // *board* rather than off `drops`, because `drops` is the one
+                // trophy a creature owns and a boss is standing there wearing
+                // fifteen items nobody can buy.
+                let extra: usize = self
+                    .effective_classes()
+                    .iter()
+                    .filter_map(|c| match c.power {
+                        crate::class::ClassPower::Prospector(n) => Some(n),
+                        _ => None,
+                    })
+                    .sum();
+                if extra > 0 && spec.rank.is_named() {
+                    let mut taken = 0;
+                    for &(name, ..) in spec.gear {
+                        if taken >= extra || self.inventory().len() >= INVENTORY_CAP {
+                            break;
+                        }
+                        if crate::piece::CATALOG.iter().any(|d| d.name == name)
+                            && self.give(name).is_some()
+                        {
+                            taken += 1;
+                            settlement.pried_off.push(name);
+                        }
+                    }
+                }
                 if !spec.drops.is_empty() && self.inventory().len() < INVENTORY_CAP {
                     let pick = self.rng.below(spec.drops.len());
                     let name = spec.drops[pick];
@@ -973,7 +2128,7 @@ impl Run {
                 // And there may be somewhere between here and the next one.
                 // Once only: a Grinder knocked back through a town does not
                 // get to work the same shift twice.
-                if let Some(t) = crate::town::between(self.rung) {
+                if let Some(t) = self.town_between(self.rung) {
                     if !self.towns_seen.contains(&t.id) {
                         self.town = Some(t);
                         self.last_bounty = bounty;
@@ -988,6 +2143,32 @@ impl Run {
                 // Losing in a dungeon puts you out of it. The door does not
                 // reopen - you sold the thing that opened it.
                 self.dungeon = None;
+                // And a passenger is a fragile thing that was riding on you.
+                // It goes whatever the mode does about the loss, including a
+                // loss the underwriter eats: the underwriter buys back a rung,
+                // not a life somebody else was carrying.
+                if let Some((id, _)) = self.passenger.take() {
+                    self.loadout.remove_anywhere(id);
+                    self.owned.retain(|&o| o != id);
+                    settlement.lost_passenger = true;
+                }
+                // Underwritten: one fight, once, and it says which one.
+                //
+                // Read before the mode's own answer rather than after, because
+                // "this loss did not happen" has to mean the knock-back did
+                // not happen either. Taken away by the loss it eats, so a
+                // second one inside the five rungs costs what it costs.
+                if self.underwritten_until.is_some_and(|until| self.rung <= until) {
+                    self.underwritten_until = None;
+                    settlement.underwrote = Some(LADDER[self.rung.min(LADDER.len() - 1)].name);
+                    self.last_receipt = Some(vec![
+                        format!(
+                            "The underwriter eats it: {}",
+                            LADDER[self.rung.min(LADDER.len() - 1)].name
+                        ),
+                        "That loss did not happen".into(),
+                    ]);
+                } else {
                 match self.mode {
                     Mode::Grinder => {
                         // Back to the rung you last cleared, so there is
@@ -1005,12 +2186,59 @@ impl Run {
                         }
                     }
                 }
+                }
+            }
+        }
+
+        // Showstopper: a win inside the window pays more. Read off the log's
+        // own clock rather than a stopwatch anybody kept, which is the same
+        // number the casino's door is decided by.
+        if outcome == Outcome::Victory {
+            let ms = self.log.as_ref().map(|l| l.duration_ms).unwrap_or(u32::MAX);
+            let pct: i32 = self
+                .effective_classes()
+                .iter()
+                .filter_map(|c| match c.power {
+                    crate::class::ClassPower::Showstopper { pct, under_ms } if ms < under_ms => {
+                        Some(pct)
+                    }
+                    _ => None,
+                })
+                .sum();
+            if pct > 0 {
+                let extra = bounty * pct / 100;
+                self.gold += extra;
+                settlement.reward += extra;
+            }
+        }
+
+        // A contract that has run its course is a contract honoured, and the
+        // Payout reads this rather than trusting a flag somebody set.
+        if self.contract_until.is_some_and(|until| self.rung > until) {
+            self.contract_until = None;
+            self.contract_honoured = true;
+        }
+        // A passenger that has gone far enough is a passenger delivered, and
+        // the courier is waiting wherever you got to.
+        if self.passenger.is_some_and(|(_, until)| self.rung >= until) && self.passenger_is_seated()
+        {
+            let pays = self.passenger_pays;
+            if self.deliver_passenger() && !pays.is_empty() {
+                self.give(pays);
+                self.last_receipt = Some(vec![
+                    "Delivered, and in one piece".into(),
+                    format!("The courier hands over: {}", pays),
+                ]);
             }
         }
 
         // New shelves after every battle, win or lose.
         let need = self.needs_a_weapon();
-        self.shop.restock(&mut self.rng, need);
+        self.restock(need);
+        // And a shelf somebody promised for afterwards.
+        if let Some(shelves) = self.shop_owed.take() {
+            self.shop.stock_exactly(shelves);
+        }
 
         let ended = settlement.run_ended;
         self.last_settlement = Some(settlement);
@@ -1068,7 +2296,7 @@ impl Run {
         self.gold += paid;
         self.best_rung = self.best_rung.max(self.rung);
         let need = self.needs_a_weapon();
-        self.shop.restock(&mut self.rng, need);
+        self.restock(need);
         // Quests want a fight to have happened, so a skipped rung does not
         // advance them. Skipping past a quest is the cost of skipping.
         self.last_settlement = None;
@@ -1180,7 +2408,12 @@ impl Run {
         // drop would leave the item scattered across the grid.
         for &(p, dx, dy) in &shape {
             let (x, y) = (ax as u32 + dx as u32, ay as u32 + dy as u32);
-            if x >= SLOT_W as u32 || y >= self.loadout.rows() as u32 {
+            // The slot's own height, not the tallest board's. Same shape of
+            // fault as the one `branching-events.md` records: "anything
+            // comparing against the constant is asking the wrong question",
+            // and the constant grew into a per-board number that has now grown
+            // into a per-slot one.
+            if x >= SLOT_W as u32 || y >= self.loadout.slot(kind).rows() as u32 {
                 return Err(RuleError::Place(PlaceError::OutOfBounds));
             }
             self.loadout.can_place(&self.registry, p, kind, x as u8, y as u8)?;
@@ -1371,7 +2604,7 @@ impl Run {
         }
         self.doubled = Some(choice.name);
         let need = self.needs_a_weapon();
-        self.shop.restock(&mut self.rng, need);
+        self.restock(need);
         true
     }
 
@@ -1485,7 +2718,7 @@ impl Run {
         self.classes.push(choice);
         self.refresh_class_effects();
         let need = self.needs_a_weapon();
-        self.shop.restock(&mut self.rng, need);
+        self.restock(need);
         Some(choice)
     }
 
@@ -1504,13 +2737,31 @@ impl Run {
         // so the ladder does not move. The shelves still turn over: drinking
         // is a moment between fights like any other.
         let need = self.needs_a_weapon();
-        self.shop.restock(&mut self.rng, need);
+        self.restock(need);
         class
     }
 
     // ------------------------------------------------------------ quests
 
     /// How far along a piece's quest is.
+    /// The quest a piece is carrying, born with or handed to it.
+    ///
+    /// A `PieceDef`'s quest is a property of the component; a granted one is a
+    /// property of *this* piece in *this* run, which is why it lives on the
+    /// run. Granted wins where both exist: the table said something out loud
+    /// about a piece somebody was holding, and that is the more recent fact.
+    pub fn quest_of(&self, id: PieceId) -> Option<&'static crate::piece::Quest> {
+        if let Some(q) = self.granted_quests.get(&id) {
+            return Some(q);
+        }
+        self.registry.def(id).quest.as_ref()
+    }
+
+    /// Hand a quest to a piece that was not born with one.
+    pub fn grant_quest(&mut self, id: PieceId, q: &'static crate::piece::Quest) {
+        self.granted_quests.insert(id, q);
+    }
+
     pub fn quest_progress(&self, id: PieceId) -> u32 {
         self.quest_progress.get(&id).copied().unwrap_or(0)
     }
@@ -1539,7 +2790,7 @@ impl Run {
         let mut earned: Vec<(PieceId, u32)> = Vec::new();
         for (i, profile) in profiles.iter().enumerate() {
             for &piece in &profile.pieces {
-                let Some(quest) = self.registry.def(piece).quest else { continue };
+                let Some(quest) = self.quest_of(piece) else { continue };
                 let count = match quest.track {
                     // A piece is only on duty while its item is assembled, and
                     // `combat_items` only ever returns assembled items - so
@@ -1566,7 +2817,7 @@ impl Run {
 
         let mut done = Vec::new();
         for (piece, count) in earned {
-            let quest = match self.registry.def(piece).quest {
+            let quest = match self.quest_of(piece) {
                 Some(q) => q,
                 None => continue,
             };
@@ -1668,6 +2919,34 @@ impl Run {
     pub fn grow_boards(&mut self, by: u8) {
         self.extra_rows += by;
         self.loadout.grow(by);
+    }
+
+    /// Spend a row that has been granted, on the board you choose.
+    ///
+    /// `owed_rows` holds the grant until the choice is made, because "one
+    /// board of your choice" is a decision and an outcome cannot make it for
+    /// you. Refuses when nothing is owed, so the receipt cannot claim a row
+    /// that was not there.
+    pub fn grow_slot(&mut self, kind: SlotKind) -> bool {
+        if self.owed_rows == 0 {
+            return false;
+        }
+        self.owed_rows -= 1;
+        self.loadout.grow_one(kind, 1);
+        self.last_receipt = Some(vec![format!("+1 row on the {}", kind.name().to_lowercase())]);
+        true
+    }
+
+    /// Extra rows each grid has beyond the eight it started with.
+    ///
+    /// Indexed by `SlotKind::index`. Read off the boards rather than tracked,
+    /// so it cannot disagree with them.
+    pub fn slot_rows(&self) -> [u8; 5] {
+        let mut out = [0u8; 5];
+        for k in SlotKind::ALL {
+            out[k.index()] = self.loadout.slot(k).rows().saturating_sub(crate::slot::SLOT_H);
+        }
+        out
     }
 
     pub fn grant_life(&mut self) {
@@ -1899,6 +3178,7 @@ impl Run {
     pub fn player_stats(&self) -> Stats {
         let mut base = self.raw_player_stats();
         base.health += self.grown_health;
+        base += self.relic_pay().stats;
         // Effective, not held: a doubled Standing has to actually be double
         // on the character sheet, not only inside the fight.
         for c in self.effective_classes() {
@@ -1913,9 +3193,70 @@ impl Run {
         self.loadout.total_stats(&self.registry)
     }
 
+    /// What every relic on the board is paying right now.
+    ///
+    /// On the board, not in the tray: a relic costs a cell like anything else,
+    /// and a reward that pays from a pocket is a reward with no decision in
+    /// it. Summed rather than taken from the best, because two relics are two
+    /// cells.
+    pub fn relic_pay(&self) -> crate::relic::Payout {
+        let mut out = crate::relic::Payout::default();
+        for k in SlotKind::ALL {
+            for id in self.loadout.slot(k).pieces() {
+                let Some(r) = crate::relic::relic(self.registry.def(id).name) else { continue };
+                let p = (r.pays)(self);
+                out.stats += p.stats;
+                out.speed_pct += p.speed_pct;
+            }
+        }
+        out
+    }
+
     /// Activation profiles for every assembled item — what combat runs on.
     pub fn combat_items(&self) -> Vec<crate::loadout::ItemProfile> {
-        self.loadout.combat_items(&self.registry)
+        let mut items = self.loadout.combat_items(&self.registry);
+        // A relic's speed is not a `Stats` field, because no speed in this
+        // game is: every other one is a percentage on an item's cooldown, and
+        // this is applied in the same place and the same way.
+        let pct = self.relic_pay().speed_pct;
+        if pct > 0 {
+            for it in &mut items {
+                it.cooldown_ms =
+                    ((it.cooldown_ms as i64 * (100 - pct.min(75)) as i64) / 100).max(100) as u32;
+            }
+        }
+        // A curse that outlasts the fight is still a curse, and the only kind
+        // of curse a *piece* can carry. It is frost, because frost is the one
+        // curse that means anything to a thing rather than to a fighter, and
+        // it is applied here for the same reason the contract is: this is
+        // where every speed in this game is applied.
+        //
+        // Until this existed, `cursed_for_good` was a list nothing read - the
+        // library's price was a word in a receipt, and `Outcome::Uncurse`
+        // undid nothing.
+        if !self.cursed_for_good.is_empty() {
+            for it in &mut items {
+                if it.pieces.iter().any(|p| self.cursed_for_good.contains(p)) {
+                    it.cooldown_ms =
+                        ((it.cooldown_ms as i64 * (100 + CURSED_SLOWER) as i64) / 100) as u32;
+                }
+            }
+        }
+        // A contract is frost you asked for. Frost slows gear, so this slows
+        // gear - in the one place every other speed in this game is applied,
+        // rather than by teaching `simulate` about a piece of paper.
+        if self.under_contract() {
+            for it in &mut items {
+                it.cooldown_ms =
+                    ((it.cooldown_ms as i64 * (100 + CONTRACT_SLOWER) as i64) / 100) as u32;
+            }
+        }
+        items
+    }
+
+    /// Is a contract running right now?
+    pub fn under_contract(&self) -> bool {
+        self.contract_until.is_some_and(|until| self.rung <= until)
     }
 
     /// Simulate the whole fight against `spec` and enter the replay phase.
@@ -1981,6 +3322,28 @@ impl Run {
 
     // -------------------------------------------------------------- towns
 
+    /// The town standing in this gap, if there is one this run can see.
+    ///
+    /// A pinned town is always there. A hidden one is there only once
+    /// something has put it there, which is the whole of what "hidden" means -
+    /// after that it is a town like any other, at its own rung, with its own
+    /// doors, subject to the same one-visit rule.
+    pub fn town_between(&self, rung: usize) -> Option<&'static crate::town::Town> {
+        crate::town::between(rung).filter(|t| match t.unlock {
+            crate::town::Unlock::Pinned => true,
+            crate::town::Unlock::Hidden => self.towns_revealed.contains(&t.id),
+        })
+    }
+
+    /// Put a hidden town on the road. Idempotent, and never undone.
+    pub fn reveal_town(&mut self, id: &'static str) -> bool {
+        if crate::town::by_id(id).is_none() || self.towns_revealed.contains(&id) {
+            return false;
+        }
+        self.towns_revealed.push(id);
+        true
+    }
+
     /// The town you are standing at the gate of, if any.
     pub fn pending_town(&self) -> Option<&'static crate::town::Town> {
         self.town.filter(|_| self.phase == Phase::Loadout)
@@ -1996,6 +3359,8 @@ impl Run {
         self.towns_seen.push(t.id);
         let paid = self.last_bounty;
         self.gold += paid;
+        self.last_receipt =
+            Some(vec![format!("Walked past {}", t.name), format!("+{}g, the bounty again", paid)]);
         paid
     }
 
@@ -2005,8 +3370,22 @@ impl Run {
     /// rather than a shopping trip.
     pub fn visit_town(&mut self, what: crate::town::Action) -> TownVisit {
         use crate::town::Action;
-        let Some(t) = self.town.take() else { return TownVisit::default() };
-        self.towns_seen.push(t.id);
+        // Two things do not spend the visit. The pedestal is not a door - it
+        // stands in the entryway and takes its own key - and the Second Key
+        // is the one *thing* that ever breaks the rule, which is legal
+        // because it costs you the key. Both exceptions live here, which is
+        // what keeps them to two.
+        let second = self.second_key_ready || !what.costs_the_visit();
+        let Some(t) = (if second { self.town } else { self.town.take() }) else {
+            return TownVisit::default();
+        };
+        if second {
+            if what.costs_the_visit() {
+                self.second_key_ready = false;
+            }
+        } else {
+            self.towns_seen.push(t.id);
+        }
         let mut out = TownVisit { at: Some(t.name), did: Some(what), ..TownVisit::default() };
         match what {
             Action::Chapel => {
@@ -2037,7 +3416,141 @@ impl Run {
                 self.shop.stock_exactly(crate::rumour::on_offer());
                 out.stocked = crate::rumour::on_offer().len();
             }
+
+            // ---- the Slagworks -------------------------------------------
+            //
+            // Every door here changes something you already own. What the
+            // crucible and the tempering want is a *piece*, and the one they
+            // get is the first thing loose in the tray - the same rule
+            // `BuyOff` has used since the toad first asked for a two-by-two.
+            // Choosing which piece is the interface's job and not the rule's.
+            Action::Crucible => {
+                if let Some(id) = self.inventory().first().copied() {
+                    self.melt(id);
+                }
+            }
+            Action::MoldLine => {
+                self.shop.stock_exactly(MOLD_LINE);
+                out.stocked = MOLD_LINE.len();
+            }
+            Action::Tempering => {
+                let cost = self.last_bounty / 2;
+                if self.gold >= cost {
+                    if let Some(id) = self.inventory().first().copied() {
+                        let def = self.registry.def_index(id);
+                        if let Some(better) = crate::piece::dearer_than(def, TEMPERING_GAIN) {
+                            self.gold -= cost;
+                            out.paid = -cost;
+                            self.registry.transform(id, better);
+                            self.forget_undo();
+                        }
+                    }
+                }
+            }
+            Action::Foreman => {
+                // He has heard something below. If you already know what, he
+                // pays you not to say it back.
+                if self.holds("A Word About the Cellar") || self.towns_revealed.contains(&"the-manse")
+                {
+                    let paid = self.last_bounty;
+                    self.gold += paid;
+                    out.paid = paid;
+                } else {
+                    self.give("A Word About the Cellar");
+                }
+            }
+
+            // ---- the Manse -----------------------------------------------
+            Action::CellarDoor => self.enter_dungeon("the-threshold"),
+            Action::Gallery => {
+                if let Some(id) = self.inventory().first().copied() {
+                    let def = self.registry.def(id);
+                    let worth = crate::rating::Rarity::of(crate::rating::piece_rating(def));
+                    let paid = crate::rating::resale_price(def) * 2;
+                    self.loadout.remove_anywhere(id);
+                    self.owned.retain(|&o| o != id);
+                    self.gold += paid;
+                    out.paid = paid;
+                    // Double for anything. A good piece gets you mentioned to,
+                    // and a very good one gets you told where the last one
+                    // like it was fished up - which is a place, and the place
+                    // is at the bottom of some water.
+                    if worth > crate::rating::Rarity::Common {
+                        self.give("A Word About the Glow");
+                    }
+                    if worth >= crate::rating::Rarity::Legendary {
+                        self.enter_dungeon("the-undertow");
+                    }
+                }
+            }
+            Action::LongTable => {
+                self.grown_health += LONG_TABLE_HEALTH;
+            }
+            // ---- Extra Large ---------------------------------------------
+            Action::Aisle9 => {
+                self.shop.stock_exactly(AISLE_NINE);
+                out.stocked = AISLE_NINE.len();
+            }
+            Action::ReturnsDesk => {
+                // Full price, which nobody else pays - or consignment, which
+                // is the standing arrangement rather than this one sale.
+                if let Some(id) = self.inventory().first().copied() {
+                    let def = self.registry.def(id);
+                    let paid = crate::rating::shop_price(def);
+                    self.loadout.remove_anywhere(id);
+                    self.owned.retain(|&o| o != id);
+                    self.gold += paid;
+                    out.paid = paid;
+                    if !self.standing_orders.contains(&crate::event::Standing::Consignment) {
+                        self.standing_orders.push(crate::event::Standing::Consignment);
+                    }
+                }
+            }
+            Action::SampleCounter => {
+                // Free, seeded, and genuinely a common. A sample counter that
+                // handed out anything better would be the shop.
+                let pool: Vec<usize> = crate::piece::all_def_indices()
+                    .into_iter()
+                    .filter(|&i| {
+                        let d = &CATALOG[i];
+                        crate::rating::Rarity::of(crate::rating::piece_rating(d))
+                            == crate::rating::Rarity::Common
+                            && !crate::piece::is_boss_only(d.name)
+                            && !crate::piece::is_quest_reward(d.name)
+                            && !crate::piece::is_event_only(d.name)
+                            && !crate::piece::is_town_stock(d)
+                            && (self.insight_unlocked || !crate::piece::touches_insight(d))
+                    })
+                    .collect();
+                if let Some(&pick) = pool.get(self.rng.below(pool.len().max(1))) {
+                    let id = self.registry.alloc(pick);
+                    self.owned.push(id);
+                }
+            }
+            Action::Manager => {
+                if !self.holds("A Word About the Wrong Stars") {
+                    self.give("A Word About the Wrong Stars");
+                } else {
+                    let paid = self.last_bounty;
+                    self.gold += paid;
+                    out.paid = paid;
+                }
+            }
+            // The pedestal is answered by `feed_pedestal` with an orb in hand;
+            // walking up to it without one is looking at furniture.
+            Action::Pedestal => {}
+            Action::Library => {
+                if let Some(id) = self.inventory().first().copied() {
+                    let def = self.registry.def_index(id);
+                    if let Some(better) = crate::piece::dearer_than(def, LIBRARY_GAIN) {
+                        self.registry.transform(id, better);
+                        self.cursed_for_good.push(id);
+                        self.forget_undo();
+                    }
+                }
+            }
         }
+        self.last_receipt = Some(out.receipt());
         out
     }
 

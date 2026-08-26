@@ -11,6 +11,7 @@
 //!   * Combat is fully deterministic and simulated to completion up front
 //!     (`combat::simulate`), producing a log the GUI replays.
 
+pub mod bestiary;
 pub mod class;
 pub mod combat;
 pub mod dungeon;
@@ -18,10 +19,13 @@ pub mod event;
 pub mod curse;
 pub mod loadout;
 pub mod naming;
+pub mod pedestal;
 pub mod piece;
 pub mod rating;
+pub mod relic;
 pub mod rng;
 pub mod rumour;
+pub mod route;
 pub mod run;
 pub mod share;
 pub mod shop;

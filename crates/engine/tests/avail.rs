@@ -34,6 +34,11 @@ fn sellable() -> Vec<&'static str> {
                 // Town gear is reachable, but not here. What a town sells is
                 // covered by `town_gear_is_reachable_and_only_in_a_town`.
                 && !gearmaster_engine::piece::is_town_stock(d)
+                // And the mind lane's gear is reachable once the pool is. A
+                // piece that banks something you have not been given yet is a
+                // piece that does nothing, and the promise moves rather than
+                // lapses - see the test below.
+                && !gearmaster_engine::piece::touches_insight(d)
         })
         .map(|d| d.name)
         .collect()
@@ -77,6 +82,37 @@ fn the_shelves_are_not_the_same_six_things_every_time() {
 /// pool would quietly break that, so the promise moves rather than lapses:
 /// what a town sells is exactly what a town sells, and the road never offers
 /// it.
+/// The mind lane's gear is reachable, and only after it is worth anything.
+///
+/// Same shape as the town rule and the same doctrine: every component a player
+/// can own has somewhere it can be met. `Shop::insight_open` is that
+/// somewhere, and it is shut until THE THRESHOLD is cleared.
+#[test]
+fn the_mind_lane_is_reachable_once_the_pool_is_open() {
+    use gearmaster_engine::piece::touches_insight;
+    let gated: Vec<&str> =
+        CATALOG.iter().filter(|d| touches_insight(d)).map(|d| d.name).collect();
+    assert!(!gated.is_empty(), "nothing in the catalogue deals in it");
+
+    let mut counts: HashMap<&'static str, usize> = HashMap::new();
+    for r in 0..80u64 {
+        let mut rng = Rng::new(0x1153_1637u64.wrapping_add(r));
+        let mut shop = Shop::new(&mut rng);
+        shop.insight_open = true;
+        shop.restock(&mut rng, false);
+        for _ in 0..60 {
+            for i in 0..8 {
+                if let Some(d) = shop.def(i) {
+                    *counts.entry(d.name).or_insert(0) += 1;
+                }
+            }
+            shop.restock(&mut rng, false);
+        }
+    }
+    let missing: Vec<&&str> = gated.iter().filter(|n| !counts.contains_key(*n)).collect();
+    assert!(missing.is_empty(), "unreachable even once earned: {:?}", missing);
+}
+
 #[test]
 fn town_gear_is_reachable_and_only_in_a_town() {
     use gearmaster_engine::piece::{is_town_stock, town_shelf};

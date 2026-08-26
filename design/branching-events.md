@@ -27,6 +27,32 @@ itself. What it does *not* yet do:
 Those gaps are the milestones, not the events. The events themselves are
 content once the gaps are closed.
 
+### 2026-08-26: every one of those gaps is closed
+
+The table above is the state on the day it was written and is kept for the
+record. What the file now has, in the order the rows asked for it:
+
+| Row | Closed by |
+|---|---|
+| Conditional trigger | `Trigger::QuickKill`, `SlowKill`, `Whispered { rumour, from }` and `WhenFlagged { flag, from }` - four kinds of "because of what you did" |
+| By name | `Requirement::Holding(name)`, plus `AssembledOfRarity`, `AlignedItems`, `HoldingRumour`, `Classes`, `Counter`, `Flag`, `Purse` and `Figure` |
+| `Give` for gear | `Outcome::Give(name)`, in use by a dozen doors |
+| Curated shop | `Outcome::Stock`, `OpenShop { shelves }` and `ShopAfter { shelves }` - one that replaces the shelves, one that opens a shop for a visit, one that owes you a shop after whatever else this choice started |
+| Two at once | `Outcome::Step(&Brawl)`, and eight fights use it |
+
+**The road now holds 33 events**, and everything in this file below this line
+that says "spec" says it about a door that is built. What is *not* built is
+the boards: every creature the Unwinding added is a `MonsterFrame` - a name, a
+band, a theme and a note - until Phase 4 packs it by hand.
+
+**And one rule the file did not have.** An event's canonical text is the base
+game's, and the base game does not speak turtle. A scene whose work is being
+done by a proper noun out of the book keeps the noun in `theme.rs` and gives
+the canonical column the *role* - the crownwright, the old watchman, the man
+who runs the store. `tests/two_voices.rs` is the lint, and it is a ratchet:
+the five entries left in its budget are components in `CATALOG`, which is
+append-only forever and is the one place a leak cannot be fixed.
+
 ---
 
 ## THE CASINO — built

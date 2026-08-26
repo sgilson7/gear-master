@@ -56,6 +56,14 @@ fn a_town_gate_blocks_the_road_even_mid_replay() {
     run.fight_next();
     assert!(run.pending_town().is_none(), "the gate should not be drawn over a fight");
     assert!(run.road_is_blocked().is_some(), "and it must still stop the next one starting");
+    // Named, not merely non-empty. Sump Bottom's gate stands at rung seven and
+    // so does the first fountain, so "something is blocking the road" was
+    // answerable by the wrong one of the two - and was, the first time the
+    // road stack read the phase-gated question here.
+    assert!(
+        run.road_stack().iter().any(|i| i.kind() == "town"),
+        "the gate itself has to still be on the stack, not just something else"
+    );
 }
 
 #[test]

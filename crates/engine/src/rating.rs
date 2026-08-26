@@ -125,6 +125,18 @@ mod weight {
     /// so their real worth depends on a build the rating cannot see; this is
     /// the value of a stack in a build that is actually banking mana.
     pub const STACK_PS: f32 = 11.0;
+    /// A stack of Spellblade or Deflection per second - the physical lane's
+    /// twins of the pair above.
+    ///
+    /// Neither scales off a pool, so neither has the mana pair's ceiling and
+    /// neither has its condition: a stack is worth the same to a board that
+    /// banks nothing as to one that banks forty. Spellblade sits level with a
+    /// mana stack because those two things cancel. Deflection sits under it
+    /// because it answers one lane where the shield answers one lane and asks
+    /// for mana to do it - the discount is for the half of the fight it is not
+    /// in, not for the mana it does not want.
+    pub const SPELLBLADE_PS: f32 = 11.0;
+    pub const DEFLECTION_PS: f32 = 9.0;
     /// A stack of spell forking: every cast lands once more.
     ///
     /// Worth more than a shield stack because it multiplies a payload rather
@@ -439,6 +451,12 @@ fn action_points(a: &Action) -> f32 {
         Action::ReduceCooldown(ms) => *ms as f32 / 1000.0 * weight::HASTE_PS,
         Action::GainEmpowerment(n) => *n as f32 * weight::STACK_PS,
         Action::GainShield(n) => *n as f32 * weight::STACK_PS,
+        Action::GainSpellblade(n) => *n as f32 * weight::SPELLBLADE_PS,
+        // A stack of Dread is worth what a stack of empowerment is worth: both
+        // multiply a lane by a pool, and neither is worth anything without the
+        // pool. Priced beside it and re-visited when the Insight family lands.
+        Action::GainDread(n) => *n as f32 * weight::STACK_PS,
+        Action::GainDeflection(n) => *n as f32 * weight::DEFLECTION_PS,
         // A fork copies a cast, so a stack is worth roughly what the cast was
         // - which is more than a shield stack, and only to a build that has
         // something worth copying.
@@ -464,13 +482,19 @@ fn action_points(a: &Action) -> f32 {
 /// somewhere in the middle of one.
 /// Friendly activations a second on a board worth having.
 ///
-/// Measured rather than assumed. `tests/baseline.rs` reports 1.8 a second for
-/// the engine's own preset, 2.3 for one finished run and 4.8 for another with
-/// thirteen items on it; the starter board, which is one item, manages 0.5.
-/// Two is what a reasonable build gets, which is the standard every other
-/// discount in this file is set by. The spec guessed one, which is a board
-/// nobody plays.
-const ACTIVATIONS_PER_S: f32 = 2.0;
+/// Measured rather than assumed, and **re-measured in M16 against boards that
+/// had grown since**. The figures this was set by - 1.8 for the preset, 2.3
+/// and 4.8 for the two finished runs - are now 2.06, 3.43 and 6.60, because
+/// the gear-slot rewrite gave every slot something to do on a cooldown and
+/// finished boards got busier.
+///
+/// **Five**, the mean of the two finished human boards. Two was a third of
+/// what a real board does, and everything in this file that watches - which
+/// is the whole of the gloves' axis, forty-seven reaction triggers - was
+/// priced at a third of what it sees. The preset sits below this figure
+/// because it is a reference build rather than a finished one; the starter,
+/// at 0.5, is one item and is not evidence of anything.
+const ACTIVATIONS_PER_S: f32 = 5.0;
 
 /// How often a watcher of each kind sees the thing it is counting.
 ///
@@ -494,7 +518,17 @@ fn watched_per_s(what: crate::piece::Watched) -> f32 {
 fn pool_weight(what: crate::piece::Resource) -> f32 {
     use crate::piece::Resource;
     match what {
+        // Mana is fuel: it pays nothing while merely held and is worth exactly
+        // what the stacks it feeds are worth.
         Resource::Mana => weight::MANA_PS,
+        // Insight is not fuel, and pricing it as fuel was M2 filing it beside
+        // the pool it was modelled on rather than measuring what it does.
+        // Nothing spends it. What it does is multiply every point of Dread for
+        // the rest of the fight, which is the shape of a *held* pool - so it
+        // is priced as one, with the same conditionality mana's stacks carry:
+        // worth this to a board that also carries Dread, and worth nothing to
+        // a board that does not.
+        Resource::Insight => weight::RESOURCE_PS + weight::HELD_PER_POINT / 2.0,
         Resource::Rage | Resource::Faith | Resource::Nature => {
             weight::RESOURCE_PS + weight::HELD_PER_POINT / 2.0
         }

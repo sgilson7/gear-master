@@ -443,6 +443,8 @@ fn census() -> Census {
     add("MindDamage", &|d| does(d, |a| matches!(a, Action::MindDamage { .. })));
     add("GainEmpowerment", &|d| does(d, |a| matches!(a, Action::GainEmpowerment(_))));
     add("GainShield", &|d| does(d, |a| matches!(a, Action::GainShield(_))));
+    add("GainSpellblade", &|d| does(d, |a| matches!(a, Action::GainSpellblade(_))));
+    add("GainDeflection", &|d| does(d, |a| matches!(a, Action::GainDeflection(_))));
     add("GainForking", &|d| does(d, |a| matches!(a, Action::GainForking(_))));
     add("ReduceCooldown", &|d| does(d, |a| matches!(a, Action::ReduceCooldown(_))));
 
@@ -686,6 +688,43 @@ fn report_damage_share_and_ttk() {
         print!("{:<12}", name);
         for s in SlotKind::ALL {
             print!("{:>9}", mind[slot_ix(s)]);
+        }
+        println!();
+    }
+}
+
+/// The shallow ladder, rung by rung.
+///
+/// Criterion 2 of the Unwinding asks that rungs 1-14 stay within ten percent
+/// of what they were before the lanes were separated, and the four sampled
+/// rungs above cannot answer that: two of them are past 14 and the two that
+/// are not are a tenth of the window. A change that leaves rung 1 and rung 10
+/// alone and moves the eleven rungs between them would read as "unmoved" on
+/// the sample and be a different early game.
+///
+/// Both shallow-end doors live in here too - the casino wants a win under
+/// three seconds and the long way one over fifteen - so this is also the table
+/// that says whether either door has quietly shut.
+#[test]
+#[ignore]
+fn report_early_ladder() {
+    const THROUGH: usize = 14;
+    println!("\n## The shallow ladder, rung by rung - time to kill at Medium\n");
+    print!("{:<22}", "rung");
+    for b in reference_builds() {
+        print!("{:>12}", b.name);
+    }
+    println!();
+    let builds = reference_builds();
+    for r in 0..THROUGH.min(LADDER.len()) {
+        print!("{:<22}", rung(r));
+        for b in &builds {
+            let log = b.fight(&LADDER[r]);
+            if log.outcome == Outcome::Victory {
+                print!("{:>11.2}s", log.duration_ms as f64 / 1000.0);
+            } else {
+                print!("{:>12}", "-");
+            }
         }
         println!();
     }

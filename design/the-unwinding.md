@@ -74,6 +74,355 @@ predates it; these deltas are the current truth.
 
 ---
 
+# RECONCILIATION II — 2026-08-25, execution (wins over the body and over the block above)
+
+Written at the start of execution, after running the suite and reading the
+modules this spec names. The block above was written from the gear-slot
+rewrite's finish line; these are the places where the *code* and this document
+disagree, plus the four decisions the reconciliation left open. Numbered from
+9 so the two blocks read as one list.
+
+9. **`LADDER` is fifty and `Rust Golem` is rung 4.** It is spliced into the
+   table by name (`pub const RUST_GOLEM`, `combat.rs:646`) rather than written
+   inline, so every text search of the ladder comes back one short and every
+   rung above three reads one low. Bounties by displayed rung: 4 -> 10g,
+   11 -> 34g, 16 -> 93g, 27 -> 188g, 33 -> 233g, 50 -> 500g (Francis).
+
+10. **`LadderEvent::at` and `Town::after` are zero-based indices. The displayed
+    rung is `at + 1`.** `the-casino` is `at: 8` and its own comment calls it
+    rung 9. Every rung number in Parts B, D, F, G and H is written in displayed
+    numbers and must be converted once, deliberately, on the way into the
+    tables. `every_event_stands_where_it_thinks_it_does` is the guard.
+
+11. **Two of `branching-events.md`'s five gaps are already closed.**
+    `Outcome::Give` and `Requirement::Holding` both ship and are in use.
+    `Outcome::Stock` is also a curated shelf, though it *empties* the shop and
+    restocks it rather than opening a one-visit one, so A4's `OpenShop` is a
+    new outcome beside it and not a replacement for it.
+
+12. **A7's pop order is amended to the order the game already resolves in:
+    town gate, then fountain, then events by `EVENTS` order.** The body says
+    "fountain, then gate, then events". The code puts the gate first in both
+    places it decides (`run.rs::road_is_blocked`, and the GUI's screen
+    dispatch), and `pending_event` returns `None` at a fountain. The two
+    genuinely collide - `Run::FOUNTAINS` is `&[7, 14]` and Sump Bottom stands
+    at rung index 7 - so this is not a hypothetical. E6 criterion 2 requires
+    the three shipped towns' tests to pass unmodified, which settles it: the
+    stack is a data structure for the order the road already has, not a new
+    order.
+
+13. **`MonsterTheme` does not exist in the engine.** The six themes are a
+    test-local `enum Theme` in `tests/pack_francis.rs`. `MonsterFrame` is
+    specified as engine data carrying a theme, so the table is promoted into
+    the engine and the packer and the GUI read it from there. The four new
+    themes (Hollow, Swarm, Beast, Warden) arrive in the promoted table.
+
+14. **`Run::banked_all_run` is `[i32; 4]` and `Resource::index()` already
+    returns up to 6.** No live panic today - a fusion emits `Event::Fused`
+    rather than `Event::GainResource`, so the out-of-range indices are never
+    written - but Insight is index 7 and the array is grown before the pool is
+    added, not after.
+
+15. **`Nine of Ashes` is rung 47, not 46** (Part C's note on the theme already
+    naming a creature "Nibbalonius the Wise"), and **the packer can address
+    `ALTERNATES`**: `gui/src/pack.rs::everyone()` chains them onto the ladder.
+    `HANDOFF.md` says it cannot; that is stale.
+
+## 16. Gold: every figure is a multiple of the standing rung's bounty
+
+There is no milestone table and the body's absolute figures were written
+against one. Measured against the real economy they are not merely wrong,
+they are wrong by an order of magnitude at one end and correct at the other:
+starting gold is 28g, and a run has earned about 61g by rung 4, 223g by rung
+11, 604g by rung 16 and 2,177g by rung 27. So F1's 150g at rung 4 is two and a
+half times everything the run has ever seen, while the Slagworks foreman's
+250g at rung 33 is one bounty and needs no change at all.
+
+**Every gold constant in this document is replaced by a multiple of the bounty
+of the rung the thing stands on**, resolved at the moment it resolves - which
+is the idiom `Outcome::BuyOff { times }` already uses (`run.rs:622`,
+`LADDER[rung].bounty * times`). Three tiers:
+
+| tier | multiple | what it is |
+|---|---:|---|
+| small | 1x | a toll, a bribe, a consolation |
+| medium | 3x | a real purchase, a real payout |
+| large | 10x | the big-ticket item, the jackpot |
+
+| Where | Body | Tier | At its earliest rung |
+|---|---|---|---|
+| F1, leave the parcel on the milestone | 150g | medium | ~30g at rung 4 |
+| F2 THE TELLER, the short version | 750g | large | ~340g at rung 11 |
+| F3 THE DISPENSER, one coin | 100g | small | ~90g at rung 16 |
+| F3 THE DISPENSER, the red one | 1,000g | large | ~930g at rung 16 |
+| THE ASTRONOMER, buy the lens | 400g | medium | ~350g at rung 18 |
+| G1 THE BIGGER SIGN, forget you saw it | 200g | medium | ~225g at rung 13 |
+| F5 THE BIRD PROBLEM, pay the toll | 300g | small | ~190g at rung 27 |
+| The Slagworks foreman, if the Manse is found | 250g | small | ~250g at rung 33 |
+| MOLE TOWN, trade a curse off a piece | 400g | medium | by where you entered |
+| THE THRUMBUS RACE, back a runner | 300g | medium | by where you entered |
+| THE PAYOUT | 400g | medium | by where you entered |
+
+The last three stand at destinations a run can reach at two very different
+depths - Extra Large opens after rung 13 and High Wick after rung 31, and both
+hold a pedestal - so their figures are the multiple and nothing else. That is
+the rule's real payoff: **a price expressed in bounties is worth the same thing
+wherever the road is when you meet it.**
+
+Untouched: the Slagworks tempering ("half a rung's bounty") and the Manse
+gallery ("sell at double") were already relative; THE BUYER's prices are
+seeded; the casino and the VIP area belong to the last mission.
+
+## 17. THE UNWOUND's target is 16-29s at Medium
+
+The density curve gives `target(51) = 2.8 + 0.4 x 51 = 23.2s` and a +/-30% band
+of 16.2-30.2s. Sudden death takes the fight over at 30s, so **the band's top
+edge is clipped at 29s** - the same rule the whole ladder is packed under, and
+the reason the curve's slope is 0.4s a rung in the first place. Nothing about
+rung 51 may sit where escalation decides it.
+
+"Harder than Francis" is E6.5's replay test and not a number: Francis himself is
+pinned only by "not walked through" (a victory must cost 15s or more), so there
+is no Francis TTK to be a multiple of.
+
+## 18. Mind damage is answered by `mind_resist` alone
+
+A1 takes empowerment and the shield out of the physical lane. The shield also
+blunts **mind** damage today (`combat.rs:3198`, "whatever the damage type"),
+and A3 then arms mind damage with Insight and Dread - so as written this spec
+removes the mind lane's only flat mitigation in the same change that amplifies
+it, and never says what replaces it.
+
+It replaces it with nothing, on purpose. Three lanes, three answers: the mana
+shield answers magic, Deflection answers physical, and **`mind_resist` answers
+mind**. It already exists, it is helmet-exclusive with 28 carriers, and it makes
+the helmet the mind lane's defence as well as its offence - which is the same
+shape the other two lanes have. A1 therefore reads: the shield reduces magic
+only; physical and mind both skip it.
+
+## 19. The catalogue lands once, and it lands like a rating change
+
+Reconciliation #4 says a `rating.rs` weight change re-gears every monster on
+three settings through `stepped_component`. **So does appending to `CATALOG`**,
+and the body never says so. `stepped_component` sorts a piece's *footprint
+family* - same kind, same slot, same cells - by `monster_value`, so a new piece
+that shares a footprint with an existing one inserts itself into that family and
+shifts every stepped board wearing a sibling.
+
+Every new component in this spec therefore lands in **one** Phase-2 milestone
+with one measured re-pin, rather than arriving in five content PRs with five
+uncontrolled re-gearings. `CATALOG` is closed from that milestone until the
+Phase-4 rating pin.
+
+## 20. The stretch slips: Engraving and the Brain Farm, decided at the gate
+
+E1.8 makes them one decision - "they land together or slip together" - and the
+tie is real, because the Brain Farm's only prize *is* Engraving. Taken at the
+Phase-1 gate with M1 to M7 green and the cost measured rather than guessed.
+
+**They slip.** Not cancelled, and not because either is a bad idea. The
+measurement:
+
+1. **Engraving requires a piece instance to differ from its definition**, and
+   nothing in this codebase is built for that. `PieceRegistry` could carry a
+   per-instance trigger list cheaply - it already carries a rotation and a
+   `transform` - and combat would be correct for free. Everything else would
+   not be. `rating::piece_rating` is `fn(&PieceDef) -> i32`, and the shop's
+   price, `Rarity::of`, the naming layer, `stepped_component` and every one of
+   `catalog_shape`'s twenty-six rules are built on that signature. An engraved
+   piece would fight correctly and be **priced, named and rated as the piece it
+   used to be**.
+2. Fixing that means a rating function over instances rather than definitions,
+   threaded through five modules and a ratchet. That is the same problem
+   `analysis/second-order.md` §1 records about `monster_value` - two questions
+   answered by one number - and it is a mission rather than a milestone.
+3. `share.rs` would take its **second** format bump of this mission, for a
+   feature that moves one trigger once.
+4. Nothing in Phases 2, 3 or 4 depends on either, which is what E1.8 says and
+   what makes slipping them cost nothing but themselves.
+
+**What would unblock it**, written down so the decision does not have to be
+retaken from scratch: a rating that takes an instance, not a definition. Do
+that first, for its own reasons, and Engraving becomes a small feature
+afterwards.
+
+The Brain Farm is cheap on its own - a deterministic three-by-three with one
+seeded flaw square is perhaps two hundred lines - and it is held here only by
+the tie. If it is ever wanted without Engraving it needs a prize, and that is a
+design decision rather than an engineering one.
+
+## 21. What the chain turned out to be, and five places the body was one out
+
+Written while building Part B. Everything here is a correction to the body
+rather than a change of mind about it.
+
+1. **The chain's state is the words you are carrying**, not a record of flags.
+   A5 lists `heard_the_astronomer`, `slagworks_revealed` and `manse_revealed`;
+   all three are already visible in the run - the first as a word in your tray,
+   the other two as `towns_revealed` - and a second copy of a fact is a second
+   thing to keep true. Only `threshold_cleared` is a flag, because a dungeon
+   walked is the one station that leaves nothing behind to look at.
+2. **A Word About the Wrong Stars is sold at the pub.** The body puts it in the
+   shop's rare pool or behind the casino's second door, and both are luck: a
+   chain whose first step is luck is a chain most runs never see the shape of.
+   It goes where every other word in this game is come by, and the two after it
+   are handed over by the chain itself.
+3. **Rumour doors stand in windows now.** `Trigger::Whispered` gained a `from`,
+   because a door priced in a rumour is a door you might arrive at holding
+   nothing, and one standing on exactly one rung is a door a run walks past for
+   reasons that have nothing to do with the bet it made. The two shipped ones
+   set `from` to their own rung and behave exactly as they did.
+4. **"Walk on, and the gate finds you again" needed an outcome.**
+   `Outcome::Defer { rungs }` is the only one in the game that does not close
+   the door it was offered at: it takes the event back off `answered` and puts
+   it on a list of things that will find you again. THE LOCKED GATE and THE
+   SECOND SHADOW are the two that use it, and they are the two the body
+   describes that way.
+5. **The Slagworks stands after rung 33, not 32.** The body says "after rung 32
+   ... one clear of High Wick at 31, so the two never share a stretch of road",
+   and thirty-two is not one clear of thirty-one - the two gates would stand on
+   consecutive rungs. The sentence is right and the number was one out.
+
+And two smaller ones. **THE ASTRONOMER's window ends at rung 29** rather than
+30, because the VIP area stands on 30 and a rung with two doors on it is a rung
+where one of them is a surprise. **THE SECOND SHADOW asks only for the
+antechamber**, not for both towns - requiring the Slagworks would mean a run
+that ignored the ridge could never meet the Herald, which is a chain that fails
+*backward*.
+
+**One real bug it turned up.** `Run::take_choice` never checked that the choice
+belonged to the door standing in front of you. It did not have to while one
+door stood on a rung and the interface only ever offered that door's choices;
+the chain's windows are wide enough that two can be open at once, and answering
+one with the other's choice marked the wrong event answered.
+
+---
+
+## 22. What the structures turned out to be, and what a composite hides
+
+Written while building H2 and Part D, which closes Phase 2. Corrections, in
+the order they were found.
+
+1. **THE BUYER's menu is gated rather than generated.** H2 describes a menu
+   built from what the run is holding. `Choice` is static data and an event is
+   a table; generating choices would mean the table stopped being a table. So
+   the menu is three doors that open on what you hold -
+   `Requirement::HoldingRumour`, `Requirement::Classes(1)`, and a hundred of
+   your maximum, which anybody can sell - and the shut ones say why. The
+   effect is the one the body wanted and the mechanism is the one the file
+   already has.
+2. **The Contract is frost you asked for.** It is applied in `combat_items`,
+   where every other speed in this game is applied, rather than by teaching
+   `simulate` about a piece of paper. `CONTRACT_SLOWER = 50` on every item's
+   cooldown, three rungs, no early exit, and THE PAYOUT reads
+   `contract_honoured` rather than asking anybody.
+3. **The passenger rides as The Stranger's Parcel.** The rent is cells, and
+   cells are what components cost - so the calf arrives as the component M9
+   already appended for it, goes in the tray like anything else, and the
+   player has to find it a seat. `passenger_is_seated` is what checks they
+   did. The prose says so: it travels wrapped, and everybody who sees it will
+   call it a parcel.
+4. **Showstopper is claimed when you agree to headline, not when you win.** A
+   `Brawl`'s `win` field is a *component*, and nothing in the game grants a
+   class for winning a fight. Requiring a Rare assembled item is what makes
+   the billing mean something; the bout is what you do with it.
+5. **Unionized is the second stacking class**, after Piety - a picket line
+   honoured twice is two picket lines. It is also the only thing in the game
+   that hands out armour before a blow is struck, which is worth more than it
+   reads: armour resets to zero every fight and soaks before health does.
+6. **A Word About the Picket comes from THE INSPECTION, refused.** The bar
+   draws exactly `SHOP_SIZE` shelves and it now has six things on it, so the
+   third of Part D's words had to be come by somewhere else. The woman with
+   the clipboard is a labour professional being refused, and on her way out
+   she says where else that is happening this month - which makes THE
+   INSPECTION the second door in the game where **declining is what pays**,
+   after the Teller's third choice.
+7. **The sealed bid is capped at 5,000.** `Requirement::Figure` carries its
+   own range and the reserve is drawn as one to six times the standing rung's
+   bounty, so the ceiling is roughly three times the largest reserve the door
+   can name. A door that will take any number is a door with no shape.
+
+**Where they stand** (indices, displayed rung is one more): THE INSPECTION 19,
+THE CONTRACT 24, THE PAYOUT 28, THE BUYER 31, THE SEALED BID 35, THE FORK 36,
+THE PASSENGER 41, THE FOUNDRY REMEMBERS 46, THROUGH THE CRACKED LENS 47. The
+three pairs: THE WIZARD'S THIRST 30, THE EXHIBITION 33, THE PICKET LINE 38.
+The foundry's three wait on `slagworks-known`, which the glow now sets
+alongside its town reveal.
+
+**Two real bugs, and they are the same bug twice.** Both are about a check
+that reads less than it thinks it does.
+
+- **`Run::take_choice` compared choices by address.** The ownership check that
+  #21 added used `std::ptr::eq`. `EVENTS` is a static holding promoted arrays,
+  and a caller in another crate can hold a reference to a *copy* of the same
+  choice - so the test passed inside the engine, passed in the interface, and
+  refused every choice in a test binary, which is the worst of the three
+  places to find out. It compares by value now, which is what "belongs to this
+  door" actually means.
+- **`Run::cursed_for_good` was a list nothing read.** Documented since M12 as
+  pieces carrying a curse for the rest of the run; the library set it,
+  `Outcome::Uncurse` popped it, and no fight was any different for either.
+  `CURSED_SLOWER = 25` closes it, in `combat_items` beside the contract, and
+  the chill picks something that *acts* - a loose component has no cooldown to
+  slow.
+- **Every lint over `EVENTS` stopped at the top of an outcome.** Half this
+  mission's bargains are an `Outcome::All`, and `class::is_earned`,
+  `event::set_by` and the reachability lint all matched on `c.outcome`
+  directly - so a class claimed inside an `All` read as a class no door hands
+  out, and a fountain could have poured it. `event::every_outcome` unpacks
+  `All` and `Gamble`, and everything that asks "does any door do X" asks it
+  through there.
+
+
+## 23. The base game had been speaking turtle for eleven milestones
+
+Written while doing Phase 3. Part F's audit note flagged three canonical events
+whose prose was in the book's voice - THE HAT MAN OF KOLOK, GERALD's *Deep
+Chocolate*, THE GALAPAGOS EMPORIUM - and said the clean fix was to move the
+turtle nouns into `theme.rs`. The note undercounted. **There were fourteen**,
+and every milestone of this mission had added more, because the book's voice is
+the fun one to write in.
+
+The rule, stated properly, and now a lint:
+
+- **A common noun that leaks is fixed in place.** The canonical column says
+  *gold* and `vocabulary` puts *Fnorp* back. Five of these, including one in a
+  **combat log line** - `"{} spends {} fnorp"` - which is the engine itself
+  speaking turtle to a plain-theme player.
+- **A proper noun that leaks moves.** The canonical column gets the *role* -
+  the crownwright, the old watchman, the man who runs the store, an
+  underwriting house - and `theme.rs` gets the scene, verbatim, with the name
+  in it.
+
+**`theme.rs` gained one table for that**, `told`, a list of `Retold { id,
+title, prose, entry, landings }`. Keyed by id, because a title is prose and
+prose gets rewritten while an id never moves; one table for events, towns and
+dungeons, because ids are unique across the road and all three are things you
+arrive at. A dungeon uses all four columns (its name, its blurb, its entry
+cutscene, its landings) and an event uses two. Empty means "say the canonical
+thing", which is what makes a half-written theme safe.
+
+A8's entry cutscenes are in it, including the CREVICE retrofit the spec asked
+for. Landings and entries are themed **at the source**, in `Run`, rather than
+by each interface: the run already holds the theme, and a translation the two
+interfaces have to remember separately is a translation one of them will
+forget.
+
+`tests/two_voices.rs` is the lint and it is a ratchet. Its budget is **five**,
+and all five are the same thing: a component in `CATALOG` named after somebody
+in the book - Sprocketman's Gratitude, Henpeck's Cell Keys, Kaklon's Patent,
+Tetrahedron Shard - plus the two creatures that drop them. `CATALOG` is
+index-keyed by `share.rs` and append-only for ever, so those cannot be renamed,
+only recorded and translated. The `#[ignore]`d target asserts zero for the day
+that stops being true, which is never.
+
+**And a creature that did not exist.** THE UNWOUND was a label on the route
+map, a theme entry and a `past_the_top` that could never be true - rung 51's
+boss had no `MonsterSpec` and no frame at all, through four content
+milestones. It is a frame now, band 51, Hollow, and the frame lint counts it.
+
+---
+
 # PART A — MECHANICS
 
 ## A1. Empowerment and shield become magic-only

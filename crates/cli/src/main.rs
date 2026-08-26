@@ -167,6 +167,60 @@ fn main() {
                 },
                 None => println!("error: no piece matching '{}'", rest.join(" ")),
             },
+            // ----------------------------------------------- the road
+            //
+            // Everything standing on a rung besides the fight, and the way
+            // through it. Without these the headless driver could equip and
+            // fight and nothing else, so a scripted run walked past every
+            // event, town and fountain in the game without saying so - which
+            // makes "two replays produce identical logs" a claim about a road
+            // nobody was on.
+            ["road"] => show_road(&run),
+            ["map"] => {
+                for l in gearmaster_engine::route::ascii(&run) {
+                    println!("{}", l);
+                }
+            }
+            ["answer", n] => match n.parse::<usize>() {
+                Ok(i) => answer(&mut run, i, None),
+                Err(_) => println!("error: answer <n>"),
+            },
+            // One door in the game asks for a number, and a number cannot be
+            // guessed on the player's behalf: a default bid is a bid nobody
+            // made.
+            ["answer", n, fig] => match (n.parse::<usize>(), fig.parse::<i32>()) {
+                (Ok(i), Ok(f)) => answer(&mut run, i, Some(f)),
+                _ => println!("error: answer <n> <figure>"),
+            },
+            ["town"] => show_town(&run),
+            ["town", "on"] => {
+                let paid = run.skip_town();
+                println!("Walked on. +{}g.", paid);
+                print_receipt(&mut run);
+            }
+            ["town", door] => match parse_door(door) {
+                Some(a) => {
+                    run.visit_town(a);
+                    print_receipt(&mut run);
+                }
+                None => println!("error: chapel, pub, factory or shop"),
+            },
+            ["drink"] => {
+                if run.at_fountain() {
+                    let c = run.drink();
+                    println!("The fountain names you {}: {}", c.name, c.blurb);
+                } else if run.at_doubling_fountain() {
+                    match run.doubling_offer().first().copied() {
+                        Some(c) => {
+                            run.double_class(c);
+                            println!("Doubled: {}", c.name);
+                        }
+                        None => println!("The deep fountain has nothing of yours to double."),
+                    }
+                } else {
+                    println!("No fountain here.");
+                }
+            }
             ["fight"] => {
                 let items = run.combat_items();
                 let log = run.fight_next().clone();
@@ -257,7 +311,119 @@ fn help() {
     println!("  ladder                   the monster ladder");
     println!("  items                    list the items that will act in combat");
     println!("  fight                    simulate and print the whole bout");
+    println!("  road                     what is standing on this rung");
+    println!("  map                      the whole road, as this run has it");
+    println!("  answer <n> [figure]      take choice n at the event in front of you");
+    println!("  town | town on | town <door>   the gate, walking past it, or going in");
+    println!("  drink                    take what the fountain is offering");
     println!("  slots: helmet chest gloves greaves weapon");
+}
+
+/// The receipt from whatever was just resolved, if there is one.
+///
+/// Read once and dismissed, which is what makes it a receipt rather than a
+/// status line: it describes a moment, and the road moves on after it.
+fn print_receipt(run: &mut Run) {
+    if let Some(lines) = run.take_receipt() {
+        println!("  ----");
+        for l in lines {
+            println!("  {}", l);
+        }
+        println!("  ----");
+    }
+}
+
+/// The road stack, drawn the way the interface draws it: what you are in,
+/// what is under it, and the rung's own fight as the floor so the queue
+/// visibly ends somewhere.
+fn show_road(run: &Run) {
+    let stack = run.road_stack();
+    if let Some((d, floor)) = run.dungeon {
+        // You always know you are inside one.
+        println!(
+            "\n{} - FLOOR {} OF {}",
+            run.theme.place(d.id, d.name),
+            floor + 1,
+            d.floors.len()
+        );
+    }
+    println!("\nRung {} - {}", run.rung + 1, run.monster().name);
+    if stack.is_empty() {
+        println!("  nothing on the road. `fight`.");
+    }
+    for (i, it) in stack.iter().enumerate() {
+        let head = if i == 0 { "->" } else { "  " };
+        println!("  {} {:<10} {}", head, it.kind(), it.describe());
+    }
+    if !stack.is_empty() {
+        println!("     {:<10} {}", "fight", run.monster().name);
+    }
+    if let Some(e) = run.pending_event() {
+        println!("\n{}", run.theme.place(e.id, e.title));
+        for line in e.prose {
+            println!("  {}", line);
+        }
+        for (i, c) in e.choices.iter().enumerate() {
+            let open = run.choice_open(c);
+            println!("  {} {}. {}", if open { " " } else { "!" }, i, c.label);
+            println!("        {}", c.blurb);
+            if !open {
+                // The plain statement before an attempt, and the flavour for
+                // after one. Both, because they are different sentences.
+                println!("        {}", c.requires.describe());
+                println!("        {}", c.unmet);
+            }
+        }
+    }
+}
+
+fn answer(run: &mut Run, i: usize, figure: Option<i32>) {
+    let Some(e) = run.pending_event() else {
+        println!("Nothing is asking you anything.");
+        return;
+    };
+    let Some(c) = e.choices.get(i) else {
+        println!("error: {} has {} choices", e.title, e.choices.len());
+        return;
+    };
+    let took = match figure {
+        Some(f) => run.take_choice_with(c, f),
+        None => run.take_choice(c),
+    };
+    if took.is_none() && run.last_receipt.is_none() {
+        println!("{}", c.requires.describe());
+        println!("{}", c.unmet);
+        return;
+    }
+    println!("{}", c.label);
+    print_receipt(run);
+}
+
+fn show_town(run: &Run) {
+    let Some(t) = run.pending_town() else {
+        println!("No gate here.");
+        return;
+    };
+    println!("\n{}", t.name);
+    for line in t.blurb {
+        println!("  {}", line);
+    }
+    println!("  One of these, and then the road:");
+    for a in t.actions.iter().copied() {
+        println!("    {:<9} {}", format!("{:?}", a).to_lowercase(), a.blurb());
+    }
+    println!("    on        walk past, and take the bounty again");
+}
+
+fn parse_door(s: &str) -> Option<gearmaster_engine::town::Action> {
+    use gearmaster_engine::town::Action;
+    match s.to_lowercase().as_str() {
+        "chapel" => Some(Action::Chapel),
+        "pub" => Some(Action::Pub),
+        "factory" | "works" => Some(Action::Factory),
+        "shop" | "cart" => Some(Action::Shop),
+        _ => None,
+    }
 }
 
 fn parse_slot(s: &str) -> Option<SlotKind> {

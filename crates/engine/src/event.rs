@@ -25,6 +25,65 @@ pub enum Requirement {
     /// `LooseItemOfSize` this is not handed over: the door opens because you
     /// have the key, and you keep the key.
     Holding(&'static str),
+    /// Something the run has done, by name.
+    ///
+    /// The chain's stations set these and later stations read them. A list of
+    /// strings rather than a field per station, and that is a decision worth
+    /// arguing: named booleans are checked by the compiler and a string is
+    /// not. What a string buys is the reverse index - `set_by` walks `EVENTS`
+    /// and finds which outcome sets a flag, so `no_flag_is_waited_on_forever`
+    /// is one assertion. A field per station gives no such lint, and the fault
+    /// this is guarding against is not a typo, it is a chain with a station
+    /// nothing reaches.
+    Flag(&'static str),
+    /// Something the run has done `at_least` times, silently counted.
+    ///
+    /// The watcher pattern: revealing the Slagworks arms a counter nobody
+    /// mentions, and forty rungs later the foundry says what it noticed. The
+    /// arming leaves a receipt line and no explanation, which is the closest
+    /// this game gets to being haunted.
+    Counter { what: &'static str, at_least: u32 },
+    /// An assembled item of at least this rarity, anywhere on the board.
+    ///
+    /// Rarity is an *item's*, not a component's - `RARE_AT` is 90 on a scale
+    /// where full marks is the best a whole item can do, so a single component
+    /// almost never clears it. A door that asked for a loose Legendary would
+    /// be asking for one of ten pieces in the catalogue.
+    AssembledOfRarity(crate::rating::Rarity),
+    /// At least this many assembled items sharing one alignment word.
+    ///
+    /// The inspector's question, and the reason building *for* an event is a
+    /// strategy: it reads the live board rather than the tray.
+    AlignedItems(usize),
+    /// A word in the tray - any of them.
+    ///
+    /// The Buyer's menu is meant to be generated from what you hold, and
+    /// `Choice` is static data: generating choices would mean the event table
+    /// stopped being a table. So the menu is **gated** instead - three doors,
+    /// each shut unless you have the thing it wants - which reads the same
+    /// from the player's side and keeps the table a table.
+    HoldingRumour,
+    /// At least this many titles.
+    Classes(usize),
+    /// Gold, priced in what the rung in front of you is worth.
+    ///
+    /// Every figure in this mission is a multiple of the standing rung's
+    /// bounty rather than a constant, and this is the requirement half of
+    /// that. A price written as a number is a price that means one thing at
+    /// rung four and something else entirely at rung forty; the spec's own
+    /// figures were two and a half times everything a run had ever seen at one
+    /// end and one bounty at the other.
+    ///
+    /// Spent when the choice is taken, which is what makes it a price rather
+    /// than a test of wealth.
+    Purse { times: i32 },
+    /// A number, named by the player, inside these bounds.
+    ///
+    /// Always open - anybody can say a figure - so `choice_open` is true and
+    /// the refusal happens at `take_choice_with`, which is where the figure
+    /// arrives. A choice asking for one cannot be taken by `take_choice`,
+    /// because there is nothing to take it *with*.
+    Figure { min: i32, max: i32 },
 }
 
 /// A fight an event sets up, against however many creatures it likes.
@@ -77,9 +136,276 @@ pub enum Outcome {
     /// a curated offer works without needing a screen of its own: you walk out
     /// and the shop is different. `class` is the price of the arrangement.
     Stock { shelves: &'static [&'static str], class: &'static str },
+    /// Remember that this happened, by name. The chain is built out of these.
+    Flag(&'static str),
+    /// Count that this happened, silently. Nothing says a word; a door forty
+    /// rungs later reads the tally and says what it noticed.
+    Count(&'static str),
+    /// Put a hidden town on the road. It stands at its own rung from here.
+    RevealTown(&'static str),
+    /// A curated shelf, one visit. Unlike `Stock` it costs nothing and grants
+    /// nothing - it is a shop somebody laid out for you rather than a bargain.
+    OpenShop { shelves: &'static [&'static str] },
+    /// Walk into a mini dungeon from somewhere that is not a rung.
+    ///
+    /// The same thing `Enter` does, named for where it is used: `Enter` is an
+    /// event's, and this is a town door's. Kept apart because a town is a rung
+    /// of its own and an event stands in front of one, so what "coming out"
+    /// means is different for each.
+    StartDungeon(&'static str),
+    /// A row, on one slot, chosen later. `Run::owed_rows` holds it until the
+    /// player says which slot - "one board of your choice" is a decision and
+    /// an outcome cannot make it for you.
+    GrantRow,
+    /// Hand a loose piece a quest it was not born with.
+    GrantQuest(&'static crate::piece::Quest),
+    /// The next named creature of your choice drops its **entire** board.
+    ClaimTicket,
+    /// A standing arrangement with the shop, for the rest of the run.
+    StandingOrder(Standing),
+    /// Your next loss within five rungs does not count. One fight, once.
+    Underwrite,
+    /// Open the mind lane, for good.
+    ///
+    /// There is exactly one of these in the game and there should be: a pool
+    /// you have to be given is a thing that happens once, and the road that
+    /// gives it is the whole of what THE THRESHOLD is for.
+    UnlockInsight,
+    /// Several things at once.
+    ///
+    /// A choice used to be worth exactly one thing, and most of them still
+    /// are. The ones that are not are the ones where the *trade* is the
+    /// content - a hundred of your maximum health for the best piece off
+    /// somebody's back - and writing that as one outcome would mean inventing
+    /// a variant per bargain.
+    All(&'static [Outcome]),
+    /// Gold, priced in what the rung in front of you is worth.
+    ///
+    /// `BuyOff` has paid this way since the toad first counted fnorp onto a
+    /// stone; this is the same arithmetic without the rung being bought.
+    Pay { times: i32 },
+    /// Maximum health, for the rest of the run. Negative takes it.
+    ///
+    /// Nothing else in the game trades this away, which is the whole reason
+    /// the Teller is worth meeting - and the Manse's long table is its mirror.
+    Health(i32),
+    /// A seeded gamble: `wins` times in `outof`, from the run's own PRNG.
+    ///
+    /// The receipt shows what happened and never the odds. A machine at the
+    /// roadside does not print its own probabilities on the front, and being
+    /// told them afterwards would turn a story into a spreadsheet.
+    Gamble { wins: u32, outof: u32, won: &'static Outcome, lost: &'static Outcome },
+    /// The foundry's auction. One lot, against a reserve nobody has seen.
+    ///
+    /// The figure comes from `Requirement::Figure` and the reserve from the
+    /// run's own seed. Over pays, under loses the lot - and the receipt shows
+    /// the reserve either way, which is what makes losing teach rather than
+    /// sting.
+    SealedBid { lots: &'static [&'static str] },
+    /// A shelf, laid out for you *after* whatever else this choice started.
+    ///
+    /// The Fork's other half. Shopping before a fight and shopping after one
+    /// are two different decisions, and the only way to say the second is to
+    /// hold the shelf until the fight is over.
+    ShopAfter { shelves: &'static [&'static str] },
+    /// Everything on every shelf costs this much more, for the rest of the run.
+    Markup(i32),
+    /// A fragile thing rides one of your boards for `rungs` rungs.
+    Passenger { rungs: usize, pays: &'static str },
+    /// Frost on all your gear for `rungs` rungs, taken on purpose.
+    Contract { rungs: usize },
+    /// Sell a word. The door it opened stays shut.
+    SellWord,
+    /// Sell a title. He does not ask which and neither does this.
+    SellTitle,
+    /// Frost on something of yours, chosen by the run's own seed.
+    Chill,
+    /// Take a curse off a piece, for good.
+    ///
+    /// The only thing that undoes the Manse library's price, and the only
+    /// reason that price is a trade rather than a mistake.
+    Uncurse,
+    /// Leave it standing, and let it find you again `rungs` further on.
+    ///
+    /// The one outcome that does not close the door it was offered at.
+    /// Everything else in this enum is a decision; this is declining to make
+    /// one, and the price is that the thing comes back - which is the shape
+    /// several of the chain's stations want and none of them could say.
+    Defer { rungs: usize },
+    /// See an upcoming boss's packed board from the loadout screen, for the
+    /// rest of the run. Grants no stats whatsoever - the board view is the
+    /// entire reward.
+    Scout,
 }
 
-#[derive(Copy, Clone, Debug)]
+/// An arrangement with the shop that outlives one restock.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Standing {
+    /// Every shelf from here on offers at least one piece of this kind.
+    GuaranteedKind(crate::piece::PieceKind),
+    /// The first reroll after every restock is free.
+    FreeFirstReroll,
+    /// A piece sold goes on consignment: it comes back three shops later,
+    /// worth thirty more than it left.
+    Consignment,
+}
+
+impl Standing {
+    pub fn describe(self) -> String {
+        match self {
+            Standing::GuaranteedKind(k) => {
+                format!("Standing order: every shelf offers a {}", k.name())
+            }
+            Standing::FreeFirstReroll => "Standing order: the first reroll is always free".into(),
+            Standing::Consignment => {
+                "Standing order: what you sell comes back three shops later, worth 30 more".into()
+            }
+        }
+    }
+}
+
+impl Outcome {
+    /// The concrete deltas this hands over, one line each.
+    ///
+    /// A `Vec` where `Requirement::describe` is a `String`, and the difference
+    /// is the point: a requirement is one condition, and an outcome is
+    /// however many things happen. The VIP area's bargain restocks a shop
+    /// *and* costs you a class, and a receipt that mentioned one of those
+    /// would be a receipt somebody had to check.
+    ///
+    /// Static: what this outcome *is*, for a tooltip before it is taken. What
+    /// it *did*, with the run's own numbers in it, is `Run::receipt` - a
+    /// bounty depends on the rung and a seeded gamble depends on the roll,
+    /// and neither is knowable from here.
+    pub fn describe(&self) -> Vec<String> {
+        match self {
+            Outcome::FightAsWritten => vec!["Fight the creature standing here".into()],
+            Outcome::FightInstead(name) => vec![format!("Fight {} instead", name)],
+            Outcome::BuyOff { times } => vec![
+                "Hand over what was asked".into(),
+                format!("The rung is bought off, and pays its bounty {} times over", times),
+            ],
+            Outcome::Enter(id) => {
+                let name = crate::dungeon::by_id(id).map(|d| d.name).unwrap_or(id);
+                vec![format!("Enter: {}", name)]
+            }
+            Outcome::Spare => vec!["One more loss before the run ends".into()],
+            Outcome::Claim(name) => vec![format!("Class: {}", name)],
+            Outcome::Give(name) => vec![format!("Gained: {}", name)],
+            Outcome::Step(b) => {
+                let mut out = vec![format!("Fight: {}", b.with.join(" and "))];
+                if !b.win.is_empty() {
+                    out.push(format!("If you win: {}", b.win));
+                }
+                if b.and_grow > 0 {
+                    out.push(format!(
+                        "If you win: +{} row{} on every board",
+                        b.and_grow,
+                        if b.and_grow == 1 { "" } else { "s" }
+                    ));
+                }
+                out.push(
+                    if b.forgiving {
+                        "Losing costs no life".into()
+                    } else {
+                        "Losing costs what losing costs".into()
+                    },
+                );
+                out
+            }
+            Outcome::Flag(what) => vec![format!("Noted: {}", what.replace('-', " "))],
+            // A silent counter says nothing. That is the whole mechanic: the
+            // receipt is where a player would look for an explanation, and
+            // there is not one until the thing that was counting speaks.
+            Outcome::Count(_) => vec!["Nothing you could point to".into()],
+            Outcome::RevealTown(id) => {
+                let t = crate::town::by_id(id);
+                match t {
+                    Some(t) => vec![format!("Revealed: {} (after rung {})", t.name, t.after + 1)],
+                    None => vec![format!("Revealed: {}, which is nowhere", id)],
+                }
+            }
+            Outcome::OpenShop { shelves } => {
+                let mut out = vec![format!("A shelf of {}, this once", shelves.len())];
+                for n in shelves.iter() {
+                    out.push(format!("  {}", n));
+                }
+                out
+            }
+            Outcome::StartDungeon(id) => {
+                let name = crate::dungeon::by_id(id).map(|d| d.name).unwrap_or(id);
+                vec![format!("Enter: {}", name)]
+            }
+            Outcome::GrantRow => {
+                vec!["+1 row on a board of your choice, for the rest of the run".into()]
+            }
+            Outcome::GrantQuest(q) => vec![format!("A task: {}", q.label)],
+            Outcome::ClaimTicket => {
+                vec!["A claim on one named creature's whole board".into()]
+            }
+            Outcome::StandingOrder(o) => vec![o.describe()],
+            Outcome::Underwrite => {
+                vec!["Your next loss within five rungs does not count".into()]
+            }
+            Outcome::Scout => vec!["You can read a boss's board before you fight it".into()],
+            Outcome::UnlockInsight => vec!["Insight unlocked".into()],
+            Outcome::Uncurse => vec!["One piece stops being cursed".into()],
+            Outcome::SellWord => vec!["A word, sold. That door stays shut".into()],
+            Outcome::SellTitle => vec!["A title, sold. You stop being it".into()],
+            Outcome::Chill => vec!["Something of yours runs cold".into()],
+            Outcome::SealedBid { lots } => {
+                let mut out = vec!["One lot, against a reserve nobody has seen".into()];
+                for l in lots.iter() {
+                    out.push(format!("  {}", l));
+                }
+                out
+            }
+            Outcome::ShopAfter { shelves } => {
+                vec![format!("A shelf of {}, once this is over", shelves.len())]
+            }
+            Outcome::Markup(pct) => vec![format!("Every shelf costs {}% more", pct)],
+            Outcome::Passenger { rungs, pays } => vec![
+                format!("Something fragile rides your board for {} rungs", rungs),
+                format!("Deliver it and the courier hands over: {}", pays),
+            ],
+            Outcome::Contract { rungs } => {
+                vec![format!("Frost on all your gear for {} rungs", rungs)]
+            }
+            Outcome::All(each) => each.iter().flat_map(|o| o.describe()).collect(),
+            Outcome::Pay { times } => {
+                vec![format!("{} times this rung's bounty, into your purse", times)]
+            }
+            Outcome::Health(n) if *n < 0 => {
+                vec![format!("{} maximum health, for the rest of the run", n)]
+            }
+            Outcome::Health(n) => {
+                vec![format!("+{} maximum health, for the rest of the run", n)]
+            }
+            // What it *might* do, for a tooltip before it is taken. What it
+            // did is the receipt's, and the receipt never says the odds.
+            Outcome::Gamble { won, lost, .. } => {
+                let mut out = vec!["A gamble. Either:".into()];
+                out.extend(won.describe().into_iter().map(|l| format!("  {}", l)));
+                out.push("or:".into());
+                out.extend(lost.describe().into_iter().map(|l| format!("  {}", l)));
+                out
+            }
+            Outcome::Defer { rungs } => {
+                vec![format!("It finds you again {} rungs further on", rungs)]
+            }
+            Outcome::Stock { shelves, class } => {
+                let mut out = vec![format!("The shop is emptied and stocked with {}", shelves.len())];
+                for name in shelves.iter() {
+                    out.push(format!("  {}", name));
+                }
+                out.push(format!("Class: {}", class));
+                out
+            }
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Choice {
     pub label: &'static str,
     /// One line under the label. What it costs, or what you are in for.
@@ -115,14 +441,26 @@ pub enum Trigger {
     /// `over_ms`. The shallow end has two doors and they are the same
     /// question asked twice - how is this build actually going?
     SlowKill { over_ms: u32, from: usize },
-    /// Stands on `at`, but only for somebody carrying the named rumour *and*
-    /// answering whatever it is a rumour about.
+    /// Stands anywhere from `from` to `at`, for somebody carrying the named
+    /// rumour *and* answering whatever it is a rumour about.
     ///
     /// Unlike the others this cannot be decided from a rung and two
     /// stopwatches: the conditions are about the board and about the whole run
     /// so far. `event::at` refuses it and `Run::pending_event` answers it,
     /// because the run is the only thing that knows.
-    Whispered { rumour: &'static str },
+    ///
+    /// A window rather than a rung, because a door priced in a rumour is a
+    /// door you might arrive at holding nothing - and one that stands on
+    /// exactly one rung is a door a run can walk past for reasons that have
+    /// nothing to do with the bet it made. The two shipped ones set `from` to
+    /// their own rung and behave exactly as they did.
+    Whispered { rumour: &'static str, from: usize },
+    /// Stands anywhere from `from` to `at`, for a run that has done something.
+    ///
+    /// The chain's own trigger. Everything else here is decided by where you
+    /// are or how fast you got there; this is decided by what you did, which
+    /// is what makes a chain a chain rather than four events on four rungs.
+    WhenFlagged { flag: &'static str, from: usize },
 }
 
 impl Trigger {
@@ -130,8 +468,11 @@ impl Trigger {
     /// exactly one rung, so it is that.
     pub fn from(self) -> usize {
         match self {
-            Trigger::Rung | Trigger::Whispered { .. } => 0,
-            Trigger::QuickKill { from, .. } | Trigger::SlowKill { from, .. } => from,
+            Trigger::Rung => 0,
+            Trigger::QuickKill { from, .. }
+            | Trigger::SlowKill { from, .. }
+            | Trigger::Whispered { from, .. }
+            | Trigger::WhenFlagged { from, .. } => from,
         }
     }
 }
@@ -188,6 +529,64 @@ pub static THE_BACK_ROOM: Brawl = Brawl {
     forgiving: false,
 };
 
+/// What the foundry lays out at the fork.
+pub const FOUNDRY_SHELF: &[&str] =
+    &["Ironbound Haft", "Bonesaw", "Adamant Fang", "Serrated Edge", "Kingmaker Hilt"];
+
+/// Two showfighters, at exhibition stakes.
+///
+/// Forgiving, because that is what "exhibition stakes" means: it costs this
+/// rung's purse and never a life or a rung, and a bout that could end a run
+/// would not be a demonstration of anything.
+pub static THE_SHOWFIGHTERS: Brawl = Brawl {
+    with: &["Bone Archer", "Frost Wisp"],
+    win: "",
+    and_grow: 0,
+    forgiving: true,
+};
+
+/// What the little shop has out, at a permanent discount.
+pub const MOLE_SHELF: &[&str] =
+    &["Ring of Hours", "Signet of Iron", "Tin Band", "Iron Band", "Oathring"];
+
+/// What the table sets a piece to become.
+///
+/// The only content anywhere that touches the quest system, which is why it is
+/// one line rather than a table: a piece that has gone off thirty times has
+/// been *used*, and the table's whole trick is telling a thing what it is for.
+pub static TABLE_TASK: crate::piece::Quest = crate::piece::Quest {
+    label: "the table said what it is for",
+    goal: 30,
+    track: crate::piece::QuestTrack::SelfActivations,
+    becomes: "Kingmaker Hilt",
+};
+
+/// The birds, past the next ridge, arriving with the rung.
+///
+/// The only event that changes the shape of the *next* fight rather than
+/// standing in front of it, and the first adversarial use of a party outside
+/// the casino's table.
+pub static THE_FLOCK: Brawl = Brawl {
+    with: &["THE FLOCK"],
+    win: "",
+    and_grow: 0,
+    forgiving: true,
+};
+
+/// Your shadow, and what your shadow carries.
+///
+/// The first party fight in the game outside the casino's table, and the only
+/// one that pays. Not forgiving: this is the chain's own gate, and a gate that
+/// costs nothing to fail is not one - but a Grinder knocked back meets it
+/// again two rungs up, because failing forward is the rule everywhere else on
+/// this chain and the Herald is not an exception to it, only a delay.
+pub static THE_HERALD: Brawl = Brawl {
+    with: &["THE SHADOW", "THE LANTERN"],
+    win: "An Unwound Mainspring",
+    and_grow: 0,
+    forgiving: false,
+};
+
 pub const EVENTS: &[LadderEvent] = &[
     // ---- the two the pub sells ----
     //
@@ -197,12 +596,12 @@ pub const EVENTS: &[LadderEvent] = &[
     LadderEvent {
         id: "the-crownwright",
         at: 19,
-        trigger: Trigger::Whispered { rumour: "A Word About the Crownwright" },
+        trigger: Trigger::Whispered { rumour: "A Word About the Crownwright", from: 19 },
         blocked_by: &[],
         expects: "Bone Cantor",
-        title: "THE HAT MAN OF KOLOK",
+        title: "THE CROWNWRIGHT",
         prose: &[
-            "The Kolok Hatter works out of one room over a fish shop and does \
+            "The crownwright works out of one room over a fish shop and does \
              not turn round when you come in, on the grounds that he can hear \
              how full your head is from where he is sitting.",
             "\"Full,\" he says. \"Good. Most of them come up those stairs \
@@ -232,7 +631,7 @@ pub const EVENTS: &[LadderEvent] = &[
     LadderEvent {
         id: "the-green-ledger",
         at: 22,
-        trigger: Trigger::Whispered { rumour: "A Word About the Green Ledger" },
+        trigger: Trigger::Whispered { rumour: "A Word About the Green Ledger", from: 22 },
         blocked_by: &[],
         expects: "The Gearwright",
         title: "THE GREEN LEDGER",
@@ -379,20 +778,20 @@ pub const EVENTS: &[LadderEvent] = &[
         trigger: Trigger::QuickKill { within_ms: 3_500, from: 1 },
         blocked_by: &[],
         expects: "Whisperling",
-        title: "THE GALAPAGOS EMPORIUM",
+        title: "THE CASINO",
         prose: &[
-            "The Galapagos Emporium takes anybody who can walk in, which is \
-             how you got in. There is a bowl of complimentary Chromatic Rice \
-             by the door and a card over it reading ONE (1) HANDFUL - HONOUR \
-             SYSTEM - WE ARE WATCHING YOU TAKE IT.",
-            "You are here for Kolok Hold-Em, which is Hold-Em except that one \
-             card in the deck is a live gooster and no player may look at it. \
-             You have the fnorp. You have taken your one handful.",
-            "At the third table along, two players have stopped playing Kolok \
+            "The card room takes anybody who can walk in, which is how you got \
+             in. There is a bowl of complimentary salted rice by the door and \
+             a card over it reading ONE (1) HANDFUL - HONOUR SYSTEM - WE ARE \
+             WATCHING YOU TAKE IT.",
+            "You are here for Hold-Em, played the way this house plays it: one \
+             card in the deck is a live wasp and no player may look at it. You \
+             have the gold. You have taken your one handful.",
+            "At the third table along, two players have stopped playing \
              Hold-Em and started on each other. The room has formed a ring \
              around it. A woman with a clipboard is working through the ring \
              taking side bets in a very neat hand, and the dealer is standing \
-             perfectly still with the gooster held out at arm's length.",
+             perfectly still with the wasp held out at arm's length.",
         ],
         choices: &[
             Choice {
@@ -442,9 +841,9 @@ pub const EVENTS: &[LadderEvent] = &[
              nothing else about it.",
             "His cart is ahead of you on the road, pulled by an animal with a \
              brass plate on its harness. The plate gives the species, which \
-             is Slow Trundler, and the name, which is Gerald, and the top \
+             is Draught Tortoise, and the name, which is Gerald, and the top \
              speed, which is given in metres per hour.",
-            "Gerald is hauling four tons of Deep Chocolate to Kettleworks. \
+            "Gerald is hauling four tons of ore to Kettleworks. \
              They set off in the spring. The man says they are ahead of \
              schedule, and shows you the notebook again at a different page, \
              as though that settles it.",
@@ -478,13 +877,13 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "The Curator",
         title: "HE IS STILL TALKING",
         prose: &[
-            "Lord Drabley Henpeck is on the floor of his own counting house \
-             with a broken hip and an excellent view of the ceiling, and he \
-             is talking.",
+            "The overseer is on the floor of his own counting house with a \
+             broken hip and an excellent view of the ceiling, and he is \
+             talking.",
             "He has been talking since he went down. He has names. He has \
-             routes. He has the clearance order for the Great Gear Cave, \
-             filed correctly, in triplicate, because he is exactly the sort \
-             of man who would. All of it is available for the obvious \
+             routes. He has the clearance order for the works, filed \
+             correctly, in triplicate, because he is exactly the sort of man \
+             who would. All 3 copies are available for the obvious \
              consideration.",
             "He is having a marvellous time. He has asked you twice now \
              whether you are getting all this.",
@@ -519,7 +918,7 @@ pub const EVENTS: &[LadderEvent] = &[
             "It does not want to fight you. It wants the square thing in your \
              bag. It says square, it says two by two, it will not be moved on \
              the shape and it will not say what it is for.",
-            "It counts the fnorp out onto a flat stone while you decide. It \
+            "It counts the gold out onto a flat stone while you decide. It \
              counts out twice what the thing is worth. Then it counts the \
              whole pile again, gets the same number, and seems mildly \
              disappointed by that.",
@@ -553,10 +952,10 @@ pub const EVENTS: &[LadderEvent] = &[
              always stands in the shrine: plated to the eyeballs, wound to \
              the last click, entirely ready for you.",
             "There is also a hole in the back wall, which was not in the back \
-             wall when you came in. Down the hole is a seed facility, and in \
-             the seed facility is an old analyst named Boyetano who prays on \
-             a floor that cuts his knees. He has been waiting a long while \
-             for somebody with shoulders.",
+             wall when you came in. Down the hole is a works of some kind, and \
+             on the floor of it an old watchman prays on stone that cuts his \
+             knees. He has been waiting a long while for somebody with \
+             shoulders.",
             "And there is a third thing behind the altar, asleep, with a \
              shell on it like a walnut. Nobody who works here will look \
              straight at it. The idol does not look at it either, and the \
@@ -572,7 +971,7 @@ pub const EVENTS: &[LadderEvent] = &[
             },
             Choice {
                 label: "FOLLOW THE THING YOU SOLD",
-                blurb: "Three floors down, and Boyetano at the bottom with something to hand over.",
+                blurb: "Three floors down, and the watchman at the bottom with something to hand over.",
                 requires: Requirement::Took("TAKE THE DEAL"),
                 outcome: Outcome::Enter("the-crevice"),
                 unmet: "You never sold it, so it never came this way, so there is no hole in the wall.",
@@ -582,6 +981,968 @@ pub const EVENTS: &[LadderEvent] = &[
                 blurb: "A boss, this early, and it leaves something behind when it stops.",
                 requires: Requirement::None,
                 outcome: Outcome::FightInstead("The Dreaming Idiot"),
+                unmet: "",
+            },
+        ],
+    },
+
+    // ------------------------------------------------------- the Unwinding
+    //
+    // Four stations, and every one of them fails forward: a refused choice
+    // costs the reward and never the chain. The only thing that can actually
+    // stop it is losing to the Herald, and even that waits two rungs and
+    // offers again.
+    //
+    // The order is the chain: a word bought or won, a man who trades it for
+    // another word, a gate that trades that one for a house, a light on a
+    // ridge that trades the third for a foundry, and then the thing that has
+    // been walking behind you the whole time.
+    LadderEvent {
+        id: "the-astronomer",
+        // Rungs eighteen to twenty-nine. A window rather than a rung, because
+        // a door priced in a rumour is a door you might arrive at holding
+        // nothing - and stopping one short of thirty because the VIP area
+        // stands there and a rung with two things on it is a rung where one of
+        // them is a surprise.
+        at: 28,
+        trigger: Trigger::Whispered { rumour: "A Word About the Wrong Stars", from: 17 },
+        blocked_by: &[],
+        expects: "Null Sentinel",
+        title: "THE ASTRONOMER",
+        prose: &[
+            "His name is Halloway and he has been thrown out of every \
+             observatory on this road, and thrown out of all of them for the \
+             same sentence, which he will say to you inside ninety seconds \
+             whether or not you ask him to.",
+            "The sentence is that eleven stars this year have fallen against \
+             their own arcs. Not moved. Fallen - the way a thing falls when \
+             something with mass goes past it - and always in the same \
+             direction, and the direction is *down*, which is not a direction \
+             the sky has.",
+            "His lens is cracked from the middle out. He says that happened \
+             on the eighth one. He says it as though it settles something.",
+        ],
+        choices: &[
+            Choice {
+                label: "Hear him out",
+                blurb: "It takes an hour and he does not stop to breathe. He is right.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("A Word About the Cellar"),
+                unmet: "",
+            },
+            Choice {
+                label: "Buy the lens",
+                blurb: "Three times a rung's bounty. It is cracked and he wants that for it.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("The Cracked Lens"),
+                unmet: "",
+            },
+            Choice {
+                label: "Turn him in",
+                blurb: "Somebody up the road pays for madmen. The bounty again, and nothing else.",
+                requires: Requirement::None,
+                outcome: Outcome::BuyOff { times: 0 },
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-locked-gate",
+        at: 40,
+        trigger: Trigger::Whispered { rumour: "A Word About the Cellar", from: 22 },
+        blocked_by: &[],
+        expects: "Sootmother",
+        title: "THE LOCKED GATE",
+        prose: &[
+            "A gate, in good repair, hung on two posts, with a lock on it \
+             that somebody oils. There is no wall on either side of it and no \
+             road behind it, and the grass behind it has not been walked on \
+             by anything with feet.",
+            "The word Halloway gave you is not a key. It is a thing to say, \
+             and he said it to himself twice before he said it to you, to be \
+             sure he had it in the right order.",
+            "There is a brass plate screwed to the middle post. It says \
+             EGGBERT and then a number that is longer than a house number \
+             needs to be.",
+        ],
+        choices: &[
+            Choice {
+                label: "Use the word",
+                blurb: "It is four syllables and one of them is not a sound. The gate opens.",
+                requires: Requirement::None,
+                outcome: Outcome::RevealTown("the-manse"),
+                unmet: "",
+            },
+            Choice {
+                label: "Walk on",
+                blurb: "Keep the word. The gate is patient and the gate knows the road.",
+                requires: Requirement::None,
+                outcome: Outcome::Defer { rungs: 3 },
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-glow-over-the-ridge",
+        at: 45,
+        trigger: Trigger::Whispered { rumour: "A Word About the Glow", from: 30 },
+        blocked_by: &[],
+        expects: "The Salt Wedding",
+        title: "THE GLOW OVER THE RIDGE",
+        prose: &[
+            "There is a light over the ridge and it does not go out. It is not \
+             a fire: a fire moves and this does not, and a fire goes out and \
+             this has been on since before anybody on this road was born.",
+            "Whatever is under it has been melting things down for a very long \
+             time. The interesting part is what it has been melting: not ore, \
+             which comes out of the ground, but *finished things*, which have \
+             to be carried in - and the road to it goes only one way.",
+            "A carter coming the other way says it is the Slagworks, says it \
+             the way you would say a word you had been told not to, and does \
+             not slow down while saying it.",
+        ],
+        choices: &[
+            Choice {
+                label: "Follow it",
+                blurb: "Over the ridge and down. It is further away than it looks and then it is not.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::RevealTown("the-slagworks"),
+                    Outcome::Flag("slagworks-known"),
+                ]),
+                unmet: "",
+            },
+            Choice {
+                label: "Ignore it",
+                blurb: "It is a light. You have a road. The rung pays again for the trouble.",
+                requires: Requirement::None,
+                outcome: Outcome::BuyOff { times: 0 },
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-second-shadow",
+        at: 48,
+        // Standing because of what the run has done rather than where it is:
+        // both towns found, and the antechamber walked.
+        trigger: Trigger::WhenFlagged { flag: "threshold-cleared", from: 42 },
+        blocked_by: &[],
+        expects: "Gilt",
+        title: "THE SECOND SHADOW",
+        prose: &[
+            "Your shadow is ahead of you on the road, which happens when the \
+             light is behind you, and the light is not behind you.",
+            "It is carrying your build. Not gear like yours - yours, the same \
+             pieces in the same corners with the same one crooked, and it is \
+             holding a lantern you have never owned and the lantern is what \
+             is casting it.",
+            "It has been walking at your pace since the Manse, which is a long \
+             way back to have been keeping step without once being in front. \
+             It has been waiting for you to be worth meeting.",
+            "It has stopped waiting.",
+        ],
+        choices: &[
+            Choice {
+                label: "Face it",
+                blurb: "Both of them at once. It knows what you are going to do, and does it first.",
+                requires: Requirement::None,
+                outcome: Outcome::Step(&THE_HERALD),
+                unmet: "",
+            },
+            Choice {
+                label: "Refuse",
+                blurb: "It follows. It is in no hurry at all and it has the light.",
+                requires: Requirement::None,
+                outcome: Outcome::Defer { rungs: 3 },
+                unmet: "",
+            },
+        ],
+    },
+
+    // -------------------------------------------- five that always happen
+    //
+    // No requirement, no rumour, no chain. A run that touches nothing meets
+    // all five, which is the guarantee they exist for: the road is never bare,
+    // and F1 is how a blind run learns the chain is in the game at all.
+    //
+    // Every figure in them is a multiple of the rung's own bounty rather than
+    // a number. The spec's constants were written against a milestone table
+    // that does not exist, and measured against the real economy they were two
+    // and a half times everything a run had ever seen at one end and one
+    // bounty at the other. See RECONCILIATION II #16.
+    LadderEvent {
+        id: "back-in-a-minute",
+        at: 3,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Rust Golem",
+        title: "BACK IN A MINUTE",
+        prose: &[
+            "A man on the road hands you something to hold. He does it the way \
+             you hand a thing to somebody you have known for years, and you \
+             have not known him for any years at all.",
+            "He says he is going to get a drink and asks whether you are \
+             coming. You are not coming. He goes anyway, off the road and up \
+             the bank, and does not come back, and after a while it becomes \
+             clear that not coming back was always the plan.",
+            "The wrapping is a page torn out of a star chart. Somebody has \
+             drawn a ring round a shop two towns up - the one with the odd \
+             words on the back shelf - and written HE IS RIGHT under it, and \
+             underlined it once.",
+        ],
+        choices: &[
+            Choice {
+                label: "Keep it",
+                blurb: "Whatever it is, it is yours now. So is the page it came in.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("The Stranger's Parcel"),
+                unmet: "",
+            },
+            Choice {
+                label: "Leave it on the milestone",
+                blurb: "Somebody will take it. Somebody pays for the trouble of not having it.",
+                requires: Requirement::None,
+                outcome: Outcome::Pay { times: 3 },
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-teller",
+        at: 10,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Mirror Fiend",
+        title: "THE TELLER",
+        prose: &[
+            "There is a windowless store here the size of a county and its \
+             entire sign says LARGE. Inside it the man who runs the place has \
+             been carrying a story for 11 years that he is not able to put \
+             down, and he will pay to say it to somebody who is still \
+             standing afterwards.",
+            "He has tried three people. He describes what happened to all \
+             three of them in a level voice and with a great deal of \
+             sympathy, and then asks whether you are interested.",
+            "He is not lying and he is not selling. He genuinely wants to be \
+             rid of it, and what it costs to take is exactly what it costs \
+             him to keep.",
+        ],
+        choices: &[
+            Choice {
+                label: "Hear it all",
+                blurb: "The whole thing. He takes the best piece off his own back for it.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::Health(-100),
+                    Outcome::Give("The Cracked Lens"),
+                ]),
+                unmet: "",
+            },
+            Choice {
+                label: "Hear the short version",
+                blurb: "Half of it, and half of what half of it costs, and he pays cash.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[Outcome::Health(-50), Outcome::Pay { times: 10 }]),
+                unmet: "",
+            },
+            Choice {
+                label: "Plug your ears",
+                blurb: "He trudges on. You keep what a head can hold, which turns out to matter.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-dispenser",
+        // Sixteen rather than fifteen: Henpeck is still talking on that one,
+        // and a rung with two doors on it is a rung where one of them is a
+        // surprise.
+        at: 16,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Salt Idol",
+        title: "THE DISPENSER",
+        prose: &[
+            "A machine at the roadside, humming, plugged into nothing anybody \
+             can find. Every light on it works. The whole front is lit up and \
+             every row is stocked and there is a bottle wedged sideways \
+             between the glass and the coil where somebody's last coin went.",
+            "The one behind the red panel costs ten times what anything else \
+             in the machine costs. There is a small brass plate under it and \
+             the plate says WORTH IT, which is either a claim or a price.",
+        ],
+        choices: &[
+            Choice {
+                label: "One coin",
+                blurb: "The cheapest row. It has been known to wedge.",
+                requires: Requirement::Purse { times: 1 },
+                outcome: Outcome::Gamble {
+                    wins: 2,
+                    outof: 3,
+                    won: &Outcome::Give("The Stranger's Parcel"),
+                    lost: &Outcome::FightAsWritten,
+                },
+                unmet: "The slot wants a coin and you are counting lint.",
+            },
+            Choice {
+                label: "The red one behind the glass",
+                blurb: "Ten times the price and it comes out with ceremony.",
+                requires: Requirement::Purse { times: 10 },
+                outcome: Outcome::Give("The Cracked Lens"),
+                unmet: "The red one is behind the glass and the glass has a price on it.",
+            },
+            Choice {
+                label: "Shake it",
+                blurb: "Free. Two might fall at once. Somebody might hear.",
+                requires: Requirement::None,
+                outcome: Outcome::Gamble {
+                    wins: 1,
+                    outof: 2,
+                    won: &Outcome::Pay { times: 2 },
+                    lost: &Outcome::Count("shook-the-machine"),
+                },
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "what-the-table-said",
+        at: 23,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Crowned Hollow",
+        title: "WHAT THE TABLE SAID",
+        prose: &[
+            "The inn at this crossroads has one long table in it and nobody \
+             sits at the middle of it, and it has been that way for 40 years. \
+             The landlord will tell you why if you ask, in a tone that says he \
+             has stopped finding it interesting.",
+            "Set a thing down at the centre and the table says what the thing \
+             is trying to become. Not what it is. What it is *for*, which is \
+             a different question and one nothing else in the world has ever \
+             asked out loud.",
+            "It has been right every time. It has also, twice, been right \
+             about things nobody wanted to be right about.",
+        ],
+        choices: &[
+            Choice {
+                label: "Set a piece on it",
+                blurb: "It speaks the task aloud, in full, and then halves it.",
+                requires: Requirement::None,
+                outcome: Outcome::GrantQuest(&TABLE_TASK),
+                unmet: "",
+            },
+            Choice {
+                label: "Keep your gear to yourself",
+                blurb: "The table says nothing. It says nothing very pointedly.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-bird-problem",
+        at: 26,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Vermin Sovereign",
+        title: "THE BIRD PROBLEM",
+        prose: &[
+            "A courier hands you a memo. It is four pages, it is CC'd to \
+             three governing bodies, and its subject line is THE COMING \
+             TERRITORIAL WAR WITH THE BIRDS.",
+            "Page two lists three potential outcomes. Two of them are bad. \
+             The third is described as 'bad, but ours', which is the sort of \
+             sentence that takes a committee eleven weeks.",
+            "Page four is about armament and recommends racquets. The memo is \
+             absurd from end to end and it is also, past the next ridge and \
+             getting closer, entirely correct.",
+        ],
+        choices: &[
+            Choice {
+                label: "Arm up",
+                blurb: "The courier has one spare and is glad to be rid of it.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("Vicegrip Mold"),
+                unmet: "",
+            },
+            Choice {
+                label: "Pay the toll",
+                blurb: "One rung's bounty and the flock parts. Nothing follows.",
+                requires: Requirement::Purse { times: 1 },
+                outcome: Outcome::FightAsWritten,
+                unmet: "The birds do not take promises and the courier has stopped listening.",
+            },
+            Choice {
+                label: "Ignore the memo",
+                blurb: "It is four pages about birds. The next one arrives with company.",
+                requires: Requirement::None,
+                outcome: Outcome::Step(&THE_FLOCK),
+                unmet: "",
+            },
+        ],
+    },
+
+    // ---------------------------------------------- the sign behind the sign
+    //
+    // The one door in the game that opens because of something you *declined*.
+    // Keeping your head whole is what lets you see a second sign further back
+    // and taller, which retroactively makes the Teller's third choice the
+    // secret best one.
+    LadderEvent {
+        id: "the-bigger-sign",
+        at: 40,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Sootmother",
+        title: "THE BIGGER SIGN",
+        prose: &[
+            "The store called LARGE is behind you and has been for some rungs \
+             now, and something about it has been sitting wrong the whole way.",
+            "It is the sign. The sign says LARGE and it is nailed to a hoarding \
+             and the hoarding is not the building - and behind the hoarding, \
+             further back and a good deal taller, there is a second sign, and \
+             the second sign says EXTRA LARGE.",
+            "Nobody else on this road has looked up. The teller's story takes \
+             the part of you that would have.",
+        ],
+        choices: &[
+            Choice {
+                label: "Follow the sign",
+                blurb: "Off the road, round the hoarding, and in. It stands after the next rung.",
+                requires: Requirement::Took("Plug your ears"),
+                outcome: Outcome::RevealTown("extra-large"),
+                unmet: "You heard the story. Whatever part of you looks up is not looking up.",
+            },
+            Choice {
+                label: "Forget you saw it",
+                blurb: "Some knowledge is for selling, and somebody up the road is buying.",
+                requires: Requirement::None,
+                outcome: Outcome::Pay { times: 3 },
+                unmet: "",
+            },
+        ],
+    },
+    // ------------------------------------------------------ the destinations
+    //
+    // Neither of these stands on a rung. They are pushed onto the stack by a
+    // pedestal, which is why they need no window and no trigger anybody will
+    // ever meet by climbing - `Run::forced_event` is what asks them.
+    LadderEvent {
+        id: "the-thrumbus-race",
+        at: 40,
+        trigger: Trigger::WhenFlagged { flag: "never", from: 40 },
+        blocked_by: &[],
+        expects: "Sootmother",
+        title: "THE THRUMBUS RACE",
+        prose: &[
+            "The 45th running, and the paddock is nine deep in people who have \
+             an opinion about a thrumbus. A thrumbus is the fastest thing that \
+             has ever been bred and looks, standing still, like a mistake.",
+            "There is a book taking bets and a rail you can lean on and a \
+             steward who will let anybody run who signs the form, and the form \
+             is one line long and the line is about teeth.",
+        ],
+        choices: &[
+            Choice {
+                label: "Back a runner",
+                blurb: "Three rungs' worth on the nose. The jackpot is a claim on a whole board.",
+                requires: Requirement::Purse { times: 3 },
+                outcome: Outcome::Gamble {
+                    wins: 1,
+                    outof: 4,
+                    won: &Outcome::ClaimTicket,
+                    lost: &Outcome::FightAsWritten,
+                },
+                unmet: "The book has seen your purse and has gone back to the book.",
+            },
+            Choice {
+                label: "Ride",
+                blurb: "No stake. Finish, and take something off the paddock rail.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("Sevenleague Sole"),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "mole-town",
+        at: 40,
+        trigger: Trigger::WhenFlagged { flag: "never", from: 40 },
+        blocked_by: &[],
+        expects: "Sootmother",
+        title: "MOLE TOWN",
+        prose: &[
+            "The highway ends at a town built entirely at ankle height. Not \
+             ruined and not small - finished, to plan, at that height, with 3 \
+             storeys of it above ground and every storey under your knee.",
+            "Everybody here is perfectly polite about the size of you. One of \
+             them, an older mole with a case of tools, has been looking at \
+             what you are carrying since you arrived and has an offer.",
+        ],
+        choices: &[
+            Choice {
+                label: "The little shop",
+                blurb: "A curated shelf, at a permanent discount, because nobody your size shops here.",
+                requires: Requirement::None,
+                outcome: Outcome::OpenShop { shelves: MOLE_SHELF },
+                unmet: "",
+            },
+            Choice {
+                label: "The mole with the tools",
+                blurb: "Four rungs' worth, and he takes a curse off a piece and keeps it.",
+                requires: Requirement::Purse { times: 4 },
+                outcome: Outcome::All(&[Outcome::Uncurse, Outcome::Count("moles-paid")]),
+                unmet: "He looks at your purse, and then at you, and says nothing at all.",
+            },
+        ],
+    },
+
+    // ------------------------------------------------ the nine structures
+    //
+    // Doors that are not doors. Everything above this line is a question with
+    // two or three answers; these are shapes - an inspection that reads your
+    // live board, an auction against a number nobody has seen, a handicap you
+    // ask for, a passenger, a menu made of what you are holding, and a
+    // counter nobody mentioned until it spoke.
+    LadderEvent {
+        id: "the-inspection",
+        at: 19,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Bone Cantor",
+        title: "THE INSPECTION",
+        prose: &[
+            "A woman with a clipboard and a folding stool sets up in the road \
+             in front of you and asks, without introducing herself, to see \
+             what you are wearing.",
+            "She is not from anywhere. She grades things - rice for the trade \
+             board for 19 years, and ropes before that - and she says the \
+             principle does not change and that people who think it does are \
+             the reason she still has work.",
+            "What she is looking for is whether the things you have built \
+             agree with each other. She is entirely uninterested in whether \
+             any of them is good.",
+        ],
+        choices: &[
+            Choice {
+                label: "Show her everything",
+                blurb: "Three of your items speaking with one voice. She has a word for that.",
+                requires: Requirement::AlignedItems(3),
+                outcome: Outcome::Give("The Tally"),
+                unmet: "She looks along the row twice and writes one word down and it is short.",
+            },
+            Choice {
+                label: "Show her the good half",
+                blurb: "Two that agree. She will take something off the cart for it.",
+                requires: Requirement::AlignedItems(2),
+                outcome: Outcome::Pay { times: 2 },
+                unmet: "Nothing you own agrees with anything else you own. She notes it.",
+            },
+            // Declining is not nothing, and it is the one door in the game
+            // where refusing is what pays: she is a labour professional being
+            // refused, and on the way out she mentions where else that is
+            // happening this month.
+            Choice {
+                label: "Decline the inspection",
+                blurb: "She folds the stool and says, packing it, where else people are refusing.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("A Word About the Picket"),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-sealed-bid",
+        at: 35,
+        // Foundry business, so it needs the foundry known. The window opens on
+        // the rung the Slagworks itself stands after, which is the earliest a
+        // run can have been down there at all.
+        trigger: Trigger::WhenFlagged { flag: "slagworks-known", from: 33 },
+        blocked_by: &[],
+        expects: "The Tallow Saint",
+        title: "THE SEALED BID",
+        prose: &[
+            "The foundry auctions 1 lot a month and does it the old way: a \
+             reserve written down before anybody arrives, one figure from each \
+             bidder, and no second round.",
+            "Over the reserve and the lot is yours at the reserve. Under it and \
+             the lot is somebody else's and your figure is read out anyway.",
+        ],
+        choices: &[
+            Choice {
+                label: "Name a figure",
+                blurb: "One number, written once. They read the reserve out either way.",
+                requires: Requirement::Figure { min: 0, max: 5_000 },
+                outcome: Outcome::SealedBid {
+                    lots: &["the Skip Stone", "the Second Key", "the Appeal", "The Odometer"],
+                },
+                unmet: "A bid is a number and you have not got one.",
+            },
+            Choice {
+                label: "Watch",
+                blurb: "Somebody wins it. The reserve is read out to the room.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-contract",
+        at: 24,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Cog Priest",
+        title: "THE CONTRACT",
+        prose: &[
+            "A man from an underwriting house sets a document on a milestone \
+             and does not hand you a pen, on the grounds that people who need \
+             a pen handed to them do not sign.",
+            "The clause is one line. Your gear runs cold for three rungs - all \
+             of it, every slot, no exceptions and no early exit - and if you \
+             are still upright at the end of the third one, they honour their \
+             side.",
+            "He does not say what their side is. He says you would not believe \
+             it standing here and that you will believe it at rung 28.",
+        ],
+        choices: &[
+            Choice {
+                label: "Sign it",
+                blurb: "Everything of yours runs cold for three rungs. All of it.",
+                requires: Requirement::None,
+                outcome: Outcome::Contract { rungs: 3 },
+                unmet: "",
+            },
+            Choice {
+                label: "Walk past the milestone",
+                blurb: "He does not look up. He was not expecting you to.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-payout",
+        at: 28,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Null Sentinel",
+        title: "THE PAYOUT",
+        prose: &[
+            "The house keeps its word and keeps it in an office, and the \
+             office is a table at the roadside with the same man behind it and \
+             a ledger open at your column, which is the 4th one down.",
+            "He has been reading the column while you walked. He knows to the \
+             rung how cold you were and for how long, and he did not have to \
+             ask anybody.",
+        ],
+        choices: &[
+            Choice {
+                label: "Collect",
+                blurb: "Four rungs' worth, and a name they will honour once if you fall.",
+                requires: Requirement::Took("Sign it"),
+                outcome: Outcome::All(&[Outcome::Underwrite, Outcome::Pay { times: 4 }]),
+                unmet: "Your column is empty. He turns the ledger round so you can see that.",
+            },
+            Choice {
+                label: "Walk on",
+                blurb: "The table folds up behind you very quickly indeed.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-passenger",
+        at: 41,
+        trigger: Trigger::WhenFlagged { flag: "threshold-cleared", from: 39 },
+        blocked_by: &[],
+        expects: "The Quiet Hour",
+        title: "THE PASSENGER",
+        prose: &[
+            "A courier on the road is carrying something in both hands and has \
+             been carrying it in both hands for a long time, judging by the \
+             arms.",
+            "It is a calf. It is a sacred calf and it is the size of a loaf \
+             and it has to be at the Last Oxen before the road gets there, and \
+             the courier is not going to make it and knows it.",
+            "It will not travel in a bag. It rides wrapped in sacking, sitting \
+             somewhere on you in the open and taking up room you were using - \
+             which is exactly the rent, and the courier says so without being \
+             asked. Everybody who sees it will call it a parcel and nobody \
+             will be told otherwise.",
+        ],
+        choices: &[
+            Choice {
+                label: "Take it aboard",
+                blurb: "Five rungs of dead cells. Lose one fight and it is lost.",
+                requires: Requirement::None,
+                outcome: Outcome::Passenger { rungs: 5, pays: "An Unwound Mainspring" },
+                unmet: "",
+            },
+            Choice {
+                label: "Wish him luck",
+                blurb: "He says thank you and means it, which does not help either of you.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-buyer",
+        at: 31,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "The Long Mirror",
+        title: "THE BUYER",
+        prose: &[
+            "The buyer works out of a hired room with the door open \
+             and a chair set exactly far enough back that you have to walk in.",
+            "He does not sell. He buys, and what he buys is not gear: he buys \
+             the things a run has that a run cannot put a price on, and he can, \
+             which is the whole of his trade.",
+            "He is entirely honest about it. He says what each one is worth, \
+             to the gold, and the number is correct every time - and that, \
+             rather than the 3 chairs or the open door, is what makes the room \
+             hard to be in.",
+        ],
+        choices: &[
+            Choice {
+                label: "Sell him a word",
+                blurb: "Six rungs' worth. The door it opened stays shut for good.",
+                requires: Requirement::HoldingRumour,
+                outcome: Outcome::All(&[Outcome::SellWord, Outcome::Pay { times: 6 }]),
+                unmet: "You are carrying nothing anybody has told you. He is sorry to hear it.",
+            },
+            Choice {
+                label: "Sell him a title",
+                blurb: "Eight rungs' worth for something you are. He does not ask which.",
+                requires: Requirement::Classes(1),
+                outcome: Outcome::All(&[Outcome::SellTitle, Outcome::Pay { times: 8 }]),
+                unmet: "You are nobody in particular yet, which he says without unkindness.",
+            },
+            Choice {
+                label: "Sell him a hundred of your maximum",
+                blurb: "Ten rungs' worth. It does not come back and he says so twice.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[Outcome::Health(-100), Outcome::Pay { times: 10 }]),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-fork",
+        at: 36,
+        trigger: Trigger::WhenFlagged { flag: "slagworks-known", from: 33 },
+        blocked_by: &[],
+        expects: "Hollowmarch",
+        title: "THE FORK",
+        prose: &[
+            "The seam forks. One way goes down to a mouth that is boarded from \
+             the outside; the other comes back up into a yard where the \
+             Slagworks has laid a shelf out for whoever arrives next.",
+            "Both are yours. Ossery says so and shrugs at being asked, because \
+             from where he is standing there is no question here at all.",
+            "There is a question. It is which one first, and it is the whole \
+             question: a shelf before a fight is different gear, and a shelf \
+             after one is different money.",
+        ],
+        choices: &[
+            Choice {
+                label: "The shelf, then the seam",
+                blurb: "Buy first. Whatever you find down there, you find it carrying this.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::OpenShop { shelves: FOUNDRY_SHELF },
+                    Outcome::StartDungeon("the-under-mine"),
+                ]),
+                unmet: "",
+            },
+            Choice {
+                label: "The seam, then the shelf",
+                blurb: "Fight first. Whatever you come back up with, you spend it here.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::StartDungeon("the-under-mine"),
+                    Outcome::ShopAfter { shelves: FOUNDRY_SHELF },
+                ]),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-foundry-remembers",
+        at: 46,
+        trigger: Trigger::WhenFlagged { flag: "slagworks-known", from: 44 },
+        blocked_by: &[],
+        expects: "Nine of Ashes",
+        title: "THE FOUNDRY REMEMBERS",
+        prose: &[
+            "The glow is behind you and a long way behind you, and there is a \
+             man at the roadside in Slagworks overalls who has walked further \
+             than that to be standing here.",
+            "He says the foundry keeps a book. He says it the way you say a \
+             thing you have been asked to pass on exactly, and then he passes \
+             it on exactly.",
+            "Nobody mentioned a book. Nobody mentioned that the crucible was \
+             counting, either, and it was.",
+        ],
+        choices: &[
+            Choice {
+                label: "\"We kept your best\"",
+                blurb: "Two melts or more, and the foundry has been holding one back.",
+                requires: Requirement::Counter { what: "crucible-melts", at_least: 2 },
+                outcome: Outcome::Give("The Cracked Lens"),
+                unmet: "He checks the page twice. Your column has nothing in it.",
+            },
+            Choice {
+                label: "Say nothing",
+                blurb: "He nods, notes it, and walks back. Prices run ahead of you after that.",
+                requires: Requirement::None,
+                outcome: Outcome::Markup(10),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "through-the-cracked-lens",
+        at: 47,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "The Last Light",
+        title: "THROUGH THE CRACKED LENS",
+        prose: &[
+            "This high up the air stops arguing with light and the lens does \
+             what Halloway said it would do, which is a thing he was thrown \
+             out of six observatories for describing.",
+            "It does not magnify. It focuses - on a thing rather than at a \
+             distance - and what comes into focus is whatever is standing \
+             between you and the top, in the gear it is standing in, from \
+             here.",
+        ],
+        choices: &[
+            Choice {
+                label: "Look through it",
+                blurb: "Every board ahead of you, from the loadout screen, for the rest of it.",
+                requires: Requirement::Holding("The Cracked Lens"),
+                outcome: Outcome::Scout,
+                unmet: "You would need the lens. He offered it to you once, at a price.",
+            },
+            Choice {
+                label: "Keep your eyes on the road",
+                blurb: "There is a strong argument for not knowing. It is not a good one.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
+
+    // ---------------------------------------------- the three standalone pairs
+    LadderEvent {
+        id: "the-wizards-thirst",
+        at: 30,
+        trigger: Trigger::Whispered { rumour: "A Word About the Thirsty Wizard", from: 7 },
+        blocked_by: &[],
+        expects: "Weeping Idol",
+        title: "THE WIZARD'S THIRST",
+        prose: &[
+            "Sam the Wise wants vials. He wants cans as well and will take \
+             either and he is extremely specific about which shapes and \
+             entirely unwilling to say why.",
+            "He has a hoard. He has shown three people the hoard and all three \
+             of them describe the same thing, which is a great many empty \
+             vessels stacked with real care in a room with the curtains shut.",
+        ],
+        choices: &[
+            Choice {
+                label: "Trade him one",
+                blurb: "Triple what anybody pays, and he throws in a second chance at something.",
+                requires: Requirement::LooseItemOfSize { w: 1, h: 2 },
+                outcome: Outcome::All(&[Outcome::Pay { times: 3 }, Outcome::Give("the Appeal")]),
+                unmet: "Nothing the right shape. He looks at your bag until you move it.",
+            },
+            Choice {
+                label: "Refuse him",
+                blurb: "He takes it well, and then something of yours runs cold.",
+                requires: Requirement::None,
+                outcome: Outcome::Chill,
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-picket-line",
+        at: 38,
+        trigger: Trigger::Whispered { rumour: "A Word About the Picket", from: 12 },
+        blocked_by: &[],
+        expects: "Gallowglass",
+        title: "THE PICKET LINE",
+        prose: &[
+            "The arena workers have downed tools. There are 6 demands chalked \
+             on the board at the gate, they are numbered, and every one of \
+             them is about the sand.",
+            "Demand four is about armour. Demand four is about *your* armour, \
+             which is an odd thing to find on somebody else's picket, and it \
+             is there because somebody on this line has been raking up after \
+             people like you for eleven years.",
+        ],
+        choices: &[
+            Choice {
+                label: "Honor the line",
+                blurb: "The next town's shop is shut to you. Demand four is honoured too.",
+                requires: Requirement::None,
+                outcome: Outcome::Claim("Unionized"),
+                unmet: "",
+            },
+            Choice {
+                label: "Cross it",
+                blurb: "This rung's shelf, cheap. The next three arrive better dressed.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[Outcome::Pay { times: 2 }, Outcome::Count("crossed")]),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-exhibition",
+        at: 33,
+        trigger: Trigger::Whispered { rumour: "A Word About the Exhibition", from: 18 },
+        blocked_by: &[],
+        expects: "The Last Gearwright",
+        title: "THE EXHIBITION",
+        prose: &[
+            "The two finest players the ring game ever had are both retired \
+             now, 6 years each, and are between them about as bored as it is \
+             possible for two people to be.",
+            "They want a demonstration bout. Two of them, one of you, in front \
+             of whoever is passing, at exhibition stakes - which means nobody \
+             is going to be seriously hurt and everybody is going to be seen.",
+        ],
+        choices: &[
+            Choice {
+                label: "Give them a bout",
+                blurb: "Top of the bill, two on one. Losing costs this rung's purse and nothing else.",
+                requires: Requirement::AssembledOfRarity(crate::rating::Rarity::Rare),
+                outcome: Outcome::All(&[
+                    Outcome::Claim("Showstopper"),
+                    Outcome::Step(&THE_SHOWFIGHTERS),
+                ]),
+                unmet: "The taller one looks at what you have built and is far too polite about it.",
+            },
+            Choice {
+                label: "Decline politely",
+                blurb: "One of them says that is fair. The other does not say that is fair.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
                 unmet: "",
             },
         ],
@@ -612,19 +1973,167 @@ pub fn at(
             Trigger::SlowKill { over_ms, from } => {
                 (from..=e.at).contains(&rung) && worst_fight_ms.is_some_and(|ms| ms > over_ms)
             }
-            // Not answerable from here. See `Trigger::Whispered`.
-            Trigger::Whispered { .. } => false,
+            // Not answerable from here: one is about the board and the run,
+            // the other about what the run has done, and `event::at` knows
+            // about neither. `Run::pending_event` answers both.
+            Trigger::Whispered { .. } | Trigger::WhenFlagged { .. } => false,
         }
     })
 }
 
+/// Every choice whose outcome sets `flag`, as (event id, choice label).
+///
+/// The reverse index the string-keyed flags buy. A flag waited on by a door
+/// and set by nothing is a chain with a station nothing reaches, which is the
+/// failure a chain is most exposed to and the one hardest to see by reading.
+pub fn set_by(flag: &str) -> Vec<(&'static str, &'static str)> {
+    let mut out = Vec::new();
+    for e in EVENTS {
+        for c in e.choices {
+            // Through `every_outcome`: the glow sets its flag alongside a town
+            // reveal, and a flag set inside an `All` is set just as hard as one
+            // set on its own.
+            if every_outcome(&c.outcome).iter().any(|o| matches!(o, Outcome::Flag(f) if *f == flag))
+            {
+                out.push((e.id, c.label));
+            }
+        }
+    }
+    out
+}
+
+/// Everything a choice actually does, `All` and `Gamble` unpacked.
+///
+/// `All` is a list of outcomes and `Gamble` is two of them, so a lint that
+/// matches on `c.outcome` alone sees a composite and nothing inside it. That
+/// blind spot has cost this file twice - a class claimed inside an `All` read
+/// as a class no door hands out, and a fountain nearly poured it. Everything
+/// that asks "does any door do X" asks it through here.
+pub fn every_outcome(o: &'static Outcome) -> Vec<&'static Outcome> {
+    let mut out = vec![o];
+    match o {
+        Outcome::All(each) => out.extend(each.iter().flat_map(every_outcome)),
+        Outcome::Gamble { won, lost, .. } => {
+            out.extend(every_outcome(won));
+            out.extend(every_outcome(lost));
+        }
+        _ => {}
+    }
+    out
+}
+
+/// Every flag any door in the game waits on.
+pub fn flags_waited_on() -> Vec<&'static str> {
+    let mut out: Vec<&'static str> = Vec::new();
+    for e in EVENTS {
+        for c in e.choices {
+            if let Requirement::Flag(f) = c.requires {
+                if !out.contains(&f) {
+                    out.push(f);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Every event a rumour is the condition on, in table order.
+///
+/// The reverse of `Rumour::opens`, and worth having both ways round. Forwards
+/// answers "what does this rumour do"; backwards answers "is this rumour for
+/// anything at all", which is the question that catches dead content. Built by
+/// walking `EVENTS` rather than kept in a table, so an event that moves takes
+/// its rumour's description with it.
+pub fn conditioned_by(rumour: &str) -> Vec<&'static LadderEvent> {
+    EVENTS
+        .iter()
+        .filter(|e| matches!(e.trigger, Trigger::Whispered { rumour: r, .. } if r == rumour))
+        .collect()
+}
+
+impl LadderEvent {
+    /// Where this stands, in a phrase.
+    ///
+    /// A scheduled event stands on exactly one rung. An earned one roams a
+    /// window and `at` is its deadline rather than its address, which is the
+    /// one place the field's name lies and the one place it matters.
+    pub fn where_it_stands(&self) -> String {
+        match self.trigger {
+            Trigger::Rung => format!("rung {}", self.at + 1),
+            Trigger::QuickKill { from, .. }
+            | Trigger::SlowKill { from, .. }
+            | Trigger::Whispered { from, .. }
+            | Trigger::WhenFlagged { from, .. } => {
+                if from == self.at {
+                    format!("rung {}", self.at + 1)
+                } else {
+                    format!("rungs {} to {}", from + 1, self.at + 1)
+                }
+            }
+        }
+    }
+}
+
 impl Requirement {
+    /// What this asks for, in a plain sentence.
+    ///
+    /// Not the same thing as `Choice::unmet`, and both are needed. `unmet` is
+    /// flavour written for the moment after you have tried - "Merrik does not
+    /// move the rope" - and it is the right register for a door that has just
+    /// refused you. This is the plain statement *before* an attempt: hover a
+    /// greyed choice and it tells you what would open it.
+    ///
+    /// Two authored events once sat behind four gates with no feedback of any
+    /// kind and the result was that nobody ever saw them. `Condition::describe`
+    /// was the answer for rumours; this is the same answer for choices.
+    ///
+    /// The nouns are canonical. The theme layer swaps them on the way to a
+    /// screen, which is why this returns the engine's words and not the
+    /// player's - the CLI has to be able to print the same sentence.
+    pub fn describe(&self) -> String {
+        match self {
+            Requirement::None => String::new(),
+            Requirement::LooseItemOfSize { w, h } => {
+                format!("Requires: a loose component {} by {}", w, h)
+            }
+            Requirement::Took(label) => format!("Requires: having chosen \"{}\" earlier", label),
+            Requirement::Holding(name) => format!("Requires: {}", name),
+            Requirement::Flag(what) => format!("Requires: {}", what.replace('-', " ")),
+            Requirement::Counter { what, at_least } => {
+                format!("Requires: {} at least {} times", what.replace('-', " "), at_least)
+            }
+            Requirement::AssembledOfRarity(r) => {
+                format!("Requires: an assembled {}", r.name())
+            }
+            Requirement::AlignedItems(n) => {
+                format!("Requires: {} assembled items sharing an alignment", n)
+            }
+            Requirement::Figure { min, max } => {
+                format!("Name a figure between {} and {}", min, max)
+            }
+            Requirement::Purse { times } => {
+                format!("Costs {} times this rung's bounty", times)
+            }
+            Requirement::HoldingRumour => "Requires: a word you have not spent".into(),
+            Requirement::Classes(n) => format!("Requires: {} title(s)", n),
+        }
+    }
+
     /// Does `shape` - a component's footprint, in cells - satisfy this?
     pub fn met_by_shape(self, cells: &[(u8, u8)]) -> bool {
         match self {
             Requirement::None => true,
-            // Both of these are answered by the run rather than by a shape.
-            Requirement::Took(_) | Requirement::Holding(_) => true,
+            // Everything else is answered by the run rather than by a shape.
+            Requirement::Took(_)
+            | Requirement::Holding(_)
+            | Requirement::Flag(_)
+            | Requirement::Counter { .. }
+            | Requirement::AssembledOfRarity(_)
+            | Requirement::AlignedItems(_)
+            | Requirement::Purse { .. }
+            | Requirement::HoldingRumour
+            | Requirement::Classes(_)
+            | Requirement::Figure { .. } => true,
             Requirement::LooseItemOfSize { w, h } => {
                 let (mut mx, mut my) = (0u8, 0u8);
                 for &(x, y) in cells {
@@ -676,10 +2185,17 @@ mod tests {
     /// A scheduled event standing inside an earned one's window has to be
     /// written after it, or `find` returns the scheduled one every time and
     /// the earned window is quietly shorter than it says.
+    ///
+    /// Only the two stopwatch triggers can be shadowed, and that is the whole
+    /// of why this test exists: `event::at` is a `find` over the table and
+    /// resolves those two. `Whispered` and `WhenFlagged` are refused there and
+    /// answered by `Run::standing_events`, which puts them *first* - so a
+    /// scheduled event cannot hide one however the table is ordered, and
+    /// asking it to would be pinning an ordering nothing depends on.
     #[test]
     fn nothing_scheduled_shadows_an_earned_window() {
         for (i, earned) in EVENTS.iter().enumerate() {
-            if matches!(earned.trigger, Trigger::Rung) {
+            if !matches!(earned.trigger, Trigger::QuickKill { .. } | Trigger::SlowKill { .. }) {
                 continue;
             }
             let window = earned.trigger.from()..=earned.at;
@@ -721,34 +2237,78 @@ mod tests {
     fn every_alternate_named_by_an_event_is_real() {
         for e in EVENTS {
             for c in e.choices {
-                if let Outcome::FightInstead(name) = c.outcome {
-                    assert!(
-                        crate::combat::alternate(name).is_some(),
-                        "{} names {}, which is not an alternate",
-                        e.id,
-                        name
-                    );
-                }
-                if let Outcome::Claim(name) = c.outcome {
-                    let class = crate::class::CLASSES
-                        .iter()
-                        .find(|k| k.name == name)
-                        .unwrap_or_else(|| panic!("{} claims {}, no such class", e.id, name));
-                    // Claimed, not qualified for - so nothing you build can
-                    // reach it and a fountain must never offer it.
-                    assert!(
-                        class.requires.is_empty(),
-                        "{} is claimable but also has requirements, so a fountain could pour it",
-                        name
-                    );
-                }
-                if let Outcome::Enter(id) = c.outcome {
-                    assert!(
-                        crate::dungeon::by_id(id).is_some(),
-                        "{} opens {}, which is not a dungeon",
-                        e.id,
-                        id
-                    );
+                // Through `every_outcome`, so a composite is read all the way
+                // down: half the mission's bargains are an `All`, and a lint
+                // that stopped at the top of one would be a lint that stopped
+                // working the day the content arrived.
+                for o in every_outcome(&c.outcome) {
+                    match *o {
+                        Outcome::FightInstead(name) => assert!(
+                            crate::combat::alternate(name).is_some(),
+                            "{} names {}, which is not an alternate",
+                            e.id,
+                            name
+                        ),
+                        Outcome::Claim(name) => {
+                            let class = crate::class::CLASSES
+                                .iter()
+                                .find(|k| k.name == name)
+                                .unwrap_or_else(|| panic!("{} claims {}, no such class", e.id, name));
+                            // Claimed, not qualified for - so nothing you build
+                            // can reach it and a fountain must never offer it.
+                            assert!(
+                                class.requires.is_empty(),
+                                "{} is claimable but also has requirements, so a fountain could pour it",
+                                name
+                            );
+                        }
+                        Outcome::Enter(id) | Outcome::StartDungeon(id) => assert!(
+                            crate::dungeon::by_id(id).is_some(),
+                            "{} opens {}, which is not a dungeon",
+                            e.id,
+                            id
+                        ),
+                        Outcome::RevealTown(id) => assert!(
+                            crate::town::by_id(id).is_some(),
+                            "{} reveals {}, which is not a town",
+                            e.id,
+                            id
+                        ),
+                        Outcome::Give(name) => assert!(
+                            crate::piece::CATALOG.iter().any(|d| d.name == name),
+                            "{} hands over {}, which is not a component",
+                            e.id,
+                            name
+                        ),
+                        Outcome::SealedBid { lots } => {
+                            for lot in lots {
+                                assert!(
+                                    crate::piece::CATALOG.iter().any(|d| d.name == *lot),
+                                    "{} auctions {}, which is not a component",
+                                    e.id,
+                                    lot
+                                );
+                            }
+                        }
+                        Outcome::Step(b) => {
+                            for who in b.with {
+                                assert!(
+                                    crate::combat::creature(who).is_some(),
+                                    "{} steps you in with {}, who is nobody",
+                                    e.id,
+                                    who
+                                );
+                            }
+                            assert!(
+                                b.win.is_empty()
+                                    || crate::piece::CATALOG.iter().any(|d| d.name == b.win),
+                                "{} pays {}, which is not a component",
+                                e.id,
+                                b.win
+                            );
+                        }
+                        _ => {}
+                    }
                 }
                 // A requirement naming an earlier choice has to name one that
                 // exists, or the door is nailed shut and nothing says so.

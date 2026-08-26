@@ -188,3 +188,35 @@ Recorded here rather than learned again:
 - **`force_win` writes no log.** A loop built on it banks nothing, and a test
   measuring what a run accumulated will say the condition is unreachable when
   it is only unfought.
+
+---
+
+## 7. Hidden towns (2026-08-26)
+
+Three more, and none of them is on the map when the run starts. `Town::unlock`
+is `Pinned` or `Hidden`; a hidden town stands at its own `after` like any other
+town once an event has revealed it, and until then `town_between` does not see
+it. That is the whole mechanism - a list on the run, not a flag per town, and
+`reveal_town` is idempotent.
+
+| Town | After rung | Revealed by | Doors |
+|---|---|---|---|
+| EXTRA LARGE | 13 | THE BIGGER SIGN, which opens only for a run that *declined* the Teller | Aisle 9, the returns desk, the sample counter, the manager, and a pedestal |
+| THE MANSE | 24 | THE LOCKED GATE, second station of the chain | the cellar door, the gallery, the long table, the library |
+| THE SLAGWORKS | 33 | THE GLOW OVER THE RIDGE, third station | the crucible, the mold line, tempering, the foreman |
+
+**A reveal can arrive too late, and that is the design.** The glow stands in a
+window from rung 30 to 45 and the Slagworks is after 33, so a run that hears
+the rumour late walks past a town it has just been told about. The alternative
+- a town that slides down the road to meet you - is a town that is not
+anywhere.
+
+**The pedestal is not a door.** `Action::costs_the_visit` is the only place
+that exception is written: every other action ends the visit and this one does
+not, because a socket in a stone is furniture. Extra Large has one in its
+entryway and High Wick gained a second, and the two share one visited-set so a
+destination fires once per run whichever stone you fed.
+
+**Enchantments are town stock**, still, and now so are two of the three
+run-relics: Aisle 9 is where a store the size of a weather system keeps the
+things nobody else stocks. Nothing in this paragraph is on the road.

@@ -48,6 +48,20 @@ pub struct ItemProfile {
     pub adjacent_assembled_same_slot: usize,
     /// Empty cells touching this item - what `PerAdjacentEmpty` repeats over.
     pub open_cells: usize,
+    /// Whether a misfire eats this item's activation.
+    ///
+    /// One piece in the game says no - a Stray Orb, whose spells go off
+    /// whatever the curse says. Per item rather than per fighter, because that
+    /// is what makes it a decision about which item to build the orb into
+    /// rather than a flat immunity somebody bought.
+    pub steady: bool,
+    /// Whether this item is standing on a Lightning Rod.
+    ///
+    /// Curses that pick a target on your board pick this one instead. Which
+    /// makes the rod a decision rather than a reward: you lay it under
+    /// something you do not mind losing the use of, and everything you do mind
+    /// stops being picked.
+    pub attracts_curses: bool,
     /// Hundredths of weapon power that apply to THIS item alone - what the
     /// ink in a spell is worth. Never reaches the wearer's own total.
     pub power_bonus: i32,
@@ -310,9 +324,27 @@ impl Loadout {
         }
     }
 
-    /// How tall these grids are. Every slot is the same height.
+    /// Grow one grid and leave the other four where they are.
+    ///
+    /// `branching-events.md` says a run where one slot is taller than the
+    /// others "would be a different game and a much more confusing one", and
+    /// that was the right rule while the only thing handing out room was
+    /// Sprocketman's Gratitude, which hands out five. The Depth hands out one,
+    /// on a board of your choice, and the choice is the reward - so the rule
+    /// is amended rather than worked around. `Slot` has carried its own height
+    /// since the day rows became a thing; this is the first caller to use it.
+    pub fn grow_one(&mut self, kind: SlotKind, by: u8) {
+        self.slots[kind.index()].grow(by);
+    }
+
+    /// How tall the tallest grid is.
+    ///
+    /// It used to be "every slot is the same height", and for layout that is
+    /// still the number worth having - a row of boards is as tall as its
+    /// tallest. Anything asking whether a *placement* fits must ask the slot,
+    /// not this.
     pub fn rows(&self) -> u8 {
-        self.slots.first().map(|s| s.rows()).unwrap_or(crate::slot::SLOT_H)
+        self.slots.iter().map(|s| s.rows()).max().unwrap_or(crate::slot::SLOT_H)
     }
 
     pub fn slot(&self, kind: SlotKind) -> &Slot {
@@ -748,6 +780,7 @@ impl Loadout {
             // what they cost) - so doubling it means the same thing in all five
             // grids rather than only in the one that swings.
             let mut raw_triggers = raw_triggers;
+            let mut attracts_curses = false;
             for eid in slot.pieces() {
                 if !reg.def(eid).kind.is_enchantment() {
                     continue;
@@ -764,6 +797,14 @@ impl Loadout {
                 if bonded {
                     power += 100;
                     raw_triggers.extend(reg.def(eid).triggers.iter().copied());
+                }
+                // The rod asks for less than the bond does: *covering* it is
+                // enough, and covering all of it is not required. A rod
+                // half-under something still has a wire running up into it.
+                if reg.def(eid).name == crate::piece::LIGHTNING_ROD {
+                    attracts_curses |= cells.iter().any(|&(x, y)| {
+                        slot.get(x, y).is_some_and(|on_top| item.pieces.contains(&on_top))
+                    });
                 }
             }
             let power = power;
@@ -824,6 +865,11 @@ impl Loadout {
                 pieces: item.pieces.clone(),
                 adjacent_assembled_same_slot: adjacent.len(),
                 open_cells: slot.open_cells_around(&item.pieces),
+                attracts_curses,
+                steady: item
+                    .pieces
+                    .iter()
+                    .any(|&p| reg.def(p).name == crate::piece::STRAY_ORB),
                 adjacent_items: adjacent,
                 aligned_items: aligned,
                 diagonal_items: diagonal,

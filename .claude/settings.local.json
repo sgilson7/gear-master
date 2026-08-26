@@ -125,7 +125,8 @@
       "Bash(grep -vE \"^\\(   Compiling|    Finished|     Running|$\\)\")",
       "Bash(python3 /Users/samgilson/.claude/jobs/a7e69fbf/tmp/names.py)",
       "Bash(PACK_BAND=3 PACK_ITEMS=3 cargo test --release -q -p gearmaster-engine --test pack_francis -- --ignored --nocapture)",
-      "Bash(python3 /Users/samgilson/.claude/jobs/a7e69fbf/tmp/install.py)"
+      "Bash(python3 /Users/samgilson/.claude/jobs/a7e69fbf/tmp/install.py)",
+      "Bash(awk '{s+=$4} END {print \"TOTAL \" s}')"
     ]
   }
 }

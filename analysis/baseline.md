@@ -1174,3 +1174,835 @@ turns against instead of trusting rung 31, and `growth_is_kept_after_a_loss_too`
 finds the deepest rung that beats its fixture *slowly* instead of assuming the
 last one does.
 
+
+---
+
+# Before the Unwinding — captured 2026-08-25
+
+The denominator for `design/the-unwinding.md`. Everything above this line
+belongs to the gear-slot rewrite, which is finished; nothing above is rewritten.
+
+Retaken because the last entry in this file was written two commits before the
+rewrite's final ones and the numbers under it moved. Retake with:
+
+    cargo test -p gearmaster-engine
+    cargo test -p gearmaster-engine --test baseline -- --ignored --nocapture --test-threads=1
+    cargo test -p gearmaster-engine --test catalog_shape -- --ignored
+    cargo test -p gearmaster-engine --test two_runs -- --ignored --nocapture
+
+| | last recorded | today |
+|---|---|---|
+| Suite | 538 green | **548 green**, 33 suites, 35 ignored, 0 warnings |
+| `the_catalog_keeps_every_rule` | 69 rules unmet, then green | **green**, 0 unmet, 0 identity mechanics on floating kinds |
+| Weapon damage share, owner at Medium | 74.9% | **75.2%** |
+| Owner's board | 50/50, median 10.50s | 50/50, median **10.50s** |
+| Board cadence, owner | 6.79/s | **6.69/s** |
+| Catalogue | 469, then 473 | **473**, inert 104 (22.0%) |
+
+## The casino corridor
+
+Both shallow-end doors key off rungs 1-10, so anything that touches the early
+ladder is inside them.
+
+| | now | needs | room |
+|---|---|---|---|
+| sharp run's best early win | 1,600ms | < 3,000ms | **1.4s of slack** |
+| plain run's best early win | 6,000ms | >= 3,000ms | 3.0s of slack |
+| plain run's worst early win | 39,000ms | > 10,000ms | not close |
+
+The binding constraint is still the sharp run's 1.4s: that is how much the early
+ladder may be hardened before the casino door shuts on the build it was written
+for. The plain run's best has moved from 4,500ms to 6,000ms since the last
+capture, which widens the other side.
+
+## The harness, in full
+
+```
+## Catalog census - 473 pieces
+                                               helmet    chest   gloves  greaves   weapon    total
+pieces                                             81       69       83       67      173      473
+inert (no trigger, effect or adjacency)            20        8       13        8       55      104
+positional (effect, adjacency or reaction)         11       15       56       19       24      125
+- effect                                            5        7        7        4        6       29
+- adjacency bonus                                   4        8        4       14        7       37
+curse application                                   3        4        3       30       19       59
+- searing                                           1        1        1        5       15       23
+- frost                                             0        0        0       12        1       13
+- stun                                              1        1        1        7        3       13
+- misfire                                           1        2        1        6        1       11
+reaction trigger                                    2        0       49        1        2       54
+- OnAdjacentActivate                                0        0       36        0        0       36
+- OnAlignedActivate                                 2        0       11        1        2       16
+- PerAdjacentItem                                   0        0        2        0        0        2
+OnBattleStart                                       0        0        0        6        0        6
+Drain                                               0        0       11        0        0       11
+StunStrongest                                       0        0        1        0        0        1
+Grow                                                0        7        0        0        0        7
+MindDamage                                         11        0        0        0        0       11
+GainEmpowerment                                     3        0        0        0        0        3
+GainShield                                          6        0        0        0        0        6
+GainForking                                         0        0        0        0        9        9
+ReduceCooldown                                      0        0        9       14        8       31
+pool spend (SpendMana / Spend / Consume)           13        4        9        5       24       55
+- Consume                                           6        0        0        0        0        6
+power_bonus                                         0        0        0        0       50       50
+speed_bonus                                         0        0        0       16       20       36
+mind_resist                                        28        0        0        0        0       28
+harden (physical or magic)                          0        6        0        0        0        6
+health above 15                                     4       49        3        4        1       61
+crosses grids (Material or Plating)                23        0       20       18        0       61
+### As a share of each slot
+                                               helmet    chest   gloves  greaves   weapon
+inert (no trigger, effect or adjacency)         24.7%    11.6%    15.7%    11.9%    31.8%
+positional (effect, adjacency or reaction)      13.6%    21.7%    67.5%    28.4%    13.9%
+- effect                                         6.2%    10.1%     8.4%     6.0%     3.5%
+- adjacency bonus                                4.9%    11.6%     4.8%    20.9%     4.0%
+.
+## starter - the opening weapon and nothing else
+rung                    result       ttk   helmet    chest   gloves  greaves   weapon    burn
+1 Cave Rat                 win     4.50s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+10 Warded Idol            loss     9.00s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+25 Cog Priest             loss     5.90s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+40 The Rust Parliament    loss     7.50s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+## preset - the auto-builder's five-slot board
+rung                    result       ttk   helmet    chest   gloves  greaves   weapon    burn
+1 Cave Rat                 win     1.50s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+10 Warded Idol             win    19.50s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+25 Cog Priest             loss    39.00s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+40 The Rust Parliament    loss    44.00s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+## owner - a finished run - 75 pieces, Berserker and Chronomancer
+rung                    result       ttk   helmet    chest   gloves  greaves   weapon    burn
+1 Cave Rat                 win     1.50s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+10 Warded Idol             win     2.80s     0.5%     0.0%    24.8%     0.3%    74.4%    0.0%
+25 Cog Priest              win    12.00s     1.0%     1.7%    18.0%     3.4%    75.8%    0.0%
+40 The Rust Parliament     win    22.50s     0.8%     0.8%    18.2%     3.4%    76.8%    0.0%
+## friend - a finished run - 76 pieces, half of it deliberately loose
+rung                    result       ttk   helmet    chest   gloves  greaves   weapon    burn
+1 Cave Rat                 win     2.60s     0.0%     0.0%     0.0%     0.0%   100.0%    0.0%
+10 Warded Idol             win     4.75s    13.4%     0.9%     9.8%     0.9%    75.0%    0.0%
+25 Cog Priest              win     7.75s     0.8%     0.5%     0.9%     0.0%    97.9%    0.0%
+40 The Rust Parliament     win    13.55s     0.3%     0.3%     1.1%     0.5%    97.9%    0.0%
+## Weapon share across the whole ladder
+build          cleared    weapon %  median ttk    burn %
+starter           2/50      100.0%      45.00s      0.0%
+preset            9/50      100.0%       9.00s      0.0%
+owner            50/50       75.2%      10.50s      0.0%
+friend           48/50       97.6%       7.75s      0.0%
+## Board cadence - friendly activations a second
+build              items activations/s    per item
+starter                1          0.50       0.502
+preset                 8          2.05       0.257
+owner                 19          6.69       0.352
+friend                17          3.21       0.189
+## Mind damage across the whole ladder (max health removed, not in the shares above)
+build          helmet    chest   gloves  greaves   weapon
+starter             0        0        0        0        0
+preset              0        0        0        0        0
+owner              62        0        0       59        0
+friend            595        0        0        0        0
+.
+## With the weapon grid emptied
+(rung 15 is The Hollow King)
+build       rungs won  best rung     rung 15      ttk         what carried it
+starter          1/50         42      Defeat     2.8s                 nothing
+preset           0/50       none      Defeat     5.6s                 nothing
+owner           45/50         50      Defeat    47.0s the clock, not the gear
+friend          35/50         46     Victory    44.6s the clock, not the gear
+.
+## preset - time-to-kill with one grid emptied
+rung                        intact     helmet      chest     gloves    greaves     weapon
+10 Warded Idol              19.50s        15%        23%        62%         0%      flips
+25 Cog Priest                    -          -          -          -          -          -
+40 The Rust Parliament           -          -          -          -          -          -
+## owner - time-to-kill with one grid emptied
+rung                        intact     helmet      chest     gloves    greaves     weapon
+10 Warded Idol               2.80s         7%         0%        61%         0%       168%
+25 Cog Priest               12.00s        25%         0%      flips         0%       275%
+40 The Rust Parliament      22.50s        27%         7%        96%         7%       100%
+## friend - time-to-kill with one grid emptied
+rung                        intact     helmet      chest     gloves    greaves     weapon
+10 Warded Idol               4.75s         8%         8%        15%         8%       141%
+25 Cog Priest                7.75s        66%         0%       199%         0%      flips
+40 The Rust Parliament      13.55s        40%         0%       151%         0%       232%
+.
+## preset - health left at the end, one grid emptied
+rung                        intact     helmet      chest     gloves    greaves     weapon
+10 Warded Idol                 495         0%        64%         1%        15%        95%
+25 Cog Priest                   28       196%       121%       -32%        25%        61%
+40 The Rust Parliament          91        12%        60%         1%        10%         0%
+## owner - health left at the end, one grid emptied
+rung                        intact     helmet      chest     gloves    greaves     weapon
+10 Warded Idol                2346        39%        37%         0%        20%         0%
+25 Cog Priest                 2446        37%        39%        63%        19%        61%
+40 The Rust Parliament        2546        35%        42%        70%        19%        63%
+## friend - health left at the end, one grid emptied
+rung                        intact     helmet      chest     gloves    greaves     weapon
+10 Warded Idol                1755         0%        78%         0%        16%        -2%
+25 Cog Priest                 1785        -2%        79%         0%        16%        83%
+40 The Rust Parliament        1811         1%        79%        -4%        15%        83%
+.
+```
+
+## The ratchet, in full
+
+```
+## Exclusivity - pieces out of place
+
+mechanic                                         home     away   budget
+power_bonus                                   50/50          0        0
+the casting kinds (Ink/Spell/Alignment/Book/Orb)  93/93          0        0
+GainForking                                    9/9           0        0
+OnOtherCast                                   30/30          0        0
+PerAdjacentEmpty                               9/9           0        0
+searing                                       15/23          0        0
+Consume                                        6/6           0        0
+GainEmpowerment                                3/3           0        0
+GainShield                                     6/6           0        0
+MindDamage                                    11/11          0        0
+mind_resist                                   28/28          0        0
+Grow                                           7/7           0        0
+reflect                                       20/20          0        0
+harden                                         6/6           0        0
+health above 15                               49/61          0        0
+OnAdjacentActivate                            36/36          0        0
+PerAdjacentItem                                2/2           0        0
+Drain                                         11/11          0        0
+StunStrongest                                  1/1           0        0
+DoubleAdjacentItemStat                         2/2           0        0
+OnAlignedActivate                             11/16          0        0
+OnBattleStart                                  6/6           0        0
+speed_bonus outside the weapon                16/36          0        0
+ReduceCooldown outside the weapon             14/31          0        0
+enchantment                                    1/5           0        0
+frost, stun and misfire                       25/37          0        0
+
+## Rarity of the catalogue, per slot
+
+slot           common     rare     epic   legend    total
+Helmet             79        0        2        0       81
+Chest              68        0        0        1       69
+Gloves             81        2        0        0       83
+Greaves            66        0        0        1       67
+Weapon            172        0        1        0      173
+
+## Quotas  (filler is held at 30% for this rewrite, 15% after it)
+
+slot        quota                                  of    share     wanted   away
+Helmet      expresses its own axis                 81    77.8%   60-100%      0
+Helmet      expresses its bleed axis               81    21.0%    20-25%      0
+Helmet      plain flat-stat filler                 81    24.7%     0-30%      0
+Helmet      the dearest third interacts            26    42.3%   35-100%      0
+Chest       expresses its own axis                 69    98.6%   60-100%      0
+Chest       expresses its bleed axis               69    24.6%    20-25%      0
+Chest       plain flat-stat filler                 69    11.6%     0-30%      0
+Chest       the dearest third interacts            22    40.9%   35-100%      0
+Chest       pool-spend texture                     69     5.8%     0-15%      0
+Gloves      expresses its own axis                 83    63.9%   60-100%      0
+Gloves      expresses its bleed axis               83    21.7%    20-25%      0
+Gloves      plain flat-stat filler                 83    15.7%     0-30%      0
+Gloves      the dearest third interacts            27    63.0%   35-100%      0
+Gloves      pool-spend texture                     83    10.8%     0-15%      0
+Greaves     expresses its own axis                 67    76.1%   60-100%      0
+Greaves     expresses its bleed axis               67    22.4%    20-25%      0
+Greaves     plain flat-stat filler                 67    11.9%     0-30%      0
+Greaves     the dearest third interacts            22    50.0%   35-100%      0
+Greaves     pool-spend texture                     67     7.5%     0-15%      0
+Weapon      the dearest third interacts            57    38.6%   35-100%      0
+Weapon      pool-spend texture                    173    13.9%     0-15%      0
+
+## Identity mechanics on floating kinds: 0
+```
+
+## What this capture says
+
+**1. Criterion 1 holds with a point and a half to spare.** 75.2% against
+66-76%. The rewrite's last recorded figure was 74.9%; the drift is the two
+commits since, not an error in either reading.
+
+**2. The owner's board clears the ladder and the friend's does not.** 50/50
+against 48/50. That is a reversal from the capture before it and it is the
+honest state: the friend's board is half deliberately loose, so it feels a
+catalogue that has learned to reward adjacency less than a packed one does.
+
+**3. Mind damage is small and it is about to matter.** Owner 62 on the helmet
+and 59 on the greaves; friend 595 on the helmet. Insight and Dread multiply
+exactly this channel, and it is currently a rounding error on two boards out of
+four. Anything the third lane does will be visible against these figures rather
+than lost in them.
+
+**4. Cadence is 6.69 activations a second against the 2.0 `rating.rs`
+assumes.** Unchanged in character from the rewrite's finding and still
+unaddressed: anything that watches is under-priced on a good board by roughly
+three times. It is a Phase-4 correction, listed at M16.
+
+---
+
+## Drift — M1, the lanes separate and the twins arrive
+
+Two commits. The first moved the ladder; the second did not move it at all, and
+that was the harder half.
+
+### What A1 cost, and where
+
+| build | cleared | weapon share | median ttk |
+|---|---|---|---|
+| starter | 2/50 | 100.0% | 45.00s |
+| preset | 9/50 | 100.0% | 9.00s |
+| **owner** | 50/50 → **48/50** | 75.2% → **75.5%** | 10.50s → 9.00s |
+| friend | 48/50 | 97.6% → 97.4% | 7.75s → 8.15s |
+
+**The shallow ladder is byte-identical.** Rungs 1 to 14, all four boards, every
+figure unchanged - not within ten percent, unchanged - and the casino corridor
+sits where it did at 1,600ms and 6,000ms. `report_early_ladder` is a new
+printer and exists because the four sampled rungs could not answer that
+question: two of them are past rung 14, and a change that left rung 1 and rung
+10 alone while moving the eleven rungs between them would have read as
+"unmoved".
+
+**The whole cost is in the deep ladder**, and it is two rungs on one board. The
+owner's board stops clearing Nine of Ashes and Francis. It was taking a
+magic-lane multiplier onto physical swings - its helmet banks empowerment and
+its weapon deals iron - and that is the exact arrangement A1 exists to end. The
+friend's board slows at rungs 25 and 40 (7.75s → 10.30s, 13.55s → 15.45s) for
+the same reason and clears the same 48.
+
+**The mind lane moved most.** The friend's mind damage over the ladder goes
+**595 → 707**, because the mana shield used to blunt mind damage as well and
+now does not. That is decision #18 arriving: three lanes, three answers, and
+`mind_resist` is the only thing standing in front of this one.
+
+Not chased. The compensation for a physical board losing its multiplier is
+Spellblade, which is a piece a player buys; the three shared boards are records
+and cannot buy anything. Tuning the empowerment constant would hand more to
+casters, which is not what came off here.
+
+### What the twins cost: nothing, twice measured
+
+Fourteen pieces carry the two new actions - Spellblade on five gloves and two
+weapon accessories, Deflection on six chest layers and one greaves mold - and
+**every fight in the harness is byte-identical to the commit before them.** The
+only lines that move in the whole capture are census counts: weapon inert 55 →
+53, gloves reaction triggers 49 → 52.
+
+That took three attempts and each failure is worth keeping.
+
+1. **Taking a blow away from a glove can leave a creature with no offence at
+   all.** Six of the first carriers were reactions that dealt small flat
+   physical damage, and converting them to a Spellblade grant is a translation
+   that reads well and is wrong: four themes out of six hold no weapon, and a
+   Spellblade stack multiplies a swing that is not there. `Cog Priest` stepped
+   down into one of them on Easy and stopped being able to land anything -
+   `every_monster_can_actually_hurt_you`, which sweeps all four settings for
+   exactly this. The rule that came out of it: **arm what answers with armour,
+   a pool or nothing; never what answers with a blow.**
+2. **"Worn by no monster" is not "worn by nobody".** The second set was chosen
+   against the monster boards alone, and two of them - `Padded Mold` and
+   `Silver Charm` - are on the owner's board. Its fights got shorter, so it
+   banked 89 nature by rung 22 instead of a hundred, and the Green Ledger's
+   door stopped opening. Two tests in `towns.rs` said so.
+3. **`apply_preset` is a board too.** The third set cleared the monsters and
+   the three share codes and still moved the preset from 9/50 to 12/50, because
+   it wears `Chain Layer` and `Ruby Inlay`. Swapped for `Blight Layer` and
+   `Ratchet Cog`, which nothing wears at all.
+
+So the carrier test is: **not in any monster's `gear`, not in any of the three
+share codes, and not in `apply_preset`.** Four boards, not one.
+
+### Where the twins live
+
+```
+GainSpellblade    gloves 5   weapon 2     (Mostly(70), home gloves)
+GainDeflection    chest  6   greaves 1    (Mostly(70), home chest)
+```
+
+`catalog_shape` carries both rules and the ratchet is still green at zero rules
+unmet. One amendment to the spec: A2 asks for Deflection's minority share on
+greaves **plating**, and a Plating floats into the helmet's grid, so a floating
+kind may carry no identity mechanic - `identity_carriers` holds that at zero.
+It sits on a greaves **mold** instead, which is the feet's and nobody else's.
+
+### Still open
+
+`ClassPower::Transmute(50)` converts part of a physical swing into magic, and
+after A1 that conversion happens *after* Spellblade and *before* nothing -
+the transmuted half no longer picks up empowerment on the way across. That is
+the honest reading (a conversion, not a second amplifier) and it is written
+into the swing math as a comment, but the **Spellblade class** and the
+Spellblade *stack* now sit either side of the same line without either knowing
+about the other. A2 says re-wiring the class to grant stacks is optional. It is
+still optional, and it is still open.
+
+## Drift — M2, Insight and Dread
+
+**None.** The whole harness is byte-identical to M1: every board, every rung,
+every share, every census row. That is the milestone's exit criterion and it is
+what "land primitives inert" is supposed to look like when it works.
+
+`Resource` is eight. The eighth is **fuel, on mana's terms** rather than a
+holding on rage's: `held_bonus` pays nothing for a point of Insight, exactly as
+it pays nothing for a point of mana, because what both are worth is decided by
+the stacks standing on them. A3 asks for "what mana empowerment is to magic",
+and that is the half of the comparison that is easy to miss.
+
+`Run::banked_all_run` was `[i32; 4]` against a `Resource::index()` that already
+returned six. Nothing wrote past the end - a fusion emits `Event::Fused` rather
+than `Event::GainResource` - so this was a fact about today's actions and not
+about the array. It is eight now, and `insight.rs` writes to every index.
+
+The gate is a field on the **shop** (`Shop::insight_open`) set by
+`Run::unlock_insight` at the same moment as the run's own flag, because a flag
+the shop has to be reminded of separately is a flag that will one day be set
+without the reminder. `piece::touches_insight` is the predicate; it matches
+nothing in the catalogue today, and `insight.rs` has a lint that says so and
+asks to be deleted on the day the family lands.
+
+The glossary was carrying a wrong sentence after M1 - "MANA SHIELD ... damage
+of any kind" - and now says magic. SPELLBLADE, DEFLECTION, INSIGHT, DREAD and
+THE THREE LANES are new entries beside it.
+
+## Drift — M3, the road stack, receipts and tooltips
+
+**None.** Byte-identical to M2 across the whole harness. Nothing in this
+milestone is in `combat.rs`.
+
+What it is worth recording instead is a test that was passing for the wrong
+reason. `the_road::a_town_gate_blocks_the_road_even_mid_replay` asserts that a
+gate still stops the next fight while a replay is up, and it checks
+`road_is_blocked().is_some()`. Sump Bottom's gate stands at rung index 7 and so
+does the first fountain, so "something is blocking the road" was answerable by
+the wrong one of the two - and was, the first time `road_stack` read the
+phase-gated `pending_town` there. It names what it is looking for now.
+
+That is the third entry in `second-order.md` §4's list, and the first one found
+by a change rather than by reading.
+
+## Drift — M4, the road machinery
+
+**None.** Byte-identical again. Every mechanic lands dark: no event names any
+of them, so the road a player walks is the road they walked before.
+
+One structural change worth writing down because it touches a format. **A board
+can now be taller than the board beside it.** `branching-events.md` says a run
+where one slot outgrows the others "would be a different game and a much more
+confusing one", and that was right while the only thing handing out room was
+Sprocketman's Gratitude, which hands out five. The Depth hands out **one**, on a
+board of your choice, and the choice is the reward - so the rule is amended
+rather than worked around.
+
+Three things had to move with it, and all three are the same fault at different
+depths:
+
+- `Loadout::rows()` meant "every slot is the same height" and now means "the
+  tallest", which is the right number for laying out a row of boards and the
+  wrong one for asking whether a placement fits.
+- `equip_locked_at` compared against it. That is the third time this exact
+  question has been asked of the wrong thing: it was `SLOT_H` once, then the
+  loadout's height, and now the slot's own.
+- **The share code goes to version 3** and carries five row counts. One number
+  was the whole answer only while rows arrived five at a time; a code that
+  averaged an uneven board would put pieces in a row the sharer did not have,
+  or drop the ones in the row they did. Version 2 codes still read, and read as
+  what they are: boards where nothing had outgrown anything.
+
+## Drift — M5 and M6
+
+**None from either.** `bestiary.rs` moved a table between files; `route.rs`,
+`pedestal.rs` and the dungeon's entry lines add reading rather than fighting.
+
+Worth recording: `pack_francis::pack` - the `#[ignore]`d generator, not a test
+- now **refuses Francis**. M1 took the reference board's magic multiplier off
+its iron, the board no longer beats him at Medium, and the search reports "best
+was a loss. Leaving it alone." That is the generator working: it refuses rather
+than writing a board it cannot measure, and Francis keeps his hand-authored one
+either way. The CURVE printer beside it agrees with M1's capture at 48 of 50
+and a 9.00s median.
+
+---
+
+# Phase 1 closed — the engine, and the ladder where M1 left it
+
+| | M0, before anything | Phase 1 closed |
+|---|---|---|
+| Suite | 548 green, 33 suites | **666 green**, 42 suites, 0 warnings |
+| Owner at Medium | 50/50, 75.2%, median 10.50s | 48/50, **75.5%**, median 9.00s |
+| Friend | 48/50, 97.6%, median 7.75s | 48/50, 97.4%, median 8.15s |
+| preset / starter | 9/50 · 2/50 | 9/50 · 2/50 |
+| Catalogue | 473 pieces, 104 inert | 473, 102 inert |
+| `the_catalog_keeps_every_rule` | green | **green** |
+| Casino corridor | sharp 1,600ms · plain 6,000ms | **unmoved** |
+
+**The ladder has not moved since M1.** Every capture from M2 to M7 is
+byte-identical to M1's - four boards, fifty rungs, every share, every census
+row - which is the phase's own exit criterion and the whole of what "land
+primitives inert, arm them separately" is for. M1 is the only milestone in this
+mission licensed to move a fight, and it moved two: the owner's board stops
+clearing Nine of Ashes and Francis, because it was taking a magic-lane
+multiplier onto physical swings.
+
+**A scripted CLI run replays identically.** Twenty-one lines of input covering
+an event, a town, a fountain, a shop, four fights and two maps; two runs, 1,032
+lines each, diffed to nothing. E6.1 in the form the road can currently take.
+
+**The frame lint is green, and the plan said it would be red.** That was wrong
+in the plan rather than in the code: `FRAMES` is empty until Phase 2 declares
+one, and a lint over an empty list cannot fail. It goes red on the first frame
+and green again at M17, which is what E6.8 asks for.
+
+## What Phase 1 built
+
+Eight milestones, seven of them with the fights standing perfectly still.
+
+- **The three lanes** separate, with `mind_resist` as the mind lane's only
+  answer, and the two physical twins carried by fourteen pieces nothing wears.
+- **Insight**, the eighth resource, fuel rather than a holding, locked.
+- **The road stack**, derived rather than stored, and the receipts and
+  tooltips that let the engine own every sentence the road says.
+- **Five conditions and eleven outcomes**, none of them named by any event.
+- **A board that can be taller than the board beside it**, and a share code at
+  version 3 that can describe one.
+- **`bestiary.rs`**, four new themes, and a frame that is a creature before its
+  board is.
+- **`route.rs`**, a map that is a pure function of the tables, drawn twice from
+  one function.
+- **The reward vocabulary that is not gear** - relics that read the run,
+  crushables that are spent, a rod that curses would rather land on.
+
+## Drift — M9, the catalogue lands once
+
+Thirty-one components, and **the four-board table at Medium does not move by a
+figure**: owner 48/50 at 75.5%, friend 48/50 at 97.4%, preset 9/50, starter
+2/50. The census is the only thing in the whole capture that changes, which is
+what a catalogue landing correctly looks like.
+
+| | before | after |
+|---|---:|---:|
+| Catalogue | 473 | **504** |
+| Helmet | 81 | 96 |
+| Weapon | 173 | 187 |
+| Chest | 69 | 71 |
+| `mind_resist` | 28 | 36 |
+| inert | 102 (21.6%) | 120 (23.8%) |
+
+Medium steps nothing, so Medium was never the question. **The question was the
+other three settings, and the answer was twenty-nine boards.**
+
+### The event-gear leak, found by walking into it
+
+`stepped_component` filters boss gear and quest rewards out of a footprint
+family before it sorts one, and both filters were added after something went
+wrong: a trophy handed to the fourth creature on the ladder, and a quest reward
+stepped into rather than earned. The list should always have been four entries
+long.
+
+Measured across every creature at Easy, Hard and Insane, the thirty-one new
+components moved **29 of 162** stepped boards - and what they moved into was
+`The Stranger's Parcel`, `The Cracked Lens`, `Doorward Frame` and
+`Foreboding Crest`: three things the road hands over and one that banks a pool
+the run has not been given yet.
+
+With `is_event_only` and `touches_insight` added to the filter, that falls to
+**11 of 162** - and every one of the eleven is the *old* leak being closed.
+`Gold Chip` and `Crownwright's Measure` were already on monster boards at Easy
+and Hard before this mission started; they are `Fury Sigil`, `Zealot's Crest`
+and `Grudge Bead` now.
+
+So M9's net effect on the ladder is: **nothing new reaches a creature, and a
+quiet wrongness that predates the mission is closed on eleven boards.** The
+thirty-one new components were what made it loud enough to see - a creature
+being handed the astronomer's lens is harder to miss than a creature being
+handed a casino chip.
+
+### Two pieces the ratchet argued with, and won
+
+- **The Cracked Lens** at `mind: 20` out-rated `The Split Wisdom`, which is
+  boss gear and is supposed to be the best accessory a player can meet. Twelve,
+  and the spec is amended: twenty points of mind on a one-cell piece is four
+  times what any `MindDamage` action in the game pays.
+- **Bearhide** wanted "Gain Fury on battle start", and both halves belong to
+  somebody else - `OnBattleStart` is the feet's and banking rage on a chest is
+  the helmet's axis wearing a coat, which put chest's bleed at 25.4% against a
+  band that stops at 25. The fury is **strength**, which reaches every weapon
+  and belongs to nobody, and what the piece *does* is armour.
+
+`GainDread` counts as conversion now, beside `GainSpellblade` and for the same
+reason: a stack that doubles a word counts as the word. That is what brought
+helmet's bleed back into band after fifteen new helmet pieces landed.
+
+## Drift — M10, the chain
+
+**None.** Byte-identical to M9. The chain is data: four events, two towns, a
+dungeon, three words and five frames, and not one of them is on the ladder.
+
+The frame lint has gone **red**, which is the phase discipline working. It is
+shipped as a ratchet rather than a failing test, the way `catalog_shape` is: a
+green budget at today's count that can only go down, and an `#[ignore]`d target
+that asserts zero. Five undressed creatures - the three floors of THE THRESHOLD
+and the Herald's two.
+
+One thing worth recording because it is a real bug rather than a design
+choice. **`Run::take_choice` never checked that the choice belonged to the door
+standing in front of you.** It did not have to: one door stood on one rung, and
+the interface only ever offered that door's choices. The chain's windows are
+wide enough for two doors to be open at once, and the first fixture holding all
+five words answered a locked gate with the VIP area's rescue button. Two fixes,
+because it was two faults: `take_choice` verifies ownership now, and
+`Run::with_all_pieces` hands out every piece of *gear* rather than every entry
+in the catalogue - a rumour is a key, and a fixture holding all of them opens
+every rumour door in the game at once.
+
+## Drift — M11 through M14, and the Phase-2 close
+
+**None, from M9 to here.** Four content milestones — the dungeons, Extra Large
+and the orbs, the five unconditional events, and the nine structures with Part
+D's three pairs — and the ladder is byte-identical to the capture M9 left. That
+is the phase working rather than luck: Phase 2's diffs are events, towns,
+dungeons, words and classes, and not one of them is a creature, a weight or a
+board.
+
+The frame budget is unchanged at **14**. The frame lint is still red, which
+E6.8 requires it to be: it goes green in M17, by hand, in `make pack`, and only
+after M16 has re-pinned the rating that decides what `stepped_component` hands
+every monster on three of the four settings.
+
+### What the structures cost, measured
+
+| | |
+|---|---|
+| Events in the table | 33 (nine structures, three pairs, and the twenty-one that were there) |
+| Classes | 31 — Unionized and Showstopper appended, never inserted |
+| Rumours | 8, of which 5 are on the bar and the bar draws exactly `SHOP_SIZE` |
+| New engine surface | `every_outcome`, `Choice: PartialEq`, `Requirement::{HoldingRumour, Classes}`, `Outcome::{SealedBid, ShopAfter, Markup, Passenger, Contract, SellWord, SellTitle, Chill}` |
+| Combat | one constant, `CONTRACT_SLOWER = 50`, applied where every other speed is |
+
+### Two lints that were reading half of what they thought
+
+Worth recording in this file rather than only in the ledger, because both are
+measurement faults rather than design faults, and this file is where the
+measurements live.
+
+**A pointer test is not a portable test.** `take_choice`'s ownership check
+compared choices with `std::ptr::eq`. `EVENTS` is a static holding promoted
+arrays, and a caller in another crate can hold a reference to a copy — so the
+check passed in the engine, passed in the GUI, and refused every choice made
+from a test binary. The failure mode is the bad one: not a wrong answer, a
+silent no. It compares by value now.
+
+**A composite outcome hid everything inside it.** `class::is_earned`,
+`event::set_by` and the event reachability lint all matched on `c.outcome`
+directly, and half this mission's bargains are an `Outcome::All`. A class
+claimed inside one read as a class no door hands out — which is exactly the
+condition `every_class_but_the_floor_asks_for_something` exists to catch, and
+it caught it. `event::every_outcome` unpacks `All` and `Gamble`, and the three
+callers go through it.
+
+### Phase 2, closed
+
+`tests/phase_two.rs` is E6.8 said as six assertions: every door can be arrived
+at, every hidden town and every dungeon has a mouth, every reward the mission
+promises is in somebody's gift, both routes to the Mainspring are walkable,
+every creature the mission added is still a frame, and a run that answers
+everything meets every door that stands on a rung. The last one is a sweep
+rather than a replay — it walks all fifty rungs holding every word, with the
+flags set and a packed board, and reports what it never met. It reports
+nothing.
+
+### One field that was doing nothing
+
+`Run::cursed_for_good` has been documented since M12 as "pieces carrying a
+curse for the rest of the run" and **nothing read it**. The Manse library set
+it, `Outcome::Uncurse` popped it, and no fight was any different for either.
+The thirsty wizard's refusal would have inherited the same hole, so it is
+closed here: `CURSED_SLOWER = 25` on any item holding a cursed piece, applied
+in `combat_items` beside the contract's own frost, which is where every speed
+in this game is applied.
+
+It chills something that **acts**, not something that merely sits there —
+drawn from `combat_items`, because a loose component has no cooldown to slow
+and freezing one would be a receipt line and nothing else. Nothing pinned
+moves: neither the library nor the wizard is on the ladder.
+
+## Drift — M15, the words
+
+**None from the mission's own changes.** Phase 3 is `theme.rs`, prose and
+documentation; nothing it touched is a weight, a board or a rule.
+
+**One from outside it.** `make pack` was run against DOORKEEP and THE STAIR
+THAT LISTENS while this milestone was in flight, and the save also rewrote a
+creature that was not being edited: **The Iron Warden at rung 7 lost a chest
+piece** — `Vast Tapestry` gone, `items` from `[3, 2, 2, 1]` to `[3, 2, 2]`.
+Nothing pinned noticed, which is worth recording on its own: rung 7 is a
+mini-boss and no test measures it directly. The ladder is therefore **no longer
+byte-identical to M1** and the change is not the mission's.
+
+### The frame budget, moved twice
+
+| | |
+|---|---|
+| Was | 14 |
+| THE UNWOUND added as a frame | 15 |
+| DOORKEEP and THE STAIR THAT LISTENS packed by hand | **13** |
+
+THE UNWOUND is the finding worth keeping. Rung 51's boss existed as a label on
+the route map, a `theme.rs` entry and a `past_the_top()` that could never
+return true, and had no `MonsterSpec` and no `MonsterFrame` through four
+content milestones. Nothing caught it because nothing asks a *route label* to
+name a creature. It is a frame now — band 51, Hollow — and the frame lint
+counts it, which means M17 cannot forget it.
+
+### What the two-voices audit found
+
+Fourteen canonical scenes were written in the theme's voice, not three as the
+spec's audit note estimated. The count by kind:
+
+| Kind | Count | Fix |
+|---|---:|---|
+| A common noun the vocabulary already translates (`fnorp`) | 5 | Fixed in place; the theme puts the word back |
+| A proper noun carrying a scene | 14 | Canonical gets the role, `theme.rs` gets the scene |
+| A component name in `CATALOG` | 5 | Cannot be fixed — append-only. Recorded as the lint's budget |
+
+One of the five common-noun leaks was in `combat.rs`'s own log line, which is
+the engine speaking turtle to a player who chose the plain theme. That is the
+clearest possible statement of why the rule matters.
+
+## Drift — M16, the rating re-pinned
+
+Phase 4 opens here, and its first rule is that **nothing is packed until this
+is settled**: `stepped_component` re-gears every monster on Easy, Hard and
+Insane whenever a weight moves, so a board authored before the weights are
+final is a board authored against a ladder that is about to change under it.
+
+### What moved
+
+| Constant | Was | Now | Why |
+|---|---:|---:|---|
+| `ACTIVATIONS_PER_S` | 2.0 | **5.0** | Re-measured. The figure was set against boards reporting 1.8 / 2.3 / 4.8 activations a second; the same three boards now report 2.06 / 3.43 / 6.60, because the gear-slot rewrite gave every slot something to do on a cooldown. Five is the mean of the two finished human boards. |
+| `pool_weight(Insight)` | fuel (`MANA_PS`) | **held** (`RESOURCE_PS + HELD_PER_POINT/2`) | Nothing spends Insight. What it does is multiply every point of Dread for the rest of the fight, which is a held pool's shape, not a fuel's. M2 filed it beside the pool it was modelled on rather than measuring what it does. |
+
+`RARE_AT`, `EPIC_AT` and `LEGENDARY_AT` did **not** move, and must not: every
+generated item name in the game changes length if they do.
+
+### What that cost
+
+Everything that *watches* gained about a third — which is the whole of the
+gloves' axis, forty-seven reaction triggers priced at a third of what they see.
+Everything that does not watch lost a little, because every rating is a
+fraction of its slot's ceiling and the ceilings rose.
+
+| | Was | Now |
+|---|---:|---:|
+| Vicegrip Mold (gloves watcher) | 13 | 17 |
+| Grudge Bead (weapon watcher) | 21 | 23 |
+| Unshod Signet (the dearest piece) | 252g | 227g |
+
+One pinned number moved with it: `prices_are_worth_something_against_the_purse`
+asked the dearest piece to cost 250g and it now costs 227g. Re-pinned to 220
+with the reason in the assertion — the claim it makes, that the best piece
+costs about a late fight's pay rather than a fiftieth of it, is unchanged.
+
+### The per-monster diff
+
+`stepped_component` hands out different gear on every setting but Medium, and
+this is what the re-pin moved:
+
+| Setting | Boards whose stepped gear changed |
+|---|---:|
+| Easy | **33** of 50 |
+| Hard | **27** of 50 |
+| Insane | **26** of 50 |
+
+Medium is unmoved by construction — it wears what is authored. The four-board
+table at Medium is **byte-identical** to before the re-pin:
+
+| build | cleared | weapon % | median ttk |
+|---|---|---:|---:|
+| starter | 2/50 | 100.0% | 45.00s |
+| preset | 9/50 | 100.0% | 9.00s |
+| owner | 48/50 | 75.5% | 9.00s |
+| friend | 48/50 | 97.4% | 8.15s |
+
+Weapon share **75.5%**, inside the 66-76% band. Suite **750 green** at all four
+settings.
+
+### Already done, and checked rather than assumed
+
+The other corrections `HANDOFF.md` M5 and `analysis/second-order.md` list were
+applied when their milestones landed and are still in place: frost doubled by
+`SLOWED_ITEMS = 2.0` and deliberately left the cheapest of the three curses;
+`Grow` priced over `TYPICAL_FIGHT_S`; `Fuse` at a flat
+`0.66 x 2.0 x HELD_PER_POINT`; the enchantment arm at `BOND_POINTS = 45.0`;
+Spellblade at 11.0 level with a mana stack and Deflection at 9.0 under it.
+
+**From here to M17, nothing touches `rating.rs` or `CATALOG`.**
+
+## Drift — M17 and M18, the boards land
+
+### The four-board table, at Medium, after everything
+
+| build | cleared | weapon % | median ttk |
+|---|---|---:|---:|
+| starter | 2/50 | 100.0% | 45.00s |
+| preset | 9/50 | 100.0% | 9.00s |
+| owner | 48/50 | 75.5% | 9.00s |
+| friend | 48/50 | 97.4% | 8.15s |
+
+**Unmoved from M16**, which is the point: fifteen creatures got boards and not
+one of them is on the ladder. Weapon share **75.5%**, inside the 66-76% band it
+has held since M1.
+
+### THE UNWOUND, and how its number was chosen
+
+Packed by the generator at `PACK_BAND=20` — 43 pieces, 13 items — then scaled
+by measurement:
+
+| Scale | health | strength | friend | owner | perfect |
+|---|---:|---:|---|---|---|
+| x1.0 | 10,000 | 230 | won 10s | won 22s | lost |
+| **x1.5** | **15,000** | **345** | **lost** | **won 28s** | **lost** |
+| x2.0 | 20,000 | 460 | lost | lost | lost |
+
+Two of three lose, and the fight that is won finishes at **28.0s** — inside
+16-29s, with two seconds before sudden death would take it. At x2.0 nothing
+beats it at all, which is not a boss but a wall.
+
+### The frame stat curve
+
+The frames shipped with placeholder health and strength and nothing had noticed
+because nothing fights a frame. Each now takes the ladder creature's stats at
+its own band, adjusted where the generator's curve guard said otherwise:
+
+| Creature | Band | Health | Strength |
+|---|---:|---:|---:|
+| THE LAST LANDING | 26 | 2,007 | 54 |
+| THE FLOCK | 27 | 1,298 | 35 |
+| THE DEN MOUTH | 30 | 3,245 | 85 |
+| DARK FLOOR | 30 | 3,244 | 84 |
+| THE THOUSANDTH BEAR | 32 | 2,140 | 56 |
+| THE WUMPUS | 32 | 748 | 19 |
+| THE DIGGERS | 33 | 2,512 | 65 |
+| THE CURRENT | 33 | 2,512 | 65 |
+| WHAT THE SEAM HID | 34 | 3,106 | 80 |
+| THE THING ON THE HOOK | 35 | 3,306 | 87 |
+| THE SHADOW | 43 | 3,568 | 89 |
+| THE LANTERN | 43 | 2,470 | 62 |
+| THE UNWOUND | 51 | 15,000 | 345 |
+
+THE WUMPUS is the outlier and it is not an error: a Beast board at band 32 came
+back turning the reference build's fight into forty-five seconds, and the
+generator refused it four times. Its health is low because its *board* is
+heavy, which is the whole of what the two dials are for.
+
+### Census, at the end
+
+| | |
+|---|---:|
+| Catalogue | **504** pieces |
+| Events | 33 |
+| Towns | 6 (3 pinned, 3 hidden) |
+| Dungeons | 6 |
+| Rumours | 8 (5 on the bar) |
+| Destinations | 4 |
+| Frames | 15, **all dressed** |
+| Classes | 31 |
+| Suite | **764 green**, 0 warnings |
+
+Two CLI replays of the same script diff clean.

@@ -18,7 +18,7 @@
 
 use gearmaster_engine::loadout::{lock_assembled_in, Loadout};
 use gearmaster_engine::piece::{
-    is_boss_only, recipes, PieceDef, PieceId, PieceKind, PieceRegistry, SlotKind, CATALOG,
+    is_boss_only, recipes, PieceId, PieceKind, PieceRegistry, SlotKind, CATALOG,
 };
 use gearmaster_engine::rating::piece_rating;
 use gearmaster_engine::rng::Rng;
@@ -113,195 +113,13 @@ fn per_slot() -> usize {
 
 // ------------------------------------------------------------------ themes
 //
-// `design/monster-themes.md` is the argument; this is the table. A theme names
-// two slots and a vocabulary, and the packer considers nothing outside them -
-// which is what makes a creature legible in the first three seconds of a fight
-// and what cuts the candidate pool by roughly sixty percent.
+// `design/monster-themes.md` is the argument and `bestiary.rs` is the table.
+// It lived here for as long as the only thing that needed it was this search;
+// a `MonsterFrame` carries a theme, and a frame is engine data, so it moved.
+// Everything below is a re-export so the rest of this file reads as it did.
 
-#[derive(Copy, Clone, PartialEq, Debug)]
-enum Theme {
-    Striker,
-    Wall,
-    Burner,
-    Slower,
-    Drainer,
-    Caster,
-}
+use gearmaster_engine::bestiary::themes_of;
 
-impl Theme {
-    /// The two grids this creature fills. Two rather than five: two is what a
-    /// player can read at a glance, and five is what made every creature on
-    /// the ladder the same creature.
-    fn slots(self) -> &'static [SlotKind] {
-        match self {
-            Theme::Striker => &[SlotKind::Weapon, SlotKind::Gloves],
-            Theme::Wall => &[SlotKind::Chest, SlotKind::Helmet, SlotKind::Weapon],
-            Theme::Burner => &[SlotKind::Weapon, SlotKind::Greaves],
-            Theme::Slower => &[SlotKind::Greaves, SlotKind::Gloves],
-            Theme::Drainer => &[SlotKind::Gloves, SlotKind::Helmet],
-            Theme::Caster => &[SlotKind::Weapon, SlotKind::Helmet],
-        }
-    }
-
-    /// Does this piece speak the theme's language?
-    ///
-    /// A piece that carries nothing either way - a plain frame, a bare
-    /// material - is allowed everywhere: a board needs cores and filler to
-    /// assemble at all, and refusing them would leave most themes unable to
-    /// finish a single item.
-    fn allows(self, d: &PieceDef) -> bool {
-        use gearmaster_engine::curse::CurseKind;
-        use gearmaster_engine::piece::{Action, Trigger};
-        let says = |want: fn(&Action) -> bool| {
-            d.triggers.iter().any(|t| match t {
-                Trigger::OnActivate(a)
-                | Trigger::OnBattleStart(a)
-                | Trigger::OnAdjacentActivate(a)
-                | Trigger::OnAlignedActivate(a)
-                | Trigger::OnDiagonalActivate(a)
-                | Trigger::OnOtherCast(a) => want(a),
-                Trigger::Watch { then, .. } => want(then),
-                Trigger::PerAdjacentItem { action, .. } => want(action),
-                Trigger::Consume { per, .. } => want(per),
-                Trigger::SpendGold { on_success, .. } => want(on_success),
-                Trigger::SpendMana { on_success, on_failure, .. }
-                | Trigger::Spend { on_success, on_failure, .. } => {
-                    want(on_success) || want(on_failure)
-                }
-                Trigger::PerAdjacentEmpty(_) => false,
-            })
-        };
-        let b = &d.base;
-        let speaks = match self {
-            Theme::Striker => {
-                b.physical_damage != 0
-                    || b.magic_damage != 0
-                    || b.strength != 0
-                    || says(|a| matches!(a, Action::Damage { .. }))
-            }
-            Theme::Wall => {
-                b.armor != 0
-                    || b.health != 0
-                    || b.physical_harden != 0
-                    || b.magic_harden != 0
-                    || b.reflect != 0
-                    || says(|a| matches!(a, Action::GainArmor(_) | Action::Grow(_)))
-                    // And something to swing.
-                    //
-                    // Wall is the one theme of the six whose slots deal no
-                    // damage, and a creature fights entirely through its gear -
-                    // exactly one creature on the ladder has an innate attack,
-                    // and it is the Cave Rat. So a chest-and-helmet wall lands
-                    // nothing, ever: The Iron Warden packed into one slow chest
-                    // item and could not hurt anybody, two of them were no
-                    // harder than one, and nine tests said so in nine ways.
-                    //
-                    // Reflection was meant to be the answer and cannot be. It
-                    // needs the player to swing first and the armour to soak
-                    // it, it is reported as `Reflected` rather than `Hit` so
-                    // nothing measuring enemy damage can see it, and it can
-                    // never threaten somebody who out-damages it.
-                    //
-                    // So a wall carries a weapon - one item of it, which is all
-                    // any creature may carry. It is still slow, it is still
-                    // mostly armour, and now it can reach you.
-                    || d.slots().contains(&SlotKind::Weapon)
-            }
-            Theme::Burner => {
-                b.physical_damage != 0
-                    || b.magic_damage != 0
-                    || says(|a| {
-                        matches!(a, Action::Damage { .. })
-                            || matches!(a, Action::Curse { kind: CurseKind::Searing, .. })
-                    })
-            }
-            Theme::Slower => {
-                d.speed_bonus != 0
-                    || b.curse_resist != 0
-                    || d.triggers.iter().any(|t| matches!(t, Trigger::OnBattleStart(_)))
-                    || says(|a| {
-                        matches!(
-                            a,
-                            Action::Curse {
-                                kind: CurseKind::Frost | CurseKind::Stun | CurseKind::Misfire,
-                                ..
-                            }
-                        ) || matches!(a, Action::ReduceCooldown(_))
-                    })
-            }
-            Theme::Drainer => {
-                b.mind != 0
-                    || b.mind_resist != 0
-                    || says(|a| {
-                        matches!(
-                            a,
-                            Action::Drain { .. }
-                                | Action::MindDamage { .. }
-                                | Action::StunStrongest { .. }
-                        )
-                    })
-            }
-            Theme::Caster => {
-                d.power_bonus != 0
-                    || b.mana != 0
-                    || matches!(
-                        d.kind,
-                        PieceKind::Spell | PieceKind::Ink | PieceKind::Orb | PieceKind::Book
-                            | PieceKind::Alignment
-                    )
-                    || says(|a| {
-                        matches!(a, Action::GainMana(_) | Action::GainForking(_))
-                            | matches!(a, Action::GainEmpowerment(_) | Action::GainShield(_))
-                    })
-            }
-        };
-        speaks || plain(d)
-    }
-}
-
-/// Carries nothing any theme would recognise. Cores and filler, which every
-/// board needs whatever it is for.
-fn plain(d: &PieceDef) -> bool {
-    d.triggers.is_empty()
-        && d.effect.is_none()
-        && d.base.physical_damage == 0
-        && d.base.magic_damage == 0
-        && d.base.armor == 0
-        && d.base.health == 0
-}
-
-/// The clusters, from `design/monster-themes.md`. Stretches rather than a
-/// rotation, so a player has time to work out what is in front of them - and
-/// ordered to teach: hit first, then that hitting is not enough. Rungs 45 and
-/// beyond are deliberately unthemed.
-fn theme_for(rung: usize) -> Option<Theme> {
-    Some(match rung + 1 {
-        1..=6 => Theme::Striker,
-        7..=13 => Theme::Wall,
-        14..=20 => Theme::Burner,
-        21..=28 => Theme::Slower,
-        29..=36 => Theme::Caster,
-        37..=44 => Theme::Drainer,
-        _ => return None,
-    })
-}
-
-/// What this creature draws from. A mini-boss is a hybrid: its own cluster's
-/// theme and the one the next cluster introduces, so it is both a harder
-/// version of what you have learned and the first sight of what is coming.
-fn themes_of(rung: usize, ordinary: bool) -> Vec<Theme> {
-    let mut out: Vec<Theme> = theme_for(rung).into_iter().collect();
-    if !ordinary {
-        // The next cluster's theme, found by walking forward to the first rung
-        // that answers differently.
-        if let Some(next) = (rung + 1..50).find_map(|r| {
-            theme_for(r).filter(|t| Some(*t) != theme_for(rung))
-        }) {
-            out.push(next);
-        }
-    }
-    out
-}
 
 /// The creature being packed, and where it stands.
 fn subject() -> (usize, bool) {
@@ -951,6 +769,17 @@ fn pack() {
     );
     let mut best: Option<Candidate> = None;
 
+    // A frame has no board to regress, so the two "did this make it worse"
+    // guards cannot say anything about one. Computed here rather than at the
+    // assertion because the *scoring* asks the same question: with `holds`
+    // false for every candidate they all tie at zero hits and the winner is
+    // whichever filled the most cells, which is how a boss came back not
+    // wearing what a boss owes.
+    let dressing_a_frame = gearmaster_engine::bestiary::is_unpacked(&who());
+    if dressing_a_frame {
+        println!("FRAME: no board to regress, so the preset guards do not apply");
+    }
+
     for trial in 0..trials() {
         let mut rng = Rng::new(name_seed() ^ (0x5EED_0000 + trial));
         let mut lines: Vec<String> = Vec::new();
@@ -962,7 +791,17 @@ fn pack() {
         // creature this design exists to stop being.
         let (rung, ordinary) = subject();
         let drawn = themes_of(rung, ordinary);
-        let wanted: Vec<SlotKind> = if drawn.is_empty() {
+        // A boss wears everything, whatever its theme says.
+        //
+        // `themes_of` hands back the character a creature speaks in, and a
+        // character is two or three slots - which is the whole point of the
+        // theme table and exactly wrong for a boss, who is checked slot by
+        // slot further down and owes gear in all five. Francis gets away with
+        // it because a mini-boss rung draws several themes between them; THE
+        // UNWOUND is one theme off the end of the ladder, and drew two.
+        let wanted: Vec<SlotKind> = if drawn.is_empty()
+            || subject_spec().rank == gearmaster_engine::combat::Rank::Boss
+        {
             SlotKind::ALL.to_vec()
         } else {
             let mut v: Vec<SlotKind> = Vec::new();
@@ -1113,8 +952,8 @@ fn pack() {
         // anything worth calling a fight.
         let reaches = got[1][1].hurt;
         let holds = reaches
-            && preset_holds(was[0][1], got[0][1])
-            && preset_holds(was[1][1], got[1][1])
+            && (dressing_a_frame || preset_holds(was[0][1], got[0][1]))
+            && (dressing_a_frame || preset_holds(was[1][1], got[1][1]))
             && (!in_the_shallow_window(rung) || got[1][1].ms >= CASINO_BAR_MS)
             && rank_is_satisfied(subject_spec().rank, &gear_for_rank, &chunks);
         let hits = if miss == f64::MAX || !holds {
@@ -1153,7 +992,7 @@ fn pack() {
     );
     for (i, which) in [(0usize, "four-piece"), (1, "preset")] {
         assert!(
-            preset_holds(was[i][1], got[i][1]),
+            dressing_a_frame || preset_holds(was[i][1], got[i][1]),
             "nothing at rung {} let an ordinary board past it: the {which} board {} in {:.1}s \
              before and {} in {:.1}s against the best candidate. Leaving it alone.",
             rung + 1,

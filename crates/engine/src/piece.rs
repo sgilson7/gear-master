@@ -423,10 +423,21 @@ pub enum Resource {
     DruidicMight,
     Communion,
     Zealotry,
+    /// The mind lane's pool, and the eighth.
+    ///
+    /// To mind damage what mana is to magic empowerment, and that comparison
+    /// is exact rather than decorative: holding it is worth nothing at all on
+    /// its own, and worth a great deal per stack of Dread. So it is fuel
+    /// rather than a holding, it pays no `held_bonus`, and a board that banks
+    /// it without banking Dread has banked a number.
+    ///
+    /// Locked until THE THRESHOLD is cleared (`Run::insight_unlocked`). Until
+    /// then nothing that grants it reaches a shelf and the pool draws nothing.
+    Insight,
 }
 
 impl Resource {
-    pub const ALL: [Resource; 7] = [
+    pub const ALL: [Resource; 8] = [
         Resource::Mana,
         Resource::Rage,
         Resource::Faith,
@@ -434,6 +445,7 @@ impl Resource {
         Resource::DruidicMight,
         Resource::Communion,
         Resource::Zealotry,
+        Resource::Insight,
     ];
 
     /// The four a trigger may spend. Mana is fuel and the other three are
@@ -452,6 +464,7 @@ impl Resource {
             Resource::DruidicMight => 4,
             Resource::Communion => 5,
             Resource::Zealotry => 6,
+            Resource::Insight => 7,
         }
     }
 
@@ -486,6 +499,7 @@ impl Resource {
             Resource::DruidicMight => "druidic might",
             Resource::Communion => "communion",
             Resource::Zealotry => "zealotry",
+            Resource::Insight => "insight",
         }
     }
 }
@@ -520,8 +534,35 @@ pub enum Action {
     /// point of mana you are currently holding.
     GainEmpowerment(u32),
     /// Gain stacks of mana shield: each stack cuts 1 point off every incoming
-    /// hit per point of mana you are holding, whatever the damage type.
+    /// **magic** hit per point of mana you are holding.
+    ///
+    /// Magic only. Empowerment and the shield are the magic lane's pair, and
+    /// what makes them the *mana* pair is that both scale off held mana. The
+    /// physical lane has its own two below, which do not.
     GainShield(u32),
+    /// Gain stacks of Spellblade: each stack adds a flat 0.50x to weapon power
+    /// on **physical** hits.
+    ///
+    /// The physical twin of empowerment, and deliberately not mana-scaled - a
+    /// stack is worth the same to a board that banks nothing as to one that
+    /// banks forty. So it has no ceiling to build towards and no condition to
+    /// meet, which is the trade against the pair that does.
+    GainSpellblade(u32),
+    /// Gain stacks of Dread: each stack adds `insight_held / 2` to every point
+    /// of **mind** damage dealt.
+    ///
+    /// The mind lane's amplifier, and the exact shape of empowerment: a stack
+    /// is worth nothing without the pool and the pool is worth nothing without
+    /// a stack. Helmet-exclusive, like the pair it copies. Locked with the
+    /// pool - see `Resource::Insight`.
+    GainDread(u32),
+    /// Gain stacks of Deflection: each stack turns a flat 10 points off every
+    /// incoming **physical** hit, ahead of armour.
+    ///
+    /// The physical twin of the mana shield, on the same terms. Distinct from
+    /// `reflect`, which is the chest's other answer to being hit: Deflection
+    /// reduces the blow, reflection pays it back.
+    GainDeflection(u32),
     /// Gain stacks of spell forking: every cast lands once more per stack.
     ///
     /// Only a spell forks. A blade swings once however many stacks are up -
@@ -582,6 +623,9 @@ impl Action {
             }
             Action::GainEmpowerment(n) => format!("gain {} mana empowerment", n),
             Action::GainShield(n) => format!("gain {} mana shield", n),
+            Action::GainSpellblade(n) => format!("gain {} spellblade", n),
+            Action::GainDread(n) => format!("gain {} dread", n),
+            Action::GainDeflection(n) => format!("gain {} deflection", n),
             Action::GainForking(n) => format!("gain {} spell forking", n),
             Action::Grow(n) => format!("gain {} maximum health for the rest of the fight", n),
         }
@@ -847,7 +891,7 @@ impl Trigger {
 /// is part of an assembled item - a loose piece is inert, quests included -
 /// and it is tallied from the combat log after a fight rather than during it,
 /// so nothing in the simulation has to know quests exist.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Quest {
     /// What the player is told to do.
     pub label: &'static str,
@@ -861,7 +905,7 @@ pub struct Quest {
 }
 
 /// What a quest counts.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum QuestTrack {
     /// Activations of the item this component is part of.
     SelfActivations,
@@ -1227,7 +1271,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::GainArmor(2))],
+        triggers: &[Trigger::OnActivate(Action::GainDeflection(1))],
         quest: Some(Quest {
             label: "Cracked Pauldron",
             goal: 25,
@@ -2320,9 +2364,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[
-            Trigger::OnActivate(Action::GainArmor(4)),
-        ],
+        triggers: &[Trigger::OnActivate(Action::GainDeflection(1))],
         quest: None,
         power_bonus: 0,
         price: 15,
@@ -2433,7 +2475,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::GainArmor(4))],
+        triggers: &[Trigger::OnActivate(Action::GainDeflection(1))],
         quest: None,
         power_bonus: 0,
         price: 18,
@@ -2523,7 +2565,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Gain { what: Resource::Rage, amount: 2 })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::GainSpellblade(1))],
         quest: None,
         power_bonus: 0,
         price: 18,
@@ -3030,6 +3072,8 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
+        // The weapon's minority share of Spellblade, and gated as the helmet's
+        // empowerment is gated: a stack is counted up to, never handed over.
         triggers: &[],
         quest: None,
         power_bonus: 0,
@@ -5294,7 +5338,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::Watch { what: Watched::AnyActivation, count: 10, then: Action::GainSpellblade(1), repeats: true }],
         quest: None,
         power_bonus: 0,
         price: 4,
@@ -5384,7 +5428,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 26,
-        triggers: &[],
+        triggers: &[Trigger::Watch { what: Watched::AnyActivation, count: 8, then: Action::GainSpellblade(1), repeats: true }],
         quest: None,
         power_bonus: 0,
         price: 15,
@@ -5933,7 +5977,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 5000,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::GainArmor(5))],
+        triggers: &[Trigger::OnActivate(Action::GainDeflection(1))],
         quest: None,
         power_bonus: 0,
         price: 12,
@@ -5948,7 +5992,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 5000,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::GainArmor(4))],
+        triggers: &[Trigger::OnActivate(Action::GainDeflection(1))],
         quest: None,
         power_bonus: 0,
         price: 17,
@@ -6068,7 +6112,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::GainArmor(2))],
+        triggers: &[Trigger::OnActivate(Action::GainDeflection(1))],
         quest: None,
         power_bonus: 0,
         price: 6,
@@ -6439,7 +6483,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::GainArmor(2))],
+        triggers: &[Trigger::OnAdjacentActivate(Action::GainSpellblade(1))],
         quest: None,
         power_bonus: 0,
         price: 14,
@@ -6732,7 +6776,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAlignedActivate(Action::GainMana(1))],
+        triggers: &[Trigger::OnAlignedActivate(Action::GainSpellblade(1))],
         quest: None,
         power_bonus: 0,
         price: 10,
@@ -7320,7 +7364,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: Some(Effect { label: "Hermit: everything x6 while its row is its own", when: When::Assembled, kind: EffectKind::SoleIf { what: Solitude::Row, times: 6 } }),
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[],
+        triggers: &[Trigger::OnAdjacentActivate(Action::GainSpellblade(1))],
         quest: None,
         power_bonus: 0,
         price: 58,
@@ -8769,10 +8813,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnActivate(Action::Gain {
-            what: Resource::Mana,
-            amount: 4,
-        })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::GainSpellblade(1))],
         quest: None,
         power_bonus: 0,
         price: 110,
@@ -8789,7 +8830,8 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 8,
-        triggers: &[],
+        // The feet's minority share: footwork is a way of not being hit.
+        triggers: &[Trigger::OnActivate(Action::GainDeflection(1))],
         quest: None,
         power_bonus: 0,
         price: 130,
@@ -9219,12 +9261,9 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        // The hands answer. The smallest possible statement of it.
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
-            amount: 15,
-            kind: DamageType::Physical,
-            target: Target::Enemy,
-        })],
+        // The hands answer. The smallest possible statement of it - and what
+        // they answer with is the blade, not a fist of their own.
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 15, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 11,
@@ -9259,11 +9298,7 @@ pub static CATALOG: &[PieceDef] = &[
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
-        triggers: &[Trigger::OnAdjacentActivate(Action::Damage {
-            amount: 25,
-            kind: DamageType::Physical,
-            target: Target::Enemy,
-        })],
+        triggers: &[Trigger::OnAdjacentActivate(Action::Damage { amount: 25, kind: DamageType::Physical, target: Target::Enemy })],
         quest: None,
         power_bonus: 0,
         price: 15,
@@ -9493,6 +9528,565 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 0,
         price: 55,
     },
+
+    // ------------------------------------------------------- the Unwinding
+    //
+    // Everything the mission adds, in one place, because appending to CATALOG
+    // is not the harmless thing it looks like: `stepped_component` sorts a
+    // piece's footprint family by worth and takes the next one along, so a new
+    // piece sharing a kind, a slot and a shape with an existing one inserts
+    // itself into that family and re-gears every creature wearing a sibling on
+    // three of the four settings. That is a rating change wearing a different
+    // hat, and the way to survive it is to do it once and measure once.
+
+    // ---- the four Orbs of Travel ----------------------------------------
+    //
+    // Weapon cores first and tickets second. Each does something real to the
+    // spells slotted into it, so one is worth buying by somebody who never
+    // finds the pedestal that takes it - and a duplicate, which the pedestal
+    // refuses, is still a working orb.
+    PieceDef {
+        name: "Wayfarer's Orb",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Orb,
+        cells: &[(0,0),(1,0),(0,1),(1,1)],
+        base: Stats { mana: 3, magic_damage: 4, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3000,
+        speed_bonus: 0,
+        // The first cast of a fight is paid for. Written as a refund rather
+        // than as an exemption, because a refund is a thing the engine already
+        // has and an exemption is a thing it would have to learn.
+        triggers: &[Trigger::Watch { what: Watched::AnyActivation, count: 1, then: Action::GainMana(3), repeats: false }],
+        quest: None,
+        power_bonus: 20,
+        price: 20,
+    },
+    PieceDef {
+        name: "Pilgrim's Orb",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Orb,
+        cells: &[(0,0),(1,0),(0,1),(1,1)],
+        base: Stats { mana: 2, magic_damage: 5, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3000,
+        // Harder and slower, which is the whole of a pilgrimage. A quarter
+        // more cooldown is a fifth less speed, which is the same sentence in
+        // the units this game keeps.
+        speed_bonus: -20,
+        triggers: &[],
+        quest: None,
+        power_bonus: 25,
+        price: 22,
+    },
+    PieceDef {
+        name: "Ferry Orb",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Orb,
+        cells: &[(1,0),(0,1),(1,1),(2,1),(1,2)],
+        base: Stats { mana: 2, magic_damage: 5, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 2600,
+        speed_bonus: 0,
+        // Every cast brings the next one closer. An orb holds several, so this
+        // pays inside the item rather than across the board.
+        triggers: &[Trigger::OnOtherCast(Action::ReduceCooldown(1000))],
+        quest: None,
+        power_bonus: 15,
+        price: 24,
+    },
+    PieceDef {
+        name: "Stray Orb",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Orb,
+        cells: &[(1,0),(0,1),(1,1),(2,1),(1,2)],
+        base: Stats { mana: 2, magic_damage: 4, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 2800,
+        speed_bonus: 0,
+        // Its spells go off whatever the curse says. The rule is in
+        // `combat.rs` and reads this piece by name - see `STRAY_ORB`, which is
+        // the only place a mechanic in this game knows a component by name.
+        triggers: &[],
+        quest: None,
+        power_bonus: 15,
+        price: 26,
+    },
+
+    // ---- what the road hands over ---------------------------------------
+    //
+    // All EVENT_ONLY: none of them is for sale, and several are not gear at
+    // all. A one-cell accessory is the shape this game already uses for a
+    // thing you carry rather than build with - the two casino chips are
+    // exactly this - and it costs you a cell, which is the whole price of
+    // holding on to one.
+    PieceDef {
+        name: "The Cracked Lens",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        // Mind damage from a lens somebody was thrown out of six observatories
+        // for looking through. It works on any slot: `item.mind` is read
+        // outside the branch that decides who swings.
+        base: Stats { mind: 12, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "The Stranger's Parcel",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        base: Stats { strength: 5, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "An Unwound Mainspring",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        // Nothing at all, and it is the most valuable thing in the game: the
+        // road past the top opens for whoever is carrying it.
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    // The three run-relics. Their stat lines are empty on purpose: what they
+    // are worth is a function of the run, and it lives in `relic.rs`.
+    PieceDef {
+        name: "The Tally",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "The Odometer",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "The Ledger",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    // And the three that are spent. `relic.rs` says what breaking one does.
+    PieceDef {
+        name: "the Second Key",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "the Appeal",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "the Skip Stone",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Accessory,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "Bearhide",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Base,
+        cells: &[(0,0),(1,0),(2,0),(0,1),(1,1),(2,1)],
+        // Fury, and the body's own word for it.
+        //
+        // H1 asks for "Gain Fury on battle start", and both halves are
+        // somebody else's: `OnBattleStart` is the feet's trigger, and banking
+        // rage on a chest is the helmet's axis wearing a coat - chest's bleed
+        // is economy and it is already at the top of its band. So the fury is
+        // strength, which reaches every weapon and belongs to nobody, and what
+        // the piece *does* is the body's own verb.
+        base: Stats { health: 260, armor: 8, strength: 12, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 4200,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::GainArmor(6))],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    // The enchantment curses would rather land on. Bought where somebody has a
+    // floor to sell, like every other one - `is_town_stock` keeps every
+    // enchantment off the road's shelves without anybody having to list them.
+    PieceDef {
+        name: "the Lightning Rod",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (0, 1)],
+        base: Stats { curse_resist: 6, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 34,
+    },
+
+    // ---- the mind lane's gear -------------------------------------------
+    //
+    // Helmet, with one book. Insight income and Dread are the head's the way
+    // empowerment and the shield are, and for the same reason: the pool that
+    // feeds a lane and the stack that spends it belong to the slot whose whole
+    // job is what the pools are *for*.
+    //
+    // None of it reaches a shelf until THE THRESHOLD is cleared. A pool nobody
+    // can hold is a piece that does nothing, and a piece that does nothing is
+    // worse than a piece that is not there.
+    PieceDef {
+        name: "Thin Veil",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0,0),(1,0),(0,1),(1,1)],
+        base: Stats { mind_resist: 6, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3600,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Gain { what: Resource::Insight, amount: 2 })],
+        quest: None,
+        power_bonus: 0,
+        price: 18,
+    },
+    PieceDef {
+        name: "Doorward Frame",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0,0),(1,0),(2,0),(0,1)],
+        base: Stats { mind_resist: 12, mana: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3800,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Gain { what: Resource::Insight, amount: 1 })],
+        quest: None,
+        power_bonus: 0,
+        price: 20,
+    },
+    PieceDef {
+        name: "Sightless Crown",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0,0),(1,0),(2,0),(0,1),(2,1)],
+        base: Stats { mind_resist: 18, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 4000,
+        speed_bonus: 0,
+        // Bought with mana, like everything else the head does, so a board
+        // that banks nothing gets a consolation and not a pool.
+        triggers: &[Trigger::SpendMana {
+            cost: 4,
+            on_success: Action::Gain { what: Resource::Insight, amount: 4 },
+            on_failure: Action::GainMana(2),
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 26,
+    },
+    PieceDef {
+        name: "Listening Frame",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0,0),(1,0),(0,1),(1,1),(0,2)],
+        base: Stats { mind_resist: 8, mana: 1, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3800,
+        speed_bonus: 0,
+        // It counts the board rather than itself, which is what a watcher is
+        // for and what keeps a stack from arriving free.
+        triggers: &[Trigger::Watch { what: Watched::AnyActivation, count: 6, then: Action::GainDread(1), repeats: true }],
+        quest: None,
+        power_bonus: 0,
+        price: 24,
+    },
+    PieceDef {
+        name: "Antechamber Crown",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0,0),(1,0),(2,0),(1,1)],
+        base: Stats { mind_resist: 10, mind: 4, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3600,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Gain { what: Resource::Insight, amount: 2 })],
+        quest: None,
+        power_bonus: 0,
+        price: 22,
+    },
+    PieceDef {
+        name: "Foreboding Crest",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0,0),(1,0)],
+        base: Stats { mind_resist: 4, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::GainDread(1))],
+        quest: None,
+        power_bonus: 0,
+        price: 21,
+    },
+    PieceDef {
+        name: "Second Sight",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0,0),(1,0),(1,1)],
+        base: Stats { mind_resist: 6, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::SpendMana {
+            cost: 4,
+            on_success: Action::GainDread(1),
+            on_failure: Action::Gain { what: Resource::Insight, amount: 2 },
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 25,
+    },
+    PieceDef {
+        name: "The Quiet Ear",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0,0),(0,1)],
+        base: Stats { mana: 2, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::Watch { what: Watched::AlignedActivation, count: 3, then: Action::Gain { what: Resource::Insight, amount: 2 }, repeats: true }],
+        quest: None,
+        power_bonus: 0,
+        price: 23,
+    },
+    PieceDef {
+        name: "The Eyeless Stare",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0,0),(1,0),(0,1)],
+        base: Stats { mind_resist: 5, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[
+            Trigger::OnActivate(Action::MindDamage { amount: 6, target: Target::Enemy }),
+            Trigger::OnActivate(Action::Gain { what: Resource::Insight, amount: 1 }),
+        ],
+        quest: None,
+        power_bonus: 0,
+        price: 28,
+    },
+    PieceDef {
+        name: "Doorway Primer",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Book,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3200,
+        speed_bonus: 0,
+        // The one place outside the head that banks it, and it pays for the
+        // privilege in mana like every other book.
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::Gain { what: Resource::Insight, amount: 3 },
+            on_failure: Action::GainMana(1),
+        }],
+        quest: None,
+        power_bonus: 0,
+        price: 19,
+    },
+
+    // ---- six more words -------------------------------------------------
+    //
+    // A rumour is a component with one cell and nothing on it: it takes room
+    // in the tray, it can be bartered, and it never goes on a board. What it
+    // does is stand as the condition on a door that will not otherwise be
+    // there.
+    PieceDef {
+        name: "A Word About the Wrong Stars",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "A Word About the Cellar",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "A Word About the Glow",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "A Word About the Thirsty Wizard",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "A Word About the Picket",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "A Word About the Exhibition",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
 ];
 
 /// Gear that exists only on a boss.
@@ -9526,6 +10120,25 @@ pub const EVENT_ONLY: &[&str] = &[
     "The Green Ledger",
     // Traded for a boss trophy at a pub, and never anything else.
     "Scrap Ticket",
+    // The Unwinding. Six more words, four things the road hands over, three
+    // relics that read the run, and three that are spent - none of them for
+    // sale, several of them not gear at all.
+    "A Word About the Wrong Stars",
+    "A Word About the Cellar",
+    "A Word About the Glow",
+    "A Word About the Thirsty Wizard",
+    "A Word About the Picket",
+    "A Word About the Exhibition",
+    "The Cracked Lens",
+    "The Stranger's Parcel",
+    "An Unwound Mainspring",
+    "Bearhide",
+    "The Tally",
+    "The Odometer",
+    "The Ledger",
+    "the Second Key",
+    "the Appeal",
+    "the Skip Stone",
 ];
 
 /// The five things on the shelves behind the velvet rope.
@@ -9612,6 +10225,60 @@ pub fn town_shelf() -> &'static [&'static str] {
 }
 
 /// Is this piece bought in a town rather than off the road?
+/// The one item in the game a misfire does not eat.
+///
+/// Named here because the rule that reads it is in `combat.rs`, which has no
+/// business knowing about a particular piece by any other route.
+pub const STRAY_ORB: &str = "Stray Orb";
+
+/// The enchantment every curse on your board would rather land on.
+///
+/// Named here rather than in the chain, because the rule that reads it is in
+/// `combat.rs` and has to exist before the component does. Nothing carries
+/// this name yet.
+pub const LIGHTNING_ROD: &str = "the Lightning Rod";
+
+/// The nearest same-slot, same-kind piece worth about `by` more than this one.
+///
+/// What consignment gives back, and the same shape the crucible's melt uses:
+/// a piece is replaced by one of its own family rather than by anything at
+/// all, so the thing that comes back still fits the hole the old one left.
+pub fn dearer_than(def_index: usize, by: i32) -> Option<usize> {
+    let here = CATALOG.get(def_index)?;
+    let want = crate::rating::piece_rating(here) + by;
+    all_def_indices()
+        .into_iter()
+        .filter(|&i| {
+            let d = &CATALOG[i];
+            d.slot == here.slot
+                && d.kind == here.kind
+                && d.name != here.name
+                && !is_boss_only(d.name)
+                && !is_quest_reward(d.name)
+                && !is_event_only(d.name)
+        })
+        .min_by_key(|&i| (crate::rating::piece_rating(&CATALOG[i]) - want).abs())
+}
+
+/// Does this piece deal in the mind lane's pool at all?
+///
+/// True for anything that banks Insight or stacks Dread. Both are locked
+/// behind THE THRESHOLD, so until a run has cleared it neither may reach a
+/// shelf - a pool nobody can hold is a piece that does nothing, and a piece
+/// that does nothing is worse than a piece that is not there.
+pub fn touches_insight(def: &PieceDef) -> bool {
+    def.triggers.iter().any(|t| {
+        let mut found = false;
+        walk_actions(t, &mut |a| {
+            found |= matches!(
+                a,
+                Action::GainDread(_) | Action::Gain { what: Resource::Insight, .. }
+            );
+        });
+        found
+    })
+}
+
 pub fn is_town_stock(def: &PieceDef) -> bool {
     is_town_only(def.name) || def.kind.is_enchantment()
 }
@@ -9780,7 +10447,8 @@ mod tests {
                         Action::Damage { .. } => "harm",
                         Action::MindDamage { .. } => "harm",
                         Action::Curse { .. } => "harm",
-                        Action::GainArmor(_) | Action::GainShield(_) => "defence",
+                        Action::GainArmor(_) | Action::GainShield(_)
+                        | Action::GainDeflection(_) => "defence",
                         Action::Grow(_) => "growth",
                         Action::GainMana(_) | Action::Gain { .. } => "pool",
                         _ => "other",

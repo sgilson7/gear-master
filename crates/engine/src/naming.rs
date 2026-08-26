@@ -203,6 +203,9 @@ fn action_word(a: &Action) -> Option<&'static str> {
         Action::ReduceCooldown(_) => "Hastening",
         Action::GainEmpowerment(_) => "Empowered",
         Action::GainShield(_) => "Shielded",
+        Action::GainSpellblade(_) => "Whetted",
+        Action::GainDread(_) => "Foreboding",
+        Action::GainDeflection(_) => "Glancing",
         Action::GainForking(_) => "Forked",
     })
 }
@@ -253,6 +256,9 @@ pub fn qualifiers(reg: &PieceRegistry, pieces: &[PieceId]) -> Vec<&'static str> 
                         crate::piece::Resource::DruidicMight => "Druidic",
                         crate::piece::Resource::Communion => "Communing",
                         crate::piece::Resource::Zealotry => "Zealous",
+                        // Nor is Insight - it is fuel for Dread and nothing
+                        // spends it directly. Named for the same reason.
+                        crate::piece::Resource::Insight => "Knowing",
                     }));
                     note(action_word(on_success));
                     note(action_word(on_failure));

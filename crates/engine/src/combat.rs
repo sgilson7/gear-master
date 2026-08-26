@@ -311,6 +311,23 @@ pub fn stepped_component(name: &str, step: i32) -> &'static str {
         // Quest rewards are earned, not stepped into, for the same reason
         // they are kept off the shelves.
         .filter(|d| !crate::piece::is_quest_reward(d.name))
+        // And so is everything else the road hands over.
+        //
+        // This list was two entries long and should always have been four.
+        // Event gear was already reaching monster boards before anybody
+        // noticed - `Gold Chip` and `Crownwright's Measure` both turn up in
+        // Nine of Ashes's Easy step - and it is the same fault the trophies
+        // had: a footprint family sorted by worth does not know that some of
+        // its members are things you are *given*. Thirty-one new components,
+        // most of them one-cell rewards, turned a quiet wrongness into a loud
+        // one: a creature was being handed the Mainspring's shape and the
+        // astronomer's lens.
+        .filter(|d| !crate::piece::is_event_only(d.name))
+        // The mind lane's gear is worse than wrong on a creature: it banks a
+        // pool the fight has no other use for, and a player cannot even meet
+        // the piece until THE THRESHOLD is cleared. A creature wearing gear
+        // nobody can buy is a creature wearing a stat line.
+        .filter(|d| !crate::piece::touches_insight(d))
         .collect();
     // Ordered by what a piece is worth to a *creature*, not to a shop.
     //
@@ -696,6 +713,28 @@ pub const EMPOWERED_CAST_PCT: i32 = 200;
 /// Two, always. A class can raise it; nothing lowers it.
 pub const BALL_VOICES: u32 = 2;
 
+/// What one stack of Spellblade adds to a physical hit, in power-hundredths.
+///
+/// Half a multiplier. Flat, unconditional, and the physical lane's answer to
+/// empowerment - which buys 0.05x a stack per point of mana, so it passes this
+/// at ten mana and keeps going. The twin is the better opening and the worse
+/// ceiling, which is the trade the two lanes are meant to have.
+pub const SPELLBLADE_POWER: i32 = 50;
+
+/// What one stack of Deflection turns off an incoming physical hit.
+///
+/// Flat ten, ahead of armour, on the same terms: the mana shield takes one
+/// point per point of mana, so it passes this at ten mana as well. The two
+/// numbers are deliberately the same crossing point.
+pub const DEFLECTION_FLAT: i32 = 10;
+
+/// What a stack of Dread divides the Insight it stands on by.
+///
+/// Mind damage gains `dread x insight / DREAD_DIVISOR` per hit. Two, so a
+/// stack against twenty Insight is worth ten a hit - which is empowerment's
+/// arithmetic seen from the other end, and the number A3 leaves to be tuned.
+pub const DREAD_DIVISOR: i32 = 2;
+
 /// The rung past which everything on the road pierces, and past which it also
 /// hardens. Both are exclusive: rung 30 does not, rung 31 does.
 pub const PIERCE_FROM: usize = 30;
@@ -845,14 +884,13 @@ pub const LADDER: &[MonsterSpec] = &[
             ("Lonely Plating", SlotKind::Helmet, 2, 0, 0),
             ("Grove Base", SlotKind::Chest, 1, 6, 0),
             ("Rag Layer", SlotKind::Chest, 3, 7, 0),
-            ("Vast Tapestry", SlotKind::Chest, 2, 0, 1),
         ],
         gear_offset: 0,
         bounty: 22,
         sprite: MonsterSprite::Warden,
         rank: Rank::Ordinary,
         drops: &[],
-        items: &[3, 2, 2, 1],
+        items: &[3, 2, 2],
     },
     MonsterSpec {
         name: "Iron Sentinel",
@@ -2612,6 +2650,11 @@ pub struct RunningItem {
     /// has paid. The budget belongs to the item, so the tally does too.
     pub gold_spent: i32,
     pub gold_paid: u32,
+    /// Standing on a Lightning Rod, so anything that picks a target on this
+    /// board picks this.
+    pub attracts_curses: bool,
+    /// A misfire does not eat this one's activation.
+    pub steady: bool,
     /// What this item multiplies its own damage by, in hundredths.
     pub power: i32,
     pub physical_damage: i32,
@@ -2654,6 +2697,8 @@ impl RunningItem {
         RunningItem {
             name: p.name.clone(),
             slot: Some(p.slot),
+            attracts_curses: p.attracts_curses,
+            steady: p.steady,
             cooldown_ms: p.cooldown_ms,
             progress_ms: 0,
             stun_ms: 0,
@@ -2689,6 +2734,9 @@ impl RunningItem {
         RunningItem {
             name: a.name.to_string(),
             slot: None,
+            // A monster's own teeth stand on nothing.
+            attracts_curses: false,
+            steady: false,
             cooldown_ms: a.cooldown_ms.max(TICK_MS),
             progress_ms: 0,
             stun_ms: 0,
@@ -2791,8 +2839,38 @@ pub struct Combatant {
     /// Stacks of mana empowerment and mana shield. Both scale off *current*
     /// mana, and both are bought with mana — so stacking them hard drains the
     /// very pool they multiply. That tension is the point.
+    ///
+    /// Both are the **magic** lane's and only the magic lane's. Empowerment
+    /// multiplies magic-typed hits and the shield reduces magic-typed damage;
+    /// a physical swing is computed as though neither stack were there.
     pub empowerment: u32,
     pub shield: u32,
+    /// The mind lane's pool and its stack. Insight is fuel like mana - it pays
+    /// nothing at all while held - and Dread is what turns it into damage.
+    pub insight: i32,
+    pub dread: u32,
+    /// Whether this fighter still owes itself one blow that cannot be stopped.
+    ///
+    /// Set by Wumpus Hunter and spent by the first hit that lands. Two things
+    /// in this game can eat a swing outright - a ward and a deflection - and
+    /// this is the only answer to either.
+    pub first_blood: bool,
+    /// Percentage of the target's mind resistance the mind damage this fighter
+    /// deals goes straight through.
+    ///
+    /// The third lane had an amplifier, a pool and an answer, and no way at
+    /// all through the answer - which the other two have had since typed
+    /// damage landed. Only one thing in the game sets it.
+    pub mind_pierce: i32,
+    /// Stacks of Spellblade and Deflection: the same pair in the physical
+    /// lane, and **not** scaled by mana.
+    ///
+    /// That is the whole difference between the two pairs. Mana scaling is
+    /// what makes the mana pair conditional - a ceiling to build towards and a
+    /// pool to keep full - so the twins have neither, and are worth the same
+    /// to every board that manages to gain one.
+    pub spellblade: u32,
+    pub deflection: u32,
     /// Stacks of spell forking: every cast lands once more per stack.
     pub forking: u32,
     pub items: Vec<RunningItem>,
@@ -2932,6 +3010,12 @@ impl Combatant {
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
+            insight: 0,
+            dread: 0,
+            first_blood: false,
+            mind_pierce: 0,
+            spellblade: 0,
+            deflection: 0,
             forking: 0,
             items: profiles.iter().map(RunningItem::from_profile).collect(),
             dot_milli: 0,
@@ -3036,6 +3120,12 @@ impl Combatant {
             curses: Curses::new(),
             empowerment: 0,
             shield: 0,
+            insight: 0,
+            dread: 0,
+            first_blood: false,
+            mind_pierce: 0,
+            spellblade: 0,
+            deflection: 0,
             forking: 0,
             items,
             dot_milli: 0,
@@ -3076,6 +3166,7 @@ impl Combatant {
             DruidicMight => self.druidic_might,
             Communion => self.communion,
             Zealotry => self.zealotry,
+            Insight => self.insight,
         }
     }
 
@@ -3089,6 +3180,7 @@ impl Combatant {
             DruidicMight => self.druidic_might = v,
             Communion => self.communion = v,
             Zealotry => self.zealotry = v,
+            Insight => self.insight = v,
         }
     }
 
@@ -3140,20 +3232,70 @@ impl Combatant {
         self.magic_resist + self.held_bonus().magic_resist
     }
 
+    /// Weapon power on a **magic** hit: 0.05x per stack per point of mana.
     pub fn effective_power(&self) -> i32 {
-        self.power + self.empowerment as i32 * 5 * self.mana.max(0)
+        self.power + self.magic_empower()
     }
 
-    /// Flat reduction mana shield applies to any incoming damage.
+    /// Weapon power on a **physical** hit: 0.50x flat per Spellblade stack.
+    pub fn effective_physical_power(&self) -> i32 {
+        self.power + self.physical_empower()
+    }
+
+    /// What empowerment adds to a magic hit, in power-hundredths.
+    pub fn magic_empower(&self) -> i32 {
+        self.empowerment as i32 * 5 * self.mana.max(0)
+    }
+
+    /// What Spellblade adds to a physical hit, in power-hundredths.
+    ///
+    /// Flat, and that is the design: half a multiplier a stack, whatever the
+    /// board is holding.
+    pub fn physical_empower(&self) -> i32 {
+        self.spellblade as i32 * SPELLBLADE_POWER
+    }
+
+    /// Flat reduction the mana shield applies to an incoming **magic** hit.
     pub fn damage_reduction(&self) -> i32 {
         self.shield as i32 * self.mana.max(0)
+    }
+
+    /// Flat reduction Deflection applies to an incoming **physical** hit.
+    pub fn physical_reduction(&self) -> i32 {
+        self.deflection as i32 * DEFLECTION_FLAT
+    }
+
+    /// What Dread adds to every point of mind damage this fighter deals.
+    ///
+    /// Zero without the pool and zero without the stacks, which is the whole
+    /// of the third lane's bargain and the same one the first lane has.
+    pub fn mind_bonus(&self) -> i32 {
+        self.dread as i32 * self.insight.max(0) / DREAD_DIVISOR
     }
 
     /// Mana shield first, then armour, then health. Returns (absorbed by
     /// armour, through to health).
     /// Take `amount` of `kind`, from an attacker with `pierce` percent
     /// piercing of that type.
-    fn take_typed(&mut self, amount: i32, kind: DamageType, pierce: i32) -> (i32, i32) {
+    /// Public because the lanes are a rule rather than an implementation
+    /// detail: `typed_lanes.rs` asks this directly, which is the only way to
+    /// put one number in and read what each lane did to it.
+    pub fn take_typed(&mut self, amount: i32, kind: DamageType, pierce: i32) -> (i32, i32) {
+        self.take_typed_with(amount, kind, pierce, false)
+    }
+
+    /// The same, with the option of walking past the flat answer entirely.
+    ///
+    /// `unstoppable` is Wumpus Hunter's first blow, and it is the only thing
+    /// in the game that skips a shield or a deflection rather than reducing
+    /// what is left after one.
+    pub fn take_typed_with(
+        &mut self,
+        amount: i32,
+        kind: DamageType,
+        pierce: i32,
+        unstoppable: bool,
+    ) -> (i32, i32) {
         let amount = match kind {
             DamageType::Physical => crate::stats::after_defences(
                 amount,
@@ -3168,7 +3310,18 @@ impl Combatant {
                 self.magic_harden,
             ),
         };
-        let amount = (amount - self.damage_reduction()).max(0);
+        // Each lane has its own flat answer, and neither answers the other:
+        // the mana shield takes magic, Deflection takes physical. Before this
+        // the shield took everything, which is what made the mana pair the
+        // only defensive stack worth owning.
+        let amount = if unstoppable {
+            amount
+        } else {
+            match kind {
+                DamageType::Physical => (amount - self.physical_reduction()).max(0),
+                DamageType::Magic => (amount - self.damage_reduction()).max(0),
+            }
+        };
         if amount <= 0 {
             return (0, 0);
         }
@@ -3194,10 +3347,19 @@ impl Combatant {
     }
 
     /// Mind damage eats maximum health, so it can never be healed back off.
-    fn take_mind(&mut self, raw: i32) -> i32 {
-        // "whatever the damage type" — mana shield blunts mind damage too.
-        let raw = (raw - self.damage_reduction()).max(0);
-        let dealt = mind_damage_after_resist(raw, self.mind_resist);
+    pub fn take_mind(&mut self, raw: i32) -> i32 {
+        self.take_mind_pierced(raw, 0)
+    }
+
+    /// The same, with a share of the resistance walked straight through.
+    pub fn take_mind_pierced(&mut self, raw: i32, pierce: i32) -> i32 {
+        // The mind lane's only answer is `mind_resist`, which is the helmet's,
+        // and that is deliberate. The mana shield used to blunt this too -
+        // "whatever the damage type" - which made mana the answer to two lanes
+        // out of three. Three lanes, three answers: the shield takes magic,
+        // Deflection takes physical, and mind resistance takes this.
+        let left = self.mind_resist - (self.mind_resist * pierce.clamp(0, 100)) / 100;
+        let dealt = mind_damage_after_resist(raw, left);
         if dealt <= 0 {
             return 0;
         }
@@ -3278,6 +3440,13 @@ pub enum Event {
     /// A mana buff gained stacks. `total` is the new stack count.
     Empowered { side: Side, total: u32, power_bonus: i32 },
     Shielded { side: Side, total: u32, reduction: i32 },
+    /// The physical twins. Same shape as the pair above, because they are the
+    /// same pair in the other lane.
+    Whetted { side: Side, total: u32, power_bonus: i32 },
+    /// The mind lane's stack. `mind_bonus` is what it currently works out to
+    /// against the Insight held, which is nothing until there is some.
+    Dreading { side: Side, total: u32, mind_bonus: i32 },
+    Deflecting { side: Side, total: u32, reduction: i32 },
     /// Spell forking gained. Every cast lands once more per stack.
     Forking { side: Side, total: u32 },
     Fell { side: Side },
@@ -3496,7 +3665,7 @@ impl CombatLog {
                 format!("{} the fight turns - {}% of everyone, and rising", t, pct)
             }
             Event::Spent { side, amount, remaining } => format!(
-                "{} {} spends {} fnorp ({} left)",
+                "{} {} spends {} gold ({} left)",
                 t,
                 self.who(*side),
                 amount,
@@ -3536,7 +3705,22 @@ impl CombatLog {
                 *by_ms as f32 / 1000.0
             ),
             Event::Empowered { side, total, power_bonus } => format!(
-                "{} {} empowered x{} (+{}.{:02}x power)",
+                "{} {} empowered x{} (+{}.{:02}x power on magic)",
+                t,
+                self.who(*side),
+                total,
+                power_bonus / 100,
+                power_bonus % 100
+            ),
+            Event::Dreading { side, total, mind_bonus } => format!(
+                "{} {} dread x{} (+{} per point of mind)",
+                t,
+                self.who(*side),
+                total,
+                mind_bonus
+            ),
+            Event::Whetted { side, total, power_bonus } => format!(
+                "{} {} spellblade x{} (+{}.{:02}x power on iron)",
                 t,
                 self.who(*side),
                 total,
@@ -3551,7 +3735,14 @@ impl CombatLog {
                 total + 1
             ),
             Event::Shielded { side, total, reduction } => format!(
-                "{} {} mana shield x{} (-{} per hit)",
+                "{} {} mana shield x{} (-{} per magic hit)",
+                t,
+                self.who(*side),
+                total,
+                reduction
+            ),
+            Event::Deflecting { side, total, reduction } => format!(
+                "{} {} deflection x{} (-{} per physical hit)",
                 t,
                 self.who(*side),
                 total,
@@ -3642,6 +3833,19 @@ pub fn simulate_party(
             crate::class::ClassPower::SlowTime(n) => start_player.slow_time = n,
             crate::class::ClassPower::Overflowing(n) => start_player.overflowing = n,
             crate::class::ClassPower::Leeching(pct) => start_player.leech = pct,
+            crate::class::ClassPower::WrongSense(pct) => start_player.mind_pierce = pct,
+            crate::class::ClassPower::FirstBlood => start_player.first_blood = true,
+            // Not a combat rule at all: it changes what a corpse leaves
+            // behind, which is `Run::settle`'s business.
+            crate::class::ClassPower::Prospector(_) => {}
+            // Armour before the first blow, and it stacks - so this one adds
+            // where nearly every other arm here assigns.
+            crate::class::ClassPower::Unionized { armor } => {
+                start_player.armor += armor;
+            }
+            // Not a combat rule either: it changes what a win is worth, which
+            // is `Run::settle`'s business.
+            crate::class::ClassPower::Showstopper { .. } => {}
             crate::class::ClassPower::Standing(_) => {}
             crate::class::ClassPower::Echo(n) => start_player.echo_every = n,
             crate::class::ClassPower::Bastion(pct) => start_player.bastion = pct,
@@ -3868,7 +4072,20 @@ pub fn simulate_party(
                     let fizzled = {
                         let c = pick(&mut p, &mut foes, me);
                         c.misfire_count = c.misfire_count.wrapping_add(1);
+                        // Counted whatever happens, because the curse is on
+                        // the fighter and eats every nth activation *they*
+                        // have. A steady item does not stop the count, it
+                        // simply is not the one that goes quiet - so building
+                        // one buys reliability for that item and hands the
+                        // fizzle to the next one round.
+                        //
+                        // And the hunter's first blow cannot miss, which is
+                        // the other half of "cannot miss and cannot be
+                        // deflected" - a fizzle is the only thing in this game
+                        // that eats a swing of yours outright.
                         c.curses.misfires(c.misfire_count)
+                            && !c.items[idx].steady
+                            && !c.first_blood
                     };
                     if fizzled {
                         let name = pick(&mut p, &mut foes, me).items[idx].name.clone();
@@ -4090,6 +4307,20 @@ fn land_curse(
     }
 }
 
+/// `land_stun`, for a test that wants to put two items in front of it and see
+/// which one it picks.
+///
+/// The choice is the whole of the Lightning Rod and most of what keeps an
+/// aimed stun fair, and it is not reachable through `simulate` without
+/// building a board that happens to be cursed.
+pub fn land_stun_for_test(
+    victim: &mut Combatant,
+    aim: StunAim,
+    at_ms: u32,
+) -> Option<(usize, u32)> {
+    land_stun(victim, aim, at_ms)
+}
+
 fn land_stun(victim: &mut Combatant, aim: StunAim, at_ms: u32) -> Option<(usize, u32)> {
     let duration = CurseKind::Stun.landing_ms(victim.curse_resist);
     if duration == 0 || victim.items.is_empty() {
@@ -4097,6 +4328,19 @@ fn land_stun(victim: &mut Combatant, aim: StunAim, at_ms: u32) -> Option<(usize,
     }
     victim.stun_count = victim.stun_count.wrapping_add(1);
 
+    // The rod first, whatever the aim was.
+    //
+    // "Every curse applied to your board lands on whatever covers it", and a
+    // stun is the only curse in this game that has a target on the board at
+    // all - the other three land on the fighter and always have. So this is
+    // the whole of the rule, and it is a decision rather than a reward: lay
+    // the rod under something you do not mind losing the use of, and the thing
+    // you do mind stops being picked.
+    if let Some(i) = victim.items.iter().position(|it| it.attracts_curses) {
+        let item = &mut victim.items[i];
+        item.stun_ms = (item.stun_ms + duration).min(STUN_CAP_MS);
+        return Some((i, item.stun_ms));
+    }
     let idx = match aim {
         StunAim::Strongest => victim
             .items
@@ -4256,12 +4500,13 @@ fn activate(
     let is_weapon = item.slot.map(|s| s == SlotKind::Weapon).unwrap_or(true);
     if is_weapon {
         // Strength reaches every weapon; power does not reach past the one
-        // carrying it. Empowerment is the exception and is meant to be: it is
-        // bought with mana, at five hundredths a stack a point, and it applies
-        // to whatever is swinging.
-        let (strength, empower) = {
+        // carrying it. The two amplifiers are the exception and are meant to
+        // be - they apply to whatever is swinging - but each one applies to
+        // its own lane only. Empowerment is bought with mana and sharpens
+        // magic; Spellblade is bought flat and sharpens iron.
+        let (strength, empower, whetted) = {
             let me = pick(p, foes, me);
-            (me.strength, me.empowerment as i32 * 5 * me.mana.max(0))
+            (me.strength, me.magic_empower(), me.physical_empower())
         };
         // The wearer's power, plus whatever ink is bound into this item alone.
         // Rage held sharpens the physical half.
@@ -4271,18 +4516,28 @@ fn activate(
         };
         // The item's own numbers already carry its power - it was applied
         // when the profile was built, so the card and the fight agree. What
-        // the wearer brings does not, so it picks the multiplier up here.
-        let mult = |flat: i32| -> i32 { ((flat as i64) * (100 + empower) as i64 / 100).max(0) as i32 };
+        // the wearer brings does not, so it picks the multiplier up here -
+        // and which multiplier depends on which lane the number is landing
+        // in. A board holding twenty empowerment stacks swings iron exactly
+        // as hard as a board holding none.
+        let mult_magic =
+            |flat: i32| -> i32 { ((flat as i64) * (100 + empower) as i64 / 100).max(0) as i32 };
+        let mult_phys =
+            |flat: i32| -> i32 { ((flat as i64) * (100 + whetted) as i64 / 100).max(0) as i32 };
         let from_wearer =
             (((rage + strength) as i64 * item.power as i64) / 100).max(0) as i32;
-        let physical = mult(item.physical_damage + from_wearer);
-        // Transmute: part of the iron lands again as magic.
+        let physical = mult_phys(item.physical_damage + from_wearer);
+        // Transmute: part of the iron lands again as magic. Taken off the
+        // physical number after it is settled, so what crosses is a blow that
+        // was already whetted rather than one that is about to be empowered -
+        // a conversion, not a second amplifier.
         let transmute = pick(p, foes, me).transmute;
-        let magic = mult(item.magic_damage) + physical * transmute / 100;
-        // Momentum: the longer the fight runs, the harder you swing.
+        let magic = mult_magic(item.magic_damage) + physical * transmute / 100;
+        // Momentum: the longer the fight runs, the harder you swing. Iron, so
+        // it is Spellblade's.
         let momentum = pick(p, foes, me).momentum * (t / 1000) as i32;
         let physical =
-            physical + mult((((momentum as i64) * item.power as i64) / 100) as i32);
+            physical + mult_phys((((momentum as i64) * item.power as i64) / 100) as i32);
         // A fork copies the cast, and only a cast: a blade swings once
         // however many stacks are up.
         let forks = if item.casts.is_empty() { 0 } else { pick(p, foes, me).forking };
@@ -4300,6 +4555,16 @@ fn activate(
             let aim = aim_of(foes, p.aim);
             let at = me.other(aim);
             let mut absorbed_total = 0;
+            // Wumpus Hunter: the first blow of a fight goes through whatever
+            // they have flat in front of it. Read and spent here rather than
+            // at each damage site, because "the first hit" has to mean one
+            // hit however many ways an activation can reach somebody.
+            let unstoppable = {
+                let me = pick(p, foes, me);
+                let owed = me.first_blood;
+                me.first_blood = false;
+                owed
+            };
             for (amount, kind, pierce) in [
                 (physical, DamageType::Physical, phys_pierce),
                 (magic, DamageType::Magic, magic_pierce),
@@ -4308,7 +4573,7 @@ fn activate(
                     continue;
                 }
                 let target = pick(p, foes, at);
-                let (absorbed, _) = target.take_typed(amount, kind, pierce);
+                let (absorbed, _) = target.take_typed_with(amount, kind, pierce, unstoppable);
                 absorbed_total += absorbed;
             }
             // Reflection. What the armour ate is turned back on whoever swung
@@ -4365,8 +4630,15 @@ fn activate(
     }
 
     if item.mind > 0 {
+        // Dread is the wearer's, so it is read off the swinger before the
+        // blow leaves - the same shape as empowerment, which is picked up on
+        // the way out rather than applied on arrival.
+        let (raw, pierce) = {
+            let me = pick(p, foes, me);
+            (item.mind + me.mind_bonus(), me.mind_pierce)
+        };
         let target = pick(p, foes, me.other(front));
-        let dealt = target.take_mind(item.mind);
+        let dealt = target.take_mind_pierced(raw, pierce);
         let mh = target.max_health;
         if dealt > 0 {
             log.push(LogEntry {
@@ -4908,8 +5180,12 @@ fn apply(
         }
         Action::MindDamage { amount, target } => {
             let on = resolve(target);
+            let (raw, pierce) = {
+                let me = pick(p, foes, me);
+                (amount + me.mind_bonus(), me.mind_pierce)
+            };
             let c = pick(p, foes, on);
-            let dealt = c.take_mind(amount);
+            let dealt = c.take_mind_pierced(raw, pierce);
             let mh = c.max_health;
             if dealt > 0 {
                 log.push(LogEntry {
@@ -5016,6 +5292,32 @@ fn apply(
             c.shield += n;
             let (total, reduction) = (c.shield, c.damage_reduction());
             log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::Shielded { side, total, reduction } });
+        }
+        Action::GainDread(n) => {
+            let c = pick(p, foes, me);
+            c.dread += n;
+            let (total, bonus) = (c.dread, c.mind_bonus());
+            log.push(LogEntry {
+                who,
+                at_ms: t,
+                event: Event::Dreading { side, total, mind_bonus: bonus },
+            });
+        }
+        Action::GainSpellblade(n) => {
+            let c = pick(p, foes, me);
+            c.spellblade += n;
+            let (total, bonus) = (c.spellblade, c.physical_empower());
+            log.push(LogEntry {
+                who,
+                at_ms: t,
+                event: Event::Whetted { side, total, power_bonus: bonus },
+            });
+        }
+        Action::GainDeflection(n) => {
+            let c = pick(p, foes, me);
+            c.deflection += n;
+            let (total, reduction) = (c.deflection, c.physical_reduction());
+            log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::Deflecting { side, total, reduction } });
         }
         Action::GainForking(n) => {
             let c = pick(p, foes, me);
@@ -5156,7 +5458,7 @@ pub const ALTERNATES: &[MonsterSpec] = &[
         bounty: 96,
         sprite: MonsterSprite::Abbot,
         rank: Rank::Mini,
-        drops: &[],
+        drops: &["Bulwark Bead"],
         items: &[2, 3, 2, 2, 4, 4, 2, 3, 4, 5],
     },
     // Floor two: the train the dissenters were loaded onto, still running.
@@ -5203,7 +5505,7 @@ pub const ALTERNATES: &[MonsterSpec] = &[
         bounty: 104,
         sprite: MonsterSprite::Parliament,
         rank: Rank::Mini,
-        drops: &[],
+        drops: &["Grimoire Rack"],
         items: &[2, 3, 2, 2, 4, 3, 2, 2, 4, 3],
     },
     // Floor three: the old gods, watching in horror as he ascends.
@@ -5265,6 +5567,680 @@ pub const ALTERNATES: &[MonsterSpec] = &[
         rank: Rank::Boss,
         drops: &["The Split Wisdom"],
         items: &[3, 3, 3, 2, 2, 3, 3, 2, 4, 2, 2, 3, 3, 2, 3],
+    },
+
+    // --------------------------------------------------- the Unwinding
+    //
+    // Frames. Name, health, band and nothing on. A creature that exists
+    // before its board does is not a placeholder, it is the order the mission
+    // is built in: content lands as frames, all of it, and then every board is
+    // authored by hand in one pass against a settled rating curve - because a
+    // board authored before the curve under it stops moving is a board that
+    // will be authored twice.
+    //
+    // `CREVICE` was an empty list of specs and the four above stood beside the
+    // road for a long time without anybody saying how hard they were meant to
+    // be, so this is the pattern the repo already had rather than a new one.
+    // `bestiary::FRAMES` says what each is for and what band it packs to, and
+    // `no_frame_ships_without_a_board` is red until every one of them is
+    // dressed.
+    MonsterSpec {
+        name: "DOORKEEP",
+        health: 900,
+        strength: 10,
+        regen: 2,
+        mind_resist: 30,
+        physical_resist: 10,
+        magic_resist: 10,
+        curse_resist: 40,
+        attacks: &[],
+        gear: &[
+            ("Apprentice's Primer", SlotKind::Weapon, 3, 5, 0),
+            ("Hollow Lance", SlotKind::Weapon, 3, 1, 0),
+            ("Deepwater Ink", SlotKind::Weapon, 0, 6, 1),
+            ("Forking Bead", SlotKind::Weapon, 5, 6, 0),
+            ("Plate Layer", SlotKind::Chest, 1, 3, 0),
+            ("Hollow Weave", SlotKind::Chest, 1, 4, 0),
+            ("Ribbed Base", SlotKind::Chest, 1, 1, 0),
+            ("Overseer's Circlet", SlotKind::Helmet, 2, 4, 0),
+            ("Iron Plating", SlotKind::Helmet, 2, 2, 0),
+        ],
+        gear_offset: 0,
+        bounty: 170,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Ordinary,
+        drops: &["Iron Plating"],
+        items: &[4, 3, 2],
+    },
+    MonsterSpec {
+        name: "THE STAIR THAT LISTENS",
+        health: 1_000,
+        strength: 10,
+        regen: 2,
+        mind_resist: 35,
+        physical_resist: 12,
+        magic_resist: 12,
+        curse_resist: 45,
+        attacks: &[],
+        gear: &[
+            ("Stormcaught Frame", SlotKind::Helmet, 2, 3, 0),
+            ("Lonely Plating", SlotKind::Helmet, 3, 5, 0),
+            ("Forked Crest", SlotKind::Helmet, 3, 6, 0),
+            ("Hexbolt", SlotKind::Weapon, 0, 2, 0),
+            ("Manaflay", SlotKind::Weapon, 1, 7, 0),
+            ("Zealot's Haft", SlotKind::Weapon, 0, 5, 0),
+            ("Wildgrowth", SlotKind::Weapon, 3, 1, 0),
+            ("Stray Orb", SlotKind::Weapon, 2, 4, 0),
+            ("Pilgrim Alignment", SlotKind::Weapon, 4, 3, 0),
+            ("Shatterbolt", SlotKind::Weapon, 1, 0, 0),
+            ("Waxed Material", SlotKind::Greaves, 1, 4, 0),
+            ("Ambush Mold", SlotKind::Greaves, 2, 3, 0),
+            ("Braced Plating", SlotKind::Greaves, 2, 1, 0),
+            ("Storm Signet", SlotKind::Gloves, 4, 3, 0),
+            ("Ironhide Wrap", SlotKind::Gloves, 2, 2, 0),
+            ("Deft Mold", SlotKind::Gloves, 2, 1, 0),
+            ("Rootbound Material", SlotKind::Gloves, 2, 5, 0),
+            ("Vicegrip Mold", SlotKind::Gloves, 2, 4, 0),
+        ],
+        gear_offset: 0,
+        bounty: 180,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Ordinary,
+        drops: &["Vicegrip Mold"],
+        items: &[3, 3, 4, 3, 3, 2],
+    },
+    MonsterSpec {
+        name: "THE LAST LANDING",
+        health: 2007,
+        strength: 54,
+        regen: 4,
+        mind_resist: 40,
+        physical_resist: 14,
+        magic_resist: 14,
+        curse_resist: 50,
+        attacks: &[],
+        gear: &[
+            ("Leaden Tome", SlotKind::Weapon, 0, 0, 0),
+            ("Kingsblood Ink", SlotKind::Weapon, 3, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 2, 0),
+            ("Oathstone Bead", SlotKind::Weapon, 0, 3, 0),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 0, 0, 0),
+            ("Deft Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Unshod Signet", SlotKind::Gloves, 4, 0, 0),
+            ("Warding Ring", SlotKind::Gloves, 5, 0, 0),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 2, 1, 0),
+            ("Deft Mold", SlotKind::Gloves, 4, 1, 0),
+            ("Tallykeeper's Weave", SlotKind::Greaves, 0, 0, 0),
+            ("Worldstrider Sole", SlotKind::Greaves, 2, 0, 0),
+            ("Overflow Plate", SlotKind::Greaves, 4, 1, 0),
+            ("Tallykeeper's Weave", SlotKind::Greaves, 0, 2, 0),
+            ("Widow's Sole", SlotKind::Greaves, 2, 1, 0),
+            ("Broken Crown", SlotKind::Greaves, 0, 4, 0),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
+            ("Witch's Hat", SlotKind::Helmet, 0, 2, 2),
+            ("Overflow Plate", SlotKind::Helmet, 3, 2, 0),
+            ("Mana Ward", SlotKind::Helmet, 4, 3, 1),
+            ("Coven Crest", SlotKind::Helmet, 5, 1, 0),
+        ],
+        gear_offset: 0,
+        bounty: 200,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Mini,
+        drops: &["Coven Crest"],
+        items: &[4, 4, 2, 3, 3, 2, 4],
+    },
+    // The Herald is two of them at once, which is the first party fight in the
+    // game outside the casino - your shadow, and what your shadow carries.
+    MonsterSpec {
+        name: "THE SHADOW",
+        health: 3568,
+        strength: 89,
+        regen: 7,
+        mind_resist: 45,
+        physical_resist: 18,
+        magic_resist: 18,
+        curse_resist: 55,
+        attacks: &[],
+        gear: &[
+            ("Reliquary Sole", SlotKind::Gloves, 0, 0, 0),
+            ("Flaying Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Blightfinger", SlotKind::Gloves, 4, 0, 0),
+            ("Seal of the Deep", SlotKind::Gloves, 5, 0, 1),
+            ("Reliquary Sole", SlotKind::Gloves, 3, 1, 0),
+            ("Flaying Mold", SlotKind::Gloves, 1, 2, 0),
+            ("Deepdraught Ring", SlotKind::Gloves, 0, 2, 0),
+            ("Seal of the Deep", SlotKind::Gloves, 5, 2, 1),
+            ("Witch's Stilts", SlotKind::Gloves, 2, 3, 1),
+            ("Flaying Mold", SlotKind::Gloves, 0, 3, 3),
+            ("Reliquary Sole", SlotKind::Gloves, 3, 4, 0),
+            ("Flaying Mold", SlotKind::Gloves, 1, 5, 0),
+            ("Deepdraught Ring", SlotKind::Gloves, 5, 4, 0),
+            ("Seal of the Deep", SlotKind::Gloves, 0, 5, 1),
+            ("Reliquary Sole", SlotKind::Gloves, 2, 6, 0),
+            ("Flaying Mold", SlotKind::Gloves, 4, 5, 2),
+            ("Deepdraught Ring", SlotKind::Gloves, 1, 7, 0),
+            ("Seal of the Deep", SlotKind::Gloves, 4, 7, 0),
+            ("Overseer's Circlet", SlotKind::Helmet, 0, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 0, 2, 0),
+            ("Martyr's Crest", SlotKind::Helmet, 5, 0, 1),
+            ("Overseer's Circlet", SlotKind::Helmet, 2, 2, 0),
+            ("Overflow Plate", SlotKind::Helmet, 1, 4, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 3, 4, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 3, 1),
+            ("Overseer's Circlet", SlotKind::Helmet, 0, 6, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 6, 0),
+        ],
+        gear_offset: 0,
+        // A fight an event arranges pays nothing - the reward is what it
+        // hands over - but a creature still says what it would be worth, the
+        // way everything else on and beside this road does.
+        bounty: 361,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Mini,
+        drops: &["Overflow Plate"],
+        items: &[4, 4, 2, 4, 4, 4, 4, 2],
+    },
+    MonsterSpec {
+        name: "THE LANTERN",
+        health: 2470,
+        strength: 62,
+        regen: 5,
+        mind_resist: 0,
+        physical_resist: 8,
+        magic_resist: 8,
+        curse_resist: 10,
+        attacks: &[],
+        gear: &[
+            ("Reliquary Sole", SlotKind::Gloves, 0, 0, 0),
+            ("Flaying Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Deepdraught Ring", SlotKind::Gloves, 4, 0, 0),
+            ("Seal of the Deep", SlotKind::Gloves, 5, 0, 1),
+            ("Mage's Wrapping", SlotKind::Gloves, 3, 1, 0),
+            ("Flaying Mold", SlotKind::Gloves, 1, 2, 0),
+            ("Deepdraught Ring", SlotKind::Gloves, 0, 2, 0),
+            ("Seal of the Deep", SlotKind::Gloves, 5, 2, 1),
+            ("Reliquary Sole", SlotKind::Gloves, 2, 3, 0),
+            ("Flaying Mold", SlotKind::Gloves, 0, 3, 3),
+            ("Reliquary Sole", SlotKind::Gloves, 4, 4, 0),
+            ("Flaying Mold", SlotKind::Gloves, 2, 5, 0),
+            ("Deepdraught Ring", SlotKind::Gloves, 4, 3, 0),
+            ("Blightfinger", SlotKind::Gloves, 1, 5, 0),
+            ("Reliquary Sole", SlotKind::Gloves, 0, 6, 0),
+            ("Flaying Mold", SlotKind::Gloves, 2, 6, 2),
+            ("Overseer's Circlet", SlotKind::Helmet, 0, 0, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 3, 0, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 0, 1),
+            ("Overseer's Circlet", SlotKind::Helmet, 0, 2, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 2, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 2, 1),
+            ("Overseer's Circlet", SlotKind::Helmet, 0, 4, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 4, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 4, 1),
+            ("Overseer's Circlet", SlotKind::Helmet, 0, 6, 0),
+            ("Scrying Lens", SlotKind::Helmet, 3, 6, 0),
+            ("Martyr's Crest", SlotKind::Helmet, 3, 7, 0),
+        ],
+        gear_offset: 0,
+        bounty: 180,
+        sprite: MonsterSprite::Wisp,
+        rank: Rank::Ordinary,
+        drops: &["Martyr's Crest"],
+        items: &[4, 4, 2, 4, 2, 3, 3, 3, 3],
+    },
+    // THE UNDER-MINE, two floors of Wardens who dug in and stayed.
+    MonsterSpec {
+        name: "THE DIGGERS",
+        health: 2512,
+        strength: 65,
+        regen: 6,
+        mind_resist: 10,
+        physical_resist: 26,
+        magic_resist: 20,
+        curse_resist: 30,
+        attacks: &[],
+        gear: &[
+            ("Grovemind Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 0, 0),
+            ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+            ("Starfall", SlotKind::Weapon, 3, 1, 0),
+            ("Ember Alignment", SlotKind::Weapon, 4, 2, 2),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 0, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 2, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 2, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 2, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 4, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 4, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 4, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 6, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 6, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 6, 1),
+        ],
+        gear_offset: 0,
+        bounty: 251,
+        sprite: MonsterSprite::Golem,
+        rank: Rank::Ordinary,
+        drops: &["The Empty Crown"],
+        items: &[5, 3, 3, 3, 3],
+    },
+    MonsterSpec {
+        name: "WHAT THE SEAM HID",
+        health: 3106,
+        strength: 80,
+        regen: 7,
+        mind_resist: 15,
+        physical_resist: 30,
+        magic_resist: 24,
+        curse_resist: 40,
+        attacks: &[],
+        gear: &[
+            ("Fateglass Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Kingsbane", SlotKind::Weapon, 2, 0, 0),
+            ("Resonant Chord", SlotKind::Weapon, 4, 0, 3),
+            ("Emberburst", SlotKind::Weapon, 1, 1, 0),
+            ("Pilgrim Alignment", SlotKind::Weapon, 0, 2, 0),
+            ("Buttressed Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Visor of Focus", SlotKind::Helmet, 3, 0, 0),
+            ("Buttressed Frame", SlotKind::Helmet, 2, 1, 0),
+            ("Visor of Focus", SlotKind::Helmet, 0, 2, 0),
+            ("Crown of the Deep", SlotKind::Helmet, 4, 1, 1),
+            ("Reliquary Frame of Nine", SlotKind::Helmet, 0, 3, 0),
+            ("Visor of Focus", SlotKind::Helmet, 3, 3, 1),
+            ("Bloomcap", SlotKind::Helmet, 4, 3, 2),
+            ("Buttressed Frame", SlotKind::Helmet, 0, 4, 3),
+            ("Visor of Focus", SlotKind::Helmet, 2, 4, 1),
+            ("Bloomcap", SlotKind::Helmet, 3, 5, 1),
+            ("Buttressed Frame", SlotKind::Helmet, 0, 6, 2),
+            ("Visor of Focus", SlotKind::Helmet, 3, 7, 0),
+            ("Witch's Stilts", SlotKind::Gloves, 0, 0, 1),
+            ("Channeling Mold", SlotKind::Gloves, 3, 0, 0),
+            ("Witch's Stilts", SlotKind::Gloves, 0, 1, 3),
+            ("Channeling Mold", SlotKind::Gloves, 3, 1, 2),
+            ("Witch's Stilts", SlotKind::Gloves, 3, 2, 3),
+            ("Channeling Mold", SlotKind::Gloves, 1, 3, 0),
+            ("Witch's Stilts", SlotKind::Gloves, 0, 3, 0),
+            ("Channeling Mold", SlotKind::Gloves, 2, 4, 0),
+            ("Witch's Stilts", SlotKind::Gloves, 3, 4, 3),
+            ("Empowering Mold", SlotKind::Gloves, 2, 6, 1),
+            ("Siphon Ring", SlotKind::Gloves, 4, 4, 0),
+            ("Ring of Tides", SlotKind::Gloves, 1, 6, 0),
+        ],
+        gear_offset: 0,
+        bounty: 262,
+        sprite: MonsterSprite::Golem,
+        rank: Rank::Mini,
+        drops: &["Ring of Tides"],
+        items: &[5, 2, 3, 3, 3, 2, 2, 2, 2, 2, 4],
+    },
+    // THE UNDERTOW, where the water sets the pace.
+    MonsterSpec {
+        name: "THE CURRENT",
+        health: 2512,
+        strength: 65,
+        regen: 6,
+        mind_resist: 8,
+        physical_resist: 18,
+        magic_resist: 22,
+        curse_resist: 45,
+        attacks: &[],
+        gear: &[
+            ("Grovemind Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 0, 0),
+            ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+            ("Starfall", SlotKind::Weapon, 3, 1, 0),
+            ("Rootwork Alignment", SlotKind::Weapon, 0, 3, 0),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 0, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 2, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 2, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 2, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 4, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 4, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 4, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 6, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 6, 0),
+        ],
+        gear_offset: 0,
+        bounty: 251,
+        sprite: MonsterSprite::Wisp,
+        rank: Rank::Ordinary,
+        drops: &["Overflow Plate"],
+        items: &[5, 3, 3, 3, 2],
+    },
+    MonsterSpec {
+        name: "THE THING ON THE HOOK",
+        health: 3306,
+        strength: 87,
+        regen: 7,
+        mind_resist: 12,
+        physical_resist: 20,
+        magic_resist: 26,
+        curse_resist: 55,
+        attacks: &[],
+        gear: &[
+            ("Fateglass Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Kingsbane", SlotKind::Weapon, 2, 0, 0),
+            ("Shatterbolt", SlotKind::Weapon, 5, 0, 1),
+            ("Emberburst", SlotKind::Weapon, 1, 1, 0),
+            ("Pilgrim Alignment", SlotKind::Weapon, 0, 2, 0),
+            ("Buttressed Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Deadweight Plating", SlotKind::Helmet, 3, 0, 1),
+            ("Bloomcap", SlotKind::Helmet, 2, 1, 3),
+            ("Crown of the Deep", SlotKind::Helmet, 0, 1, 3),
+            ("Reliquary Frame of Nine", SlotKind::Helmet, 3, 1, 2),
+            ("Visor of Focus", SlotKind::Helmet, 1, 3, 0),
+            ("Bloomcap", SlotKind::Helmet, 4, 3, 3),
+            ("Crown of the Deep", SlotKind::Helmet, 0, 4, 0),
+            ("Buttressed Frame", SlotKind::Helmet, 2, 4, 2),
+            ("Visor of Focus", SlotKind::Helmet, 5, 4, 1),
+            ("Deadweight Plating", SlotKind::Helmet, 0, 6, 1),
+            ("Crown of the Deep", SlotKind::Helmet, 2, 6, 2),
+            ("Witch's Stilts", SlotKind::Gloves, 0, 0, 1),
+            ("Hexer's Mold", SlotKind::Gloves, 3, 0, 3),
+            ("Blightfinger", SlotKind::Gloves, 5, 0, 0),
+            ("Blightfinger", SlotKind::Gloves, 1, 1, 0),
+            ("Spun Material", SlotKind::Gloves, 4, 1, 1),
+            ("Channeling Mold", SlotKind::Gloves, 2, 1, 3),
+            ("Witch's Stilts", SlotKind::Gloves, 0, 2, 2),
+            ("Channeling Mold", SlotKind::Gloves, 2, 3, 0),
+            ("Witch's Stilts", SlotKind::Gloves, 0, 3, 0),
+            ("Channeling Mold", SlotKind::Gloves, 2, 4, 2),
+            ("Witch's Stilts", SlotKind::Gloves, 4, 3, 2),
+            ("Channeling Mold", SlotKind::Gloves, 3, 5, 2),
+            ("Mage's Sandals", SlotKind::Gloves, 0, 6, 0),
+            ("Channeling Mold", SlotKind::Gloves, 1, 6, 2),
+        ],
+        gear_offset: 0,
+        bounty: 273,
+        sprite: MonsterSprite::Wisp,
+        rank: Rank::Mini,
+        drops: &["Channeling Mold"],
+        items: &[5, 4, 4, 4, 4, 2, 2, 2, 2, 2],
+    },
+    // DEN RIVALS, which is exactly what the exhibit promised.
+    MonsterSpec {
+        name: "THE DEN MOUTH",
+        health: 3245,
+        strength: 85,
+        regen: 5,
+        mind_resist: 0,
+        physical_resist: 16,
+        magic_resist: 10,
+        curse_resist: 10,
+        attacks: &[],
+        gear: &[
+            ("Grovemind Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 0, 0),
+            ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+            ("Kingsbane", SlotKind::Weapon, 3, 1, 0),
+            ("Rootwork Alignment", SlotKind::Weapon, 0, 3, 0),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 0, 2, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 0, 1),
+            ("Stormcaught Frame", SlotKind::Helmet, 2, 2, 0),
+            ("Overflow Plate", SlotKind::Helmet, 1, 4, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 3, 4, 0),
+            ("Watchful Crest", SlotKind::Helmet, 5, 2, 0),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 6, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 6, 0),
+            ("Martyr's Crest", SlotKind::Helmet, 5, 4, 1),
+        ],
+        gear_offset: 0,
+        bounty: 224,
+        sprite: MonsterSprite::Rat,
+        rank: Rank::Ordinary,
+        drops: &["Martyr's Crest"],
+        items: &[5, 4, 4, 3],
+    },
+    MonsterSpec {
+        name: "THE THOUSANDTH BEAR",
+        health: 2140,
+        strength: 56,
+        regen: 7,
+        mind_resist: 0,
+        physical_resist: 22,
+        magic_resist: 12,
+        curse_resist: 15,
+        attacks: &[],
+        gear: &[
+            ("Emberheart Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 0, 0),
+            ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+            ("Starfall", SlotKind::Weapon, 3, 1, 0),
+            ("Anvil Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 3, 0, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 0, 2, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 0, 1),
+            ("Overseer's Circlet", SlotKind::Helmet, 2, 2, 0),
+            ("Overflow Plate", SlotKind::Helmet, 1, 4, 0),
+            ("Overseer's Circlet", SlotKind::Helmet, 3, 4, 0),
+            ("Overflow Plate", SlotKind::Helmet, 2, 6, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 0, 6, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 2, 1),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 0, 0, 0),
+            ("Flaying Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Reliquary Sole", SlotKind::Gloves, 4, 0, 0),
+            ("Flaying Mold", SlotKind::Gloves, 2, 1, 2),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 0, 2, 0),
+            ("Twinning Mold", SlotKind::Gloves, 2, 3, 0),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 4, 2, 0),
+            ("Flaying Mold", SlotKind::Gloves, 3, 4, 0),
+            ("Seal of the Deep", SlotKind::Gloves, 5, 4, 1),
+            ("Deepdraught Ring", SlotKind::Gloves, 2, 5, 0),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 0, 4, 0),
+            ("Flaying Mold", SlotKind::Gloves, 0, 6, 0),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 2, 6, 0),
+            ("Flaying Mold", SlotKind::Gloves, 4, 5, 3),
+        ],
+        gear_offset: 0,
+        bounty: 242,
+        sprite: MonsterSprite::Rat,
+        rank: Rank::Mini,
+        drops: &["Flaying Mold"],
+        items: &[4, 4, 2, 4, 2, 2, 2, 4, 2, 2],
+    },
+    // WUMPUS WORLD. Something in the dark already knows your footsteps.
+    MonsterSpec {
+        name: "DARK FLOOR",
+        health: 3244,
+        strength: 84,
+        regen: 5,
+        mind_resist: 0,
+        physical_resist: 6,
+        magic_resist: 6,
+        curse_resist: 5,
+        attacks: &[],
+        gear: &[
+            ("Grovemind Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 0, 0),
+            ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+            ("Cometfall", SlotKind::Weapon, 3, 1, 0),
+            ("Rootwork Alignment", SlotKind::Weapon, 0, 3, 0),
+            ("Witch's Hat", SlotKind::Helmet, 0, 0, 2),
+            ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 2, 2, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 0, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 4, 2, 1),
+            ("Overflow Plate", SlotKind::Helmet, 2, 4, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 0, 3, 0),
+            ("The Empty Crown", SlotKind::Helmet, 0, 5, 0),
+            ("Stonewall Frame", SlotKind::Helmet, 4, 5, 1),
+            ("Warding Plate", SlotKind::Helmet, 2, 6, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 0, 6, 0),
+        ],
+        gear_offset: 0,
+        bounty: 224,
+        sprite: MonsterSprite::Wisp,
+        rank: Rank::Ordinary,
+        drops: &["Consecrated Plating"],
+        items: &[5, 4, 4, 3],
+    },
+    MonsterSpec {
+        name: "THE WUMPUS",
+        health: 748,
+        strength: 19,
+        regen: 7,
+        mind_resist: 20,
+        physical_resist: 20,
+        magic_resist: 18,
+        curse_resist: 35,
+        attacks: &[],
+        gear: &[
+            ("Orb of the Nine", SlotKind::Weapon, 0, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 0, 0),
+            ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+            ("Starfall", SlotKind::Weapon, 3, 1, 0),
+            ("Rootwork Alignment", SlotKind::Weapon, 0, 3, 0),
+            ("Overseer's Circlet", SlotKind::Helmet, 0, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
+            ("Overseer's Circlet", SlotKind::Helmet, 0, 2, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 2, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 0, 4, 0),
+            ("Overseer's Circlet", SlotKind::Helmet, 2, 4, 0),
+            ("Overflow Plate", SlotKind::Helmet, 1, 6, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 3, 6, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 3, 1),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 0, 0, 0),
+            ("Flaying Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Reliquary Sole", SlotKind::Gloves, 4, 0, 0),
+            ("Flaying Mold", SlotKind::Gloves, 2, 1, 2),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 0, 2, 0),
+            ("Flaying Mold", SlotKind::Gloves, 2, 3, 0),
+            ("Unshod Signet", SlotKind::Gloves, 4, 3, 0),
+            ("Deepdraught Ring", SlotKind::Gloves, 4, 2, 0),
+            ("Titan's Grip", SlotKind::Gloves, 3, 4, 0),
+            ("Gripping Mold", SlotKind::Gloves, 1, 4, 3),
+            ("Unshod Signet", SlotKind::Gloves, 5, 3, 0),
+            ("Seal of the Deep", SlotKind::Gloves, 0, 4, 1),
+            ("Reliquary Sole", SlotKind::Gloves, 0, 6, 0),
+            ("Flaying Mold", SlotKind::Gloves, 2, 6, 0),
+        ],
+        gear_offset: 0,
+        bounty: 242,
+        sprite: MonsterSprite::Rat,
+        rank: Rank::Mini,
+        drops: &["Flaying Mold"],
+        items: &[5, 2, 3, 4, 2, 2, 4, 4, 2],
+    },
+    // The birds. Annoying before deadly, which is the whole of a swarm: no
+    // one of them is the problem and the aim moving along is.
+    MonsterSpec {
+        name: "THE FLOCK",
+        health: 1298,
+        strength: 35,
+        regen: 3,
+        mind_resist: 0,
+        physical_resist: 4,
+        magic_resist: 4,
+        curse_resist: 5,
+        attacks: &[],
+        gear: &[
+            ("Tallykeeper's Weave", SlotKind::Greaves, 0, 0, 0),
+            ("Zealot's Sole", SlotKind::Greaves, 2, 0, 1),
+            ("Overflow Plate", SlotKind::Greaves, 2, 1, 0),
+            ("Tallykeeper's Weave", SlotKind::Greaves, 4, 1, 0),
+            ("Pilgrim Sole", SlotKind::Greaves, 3, 3, 0),
+            ("Overflow Plate", SlotKind::Greaves, 1, 3, 0),
+            ("Witch's Claw", SlotKind::Greaves, 0, 2, 0),
+            ("Widow's Sole", SlotKind::Greaves, 0, 5, 1),
+            ("Tallykeeper's Weave", SlotKind::Greaves, 2, 5, 0),
+            ("Trailworn Sole", SlotKind::Greaves, 4, 4, 3),
+            ("Overflow Plate", SlotKind::Greaves, 0, 6, 0),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 0, 0, 0),
+            ("Gripping Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 4, 0, 0),
+            ("Deft Mold", SlotKind::Gloves, 3, 1, 1),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 0, 2, 0),
+            ("Deft Mold", SlotKind::Gloves, 2, 2, 1),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 4, 2, 0),
+            ("Deft Mold", SlotKind::Gloves, 3, 3, 1),
+            ("Witch's Stilts", SlotKind::Gloves, 0, 4, 1),
+            ("Deft Mold", SlotKind::Gloves, 1, 5, 0),
+            ("Unshod Signet", SlotKind::Gloves, 3, 5, 0),
+            ("Warding Ring", SlotKind::Gloves, 4, 5, 0),
+        ],
+        gear_offset: 0,
+        bounty: 188,
+        sprite: MonsterSprite::Wisp,
+        rank: Rank::Ordinary,
+        drops: &["Warding Ring"],
+        items: &[3, 3, 2, 3, 2, 2, 2, 2, 4],
+    },
+    // Rung fifty-one, and the only creature in the game that is not on the
+    // road until a run has earned the road twice: the chain finished and the
+    // man at the top put down.
+    //
+    // A frame like the rest of them, and the last one to be packed. Its band
+    // is 51, which is off the end of a curve that stops at fifty, and its
+    // target is 16-29 seconds at Medium - the band with its top edge clipped
+    // clear of sudden death, because a boss decided by the clock is not a boss
+    // decided by the board. See RECONCILIATION II #17.
+    MonsterSpec {
+        name: "THE UNWOUND",
+        health: 15_000,
+        strength: 345,
+        regen: 50,
+        mind_resist: 40,
+        physical_resist: 30,
+        magic_resist: 30,
+        curse_resist: 60,
+        attacks: &[],
+        gear: &[
+            ("Ash Haft", SlotKind::Weapon, 0, 0, 1),
+            ("Bronze Fang", SlotKind::Weapon, 3, 0, 1),
+            ("Cursed Blade", SlotKind::Weapon, 0, 1, 1),
+            ("Ratchet Cog", SlotKind::Weapon, 5, 0, 0),
+            ("Flywheel Cog", SlotKind::Weapon, 4, 1, 0),
+            ("Wellspring Base", SlotKind::Chest, 0, 0, 0),
+            ("Sigil Layer", SlotKind::Chest, 3, 0, 0),
+            ("Woven Underlayer", SlotKind::Chest, 0, 1, 0),
+            ("Wildfire Layer", SlotKind::Chest, 0, 2, 0),
+            ("Bloodbank Base", SlotKind::Chest, 4, 1, 0),
+            ("Sigil Layer", SlotKind::Chest, 2, 3, 0),
+            ("Woven Underlayer", SlotKind::Chest, 0, 4, 0),
+            ("Wildfire Layer", SlotKind::Chest, 5, 3, 1),
+            ("Bloodbank Base", SlotKind::Chest, 0, 5, 0),
+            ("Sigil Layer", SlotKind::Chest, 2, 5, 0),
+            ("Runed Material", SlotKind::Gloves, 0, 0, 0),
+            ("Wrathful Talons", SlotKind::Gloves, 2, 0, 3),
+            ("Runed Material", SlotKind::Gloves, 4, 0, 0),
+            ("Wrathful Talons", SlotKind::Gloves, 2, 1, 1),
+            ("Siphon Ring", SlotKind::Gloves, 1, 2, 0),
+            ("Emberloop", SlotKind::Gloves, 0, 2, 0),
+            ("Runed Material", SlotKind::Gloves, 4, 2, 0),
+            ("Wrathful Talons", SlotKind::Gloves, 2, 3, 3),
+            ("Oathring", SlotKind::Gloves, 1, 3, 0),
+            ("Emberloop", SlotKind::Gloves, 0, 3, 0),
+            ("Runed Material", SlotKind::Greaves, 0, 0, 0),
+            ("Echo Sole", SlotKind::Greaves, 2, 0, 0),
+            ("Sprawling Handwrap", SlotKind::Greaves, 0, 1, 0),
+            ("Echo Sole", SlotKind::Greaves, 3, 1, 0),
+            ("Iron Plating", SlotKind::Greaves, 1, 5, 0),
+            ("Runed Material", SlotKind::Greaves, 4, 3, 0),
+            ("Echo Sole", SlotKind::Greaves, 5, 5, 1),
+            ("Tin Plating", SlotKind::Greaves, 4, 6, 1),
+            ("Helm of Blades", SlotKind::Helmet, 0, 0, 0),
+            ("Iron Plating", SlotKind::Helmet, 3, 0, 0),
+            ("Harvest Crest", SlotKind::Helmet, 1, 1, 0),
+            ("Bronze Frame", SlotKind::Helmet, 2, 2, 0),
+            ("Iron Plating", SlotKind::Helmet, 4, 2, 1),
+            ("Layered Plating", SlotKind::Helmet, 0, 3, 0),
+            ("Doorward Frame", SlotKind::Helmet, 0, 4, 0),
+            ("Iron Plating", SlotKind::Helmet, 1, 5, 0),
+            ("Layered Plating", SlotKind::Helmet, 4, 5, 0),
+            ("Harvest Crest", SlotKind::Helmet, 0, 6, 0),
+        ],
+        gear_offset: 0,
+        bounty: 600,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Boss,
+        drops: &["Harvest Crest"],
+        items: &[5, 4, 4, 2, 2, 4, 4, 2, 3, 3, 3, 3, 4],
     },
 ];
 

@@ -32,6 +32,22 @@ pub struct Shop {
     /// The stock before this one. Held so a restock brings genuinely new
     /// items rather than shuffling the same handful back at you.
     previous: Vec<usize>,
+    /// Whether the mind lane's pool has been earned yet.
+    ///
+    /// Shut until THE THRESHOLD is cleared, and while it is shut nothing that
+    /// banks Insight or stacks Dread is dealt. A gate on the shelf rather than
+    /// on the piece, because what is for sale is a property of the run and not
+    /// of the catalogue - and because the run is the only thing that knows.
+    pub insight_open: bool,
+    /// Kinds a standing order says every shelf must offer.
+    ///
+    /// Repaired after the shelves are dealt rather than reserved before them,
+    /// the same way the weapon guarantee is and for the same reason: holding
+    /// shelves for a kind, every restock, for ever, is what made handles and
+    /// blades seven times over-represented the last time anybody tried it.
+    pub guaranteed: Vec<PieceKind>,
+    /// Whether the first reroll after a restock costs nothing.
+    pub free_first_reroll: bool,
 }
 
 impl Shop {
@@ -50,7 +66,15 @@ impl Shop {
     }
 
     pub fn new(rng: &mut Rng) -> Self {
-        let mut shop = Shop { stock: Vec::new(), locked: Vec::new(), previous: Vec::new() };
+        let mut shop =
+            Shop {
+                stock: Vec::new(),
+                locked: Vec::new(),
+                previous: Vec::new(),
+                insight_open: false,
+                guaranteed: Vec::new(),
+                free_first_reroll: false,
+            };
         shop.restock(rng, true);
         shop
     }
@@ -101,6 +125,8 @@ impl Shop {
             // underlay is ground rather than kit - neither belongs on a stall
             // by the side of the road.
             .filter(|&i| !crate::piece::is_town_stock(&CATALOG[i]))
+            // A pool nobody has been given yet is a piece that does nothing.
+            .filter(|&i| self.insight_open || !crate::piece::touches_insight(&CATALOG[i]))
             .collect();
         // Dealt a slot at a time, not drawn uniformly from the catalogue.
         //
@@ -226,13 +252,15 @@ impl Shop {
                 // Kettleworks Pin is a damaging piece, so leaving town gear
                 // out of the pool and not out of the repair meant the road
                 // still handed it over whenever somebody turned up unarmed.
-                let sellable = |i: &usize| {
+                let insight_open = self.insight_open;
+                let sellable = move |i: &usize| {
                     CATALOG[*i].slot == SlotKind::Weapon
                         && CATALOG[*i].kind == k
                         && !crate::piece::is_boss_only(CATALOG[*i].name)
                         && !crate::piece::is_quest_reward(CATALOG[*i].name)
                         && !crate::piece::is_event_only(CATALOG[*i].name)
                         && !crate::piece::is_town_stock(&CATALOG[*i])
+                        && (insight_open || !crate::piece::touches_insight(&CATALOG[*i]))
                 };
                 let mut candidates: Vec<usize> = (0..CATALOG.len())
                     .filter(sellable)
@@ -259,6 +287,28 @@ impl Shop {
             }
         }
 
+        // A standing order, honoured after everything else has had its turn.
+        for want in self.guaranteed.clone() {
+            if chosen.iter().any(|&c| CATALOG[c].kind == want) {
+                continue;
+            }
+            let mut candidates: Vec<usize> = (0..CATALOG.len())
+                .filter(|&i| CATALOG[i].kind == want && !chosen.contains(&i))
+                .filter(|&i| !crate::piece::is_boss_only(CATALOG[i].name))
+                .filter(|&i| !crate::piece::is_quest_reward(CATALOG[i].name))
+                .filter(|&i| !crate::piece::is_event_only(CATALOG[i].name))
+                .filter(|&i| !crate::piece::is_town_stock(&CATALOG[i]))
+                .filter(|&i| self.insight_open || !crate::piece::touches_insight(&CATALOG[i]))
+                .collect();
+            rng.shuffle(&mut candidates);
+            let Some(&pick) = candidates.first() else { continue };
+            match chosen.iter().position(|c| !held.contains(c)) {
+                Some(at) => chosen[at] = pick,
+                None if chosen.len() < SHOP_SIZE => chosen.push(pick),
+                None => {}
+            }
+        }
+
         rng.shuffle(&mut chosen);
 
         // Put the pinned ones back on the shelves they were pinned to.
@@ -271,6 +321,22 @@ impl Shop {
         }
         self.stock = chosen;
         self.previous = outgoing;
+    }
+
+    /// Put one particular thing on a shelf, whatever else was going to be
+    /// there.
+    ///
+    /// For things that are coming *back* rather than being offered - a piece
+    /// left on consignment - so the shelf it lands on is whichever one nobody
+    /// has pinned.
+    pub fn put_on_a_shelf(&mut self, def: usize) {
+        if self.stock.contains(&def) {
+            return;
+        }
+        match (0..self.stock.len()).find(|i| !self.locked.contains(i)) {
+            Some(at) => self.stock[at] = def,
+            None => self.stock.push(def),
+        }
     }
 
     /// Pin or unpin a shelf. Returns whether it is pinned afterwards.

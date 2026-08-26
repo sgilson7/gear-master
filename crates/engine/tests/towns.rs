@@ -438,8 +438,14 @@ fn the_pub_stocks_rumours_and_wants_no_money() {
     run.visit_town(Action::Pub);
     let on_sale: Vec<&str> = run.shop.stock_defs().iter().map(|d| d.name).collect();
     assert_eq!(on_sale.len(), gearmaster_engine::rumour::on_offer().len());
-    for r in gearmaster_engine::rumour::RUMOURS {
+    // The bar's own, which is not every word in the game any more. The
+    // chain's are things somebody tells you, and a chain you can barter your
+    // way into at the nearest pub is a shopping list.
+    for r in gearmaster_engine::rumour::RUMOURS.iter().filter(|r| r.on_the_bar) {
         assert!(on_sale.contains(&r.name), "{} was not on the bar", r.name);
+    }
+    for r in gearmaster_engine::rumour::RUMOURS.iter().filter(|r| !r.on_the_bar) {
+        assert!(!on_sale.contains(&r.name), "{} is not the bar's to sell", r.name);
     }
     assert!(
         on_sale.contains(&gearmaster_engine::rumour::TROPHY_SHELF),
@@ -623,24 +629,45 @@ fn a_town_class_does_not_use_up_a_fountain() {
 
 #[test]
 fn every_town_is_reachable_by_playing_the_game() {
-    // The quiet failure: a town after a rung nothing ever stands on.
-    let mut run = Run::with_all_pieces();
-    run.difficulty = Difficulty::Medium;
-    run.mode = Mode::Grinder;
-    run.apply_preset();
-    let mut visited: Vec<&str> = Vec::new();
-    for rung in 0..LADDER.len() {
-        run.rung = rung;
-        run.force_win();
-        run.settle();
-        if let Some(t) = run.pending_town() {
-            visited.push(t.id);
-            run.skip_town();
+    // The quiet failure this catches: a town after a rung nothing ever stands
+    // on. It now has to be asked twice, because half the towns are not on the
+    // road until something puts them there - so the first walk proves a hidden
+    // town stays hidden, and the second proves a revealed one behaves exactly
+    // like furniture.
+    let walk = |reveal_everything: bool| -> Vec<&'static str> {
+        let mut run = Run::with_all_pieces();
+        run.difficulty = Difficulty::Medium;
+        run.mode = Mode::Grinder;
+        run.apply_preset();
+        if reveal_everything {
+            for t in TOWNS {
+                run.reveal_town(t.id);
+            }
         }
-        run.back_to_loadout();
-    }
-    let all: Vec<&str> = TOWNS.iter().map(|t| t.id).collect();
-    assert_eq!(visited, all, "a run up the whole ladder did not pass every town");
+        let mut visited: Vec<&'static str> = Vec::new();
+        for rung in 0..LADDER.len() {
+            run.rung = rung;
+            run.force_win();
+            run.settle();
+            if let Some(t) = run.pending_town() {
+                visited.push(t.id);
+                run.skip_town();
+            }
+            run.back_to_loadout();
+        }
+        visited
+    };
+
+    let pinned: Vec<&str> = TOWNS
+        .iter()
+        .filter(|t| t.unlock == gearmaster_engine::town::Unlock::Pinned)
+        .map(|t| t.id)
+        .collect();
+    assert_eq!(walk(false), pinned, "a run that heard nothing met a town it should not have");
+
+    let mut all: Vec<&str> = TOWNS.iter().map(|t| t.id).collect();
+    all.sort_by_key(|id| TOWNS.iter().find(|t| t.id == *id).expect("real").after);
+    assert_eq!(walk(true), all, "a run up the whole ladder did not pass every town it knew of");
 }
 
 #[test]

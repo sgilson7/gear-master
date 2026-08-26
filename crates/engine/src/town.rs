@@ -25,10 +25,94 @@ pub enum Action {
     Factory,
     /// Five shelves of gear the ordinary shop does not stock.
     Shop,
+
+    // ---- the Slagworks ---------------------------------------------------
+    //
+    // A foundry that keeps melting down what it keeps sending up. Its four
+    // doors are all about *changing* what you already own rather than adding
+    // to it, which is what a foundry is for and what makes it a different
+    // town rather than the same town somewhere else.
+    /// Throw one piece into the melt and take back another.
+    Crucible,
+    /// A curated shelf of enchantments and platings, one visit.
+    MoldLine,
+    /// Pay, and one piece comes out worth more.
+    Tempering,
+    /// He has heard something below.
+    Foreman,
+
+    // ---- the Manse -------------------------------------------------------
+    //
+    // A house over a door. Its four are about what you are willing to give up
+    // - a piece, a hundred of your health, the use of something - and every
+    // one of them is a trade rather than a purchase.
+    /// Listen at the cellar door. The man inside sounds insane and is right.
+    CellarDoor,
+    /// Sell one piece at double, and be noticed if it was a good one.
+    Gallery,
+    /// Eat. It is a universal constant.
+    LongTable,
+    /// One piece is cursed for good and worth more for it.
+    Library,
+
+    // ---- Extra Large -----------------------------------------------------
+    //
+    // A store the size of a weather system, all ground floor, no windows. Its
+    // four doors follow the one-action rule like every town's. The pedestal
+    // does not, and is the only thing in the game that does not.
+    /// A curated shelf of Orb-kind pieces, and the two relics that restock.
+    Aisle9,
+    /// Sell at full price, or leave it on consignment.
+    ReturnsDesk,
+    /// A free common piece, seeded.
+    SampleCounter,
+    /// He confirms the store is the only one, on any plane.
+    Manager,
+    /// Feed it an orb and go where the orb goes.
+    ///
+    /// **The one thing in the game outside the one-action rule.** It is not a
+    /// door: it stands in the entryway and takes its own key, and a run that
+    /// walks in without an orb sees furniture. Two of them exist and they
+    /// share one visited-set, because the second is there so a run whose orbs
+    /// arrived late can still spend them and not so a patient one spends them
+    /// twice.
+    Pedestal,
 }
 
 impl Action {
+    /// The four doors every pinned town has.
     pub const ALL: [Action; 4] = [Action::Chapel, Action::Pub, Action::Factory, Action::Shop];
+
+    /// Every door in the game, so a lint over "does this explain itself" does
+    /// not quietly stop covering the ones a hidden town brought.
+    pub const EVERY: [Action; 17] = [
+        Action::Chapel,
+        Action::Pub,
+        Action::Factory,
+        Action::Shop,
+        Action::Crucible,
+        Action::MoldLine,
+        Action::Tempering,
+        Action::Foreman,
+        Action::CellarDoor,
+        Action::Gallery,
+        Action::LongTable,
+        Action::Library,
+        Action::Aisle9,
+        Action::ReturnsDesk,
+        Action::SampleCounter,
+        Action::Manager,
+        Action::Pedestal,
+    ];
+
+    /// Does using this cost you the town's one action?
+    ///
+    /// Everything does, except the pedestal, which is not a door - and the
+    /// Second Key, which is not a door either and is the only *thing* that
+    /// ever breaks the rule.
+    pub fn costs_the_visit(self) -> bool {
+        !matches!(self, Action::Pedestal)
+    }
 
     /// The key a theme looks the name up under. Never shown raw.
     pub fn key(self) -> &'static str {
@@ -37,6 +121,19 @@ impl Action {
             Action::Pub => "town-pub",
             Action::Factory => "town-factory",
             Action::Shop => "town-shop",
+            Action::Crucible => "town-crucible",
+            Action::MoldLine => "town-mold-line",
+            Action::Tempering => "town-tempering",
+            Action::Foreman => "town-foreman",
+            Action::CellarDoor => "town-cellar-door",
+            Action::Gallery => "town-gallery",
+            Action::LongTable => "town-long-table",
+            Action::Library => "town-library",
+            Action::Aisle9 => "town-aisle-nine",
+            Action::ReturnsDesk => "town-returns",
+            Action::SampleCounter => "town-samples",
+            Action::Manager => "town-manager",
+            Action::Pedestal => "town-pedestal",
         }
     }
 
@@ -46,6 +143,45 @@ impl Action {
             Action::Pub => "THE PUB",
             Action::Factory => "THE FACTORY",
             Action::Shop => "THE SHOP",
+            Action::Crucible => "THE CRUCIBLE",
+            Action::MoldLine => "THE MOLD LINE",
+            Action::Tempering => "THE TEMPERING",
+            Action::Foreman => "THE FOREMAN",
+            Action::CellarDoor => "THE CELLAR DOOR",
+            Action::Gallery => "THE GALLERY",
+            Action::LongTable => "THE LONG TABLE",
+            Action::Library => "THE LIBRARY",
+            Action::Aisle9 => "AISLE 9",
+            Action::ReturnsDesk => "THE RETURNS DESK",
+            Action::SampleCounter => "THE SAMPLE COUNTER",
+            Action::Manager => "THE MANAGER",
+            Action::Pedestal => "THE PEDESTAL",
+        }
+    }
+
+    /// The word this door hands over, if it hands one over.
+    ///
+    /// Read by `no_rumour_is_a_key_to_nothing`'s other half, which asks
+    /// whether every word in the game can be come by at all. A door is a third
+    /// route beside the bar and an event's gift.
+    pub fn gives(self) -> Option<&'static str> {
+        match self {
+            Action::Foreman => Some("A Word About the Cellar"),
+            Action::Gallery => Some("A Word About the Glow"),
+            _ => None,
+        }
+    }
+
+    /// The dungeon this door opens, if it opens one.
+    ///
+    /// The gallery's is conditional - it wants something Legendary to sell -
+    /// and this says what it *can* open rather than what it will, which is the
+    /// question "is there any way into that dungeon at all" needs.
+    pub fn opens(self) -> Option<&'static str> {
+        match self {
+            Action::CellarDoor => Some("the-threshold"),
+            Action::Gallery => Some("the-undertow"),
+            _ => None,
         }
     }
 
@@ -71,8 +207,79 @@ impl Action {
                 "The man with the cart has five things on it that the road does \
                  not stock. He does take money, and he does want all of it."
             }
+            Action::Crucible => {
+                "Throw something in. What comes out is the same slot and about \
+                 the same worth and is not the same thing, and nobody here \
+                 will tell you what it will be."
+            }
+            Action::MoldLine => {
+                "Ground, and the things that go under gear. One shelf, laid \
+                 out once, and there is always a Lightning Rod on it."
+            }
+            Action::Tempering => {
+                "Half a rung's bounty and one piece comes out of the fire \
+                 worth ten more. Its name may grow a word. That is the point."
+            }
+            Action::Foreman => {
+                "He has been down there. He will say what he heard down there, \
+                 or - if you already know - he will pay you not to say it back."
+            }
+            Action::CellarDoor => {
+                "Stand at it and listen. The man on the other side sounds \
+                 insane, and everything he says turns out to be true, and the \
+                 door is not locked."
+            }
+            Action::Gallery => {
+                "They will take one piece off you at twice what anybody else \
+                 pays. If it was a good one, somebody will mention where the \
+                 last one like it was fished up."
+            }
+            Action::LongTable => {
+                "Eat. A hundred more maximum health for the rest of the run, \
+                 and the pudding is a universal constant."
+            }
+            Action::Library => {
+                "One book, one piece, and the piece carries a curse of misfire \
+                 for good and is worth twenty-five more for having read it. \
+                 The book was worth it. Probably."
+            }
+            Action::Aisle9 => {
+                "Orbs, and two things that are not orbs and are shelved with \
+                 them anyway. It is the only place on any plane that reliably \
+                 has an Orb of Travel in stock."
+            }
+            Action::ReturnsDesk => {
+                "They take anything back at what it cost, which nobody else \
+                 does - or they will put it out on consignment and you will \
+                 see it again three shops later, worth more."
+            }
+            Action::SampleCounter => {
+                "A free one. It is a common and it is genuinely free and the \
+                 woman behind the counter would like you to take two."
+            }
+            Action::Manager => {
+                "He will confirm, at length and with documents, that this \
+                 store is the only one, on any plane, and that the sign \
+                 behind the sign is not a second store."
+            }
+            Action::Pedestal => {
+                "It stands in the entryway and takes an Orb of Travel. Feed it \
+                 one and you go where the orb goes and come back here. It is \
+                 not a door and it does not cost you your one."
+            }
         }
     }
+}
+
+/// How a town comes to be on the road.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Unlock {
+    /// Always there. The three shipped towns.
+    Pinned,
+    /// Not there until something puts it there - an event outcome, usually a
+    /// word somebody gave you. Once revealed it stands at its own `after`
+    /// like any other town and behaves like one in every other respect.
+    Hidden,
 }
 
 /// A stop on the road.
@@ -85,6 +292,15 @@ pub struct Town {
     pub name: &'static str,
     /// Read at the gate, before you decide.
     pub blurb: &'static [&'static str],
+    pub unlock: Unlock,
+    /// The doors this one has.
+    ///
+    /// The three shipped towns have the same four, which is why this was a
+    /// constant for as long as there were only three. A hidden town is hidden
+    /// because it is *somewhere else*, and somewhere else has its own doors -
+    /// a crucible, a mold line, a cellar - so the list belongs to the town
+    /// rather than to the idea of a town.
+    pub actions: &'static [Action],
 }
 
 /// Three of them, spaced so no two compete for the same run.
@@ -95,6 +311,8 @@ pub struct Town {
 pub const TOWNS: &[Town] = &[
     Town {
         id: "sump-bottom",
+        unlock: Unlock::Pinned,
+        actions: &Action::ALL,
         after: 6,
         name: "SUMP BOTTOM",
         blurb: &[
@@ -112,6 +330,8 @@ pub const TOWNS: &[Town] = &[
     },
     Town {
         id: "kettleworks",
+        unlock: Unlock::Pinned,
+        actions: &Action::ALL,
         after: 17,
         name: "KETTLEWORKS",
         blurb: &[
@@ -129,6 +349,12 @@ pub const TOWNS: &[Town] = &[
     },
     Town {
         id: "high-wick",
+        unlock: Unlock::Pinned,
+        // The four, and the second pedestal - which is not a door. It is here
+        // because the orbs are shop finds: a run whose orbs arrived late still
+        // gets to spend them, and one passing here at rung 32 meets the
+        // destinations at the band they were packed for.
+        actions: &[Action::Chapel, Action::Pub, Action::Factory, Action::Shop, Action::Pedestal],
         after: 31,
         name: "HIGH WICK",
         blurb: &[
@@ -141,6 +367,96 @@ pub const TOWNS: &[Town] = &[
              will explain the wall.",
             "Nobody asks what you are climbing towards. They have all watched \
              somebody go past on the way to it.",
+        ],
+    },
+    // ---- the two the chain finds -----------------------------------------
+    //
+    // Hidden, and standing where they do for the same reason the pinned three
+    // do: nowhere near each other, and nowhere near a town that is already
+    // there. The Manse is early because the cellar behind it is what opens the
+    // mind lane, and a lane earned at rung forty is a lane nobody uses. The
+    // Slagworks is one clear of High Wick so the two never share a stretch of
+    // road.
+    // EXTRA LARGE. Behind the sign that says LARGE there is a second sign,
+    // further back and taller, and only somebody who kept their head whole
+    // notices it - which is what makes the Teller's "nothing" choice the
+    // secret best one.
+    Town {
+        id: "extra-large",
+        unlock: Unlock::Hidden,
+        actions: &[
+            Action::Aisle9,
+            Action::ReturnsDesk,
+            Action::SampleCounter,
+            Action::Manager,
+            Action::Pedestal,
+        ],
+        after: 13,
+        name: "EXTRA LARGE",
+        blurb: &[
+            "It is one room. It is one room the size of a weather system, all \
+             ground floor and no windows, and the far wall is a rumour rather \
+             than a thing anybody in here has seen.",
+            "The aisles are numbered and the numbers go past four figures. \
+             Aisle 9 is close enough to the door to walk to, which is the \
+             only reason anybody knows what is in it.",
+            "In the entryway, between the doors and the trolleys, there is a \
+             stone pedestal with a socket in the top of it. Nobody who works \
+             here will discuss the pedestal.",
+        ],
+    },
+    Town {
+        id: "the-manse",
+        unlock: Unlock::Hidden,
+        actions: &[
+            Action::CellarDoor,
+            Action::Gallery,
+            Action::LongTable,
+            Action::Library,
+        ],
+        after: 24,
+        name: "THE MANSE",
+        blurb: &[
+            "The gate had no road behind it and now there is a house behind \
+             it, which is the sort of thing that stops being strange about \
+             four minutes after you notice it.",
+            "Nobody in the Manse asks who you are. Two of them are eating and \
+             one of them is reading and all three of them are doing it in \
+             rooms you can hear but not find, because the doors here do not \
+             stay where they were put.",
+            "There is a cellar, and the plate on the gate said EGGBERT, and \
+             nobody inside will answer to it. Everybody in the house knows \
+             where the cellar is and nobody in the house will take you to it.",
+        ],
+    },
+    Town {
+        id: "the-slagworks",
+        unlock: Unlock::Hidden,
+        actions: &[
+            Action::Crucible,
+            Action::MoldLine,
+            Action::Tempering,
+            Action::Foreman,
+        ],
+        // Thirty-three, not thirty-two.
+        //
+        // The spec says "after rung 32 ... one clear of High Wick at 31, so
+        // the two never share a stretch of road", and thirty-two is not one
+        // clear of thirty-one, it is next to it: the gates would stand on
+        // consecutive rungs and a run would meet two towns back to back. The
+        // sentence is right and the number was one out.
+        after: 33,
+        name: "THE SLAGWORKS",
+        blurb: &[
+            "The glow over the ridge is a foundry, and the foundry has been \
+             here longer than the ridge has. Nothing is smelted here. Things \
+             are melted down, which is a different job and is done to things \
+             that were already finished once.",
+            "Two shifts, no gate, and a yard full of moulds stacked in rows \
+             going back further than the light does. Every one of them has \
+             been used and every one of them is clean.",
+            "The foreman is called Ossery and he keeps looking at the floor. \
+             Not at anything on it.",
         ],
     },
 ];
@@ -203,9 +519,39 @@ mod tests {
         }
     }
 
+    /// A hidden town that shares a gap with a pinned one would be a town
+    /// nobody can reach, because `between` takes the first match.
+    #[test]
+    fn every_town_has_its_gap_to_itself_whether_or_not_it_is_on_the_map() {
+        let mut seen: Vec<usize> = TOWNS.iter().map(|t| t.after).collect();
+        seen.sort_unstable();
+        let n = seen.len();
+        seen.dedup();
+        assert_eq!(seen.len(), n, "two towns on one rung, and one of them is unreachable");
+    }
+
+    #[test]
+    fn every_town_has_at_least_one_door() {
+        for t in TOWNS {
+            assert!(!t.actions.is_empty(), "{} is a town with nothing in it", t.id);
+        }
+    }
+
+    #[test]
+    fn the_three_shipped_towns_are_still_pinned_and_still_have_their_four() {
+        for t in TOWNS.iter().filter(|t| matches!(t.unlock, Unlock::Pinned)) {
+            // Their four doors, unchanged. High Wick also has the second
+            // pedestal, which is not a door: it costs no visit, and a town's
+            // *doors* are the things that do.
+            let doors: Vec<Action> =
+                t.actions.iter().copied().filter(|a| a.costs_the_visit()).collect();
+            assert_eq!(doors, Action::ALL, "{} lost a door", t.id);
+        }
+    }
+
     #[test]
     fn every_action_says_what_it_is_for() {
-        for a in Action::ALL {
+        for a in Action::EVERY {
             assert!(!a.name().is_empty());
             assert!(a.blurb().len() > 30, "{:?} does not explain itself", a);
             assert!(!a.key().is_empty());
