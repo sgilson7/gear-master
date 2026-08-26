@@ -317,6 +317,8 @@ pub enum RuleError {
     NothingThere,
     /// No room left in the tray for another loose piece.
     TrayFull,
+    /// Tried to wear a quest item. They are carried and never worn.
+    NotWearable,
 }
 
 impl std::fmt::Display for RuleError {
@@ -325,6 +327,9 @@ impl std::fmt::Display for RuleError {
             RuleError::Place(e) => write!(f, "{}", e),
             RuleError::LoadoutLocked => write!(f, "can't change gear during a fight"),
             RuleError::NotEquipped => write!(f, "that piece isn't equipped"),
+            RuleError::NotWearable => {
+                write!(f, "that is a quest item - it is carried, not worn")
+            }
             RuleError::NotEnoughGold { need, have } => {
                 write!(f, "costs {} gold, you have {}", need, have)
             }
@@ -3153,6 +3158,13 @@ impl Run {
     ) -> Result<(), RuleError> {
         if self.phase != Phase::Loadout {
             return Err(RuleError::LoadoutLocked);
+        }
+        // A quest item is carried, never worn. It used to be refused by not
+        // being worth seating - one cell, no stats, no triggers - which is a
+        // rule nothing enforces and everything has to remember. This is the
+        // one place that has to know.
+        if self.registry.def(id).kind == crate::piece::PieceKind::Quest {
+            return Err(RuleError::NotWearable);
         }
         // A piece being moved within its own slot shouldn't collide with
         // itself; `Slot::can_place` already allows that. Moving between slots

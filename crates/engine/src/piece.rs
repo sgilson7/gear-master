@@ -187,6 +187,24 @@ pub enum PieceKind {
     /// would also have meant spelling out `enchantment: false` in all 446
     /// existing entries.
     Enchantment,
+    /// **A quest item.** A word somebody told you, a trophy, a chit: a thing
+    /// you carry because a door wants it, and never a thing you wear.
+    ///
+    /// These were `Frame`s, one cell each, with `Stats::ZERO` and no triggers
+    /// - so seating one cost a helmet cell and did nothing, which the rumour
+    /// module's own doc offered as the reason nobody would. That is a rule
+    /// enforced by it not being worth breaking, which is not a rule. It also
+    /// meant the shop drew a rumour as a helmet frame and the interface had
+    /// two `is_rumour` special cases to undo that.
+    ///
+    /// Like `Enchantment`, no recipe names this kind, so nothing can be built
+    /// out of one. Unlike `Enchantment`, `Run::can_equip` refuses it outright:
+    /// a quest item lives in the tray and nowhere else.
+    ///
+    /// `PieceDef::slot` is vestigial for these and stays `Helmet`, which is
+    /// where they have always been shelved and sorted. It is never read to
+    /// decide anything, because nothing about a quest item is placeable.
+    Quest,
 }
 
 impl PieceKind {
@@ -229,6 +247,7 @@ impl PieceKind {
             PieceKind::Material => "material",
             PieceKind::Mold => "mold",
             PieceKind::Alignment => "alignment",
+            PieceKind::Quest => "quest item",
         }
     }
 
@@ -240,6 +259,20 @@ impl PieceKind {
     /// wrong conclusion, so a role used by several slots is qualified by its
     /// slot - "gloves mold" - unless its pieces really are shared, in which
     /// case the bare name is the honest one.
+    /// The slot column, for a listing that prints one.
+    ///
+    /// Empty for a quest item. `PieceDef::slot` is vestigial for those - they
+    /// are shelved and sorted under Helmet and cannot be worn anywhere - and
+    /// printing "helmet" beside one is how a player comes to believe a word
+    /// somebody told them is a hat component. Which is what the owner
+    /// reported.
+    pub fn slot_label(self, slot: SlotKind) -> &'static str {
+        match self {
+            PieceKind::Quest => "",
+            _ => slot.name(),
+        }
+    }
+
     pub fn name_in(self, slot: SlotKind) -> String {
         if self.is_slot_specific() {
             format!("{} {}", slot.name().to_lowercase(), self.name())
@@ -8933,7 +8966,7 @@ pub static CATALOG: &[PieceDef] = &[
     PieceDef {
         name: "A Word About the Crownwright",
         slot: SlotKind::Helmet,
-        kind: PieceKind::Frame,
+        kind: PieceKind::Quest,
         cells: &[(0, 0)],
         base: Stats::ZERO,
         adjacency: None,
@@ -8948,7 +8981,7 @@ pub static CATALOG: &[PieceDef] = &[
     PieceDef {
         name: "A Word About the Green Ledger",
         slot: SlotKind::Helmet,
-        kind: PieceKind::Frame,
+        kind: PieceKind::Quest,
         cells: &[(0, 0)],
         base: Stats::ZERO,
         adjacency: None,
@@ -9019,7 +9052,7 @@ pub static CATALOG: &[PieceDef] = &[
     PieceDef {
         name: "Scrap Ticket",
         slot: SlotKind::Helmet,
-        kind: PieceKind::Frame,
+        kind: PieceKind::Quest,
         cells: &[(0, 0)],
         base: Stats::ZERO,
         adjacency: None,
@@ -10032,7 +10065,7 @@ pub static CATALOG: &[PieceDef] = &[
     PieceDef {
         name: "A Word About the Wrong Stars",
         slot: SlotKind::Helmet,
-        kind: PieceKind::Frame,
+        kind: PieceKind::Quest,
         cells: &[(0, 0)],
         base: Stats::ZERO,
         adjacency: None,
@@ -10047,7 +10080,7 @@ pub static CATALOG: &[PieceDef] = &[
     PieceDef {
         name: "A Word About the Cellar",
         slot: SlotKind::Helmet,
-        kind: PieceKind::Frame,
+        kind: PieceKind::Quest,
         cells: &[(0, 0)],
         base: Stats::ZERO,
         adjacency: None,
@@ -10062,7 +10095,7 @@ pub static CATALOG: &[PieceDef] = &[
     PieceDef {
         name: "A Word About the Glow",
         slot: SlotKind::Helmet,
-        kind: PieceKind::Frame,
+        kind: PieceKind::Quest,
         cells: &[(0, 0)],
         base: Stats::ZERO,
         adjacency: None,
@@ -10077,7 +10110,7 @@ pub static CATALOG: &[PieceDef] = &[
     PieceDef {
         name: "A Word About the Thirsty Wizard",
         slot: SlotKind::Helmet,
-        kind: PieceKind::Frame,
+        kind: PieceKind::Quest,
         cells: &[(0, 0)],
         base: Stats::ZERO,
         adjacency: None,
@@ -10092,7 +10125,7 @@ pub static CATALOG: &[PieceDef] = &[
     PieceDef {
         name: "A Word About the Picket",
         slot: SlotKind::Helmet,
-        kind: PieceKind::Frame,
+        kind: PieceKind::Quest,
         cells: &[(0, 0)],
         base: Stats::ZERO,
         adjacency: None,
@@ -10107,7 +10140,7 @@ pub static CATALOG: &[PieceDef] = &[
     PieceDef {
         name: "A Word About the Exhibition",
         slot: SlotKind::Helmet,
-        kind: PieceKind::Frame,
+        kind: PieceKind::Quest,
         cells: &[(0, 0)],
         base: Stats::ZERO,
         adjacency: None,

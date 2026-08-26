@@ -1498,6 +1498,9 @@ fn kind_luminance(kind: PieceKind) -> f32 {
         // Terrain is drawn beneath the grid, so it wants to read as ground
         // rather than as gear: lighter than anything standing on it.
         PieceKind::Enchantment => 0.85,
+        // A quest item never reaches a grid at all. It has a brightness only
+        // because the tray draws every piece the same way.
+        PieceKind::Quest => 0.60,
     }
 }
 
@@ -3606,10 +3609,10 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
     );
     // A bar does not take money, and a shop that said "click to buy" over a
     // row of things money cannot buy would be lying twice.
-    let bar = layout.shop_cards.iter().any(|c| {
-        gearmaster_engine::rumour::is_rumour(c.def.name)
-            || c.def.name == gearmaster_engine::rumour::TROPHY_SHELF
-    });
+    let bar = layout
+        .shop_cards
+        .iter()
+        .any(|c| c.def.kind == gearmaster_engine::piece::PieceKind::Quest);
     ui_text(
         if bar {
             words::word("barter-hint", "click a rumour, then the piece that pays for it")
@@ -3658,41 +3661,54 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
             },
         );
 
-        let shape = Shape::new(def.cells);
-        let sw = shape.width() as f32 * INV_CELL;
-        let sh = shape.height() as f32 * INV_CELL;
+        // A quest item is not gear and its card must not be laid out like
+        // gear's. It has one blank cell worth drawing nothing, no role worth
+        // printing and no keywords, and a name three or four lines long -
+        // "A Word About the Crownwright" - which the gear layout squeezed into
+        // the 30 pixels under a picture of an empty square, truncated at three
+        // lines and then ran into the price. It gets the whole card.
+        let quest = def.kind == gearmaster_engine::piece::PieceKind::Quest;
         let alpha = if afford { 1.0 } else { 0.4 };
-        draw_shape(
-            &shape,
-            card.rect.x + (card.rect.w - sw) / 2.0,
-            card.rect.y + 8.0 + (44.0 - sh) / 2.0,
-            INV_CELL,
-            def,
-            None,
-            alpha,
-        );
+        if !quest {
+            let shape = Shape::new(def.cells);
+            let sw = shape.width() as f32 * INV_CELL;
+            let sh = shape.height() as f32 * INV_CELL;
+            draw_shape(
+                &shape,
+                card.rect.x + (card.rect.w - sw) / 2.0,
+                card.rect.y + 8.0 + (44.0 - sh) / 2.0,
+                INV_CELL,
+                def,
+                None,
+                alpha,
+            );
+        }
 
         // Flowed, not pinned: the price sits under the role, the role under
         // the name, and a two-line name pushes them down rather than being
         // landed on.
         let cx = card.rect.x + card.rect.w / 2.0;
-        let mut ty = card.rect.y + 62.0;
+        let price_y = card.rect.bottom() - 8.0;
         let shown = words::piece(def.name);
-        let ns = fitting_size(shown, card.rect.w - 12.0, &[13.0, 12.0, 11.0]);
+        // A quest item's name starts at the top of the card and may take as
+        // many lines as it needs; gear's starts under its picture and gets
+        // two. Both stop before the price rather than being truncated at a
+        // fixed count and landing on it.
+        let (mut ty, sizes): (f32, &[f32]) = if quest {
+            (card.rect.y + 26.0, &[13.0, 12.0, 11.0, 10.0, 9.0])
+        } else {
+            (card.rect.y + 62.0, &[13.0, 12.0, 11.0])
+        };
+        let ns = fitting_size(shown, card.rect.w - 12.0, sizes);
+        let room = ((price_y - 6.0 - ty) / line_h(ns)).floor().max(1.0) as usize;
         let name_lines = wrap_px(shown, card.rect.w - 12.0, ns);
-        // A rumour prints no role, so its name gets that line back. Three is
-        // what "A Word About the Crownwright" needs on a card this narrow.
-        let name_room = if gearmaster_engine::rumour::is_rumour(def.name) { 3 } else { 2 };
-        for line in name_lines.iter().take(name_room) {
+        for line in name_lines.iter().take(room) {
             centered_text(line, cx, ty, ns, if afford { WHITE } else { col_dim() });
             ty += line_h(ns);
         }
-        // The price always. The role only when the name left room for it - a
-        // two-line name and a role and a price do not all fit on a card this
-        // short, and of the three the role is the one a hover already gives
-        // you.
-        let price_y = card.rect.bottom() - 8.0;
-        if ty < price_y - 14.0 {
+        // The role, only for gear and only when the name left room. A quest
+        // item's role is the card - there is nothing else on it.
+        if !quest && ty < price_y - 14.0 {
             let role = def.kind.name_in(def.slot);
             let rs = fitting_size(&role, card.rect.w - 10.0, &[12.0, 11.0, 10.0]);
             centered_text(&role, cx, ty, rs, col_dim());
@@ -3736,11 +3752,13 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
         // What this piece deals in, stacked down the left edge - mana above
         // rage above whatever else it touches - so the shelves can be read
         // without opening a single tooltip.
-        let keys = keywords_of(def);
-        let mut ky = card.rect.y + 8.0;
-        for k in keys.iter().take(6) {
-            draw_keyword(card.rect.x + 4.0, ky, 13.0, k);
-            ky += 15.0;
+        if !quest {
+            let keys = keywords_of(def);
+            let mut ky = card.rect.y + 8.0;
+            for k in keys.iter().take(6) {
+                draw_keyword(card.rect.x + 4.0, ky, 13.0, k);
+                ky += 15.0;
+            }
         }
 
         // A pinned shelf gets a bright border and a mark, so it reads as held
@@ -4058,7 +4076,9 @@ fn render_def_tooltip_inner(
             .to_string(),
             col_dim(),
         ));
-        draw_tooltip_with_sigil(&lines, Some((Some(def.slot), 0)), mx, my);
+        // No slot sigil. `PieceDef::slot` is vestigial for a quest item and
+        // drawing a helmet beside a chit is how the confusion started.
+        draw_tooltip_with_sigil(&lines, Some((None, 0)), mx, my);
         return;
     }
     if let Some(word) = gearmaster_engine::rumour::by_name(def.name) {
@@ -4087,11 +4107,14 @@ fn render_def_tooltip_inner(
             }
         }
         lines.push((
-            words::word("rumour-note", "It never goes on a board. It only has to be carried.")
+            words::word(
+                "rumour-note",
+                "A quest item. It cannot go on a board at all - it only has to be carried.",
+            )
                 .to_string(),
             col_dim(),
         ));
-        draw_tooltip_with_sigil(&lines, Some((Some(def.slot), 0)), mx, my);
+        draw_tooltip_with_sigil(&lines, Some((None, 0)), mx, my);
         return;
     }
     // A shared piece names every grid it fits, not just the one it is filed

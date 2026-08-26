@@ -42,7 +42,7 @@ fn main() {
                     let afford = if run.gold >= d.price { " " } else { "!" };
                     println!(
                         "{} {}. {:<18} {:<8} {:<10} {:>3}g   {}",
-                        afford, i, d.name, d.slot.name().to_lowercase(), d.kind.name_in(d.slot), d.price,
+                        afford, i, d.name, d.kind.slot_label(d.slot).to_lowercase(), d.kind.name_in(d.slot), d.price,
                         d.base.summary()
                     );
                     for t in d.triggers {
@@ -520,7 +520,7 @@ fn show_inventory(run: &Run) {
         println!(
             "  {:<18} {:<8} {:<10} {}x{}  {}{}",
             def.name,
-            def.slot.name().to_lowercase(),
+            def.kind.slot_label(def.slot).to_lowercase(),
             def.kind.name_in(def.slot),
             shape.width(),
             shape.height(),

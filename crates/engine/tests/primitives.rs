@@ -555,3 +555,94 @@ fn a_fused_pool_can_still_be_drained() {
     let taken = simulate(me(), &robbed, &DUMMY);
     assert_eq!(final_pool(&taken, Resource::DruidicMight), 0, "a fused pool resisted a drain");
 }
+
+// ------------------------------------------------------- quest items
+//
+// A word somebody told you, a trophy, a chit. They were `Frame`s with one cell
+// and `Stats::ZERO`, and the rumour module's own doc offered "seating it would
+// cost you a cell and gain you nothing" as the reason nobody would - which is
+// a rule enforced by not being worth breaking, which is not a rule. The shop
+// drew them as helmet frames because that is what they said they were.
+
+fn quest_items() -> Vec<&'static gearmaster_engine::piece::PieceDef> {
+    gearmaster_engine::piece::CATALOG
+        .iter()
+        .filter(|d| d.kind == gearmaster_engine::piece::PieceKind::Quest)
+        .collect()
+}
+
+#[test]
+fn every_rumour_and_the_trophy_trade_is_a_quest_item() {
+    for r in gearmaster_engine::rumour::RUMOURS {
+        let def = gearmaster_engine::piece::CATALOG
+            .iter()
+            .find(|d| d.name == r.name)
+            .unwrap_or_else(|| panic!("{} is a rumour with nothing to hold", r.name));
+        assert_eq!(
+            def.kind,
+            gearmaster_engine::piece::PieceKind::Quest,
+            "{} is still typed as gear",
+            r.name
+        );
+    }
+    let trophy = gearmaster_engine::piece::CATALOG
+        .iter()
+        .find(|d| d.name == gearmaster_engine::rumour::TROPHY_SHELF)
+        .expect("the trophy trade is a component");
+    assert_eq!(trophy.kind, gearmaster_engine::piece::PieceKind::Quest);
+    assert_eq!(quest_items().len(), 9, "eight words and the trophy trade");
+}
+
+#[test]
+fn a_quest_item_carries_nothing_and_does_nothing() {
+    for d in quest_items() {
+        assert_eq!(d.base, gearmaster_engine::stats::Stats::ZERO, "{} has stats", d.name);
+        assert!(d.triggers.is_empty(), "{} has a trigger", d.name);
+        assert!(d.effect.is_none(), "{} has an effect", d.name);
+        assert!(d.adjacency.is_none(), "{} has an adjacency", d.name);
+        assert_eq!(d.cells.len(), 1, "{} is bigger than a token", d.name);
+    }
+}
+
+#[test]
+fn no_recipe_can_build_anything_out_of_a_quest_item() {
+    // The same guarantee `Enchantment` has, and by the same means: no recipe
+    // names the kind, so there is no rule to write and none to forget.
+    for slot in gearmaster_engine::piece::SlotKind::ALL {
+        for recipe in gearmaster_engine::piece::recipes(slot) {
+            for (kind, _, _) in recipe.iter() {
+                assert_ne!(
+                    *kind,
+                    gearmaster_engine::piece::PieceKind::Quest,
+                    "a {:?} recipe asks for a quest item",
+                    slot
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_quest_item_is_carried_and_never_worn() {
+    use gearmaster_engine::piece::SlotKind;
+    let mut run = gearmaster_engine::run::Run::seeded(0x9E57_0001);
+    let word = quest_items()[0].name;
+    let id = run.give(word).expect("the road can hand one over");
+
+    // Every slot, every anchor the grid has. None of them takes it.
+    for slot in SlotKind::ALL {
+        for y in 0..4u8 {
+            for x in 0..4u8 {
+                assert!(
+                    run.can_equip(id, slot, x, y).is_err(),
+                    "{} was seated in the {:?} at {},{}",
+                    word,
+                    slot,
+                    x,
+                    y
+                );
+            }
+        }
+    }
+    assert!(run.inventory().contains(&id), "and it is still in the tray");
+}
