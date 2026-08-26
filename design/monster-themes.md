@@ -251,3 +251,37 @@ and an item is two to four pieces, so it overshoots by up to one item. That is
 tolerable - a board is built of items, not pieces, and the alternative is
 refusing the last item and landing short - but the curve should be read as
 "about `3 + rung`" rather than exactly.
+
+---
+
+## 7. Four more themes, and the one creature packed by hand (2026-08-26)
+
+The table in §1 was six themes and the note under it said every slot appears in
+exactly two. That was a *property of six*, not a rule, and the Unwinding adds
+four more where the mission needs a character the six do not have.
+
+| Theme | Character | Slots it leans on |
+|---|---|---|
+| **Hollow** | mind pressure and drain; nothing hits hard and everything takes something | Helmet, Gloves |
+| **Swarm** | many small hits, aim moving along; annoying before deadly | Greaves, Gloves |
+| **Beast** | fury banked and spent; armour that digs in | Chest, Weapon |
+| **Warden** | it does not move and it does not stop | Chest, Greaves |
+
+`MonsterTheme` lives in the engine now rather than in `tests/pack_francis.rs` -
+the packer and the GUI read the same table, because a theme table that exists
+twice is a theme table that disagrees with itself.
+
+**Frames.** A `MonsterFrame` is a creature with a name, a band, a theme and a
+note, and no board at all. Fifteen of them, and the frame lint is a ratchet
+holding at fifteen until Phase 4 packs them: budget today, `#[ignore]`d target
+at zero. `ALTERNATES` and the empty `CREVICE` were the precedent - creatures
+without boards already existed here.
+
+**THE UNWOUND is the exception to §5.** Everything else on the road is packed
+by the tool against the density curve. Rung 51 is off the end of that curve -
+`2.8 + 0.4 x 51` is 23.2s and the curve stops at fifty - and it is packed **by
+hand**: Wall and Drainer vocabulary, dense past the curve, high reflect, heavy
+mind damage fed by its own Dread, Drain on every glove, curse resists near the
+cap. The target is **16-29 seconds at Medium**, which is the band with its top
+edge clipped: sudden death owns everything past 30s, and a boss decided by the
+clock is not a boss decided by the board.

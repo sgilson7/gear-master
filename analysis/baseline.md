@@ -1820,3 +1820,46 @@ It chills something that **acts**, not something that merely sits there —
 drawn from `combat_items`, because a loose component has no cooldown to slow
 and freezing one would be a receipt line and nothing else. Nothing pinned
 moves: neither the library nor the wizard is on the ladder.
+
+## Drift — M15, the words
+
+**None from the mission's own changes.** Phase 3 is `theme.rs`, prose and
+documentation; nothing it touched is a weight, a board or a rule.
+
+**One from outside it.** `make pack` was run against DOORKEEP and THE STAIR
+THAT LISTENS while this milestone was in flight, and the save also rewrote a
+creature that was not being edited: **The Iron Warden at rung 7 lost a chest
+piece** — `Vast Tapestry` gone, `items` from `[3, 2, 2, 1]` to `[3, 2, 2]`.
+Nothing pinned noticed, which is worth recording on its own: rung 7 is a
+mini-boss and no test measures it directly. The ladder is therefore **no longer
+byte-identical to M1** and the change is not the mission's.
+
+### The frame budget, moved twice
+
+| | |
+|---|---|
+| Was | 14 |
+| THE UNWOUND added as a frame | 15 |
+| DOORKEEP and THE STAIR THAT LISTENS packed by hand | **13** |
+
+THE UNWOUND is the finding worth keeping. Rung 51's boss existed as a label on
+the route map, a `theme.rs` entry and a `past_the_top()` that could never
+return true, and had no `MonsterSpec` and no `MonsterFrame` through four
+content milestones. Nothing caught it because nothing asks a *route label* to
+name a creature. It is a frame now — band 51, Hollow — and the frame lint
+counts it, which means M17 cannot forget it.
+
+### What the two-voices audit found
+
+Fourteen canonical scenes were written in the theme's voice, not three as the
+spec's audit note estimated. The count by kind:
+
+| Kind | Count | Fix |
+|---|---:|---|
+| A common noun the vocabulary already translates (`fnorp`) | 5 | Fixed in place; the theme puts the word back |
+| A proper noun carrying a scene | 14 | Canonical gets the role, `theme.rs` gets the scene |
+| A component name in `CATALOG` | 5 | Cannot be fixed — append-only. Recorded as the lint's budget |
+
+One of the five common-noun leaks was in `combat.rs`'s own log line, which is
+the engine speaking turtle to a player who chose the plain theme. That is the
+clearest possible statement of why the rule matters.

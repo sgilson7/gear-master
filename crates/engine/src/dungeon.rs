@@ -59,15 +59,14 @@ pub const DUNGEONS: &[Dungeon] = &[
             "The thing you sold turns up three rungs later in the hands of \
              somebody who should not have it, in a hamlet that is not on any \
              map you have seen.",
-            "They call it Corrqk's Cavern now. It was Bunko's Cavern when it \
-             was a fishing village, before the Cork came and the boys were \
-             put on trains and the Home for Immature Men was turned into a \
-             Drambus seed facility. There is one old analyst left on the \
-             line. His name is Boyetano and he still prays to the old gods, \
-             on a floor that cuts his knees, which he says helps him \
+            "It has a new name now. It had an older one when it was a fishing \
+             village, before the company came and the boys were put on trains \
+             and the Home for Immature Men was turned into a seed facility. \
+             There is one old analyst left on the line. He still prays to the \
+             old gods, on a floor that cuts his knees, which he says helps him \
              concentrate.",
-            "Boyetano has noticed a purple glint down between the Cork and \
-             the Unmovable Rock. He has been noticing it for six years and \
+            "He has noticed a purple glint down between the shell and the \
+             rock that will not move. He has been noticing it for 6 years and \
              has told nobody, because nobody who works here has the shoulders \
              to widen a crack in a rock, and he has been very patient about \
              waiting for somebody who does.",
@@ -76,22 +75,21 @@ pub const DUNGEONS: &[Dungeon] = &[
             "The hole in the back wall is a hole in the back wall for about \
              four feet, and then it is a staircase somebody cut, and then it \
              is not a staircase.",
-            "Boyetano is already ahead of you. He has been ahead of you for \
-             six years.",
+            "The old man is already ahead of you. He has been ahead of you \
+             for 6 years.",
         ],
         floors: &["The Reciter", "The Long Haul", "The Watchers"],
         landings: &[
-            "The Anticipations stop mid-verse. Behind the pulpit, the Cork \
-             has grown out over a crack in the rock the way a lip grows over \
-             a bad tooth. Boyetano gets a bar under it. Boyetano is seventy- \
-             one.",
+            "The recitation stops mid-verse. Behind the pulpit, the shell has \
+             grown out over a crack in the rock the way a lip grows over a bad \
+             tooth. The old man gets a bar under it. The old man is 71.",
             "The train goes over on the bend. Whatever was in the cars is out \
              in the dark now, and it does not appear to want anything from \
-             you at all, and it does not appear to want anything from \
-             Boyetano either, who keeps walking and does not look at it once.",
+             you at all, and it does not appear to want anything from the old \
+             man either, who keeps walking and does not look at it once.",
             "The Core is soup and light with a piece of somewhere else \
-             sitting in the middle of it. Boyetano looks at it for a while, \
-             and stops being Boyetano, and there is a moment there where he \
+             sitting in the middle of it. The old man looks at it for a while, \
+             and stops being an old man, and there is a moment there where he \
              could have kept the lot. He splits it instead, the way he always \
              said he would, and puts your share in your hand on his way past. \
              Somewhere above you, for the first time in a long time, somebody \
@@ -128,10 +126,9 @@ pub const DUNGEONS: &[Dungeon] = &[
             "The stair has been counting. Not the steps - there are 402 steps \
              and it has known that since before there were steps - it has been \
              counting *you*, and the number it has reached is one.",
-            "There is light at the bottom and the light is a person called \
-             Ghirbi, and Ghirbi is pleased to see you, which is the worst of \
-             it. You come back up seeing with the wrong sense, and it does \
-             not stop.",
+            "There is light at the bottom and the light is a person, or was, \
+             and it is pleased to see you, which is the worst of it. You come \
+             back up seeing with the wrong sense, and it does not stop.",
         ],
         reward: "Threshold-Sighted",
         also: &[
@@ -174,7 +171,7 @@ pub const DUNGEONS: &[Dungeon] = &[
         id: "the-undertow",
         name: "THE UNDERTOW",
         blurb: &[
-            "Boyetano fished here for sixty years and the water goes down and \
+            "The old man fished here for 60 years and the water goes down and \
              does not come back up, and both of those things were true the \
              whole time he was doing it.",
             "There is a boat pulled up on the shingle with BUNKO painted on \
@@ -188,11 +185,11 @@ pub const DUNGEONS: &[Dungeon] = &[
         floors: &["THE CURRENT", "THE THING ON THE HOOK"],
         landings: &[
             "The water decides how fast you are allowed to be. It decided that \
-             about Boyetano too, for 60 years, and there is no arguing with a \
+             about him too, for 60 years, and there is no arguing with a \
              decision made by a quantity.",
             "It comes up on the line the way a thing comes up when it has \
              chosen to. Underneath it the water is deeper than the world is, \
-             and you understand, all at once, what Boyetano was patient about.",
+             and you understand, all at once, what he was patient about.",
         ],
         // No class at all. What the Undertow pays is room - one board of your
         // choice, one row taller for the rest of the run - and H3 says the
@@ -207,7 +204,7 @@ pub const DUNGEONS: &[Dungeon] = &[
         name: "DEN RIVALS",
         blurb: &[
             "The exhibit at the Emporium promised the fury of a thousand \
-             bears and charged four fnorp for it and showed you a diorama.",
+             bears and charged 4 gold for it and showed you a diorama.",
             "The museum never lied. It simply did not say where.",
         ],
         entry: &[

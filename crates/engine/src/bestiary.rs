@@ -493,6 +493,18 @@ pub const FRAMES: &[MonsterFrame] = &[
         theme: MonsterTheme::Swarm,
         note: "annoying before deadly",
     },
+    // The thing after Francis. Hollow because it is a projection of something
+    // still in transit, and the note is the whole packing brief: Wall and
+    // Drainer vocabulary, dense past the curve, high reflect, heavy mind
+    // damage fed by its own Dread, Drain on every glove, curse resists near
+    // the cap - and a time-to-kill inside 16-29s at Medium, because past 30
+    // the clock decides the fight rather than the board.
+    MonsterFrame {
+        name: "THE UNWOUND",
+        band: 51,
+        theme: MonsterTheme::Hollow,
+        note: "harder than Francis, and it must be over before 30s",
+    },
 ];
 
 pub fn frame(name: &str) -> Option<&'static MonsterFrame> {
@@ -609,7 +621,19 @@ mod tests {
     /// today's distance and can only go down, and an `#[ignore]`d target that
     /// asserts zero. Lower the budget in the commit that dresses a creature;
     /// never raise it.
-    const UNDRESSED: usize = 14;
+    ///
+    /// Two moves in M15, in opposite directions, which is why the number is
+    /// not the one either of them implies on its own.
+    ///
+    /// **Up one:** THE UNWOUND had no frame and no spec at all - rung 51's
+    /// boss existed as a label on the route map, a theme entry and a
+    /// `past_the_top` that could never be true. A creature the mission is
+    /// built around should have been a frame since Phase 2, and the ratchet is
+    /// what noticed it was not.
+    ///
+    /// **Down two:** DOORKEEP and THE STAIR THAT LISTENS were packed by hand
+    /// in `make pack`, ahead of Phase 4. Fifteen frames, thirteen still naked.
+    const UNDRESSED: usize = 13;
 
     #[test]
     fn the_frames_are_no_more_undressed_than_they_were() {

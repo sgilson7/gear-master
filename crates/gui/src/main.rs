@@ -438,6 +438,18 @@ mod words {
         current().retell(prose)
     }
 
+    /// What this theme calls the event, town or dungeon with that id.
+    pub fn place(id: &str, canonical: &'static str) -> &'static str {
+        current().place(id, canonical)
+    }
+
+    /// The scene it tells there - an event's paragraphs, or a dungeon's blurb.
+    pub fn scene(id: &str, canonical: &'static [&'static str]) -> &'static [&'static str] {
+        current().scene(id, canonical)
+    }
+
+
+
     /// The same, and then any class named in it swapped for its title in this
     /// theme.
     ///
@@ -6580,18 +6592,19 @@ fn render_event(
     // nothing between the last line and the buttons whenever an event is
     // brief, and there is no reason for a short scene to look like a long one
     // with something missing.
+    let scene = words::scene(ev.id, ev.prose);
     let lines: usize =
-        ev.prose.iter().map(|p| wrap_px(&words::retell_naming(p), w - 56.0, 15.0).len()).sum();
-    let prose_h = lines as f32 * 20.0 + ev.prose.len() as f32 * 10.0;
+        scene.iter().map(|p| wrap_px(&words::retell_naming(p), w - 56.0, 15.0).len()).sum();
+    let prose_h = lines as f32 * 20.0 + scene.len() as f32 * 10.0;
     let h = (78.0 + prose_h + 24.0 + 120.0 + 30.0).clamp(300.0, LOGICAL_H - 40.0);
     let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, w, h);
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
-    ui_text(&words::retell(ev.title), r.x + 28.0, r.y + 42.0, 24.0, col_gold());
+    ui_text(&words::retell(words::place(ev.id, ev.title)), r.x + 28.0, r.y + 42.0, 24.0, col_gold());
 
     let mut y = r.y + 78.0;
-    for para in ev.prose {
+    for para in scene {
         for l in wrap_px(&words::retell_naming(para), r.w - 56.0, 15.0) {
             ui_text(&l, r.x + 28.0, y, 15.0, Color::from_rgba(198, 200, 218, 255));
             y += 20.0;
@@ -6694,12 +6707,18 @@ fn render_town(
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 20, 26, 252));
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
-    ui_text(&words::retell(town.name), r.x + 28.0, r.y + 42.0, 24.0, col_gold());
+    ui_text(
+        &words::retell(words::place(town.id, town.name)),
+        r.x + 28.0,
+        r.y + 42.0,
+        24.0,
+        col_gold(),
+    );
     let sub = words::word("town-one-thing", "ONE OF THEM. NOT TWO.");
     ui_text(&sub, r.x + r.w - 28.0 - text_width(&sub, 13.0), r.y + 42.0, 13.0, col_dim());
 
     let mut y = r.y + 76.0;
-    for para in town.blurb {
+    for para in words::scene(town.id, town.blurb) {
         for l in wrap_px(&words::retell_naming(para), r.w - 56.0, 15.0) {
             ui_text(&l, r.x + 28.0, y, 15.0, Color::from_rgba(198, 200, 218, 255));
             y += 20.0;

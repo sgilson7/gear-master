@@ -1614,7 +1614,11 @@ fn every_alternate_is_a_finished_creature() {
         // weapon recipe in the game wants something that hits, so there is
         // exactly one weapon in the catalogue it can carry. One voice is the
         // right answer for that creature, not a third orb to make a number up.
-        if m.rank == Rank::Boss {
+        // A frame is exempt here for the same reason it is exempt above: it
+        // has no board yet. THE UNWOUND is a boss and a frame at once, which
+        // no creature had been before - Phase 4 packs it and this starts
+        // asking again.
+        if m.rank == Rank::Boss && !gearmaster_engine::bestiary::is_unpacked(m.name) {
             let (reg, lo) = m.loadout();
             let mut total = 0;
             for slot in SlotKind::ALL {

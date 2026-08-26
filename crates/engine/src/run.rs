@@ -1490,8 +1490,9 @@ impl Run {
     pub fn enter_dungeon(&mut self, id: &'static str) {
         let Some(d) = crate::dungeon::by_id(id) else { return };
         self.dungeon = Some((d, 0));
-        if !d.entry.is_empty() {
-            self.pending_scene = Some(d.entry);
+        let entry = self.theme.entry(d.id, d.entry);
+        if !entry.is_empty() {
+            self.pending_scene = Some(entry);
         }
     }
 
@@ -2031,7 +2032,10 @@ impl Run {
                 // the fight you had not got to.
                 self.wins += 1;
                 let (d, floor) = self.dungeon.expect("just checked");
-                settlement.landing = d.landings.get(floor).copied();
+                // Through the theme, at the source. A landing is prose the
+                // run hands to whatever is drawing, and the two interfaces
+                // would otherwise have to remember to translate it twice.
+                settlement.landing = self.theme.landings(d.id, d.landings).get(floor).copied();
                 self.pending_landing = settlement.landing;
                 if floor + 1 < d.floors.len() {
                     self.dungeon = Some((d, floor + 1));

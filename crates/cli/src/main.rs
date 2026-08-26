@@ -340,7 +340,12 @@ fn show_road(run: &Run) {
     let stack = run.road_stack();
     if let Some((d, floor)) = run.dungeon {
         // You always know you are inside one.
-        println!("\n{} - FLOOR {} OF {}", d.name, floor + 1, d.floors.len());
+        println!(
+            "\n{} - FLOOR {} OF {}",
+            run.theme.place(d.id, d.name),
+            floor + 1,
+            d.floors.len()
+        );
     }
     println!("\nRung {} - {}", run.rung + 1, run.monster().name);
     if stack.is_empty() {
@@ -354,7 +359,7 @@ fn show_road(run: &Run) {
         println!("     {:<10} {}", "fight", run.monster().name);
     }
     if let Some(e) = run.pending_event() {
-        println!("\n{}", e.title);
+        println!("\n{}", run.theme.place(e.id, e.title));
         for line in e.prose {
             println!("  {}", line);
         }

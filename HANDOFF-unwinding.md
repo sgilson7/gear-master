@@ -43,6 +43,39 @@ milestone is open and what the last one moved.
   physical *and* mind; the three lanes get one answer each. RECONCILIATION II
   #18.
 
+## How to run the suite, and why it matters
+
+Measured in M15, because a ten-minute edit-test cycle was being blamed on the
+tests and the tests are not what costs.
+
+| | |
+|---|---|
+| Every test in the engine, executing | **~21s** |
+| Compile and link after one engine edit | ~65s |
+| Test binaries cargo must launch | **46** |
+
+The rest - about nine minutes of a ten-minute run - was **per-binary
+first-execution cost**. Every engine edit relinks all forty-six binaries, and
+the first run of a freshly-linked one is scanned before it starts; the same
+binary run a second time starts in 0.01s. With full debuginfo each was four to
+five megabytes and `target` had grown to 7.8 GB.
+
+**After:** the whole suite, with an engine relink, is **30 seconds**, and
+`target` is 869 MB rather than 7.8 GB.
+
+Two things changed, and one habit:
+
+- **`[profile.test] debug = "line-tables-only"`** in the workspace manifest.
+  Panics keep file and line, which is what a failing assertion needs. For a run
+  that needs locals and arguments, ask for them without editing anything:
+  `CARGO_PROFILE_TEST_DEBUG=2 cargo test -p gearmaster-engine --test <name>`.
+- **`cargo clean` when `target` gets fat.** It was 30.6 GiB of build artifacts
+  across the tree when this was measured.
+- **Iterate with `--lib` or one `--test <name>`.** `--lib` is 0.13s and one
+  test binary is about a second warm. Run the whole suite **once**, at the end
+  of a milestone, and never start a second cargo while one is running - they
+  take an exclusive lock on `target` and the second one simply waits.
+
 ## The milestones
 
 Twenty, in four phases plus a phase zero. Each ends green, with its numbers in
@@ -67,8 +100,8 @@ re-pinned first**.
 | M12 | Extra Large and the Orbs of Travel (Part G) | **done** |
 | M13 | The five unconditional events (Part F) | **done** |
 | M14 | The nine structures and the three pairs (H2/D) | **done** - Phase 2 closed |
-| M15 | The words (Phase 3) | next |
-| M16 | Rating re-pinned first (Phase 4) | |
+| M15 | The words (Phase 3) | **done** |
+| M16 | Rating re-pinned first (Phase 4) | next |
 | M17 | Every frame gets its board, in `make pack` | |
 | M18 | Reference builds and the acceptance sweep | |
 | M19 | Final verification, then one merge | |
@@ -731,3 +764,98 @@ Suite: **743 green**, 0 warnings. Frame budget 14, unchanged since M11.
 **Phase 3 next.** M15 is the words: Part C's table plus F6, G5 and H5, the
 entry cutscenes in both voices, the existing events' turtle nouns migrated into
 theme entries, the glossary, and the three design docs brought up to date.
+
+
+---
+
+## M15 - The words
+
+Phase 3. `theme.rs`, the prose, and the three design documents. No weight, no
+board and no rule moved - the one number that changed came from outside this
+milestone and is recorded below.
+
+### The audit note undercounted by eleven
+
+Part F flagged three canonical events written in the book's voice and said the
+clean fix was to move their turtle nouns into the theme. **There were
+fourteen**, and every milestone of this mission had added more, because the
+book's voice is the fun one to write in.
+
+The rule, said properly and now shipped as a lint:
+
+- **A common noun leaks and is fixed in place.** The canonical column says
+  *gold*; `vocabulary` puts *Fnorp* back. Five of these - and one of them was
+  in `combat.rs`'s own log line, `"{} spends {} fnorp"`, which is the engine
+  speaking turtle to somebody who chose the plain theme.
+- **A proper noun leaks and moves.** Canonical gets the *role* - the
+  crownwright, the old watchman, the man who runs the store, an underwriting
+  house - and `theme.rs` gets the scene verbatim, name and all.
+
+### One new table, and why it is one
+
+`Theme` gained `told: &[Retold]`, where `Retold` is `{ id, title, prose, entry,
+landings }`.
+
+- **Keyed by id**, because a title is prose and prose gets rewritten, while an
+  id is a key and never moves.
+- **One table for events, towns and dungeons**, because ids are unique across
+  the road - they each name a place on it - and all three are things you arrive
+  at. `no_road_id_is_told_twice` is the assertion that keeps that true.
+- **Empty means "say the canonical thing"**, which is the whole safety
+  argument for a half-written theme.
+
+A dungeon uses all four columns and an event uses two. A8's entry cutscenes
+live here, the CREVICE retrofit included, and **entries and landings are themed
+at the source in `Run`** rather than by each interface - the run already holds
+the theme, and a translation two interfaces have to remember separately is one
+that a third will forget.
+
+### The lint, as a ratchet
+
+`tests/two_voices.rs`. It walks every canonical string the game can show - event
+titles, prose, labels, blurbs, unmet lines, town and dungeon names and
+paragraphs, rumour hints, creature names, gear lists, drops, class names and
+blurbs, and every entry in `CATALOG` - against the book's proper nouns, taken
+from the turtle theme's own `attributives` plus the people the spec cites with
+a page number. Possessives count, which is what makes it catch
+`Henpeck's Cell Keys`.
+
+Budget **five**, and all five are the same thing: a component named after
+somebody in the book, plus the two creatures that drop them. `CATALOG` is
+index-keyed by `share.rs` and append-only for ever, so those cannot be fixed,
+only recorded and translated - which they are. The `#[ignore]`d target asserts
+zero for the day that stops being true, which is never.
+
+### A creature that did not exist
+
+**THE UNWOUND was a label on the route map.** Rung 51's boss had a theme entry,
+a line in `route.rs` and a `past_the_top()` that could never return true - and
+no `MonsterSpec` and no `MonsterFrame` at all, through four content milestones.
+Nothing caught it because nothing asks a route label to name a creature. It is
+a frame now: band 51, Hollow, and the note is its packing brief.
+
+### The frame budget moved twice, in opposite directions
+
+14 -> 15 (THE UNWOUND) -> **13**: DOORKEEP and THE STAIR THAT LISTENS were
+packed by hand in `make pack` while this milestone was in flight, which is the
+owner authoring boards rather than the mission jumping its phase.
+
+**That save also rewrote a creature nobody was editing.** The Iron Warden at
+rung 7 lost a chest piece - `Vast Tapestry` gone, `items` `[3,2,2,1]` ->
+`[3,2,2]`. Nothing pinned noticed, which is the part worth keeping: rung 7 is a
+mini-boss and no test measures it directly. The ladder is no longer
+byte-identical to M1, and the change is not this mission's.
+
+### Also
+
+`Rank::Boss` frames are exempt from `every_alternate_is_a_finished_creature`'s
+slot-by-slot check. THE UNWOUND is the first creature that is a boss and a
+frame at once; Phase 4 packs it and the check starts asking again.
+
+Docs: `branching-events.md` has its gap table answered row by row - all five
+closed - and the two-voices rule written into it; `towns.md` gained a
+hidden-town section with the reveal-too-late case stated as design;
+`monster-themes.md` gained the four new themes, the frame idiom, and THE
+UNWOUND as the one creature packed by hand.
+
+Suite: **750 green**, 0 warnings. Frame budget **13** of 15.

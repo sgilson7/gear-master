@@ -373,6 +373,54 @@ that reads less than it thinks it does.
   `All` and `Gamble`, and everything that asks "does any door do X" asks it
   through there.
 
+
+## 23. The base game had been speaking turtle for eleven milestones
+
+Written while doing Phase 3. Part F's audit note flagged three canonical events
+whose prose was in the book's voice - THE HAT MAN OF KOLOK, GERALD's *Deep
+Chocolate*, THE GALAPAGOS EMPORIUM - and said the clean fix was to move the
+turtle nouns into `theme.rs`. The note undercounted. **There were fourteen**,
+and every milestone of this mission had added more, because the book's voice is
+the fun one to write in.
+
+The rule, stated properly, and now a lint:
+
+- **A common noun that leaks is fixed in place.** The canonical column says
+  *gold* and `vocabulary` puts *Fnorp* back. Five of these, including one in a
+  **combat log line** - `"{} spends {} fnorp"` - which is the engine itself
+  speaking turtle to a plain-theme player.
+- **A proper noun that leaks moves.** The canonical column gets the *role* -
+  the crownwright, the old watchman, the man who runs the store, an
+  underwriting house - and `theme.rs` gets the scene, verbatim, with the name
+  in it.
+
+**`theme.rs` gained one table for that**, `told`, a list of `Retold { id,
+title, prose, entry, landings }`. Keyed by id, because a title is prose and
+prose gets rewritten while an id never moves; one table for events, towns and
+dungeons, because ids are unique across the road and all three are things you
+arrive at. A dungeon uses all four columns (its name, its blurb, its entry
+cutscene, its landings) and an event uses two. Empty means "say the canonical
+thing", which is what makes a half-written theme safe.
+
+A8's entry cutscenes are in it, including the CREVICE retrofit the spec asked
+for. Landings and entries are themed **at the source**, in `Run`, rather than
+by each interface: the run already holds the theme, and a translation the two
+interfaces have to remember separately is a translation one of them will
+forget.
+
+`tests/two_voices.rs` is the lint and it is a ratchet. Its budget is **five**,
+and all five are the same thing: a component in `CATALOG` named after somebody
+in the book - Sprocketman's Gratitude, Henpeck's Cell Keys, Kaklon's Patent,
+Tetrahedron Shard - plus the two creatures that drop them. `CATALOG` is
+index-keyed by `share.rs` and append-only for ever, so those cannot be renamed,
+only recorded and translated. The `#[ignore]`d target asserts zero for the day
+that stops being true, which is never.
+
+**And a creature that did not exist.** THE UNWOUND was a label on the route
+map, a theme entry and a `past_the_top` that could never be true - rung 51's
+boss had no `MonsterSpec` and no frame at all, through four content
+milestones. It is a frame now, band 51, Hollow, and the frame lint counts it.
+
 ---
 
 # PART A — MECHANICS

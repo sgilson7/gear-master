@@ -599,9 +599,9 @@ pub const EVENTS: &[LadderEvent] = &[
         trigger: Trigger::Whispered { rumour: "A Word About the Crownwright", from: 19 },
         blocked_by: &[],
         expects: "Bone Cantor",
-        title: "THE HAT MAN OF KOLOK",
+        title: "THE CROWNWRIGHT",
         prose: &[
-            "The Kolok Hatter works out of one room over a fish shop and does \
+            "The crownwright works out of one room over a fish shop and does \
              not turn round when you come in, on the grounds that he can hear \
              how full your head is from where he is sitting.",
             "\"Full,\" he says. \"Good. Most of them come up those stairs \
@@ -778,20 +778,20 @@ pub const EVENTS: &[LadderEvent] = &[
         trigger: Trigger::QuickKill { within_ms: 3_500, from: 1 },
         blocked_by: &[],
         expects: "Whisperling",
-        title: "THE GALAPAGOS EMPORIUM",
+        title: "THE CASINO",
         prose: &[
-            "The Galapagos Emporium takes anybody who can walk in, which is \
-             how you got in. There is a bowl of complimentary Chromatic Rice \
-             by the door and a card over it reading ONE (1) HANDFUL - HONOUR \
-             SYSTEM - WE ARE WATCHING YOU TAKE IT.",
-            "You are here for Kolok Hold-Em, which is Hold-Em except that one \
-             card in the deck is a live gooster and no player may look at it. \
-             You have the fnorp. You have taken your one handful.",
-            "At the third table along, two players have stopped playing Kolok \
+            "The card room takes anybody who can walk in, which is how you got \
+             in. There is a bowl of complimentary salted rice by the door and \
+             a card over it reading ONE (1) HANDFUL - HONOUR SYSTEM - WE ARE \
+             WATCHING YOU TAKE IT.",
+            "You are here for Hold-Em, played the way this house plays it: one \
+             card in the deck is a live wasp and no player may look at it. You \
+             have the gold. You have taken your one handful.",
+            "At the third table along, two players have stopped playing \
              Hold-Em and started on each other. The room has formed a ring \
              around it. A woman with a clipboard is working through the ring \
              taking side bets in a very neat hand, and the dealer is standing \
-             perfectly still with the gooster held out at arm's length.",
+             perfectly still with the wasp held out at arm's length.",
         ],
         choices: &[
             Choice {
@@ -841,9 +841,9 @@ pub const EVENTS: &[LadderEvent] = &[
              nothing else about it.",
             "His cart is ahead of you on the road, pulled by an animal with a \
              brass plate on its harness. The plate gives the species, which \
-             is Slow Trundler, and the name, which is Gerald, and the top \
+             is Draught Tortoise, and the name, which is Gerald, and the top \
              speed, which is given in metres per hour.",
-            "Gerald is hauling four tons of Deep Chocolate to Kettleworks. \
+            "Gerald is hauling four tons of ore to Kettleworks. \
              They set off in the spring. The man says they are ahead of \
              schedule, and shows you the notebook again at a different page, \
              as though that settles it.",
@@ -877,13 +877,13 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "The Curator",
         title: "HE IS STILL TALKING",
         prose: &[
-            "Lord Drabley Henpeck is on the floor of his own counting house \
-             with a broken hip and an excellent view of the ceiling, and he \
-             is talking.",
+            "The overseer is on the floor of his own counting house with a \
+             broken hip and an excellent view of the ceiling, and he is \
+             talking.",
             "He has been talking since he went down. He has names. He has \
-             routes. He has the clearance order for the Great Gear Cave, \
-             filed correctly, in triplicate, because he is exactly the sort \
-             of man who would. All of it is available for the obvious \
+             routes. He has the clearance order for the works, filed \
+             correctly, in triplicate, because he is exactly the sort of man \
+             who would. All 3 copies are available for the obvious \
              consideration.",
             "He is having a marvellous time. He has asked you twice now \
              whether you are getting all this.",
@@ -918,7 +918,7 @@ pub const EVENTS: &[LadderEvent] = &[
             "It does not want to fight you. It wants the square thing in your \
              bag. It says square, it says two by two, it will not be moved on \
              the shape and it will not say what it is for.",
-            "It counts the fnorp out onto a flat stone while you decide. It \
+            "It counts the gold out onto a flat stone while you decide. It \
              counts out twice what the thing is worth. Then it counts the \
              whole pile again, gets the same number, and seems mildly \
              disappointed by that.",
@@ -952,10 +952,10 @@ pub const EVENTS: &[LadderEvent] = &[
              always stands in the shrine: plated to the eyeballs, wound to \
              the last click, entirely ready for you.",
             "There is also a hole in the back wall, which was not in the back \
-             wall when you came in. Down the hole is a seed facility, and in \
-             the seed facility is an old analyst named Boyetano who prays on \
-             a floor that cuts his knees. He has been waiting a long while \
-             for somebody with shoulders.",
+             wall when you came in. Down the hole is a works of some kind, and \
+             on the floor of it an old watchman prays on stone that cuts his \
+             knees. He has been waiting a long while for somebody with \
+             shoulders.",
             "And there is a third thing behind the altar, asleep, with a \
              shell on it like a walnut. Nobody who works here will look \
              straight at it. The idol does not look at it either, and the \
@@ -971,7 +971,7 @@ pub const EVENTS: &[LadderEvent] = &[
             },
             Choice {
                 label: "FOLLOW THE THING YOU SOLD",
-                blurb: "Three floors down, and Boyetano at the bottom with something to hand over.",
+                blurb: "Three floors down, and the watchman at the bottom with something to hand over.",
                 requires: Requirement::Took("TAKE THE DEAL"),
                 outcome: Outcome::Enter("the-crevice"),
                 unmet: "You never sold it, so it never came this way, so there is no hole in the wall.",
@@ -1217,8 +1217,8 @@ pub const EVENTS: &[LadderEvent] = &[
         title: "THE TELLER",
         prose: &[
             "There is a windowless store here the size of a county and its \
-             entire sign says LARGE. Inside it a man called Songil has been \
-             carrying a story for eleven years that he is not able to put \
+             entire sign says LARGE. Inside it the man who runs the place has \
+             been carrying a story for 11 years that he is not able to put \
              down, and he will pay to say it to somebody who is still \
              standing afterwards.",
             "He has tried three people. He describes what happened to all \
@@ -1317,9 +1317,9 @@ pub const EVENTS: &[LadderEvent] = &[
         title: "WHAT THE TABLE SAID",
         prose: &[
             "The inn at this crossroads has one long table in it and nobody \
-             sits at the middle of it. The landlord is called Petonkle and \
-             will tell you why if you ask, in a tone that says he has stopped \
-             finding it interesting.",
+             sits at the middle of it, and it has been that way for 40 years. \
+             The landlord will tell you why if you ask, in a tone that says he \
+             has stopped finding it interesting.",
             "Set a thing down at the centre and the table says what the thing \
              is trying to become. Not what it is. What it is *for*, which is \
              a different question and one nothing else in the world has ever \
@@ -1407,8 +1407,8 @@ pub const EVENTS: &[LadderEvent] = &[
              and the hoarding is not the building - and behind the hoarding, \
              further back and a good deal taller, there is a second sign, and \
              the second sign says EXTRA LARGE.",
-            "Nobody else on this road has looked up. Songil's story takes the \
-             part of you that would have.",
+            "Nobody else on this road has looked up. The teller's story takes \
+             the part of you that would have.",
         ],
         choices: &[
             Choice {
@@ -1520,7 +1520,7 @@ pub const EVENTS: &[LadderEvent] = &[
             "A woman with a clipboard and a folding stool sets up in the road \
              in front of you and asks, without introducing herself, to see \
              what you are wearing.",
-            "She is not from anywhere. She grades things - rice for the Fnorp \
+            "She is not from anywhere. She grades things - rice for the trade \
              board for 19 years, and ropes before that - and she says the \
              principle does not change and that people who think it does are \
              the reason she still has work.",
@@ -1567,9 +1567,9 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "The Tallow Saint",
         title: "THE SEALED BID",
         prose: &[
-            "The foundry auctions one lot a month and does it the Fnorp way: \
-             a reserve written down before anybody arrives, one figure from \
-             each bidder, and no second round.",
+            "The foundry auctions 1 lot a month and does it the old way: a \
+             reserve written down before anybody arrives, one figure from each \
+             bidder, and no second round.",
             "Over the reserve and the lot is yours at the reserve. Under it and \
              the lot is somebody else's and your figure is read out anyway.",
         ],
@@ -1600,7 +1600,7 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "Cog Priest",
         title: "THE CONTRACT",
         prose: &[
-            "A man from Treyway Underwriting sets a document on a milestone \
+            "A man from an underwriting house sets a document on a milestone \
              and does not hand you a pen, on the grounds that people who need \
              a pen handed to them do not sign.",
             "The clause is one line. Your gear runs cold for three rungs - all \
@@ -1608,7 +1608,7 @@ pub const EVENTS: &[LadderEvent] = &[
              are still upright at the end of the third one, they honour their \
              side.",
             "He does not say what their side is. He says you would not believe \
-             it standing here and that you will believe it at rung twenty-eight.",
+             it standing here and that you will believe it at rung 28.",
         ],
         choices: &[
             Choice {
@@ -1635,9 +1635,9 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "Null Sentinel",
         title: "THE PAYOUT",
         prose: &[
-            "Treyway keeps its word and keeps it in an office, and the office \
-             is a table at the roadside with the same man behind it and a \
-             Treyway ledger open at your column, which is the fourth one down.",
+            "The house keeps its word and keeps it in an office, and the \
+             office is a table at the roadside with the same man behind it and \
+             a ledger open at your column, which is the 4th one down.",
             "He has been reading the column while you walked. He knows to the \
              rung how cold you were and for how long, and he did not have to \
              ask anybody.",
@@ -1670,7 +1670,7 @@ pub const EVENTS: &[LadderEvent] = &[
             "A courier on the road is carrying something in both hands and has \
              been carrying it in both hands for a long time, judging by the \
              arms.",
-            "It is a calf. It is a Wimpler calf and it is the size of a loaf \
+            "It is a calf. It is a sacred calf and it is the size of a loaf \
              and it has to be at the Last Oxen before the road gets there, and \
              the courier is not going to make it and knows it.",
             "It will not travel in a bag. It rides wrapped in sacking, sitting \
@@ -1704,14 +1704,15 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "The Long Mirror",
         title: "THE BUYER",
         prose: &[
-            "The Multicity buyer works out of a hired room with the door open \
+            "The buyer works out of a hired room with the door open \
              and a chair set exactly far enough back that you have to walk in.",
             "He does not sell. He buys, and what he buys is not gear: he buys \
              the things a run has that a run cannot put a price on, and he can, \
              which is the whole of his trade.",
-            "He is entirely honest about it. He says what each one is worth and \
-             the number is correct and that is what makes the room hard to be \
-             in.",
+            "He is entirely honest about it. He says what each one is worth, \
+             to the gold, and the number is correct every time - and that, \
+             rather than the 3 chairs or the open door, is what makes the room \
+             hard to be in.",
         ],
         choices: &[
             Choice {
@@ -1919,10 +1920,9 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "The Last Gearwright",
         title: "THE EXHIBITION",
         prose: &[
-            "Hanglo Chiemstar and Jimmy Chonga were the two finest gortball \
-             players who ever lived and have been retired for some years and \
-             are, between them, about as bored as it is possible for two \
-             people to be.",
+            "The two finest players the ring game ever had are both retired \
+             now, 6 years each, and are between them about as bored as it is \
+             possible for two people to be.",
             "They want a demonstration bout. Two of them, one of you, in front \
              of whoever is passing, at exhibition stakes - which means nobody \
              is going to be seriously hurt and everybody is going to be seen.",
@@ -1936,11 +1936,11 @@ pub const EVENTS: &[LadderEvent] = &[
                     Outcome::Claim("Showstopper"),
                     Outcome::Step(&THE_SHOWFIGHTERS),
                 ]),
-                unmet: "Hanglo looks at what you have built and is far too polite about it.",
+                unmet: "The taller one looks at what you have built and is far too polite about it.",
             },
             Choice {
                 label: "Decline politely",
-                blurb: "Jimmy says that is fair. Hanglo does not say that is fair.",
+                blurb: "One of them says that is fair. The other does not say that is fair.",
                 requires: Requirement::None,
                 outcome: Outcome::FightAsWritten,
                 unmet: "",

@@ -20,6 +20,25 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 /// One complete set of words for the game.
+/// One place on the road, retold.
+///
+/// An event, a town or a dungeon - all three are things you arrive at, all
+/// three have an id and a name, and a theme has the same job for each of them.
+/// `prose` is optional and usually empty: a theme spends paragraphs only where
+/// a proper noun is carrying the scene, because everything else `retell`
+/// reaches a word at a time.
+pub struct Retold {
+    pub id: &'static str,
+    pub title: &'static str,
+    /// An event's scene, or a dungeon's blurb - the paragraphs read at the
+    /// door, while it is still a decision. Empty keeps the canonical ones.
+    pub prose: &'static [&'static str],
+    /// A dungeon's entry cutscene: what it says once the decision is made.
+    pub entry: &'static [&'static str],
+    /// A dungeon's between-floor lines, the last of which is its ending.
+    pub landings: &'static [&'static str],
+}
+
 pub struct Theme {
     /// The words items are named out of. Nothing else about how a name is
     /// built is a theme's business - the rule that a name grows with its
@@ -61,6 +80,15 @@ pub struct Theme {
     /// A line shown under a creature on the opponent panel: what it is, or why
     /// you would pick a fight with it. Keyed by canonical monster name.
     pub notes: &'static [(&'static str, &'static str)],
+    /// The road, retold. One entry per event, town or dungeon this theme has
+    /// something to say about, keyed by id.
+    ///
+    /// Keyed by the **id** rather than the name, because a title is prose and
+    /// prose gets rewritten, while an id is a key and is the one thing about a
+    /// door that never moves. One table rather than three, because ids are
+    /// unique across the road for the same reason - they each name a place on
+    /// it - and `no_road_id_is_told_twice` says so.
+    pub told: &'static [Retold],
     /// Glossary entries this theme replaces or adds, as
     /// `(term to replace, new term, new definition)`. An empty first field
     /// adds an entry the plain game does not have.
@@ -76,6 +104,56 @@ impl Theme {
     /// key back, with no allocation and no lifetime sleight of hand.
     pub fn piece(&'static self, canonical: &'static str) -> &'static str {
         lookup(self, Table::Pieces, canonical).unwrap_or(canonical)
+    }
+
+    /// What this theme calls the thing standing on the road with that id.
+    ///
+    /// `canonical` is the fallback and the caller always has it - an event
+    /// knows its own title - so a theme with nothing to say about a door
+    /// costs nothing and says the plain thing.
+    pub fn place(&'static self, id: &str, canonical: &'static str) -> &'static str {
+        self.told.iter().find(|r| r.id == id).map(|r| r.title).unwrap_or(canonical)
+    }
+
+    /// The scene itself, if this theme tells it differently.
+    ///
+    /// Most doors come back with the canonical prose, and that is the design:
+    /// `retell` translates it a word at a time and the theme spends its own
+    /// paragraphs only where a *proper noun* is doing the work, which no
+    /// word-swap can reach.
+    pub fn scene(
+        &'static self,
+        id: &str,
+        canonical: &'static [&'static str],
+    ) -> &'static [&'static str] {
+        match self.told.iter().find(|r| r.id == id) {
+            Some(r) if !r.prose.is_empty() => r.prose,
+            _ => canonical,
+        }
+    }
+
+    /// What a dungeon says as you step through it, in this theme's voice.
+    pub fn entry(
+        &'static self,
+        id: &str,
+        canonical: &'static [&'static str],
+    ) -> &'static [&'static str] {
+        match self.told.iter().find(|r| r.id == id) {
+            Some(r) if !r.entry.is_empty() => r.entry,
+            _ => canonical,
+        }
+    }
+
+    /// The same for the lines said between a dungeon's floors.
+    pub fn landings(
+        &'static self,
+        id: &str,
+        canonical: &'static [&'static str],
+    ) -> &'static [&'static str] {
+        match self.told.iter().find(|r| r.id == id) {
+            Some(r) if !r.landings.is_empty() => r.landings,
+            _ => canonical,
+        }
     }
 
     /// The same for a creature on the ladder.
@@ -226,6 +304,7 @@ pub static PLAIN: Theme = Theme {
     glossary: &[],
     cutscenes: &[],
     notes: &[],
+    told: &[],
 };
 
 pub static TURTLE_DICK: Theme = Theme {
@@ -822,6 +901,25 @@ pub static TURTLE_DICK: Theme = Theme {
         ("the Skip Stone", "The Flattened Step"),
     ],
     monsters: &[
+        // ---- the mission's frames -------------------------------------------
+        //
+        // Off the ladder, so `the_turtle_theme_renames_the_whole_ladder` never
+        // asks about them - which is exactly why they are easy to forget. Two
+        // of them keep their names on purpose: all caps is a universal
+        // language and THE WUMPUS is already the joke.
+        ("DOORKEEP", "THE DOOR THAT COMMUTES"),
+        ("THE STAIR THAT LISTENS", "THE HALL HEARD WITH THE EYES"),
+        ("THE LAST LANDING", "THE LANDING BEFORE THE SUN"),
+        ("THE SHADOW", "THE FIRST ANTICIPATION"),
+        ("THE LANTERN", "THE LIGHT THAT CASTS IT"),
+        ("THE DIGGERS", "THE SPROCKETMEN WHO STAYED"),
+        ("WHAT THE SEAM HID", "THE VEIN OF DEEP CHOCOLATE"),
+        ("THE CURRENT", "THE PULL UNDER THE ROCK"),
+        ("THE THING ON THE HOOK", "WHAT BOYETANO HOOKED"),
+        ("THE DEN MOUTH", "THE EXHIBIT, OPENED"),
+        ("DARK FLOOR", "THE ROOM WITH NO LAMP"),
+        ("THE FLOCK", "THE BIRDS OF THE RIDGE"),
+        ("THE UNWOUND", "NIBBALONIUS ASCENDANT"),
         // The ladder, re-cast from the book. Each is matched to the kit the
         // rung already has, not to its position: the wall bosses get the
         // book's bouncers and wardens, the mind-damage rung gets the riddler
@@ -946,8 +1044,47 @@ pub static TURTLE_DICK: Theme = Theme {
         ("misfire", "goof"),
         ("misfires", "goofs"),
         ("mind", "idiot"),
+        // The three lanes' own words. Insight is the sense you come back from
+        // the antechamber with; Dread is what a projection thrown ahead of a
+        // thing still in transit does to whoever is standing in front of it.
+        ("insight", "Mansus-Sight"),
+        ("dread", "Anticipation"),
+        // The twins keep their shape and change their material: a blade you
+        // funny up, and a stop you get in the way.
+        ("spellblade", "funnyblade"),
+        ("deflection", "corkwork"),
     ],
     glossary: &[
+        (
+            "INSIGHT",
+            "MANSUS-SIGHT",
+            "The eighth pool, and the only one you cannot buy. Clear the antechamber and \
+             you come back seeing with the wrong sense - residents of the Mansus are seen \
+             with the ears and heard with the eyes, and a mind built for this plane does \
+             not survive being looked at that way. Every point of it sharpens what an \
+             Anticipation does.",
+        ),
+        (
+            "DREAD",
+            "ANTICIPATION",
+            "A stack, not a pool. An Anticipation is a projection thrown ahead of a thing \
+             still in transit - the Cork scripture counts sixty-two of them - and standing \
+             in front of one lowers the ceiling of what you are. Multiplied by the \
+             Mansus-Sight you are holding.",
+        ),
+        (
+            "SPELLBLADE",
+            "FUNNYBLADE",
+            "What empowerment is to Funny, this is to iron. Flat power on physical hits \
+             only, it does not scale off jokes, and it resets when the fight does. The \
+             gloves' word.",
+        ),
+        (
+            "DEFLECTION",
+            "CORKWORK",
+            "The shield's twin, on the other lane. Flat cut off every physical hit, taken \
+             before Cork is, and it stacks without decaying. Chest work, mostly.",
+        ),
         (
             "MANA",
             "JOKES",
@@ -1132,8 +1269,279 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Gilt", "Wimpler fur, and nobody paying attention. A perfect build only."),
         ("Francis", "Not your enemy, and the reason you are out. Optional."),
     ],
-};
+    told: &[
+        // The road, in the book's own names. Titles only, nearly always: the
+        // canonical prose is the game's and `retell` translates it a word at a
+        // time. A theme spends paragraphs of its own in exactly one case -
+        // where a *proper noun* is carrying the scene - and there are eight of
+        // those.
+        //
+        // ---- the chain, which is the Ascension told sideways ----------------
+        Retold {
+            id: "the-astronomer",
+            title: "THE TETRAHEDRON WATCHER",
+            prose: &[], entry: &[], landings: &[],
+        },
+        Retold { id: "the-locked-gate", title: "EGGBERT'S GATE", prose: &[], entry: &[], landings: &[] },
+        Retold {
+            id: "the-glow-over-the-ridge",
+            title: "THE GLOW OVER THE WEIRDEIRS",
+            prose: &[], entry: &[], landings: &[],
+        },
+        Retold { id: "the-second-shadow", title: "THE ANTICIPATION", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-manse", title: "EGGBERT'S MANSION", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-slagworks", title: "THE BURNWARP FOUNDRY", prose: &[], entry: &[], landings: &[] },
+        Retold {
+            id: "the-threshold",
+            title: "THE MANSUS ANTECHAMBER",
+            prose: &[],
+            entry: &[
+                "The door is at the top of a stair you did not climb, and it \
+                 commutes: it is a door here and it is a door there and the \
+                 distance between the two is a matter it has not been asked \
+                 to settle.",
+                "Everything past it is seen with the ears. Nobody has ever \
+                 said what that is like in a way that helped, and now you know \
+                 why - the sentence arrives before the words do.",
+                "Ghirbi is somewhere below, being a sun and being friendly \
+                 about it. That is not a comfort. It is a fact about the \
+                 lighting.",
+            ],
+            landings: &[
+                "The door does not open. It commutes - it is here and it is \
+                 there and the difference is a matter nobody has asked it to \
+                 settle - and you go through it the way you go through a \
+                 sentence.",
+                "The stair hears you. Residents of the Mansus are seen with \
+                 the ears and heard with the eyes, and a stair that listens is \
+                 a stair that has been introduced.",
+                "There is light at the bottom and the light is Ghirbi, who is \
+                 a sun and is pleased to see you, which is the worst of it. \
+                 You come back up seeing with the wrong sense, and it does not \
+                 stop.",
+            ],
+        },
+        Retold {
+            id: "the-under-mine",
+            title: "THE DEEP CHOCOLATE MINE",
+            prose: &[],
+            entry: &[
+                "The Sprocketmen were told this seam was empty. It was not \
+                 empty. It was the single largest thing anybody has ever been \
+                 told to stop asking about, and the telling was done by people \
+                 who owned the asking.",
+                "The smell four hundred feet down is unmistakable and nobody \
+                 who has been down here has ever needed it explained.",
+            ],
+            landings: &[],
+        },
+        Retold {
+            id: "the-undertow",
+            title: "BUNKO'S CAVERN",
+            prose: &[
+                "The thing you sold turns up three rungs later in the hands of \
+                 somebody who should not have it, in a hamlet that is not on \
+                 any map you have seen.",
+                "They call it Corrqk's Cavern now. It was Bunko's Cavern when \
+                 it was a fishing village, before the Cork came and the boys \
+                 were put on trains and the Home for Immature Men was turned \
+                 into a Drambus seed facility. There is one old analyst left \
+                 on the line. His name is Boyetano and he still prays to the \
+                 old gods, on a floor that cuts his knees, which he says helps \
+                 him concentrate.",
+                "Boyetano has noticed a purple glint down between the Cork and \
+                 the Unmovable Rock. He has been noticing it for six years and \
+                 has told nobody, because nobody who works here has the \
+                 shoulders to widen a crack in a rock, and he has been very \
+                 patient about waiting for somebody who does.",
+            ],
+            entry: &[
+                "The hole in the back wall is a hole in the back wall for \
+                 about four feet, and then it is a staircase somebody cut, and \
+                 then it is not a staircase.",
+                "Boyetano is already ahead of you. He has been ahead of you \
+                 for six years.",
+            ],
+            landings: &[
+                "The Anticipations stop mid-verse. Behind the pulpit, the Cork \
+                 has grown out over a crack in the rock the way a lip grows \
+                 over a bad tooth. Boyetano gets a bar under it. Boyetano is \
+                 seventy-one.",
+                "The train goes over on the bend. Whatever was in the cars is \
+                 out in the dark now, and it does not appear to want anything \
+                 from you at all, and it does not appear to want anything from \
+                 Boyetano either, who keeps walking and does not look at it \
+                 once.",
+                "The Core is soup and light with a piece of the Mansus sitting \
+                 in the middle of it. Boyetano looks at it for a while, and \
+                 stops being Boyetano, and there is a moment there where he \
+                 could have kept the lot. He splits it instead, the way he \
+                 always said he would, and puts your share in your hand on his \
+                 way past. Somewhere above you, for the first time in a long \
+                 time, somebody is casting a line.",
+            ],
+        },
+        Retold {
+            id: "den-rivals",
+            title: "DEN RIVALS: FURY OF A THOUSAND BEARS",
+            prose: &[],
+            entry: &[
+                "The Galapagos Emporium exhibit had a sign on it that said THE \
+                 FURY OF A THOUSAND BEARS and a rope in front of it that said \
+                 the management did not expect to be taken literally.",
+                "Somebody took it literally. The rope is on the floor and the \
+                 sign is still up.",
+            ],
+            landings: &[],
+        },
+        Retold {
+            id: "the-crevice",
+            title: "THE CREVICE IN THE ROCK",
+            prose: &[],
+            entry: &[
+                "The rock is not cracked. It is *hinged*, and it has been \
+                 standing open for however long it takes a hinge that size to \
+                 stop being noticed.",
+                "Two floors down there is something that was walled in rather \
+                 than buried, which are different jobs done by different \
+                 people for different reasons.",
+            ],
+            landings: &[],
+        },
+        Retold {
+            id: "wumpus-world",
+            title: "WUMPUS WORLD",
+            prose: &[],
+            entry: &[
+                "Twenty rooms, and the thing in them has been in them longer \
+                 than the rooms have been counted.",
+                "It does not hunt by sight and it does not hunt by smell. It \
+                 hunts by *footsteps*, and it has already heard yours arrive.",
+            ],
+            landings: &[],
+        },
+        // ---- the five that always happen -----------------------------------
+        Retold {
+            id: "the-teller",
+            title: "THE STORY FROM SONGIL",
+            prose: &[], entry: &[], landings: &[],
+        },
+        Retold {
+            id: "the-dispenser",
+            title: "THE MACHINE IN THE BACK CORNER",
+            prose: &[], entry: &[], landings: &[],
+        },
+        Retold { id: "what-the-table-said", title: "THE TABLES SPEAK FOR US", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-bird-problem", title: "UNSOLICITED PROPOSAL", prose: &[], entry: &[], landings: &[] },
+        // ---- Extra Large, and the four places a bauble goes -----------------
+        Retold { id: "the-bigger-sign", title: "THE SIGN BEHIND THE SIGN", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-thrumbus-race", title: "THE 45TH ANNUAL THRUMBUS RACE", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "mole-town", title: "HIGHWAY TO MOLE TOWN", prose: &[], entry: &[], landings: &[] },
+        // ---- the structures --------------------------------------------------
+        Retold { id: "the-inspection", title: "THE RICE INSPECTION", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-sealed-bid", title: "THE FNORP AUCTION", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-contract", title: "THE CORK CONTRACT", prose: &[], entry: &[], landings: &[] },
+        // There were only ever sixty-two, p. 84 - until you.
+        Retold { id: "the-payout", title: "THE 63RD ANTICIPATION", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-passenger", title: "THE WIMPLER CALF", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-buyer", title: "THE MULTICITY BUYER", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-fork", title: "THE FORK IN THE SEAM", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-foundry-remembers", title: "THE BURNWARP REMEMBERS", prose: &[], entry: &[], landings: &[] },
+        Retold {
+            id: "through-the-cracked-lens",
+            title: "THROUGH FORESTON'S MONOCLE",
+            prose: &[], entry: &[], landings: &[],
+        },
+        // ---- the three standalone pairs --------------------------------------
+        Retold { id: "the-wizards-thirst", title: "THE SPINDRIFT HOARD", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-picket-line", title: "THE GORTBALL LINE", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-exhibition", title: "HANGLO AND JIMMY, ONE NIGHT ONLY", prose: &[], entry: &[], landings: &[] },
 
+        // ------------------------------------------------- and the eight scenes
+        //
+        // Every one of these is here because the shipped canonical text was
+        // speaking turtle - a proper noun no word-swap can reach - or because
+        // the scene was written in this voice first and ported second. The
+        // canonical column is the game's; this is the lookup.
+        Retold {
+            id: "the-crownwright",
+            title: "THE HAT MAN OF KOLOK",
+            prose: &[
+                "The Kolok Hatter works out of one room over a fish shop and \
+                 does not turn round when you come in, on the grounds that he \
+                 can hear how full your head is from where he is sitting.",
+                "\"Full,\" he says. \"Good. Most of them come up those stairs \
+                 empty and want me to put something in it. I make hats. I am \
+                 not a philanthropist and I am very much not a doctor.\"",
+                "He will not sell you a hat. He will take a measurement, for \
+                 the record. The record is a ledger four inches thick that \
+                 lives under the bench, and he will not let you look in it.",
+            ],
+            entry: &[],
+            landings: &[],
+        },
+        Retold {
+            id: "the-casino",
+            title: "THE GALAPAGOS EMPORIUM",
+            prose: &[
+                "The Galapagos Emporium takes anybody who can walk in, which \
+                 is how you got in. There is a bowl of complimentary Chromatic \
+                 Rice by the door and a card over it reading ONE (1) HANDFUL - \
+                 HONOUR SYSTEM - WE ARE WATCHING YOU TAKE IT.",
+                "You are here for Kolok Hold-Em, which is Hold-Em except that \
+                 one card in the deck is a live gooster and no player may look \
+                 at it. You have the fnorp. You have taken your one handful.",
+                "At the third table along, two players have stopped playing \
+                 Kolok Hold-Em and started on each other. The room has formed \
+                 a ring around it. A woman with a clipboard is working through \
+                 the ring taking side bets in a very neat hand, and the dealer \
+                 is standing perfectly still with the gooster held out at \
+                 arm's length.",
+            ],
+            entry: &[],
+            landings: &[],
+        },
+        Retold {
+            id: "the-long-way",
+            title: "GERALD",
+            prose: &[
+                "That last one took eleven seconds. You know it took eleven \
+                 seconds because a man at the roadside was counting out loud, \
+                 and when you finished he wrote the number in a notebook and \
+                 said nothing else about it.",
+                "His cart is ahead of you on the road, pulled by an animal \
+                 with a brass plate on its harness. The plate gives the \
+                 species, which is Slow Trundler, and the name, which is \
+                 Gerald, and the top speed, which is given in metres per hour.",
+                "Gerald is hauling four tons of Deep Chocolate to Kettleworks. \
+                 They set off in the spring. The man says they are ahead of \
+                 schedule, and shows you the notebook again at a different \
+                 page, as though that settles it.",
+            ],
+            entry: &[],
+            landings: &[],
+        },
+        Retold {
+            id: "back-in-a-minute",
+            title: "IMMA GO BUY A SLURPEE",
+            prose: &[
+                "A man on the road hands you a parcel, says \"I'm gonna go buy \
+                 a slurpee if you wanna come,\" and walks off the road at an \
+                 angle that is not towards anything.",
+                "You do not come. He does not come back. That is the whole of \
+                 the story and everybody in Bambulon knows it, and the ones \
+                 who tell it best are the ones who stop there.",
+                "The wrapping is a page torn out of a star chart. Somebody has \
+                 gone round one shop on it twice in pencil - a store two towns \
+                 up that keeps the odd words on its back shelf - and written, \
+                 in the margin, ASK FOR THE TETRAHEDRON.",
+            ],
+            entry: &[],
+            landings: &[],
+        },
+    ],
+
+};
 /// The book's words, for the item-name generator. Every entry is a proper
 /// noun, object or place from the text - a common item reads like a regional
 /// export, and a legendary one like something out of the cosmology.

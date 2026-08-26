@@ -5,3 +5,22 @@ members = ["crates/engine", "crates/gui", "crates/cli"]
 [workspace.package]
 edition = "2021"
 rust-version = "1.75"
+
+# Test binaries carry line tables and nothing else.
+#
+# There are forty-six of them and every engine edit relinks all forty-six. With
+# full debuginfo each one is four to five megabytes, `target/debug/deps` grows
+# past six gigabytes, and the *first* execution of each freshly-linked binary is
+# scanned before it runs - which cost about twelve seconds per binary and turned
+# a twenty-one-second suite into a ten-minute one. Line tables keep file-and-line
+# in panic messages, which is what a failing assertion actually needs.
+#
+# When a panic needs a full backtrace with arguments and locals, ask for one for
+# that run and leave the default alone:
+#
+#     CARGO_PROFILE_TEST_DEBUG=2 cargo test -p gearmaster-engine --test <name>
+#
+# An environment variable overrides the profile, so nothing here has to be
+# edited to get the old behaviour back for one command.
+[profile.test]
+debug = "line-tables-only"

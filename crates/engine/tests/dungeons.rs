@@ -66,7 +66,29 @@ fn every_floor_is_a_frame_with_a_band_and_a_theme() {
             let fr = frame(f).unwrap_or_else(|| panic!("{} has no frame", f));
             assert!(fr.band >= 20, "{} packs to rung {}", f, fr.band);
             assert!(!fr.note.is_empty());
-            assert!(is_unpacked(f), "{} has a board already; lower the frame budget", f);
+        }
+    }
+}
+
+/// A floor with no board yet is the Phase-2 state, not a rule.
+///
+/// This asserted every floor was still naked, which was true for exactly as
+/// long as nobody had packed one. Packing is what Phase 4 is *for*, and the
+/// count of what is left belongs in one place - `bestiary`'s own ratchet -
+/// rather than in every test that happens to name a frame. So this checks the
+/// two agree with each other instead.
+#[test]
+fn the_frame_lint_and_the_floors_agree_about_who_is_dressed() {
+    let naked: Vec<&str> =
+        gearmaster_engine::bestiary::unpacked().iter().map(|f| f.name).collect();
+    for d in DUNGEONS.iter().filter(|d| d.id != "the-crevice") {
+        for f in d.floors {
+            assert_eq!(
+                is_unpacked(f),
+                naked.contains(f),
+                "{} disagrees with the frame lint about whether it has a board",
+                f
+            );
         }
     }
 }
