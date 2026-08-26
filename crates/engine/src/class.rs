@@ -455,6 +455,14 @@ pub enum ClassPower {
     /// Every item takes `pct` of the best multiplier on the board on top of
     /// its own - the wisdom, split into pieces and handed round.
     Splintered(i32),
+    /// Mind damage you deal ignores this percentage of their mind resistance.
+    ///
+    /// The third lane had an amplifier, a pool and an answer, and no way at
+    /// all through the answer - which the other two lanes have had since the
+    /// day typed damage landed. This is that: piercing, for the one lane that
+    /// did not have it, handed out by the one dungeon that is about seeing
+    /// things the way a plane does not.
+    WrongSense(i32),
     /// Start every fight already holding `n` rage. You came in angry.
     Avenged(i32),
 }
@@ -496,6 +504,7 @@ impl ClassPower {
             Bloodscent(n) => Bloodscent(n * 2),
             Confluence(p) => Confluence(p * 2),
             Splintered(p) => Splintered(p * 2),
+            WrongSense(p) => WrongSense((p * 2).min(100)),
             Avenged(n) => Avenged(n * 2),
             // Twice as often, which for these means halving the interval.
             Echo(n) => Echo((n / 2).max(2)),
@@ -553,6 +562,9 @@ impl ClassPower {
             ClassPower::Consecrate(pct) => format!("holding faith: {}% more armour", pct),
             ClassPower::Bloodscent(n) => format!("landing a curse banks {} rage", n),
             ClassPower::Confluence(pct) => format!("spending a pool refunds {}% to each other", pct),
+            ClassPower::WrongSense(pct) => {
+                format!("your mind damage pierces {}% of mind resist", pct)
+            }
             ClassPower::Splintered(pct) => {
                 format!("every item shares {}% of the best", pct)
             }
@@ -695,6 +707,13 @@ impl ClassPower {
                 "whatever the strongest item on your board multiplies by, every other item \
                  takes {}% of that on top of its own - the wisdom split into pieces and \
                  handed round rather than kept",
+                pct
+            ),
+            ClassPower::WrongSense(pct) => format!(
+                "Mind damage you deal goes through {}% of whatever they have against it. \
+                 Mind damage takes maximum health and none of it ever comes back, and \
+                 mind resistance is the only thing standing in front of that - so this \
+                 is the third lane's piercing, and until now the third lane had none.",
                 pct
             ),
             ClassPower::Adaptable(n) => format!(
@@ -910,6 +929,19 @@ pub static CLASSES: &[ClassDef] = &[
         requires: &[],
         power: ClassPower::Recycler { pct: 10 },
     },
+    // Only from the antechamber under the Manse. The class is the marker; the
+    // prize is the pool, which is a thing a `ClassDef` cannot say and a
+    // `Dungeon`'s `also` list can.
+    ClassDef {
+        name: "Threshold-Sighted",
+        blurb: "You came back up seeing with the wrong sense, and it does not stop.",
+        requires: &[],
+        // The class is the marker and the pool is the prize, and a class that
+        // is only a stat bundle is a class that says nothing. So it says the
+        // one thing the antechamber is for: you came back seeing with the
+        // wrong sense, and what you can see is *more* of what you are holding.
+        power: ClassPower::WrongSense(60),
+    },
 ];
 
 /// How well a build matches one class.
@@ -1024,6 +1056,7 @@ pub const CLASS_ORDER: &[&str] = &[
     "Ticket to Ride",
     "Tired",
     "Recycler",
+    "Threshold-Sighted",
 ];
 
 pub fn is_earned(name: &str) -> bool {

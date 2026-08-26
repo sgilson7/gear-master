@@ -290,6 +290,10 @@ pub static TURTLE_DICK: Theme = Theme {
         // Thrumbus Race - which is exactly what this is.
         ("Trundle", "Slow Trundler"),
         ("Ascendant", "Boyetano, Ascended"),
+        // The antechamber under Eggbert's Mansion. You come back up seeing
+        // with the wrong sense - residents of the Mansus are seen with the
+        // ears and heard with the eyes, pp. 64-67.
+        ("Threshold-Sighted", "Mansus-Sighted"),
         ("Avenged", "Sprocket Avenged"),
         ("Wanderer", "Plane Tourist"),          // half-tourist, half-catastrophe
         ("Warpriest", "Acolyte of Dobira"),     // the Master and Baylon, pp. 46-50

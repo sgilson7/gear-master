@@ -143,6 +143,19 @@ pub enum Outcome {
     StandingOrder(Standing),
     /// Your next loss within five rungs does not count. One fight, once.
     Underwrite,
+    /// Open the mind lane, for good.
+    ///
+    /// There is exactly one of these in the game and there should be: a pool
+    /// you have to be given is a thing that happens once, and the road that
+    /// gives it is the whole of what THE THRESHOLD is for.
+    UnlockInsight,
+    /// Leave it standing, and let it find you again `rungs` further on.
+    ///
+    /// The one outcome that does not close the door it was offered at.
+    /// Everything else in this enum is a decision; this is declining to make
+    /// one, and the price is that the thing comes back - which is the shape
+    /// several of the chain's stations want and none of them could say.
+    Defer { rungs: usize },
     /// See an upcoming boss's packed board from the loadout screen, for the
     /// rest of the run. Grants no stats whatsoever - the board view is the
     /// entire reward.
@@ -259,6 +272,10 @@ impl Outcome {
                 vec!["Your next loss within five rungs does not count".into()]
             }
             Outcome::Scout => vec!["You can read a boss's board before you fight it".into()],
+            Outcome::UnlockInsight => vec!["Insight unlocked".into()],
+            Outcome::Defer { rungs } => {
+                vec![format!("It finds you again {} rungs further on", rungs)]
+            }
             Outcome::Stock { shelves, class } => {
                 let mut out = vec![format!("The shop is emptied and stocked with {}", shelves.len())];
                 for name in shelves.iter() {
@@ -307,14 +324,26 @@ pub enum Trigger {
     /// `over_ms`. The shallow end has two doors and they are the same
     /// question asked twice - how is this build actually going?
     SlowKill { over_ms: u32, from: usize },
-    /// Stands on `at`, but only for somebody carrying the named rumour *and*
-    /// answering whatever it is a rumour about.
+    /// Stands anywhere from `from` to `at`, for somebody carrying the named
+    /// rumour *and* answering whatever it is a rumour about.
     ///
     /// Unlike the others this cannot be decided from a rung and two
     /// stopwatches: the conditions are about the board and about the whole run
     /// so far. `event::at` refuses it and `Run::pending_event` answers it,
     /// because the run is the only thing that knows.
-    Whispered { rumour: &'static str },
+    ///
+    /// A window rather than a rung, because a door priced in a rumour is a
+    /// door you might arrive at holding nothing - and one that stands on
+    /// exactly one rung is a door a run can walk past for reasons that have
+    /// nothing to do with the bet it made. The two shipped ones set `from` to
+    /// their own rung and behave exactly as they did.
+    Whispered { rumour: &'static str, from: usize },
+    /// Stands anywhere from `from` to `at`, for a run that has done something.
+    ///
+    /// The chain's own trigger. Everything else here is decided by where you
+    /// are or how fast you got there; this is decided by what you did, which
+    /// is what makes a chain a chain rather than four events on four rungs.
+    WhenFlagged { flag: &'static str, from: usize },
 }
 
 impl Trigger {
@@ -322,8 +351,11 @@ impl Trigger {
     /// exactly one rung, so it is that.
     pub fn from(self) -> usize {
         match self {
-            Trigger::Rung | Trigger::Whispered { .. } => 0,
-            Trigger::QuickKill { from, .. } | Trigger::SlowKill { from, .. } => from,
+            Trigger::Rung => 0,
+            Trigger::QuickKill { from, .. }
+            | Trigger::SlowKill { from, .. }
+            | Trigger::Whispered { from, .. }
+            | Trigger::WhenFlagged { from, .. } => from,
         }
     }
 }
@@ -380,6 +412,20 @@ pub static THE_BACK_ROOM: Brawl = Brawl {
     forgiving: false,
 };
 
+/// Your shadow, and what your shadow carries.
+///
+/// The first party fight in the game outside the casino's table, and the only
+/// one that pays. Not forgiving: this is the chain's own gate, and a gate that
+/// costs nothing to fail is not one - but a Grinder knocked back meets it
+/// again two rungs up, because failing forward is the rule everywhere else on
+/// this chain and the Herald is not an exception to it, only a delay.
+pub static THE_HERALD: Brawl = Brawl {
+    with: &["THE SHADOW", "THE LANTERN"],
+    win: "An Unwound Mainspring",
+    and_grow: 0,
+    forgiving: false,
+};
+
 pub const EVENTS: &[LadderEvent] = &[
     // ---- the two the pub sells ----
     //
@@ -389,7 +435,7 @@ pub const EVENTS: &[LadderEvent] = &[
     LadderEvent {
         id: "the-crownwright",
         at: 19,
-        trigger: Trigger::Whispered { rumour: "A Word About the Crownwright" },
+        trigger: Trigger::Whispered { rumour: "A Word About the Crownwright", from: 19 },
         blocked_by: &[],
         expects: "Bone Cantor",
         title: "THE HAT MAN OF KOLOK",
@@ -424,7 +470,7 @@ pub const EVENTS: &[LadderEvent] = &[
     LadderEvent {
         id: "the-green-ledger",
         at: 22,
-        trigger: Trigger::Whispered { rumour: "A Word About the Green Ledger" },
+        trigger: Trigger::Whispered { rumour: "A Word About the Green Ledger", from: 22 },
         blocked_by: &[],
         expects: "The Gearwright",
         title: "THE GREEN LEDGER",
@@ -778,6 +824,177 @@ pub const EVENTS: &[LadderEvent] = &[
             },
         ],
     },
+
+    // ------------------------------------------------------- the Unwinding
+    //
+    // Four stations, and every one of them fails forward: a refused choice
+    // costs the reward and never the chain. The only thing that can actually
+    // stop it is losing to the Herald, and even that waits two rungs and
+    // offers again.
+    //
+    // The order is the chain: a word bought or won, a man who trades it for
+    // another word, a gate that trades that one for a house, a light on a
+    // ridge that trades the third for a foundry, and then the thing that has
+    // been walking behind you the whole time.
+    LadderEvent {
+        id: "the-astronomer",
+        // Rungs eighteen to twenty-nine. A window rather than a rung, because
+        // a door priced in a rumour is a door you might arrive at holding
+        // nothing - and stopping one short of thirty because the VIP area
+        // stands there and a rung with two things on it is a rung where one of
+        // them is a surprise.
+        at: 28,
+        trigger: Trigger::Whispered { rumour: "A Word About the Wrong Stars", from: 17 },
+        blocked_by: &[],
+        expects: "Null Sentinel",
+        title: "THE ASTRONOMER",
+        prose: &[
+            "His name is Halloway and he has been thrown out of every \
+             observatory on this road, and thrown out of all of them for the \
+             same sentence, which he will say to you inside ninety seconds \
+             whether or not you ask him to.",
+            "The sentence is that eleven stars this year have fallen against \
+             their own arcs. Not moved. Fallen - the way a thing falls when \
+             something with mass goes past it - and always in the same \
+             direction, and the direction is *down*, which is not a direction \
+             the sky has.",
+            "His lens is cracked from the middle out. He says that happened \
+             on the eighth one. He says it as though it settles something.",
+        ],
+        choices: &[
+            Choice {
+                label: "Hear him out",
+                blurb: "It takes an hour and he does not stop to breathe. He is right.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("A Word About the Cellar"),
+                unmet: "",
+            },
+            Choice {
+                label: "Buy the lens",
+                blurb: "Three times a rung's bounty. It is cracked and he wants that for it.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("The Cracked Lens"),
+                unmet: "",
+            },
+            Choice {
+                label: "Turn him in",
+                blurb: "Somebody up the road pays for madmen. The bounty again, and nothing else.",
+                requires: Requirement::None,
+                outcome: Outcome::BuyOff { times: 0 },
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-locked-gate",
+        at: 40,
+        trigger: Trigger::Whispered { rumour: "A Word About the Cellar", from: 22 },
+        blocked_by: &[],
+        expects: "Sootmother",
+        title: "THE LOCKED GATE",
+        prose: &[
+            "A gate, in good repair, hung on two posts, with a lock on it \
+             that somebody oils. There is no wall on either side of it and no \
+             road behind it, and the grass behind it has not been walked on \
+             by anything with feet.",
+            "The word Halloway gave you is not a key. It is a thing to say, \
+             and he said it to himself twice before he said it to you, to be \
+             sure he had it in the right order.",
+            "There is a brass plate screwed to the middle post. It says \
+             EGGBERT and then a number that is longer than a house number \
+             needs to be.",
+        ],
+        choices: &[
+            Choice {
+                label: "Use the word",
+                blurb: "It is four syllables and one of them is not a sound. The gate opens.",
+                requires: Requirement::None,
+                outcome: Outcome::RevealTown("the-manse"),
+                unmet: "",
+            },
+            Choice {
+                label: "Walk on",
+                blurb: "Keep the word. The gate is patient and the gate knows the road.",
+                requires: Requirement::None,
+                outcome: Outcome::Defer { rungs: 3 },
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-glow-over-the-ridge",
+        at: 45,
+        trigger: Trigger::Whispered { rumour: "A Word About the Glow", from: 30 },
+        blocked_by: &[],
+        expects: "The Salt Wedding",
+        title: "THE GLOW OVER THE RIDGE",
+        prose: &[
+            "There is a light over the ridge and it does not go out. It is not \
+             a fire: a fire moves and this does not, and a fire goes out and \
+             this has been on since before anybody on this road was born.",
+            "Whatever is under it has been melting things down for a very long \
+             time. The interesting part is what it has been melting: not ore, \
+             which comes out of the ground, but *finished things*, which have \
+             to be carried in - and the road to it goes only one way.",
+            "A carter coming the other way says it is the Slagworks, says it \
+             the way you would say a word you had been told not to, and does \
+             not slow down while saying it.",
+        ],
+        choices: &[
+            Choice {
+                label: "Follow it",
+                blurb: "Over the ridge and down. It is further away than it looks and then it is not.",
+                requires: Requirement::None,
+                outcome: Outcome::RevealTown("the-slagworks"),
+                unmet: "",
+            },
+            Choice {
+                label: "Ignore it",
+                blurb: "It is a light. You have a road. The rung pays again for the trouble.",
+                requires: Requirement::None,
+                outcome: Outcome::BuyOff { times: 0 },
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-second-shadow",
+        at: 48,
+        // Standing because of what the run has done rather than where it is:
+        // both towns found, and the antechamber walked.
+        trigger: Trigger::WhenFlagged { flag: "threshold-cleared", from: 42 },
+        blocked_by: &[],
+        expects: "Gilt",
+        title: "THE SECOND SHADOW",
+        prose: &[
+            "Your shadow is ahead of you on the road, which happens when the \
+             light is behind you, and the light is not behind you.",
+            "It is carrying your build. Not gear like yours - yours, the same \
+             pieces in the same corners with the same one crooked, and it is \
+             holding a lantern you have never owned and the lantern is what \
+             is casting it.",
+            "It has been walking at your pace since the Manse, which is a long \
+             way back to have been keeping step without once being in front. \
+             It has been waiting for you to be worth meeting.",
+            "It has stopped waiting.",
+        ],
+        choices: &[
+            Choice {
+                label: "Face it",
+                blurb: "Both of them at once. It knows what you are going to do, and does it first.",
+                requires: Requirement::None,
+                outcome: Outcome::Step(&THE_HERALD),
+                unmet: "",
+            },
+            Choice {
+                label: "Refuse",
+                blurb: "It follows. It is in no hurry at all and it has the light.",
+                requires: Requirement::None,
+                outcome: Outcome::Defer { rungs: 3 },
+                unmet: "",
+            },
+        ],
+    },
 ];
 
 /// The event standing on `rung`, if there is one.
@@ -804,8 +1021,10 @@ pub fn at(
             Trigger::SlowKill { over_ms, from } => {
                 (from..=e.at).contains(&rung) && worst_fight_ms.is_some_and(|ms| ms > over_ms)
             }
-            // Not answerable from here. See `Trigger::Whispered`.
-            Trigger::Whispered { .. } => false,
+            // Not answerable from here: one is about the board and the run,
+            // the other about what the run has done, and `event::at` knows
+            // about neither. `Run::pending_event` answers both.
+            Trigger::Whispered { .. } | Trigger::WhenFlagged { .. } => false,
         }
     })
 }
@@ -852,7 +1071,7 @@ pub fn flags_waited_on() -> Vec<&'static str> {
 pub fn conditioned_by(rumour: &str) -> Vec<&'static LadderEvent> {
     EVENTS
         .iter()
-        .filter(|e| matches!(e.trigger, Trigger::Whispered { rumour: r } if r == rumour))
+        .filter(|e| matches!(e.trigger, Trigger::Whispered { rumour: r, .. } if r == rumour))
         .collect()
 }
 
@@ -864,9 +1083,16 @@ impl LadderEvent {
     /// one place the field's name lies and the one place it matters.
     pub fn where_it_stands(&self) -> String {
         match self.trigger {
-            Trigger::Rung | Trigger::Whispered { .. } => format!("rung {}", self.at + 1),
-            Trigger::QuickKill { from, .. } | Trigger::SlowKill { from, .. } => {
-                format!("rungs {} to {}", from + 1, self.at + 1)
+            Trigger::Rung => format!("rung {}", self.at + 1),
+            Trigger::QuickKill { from, .. }
+            | Trigger::SlowKill { from, .. }
+            | Trigger::Whispered { from, .. }
+            | Trigger::WhenFlagged { from, .. } => {
+                if from == self.at {
+                    format!("rung {}", self.at + 1)
+                } else {
+                    format!("rungs {} to {}", from + 1, self.at + 1)
+                }
             }
         }
     }
@@ -975,10 +1201,17 @@ mod tests {
     /// A scheduled event standing inside an earned one's window has to be
     /// written after it, or `find` returns the scheduled one every time and
     /// the earned window is quietly shorter than it says.
+    ///
+    /// Only the two stopwatch triggers can be shadowed, and that is the whole
+    /// of why this test exists: `event::at` is a `find` over the table and
+    /// resolves those two. `Whispered` and `WhenFlagged` are refused there and
+    /// answered by `Run::standing_events`, which puts them *first* - so a
+    /// scheduled event cannot hide one however the table is ordered, and
+    /// asking it to would be pinning an ordering nothing depends on.
     #[test]
     fn nothing_scheduled_shadows_an_earned_window() {
         for (i, earned) in EVENTS.iter().enumerate() {
-            if matches!(earned.trigger, Trigger::Rung) {
+            if !matches!(earned.trigger, Trigger::QuickKill { .. } | Trigger::SlowKill { .. }) {
                 continue;
             }
             let window = earned.trigger.from()..=earned.at;

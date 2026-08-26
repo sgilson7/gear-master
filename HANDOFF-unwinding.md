@@ -62,8 +62,8 @@ re-pinned first**.
 | M7 | Relics, crushables and consignment (H1) | **done** |
 | M8 | Phase-1 gate, and the stretch decision | **done** |
 | M9 | The catalogue lands once | **done** |
-| M10 | The chain (Part B) | next |
-| M11 | The dungeons and what they pay | |
+| M10 | The chain (Part B) | **done** |
+| M11 | The dungeons and what they pay | next |
 | M12 | Extra Large and the Orbs of Travel (Part G) | |
 | M13 | The five unconditional events (Part F) | |
 | M14 | The nine structures and the three pairs (H2/D) | |
@@ -460,3 +460,49 @@ way it did for town gear: `avail.rs` has a second test now, and the mind lane
 is reachable the moment `Shop::insight_open` is.
 
 Suite: **668 green**, 0 warnings, ratchet green.
+
+
+---
+
+## M10 - The chain
+
+One commit, and the ladder does not move. Four stations, two hidden towns, a
+dungeon, three words and five frames.
+
+**The chain's state is the words you are carrying.** A5 lists three flags that
+the run already knew - a word in the tray, and `towns_revealed` - and a second
+copy of a fact is a second thing to keep true. Only `threshold-cleared` is a
+flag, because a dungeon walked is the one station that leaves nothing to look
+at.
+
+**Every station fails forward** and there is a test that says so from the only
+angle that proves it: after refusing each door, the thing that opens the next
+one is still gettable. Turning the astronomer in ends *that* road to the cellar
+word and the Slagworks foreman is the other, which is why the chain has two
+roads to its own middle.
+
+Four amendments, all written into the spec as #21, and all corrections rather
+than changes of mind. Rumour doors stand in **windows** now, because a door
+priced in a rumour is a door you might arrive at holding nothing.
+`Outcome::Defer` is the only outcome that does not close the door it was
+offered at - "walk on, and the gate finds you again" needed one. The Wrong
+Stars is sold at the **pub**, because a chain whose first step is luck is a
+chain most runs never see the shape of. And the Slagworks stands after rung
+**33**: the body says "one clear of High Wick at 31" and then says 32, which is
+next to it.
+
+**One real bug.** `take_choice` never checked that the choice belonged to the
+door in front of you. One door on one rung made that safe; two open at once
+does not, and the first fixture holding every word in the game answered a
+locked gate with the VIP area's rescue button.
+
+**`ClassPower::WrongSense`** is new, and it exists because the class the
+antechamber hands out was only a stat bundle and a test refuses those. The
+third lane had an amplifier, a pool and an answer, and no way through the
+answer - which the other two have had since typed damage landed. It has
+piercing now.
+
+The **frame lint is red**, as a ratchet: five undressed creatures, a budget
+that can only go down, and an `#[ignore]`d target at zero.
+
+Suite: **683 green**, 0 warnings.

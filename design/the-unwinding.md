@@ -251,6 +251,51 @@ seeded flaw square is perhaps two hundred lines - and it is held here only by
 the tie. If it is ever wanted without Engraving it needs a prize, and that is a
 design decision rather than an engineering one.
 
+## 21. What the chain turned out to be, and five places the body was one out
+
+Written while building Part B. Everything here is a correction to the body
+rather than a change of mind about it.
+
+1. **The chain's state is the words you are carrying**, not a record of flags.
+   A5 lists `heard_the_astronomer`, `slagworks_revealed` and `manse_revealed`;
+   all three are already visible in the run - the first as a word in your tray,
+   the other two as `towns_revealed` - and a second copy of a fact is a second
+   thing to keep true. Only `threshold_cleared` is a flag, because a dungeon
+   walked is the one station that leaves nothing behind to look at.
+2. **A Word About the Wrong Stars is sold at the pub.** The body puts it in the
+   shop's rare pool or behind the casino's second door, and both are luck: a
+   chain whose first step is luck is a chain most runs never see the shape of.
+   It goes where every other word in this game is come by, and the two after it
+   are handed over by the chain itself.
+3. **Rumour doors stand in windows now.** `Trigger::Whispered` gained a `from`,
+   because a door priced in a rumour is a door you might arrive at holding
+   nothing, and one standing on exactly one rung is a door a run walks past for
+   reasons that have nothing to do with the bet it made. The two shipped ones
+   set `from` to their own rung and behave exactly as they did.
+4. **"Walk on, and the gate finds you again" needed an outcome.**
+   `Outcome::Defer { rungs }` is the only one in the game that does not close
+   the door it was offered at: it takes the event back off `answered` and puts
+   it on a list of things that will find you again. THE LOCKED GATE and THE
+   SECOND SHADOW are the two that use it, and they are the two the body
+   describes that way.
+5. **The Slagworks stands after rung 33, not 32.** The body says "after rung 32
+   ... one clear of High Wick at 31, so the two never share a stretch of road",
+   and thirty-two is not one clear of thirty-one - the two gates would stand on
+   consecutive rungs. The sentence is right and the number was one out.
+
+And two smaller ones. **THE ASTRONOMER's window ends at rung 29** rather than
+30, because the VIP area stands on 30 and a rung with two doors on it is a rung
+where one of them is a surprise. **THE SECOND SHADOW asks only for the
+antechamber**, not for both towns - requiring the Slagworks would mean a run
+that ignored the ridge could never meet the Herald, which is a chain that fails
+*backward*.
+
+**One real bug it turned up.** `Run::take_choice` never checked that the choice
+belonged to the door standing in front of you. It did not have to while one
+door stood on a rung and the interface only ever offered that door's choices;
+the chain's windows are wide enough that two can be open at once, and answering
+one with the other's choice marked the wrong event answered.
+
 ---
 
 # PART A — MECHANICS

@@ -397,7 +397,43 @@ pub struct MonsterFrame {
 /// Empty in Phase 1 and filled in Phase 2, which is why the lint below reads
 /// green today and is still worth having: it goes red on the first frame and
 /// stays red until the last board is authored.
-pub const FRAMES: &[MonsterFrame] = &[];
+pub const FRAMES: &[MonsterFrame] = &[
+    // THE THRESHOLD, behind the Manse's cellar door. Hollow all the way down,
+    // and the reason the chain reaches it in the mid-twenties rather than at
+    // the top: what it unlocks is a pool, and a pool earned at rung forty is a
+    // pool nobody gets to use.
+    MonsterFrame {
+        name: "DOORKEEP",
+        band: 24,
+        theme: MonsterTheme::Hollow,
+        note: "teaches Drain before it hurts",
+    },
+    MonsterFrame {
+        name: "THE STAIR THAT LISTENS",
+        band: 25,
+        theme: MonsterTheme::Hollow,
+        note: "mind pressure, little else",
+    },
+    MonsterFrame {
+        name: "THE LAST LANDING",
+        band: 26,
+        theme: MonsterTheme::Hollow,
+        note: "the gate before the light",
+    },
+    // THE HERALD: two at once, and the first party fight outside the casino.
+    MonsterFrame {
+        name: "THE SHADOW",
+        band: 43,
+        theme: MonsterTheme::Hollow,
+        note: "your build, hollowed",
+    },
+    MonsterFrame {
+        name: "THE LANTERN",
+        band: 43,
+        theme: MonsterTheme::Striker,
+        note: "what the shadow carries",
+    },
+];
 
 pub fn frame(name: &str) -> Option<&'static MonsterFrame> {
     FRAMES.iter().find(|f| f.name == name)
@@ -501,13 +537,41 @@ mod tests {
         assert_eq!(themes_of(6, true), vec![MonsterTheme::Wall]);
     }
 
-    /// The frame lint.
+    /// The frame lint, shipped as a **ratchet**.
     ///
-    /// Green today because there are no frames; red on the first one Phase 2
-    /// declares, and green again only when the last board is authored in Phase
-    /// 4. That is the phase discipline, made into something that fails rather
-    /// than something somebody remembers.
+    /// The rule is "no frame ships without a board" and it is red for the
+    /// whole of Phases 2 and 3 on purpose - that is the phase discipline, and
+    /// E6.8 asks for exactly it. A suite that stays red for eleven milestones
+    /// is not a safety net though; it is a light nobody looks at, and every
+    /// milestone in between needs a green suite to notice what it breaks.
+    ///
+    /// So it is the shape `catalog_shape.rs` already uses: a budget that is
+    /// today's distance and can only go down, and an `#[ignore]`d target that
+    /// asserts zero. Lower the budget in the commit that dresses a creature;
+    /// never raise it.
+    const UNDRESSED: usize = 5;
+
     #[test]
+    fn the_frames_are_no_more_undressed_than_they_were() {
+        let naked = unpacked();
+        assert!(
+            naked.len() <= UNDRESSED,
+            "{} creatures are standing on the road with nothing on, against a budget of {}: {:?}",
+            naked.len(),
+            UNDRESSED,
+            naked.iter().map(|f| f.name).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            naked.len(),
+            UNDRESSED,
+            "somebody dressed one and did not lower the budget - it is {} now",
+            naked.len()
+        );
+    }
+
+    /// The one that is red until Phase 4 finishes.
+    #[test]
+    #[ignore]
     fn no_frame_ships_without_a_board() {
         let naked = unpacked();
         assert!(

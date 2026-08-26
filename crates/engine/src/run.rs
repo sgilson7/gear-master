@@ -142,6 +142,18 @@ impl TownVisit {
     }
 }
 
+/// What the Slagworks' mold line lays out. Ground, and things that go under
+/// gear - and the rod, always, because that is what the line is known for.
+pub const MOLD_LINE: &[&str] =
+    &["the Lightning Rod", "Keystone Base", "Woven Underlayer", "Bulwark Plating", "Scaled Plating"];
+
+/// What the tempering adds to a piece.
+pub const TEMPERING_GAIN: i32 = 10;
+/// What the library's book adds, and what it costs is a curse for good.
+pub const LIBRARY_GAIN: i32 = 25;
+/// What the long table is worth, for the rest of the run.
+pub const LONG_TABLE_HEALTH: i32 = 100;
+
 /// How much better a piece comes back from consignment.
 pub const CONSIGNMENT_GAIN: i32 = 30;
 /// How many shops it is away for.
@@ -482,6 +494,20 @@ pub struct Run {
     pub scouting: bool,
     /// Quests handed to pieces that were not born with one.
     granted_quests: std::collections::HashMap<PieceId, &'static crate::piece::Quest>,
+    /// Pieces carrying a curse for the rest of the run, whatever they were.
+    ///
+    /// The library's price. A curse in this game lasts a few seconds and lives
+    /// on a fighter; this is the only one that lives on a *piece* and outlasts
+    /// the fight, which is why it is a list on the run rather than anything
+    /// combat knows about.
+    pub cursed_for_good: Vec<PieceId>,
+    /// Doors declined rather than answered, and the rung they come back on.
+    ///
+    /// The one thing an outcome can do that is not a decision: `Defer` leaves
+    /// the door standing and lets it find you again. Kept apart from
+    /// `answered` because an answered door is finished with and a deferred one
+    /// is not - and because the two lists are read by different questions.
+    pub deferred: Vec<(&'static str, usize)>,
     /// A fragile thing riding on one of your boards, and until when.
     ///
     /// The rent is paid in dead cells: it occupies a cell that could have held
@@ -620,6 +646,8 @@ impl Run {
             towns_seen: Vec::new(),
             towns_revealed: Vec::new(),
             destinations_visited: Vec::new(),
+            cursed_for_good: Vec::new(),
+            deferred: Vec::new(),
             passenger: None,
             second_key_ready: false,
             consigned: Vec::new(),
@@ -688,7 +716,16 @@ impl Run {
         let mut run = Self::new();
         run.owned.clear();
         run.registry = PieceRegistry::new();
-        run.owned = all_def_indices().into_iter().map(|d| run.registry.alloc(d)).collect();
+        run.owned = all_def_indices()
+            .into_iter()
+            // Every piece of *gear*. A rumour is a key rather than a
+            // component, and a fixture holding all of them opens every rumour
+            // door in the game at once - so a test about the VIP area found
+            // itself answering a locked gate instead, because a rumour door
+            // goes first and the chain's windows are wide.
+            .filter(|&d| !crate::rumour::is_rumour(CATALOG[d].name))
+            .map(|d| run.registry.alloc(d))
+            .collect();
         run
     }
 
@@ -806,6 +843,11 @@ impl Run {
         self.standing_events().into_iter().next()
     }
 
+    /// Is this door standing off until a later rung?
+    fn deferred_past(&self, id: &str) -> bool {
+        self.deferred.iter().any(|(d, until)| *d == id && self.rung < *until)
+    }
+
     /// Every event standing on this rung, in the order they will be asked.
     ///
     /// Rumour doors first - having gone to the trouble of earning one you
@@ -823,6 +865,22 @@ impl Run {
             .into_iter()
             .collect();
         if let Some(e) = self.whispered_event() {
+            if !out.iter().any(|o| o.id == e.id) {
+                out.push(e);
+            }
+        }
+        // The chain's own doors: standing because of something the run did
+        // rather than because of where it is.
+        for e in crate::event::EVENTS.iter() {
+            let crate::event::Trigger::WhenFlagged { flag, from } = e.trigger else { continue };
+            if !(from..=e.at).contains(&self.rung)
+                || self.answered.contains(&e.id)
+                || self.deferred_past(e.id)
+                || !self.flags.contains(&flag)
+                || e.blocked_by.iter().any(|id| self.answered.contains(id))
+            {
+                continue;
+            }
             if !out.iter().any(|o| o.id == e.id) {
                 out.push(e);
             }
@@ -859,8 +917,11 @@ impl Run {
     /// whole run so far, and the run is the only thing that knows either.
     fn whispered_event(&self) -> Option<&'static crate::event::LadderEvent> {
         crate::event::EVENTS.iter().find(|e| {
-            let crate::event::Trigger::Whispered { rumour } = e.trigger else { return false };
-            e.at == self.rung
+            let crate::event::Trigger::Whispered { rumour, from } = e.trigger else {
+                return false;
+            };
+            (from..=e.at).contains(&self.rung)
+                && !self.deferred_past(e.id)
                 && !self.answered.contains(&e.id)
                 && self.owned.iter().any(|&i| self.registry.def(i).name == rumour)
                 && crate::rumour::by_name(rumour).is_some_and(|r| self.meets(r.needs))
@@ -875,6 +936,7 @@ impl Run {
             Condition::BankedAllRun { what, at_least } => {
                 self.banked_all_run[what.index()] >= at_least
             }
+            Condition::Carried => true,
         }
     }
 
@@ -1012,6 +1074,15 @@ impl Run {
 
     fn take_choice_unchecked(&mut self, c: &crate::event::Choice) -> Option<&'static str> {
         let Some(ev) = self.pending_event() else { return None };
+        // The choice has to belong to the door that is actually standing here.
+        //
+        // It did not have to before, because one door stood on a rung and the
+        // interface only ever offered that door's choices. The chain's windows
+        // are wide enough that two can be open at once, and answering one with
+        // the other's choice marked the wrong event answered.
+        if !ev.choices.iter().any(|k| std::ptr::eq(k, c)) {
+            return None;
+        }
         if !self.choice_open(c) {
             return None;
         }
@@ -1131,6 +1202,19 @@ impl Run {
                 receipt.push(format!("Good until rung {}", self.rung + UNDERWRITTEN_FOR + 1));
             }
             ChoiceOutcome::Scout => self.scouting = true,
+            ChoiceOutcome::UnlockInsight => self.unlock_insight(),
+            ChoiceOutcome::Defer { rungs } => {
+                // Declining is not answering. The door comes off `answered`
+                // and goes onto the list of things that will find you again,
+                // which is the whole difference between "no" and "not yet".
+                let id = self.answered.pop();
+                if let Some(id) = id {
+                    match self.deferred.iter_mut().find(|(d, _)| *d == id) {
+                        Some(e) => e.1 = self.rung + rungs,
+                        None => self.deferred.push((id, self.rung + rungs)),
+                    }
+                }
+            }
             ChoiceOutcome::BuyOff { times } => {
                 if let Some(&id) = self.offerings(req).first() {
                     gave = Some(self.registry.def(id).name);
@@ -1278,6 +1362,14 @@ impl Run {
         self.forget_undo();
         self.last_receipt = Some(receipt);
         Some(what)
+    }
+
+    /// Put a named component in the tray, if there is such a thing.
+    pub fn give(&mut self, name: &str) -> Option<PieceId> {
+        let d = CATALOG.iter().position(|d| d.name == name)?;
+        let id = self.registry.alloc(d);
+        self.owned.push(id);
+        Some(id)
     }
 
     /// Take a passenger aboard, for `rungs` rungs.
@@ -1718,8 +1810,17 @@ impl Run {
                 if floor + 1 < d.floors.len() {
                     self.dungeon = Some((d, floor + 1));
                 } else {
-                    // Out the other side, with the thing you went in for.
+                    // Out the other side, with the thing you went in for -
+                    // and with whatever else it pays, which for THE THRESHOLD
+                    // is the pool and not the class.
                     self.dungeon = None;
+                    let mut lines = Vec::new();
+                    for o in d.also {
+                        lines.extend(self.apply_outcome(o, crate::event::Requirement::None).1);
+                    }
+                    if !lines.is_empty() {
+                        self.last_receipt = Some(lines);
+                    }
                     if let Some(c) =
                         crate::class::CLASSES.iter().find(|c| c.name == d.reward)
                     {
@@ -2975,6 +3076,80 @@ impl Run {
             Action::Pub => {
                 self.shop.stock_exactly(crate::rumour::on_offer());
                 out.stocked = crate::rumour::on_offer().len();
+            }
+
+            // ---- the Slagworks -------------------------------------------
+            //
+            // Every door here changes something you already own. What the
+            // crucible and the tempering want is a *piece*, and the one they
+            // get is the first thing loose in the tray - the same rule
+            // `BuyOff` has used since the toad first asked for a two-by-two.
+            // Choosing which piece is the interface's job and not the rule's.
+            Action::Crucible => {
+                if let Some(id) = self.inventory().first().copied() {
+                    self.melt(id);
+                }
+            }
+            Action::MoldLine => {
+                self.shop.stock_exactly(MOLD_LINE);
+                out.stocked = MOLD_LINE.len();
+            }
+            Action::Tempering => {
+                let cost = self.last_bounty / 2;
+                if self.gold >= cost {
+                    if let Some(id) = self.inventory().first().copied() {
+                        let def = self.registry.def_index(id);
+                        if let Some(better) = crate::piece::dearer_than(def, TEMPERING_GAIN) {
+                            self.gold -= cost;
+                            out.paid = -cost;
+                            self.registry.transform(id, better);
+                            self.forget_undo();
+                        }
+                    }
+                }
+            }
+            Action::Foreman => {
+                // He has heard something below. If you already know what, he
+                // pays you not to say it back.
+                if self.holds("A Word About the Cellar") || self.towns_revealed.contains(&"the-manse")
+                {
+                    let paid = self.last_bounty;
+                    self.gold += paid;
+                    out.paid = paid;
+                } else {
+                    self.give("A Word About the Cellar");
+                }
+            }
+
+            // ---- the Manse -----------------------------------------------
+            Action::CellarDoor => self.enter_dungeon("the-threshold"),
+            Action::Gallery => {
+                if let Some(id) = self.inventory().first().copied() {
+                    let def = self.registry.def(id);
+                    let dear = crate::rating::Rarity::of(crate::rating::piece_rating(def))
+                        > crate::rating::Rarity::Common;
+                    let paid = crate::rating::resale_price(def) * 2;
+                    self.loadout.remove_anywhere(id);
+                    self.owned.retain(|&o| o != id);
+                    self.gold += paid;
+                    out.paid = paid;
+                    if dear {
+                        self.give("A Word About the Glow");
+                    }
+                }
+            }
+            Action::LongTable => {
+                self.grown_health += LONG_TABLE_HEALTH;
+            }
+            Action::Library => {
+                if let Some(id) = self.inventory().first().copied() {
+                    let def = self.registry.def_index(id);
+                    if let Some(better) = crate::piece::dearer_than(def, LIBRARY_GAIN) {
+                        self.registry.transform(id, better);
+                        self.cursed_for_good.push(id);
+                        self.forget_undo();
+                    }
+                }
             }
         }
         self.last_receipt = Some(out.receipt());

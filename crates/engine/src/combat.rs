@@ -2850,6 +2850,13 @@ pub struct Combatant {
     /// nothing at all while held - and Dread is what turns it into damage.
     pub insight: i32,
     pub dread: u32,
+    /// Percentage of the target's mind resistance the mind damage this fighter
+    /// deals goes straight through.
+    ///
+    /// The third lane had an amplifier, a pool and an answer, and no way at
+    /// all through the answer - which the other two have had since typed
+    /// damage landed. Only one thing in the game sets it.
+    pub mind_pierce: i32,
     /// Stacks of Spellblade and Deflection: the same pair in the physical
     /// lane, and **not** scaled by mana.
     ///
@@ -3000,6 +3007,7 @@ impl Combatant {
             shield: 0,
             insight: 0,
             dread: 0,
+            mind_pierce: 0,
             spellblade: 0,
             deflection: 0,
             forking: 0,
@@ -3108,6 +3116,7 @@ impl Combatant {
             shield: 0,
             insight: 0,
             dread: 0,
+            mind_pierce: 0,
             spellblade: 0,
             deflection: 0,
             forking: 0,
@@ -3313,12 +3322,18 @@ impl Combatant {
 
     /// Mind damage eats maximum health, so it can never be healed back off.
     pub fn take_mind(&mut self, raw: i32) -> i32 {
+        self.take_mind_pierced(raw, 0)
+    }
+
+    /// The same, with a share of the resistance walked straight through.
+    pub fn take_mind_pierced(&mut self, raw: i32, pierce: i32) -> i32 {
         // The mind lane's only answer is `mind_resist`, which is the helmet's,
         // and that is deliberate. The mana shield used to blunt this too -
         // "whatever the damage type" - which made mana the answer to two lanes
         // out of three. Three lanes, three answers: the shield takes magic,
         // Deflection takes physical, and mind resistance takes this.
-        let dealt = mind_damage_after_resist(raw, self.mind_resist);
+        let left = self.mind_resist - (self.mind_resist * pierce.clamp(0, 100)) / 100;
+        let dealt = mind_damage_after_resist(raw, left);
         if dealt <= 0 {
             return 0;
         }
@@ -3792,6 +3807,7 @@ pub fn simulate_party(
             crate::class::ClassPower::SlowTime(n) => start_player.slow_time = n,
             crate::class::ClassPower::Overflowing(n) => start_player.overflowing = n,
             crate::class::ClassPower::Leeching(pct) => start_player.leech = pct,
+            crate::class::ClassPower::WrongSense(pct) => start_player.mind_pierce = pct,
             crate::class::ClassPower::Standing(_) => {}
             crate::class::ClassPower::Echo(n) => start_player.echo_every = n,
             crate::class::ClassPower::Bastion(pct) => start_player.bastion = pct,
@@ -4562,9 +4578,12 @@ fn activate(
         // Dread is the wearer's, so it is read off the swinger before the
         // blow leaves - the same shape as empowerment, which is picked up on
         // the way out rather than applied on arrival.
-        let raw = item.mind + pick(p, foes, me).mind_bonus();
+        let (raw, pierce) = {
+            let me = pick(p, foes, me);
+            (item.mind + me.mind_bonus(), me.mind_pierce)
+        };
         let target = pick(p, foes, me.other(front));
-        let dealt = target.take_mind(raw);
+        let dealt = target.take_mind_pierced(raw, pierce);
         let mh = target.max_health;
         if dealt > 0 {
             log.push(LogEntry {
@@ -5106,9 +5125,12 @@ fn apply(
         }
         Action::MindDamage { amount, target } => {
             let on = resolve(target);
-            let raw = amount + pick(p, foes, me).mind_bonus();
+            let (raw, pierce) = {
+                let me = pick(p, foes, me);
+                (amount + me.mind_bonus(), me.mind_pierce)
+            };
             let c = pick(p, foes, on);
-            let dealt = c.take_mind(raw);
+            let dealt = c.take_mind_pierced(raw, pierce);
             let mh = c.max_health;
             if dealt > 0 {
                 log.push(LogEntry {
@@ -5490,6 +5512,117 @@ pub const ALTERNATES: &[MonsterSpec] = &[
         rank: Rank::Boss,
         drops: &["The Split Wisdom"],
         items: &[3, 3, 3, 2, 2, 3, 3, 2, 4, 2, 2, 3, 3, 2, 3],
+    },
+
+    // --------------------------------------------------- the Unwinding
+    //
+    // Frames. Name, health, band and nothing on. A creature that exists
+    // before its board does is not a placeholder, it is the order the mission
+    // is built in: content lands as frames, all of it, and then every board is
+    // authored by hand in one pass against a settled rating curve - because a
+    // board authored before the curve under it stops moving is a board that
+    // will be authored twice.
+    //
+    // `CREVICE` was an empty list of specs and the four above stood beside the
+    // road for a long time without anybody saying how hard they were meant to
+    // be, so this is the pattern the repo already had rather than a new one.
+    // `bestiary::FRAMES` says what each is for and what band it packs to, and
+    // `no_frame_ships_without_a_board` is red until every one of them is
+    // dressed.
+    MonsterSpec {
+        name: "DOORKEEP",
+        health: 900,
+        strength: 10,
+        regen: 2,
+        mind_resist: 30,
+        physical_resist: 10,
+        magic_resist: 10,
+        curse_resist: 40,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 170,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    MonsterSpec {
+        name: "THE STAIR THAT LISTENS",
+        health: 1_000,
+        strength: 10,
+        regen: 2,
+        mind_resist: 35,
+        physical_resist: 12,
+        magic_resist: 12,
+        curse_resist: 45,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 180,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    MonsterSpec {
+        name: "THE LAST LANDING",
+        health: 1_200,
+        strength: 12,
+        regen: 3,
+        mind_resist: 40,
+        physical_resist: 14,
+        magic_resist: 14,
+        curse_resist: 50,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 200,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Mini,
+        drops: &[],
+        items: &[],
+    },
+    // The Herald is two of them at once, which is the first party fight in the
+    // game outside the casino - your shadow, and what your shadow carries.
+    MonsterSpec {
+        name: "THE SHADOW",
+        health: 1_600,
+        strength: 18,
+        regen: 4,
+        mind_resist: 45,
+        physical_resist: 18,
+        magic_resist: 18,
+        curse_resist: 55,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        // A fight an event arranges pays nothing - the reward is what it
+        // hands over - but a creature still says what it would be worth, the
+        // way everything else on and beside this road does.
+        bounty: 361,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Mini,
+        drops: &[],
+        items: &[],
+    },
+    MonsterSpec {
+        name: "THE LANTERN",
+        health: 700,
+        strength: 24,
+        regen: 0,
+        mind_resist: 0,
+        physical_resist: 8,
+        magic_resist: 8,
+        curse_resist: 10,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 180,
+        sprite: MonsterSprite::Wisp,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
     },
 ];
 

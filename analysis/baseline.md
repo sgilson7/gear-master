@@ -1727,3 +1727,25 @@ handed a casino chip.
 `GainDread` counts as conversion now, beside `GainSpellblade` and for the same
 reason: a stack that doubles a word counts as the word. That is what brought
 helmet's bleed back into band after fifteen new helmet pieces landed.
+
+## Drift — M10, the chain
+
+**None.** Byte-identical to M9. The chain is data: four events, two towns, a
+dungeon, three words and five frames, and not one of them is on the ladder.
+
+The frame lint has gone **red**, which is the phase discipline working. It is
+shipped as a ratchet rather than a failing test, the way `catalog_shape` is: a
+green budget at today's count that can only go down, and an `#[ignore]`d target
+that asserts zero. Five undressed creatures - the three floors of THE THRESHOLD
+and the Herald's two.
+
+One thing worth recording because it is a real bug rather than a design
+choice. **`Run::take_choice` never checked that the choice belonged to the door
+standing in front of you.** It did not have to: one door stood on one rung, and
+the interface only ever offered that door's choices. The chain's windows are
+wide enough for two doors to be open at once, and the first fixture holding all
+five words answered a locked gate with the VIP area's rescue button. Two fixes,
+because it was two faults: `take_choice` verifies ownership now, and
+`Run::with_all_pieces` hands out every piece of *gear* rather than every entry
+in the catalogue - a rumour is a key, and a fixture holding all of them opens
+every rumour door in the game at once.

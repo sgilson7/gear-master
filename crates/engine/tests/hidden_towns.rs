@@ -25,17 +25,35 @@ fn a_run() -> Run {
 
 #[test]
 fn the_three_shipped_towns_are_pinned_and_carry_the_same_four_doors() {
-    assert_eq!(TOWNS.len(), 3, "this file is the record of the migration, not of the content");
-    for t in TOWNS {
-        assert_eq!(t.unlock, Unlock::Pinned, "{} stopped being furniture", t.id);
+    let pinned: Vec<&Town> = TOWNS.iter().filter(|t| t.unlock == Unlock::Pinned).collect();
+    assert_eq!(pinned.len(), 3, "a town that was furniture stopped being it, or the reverse");
+    for t in pinned {
         assert_eq!(t.actions, &Action::ALL, "{} lost a door", t.id);
+    }
+}
+
+#[test]
+fn a_hidden_town_has_doors_of_its_own_and_shares_none_of_the_four() {
+    // Hidden is not "the same town somewhere else". A foundry has a crucible
+    // where a village has a chapel, and if it had a chapel there would be no
+    // reason to go.
+    for t in TOWNS.iter().filter(|t| t.unlock == Unlock::Hidden) {
+        assert!(!t.actions.is_empty(), "{} is a town with nothing in it", t.id);
+        for a in t.actions {
+            assert!(
+                !Action::ALL.contains(a),
+                "{} offers {:?}, which is on every road already",
+                t.id,
+                a
+            );
+        }
     }
 }
 
 #[test]
 fn a_pinned_town_is_there_without_anybody_revealing_it() {
     let run = a_run();
-    for t in TOWNS {
+    for t in TOWNS.iter().filter(|t| t.unlock == Unlock::Pinned) {
         assert_eq!(
             run.town_between(t.after + 1).map(|x| x.id),
             Some(t.id),
@@ -47,25 +65,21 @@ fn a_pinned_town_is_there_without_anybody_revealing_it() {
 
 #[test]
 fn a_hidden_town_is_not_on_the_road_until_it_is() {
-    // Written against a fabricated town rather than a shipped one, because
-    // there are no hidden towns yet and this is the machinery's test. The
-    // predicate is the whole of it: `town_between` filters on `unlock`.
-    const NOWHERE: Town = Town {
-        id: "nowhere",
-        after: 3,
-        name: "NOWHERE IN PARTICULAR",
-        blurb: &["It is not here."],
-        unlock: Unlock::Hidden,
-        actions: &[Action::Shop],
-    };
     let mut run = a_run();
-    let visible = |run: &Run, t: &Town| match t.unlock {
-        Unlock::Pinned => true,
-        Unlock::Hidden => run.towns_revealed.contains(&t.id),
-    };
-    assert!(!visible(&run, &NOWHERE));
-    run.towns_revealed.push("nowhere");
-    assert!(visible(&run, &NOWHERE));
+    for t in TOWNS.iter().filter(|t| t.unlock == Unlock::Hidden) {
+        assert!(
+            run.town_between(t.after + 1).is_none(),
+            "{} was standing in its gap before anybody heard of it",
+            t.id
+        );
+        assert!(run.reveal_town(t.id));
+        assert_eq!(
+            run.town_between(t.after + 1).map(|x| x.id),
+            Some(t.id),
+            "{} was told about and did not turn up",
+            t.id
+        );
+    }
 }
 
 #[test]

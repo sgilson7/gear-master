@@ -65,6 +65,13 @@ pub enum Condition {
     /// fight. The only question anything in the game asks about a whole
     /// playthrough rather than a moment in it.
     BankedAllRun { what: crate::piece::Resource, at_least: i32 },
+    /// Carrying it is the whole of it.
+    ///
+    /// The two the pub sells are bets on the board you will have. A word
+    /// somebody told you on the road is not a bet - it is a key, and a key
+    /// that also wanted your helmet to be full would be a key with a second
+    /// lock on it for no reason.
+    Carried,
 }
 
 impl Condition {
@@ -88,12 +95,20 @@ impl Condition {
                 at_least,
                 what.name()
             ),
+            Condition::Carried => "carrying it is the whole of it".into(),
         }
     }
 }
 
 pub struct Rumour {
     pub name: &'static str,
+    /// Whether the pub will trade for it.
+    ///
+    /// The two the bar sells are bets you place; the chain's are things
+    /// somebody tells you, and a chain you can barter your way into at the
+    /// nearest pub is not a chain. `no_rumour_is_a_key_to_nothing` still
+    /// insists every one of them can be got at somehow - see the lint.
+    pub on_the_bar: bool,
     /// What the hover says. Vague on purpose - see the module note.
     pub hint: &'static str,
     /// What the pub wants for it.
@@ -107,6 +122,7 @@ pub struct Rumour {
 pub static RUMOURS: &[Rumour] = &[
     Rumour {
         name: "A Word About the Crownwright",
+        on_the_bar: true,
         hint: "He will not measure a head that has nothing in it. Everybody \
                in the bar nods along at this and not one of them can tell you \
                what it means.",
@@ -116,6 +132,7 @@ pub static RUMOURS: &[Rumour] = &[
     },
     Rumour {
         name: "A Word About the Green Ledger",
+        on_the_bar: true,
         hint: "There is a man in green ink who has been adding up the same \
                column since before the bar had a roof. What he is counting, he \
                is counting about you.",
@@ -125,6 +142,48 @@ pub static RUMOURS: &[Rumour] = &[
             what: crate::piece::Resource::Nature,
             at_least: 100,
         },
+    },
+    // ---- the chain -------------------------------------------------------
+    //
+    // Not on the bar. These are things somebody tells you, and a chain you can
+    // barter your way into at the nearest pub is not a chain - it is a
+    // shopping list. Every one of them is handed over by a door, which is what
+    // `no_rumour_is_a_key_to_nothing` checks.
+    Rumour {
+        name: "A Word About the Wrong Stars",
+        // The one the bar sells, and the chain's on-ramp.
+        //
+        // The spec puts it in the shop's rare pool or behind the casino's
+        // second door. Both are luck, and a chain whose first step is luck is
+        // a chain most runs never see the shape of - so it goes where every
+        // other word in this game is come by, and the two that follow it are
+        // handed over by the chain itself.
+        on_the_bar: true,
+        hint: "Somebody has been thrown out of every observatory on this road \
+               for saying one sentence, and the sentence is about the stars \
+               going the wrong way.",
+        price: Barter::Kind(PieceKind::Crest),
+        opens: "the-astronomer",
+        needs: Condition::Carried,
+    },
+    Rumour {
+        name: "A Word About the Cellar",
+        on_the_bar: false,
+        hint: "There is a house on this road with a cellar door, and the man \
+               behind it is not shouting at anybody in this century.",
+        price: Barter::Rumour("A Word About the Wrong Stars"),
+        opens: "the-locked-gate",
+        needs: Condition::Carried,
+    },
+    Rumour {
+        name: "A Word About the Glow",
+        on_the_bar: false,
+        hint: "Over the ridge there is a light that is on all night and every \
+               night, and whatever is under it keeps melting down what it \
+               keeps sending up.",
+        price: Barter::Rumour("A Word About the Cellar"),
+        opens: "the-glow-over-the-ridge",
+        needs: Condition::Carried,
     },
 ];
 
@@ -142,8 +201,12 @@ pub const TROPHY_SHELF: &str = "Scrap Ticket";
 
 /// The same list as a const, because `stock_exactly` wants a slice of names
 /// and building one per visit would allocate for nothing.
-const SHELVES: &[&str] =
-    &["A Word About the Crownwright", "A Word About the Green Ledger", TROPHY_SHELF];
+const SHELVES: &[&str] = &[
+    "A Word About the Crownwright",
+    "A Word About the Green Ledger",
+    "A Word About the Wrong Stars",
+    TROPHY_SHELF,
+];
 
 pub fn by_name(name: &str) -> Option<&'static Rumour> {
     RUMOURS.iter().find(|r| r.name == name)
@@ -216,7 +279,11 @@ mod tests {
                 "{name} is on the bar and is not a component"
             );
         }
-        assert_eq!(SHELVES.len(), RUMOURS.len() + 1, "a rumour nobody can buy");
+        assert_eq!(
+            SHELVES.len(),
+            RUMOURS.iter().filter(|r| r.on_the_bar).count() + 1,
+            "a rumour on the bar that the bar does not stock, or the other way round"
+        );
         assert!(
             crate::piece::is_event_only(TROPHY_SHELF),
             "the trophy trade could be bought with money"
@@ -244,7 +311,7 @@ mod tests {
         }
         // And nothing waits on a rumour that is not one.
         for e in crate::event::EVENTS {
-            if let crate::event::Trigger::Whispered { rumour } = e.trigger {
+            if let crate::event::Trigger::Whispered { rumour, .. } = e.trigger {
                 assert!(by_name(rumour).is_some(), "{} waits on {}, which is not a rumour", e.id, rumour);
             }
         }
@@ -267,6 +334,8 @@ mod tests {
             let numbers: Vec<String> = match r.needs {
                 Condition::Crowded { under, .. } => vec![under.to_string()],
                 Condition::BankedAllRun { at_least, .. } => vec![at_least.to_string()],
+                // Nothing to give away: carrying it is the whole of it.
+                Condition::Carried => Vec::new(),
             };
             for n in numbers {
                 assert!(
@@ -277,6 +346,32 @@ mod tests {
                 );
             }
             assert!(r.hint.len() > 40, "{}: a hint has to be worth reading", r.name);
+        }
+    }
+
+    /// Every rumour can be got at somehow.
+    ///
+    /// The bar is one way and a door is the other. A word that neither sells
+    /// nor is given is a key nobody can pick up, which is the same dead
+    /// content as a key to nothing and needs saying from both ends.
+    #[test]
+    fn every_rumour_can_be_come_by() {
+        for r in RUMOURS {
+            if r.on_the_bar {
+                assert!(SHELVES.contains(&r.name), "{} says it is on the bar", r.name);
+                continue;
+            }
+            let given = crate::event::EVENTS.iter().any(|e| {
+                e.choices
+                    .iter()
+                    .any(|c| matches!(c.outcome, crate::event::Outcome::Give(n) if n == r.name))
+            });
+            // A town door is a third way. The Slagworks' foreman has been
+            // down there and will say what he heard.
+            let told = crate::town::TOWNS.iter().any(|t| {
+                t.actions.iter().any(|a| a.gives() == Some(r.name))
+            });
+            assert!(given || told, "{} is on nobody's bar and in nobody's gift", r.name);
         }
     }
 

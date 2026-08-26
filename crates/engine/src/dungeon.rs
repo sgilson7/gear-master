@@ -30,6 +30,13 @@ pub struct Dungeon {
     pub landings: &'static [&'static str],
     /// The class only this dungeon hands out.
     pub reward: &'static str,
+    /// Anything else clearing it does.
+    ///
+    /// A class is one kind of reward and the road has several. THE THRESHOLD's
+    /// prize is a *pool*, which no `ClassDef` can say - so a dungeon carries a
+    /// list of outcomes as well, applied on the way out, and the receipt says
+    /// what they were.
+    pub also: &'static [crate::event::Outcome],
 }
 
 pub const DUNGEONS: &[Dungeon] = &[
@@ -86,6 +93,46 @@ pub const DUNGEONS: &[Dungeon] = &[
              is casting a line.",
         ],
         reward: "Ascendant",
+        also: &[],
+    },
+    // The Mansus antechamber, behind a cellar door in a house that was not on
+    // the road until somebody told you about it. Three floors of wardens, and
+    // what you come out with is a sense you did not have going in.
+    Dungeon {
+        id: "the-threshold",
+        name: "THE THRESHOLD",
+        blurb: &[
+            "The man behind the cellar door has been talking for a long time \
+             and is not talking to you. He is describing a staircase. He is \
+             describing it very accurately.",
+            "Behind the door there is a staircase.",
+            "Nobody in the Manse comes down here, and everybody in the Manse \
+             knows exactly how many steps there are, which is the sort of \
+             thing that stops being strange about four minutes after you \
+             notice it.",
+        ],
+        entry: &[
+            "The door was not locked. Doors like this never are.",
+            "Behind you it is a cellar. Ahead of you it is not, and the \
+             difference happened somewhere in the middle without a line.",
+        ],
+        floors: &["DOORKEEP", "THE STAIR THAT LISTENS", "THE LAST LANDING"],
+        landings: &[
+            "It stands aside. It was always going to stand aside. What it was \
+             doing was making sure you went down rather than in.",
+            "The stair has been counting. Not the steps - there are 402 steps \
+             and it has known that since before there were steps - it has been \
+             counting *you*, and the number it has reached is one.",
+            "There is light at the bottom and the light is a person called \
+             Ghirbi, and Ghirbi is pleased to see you, which is the worst of \
+             it. You come back up seeing with the wrong sense, and it does \
+             not stop.",
+        ],
+        reward: "Threshold-Sighted",
+        also: &[
+            crate::event::Outcome::UnlockInsight,
+            crate::event::Outcome::Flag("threshold-cleared"),
+        ],
     },
 ];
 

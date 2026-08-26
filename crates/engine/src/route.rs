@@ -354,10 +354,18 @@ mod tests {
             .filter(|n| matches!(n.kind, NodeKind::Rung(r) if r != Rank::Ordinary))
             .count();
         assert!(bosses > 0, "nothing on the road is named");
-        for t in crate::town::TOWNS {
+        for t in crate::town::TOWNS.iter().filter(|t| t.unlock == crate::town::Unlock::Pinned) {
             assert!(
                 map.nodes.iter().any(|n| n.id == t.id),
                 "{} is not on the map at rung one",
+                t.id
+            );
+        }
+        // And a hidden one is not, which is the other half of the rule.
+        for t in crate::town::TOWNS.iter().filter(|t| t.unlock == crate::town::Unlock::Hidden) {
+            assert!(
+                !map.nodes.iter().any(|n| n.id == t.id),
+                "{} is on the map before anybody found it",
                 t.id
             );
         }
@@ -424,13 +432,33 @@ mod tests {
     #[test]
     fn a_hidden_town_is_not_on_the_map_until_it_is_and_then_it_is_off_the_spine() {
         let mut run = a_run();
-        // No hidden towns ship yet, so this is the machinery's assertion: a
-        // pinned town is on the spine, and the predicate that would put a
-        // hidden one beside it is the same one `town_between` reads.
         for t in crate::town::TOWNS {
-            let n = route(&run).nodes.iter().find(|n| n.id == t.id).cloned().expect("on the map");
-            assert!(!n.off_spine, "{} is pinned and was drawn beside the road", t.id);
+            let found = route(&run).nodes.iter().find(|n| n.id == t.id).cloned();
+            match t.unlock {
+                crate::town::Unlock::Pinned => {
+                    let n = found.expect("a pinned town is on the map from rung one");
+                    assert!(!n.off_spine, "{} is pinned and was drawn beside the road", t.id);
+                }
+                crate::town::Unlock::Hidden => {
+                    assert!(found.is_none(), "{} was on the map before anybody found it", t.id)
+                }
+            }
         }
+        // Found, and it is beside the road rather than on it - because it was
+        // never on the road until something put it there.
+        let hidden = crate::town::TOWNS
+            .iter()
+            .find(|t| t.unlock == crate::town::Unlock::Hidden)
+            .expect("the chain finds two");
+        run.towns_revealed.push(hidden.id);
+        let n = route(&run)
+            .nodes
+            .iter()
+            .find(|n| n.id == hidden.id)
+            .cloned()
+            .expect("revealed, and on the map");
+        assert!(n.off_spine, "{} was drawn on the spine", hidden.id);
+
         run.towns_revealed.push("nowhere");
         assert!(
             !route(&run).nodes.iter().any(|n| n.id == "nowhere"),

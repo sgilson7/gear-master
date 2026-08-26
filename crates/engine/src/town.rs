@@ -25,10 +25,57 @@ pub enum Action {
     Factory,
     /// Five shelves of gear the ordinary shop does not stock.
     Shop,
+
+    // ---- the Slagworks ---------------------------------------------------
+    //
+    // A foundry that keeps melting down what it keeps sending up. Its four
+    // doors are all about *changing* what you already own rather than adding
+    // to it, which is what a foundry is for and what makes it a different
+    // town rather than the same town somewhere else.
+    /// Throw one piece into the melt and take back another.
+    Crucible,
+    /// A curated shelf of enchantments and platings, one visit.
+    MoldLine,
+    /// Pay, and one piece comes out worth more.
+    Tempering,
+    /// He has heard something below.
+    Foreman,
+
+    // ---- the Manse -------------------------------------------------------
+    //
+    // A house over a door. Its four are about what you are willing to give up
+    // - a piece, a hundred of your health, the use of something - and every
+    // one of them is a trade rather than a purchase.
+    /// Listen at the cellar door. The man inside sounds insane and is right.
+    CellarDoor,
+    /// Sell one piece at double, and be noticed if it was a good one.
+    Gallery,
+    /// Eat. It is a universal constant.
+    LongTable,
+    /// One piece is cursed for good and worth more for it.
+    Library,
 }
 
 impl Action {
+    /// The four doors every pinned town has.
     pub const ALL: [Action; 4] = [Action::Chapel, Action::Pub, Action::Factory, Action::Shop];
+
+    /// Every door in the game, so a lint over "does this explain itself" does
+    /// not quietly stop covering the ones a hidden town brought.
+    pub const EVERY: [Action; 12] = [
+        Action::Chapel,
+        Action::Pub,
+        Action::Factory,
+        Action::Shop,
+        Action::Crucible,
+        Action::MoldLine,
+        Action::Tempering,
+        Action::Foreman,
+        Action::CellarDoor,
+        Action::Gallery,
+        Action::LongTable,
+        Action::Library,
+    ];
 
     /// The key a theme looks the name up under. Never shown raw.
     pub fn key(self) -> &'static str {
@@ -37,6 +84,14 @@ impl Action {
             Action::Pub => "town-pub",
             Action::Factory => "town-factory",
             Action::Shop => "town-shop",
+            Action::Crucible => "town-crucible",
+            Action::MoldLine => "town-mold-line",
+            Action::Tempering => "town-tempering",
+            Action::Foreman => "town-foreman",
+            Action::CellarDoor => "town-cellar-door",
+            Action::Gallery => "town-gallery",
+            Action::LongTable => "town-long-table",
+            Action::Library => "town-library",
         }
     }
 
@@ -46,6 +101,27 @@ impl Action {
             Action::Pub => "THE PUB",
             Action::Factory => "THE FACTORY",
             Action::Shop => "THE SHOP",
+            Action::Crucible => "THE CRUCIBLE",
+            Action::MoldLine => "THE MOLD LINE",
+            Action::Tempering => "THE TEMPERING",
+            Action::Foreman => "THE FOREMAN",
+            Action::CellarDoor => "THE CELLAR DOOR",
+            Action::Gallery => "THE GALLERY",
+            Action::LongTable => "THE LONG TABLE",
+            Action::Library => "THE LIBRARY",
+        }
+    }
+
+    /// The word this door hands over, if it hands one over.
+    ///
+    /// Read by `no_rumour_is_a_key_to_nothing`'s other half, which asks
+    /// whether every word in the game can be come by at all. A door is a third
+    /// route beside the bar and an event's gift.
+    pub fn gives(self) -> Option<&'static str> {
+        match self {
+            Action::Foreman => Some("A Word About the Cellar"),
+            Action::Gallery => Some("A Word About the Glow"),
+            _ => None,
         }
     }
 
@@ -70,6 +146,42 @@ impl Action {
             Action::Shop => {
                 "The man with the cart has five things on it that the road does \
                  not stock. He does take money, and he does want all of it."
+            }
+            Action::Crucible => {
+                "Throw something in. What comes out is the same slot and about \
+                 the same worth and is not the same thing, and nobody here \
+                 will tell you what it will be."
+            }
+            Action::MoldLine => {
+                "Ground, and the things that go under gear. One shelf, laid \
+                 out once, and there is always a Lightning Rod on it."
+            }
+            Action::Tempering => {
+                "Half a rung's bounty and one piece comes out of the fire \
+                 worth ten more. Its name may grow a word. That is the point."
+            }
+            Action::Foreman => {
+                "He has been down there. He will say what he heard down there, \
+                 or - if you already know - he will pay you not to say it back."
+            }
+            Action::CellarDoor => {
+                "Stand at it and listen. The man on the other side sounds \
+                 insane, and everything he says turns out to be true, and the \
+                 door is not locked."
+            }
+            Action::Gallery => {
+                "They will take one piece off you at twice what anybody else \
+                 pays. If it was a good one, somebody will mention where the \
+                 last one like it was fished up."
+            }
+            Action::LongTable => {
+                "Eat. A hundred more maximum health for the rest of the run, \
+                 and the pudding is a universal constant."
+            }
+            Action::Library => {
+                "One book, one piece, and the piece carries a curse of misfire \
+                 for good and is worth twenty-five more for having read it. \
+                 The book was worth it. Probably."
             }
         }
     }
@@ -169,6 +281,68 @@ pub const TOWNS: &[Town] = &[
              somebody go past on the way to it.",
         ],
     },
+    // ---- the two the chain finds -----------------------------------------
+    //
+    // Hidden, and standing where they do for the same reason the pinned three
+    // do: nowhere near each other, and nowhere near a town that is already
+    // there. The Manse is early because the cellar behind it is what opens the
+    // mind lane, and a lane earned at rung forty is a lane nobody uses. The
+    // Slagworks is one clear of High Wick so the two never share a stretch of
+    // road.
+    Town {
+        id: "the-manse",
+        unlock: Unlock::Hidden,
+        actions: &[
+            Action::CellarDoor,
+            Action::Gallery,
+            Action::LongTable,
+            Action::Library,
+        ],
+        after: 24,
+        name: "THE MANSE",
+        blurb: &[
+            "The gate had no road behind it and now there is a house behind \
+             it, which is the sort of thing that stops being strange about \
+             four minutes after you notice it.",
+            "Nobody in the Manse asks who you are. Two of them are eating and \
+             one of them is reading and all three of them are doing it in \
+             rooms you can hear but not find, because the doors here do not \
+             stay where they were put.",
+            "There is a cellar, and the plate on the gate said EGGBERT, and \
+             nobody inside will answer to it. Everybody in the house knows \
+             where the cellar is and nobody in the house will take you to it.",
+        ],
+    },
+    Town {
+        id: "the-slagworks",
+        unlock: Unlock::Hidden,
+        actions: &[
+            Action::Crucible,
+            Action::MoldLine,
+            Action::Tempering,
+            Action::Foreman,
+        ],
+        // Thirty-three, not thirty-two.
+        //
+        // The spec says "after rung 32 ... one clear of High Wick at 31, so
+        // the two never share a stretch of road", and thirty-two is not one
+        // clear of thirty-one, it is next to it: the gates would stand on
+        // consecutive rungs and a run would meet two towns back to back. The
+        // sentence is right and the number was one out.
+        after: 33,
+        name: "THE SLAGWORKS",
+        blurb: &[
+            "The glow over the ridge is a foundry, and the foundry has been \
+             here longer than the ridge has. Nothing is smelted here. Things \
+             are melted down, which is a different job and is done to things \
+             that were already finished once.",
+            "Two shifts, no gate, and a yard full of moulds stacked in rows \
+             going back further than the light does. Every one of them has \
+             been used and every one of them is clean.",
+            "The foreman is called Ossery and he keeps looking at the floor. \
+             Not at anything on it.",
+        ],
+    },
 ];
 
 /// The town standing between `rung - 1` and `rung`, if there is one.
@@ -256,7 +430,7 @@ mod tests {
 
     #[test]
     fn every_action_says_what_it_is_for() {
-        for a in Action::ALL {
+        for a in Action::EVERY {
             assert!(!a.name().is_empty());
             assert!(a.blurb().len() > 30, "{:?} does not explain itself", a);
             assert!(!a.key().is_empty());
