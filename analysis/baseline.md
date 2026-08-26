@@ -1863,3 +1863,73 @@ spec's audit note estimated. The count by kind:
 One of the five common-noun leaks was in `combat.rs`'s own log line, which is
 the engine speaking turtle to a player who chose the plain theme. That is the
 clearest possible statement of why the rule matters.
+
+## Drift — M16, the rating re-pinned
+
+Phase 4 opens here, and its first rule is that **nothing is packed until this
+is settled**: `stepped_component` re-gears every monster on Easy, Hard and
+Insane whenever a weight moves, so a board authored before the weights are
+final is a board authored against a ladder that is about to change under it.
+
+### What moved
+
+| Constant | Was | Now | Why |
+|---|---:|---:|---|
+| `ACTIVATIONS_PER_S` | 2.0 | **5.0** | Re-measured. The figure was set against boards reporting 1.8 / 2.3 / 4.8 activations a second; the same three boards now report 2.06 / 3.43 / 6.60, because the gear-slot rewrite gave every slot something to do on a cooldown. Five is the mean of the two finished human boards. |
+| `pool_weight(Insight)` | fuel (`MANA_PS`) | **held** (`RESOURCE_PS + HELD_PER_POINT/2`) | Nothing spends Insight. What it does is multiply every point of Dread for the rest of the fight, which is a held pool's shape, not a fuel's. M2 filed it beside the pool it was modelled on rather than measuring what it does. |
+
+`RARE_AT`, `EPIC_AT` and `LEGENDARY_AT` did **not** move, and must not: every
+generated item name in the game changes length if they do.
+
+### What that cost
+
+Everything that *watches* gained about a third — which is the whole of the
+gloves' axis, forty-seven reaction triggers priced at a third of what they see.
+Everything that does not watch lost a little, because every rating is a
+fraction of its slot's ceiling and the ceilings rose.
+
+| | Was | Now |
+|---|---:|---:|
+| Vicegrip Mold (gloves watcher) | 13 | 17 |
+| Grudge Bead (weapon watcher) | 21 | 23 |
+| Unshod Signet (the dearest piece) | 252g | 227g |
+
+One pinned number moved with it: `prices_are_worth_something_against_the_purse`
+asked the dearest piece to cost 250g and it now costs 227g. Re-pinned to 220
+with the reason in the assertion — the claim it makes, that the best piece
+costs about a late fight's pay rather than a fiftieth of it, is unchanged.
+
+### The per-monster diff
+
+`stepped_component` hands out different gear on every setting but Medium, and
+this is what the re-pin moved:
+
+| Setting | Boards whose stepped gear changed |
+|---|---:|
+| Easy | **33** of 50 |
+| Hard | **27** of 50 |
+| Insane | **26** of 50 |
+
+Medium is unmoved by construction — it wears what is authored. The four-board
+table at Medium is **byte-identical** to before the re-pin:
+
+| build | cleared | weapon % | median ttk |
+|---|---|---:|---:|
+| starter | 2/50 | 100.0% | 45.00s |
+| preset | 9/50 | 100.0% | 9.00s |
+| owner | 48/50 | 75.5% | 9.00s |
+| friend | 48/50 | 97.4% | 8.15s |
+
+Weapon share **75.5%**, inside the 66-76% band. Suite **750 green** at all four
+settings.
+
+### Already done, and checked rather than assumed
+
+The other corrections `HANDOFF.md` M5 and `analysis/second-order.md` list were
+applied when their milestones landed and are still in place: frost doubled by
+`SLOWED_ITEMS = 2.0` and deliberately left the cheapest of the three curses;
+`Grow` priced over `TYPICAL_FIGHT_S`; `Fuse` at a flat
+`0.66 x 2.0 x HELD_PER_POINT`; the enchantment arm at `BOND_POINTS = 45.0`;
+Spellblade at 11.0 level with a mana stack and Deflection at 9.0 under it.
+
+**From here to M17, nothing touches `rating.rs` or `CATALOG`.**

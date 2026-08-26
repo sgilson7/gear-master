@@ -101,8 +101,8 @@ re-pinned first**.
 | M13 | The five unconditional events (Part F) | **done** |
 | M14 | The nine structures and the three pairs (H2/D) | **done** - Phase 2 closed |
 | M15 | The words (Phase 3) | **done** |
-| M16 | Rating re-pinned first (Phase 4) | next |
-| M17 | Every frame gets its board, in `make pack` | |
+| M16 | Rating re-pinned first (Phase 4) | **done** |
+| M17 | Every frame gets its board | next |
 | M18 | Reference builds and the acceptance sweep | |
 | M19 | Final verification, then one merge | |
 
@@ -859,3 +859,47 @@ hidden-town section with the reveal-too-late case stated as design;
 UNWOUND as the one creature packed by hand.
 
 Suite: **750 green**, 0 warnings. Frame budget **13** of 15.
+
+
+---
+
+## M16 - The rating re-pinned, before anything is packed
+
+Phase 4's first rule, and the reason it is first: `stepped_component` re-gears
+every monster on Easy, Hard and Insane whenever a weight moves, so a board
+authored before the weights are final is authored against a ladder that is
+about to change under it.
+
+**Two weights moved, and both were measurements rather than opinions.**
+
+`ACTIVATIONS_PER_S`, **2 -> 5**. It was set against boards reporting 1.8, 2.3
+and 4.8 activations a second. The same three boards report 2.06, 3.43 and 6.60
+now - the gear-slot rewrite gave every slot something to do on a cooldown, and
+finished boards got busier. Five is the mean of the two finished human boards.
+Everything that *watches* was priced at a third of what it sees, which is the
+whole of the gloves' axis and forty-seven reaction triggers.
+
+`pool_weight(Insight)`, **fuel -> held**. Nothing spends Insight. What it does
+is multiply every point of Dread for the rest of the fight, which is the shape
+of a held pool, not a fuel. M2 filed it beside the pool it was modelled on
+rather than measuring what it does.
+
+The thresholds did not move and must not: every generated item name in the game
+changes length if they do.
+
+**One pinned number went with them.** The dearest piece fell from 252g to 227g
+- not because it got worse but because every rating is a fraction of its slot's
+ceiling and the ceilings rose. Re-pinned 250 -> 220 with the reason in the
+assertion.
+
+**The per-monster diff**: 33 boards on Easy, 27 on Hard, 26 on Insane now wear
+different stepped gear. Medium is unmoved by construction - it wears what is
+authored - and the four-board table at Medium is byte-identical, weapon share
+still 75.5%.
+
+The rest of the corrections `HANDOFF.md` M5 lists were checked rather than
+assumed: frost, `Grow`, `Fuse`, `BOND_POINTS` and the twins' weights are all in
+place from the milestones that landed them.
+
+Suite: **750 green**, 0 warnings. From here to M17, nothing touches `rating.rs`
+or `CATALOG`.

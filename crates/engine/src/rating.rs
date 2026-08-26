@@ -482,13 +482,19 @@ fn action_points(a: &Action) -> f32 {
 /// somewhere in the middle of one.
 /// Friendly activations a second on a board worth having.
 ///
-/// Measured rather than assumed. `tests/baseline.rs` reports 1.8 a second for
-/// the engine's own preset, 2.3 for one finished run and 4.8 for another with
-/// thirteen items on it; the starter board, which is one item, manages 0.5.
-/// Two is what a reasonable build gets, which is the standard every other
-/// discount in this file is set by. The spec guessed one, which is a board
-/// nobody plays.
-const ACTIVATIONS_PER_S: f32 = 2.0;
+/// Measured rather than assumed, and **re-measured in M16 against boards that
+/// had grown since**. The figures this was set by - 1.8 for the preset, 2.3
+/// and 4.8 for the two finished runs - are now 2.06, 3.43 and 6.60, because
+/// the gear-slot rewrite gave every slot something to do on a cooldown and
+/// finished boards got busier.
+///
+/// **Five**, the mean of the two finished human boards. Two was a third of
+/// what a real board does, and everything in this file that watches - which
+/// is the whole of the gloves' axis, forty-seven reaction triggers - was
+/// priced at a third of what it sees. The preset sits below this figure
+/// because it is a reference build rather than a finished one; the starter,
+/// at 0.5, is one item and is not evidence of anything.
+const ACTIVATIONS_PER_S: f32 = 5.0;
 
 /// How often a watcher of each kind sees the thing it is counting.
 ///
@@ -512,9 +518,17 @@ fn watched_per_s(what: crate::piece::Watched) -> f32 {
 fn pool_weight(what: crate::piece::Resource) -> f32 {
     use crate::piece::Resource;
     match what {
-        // Mana and Insight are fuel: neither pays anything while it is merely
-        // held, and both are worth exactly what the stacks they feed are worth.
-        Resource::Mana | Resource::Insight => weight::MANA_PS,
+        // Mana is fuel: it pays nothing while merely held and is worth exactly
+        // what the stacks it feeds are worth.
+        Resource::Mana => weight::MANA_PS,
+        // Insight is not fuel, and pricing it as fuel was M2 filing it beside
+        // the pool it was modelled on rather than measuring what it does.
+        // Nothing spends it. What it does is multiply every point of Dread for
+        // the rest of the fight, which is the shape of a *held* pool - so it
+        // is priced as one, with the same conditionality mana's stacks carry:
+        // worth this to a board that also carries Dread, and worth nothing to
+        // a board that does not.
+        Resource::Insight => weight::RESOURCE_PS + weight::HELD_PER_POINT / 2.0,
         Resource::Rage | Resource::Faith | Resource::Nature => {
             weight::RESOURCE_PS + weight::HELD_PER_POINT / 2.0
         }
