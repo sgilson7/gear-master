@@ -537,33 +537,52 @@ The three that are not are the three that should not be:
 
 ### CLAUDE.md
 
-**Not edited, deliberately.** The working tree carried an uncommitted rewrite of
-it from the previous session - the one that wrote `HANDOFF-prose.md` - along
-with an unfinished move of the handoffs into `design/`, and one reference in it
-(`analysis/post-unwinding.md`) points at a file that is at `design/` instead.
-Committing that would have meant finishing and signing somebody else's
-in-flight reorganisation inside a prose commit.
+**Landed**, at the owner's word, in `2a99906`. It was held back at first because
+the working tree already carried an uncommitted rewrite of it from the previous
+session - the one that wrote `HANDOFF-prose.md` - along with an unfinished move
+of the handoffs into `design/`, and finishing somebody else's reorganisation
+inside a prose commit is not a thing to do unasked. Asked, it is one commit.
 
-Three things belong in its trap list when that lands:
+What went in:
 
-> **The book-word ratchet used to be blind to capitals.** `two_voices::leaks()`
-> compared exact case, and this game puts proper nouns on signs and brass
-> plates: EGGBERT, BUNKO, HENPECK and THRUMBUS all shipped in the canonical
-> column with a green budget of 5. It compares case-insensitively now. If you
-> add a `BOOK` word, add it in the case the book uses and trust the lint.
+- **The moves.** `HANDOFF.md` and `HANDOFF-unwinding.md` into `design/` beside
+  the specs they record, plus `post-unwinding.md`, `rl-agent-plan.md` and
+  `rl-research.md`, which were untracked. CLAUDE.md pointed at
+  `analysis/post-unwinding.md`, which was nowhere. Every `design/`, `crates/`
+  and `docs/` path it names resolves now, checked rather than assumed.
+- **The counts, re-read.** 781 green, 40 ignored, 49 binaries; gui 61; no
+  warnings anywhere in the workspace under rustc 1.95 - the two the file
+  recorded were a 1.75 artefact. Engine src is 35,019 lines. §3's map cited
+  eight line numbers that had drifted with this pass (`run.rs`'s `road_stack`,
+  `settle`, `fight_next`, `apply_preset`, `skip_to`/`force_win`, the PRNG and
+  the two constructors; `combat.rs`'s `LADDER`, `ALTERNATES`, `CREVICE`,
+  `CombatLog`, `simulate_party` and the `RUST_GOLEM` splice) and they are
+  re-derived.
+- **Traps 18 to 21**, as written out below, plus the `names_something` blind
+  spot as a closing note in §6.
+- **§6 opens with the prose pass** as merged and published, pointing at this
+  ledger and at the brief.
+
+One correction to a count I made in passing and then checked: the suite grew by
+tests, not by binaries. It is still 49 integration binaries; I had briefly
+written 50.
+
+The four traps, for reference:
+
+> **18.** `two_voices::leaks()` compared book words case-sensitively, and this
+> game puts its proper nouns on signs and brass plates. EGGBERT, BUNKO,
+> HENPECK and THRUMBUS all shipped behind a green budget of 5. It compares
+> case-insensitively now, and `pedestal.rs` is walked too.
 >
-> **A silent counter with no door is dead content.** `no_flag_is_waited_on_forever`
-> catches a flag waited on and never set; nothing caught the mirror until
-> `completable.rs` gained `COUNTERS_NOBODY_READS`, which is 3.
+> **19.** A silent counter with no door is dead content, and only the flag half
+> of that was ever linted. `COUNTERS_NOBODY_READS` is 3.
 >
-> **`LadderEvent::at` is zero-based and prose is not.** THE CONTRACT promised
-> "rung 28" for a payout standing on rung 29. That is trap nine's fourth bug.
-> `structures.rs::the_contract_names_the_rung_the_payout_actually_stands_on`
-> pins that one; nothing pins the general case, because nothing can tell which
-> figure in a scene is meant to be a rung.
-
-And the counts, when they are re-read: engine **781 green, 40 ignored, 51
-binaries**; gui **61**.
+> **20.** `LadderEvent::at` is zero-based and prose is not. THE CONTRACT
+> promised "rung 28" for a payout standing on rung 29.
+>
+> **21.** A lint can be satisfied by the wrong thing.
+> `every_scene_names_something` passed on any digit, so eighteen anonymous
+> scenes grew numbers instead of names.
 
 ### `analysis/baseline.md`
 
