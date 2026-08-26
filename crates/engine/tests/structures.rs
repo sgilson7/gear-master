@@ -217,6 +217,27 @@ fn a_figure_is_the_only_way_through_that_door() {
 
 // ------------------------------------------------- the contract, and its end
 
+/// The rung the contract promises is the rung the payout stands on.
+///
+/// It was not. THE CONTRACT said "you will believe it at rung 28" and THE
+/// PAYOUT is `at: 28`, which is **rung 29** on screen - `LadderEvent::at` is
+/// zero-based and the displayed rung is `at + 1`, which is trap nine in
+/// CLAUDE.md and has now cost this repo four bugs. Nothing caught it because
+/// nothing reads prose for numbers, and a player walking to rung 28 to collect
+/// would simply have found nobody there.
+///
+/// Pinned rather than generalised: a lint over every figure in every scene
+/// cannot tell which of them is meant to be a rung. This is the one that is.
+#[test]
+fn the_contract_names_the_rung_the_payout_actually_stands_on() {
+    let promised = format!("rung {}", event("the-payout").at + 1);
+    let said = event("the-contract").prose.join(" ");
+    assert!(
+        said.contains(&promised),
+        "the payout stands on {promised} and the contract says:\n  {said}"
+    );
+}
+
 #[test]
 fn a_signed_contract_runs_every_slot_cold_for_exactly_three_rungs() {
     let mut run = a_run();
@@ -251,7 +272,7 @@ fn the_payout_reads_the_column_and_an_empty_column_pays_nothing() {
     assert!(kept.choice_open(collect), "a signed contract is not in the ledger");
     let before = kept.gold;
     kept.take_choice(collect);
-    assert!(kept.gold > before, "Treyway kept the money");
+    assert!(kept.gold > before, "the house kept the money");
     assert!(kept.underwritten_until.is_some(), "and the name they honour once");
 
     let mut walked = a_run();

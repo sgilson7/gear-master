@@ -250,7 +250,19 @@ fn every_scene_names_something() {
 /// floor of his own counting house, Nance Twiss on her folding stool, and
 /// Salter behind the bar of the inn with the long table - three scenes that
 /// had been standing on "All 3 copies", "19 years" and "40 years".
-const DIGIT_PROPS: usize = 15;
+///
+/// 10 once the third batch named Braddock at the milestone and again at the
+/// payout table, Vell in the hired room, Dorn and Ilder at the ring, and Sarn
+/// reading the reserve out - which took "the 4th one down", "the 3 chairs",
+/// "6 years each" and "1 lot a month" with them.
+///
+/// A note for whoever lowers this next: the proxy cannot see a name that only
+/// ever *opens* a sentence, because at a sentence start it cannot tell "Vell"
+/// from "The". THE BUYER named its man twice and failed anyway. The answer is
+/// to write the name into the middle of a sentence somewhere, which is better
+/// prose in any case - not to widen the proxy, which would mean keeping a list
+/// of the cast in a test file and fitting the test to its data.
+const DIGIT_PROPS: usize = 10;
 
 fn leaning_on_a_number() -> Vec<String> {
     every_scene()

@@ -270,3 +270,53 @@ failed with *"the list shrank to 15 - lower DIGIT_PROPS in the commit that
 earned it"*, which is exactly what a budget that cannot be slack is for.
 
 **Suites:** engine **779 green, 40 ignored, 0 warnings**; gui **61 green**.
+
+---
+
+## P4 batch 3 - rungs 25 to 36
+
+Nine scenes. **`DIGIT_PROPS` 15 -> 10.**
+
+### A real bug, found by reading
+
+**THE CONTRACT promised a rung nobody stands on.** Its prose said *"you will
+believe it at rung 28"*. THE PAYOUT is `at: 28`, and `LadderEvent::at` is
+zero-based, so the payout stands on **rung 29**. A player who signed and walked
+to rung 28 to collect would have found an empty stretch of road. Trap nine in
+CLAUDE.md, and this is the fourth bug it has caused.
+
+Nothing caught it because nothing reads prose for numbers. There is now a pin -
+`structures.rs::the_contract_names_the_rung_the_payout_actually_stands_on` -
+which builds the string from `event("the-payout").at + 1` and asserts the
+contract's prose contains it. Pinned rather than generalised on purpose: a lint
+over every figure in every scene cannot tell which of them is meant to be a
+rung. This one is.
+
+### The scenes
+
+| Scene | What changed |
+|---|---|
+| `the-contract` | "A man from an underwriting house" -> **Braddock**, who underwrites and says the word the way another man would say farriery. *"He does not say what their side is"* - a `HEDGES` tell, and fault two in its purest form - now says their side: four rungs' worth and one loss underwritten, which is exactly what THE PAYOUT's own button pays. A contract whose terms you cannot read is not a decision, it is a shrug |
+| `the-bird-problem` | "A courier" -> **Pether**, which also breaks the duplicate he shared with THE PASSENGER fifteen rungs later |
+| `the-payout` | "the same man behind it" -> **Braddock** again, and "the 4th one down" gone |
+| `the-astronomer` | Halloway was already named. What changed is the close: it ended *"He says it as though it settles something"* and AHEAD OF SCHEDULE ends *"as though that settles it"*. Same beat, two scenes, seven rungs apart. Halloway "offers the crack as the proof" instead |
+| `the-vip-area` | Merrik was already named. The "Walk on" blurb ended on *"which is the worst of it"*, which THE THRESHOLD's last landing uses better; Merrik holds the door instead, which stings more |
+| `the-wizards-thirst` | **nothing.** Sam the Wise is named, the hoard is concrete, and "entirely unwilling to say why" is the wizard refusing rather than the narrator hedging |
+| `the-buyer` | The type specimen for fault two. *"he buys the things a run has that a run cannot put a price on, and he can, which is the whole of his trade"* sat directly above three buttons reading a word, a title, and a hundred of your maximum health. It says those three things now, and the paragraph's interest moves to why the room is hard to be in. "The buyer" -> **Vell**; "the 3 chairs" gone, in a scene whose first line mentions one chair |
+| `the-exhibition` | "The two finest players" -> **Dorn and Ilder**, and "6 years each" gone. The decline blurb was "One of them says that is fair. The other does not say that is fair" and is now those two by name, which is the same joke with people in it |
+| `the-sealed-bid` | Had nobody in it at all. **Sarn** writes the reserve, takes the figures, and reads your losing bid out to the room in the voice he reads the winning one in - which is the sting the scene was gesturing at |
+
+Also: the casino's Marlow works a **book**, not a clipboard. Merrik has a
+clipboard, and two of them twenty rungs apart is the same duplicate-prop fault
+this pass keeps finding.
+
+### A limitation of the proxy, worth writing down
+
+`names_something` cannot see a name that only ever **opens** a sentence: at a
+sentence start it cannot tell "Vell" from "The". THE BUYER named its man twice
+and failed the lint anyway. The fix was to write him into the middle of a
+sentence, which is better prose regardless - not to widen the proxy, which
+would mean keeping the cast list in a test file and fitting the test to its
+data, which is the fault this file's own comments warn about.
+
+**Suites:** engine **780 green, 40 ignored, 0 warnings**; gui **61 green**.

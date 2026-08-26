@@ -755,7 +755,7 @@ pub const EVENTS: &[LadderEvent] = &[
             },
             Choice {
                 label: "Walk on",
-                blurb: "Merrik thanks you for coming and means it, which is the worst of it.",
+                blurb: "Merrik thanks you for coming and means it, and holds the door for you.",
                 requires: Requirement::None,
                 outcome: Outcome::FightAsWritten,
                 unmet: "",
@@ -789,7 +789,7 @@ pub const EVENTS: &[LadderEvent] = &[
              have the gold. You have taken your one handful.",
             "At the third table along, two players have stopped playing \
              Hold-Em and started on each other. The room has formed a ring \
-             around it. Marlow is working through the ring with a clipboard, \
+             around it. Marlow is working through the ring with a book, \
              taking side bets in a very neat hand, and the dealer is standing \
              perfectly still with the wasp held out at arm's length.",
         ],
@@ -1020,7 +1020,7 @@ pub const EVENTS: &[LadderEvent] = &[
              direction, and the direction is *down*, which is not a direction \
              the sky has.",
             "His lens is cracked from the middle out. He says that happened \
-             on the eighth one. He says it as though it settles something.",
+             on the eighth one, and offers the crack as the proof.",
         ],
         choices: &[
             Choice {
@@ -1353,9 +1353,9 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "Vermin Sovereign",
         title: "THE BIRD PROBLEM",
         prose: &[
-            "A courier hands you a memo. It is four pages, it is CC'd to \
-             three governing bodies, and its subject line is THE COMING \
-             TERRITORIAL WAR WITH THE BIRDS.",
+            "A courier called Pether hands you a memo. It is four pages, it \
+             is CC'd to three governing bodies, and its subject line is THE \
+             COMING TERRITORIAL WAR WITH THE BIRDS.",
             "Page two lists three potential outcomes. Two of them are bad. \
              The third is described as 'bad, but ours', which is the sort of \
              sentence that takes a committee eleven weeks.",
@@ -1366,7 +1366,7 @@ pub const EVENTS: &[LadderEvent] = &[
         choices: &[
             Choice {
                 label: "Arm up",
-                blurb: "The courier has one spare and is glad to be rid of it.",
+                blurb: "Pether has one spare and is glad to be rid of it.",
                 requires: Requirement::None,
                 outcome: Outcome::Give("Vicegrip Mold"),
                 unmet: "",
@@ -1376,7 +1376,7 @@ pub const EVENTS: &[LadderEvent] = &[
                 blurb: "One rung's bounty and the flock parts. Nothing follows.",
                 requires: Requirement::Purse { times: 1 },
                 outcome: Outcome::FightAsWritten,
-                unmet: "The birds do not take promises and the courier has stopped listening.",
+                unmet: "The birds do not take promises and Pether has stopped listening.",
             },
             Choice {
                 label: "Ignore the memo",
@@ -1581,16 +1581,17 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "The Tallow Saint",
         title: "THE SEALED BID",
         prose: &[
-            "The foundry auctions 1 lot a month and does it the old way: a \
-             reserve written down before anybody arrives, one figure from each \
-             bidder, and no second round.",
+            "The foundry auctions one lot a month and does it the old way. \
+             Sarn writes the reserve down before anybody arrives, takes one \
+             figure from each bidder, and holds no second round.",
             "Over the reserve and the lot is yours at the reserve. Under it and \
-             the lot is somebody else's and your figure is read out anyway.",
+             the lot is somebody else's, and Sarn reads your figure out anyway, \
+             to the room, in the voice he reads the winning one in.",
         ],
         choices: &[
             Choice {
                 label: "Name a figure",
-                blurb: "One number, written once. They read the reserve out either way.",
+                blurb: "One number, written once. Sarn reads the reserve out either way.",
                 requires: Requirement::Figure { min: 0, max: 5_000 },
                 outcome: Outcome::SealedBid {
                     lots: &["the Skip Stone", "the Second Key", "the Appeal", "The Odometer"],
@@ -1599,7 +1600,7 @@ pub const EVENTS: &[LadderEvent] = &[
             },
             Choice {
                 label: "Watch",
-                blurb: "Somebody wins it. The reserve is read out to the room.",
+                blurb: "Somebody else wins it. Sarn reads the reserve out to the room.",
                 requires: Requirement::None,
                 outcome: Outcome::FightAsWritten,
                 unmet: "",
@@ -1614,15 +1615,18 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "Cog Priest",
         title: "THE CONTRACT",
         prose: &[
-            "A man from an underwriting house sets a document on a milestone \
-             and does not hand you a pen, on the grounds that people who need \
-             a pen handed to them do not sign.",
+            "A man called Braddock sets a document on a milestone and does not \
+             hand you a pen, on the grounds that people who need a pen handed \
+             to them do not sign. He underwrites. He says the word the way \
+             another man would say farriery.",
             "The clause is one line. Your gear runs cold for three rungs - all \
              of it, every slot, no exceptions and no early exit - and if you \
              are still upright at the end of the third one, they honour their \
              side.",
-            "He does not say what their side is. He says you would not believe \
-             it standing here and that you will believe it at rung 28.",
+            "Their side is four rungs' worth of gold and one loss underwritten: \
+             fall inside five rungs of collecting and the house eats that \
+             fall. Braddock gives both figures standing here, says you collect \
+             at rung 29, and does not offer to write any of it down.",
         ],
         choices: &[
             Choice {
@@ -1634,7 +1638,7 @@ pub const EVENTS: &[LadderEvent] = &[
             },
             Choice {
                 label: "Walk past the milestone",
-                blurb: "He does not look up. He was not expecting you to.",
+                blurb: "Braddock does not look up. He was not expecting you to.",
                 requires: Requirement::None,
                 outcome: Outcome::FightAsWritten,
                 unmet: "",
@@ -1650,8 +1654,8 @@ pub const EVENTS: &[LadderEvent] = &[
         title: "THE PAYOUT",
         prose: &[
             "The house keeps its word and keeps it in an office, and the \
-             office is a table at the roadside with the same man behind it and \
-             a ledger open at your column, which is the 4th one down.",
+             office is a table at the roadside with Braddock behind it and a \
+             ledger open at your column.",
             "He has been reading the column while you walked. He knows to the \
              rung how cold you were and for how long, and he did not have to \
              ask anybody.",
@@ -1718,14 +1722,16 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "The Long Mirror",
         title: "THE BUYER",
         prose: &[
-            "The buyer works out of a hired room with the door open \
-             and a chair set exactly far enough back that you have to walk in.",
-            "He does not sell. He buys, and what he buys is not gear: he buys \
-             the things a run has that a run cannot put a price on, and he can, \
-             which is the whole of his trade.",
-            "He is entirely honest about it. He says what each one is worth, \
+            "The man who buys is called Vell and he works out of a hired room \
+             with the door open and one chair set exactly far enough back that \
+             you have to walk in to sit on it.",
+            "He does not sell. He buys three things and only those three: a \
+             word somebody told you, a title you are, and a hundred of your \
+             maximum health. None of them is gear and none of them has a price \
+             anywhere else.",
+            "He is entirely honest about it. Vell says what each one is worth, \
              to the gold, and the number is correct every time - and that, \
-             rather than the 3 chairs or the open door, is what makes the room \
+             rather than the open door or the chair, is what makes the room \
              hard to be in.",
         ],
         choices: &[
@@ -1939,9 +1945,9 @@ pub const EVENTS: &[LadderEvent] = &[
         expects: "The Last Gearwright",
         title: "THE EXHIBITION",
         prose: &[
-            "The two finest players the ring game ever had are both retired \
-             now, 6 years each, and are between them about as bored as it is \
-             possible for two people to be.",
+            "Dorn and Ilder were the two finest players the ring game ever \
+             had. They are both retired now and are, between them, about as \
+             bored as it is possible for two people to be.",
             "They want a demonstration bout. Two of them, one of you, in front \
              of whoever is passing, at exhibition stakes - which means nobody \
              is going to be seriously hurt and everybody is going to be seen.",
@@ -1955,11 +1961,11 @@ pub const EVENTS: &[LadderEvent] = &[
                     Outcome::Claim("Showstopper"),
                     Outcome::Step(&THE_SHOWFIGHTERS),
                 ]),
-                unmet: "The taller one looks at what you have built and is far too polite about it.",
+                unmet: "Ilder looks at what you have built and is far too polite about it.",
             },
             Choice {
                 label: "Decline politely",
-                blurb: "One of them says that is fair. The other does not say that is fair.",
+                blurb: "Dorn says that is fair. Ilder does not say that is fair.",
                 requires: Requirement::None,
                 outcome: Outcome::FightAsWritten,
                 unmet: "",
