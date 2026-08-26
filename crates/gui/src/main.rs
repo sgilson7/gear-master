@@ -8119,7 +8119,121 @@ fn render_mode_select(
 /// legible in the first place.
 /// Returns the close button, the next-page button, the page count, and the
 /// region of the one entry that is also a control - see `SKIP_TERM`.
-fn render_glossary(tab: usize, page: usize, mx: f32, my: f32) -> GlossaryHit {
+/// One glossary entry, whichever shelf it came off.
+///
+/// The three tabs used to be three layouts - the words in four columns, the
+/// classes in three with a different block shape, the axes in three with
+/// another - and each carried its own pagination loop that had to agree with
+/// its own drawing loop about where the pages broke. They disagreed once and
+/// the footer read "page 7 of 6".
+///
+/// One shape behind all three, and no pages at all.
+struct Entry {
+    /// What goes on the chip. Short by construction: it is a term.
+    title: String,
+    /// The lines under it, already in this theme's words.
+    body: Vec<String>,
+    /// The blue line some entries carry between the title and the body - a
+    /// class's requirements, which are neither its blurb nor its effect.
+    aside: Vec<String>,
+}
+
+/// Everything on one shelf.
+fn glossary_entries(tab: usize) -> Vec<Entry> {
+    match tab {
+        1 => gearmaster_engine::class::CLASSES
+            .iter()
+            .map(|c| Entry {
+                title: words::class(c.name).to_string(),
+                body: vec![words::retell(c.blurb), words::retell(&c.power.describe())],
+                aside: if c.requires.is_empty() {
+                    // Nothing you wear points at these, so the line that would
+                    // list what to build says where to go instead.
+                    vec![words::retell(
+                        gearmaster_engine::class::how_you_get_it(c.name)
+                            .unwrap_or("asks for nothing"),
+                    )]
+                } else {
+                    c.requires
+                        .iter()
+                        .map(|&(axis, need)| {
+                            format!("{} {}+", words::retell(&axis.name()), need)
+                        })
+                        .collect()
+                },
+            })
+            .collect(),
+        2 => gearmaster_engine::class::Axis::glossary()
+            .into_iter()
+            .map(|(name, text)| Entry {
+                title: words::retell(&name),
+                body: vec![words::retell(text)],
+                aside: Vec::new(),
+            })
+            .collect(),
+        _ => GLOSSARY
+            .iter()
+            .map(|(term, meaning)| match words::current().glossary_entry(term) {
+                Some((t, d)) => Entry {
+                    title: t.to_string(),
+                    body: vec![d.to_string()],
+                    aside: Vec::new(),
+                },
+                None => Entry {
+                    title: (*term).to_string(),
+                    body: vec![words::retell(meaning)],
+                    aside: Vec::new(),
+                },
+            })
+            .chain(words::current().extra_glossary().map(|(t, d)| Entry {
+                title: t.to_string(),
+                body: vec![d.to_string()],
+                aside: Vec::new(),
+            }))
+            .collect(),
+    }
+}
+
+/// Where every chip sits, for a shelf of them in a strip `w` wide.
+///
+/// Laid out by measuring each title rather than by dividing the width into
+/// columns: "A HIT" and "PHYSICAL / MAGIC" are the same kind of thing and not
+/// remotely the same width, and a column grid sized for the longest wastes
+/// most of the strip on the shortest.
+///
+/// `measure` is passed in rather than called directly, because `text_width`
+/// wants macroquad's font context and this wants testing. Same reason
+/// `shown_count` is not a method.
+fn chip_rects(titles: &[String], x: f32, y: f32, w: f32, measure: impl Fn(&str) -> f32) -> Vec<Rect> {
+    const H: f32 = 26.0;
+    const GAP: f32 = 6.0;
+    let mut out = Vec::with_capacity(titles.len());
+    let (mut cx, mut cy) = (x, y);
+    for t in titles {
+        // A title wider than the whole strip still gets a chip: clamped, and
+        // starting a row of its own rather than vanishing off the edge.
+        let cw = (measure(t) + 18.0).min(w);
+        if cx + cw > x + w && cx > x {
+            cx = x;
+            cy += H + GAP;
+        }
+        out.push(Rect::new(cx, cy, cw, H));
+        cx += cw + GAP;
+    }
+    out
+}
+
+const CHIP_TEXT: f32 = 12.0;
+
+/// The glossary: every term on one screen, and one of them open.
+///
+/// It was four columns of term-and-paragraph, paginated, and a shelf of forty
+/// words ran to three pages you had to walk through to find one of them. A
+/// chip is a term at its own width, so the whole shelf fits above the fold and
+/// finding a word is reading rather than paging. What you click opens in a
+/// panel that does not move, so clicking down a row does not make the page
+/// jump under the cursor.
+fn render_glossary(tab: usize, pick: usize, mx: f32, my: f32) -> GlossaryHit {
     let pad = 56.0;
     let r = Rect::new(pad, pad, LOGICAL_W - 2.0 * pad, LOGICAL_H - 2.0 * pad);
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 228));
@@ -8131,22 +8245,17 @@ fn render_glossary(tab: usize, page: usize, mx: f32, my: f32) -> GlossaryHit {
     let close = Rect::new(r.x + r.w - 140.0, r.y + 16.0, 120.0, 34.0);
     button(close, "CLOSE", true, mx, my);
 
-    // Three shelves: the words, the classes, and the axes a fountain scores
-    // a build on. Each of the last two wants a paragraph per entry, which
-    // does not fit the four-column layout the plain definitions use.
+    // Three shelves: the words, the classes, and the axes a fountain scores a
+    // build on.
     let tw = 150.0;
     let tabs = [
         Rect::new(r.x + 320.0, r.y + 20.0, tw, 30.0),
         Rect::new(r.x + 320.0 + tw + 10.0, r.y + 20.0, tw, 30.0),
         Rect::new(r.x + 320.0 + (tw + 10.0) * 2.0, r.y + 20.0, tw, 30.0),
     ];
-    let tab_names = [
-        words::word("classes", "CLASSES"),
-        words::word("axes", "WHAT DECIDES"),
-    ];
-    for (i, (rect, name)) in
-        tabs.iter().zip(["WORDS", tab_names[0], tab_names[1]]).enumerate()
-    {
+    let tab_names =
+        [words::word("classes", "CLASSES"), words::word("axes", "WHAT DECIDES")];
+    for (i, (rect, name)) in tabs.iter().zip(["WORDS", tab_names[0], tab_names[1]]).enumerate() {
         let on = i == tab;
         draw_rectangle(
             rect.x,
@@ -8175,348 +8284,105 @@ fn render_glossary(tab: usize, page: usize, mx: f32, my: f32) -> GlossaryHit {
             if on { col_gold() } else { col_dim() },
         );
     }
-    if tab == 1 || tab == 2 {
-        let pages = if tab == 1 {
-            render_class_pages(r, page, mx, my)
-        } else {
-            render_axis_pages(r, page)
-        };
-        let next = Rect::new(r.x + r.w - 260.0, r.y + r.h - 46.0, 240.0, 34.0);
-        if pages > 1 {
-            ui_text(
-                &format!("page {} of {}", page + 1, pages),
-                r.x + 24.0,
-                r.y + r.h - 22.0,
-                14.0,
-                col_dim(),
-            );
-            button(next, if page + 1 < pages { "NEXT PAGE" } else { "BACK TO START" }, true, mx, my);
-        }
-        return GlossaryHit { close, next, pages, skip: None, tabs };
-    }
 
-    // The tile legend only belongs on the first page.
-    // The tile legend only belongs on the first page - but it takes vertical
-    // room, and the page *count* has to know that. Measuring it on whichever
-    // page happens to be open and applying that height to every page is what
-    // made the footer read "page 7 of 6": page one counted as though every
-    // page were short, page seven as though none were.
-    let legend_h = draw_tile_legend_maybe(r, page == 0);
-    let top_of = |p: usize| r.y + 96.0 + if p == 0 { legend_h } else { 0.0 };
-    let bottom = r.y + r.h - 54.0;
-    let gap = 24.0;
-    let cols = 4usize;
-    let size = 14.0f32;
-    let col_w = (r.w - 48.0 - (cols - 1) as f32 * gap) / cols as f32;
-    let lh = line_h(size);
+    let entries = glossary_entries(tab);
+    let titles: Vec<String> = entries.iter().map(|e| e.title.clone()).collect();
+    let strip_x = r.x + 24.0;
+    let strip_w = r.w - 48.0;
+    let legend_h = draw_tile_legend_maybe(r, tab == 0);
+    let strip_y = r.y + 96.0 + legend_h;
+    let rects = chip_rects(&titles, strip_x, strip_y, strip_w, |t| text_width(t, CHIP_TEXT));
 
-    // Walk the whole list, laying it out page by page, and only draw the one
-    // asked for. Cheap enough at this size, and it means the page count and
-    // the layout can never disagree.
-    // The glossary in this theme's words: entries it replaces are swapped,
-    // entries it adds come last, and everything else has its definition
-    // re-told. Built once here rather than at each of the three places below
-    // that walk it.
-    let entries: Vec<(&str, String)> = GLOSSARY
-        .iter()
-        .map(|(term, meaning)| match words::current().glossary_entry(term) {
-            Some((t, d)) => (t, d.to_string()),
-            None => (*term, words::retell(meaning)),
-        })
-        .chain(words::current().extra_glossary().map(|(t, d)| (t, d.to_string())))
-        .collect();
-
-    let mut at = 0usize;
-    let mut this_page = 0usize;
-    let mut col = 0usize;
-    let mut y = top_of(0);
-    let mut pages = 1usize;
-    let mut start_of_page = 0usize;
-    let mut skip_hot: Option<Rect> = None;
-    while at < entries.len() {
-        let (term, meaning) = (&entries[at].0, &entries[at].1);
-        let lines = wrap_px(meaning, col_w - 16.0, size);
-        let needed = lh * (1.0 + lines.len() as f32) + 10.0;
-        if y + needed > bottom {
-            if col + 1 < cols {
-                col += 1;
-                y = top_of(this_page);
-            } else {
-                // Page full.
-                if this_page == page {
-                    break;
-                }
-                this_page += 1;
-                pages += 1;
-                col = 0;
-                y = top_of(this_page);
-                start_of_page = at;
-                continue;
-            }
-        }
-        if this_page == page {
-            let x = r.x + 24.0 + col as f32 * (col_w + gap);
-            // One entry is a control as well as a definition. It is not marked
-            // as one - finding it is the point - but it does light up under
-            // the cursor, so nobody has to click every word to be sure.
-            let is_skip = *term == SKIP_TERM;
-            let hot = is_skip
-                && Rect::new(x, y - lh, col_w, lh * (1.0 + lines.len() as f32))
-                    .contains(Vec2::new(mx, my));
-            let head = if is_skip && hot {
-                col_gold()
-            } else {
-                Color::from_rgba(150, 200, 240, 255)
-            };
-            let body = if is_skip && hot {
-                Color::from_rgba(240, 226, 170, 255)
-            } else {
-                Color::from_rgba(198, 200, 218, 255)
-            };
-            let block_top = y - lh;
-            ui_text(term, x, y, size, head);
-            y += lh;
-            for l in lines {
-                ui_text(&l, x + 14.0, y, size, body);
-                y += lh;
-            }
-            y += 10.0;
-            if is_skip {
-                skip_hot = Some(Rect::new(x, block_top, col_w, y - block_top));
-            }
-        } else {
-            y += needed;
-        }
-        at += 1;
-    }
-    // Finish counting pages even after the drawn one ends.
-    if at < entries.len() {
-        let mut c = col;
-        let mut yy = y;
-        let mut p = this_page;
-        for i in at..entries.len() {
-            let needed =
-                lh * (1.0 + wrap_px(&entries[i].1, col_w - 16.0, size).len() as f32) + 10.0;
-            if yy + needed > bottom {
-                if c + 1 < cols {
-                    c += 1;
-                    yy = top_of(p);
-                } else {
-                    pages += 1;
-                    p += 1;
-                    c = 0;
-                    yy = top_of(p);
-                }
-            }
-            yy += needed;
-        }
-    }
-    let _ = start_of_page;
-
-    let next = Rect::new(r.x + r.w - 260.0, r.y + r.h - 46.0, 240.0, 34.0);
-    if pages > 1 {
-        ui_text(
-            &format!("page {} of {}", page + 1, pages),
-            r.x + 24.0,
-            r.y + r.h - 22.0,
-            14.0,
-            col_dim(),
+    let pick = pick.min(entries.len().saturating_sub(1));
+    let mut skip_hot = None;
+    for (i, (e, c)) in entries.iter().zip(&rects).enumerate() {
+        let on = i == pick;
+        let hot = c.contains(Vec2::new(mx, my));
+        draw_rectangle(
+            c.x,
+            c.y,
+            c.w,
+            c.h,
+            if on { Color::from_rgba(52, 46, 30, 255) } else { Color::from_rgba(28, 28, 40, 255) },
         );
-        button(next, if page + 1 < pages { "NEXT PAGE" } else { "BACK TO START" }, true, mx, my);
+        draw_rectangle_lines(
+            c.x,
+            c.y,
+            c.w,
+            c.h,
+            if on { 2.0 } else { 1.0 },
+            if on || hot { col_gold() } else { Color::from_rgba(70, 70, 95, 255) },
+        );
+        centered_text(
+            &e.title,
+            c.x + c.w / 2.0,
+            c.y + 17.0,
+            CHIP_TEXT,
+            if on {
+                col_gold()
+            } else if hot {
+                Color::from_rgba(226, 226, 240, 255)
+            } else {
+                Color::from_rgba(160, 162, 184, 255)
+            },
+        );
+        // One entry is a control as well as a definition. It is not marked as
+        // one - finding it is the point - but it lights up under the cursor
+        // like every other chip, which is how it stays findable without being
+        // signposted.
+        if e.title == SKIP_TERM {
+            skip_hot = Some(*c);
+        }
     }
-    GlossaryHit { close, next, pages, skip: skip_hot, tabs }
+
+    // The panel below, at a fixed top, so clicking along a row of chips does
+    // not make the text jump about under the cursor.
+    let chips_bottom = rects.last().map(|c| c.y + c.h).unwrap_or(strip_y) + 18.0;
+    let panel = Rect::new(r.x + 24.0, chips_bottom, r.w - 48.0, r.y + r.h - 24.0 - chips_bottom);
+    if panel.h > 40.0 {
+        draw_rectangle(panel.x, panel.y, panel.w, panel.h, Color::from_rgba(12, 12, 20, 220));
+        draw_rectangle_lines(
+            panel.x,
+            panel.y,
+            panel.w,
+            panel.h,
+            1.0,
+            Color::from_rgba(70, 70, 95, 255),
+        );
+        if let Some(e) = entries.get(pick) {
+            let mut y = panel.y + 30.0;
+            ui_text(&e.title, panel.x + 18.0, y, 18.0, col_gold());
+            y += 26.0;
+            for l in &e.aside {
+                ui_text(l, panel.x + 18.0, y, 13.0, Color::from_rgba(150, 200, 240, 255));
+                y += 18.0;
+            }
+            if !e.aside.is_empty() {
+                y += 6.0;
+            }
+            for para in &e.body {
+                for l in wrap_px(para, panel.w - 36.0, 14.0) {
+                    ui_text(&l, panel.x + 18.0, y, 14.0, Color::from_rgba(206, 208, 226, 255));
+                    y += line_h(14.0);
+                }
+                y += 8.0;
+            }
+        }
+    }
+
+    GlossaryHit { close, chips: rects, skip: skip_hot, tabs }
 }
 
 /// What the glossary put on screen, so the frame can decide what a click did.
 struct GlossaryHit {
     close: Rect,
-    next: Rect,
-    pages: usize,
+    /// Where every chip on this shelf landed, in entry order. Clicking one
+    /// selects it; there is nothing else on the screen to click.
+    chips: Vec<Rect>,
     /// The one entry that is also a control - see `SKIP_TERM`.
     skip: Option<Rect>,
     tabs: [Rect; 3],
 }
-
-/// Every class, in full: what it asks for, how close you are to it, and what
-/// it does for you. Returns the page count.
-/// The axes a fountain scores you on, one paragraph each.
-///
-/// The fountain reads a build and says "Geomancer needs weave 0/70", which is
-/// only useful to someone who already knows what weave is. This is where they
-/// find out.
-fn render_axis_pages(r: Rect, page: usize) -> usize {
-    use gearmaster_engine::class::Axis;
-    let entries = Axis::glossary();
-    let top = r.y + 96.0;
-    let bottom = r.y + r.h - 54.0;
-    let gap = 26.0;
-    let cols = 3usize;
-    let col_w = (r.w - 48.0 - (cols - 1) as f32 * gap) / cols as f32;
-
-    let block_h = |text: &str| -> f32 {
-        22.0 + wrap_px(&words::retell(text), col_w - 12.0, 12.0).len() as f32 * 15.0 + 14.0
-    };
-
-    let mut at = 0usize;
-    let mut this_page = 0usize;
-    let mut col = 0usize;
-    let mut y = top;
-    let mut pages = 1usize;
-    while at < entries.len() {
-        let (name, text) = &entries[at];
-        let needed = block_h(text);
-        if y + needed > bottom {
-            if col + 1 < cols {
-                col += 1;
-                y = top;
-            } else {
-                if this_page == page {
-                    break;
-                }
-                this_page += 1;
-                pages += 1;
-                col = 0;
-                y = top;
-                continue;
-            }
-        }
-        if this_page == page {
-            let x = r.x + 24.0 + col as f32 * (col_w + gap);
-            ui_text(&words::retell(name).to_uppercase(), x, y, 15.0, col_gold());
-            y += 20.0;
-            for l in wrap_px(&words::retell(text), col_w - 12.0, 12.0) {
-                ui_text(&l, x + 8.0, y, 12.0, Color::from_rgba(198, 200, 218, 255));
-                y += 15.0;
-            }
-            y += 14.0;
-        } else {
-            y += needed;
-        }
-        at += 1;
-    }
-    // Finish counting pages past the drawn one, the same way the other tabs
-    // do - a count taken from the open page's geometry is what once made the
-    // footer read "page 7 of 6".
-    if at < entries.len() {
-        let (mut c2, mut yy) = (col, y);
-        for (_, text) in &entries[at..] {
-            let needed = block_h(text);
-            if yy + needed > bottom {
-                if c2 + 1 < cols {
-                    c2 += 1;
-                    yy = top;
-                } else {
-                    pages += 1;
-                    c2 = 0;
-                    yy = top;
-                }
-            }
-            yy += needed;
-        }
-    }
-    pages
-}
-
-fn render_class_pages(r: Rect, page: usize, _mx: f32, _my: f32) -> usize {
-    use gearmaster_engine::class::CLASSES;
-    let top = r.y + 96.0;
-    let bottom = r.y + r.h - 54.0;
-    let gap = 26.0;
-    let cols = 3usize;
-    let col_w = (r.w - 48.0 - (cols - 1) as f32 * gap) / cols as f32;
-
-    // Height of one entry, so the page break can be decided before drawing.
-    let block_h = |c: &gearmaster_engine::class::ClassDef| -> f32 {
-        let blurb = wrap_px(c.blurb, col_w - 12.0, 12.0).len() as f32;
-        let power = wrap_px(&c.power.describe(), col_w - 12.0, 12.0).len() as f32;
-        22.0 + blurb * 15.0 + 6.0 + c.requires.len().max(1) as f32 * 15.0 + 4.0 + power * 15.0 + 14.0
-    };
-
-    let mut at = 0usize;
-    let mut this_page = 0usize;
-    let mut col = 0usize;
-    let mut y = top;
-    let mut pages = 1usize;
-    while at < CLASSES.len() {
-        let c = &CLASSES[at];
-        let needed = block_h(c);
-        if y + needed > bottom {
-            if col + 1 < cols {
-                col += 1;
-                y = top;
-            } else {
-                if this_page == page {
-                    break;
-                }
-                this_page += 1;
-                pages += 1;
-                col = 0;
-                y = top;
-                continue;
-            }
-        }
-        if this_page == page {
-            let x = r.x + 24.0 + col as f32 * (col_w + gap);
-            ui_text(words::class(c.name), x, y, 16.0, col_gold());
-            y += 20.0;
-            for l in wrap_px(&words::retell(c.blurb), col_w - 12.0, 12.0) {
-                ui_text(&l, x + 8.0, y, 12.0, Color::from_rgba(198, 200, 218, 255));
-                y += 15.0;
-            }
-            y += 6.0;
-            if c.requires.is_empty() {
-                // Nothing you wear points at these, so the line that would
-                // list what to build says where to go instead.
-                let how = gearmaster_engine::class::how_you_get_it(c.name)
-                    .unwrap_or("asks for nothing");
-                for l in wrap_px(&words::retell(how), col_w - 12.0, 12.0) {
-                    ui_text(&l, x + 8.0, y, 12.0, col_dim());
-                    y += 15.0;
-                }
-            } else {
-                for &(axis, need) in c.requires {
-                    ui_text(
-                        &format!("{} {}+", words::retell(&axis.name()), need),
-                        x + 8.0,
-                        y,
-                        12.0,
-                        Color::from_rgba(150, 200, 240, 255),
-                    );
-                    y += 15.0;
-                }
-            }
-            y += 4.0;
-            for l in wrap_px(&words::retell(&c.power.describe()), col_w - 12.0, 12.0) {
-                ui_text(&l, x + 8.0, y, 12.0, col_ok());
-                y += 15.0;
-            }
-            y += 14.0;
-        } else {
-            y += needed;
-        }
-        at += 1;
-    }
-    // Finish counting pages past the drawn one.
-    if at < CLASSES.len() {
-        let (mut c2, mut yy) = (col, y);
-        for c in &CLASSES[at..] {
-            let needed = block_h(c);
-            if yy + needed > bottom {
-                if c2 + 1 < cols {
-                    c2 += 1;
-                    yy = top;
-                } else {
-                    pages += 1;
-                    c2 = 0;
-                    yy = top;
-                }
-            }
-            yy += needed;
-        }
-    }
-    pages
-}
-
 
 /// Name, health, armour, mana and curses for one side of the battle screen.
 #[allow(clippy::too_many_arguments)]
@@ -9645,10 +9511,14 @@ async fn main() {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(0);
-    let mut glossary_page: usize = std::env::var("GEARMASTER_GLOSSARY_PAGE")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(0);
+    // Which word is open on each shelf. One apiece, so switching tabs and
+    // coming back does not lose your place - and no page number, because there
+    // are no pages any more.
+    let mut glossary_pick: [usize; 3] = [
+        std::env::var("GEARMASTER_GLOSSARY_PICK").ok().and_then(|v| v.parse().ok()).unwrap_or(0),
+        0,
+        0,
+    ];
     // Where the game opens: the intro pages, then the mode picker, then play.
     // Any debug hook skips straight to the board.
     let skip_intro = std::env::var("GEARMASTER_PACK").is_ok()
@@ -10770,31 +10640,30 @@ async fn main() {
         // The glossary sits over everything and eats input while open, so a
         // click meant for CLOSE never also lands on the board behind it.
         if glossary_open {
-            let g = render_glossary(glossary_tab, glossary_page, mx, my);
+            let g = render_glossary(glossary_tab, glossary_pick[glossary_tab], mx, my);
             let click = is_mouse_button_pressed(MouseButton::Left);
             let tab_hit = g.tabs.iter().position(|t| t.contains(Vec2::new(mx, my)));
+            let chip_hit = g.chips.iter().position(|c| c.contains(Vec2::new(mx, my)));
             if click && g.close.contains(Vec2::new(mx, my)) {
                 glossary_open = false;
-                glossary_page = 0;
             } else if click && tab_hit.is_some() && tab_hit != Some(glossary_tab) {
                 // Each shelf keeps its own place, so switching back and forth
-                // does not lose where you were.
+                // does not lose which word you had open.
                 glossary_tab = tab_hit.unwrap();
-                glossary_page = 0;
-            } else if click && g.pages > 1 && g.next.contains(Vec2::new(mx, my)) {
-                glossary_page = (glossary_page + 1) % g.pages;
             } else if click && g.skip.map_or(false, |r| r.contains(Vec2::new(mx, my))) {
                 // The one entry that does something. It opens the ladder
                 // rather than moving you: where to pick the road up is a
                 // decision, and taking one rung at a time was not offering it.
                 glossary_open = false;
-                glossary_page = 0;
                 picker_open = true;
                 picker_page = 0;
+            } else if click {
+                if let Some(i) = chip_hit {
+                    glossary_pick[glossary_tab] = i;
+                }
             }
             if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::G) {
                 glossary_open = false;
-                glossary_page = 0;
             }
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -11687,6 +11556,88 @@ mod tests {
             }
         }
         assert!(unseen.is_empty(), "relations nothing lights up: {:?}", unseen);
+    }
+
+    // ------------------------------------------------------- the glossary
+
+    /// Every chip on a shelf lands inside the strip, and none overlaps another.
+    ///
+    /// The old glossary paginated, and its page-count loop and its drawing
+    /// loop had to agree about where the breaks fell. They disagreed once and
+    /// the footer read "page 7 of 6". There are no pages now, so the thing
+    /// that can go wrong is a chip off the edge or two chips on top of each
+    /// other - which is what this asks.
+    #[test]
+    fn every_chip_lands_inside_the_strip_and_none_overlaps() {
+        for tab in 0..3usize {
+            let titles: Vec<String> =
+                glossary_entries(tab).into_iter().map(|e| e.title).collect();
+            assert!(!titles.is_empty(), "shelf {} is empty", tab);
+            let (x, y, w) = (100.0f32, 200.0f32, 900.0f32);
+            let rects = chip_rects(&titles, x, y, w, |t| t.chars().count() as f32 * 7.0);
+            assert_eq!(rects.len(), titles.len(), "shelf {} lost a chip", tab);
+            for (i, c) in rects.iter().enumerate() {
+                assert!(c.x >= x - 0.01, "chip {} on shelf {} starts left of the strip", i, tab);
+                assert!(
+                    c.x + c.w <= x + w + 0.01 || c.x == x,
+                    "chip {} on shelf {} runs off the right edge",
+                    i,
+                    tab
+                );
+                assert!(c.y >= y - 0.01, "chip {} on shelf {} is above the strip", i, tab);
+            }
+            for (i, a) in rects.iter().enumerate() {
+                for (j, b) in rects.iter().enumerate().skip(i + 1) {
+                    let apart = a.x + a.w <= b.x + 0.01
+                        || b.x + b.w <= a.x + 0.01
+                        || a.y + a.h <= b.y + 0.01
+                        || b.y + b.h <= a.y + 0.01;
+                    assert!(apart, "chips {} and {} on shelf {} overlap", i, j, tab);
+                }
+            }
+        }
+    }
+
+    /// Every shelf has something to say about every one of its entries.
+    ///
+    /// A chip that opens an empty panel is worse than no chip: it reads as a
+    /// word the game forgot to define.
+    #[test]
+    fn every_glossary_entry_has_a_title_and_something_under_it() {
+        for tab in 0..3usize {
+            for e in glossary_entries(tab) {
+                assert!(!e.title.trim().is_empty(), "shelf {} has a nameless entry", tab);
+                let said: usize =
+                    e.body.iter().chain(&e.aside).map(|l| l.trim().len()).sum();
+                assert!(said > 0, "shelf {}: {:?} opens an empty panel", tab, e.title);
+            }
+        }
+    }
+
+    /// A shelf of one still lays out, and a title wider than the strip still
+    /// gets a chip rather than vanishing.
+    #[test]
+    fn the_grid_survives_its_edges() {
+        let m = |t: &str| t.chars().count() as f32 * 7.0;
+        let one = vec!["ONE".to_string()];
+        assert_eq!(chip_rects(&one, 0.0, 0.0, 500.0, m).len(), 1);
+        assert!(chip_rects(&[], 0.0, 0.0, 500.0, m).is_empty());
+        let huge = vec!["A TERM FAR WIDER THAN THE STRIP IT IS BEING LAID OUT IN".to_string()];
+        let r = chip_rects(&huge, 10.0, 10.0, 60.0, m);
+        assert_eq!(r.len(), 1, "a wide title lost its chip");
+        assert_eq!(r[0].x, 10.0, "a wide title should still start the row");
+    }
+
+    /// The worn path is still on the words shelf, and still not signposted.
+    #[test]
+    fn the_one_entry_that_is_a_control_is_still_a_chip_like_any_other() {
+        let words = glossary_entries(0);
+        let it = words
+            .iter()
+            .find(|e| e.title == SKIP_TERM)
+            .expect("the worn path left the glossary");
+        assert!(!it.body.is_empty(), "it stopped explaining itself");
+        assert!(it.aside.is_empty(), "it grew a label, which is the one thing it must not have");
     }
 
     #[test]
