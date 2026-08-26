@@ -11,6 +11,7 @@
 //! all. `Run::road_is_blocked` is the answer and this file is the guard.
 
 use gearmaster_engine::combat::Difficulty;
+use gearmaster_engine::route::Fill;
 use gearmaster_engine::run::{Mode, Run};
 use gearmaster_engine::share;
 
@@ -126,4 +127,93 @@ fn every_fountain_rung_can_actually_be_stood_on() {
         Run::DOUBLING_FOUNTAIN < gearmaster_engine::combat::LADDER.len(),
         "the deep fountain stands past the end of the road"
     );
+}
+
+// ------------------------------------------- the map says what is happening
+//
+// Reported from a real run: on rung three the yellow dot was on TWO BY TWO
+// while the door actually being answered was THE CASINO, and the casino's dot
+// was nine rungs away. Both halves of that are the map reading `LadderEvent::at`
+// and `fill_for` as if an earned event stood on one rung, which it does not.
+
+fn a_shallow_run() -> Run {
+    let mut run = Run::seeded(0x51DE_0001);
+    run.difficulty = Difficulty::Medium;
+    // A quick kill anywhere in the shallow end opens the casino.
+    run.best_fight_ms = Some(1_000);
+    run.rung = 2;
+    run
+}
+
+fn node<'a>(map: &'a gearmaster_engine::route::RouteMap, id: &str) -> &'a gearmaster_engine::route::Node {
+    map.nodes.iter().find(|n| n.id == id).unwrap_or_else(|| panic!("{id} is not on the map"))
+}
+
+#[test]
+fn an_earned_door_is_drawn_on_the_rung_it_is_standing_on() {
+    let run = a_shallow_run();
+    let map = gearmaster_engine::route::route(&run);
+    let casino = node(&map, "the-casino");
+    assert_eq!(
+        casino.at, 2,
+        "the casino is standing on rung three; its `at` is 8, which is its deadline"
+    );
+    assert_eq!(casino.fill, Fill::Current, "and it is one of the doors being asked");
+}
+
+#[test]
+fn only_a_door_that_is_standing_is_ringed() {
+    let mut run = a_shallow_run();
+    // Both stand on rung three. The toad is asked first, so both are Current.
+    let map = gearmaster_engine::route::route(&run);
+    assert_eq!(node(&map, "the-toads-offer").fill, Fill::Current);
+    assert_eq!(node(&map, "the-casino").fill, Fill::Current);
+
+    // A door on a rung behind you that never happened is not "cleared".
+    run.rung = 6;
+    run.best_fight_ms = None;
+    let map = gearmaster_engine::route::route(&run);
+    assert_eq!(
+        node(&map, "the-toads-offer").fill,
+        Fill::Ahead,
+        "an unanswered door did not happen, whichever rung it was on"
+    );
+    assert_eq!(
+        node(&map, "back-in-a-minute").fill,
+        Fill::Ahead,
+        "and nor did this one, which is two rungs behind"
+    );
+}
+
+#[test]
+fn an_answered_door_is_drawn_where_it_was_answered() {
+    let mut run = a_shallow_run();
+    let casino = gearmaster_engine::event::EVENTS.iter().find(|e| e.id == "the-casino").unwrap();
+    let toad = gearmaster_engine::event::EVENTS.iter().find(|e| e.id == "the-toads-offer").unwrap();
+    run.take_choice(toad.choices.iter().find(|c| c.label == "FIGHT IT ANYWAY").unwrap());
+    run.take_choice(casino.choices.iter().find(|c| c.label == "Keep out of it").unwrap());
+    assert!(run.answered.contains(&"the-casino"));
+
+    // Walk on. The casino stays where it happened rather than jumping to its
+    // deadline or following the run up the road.
+    run.rung = 9;
+    let map = gearmaster_engine::route::route(&run);
+    let n = node(&map, "the-casino");
+    assert_eq!(n.at, 2, "answered on rung three, drawn on rung three");
+    assert_eq!(n.fill, Fill::Cleared);
+}
+
+#[test]
+fn a_door_nobody_has_earned_is_drawn_where_it_could_first_appear() {
+    let mut run = Run::seeded(0x51DE_0001);
+    run.difficulty = Difficulty::Medium;
+    let map = gearmaster_engine::route::route(&run);
+    // The casino's window is rungs two to nine. Its `at` is the deadline.
+    assert_eq!(
+        node(&map, "the-casino").at,
+        1,
+        "an unearned window is drawn at its opening, not at the rung it shuts on"
+    );
+    // A scheduled door has one rung and it is `at`.
+    assert_eq!(node(&map, "the-toads-offer").at, 2);
 }

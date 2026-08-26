@@ -194,15 +194,60 @@ pub fn route(run: &Run) -> RouteMap {
     }
 
     // ---- rule 2: loops are events.
+    //
+    // Two things here are not `fill_for` and not `e.at`, and both were bugs.
+    //
+    // **Where.** `LadderEvent::at` is a scheduled event's rung and an earned
+    // one's *deadline*. THE CASINO's window is rungs two to nine, so drawing
+    // it at `at` drew it at rung nine - a rung the run had not reached - for a
+    // door that was answered on rung three. An earned event is drawn where it
+    // is standing, or where it was answered, or at the first rung it could
+    // turn up on, in that order. Never at the deadline.
+    //
+    // **Which one is ringed.** `fill_for` says `Current` for anything whose
+    // rung is the rung you are on, so on rung three TWO BY TWO was ringed
+    // whether or not it was the door being asked - and the casino, which was,
+    // was drawn nine rungs away and hollow. `Current` means *standing*, which
+    // is what `road_stack` already answers.
+    let standing: Vec<&'static str> = run
+        .road_stack()
+        .iter()
+        .filter_map(|i| match i {
+            crate::run::Interrupt::Event(e) => Some(e.id),
+            _ => None,
+        })
+        .collect();
     for e in crate::event::EVENTS {
-        let at = e.at.min(LADDER.len().saturating_sub(1));
-        let answered = run.answered.contains(&e.id);
+        let answered_on = run.answered_on.iter().find(|(id, _)| *id == e.id).map(|(_, r)| *r);
+        let here = standing.contains(&e.id);
+        let at = if here {
+            run.rung
+        } else if let Some(r) = answered_on {
+            r
+        } else {
+            // The earliest it can stand. `Trigger::from` is zero for a
+            // scheduled event, whose `at` is its address, so this is `at` for
+            // those and the window's opening for the rest.
+            match e.trigger {
+                crate::event::Trigger::Rung => e.at,
+                _ => e.trigger.from(),
+            }
+        }
+        .min(LADDER.len().saturating_sub(1));
         map.nodes.push(Node {
             kind: NodeKind::Event,
             id: e.id,
             label: e.title,
             at,
-            fill: if answered { Fill::Cleared } else { fill_for(run, at) },
+            fill: if here {
+                Fill::Current
+            } else if run.answered.contains(&e.id) {
+                Fill::Cleared
+            } else {
+                // Not "behind you": an unanswered door did not happen, whether
+                // or not its rung is behind you.
+                Fill::Ahead
+            },
             off_spine: true,
         });
         let me = map.nodes.len() - 1;
@@ -275,7 +320,16 @@ pub fn ascii(run: &Run) -> Vec<String> {
         if here.is_empty() {
             continue;
         }
-        for &i in &here {
+        // Anything that is not a rung stands *between* two of them and happens
+        // between two fights - a gate after one and before the next, an event
+        // in front of the fight it interrupts, a fountain owed on arrival. So
+        // it prints above the rung's own line rather than under it, which is
+        // the order the player meets them in. A dungeon keeps its place
+        // directly under the event that opened it.
+        let (between, spine): (Vec<usize>, Vec<usize>) = here
+            .iter()
+            .partition(|&&i| !matches!(map.nodes[i].kind, NodeKind::Rung(_) | NodeKind::PastTheTop));
+        for &i in between.iter().chain(spine.iter()) {
             let n = &map.nodes[i];
             match n.kind {
                 // A rung is a rung: a mark, a number and a name.
@@ -300,11 +354,19 @@ pub fn ascii(run: &Run) -> Vec<String> {
                 NodeKind::PastTheTop => {
                     out.push(format!("{} {:>2} {}", mark(n.fill), rung + 1, n.label))
                 }
-                NodeKind::Event => out.push(format!("   \\_ {} (event)", n.label)),
+                NodeKind::Event => {
+                    out.push(format!("{} -- {} (event, between {} and {})", mark(n.fill), n.label, rung, rung + 1))
+                }
                 NodeKind::Dungeon { floors } => {
                     out.push(format!("     \\_ {} ({} floors)", n.label, floors))
                 }
-                NodeKind::Fountain => out.push(format!("   \\_ {} (fountain)", n.label)),
+                NodeKind::Fountain => out.push(format!(
+                    "{} -- {} (fountain, between {} and {})",
+                    mark(n.fill),
+                    n.label,
+                    rung,
+                    rung + 1
+                )),
             }
         }
     }

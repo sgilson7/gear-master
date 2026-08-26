@@ -490,6 +490,19 @@ pub struct Run {
     pub substitute: Option<&'static MonsterSpec>,
     /// Events already answered, by id, so one is never asked twice.
     pub answered: Vec<&'static str>,
+    /// Which rung each of those was answered on.
+    ///
+    /// A scheduled door is answered on its own rung and the map could always
+    /// work that out. An **earned** one roams a window - THE CASINO's is rungs
+    /// two to nine - so `LadderEvent::at` is its deadline and not its address,
+    /// and a map drawing it at `at` puts a door you answered on rung three up
+    /// at rung nine. Nothing recorded where it actually happened, so nothing
+    /// could draw it there.
+    ///
+    /// A `Vec` of pairs rather than a `HashMap`: thirty-three entries at the
+    /// very most, looked up by key, and iteration order that cannot surprise
+    /// anybody reading a replay.
+    pub answered_on: Vec<(&'static str, usize)>,
     /// A fight an event has arranged, waiting to be walked into. It stands
     /// beside the rung rather than on it: whichever way it goes, the rung's
     /// own creature is still there afterwards.
@@ -737,6 +750,7 @@ impl Run {
             doubled: None,
             substitute: None,
             answered: Vec::new(),
+            answered_on: Vec::new(),
             brawl: None,
             extra_rows: 0,
             best_fight_ms: None,
@@ -1240,6 +1254,7 @@ impl Run {
             return None;
         }
         self.answered.push(ev.id);
+        self.answered_on.push((ev.id, self.rung));
         if self.forced_event == Some(ev.id) {
             self.forced_event = None;
         }

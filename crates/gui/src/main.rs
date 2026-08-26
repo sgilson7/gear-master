@@ -6537,7 +6537,8 @@ fn render_route(run: &Run, mx: f32, my: f32) {
     ui_text(
         words::word(
             "the-road-hint",
-            "filled is behind you, ringed is where you are, hollow is ahead. M or ESC to go back.",
+            "filled is behind you, ringed is where you are, hollow is ahead. Anything \
+         between two rungs happens between two fights. M or ESC to go back.",
         ),
         40.0,
         76.0,
@@ -6554,6 +6555,23 @@ fn render_route(run: &Run, mx: f32, my: f32) {
         let row = at / per_row;
         let col = at % per_row;
         Vec2::new(x0 + col as f32 * step, 210.0 + row as f32 * 230.0)
+    };
+    // Everything that is not a rung stands *between* two of them: a town gate
+    // after one rung and before the next, an event in front of the fight it
+    // interrupts, a fountain owed on arrival. They were drawn hanging off the
+    // rung ahead of them, which reads as "this happens at rung ten" when what
+    // happens at rung ten is the creature.
+    //
+    // Half a step to the left, which is the middle of the edge the player is
+    // walking down when the thing actually happens. At the start of a wrapped
+    // row there is no edge to sit on, so it sits just inside the margin.
+    let gap_before = |at: usize| -> Vec2 {
+        let p = place(at);
+        if at == 0 || at % per_row == 0 {
+            Vec2::new(p.x - step * 0.42, p.y)
+        } else {
+            Vec2::new(p.x - step * 0.5, p.y)
+        }
     };
 
     // Edges first, so nothing is drawn over a node.
@@ -6585,23 +6603,43 @@ fn render_route(run: &Run, mx: f32, my: f32) {
             Fill::Ahead => Color::from_rgba(78, 78, 104, 255),
         };
         if n.off_spine {
+            let g = gap_before(n.at);
             let k = stacked.entry(n.at).or_insert(0);
             *k += 1;
-            let y = p.y - 18.0 - *k as f32 * 15.0;
-            draw_line(p.x, p.y - 8.0, p.x, y + 4.0, 1.0, Color::from_rgba(60, 60, 84, 255));
-            let r = Rect::new(p.x - 4.0, y - 5.0, 9.0, 9.0);
+            let y = g.y - 18.0 - *k as f32 * 15.0;
+            draw_line(g.x, g.y - 4.0, g.x, y + 4.0, 1.0, Color::from_rgba(60, 60, 84, 255));
+            let r = Rect::new(g.x - 4.0, y - 5.0, 9.0, 9.0);
             match n.kind {
-                NodeKind::Town { .. } => draw_poly(p.x, y, 4, 6.0, 45.0, ink),
+                NodeKind::Town { .. } => draw_poly(g.x, y, 4, 6.0, 45.0, ink),
                 NodeKind::Dungeon { .. } => draw_rectangle(r.x, r.y, r.w, r.h, ink),
-                _ => draw_circle(p.x, y, 3.5, ink),
+                _ => draw_circle(g.x, y, 3.5, ink),
             }
-            if Rect::new(p.x - 8.0, y - 9.0, 17.0, 17.0).contains(Vec2::new(mx, my)) {
-                tip = Some(words::retell(n.label).to_string());
+            if Rect::new(g.x - 8.0, y - 9.0, 17.0, 17.0).contains(Vec2::new(mx, my)) {
+                tip = Some(format!(
+                    "{}  (between {} and {})",
+                    words::retell(n.label),
+                    n.at,
+                    n.at + 1
+                ));
             }
             continue;
         }
         match n.kind {
-            NodeKind::Town { .. } => draw_poly(p.x, p.y, 4, 8.0, 45.0, ink),
+            // On the spine, but in the gap: a gate is a rung of its own and it
+            // is not the rung whose number it shares.
+            NodeKind::Town { .. } => {
+                let g = gap_before(n.at);
+                draw_poly(g.x, g.y, 4, 8.0, 45.0, ink);
+                if Rect::new(g.x - 10.0, g.y - 10.0, 21.0, 21.0).contains(Vec2::new(mx, my)) {
+                    tip = Some(format!(
+                        "{}  (between {} and {})",
+                        words::retell(n.label),
+                        n.at,
+                        n.at + 1
+                    ));
+                }
+                continue;
+            }
             NodeKind::PastTheTop => draw_poly(p.x, p.y, 3, 11.0, 0.0, Color::from_rgba(210, 80, 80, 255)),
             NodeKind::Rung(rank) => {
                 let r = match rank {
