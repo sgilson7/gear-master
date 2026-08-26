@@ -7,7 +7,8 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use gearmaster_engine::class::Axis;
 use gearmaster_engine::combat::{
-    CombatLog, Event, MonsterSpec, MonsterSprite, Outcome, RunningItem, Side, LADDER,
+    tally_items, CombatLog, Event, MonsterSpec, MonsterSprite, Outcome, RunningItem, Side,
+    LADDER,
 };
 use gearmaster_engine::loadout::{ItemProfile, Loadout, SlotReport};
 use gearmaster_engine::piece::{
@@ -5132,16 +5133,20 @@ fn render_mini_board_at(
 /// `log_scroll` is how many lines back from the newest the panel is showing.
 /// Zero follows the fight; anything else holds still while it runs.
 #[allow(clippy::too_many_arguments)]
+/// Returns the log-overlay item clicked this frame, if one was.
+#[allow(clippy::too_many_arguments)]
 fn render_battle(
     run: &Run,
     pb: &Playback,
     log_expanded: bool,
     log_scroll: usize,
+    log_focus: Option<(Side, u8, usize)>,
     hover: &mut Hover,
     mx: f32,
     my: f32,
-) {
-    let Some(log) = run.log.as_ref() else { return };
+) -> Option<(Side, u8, usize)> {
+    let Some(log) = run.log.as_ref() else { return None };
+    let mut log_click: Option<(Side, u8, usize)> = None;
     let g = battle_geom(pb.done);
     let reports = run.reports();
 
@@ -5520,13 +5525,13 @@ fn render_battle(
         button(btn[0], "BACK TO GEAR", true, mx, my);
         button(btn[1], "SKIP", true, mx, my);
     }
-    button(btn[2], "REMATCH", true, mx, my);
+    button(btn[2], "REPLAY", true, mx, my);
     button(btn[3], if log_expanded { "HIDE LOG" } else { "FULL LOG" }, true, mx, my);
     button(btn[4], &format!("SPEED {}x", speed_label(pb.speed)), true, mx, my);
 
     // The full transcript is an overlay, so it never pushes the boards around.
     if log_expanded {
-        render_log_overlay(pb, log, log_scroll);
+        log_click = render_log_overlay(pb, log, log_scroll, log_focus, mx, my);
     } else {
         // Hovering a cooldown row explains what that item is worth. Same
         // columns the bars were drawn in, so the hover lands where you look.
@@ -5554,11 +5559,12 @@ fn render_battle(
                     // An innate attack has no gear behind it.
                     None => render_innate_summary(&items[i], mx, my),
                 }
-                return;
+                return log_click;
             }
         }
     }
 
+    log_click
 }
 
 /// The list behind a "+ N more", and a full card for whichever row you point
@@ -6122,7 +6128,159 @@ fn draw_series(r: Rect, s: &Series, duration_ms: u32) {
 
 /// The full transcript: what each side's stats did over the fight, and the
 /// blow-by-blow underneath, grouped by whatever set each exchange off.
-fn render_log_overlay(pb: &Playback, log: &CombatLog, scroll: usize) {
+/// The three columns of the log overlay: your board, the transcript, theirs.
+///
+/// Split out so the one thing that can go wrong without anybody noticing - a
+/// rail wide enough to sit on top of the log, on a narrow panel - is a thing a
+/// test can ask about. The rails are a fixed width because an item name is a
+/// fixed sort of length; the log takes what is left, and never less than half
+/// the panel, which is what decides the rails when the panel is small.
+fn log_overlay_columns(r: Rect) -> (Rect, Rect, Rect) {
+    let gap = 20.0;
+    // The panel spends 12 a side on margin, `gap` between each rail and the
+    // log, and the rest on the three columns. Solving "the log keeps half the
+    // panel" for one rail gives w/4 - 12 - gap, which is what caps it on a
+    // narrow screen; 208 is what an item name wants and caps it on a wide one.
+    let rail = 208.0_f32.min((r.w * 0.25 - 12.0 - gap).max(0.0));
+    let left = Rect::new(r.x + 12.0, r.y, rail, r.h);
+    let right = Rect::new(r.x + r.w - 12.0 - rail, r.y, rail, r.h);
+    let lx = left.right() + gap;
+    let list = Rect::new(lx, r.y, right.x - gap - lx, r.h);
+    (left, list, right)
+}
+
+/// One side's board, listed beside the log, and the account of whichever item
+/// is being looked at.
+///
+/// The rail is the thing that makes the transcript answerable. A log says what
+/// happened; this says who did it, and clicking a row asks the log to show
+/// only that.
+///
+/// Returns the item clicked this frame, if one was.
+#[allow(clippy::too_many_arguments)]
+fn render_item_rail(
+    log: &CombatLog,
+    side: Side,
+    who: u8,
+    r: Rect,
+    focus: Option<(Side, u8, usize)>,
+    tint: Color,
+    mx: f32,
+    my: f32,
+) -> Option<(Side, u8, usize)> {
+    let tally = tally_items(log, side, who);
+    let heading = match side {
+        Side::Player => words::word("your-board", "YOUR BOARD").to_string(),
+        // `monster` wants a `'static` key and a combatant's name is owned, so
+        // the theme swap goes through `retell`, which works on any string.
+        Side::Enemy => words::retell(
+            &log.enemies.get(who as usize).unwrap_or(log.enemy()).name,
+        )
+        .to_uppercase(),
+    };
+    let hs = fitting_size(&heading, r.w - 8.0, &[13.0, 12.0, 11.0]);
+    ui_text(&heading, r.x + 4.0, r.y + 10.0, hs, tint);
+
+    let row = 20.0;
+    let mut y = r.y + 24.0;
+    let mut clicked = None;
+    for t in &tally {
+        if y + row > r.bottom() - 8.0 {
+            break;
+        }
+        let hot = Rect::new(r.x, y - 2.0, r.w, row);
+        let on = focus == Some((side, who, t.index));
+        let over = hot.contains(Vec2::new(mx, my));
+        if on || over {
+            draw_rectangle(
+                hot.x,
+                hot.y,
+                hot.w,
+                hot.h,
+                if on { Color::from_rgba(46, 42, 30, 255) } else { Color::from_rgba(30, 30, 44, 255) },
+            );
+        }
+        if on {
+            draw_rectangle(hot.x, hot.y, 2.5, hot.h, col_gold());
+        }
+        // An item that never came round is dimmed rather than hidden: a piece
+        // that did nothing is exactly the thing worth noticing.
+        let ink = if t.activations == 0 {
+            Color::from_rgba(96, 96, 122, 255)
+        } else if on {
+            WHITE
+        } else {
+            Color::from_rgba(198, 200, 218, 255)
+        };
+        let shown = words::retell(&t.name);
+        let ns = fitting_size(&shown, r.w - 44.0, &[12.0, 11.0, 10.0]);
+        ui_text(&shown, r.x + 6.0, y + 11.0, ns, ink);
+        let count = format!("{}x", t.activations);
+        ui_text(&count, r.x + r.w - 6.0 - text_width(&count, 11.0), y + 11.0, 11.0, col_dim());
+        if over && is_mouse_button_pressed(MouseButton::Left) {
+            clicked = Some((side, who, t.index));
+        }
+        y += row;
+    }
+
+    // The account, under the row it belongs to. Only the lines it actually
+    // touched, because a column of zeroes is a column nobody reads.
+    if let Some((fs, fw, fi)) = focus {
+        if fs == side && fw == who {
+            if let Some(t) = tally.iter().find(|t| t.index == fi) {
+                y += 8.0;
+                draw_line(r.x + 4.0, y, r.x + r.w - 4.0, y, 1.0, Color::from_rgba(70, 70, 96, 255));
+                y += 16.0;
+                let head = format!("{} activations", t.activations);
+                ui_text(&head, r.x + 6.0, y, 12.0, col_gold());
+                y += 15.0;
+                if t.misfires > 0 {
+                    ui_text(&format!("{} misfired", t.misfires), r.x + 6.0, y, 12.0, col_bad());
+                    y += 15.0;
+                }
+                if t.stunned_ms > 0 {
+                    ui_text(
+                        &format!("stopped {:.1}s", t.stunned_ms as f32 / 1000.0),
+                        r.x + 6.0,
+                        y,
+                        12.0,
+                        col_bad(),
+                    );
+                    y += 15.0;
+                }
+                for c in &t.contributed {
+                    if y > r.bottom() - 10.0 {
+                        break;
+                    }
+                    let label = words::retell(c.what);
+                    ui_text(&label, r.x + 6.0, y, 12.0, col_dim());
+                    let n = format!("{}{}", if c.amount > 0 { "+" } else { "" }, c.amount);
+                    ui_text(
+                        &n,
+                        r.x + r.w - 6.0 - text_width(&n, 12.0),
+                        y,
+                        12.0,
+                        if c.amount >= 0 { col_ok() } else { col_bad() },
+                    );
+                    y += 15.0;
+                }
+                if t.contributed.is_empty() && t.activations > 0 {
+                    ui_text("nothing measurable", r.x + 6.0, y, 12.0, col_dim());
+                }
+            }
+        }
+    }
+    clicked
+}
+
+fn render_log_overlay(
+    pb: &Playback,
+    log: &CombatLog,
+    scroll: usize,
+    focus: Option<(Side, u8, usize)>,
+    mx: f32,
+    my: f32,
+) -> Option<(Side, u8, usize)> {
     let pad = 60.0;
     let r = Rect::new(pad, pad, LOGICAL_W - 2.0 * pad, LOGICAL_H - 2.0 * pad - 40.0);
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 226));
@@ -6158,18 +6316,48 @@ fn render_log_overlay(pb: &Playback, log: &CombatLog, scroll: usize) {
         gy += chart_h + 34.0;
     }
 
-    // ---- the blow-by-blow ----
+    // ---- the blow-by-blow, with both boards beside it ----
+    //
+    // The transcript is true and unreadable: forty lines of consequence, and
+    // the question a player has is "what did *that* piece do". So the two
+    // boards flank it - yours on the left, theirs on the right - and clicking
+    // one narrows the log to that item's own lines and prints its account.
     let list_top = gy + 6.0;
+    let (left_rail, list_col, right_rail) =
+        log_overlay_columns(Rect::new(r.x, list_top, r.w, r.y + r.h - list_top - 12.0));
+    let (rail_w, list_x, list_w) = (left_rail.w, list_col.x, list_col.w);
     draw_line(r.x + 16.0, list_top - 8.0, r.x + r.w - 16.0, list_top - 8.0, 1.0, Color::from_rgba(60, 60, 84, 255));
+
+    let mut clicked: Option<(Side, u8, usize)> = None;
+    for (side, who, rail, tint) in [
+        (Side::Player, 0u8, left_rail, col_you()),
+        (Side::Enemy, 0u8, right_rail, col_foe()),
+    ] {
+        if let Some(c) = render_item_rail(log, side, who, rail, focus, tint, mx, my) {
+            clicked = Some(c);
+        }
+    }
+
+    // Focused, the list is that item's own entries; otherwise it is all of
+    // them. One index list either way, so scrolling does not have to care.
+    let shown: Vec<usize> = match focus {
+        Some((side, who, index)) => tally_items(log, side, who)
+            .into_iter()
+            .find(|t| t.index == index)
+            .map(|t| t.entries)
+            .unwrap_or_default(),
+        None => (0..log.entries.len()).collect(),
+    };
 
     let lh = line_h(13.0);
     let visible = (((r.y + r.h - list_top - 12.0) / lh) as usize).max(1);
     // The list is pinned to the newest line; scrolling walks that anchor back
     // up, and cannot walk past the top.
-    let newest = log.entries.len().saturating_sub(visible);
+    let newest = shown.len().saturating_sub(visible);
     let start = newest.saturating_sub(scroll.min(newest));
-    let end = (start + visible).min(log.entries.len());
-    for (i, e) in log.entries[start..end].iter().enumerate() {
+    let end = (start + visible).min(shown.len());
+    for (i, &idx) in shown[start..end].iter().enumerate() {
+        let e = &log.entries[idx];
         // Who did it, and whether it is the thing that fired or a consequence
         // of it - an activation names its item and sits proud of the rest.
         let (indent, colour) = match &e.event {
@@ -6194,25 +6382,35 @@ fn render_log_overlay(pb: &Playback, log: &CombatLog, scroll: usize) {
         };
         ui_text(
             &words::retell(&log.describe(e)),
-            r.x + 16.0 + indent,
+            list_x + indent,
             list_top + lh + i as f32 * lh,
             13.0,
             colour,
         );
     }
+    if focus.is_some() && shown.is_empty() {
+        ui_text(
+            "That one never came round.",
+            list_x,
+            list_top + lh,
+            13.0,
+            col_dim(),
+        );
+    }
     // Say where in the log you are, so a wheel that does nothing reads as
     // "already at the end" rather than "broken".
-    if log.entries.len() > visible {
+    if shown.len() > visible {
         let note = format!(
             "{}-{} of {}   wheel or up/down to scroll{}",
             start + 1,
             end,
-            log.entries.len(),
+            shown.len(),
             if scroll > 0 { "   END to jump to the end" } else { "" },
         );
         ui_text(&note, r.x + r.w - 16.0 - text_width(&note, 12.0), r.y + 28.0, 12.0, col_dim());
     }
-    let _ = pb;
+    let _ = (pb, list_w, rail_w);
+    clicked
 }
 
 /// Plain-English meanings for the words the interface throws around. Opened
@@ -9550,6 +9748,10 @@ async fn main() {
     // headless capture.
     let mut log_scroll: usize =
         std::env::var("GEARMASTER_LOG_SCROLL").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
+    // Which item's account the full log is narrowed to, as (side, foe, index).
+    // Cleared whenever a new fight starts, because it names an item in the
+    // fight that just ended.
+    let mut log_focus: Option<(Side, u8, usize)> = None;
     // Kept between fights, and settable before one starts.
     let mut playback_speed = DEFAULT_SPEED;
     let mut glossary_open = std::env::var("GEARMASTER_GLOSSARY").is_ok();
@@ -10103,7 +10305,15 @@ async fn main() {
                         log_scroll = (log_scroll as isize + step).max(0) as usize;
                     }
                 }
-                render_battle(&run, p, log_expanded, log_scroll, &mut hover, mx, my);
+                if let Some(hit) =
+                    render_battle(&run, p, log_expanded, log_scroll, log_focus, &mut hover, mx, my)
+                {
+                    // Clicking the row you are already reading puts the whole
+                    // log back, which is the only way out that does not need a
+                    // second control.
+                    log_focus = if log_focus == Some(hit) { None } else { Some(hit) };
+                    log_scroll = 0;
+                }
             }
         } else {
             render_slots(&layout, &run, &reports, &drag, &mut hover, mx, my);
@@ -10801,24 +11011,27 @@ async fn main() {
                     p.skip_to_end(&run);
                 }
             } else if hit(2) {
-                // Straight into the next fight without going back to the
-                // loadout - which is where the town gate, the events and the
-                // fountain are all drawn. Anything waiting there gets looked
-                // at first.
-                match begin_next_fight(&mut run, playback_speed) {
-                    Some(next) => {
-                        pb = Some(next);
-                        // A new fight follows itself again.
-                        log_scroll = 0;
-                        settled = false;
-                    }
-                    None => {
-                        let what = run.road_is_blocked().unwrap_or("something");
-                        run.back_to_loadout();
-                        pb = None;
-                        log_expanded = false;
-                        message = format!("{} is standing in the road.", capitalise(what));
-                    }
+                // Play the same fight again from the top.
+                //
+                // This button said REMATCH and started the *next* creature,
+                // straight off the replay screen - which is the exact thing
+                // `the_road.rs` was written about: the loadout is where the
+                // town gate, the events and the fountain are drawn, and this
+                // was the one way past it. `road_is_blocked` caught the worst
+                // of that, but a button that skips the road when the road is
+                // clear is still a button that skips the road, and it was not
+                // a rematch in any case - it was the next fight.
+                //
+                // A fight is a pure function of two boards, so replaying it is
+                // building the playback again from the log it already has.
+                // Nothing is re-simulated and nothing can come out different.
+                if let Some(log) = run.log.as_ref() {
+                    let profiles = run.combat_items();
+                    let mut again = Playback::new(log, &profiles, playback_speed);
+                    again.speed = playback_speed;
+                    pb = Some(again);
+                    log_scroll = 0;
+                    message = "Playing that fight back.".to_string();
                 }
             } else if hit(3) {
                 log_expanded = !log_expanded;
@@ -10840,6 +11053,9 @@ async fn main() {
                         pb = Some(next);
                         // A new fight follows itself again.
                         log_scroll = 0;
+                        // And the focused item named a piece in the fight that
+                        // just ended, so it means nothing now.
+                        log_focus = None;
                         settled = false;
                         message = "Fight in progress.".to_string();
                     }
@@ -11371,6 +11587,29 @@ mod glossary_tests {
                 "{term} is defined in {:?}, which is not a definition",
                 meaning
             );
+        }
+    }
+
+    /// The log overlay's three columns never sit on top of one another.
+    ///
+    /// The transcript is the thing being read and the rails are furniture, so
+    /// the failure worth guarding is a rail eating the log - which does not
+    /// show up on a wide screen and does on a narrow one. Checked across the
+    /// whole range of panel widths the overlay can be given rather than at the
+    /// one width it happens to have today.
+    #[test]
+    fn the_log_keeps_its_column_at_every_width() {
+        for w in [420.0f32, 640.0, 900.0, 1200.0, 1480.0, 1900.0] {
+            let (left, list, right) = log_overlay_columns(Rect::new(60.0, 100.0, w, 400.0));
+            assert!(left.right() < list.x, "w={w}: your board overlaps the log");
+            assert!(list.right() <= right.x, "w={w}: their board overlaps the log");
+            assert!(
+                list.w >= w * 0.5 - 1.0,
+                "w={w}: the log got {} of {w}, which is less than half the panel",
+                list.w
+            );
+            assert!(left.w >= 0.0 && right.w >= 0.0, "w={w}: a rail with negative width");
+            assert!(right.right() <= 60.0 + w, "w={w}: their board runs off the panel");
         }
     }
 

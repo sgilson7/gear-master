@@ -6423,3 +6423,227 @@ mod stun_aim_tests {
         assert!(land_stun(&mut c, StunAim::Unaimed, 0).is_none());
     }
 }
+
+// ------------------------------------------------- what one item actually did
+//
+// A `CombatLog` is a flat transcript and everything in it is true, which is
+// not the same as being readable: a fight is forty lines of consequence and
+// the question a player has is "what did *that* piece do". Answering it needs
+// attribution, and attribution needs a rule.
+//
+// **The rule.** `Event::Activate` is documented to precede its own item's
+// effects and carries the item's index, so a hit belongs to whichever item on
+// that side last activated. That is exactly the rule `tests/baseline.rs` has
+// attributed damage by since the slot rewrite, stated once here so the
+// interface and the measurement cannot drift apart. Its known limit is stated
+// with it: strength and power granted by other slots land under the item that
+// swung, which is the intended reading of "the weapon deals the damage".
+//
+// Events belonging to nobody - sudden death, the ending - are attributed to
+// nobody rather than to whatever fired last.
+
+/// One line of an item's account: a series the graphs draw, and what this item
+/// put into or took out of it.
+///
+/// The names match `build_series`' own, plus two the graphs do not draw as the
+/// item's own line because they land on the other side: `damage` and `mind`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Contribution {
+    pub what: &'static str,
+    pub amount: i32,
+}
+
+/// Everything one item did in one fight.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ItemTally {
+    /// Position in its owner's item list, which is how `Activate` names it.
+    pub index: usize,
+    pub name: String,
+    pub activations: u32,
+    pub misfires: u32,
+    /// Total time this one item spent stopped.
+    pub stunned_ms: u32,
+    /// Non-zero lines only, in a fixed order so two tallies read the same way.
+    pub contributed: Vec<Contribution>,
+    /// Indices into `CombatLog::entries` that belong to this item, including
+    /// its own activations. The interface shows the log filtered to these.
+    pub entries: Vec<usize>,
+}
+
+impl ItemTally {
+    /// One line's worth, or zero if this item never touched it.
+    pub fn of(&self, what: &str) -> i32 {
+        self.contributed.iter().find(|c| c.what == what).map(|c| c.amount).unwrap_or(0)
+    }
+}
+
+/// The account for every item on one side of one fight.
+///
+/// `who` selects the foe in a party fight and is ignored for the player, who
+/// is always singular - the same convention `LogEntry::who` uses.
+pub fn tally_items(log: &CombatLog, side: Side, who: u8) -> Vec<ItemTally> {
+    let owner = match side {
+        Side::Player => &log.player,
+        Side::Enemy => match log.enemies.get(who as usize) {
+            Some(c) => c,
+            None => return Vec::new(),
+        },
+    };
+    let mine = |e: &LogEntry| side == Side::Player || e.who == who;
+
+    let mut out: Vec<ItemTally> = owner
+        .items
+        .iter()
+        .enumerate()
+        .map(|(index, it)| ItemTally {
+            index,
+            name: it.name.clone(),
+            activations: 0,
+            misfires: 0,
+            stunned_ms: 0,
+            contributed: Vec::new(),
+            entries: Vec::new(),
+        })
+        .collect();
+    if out.is_empty() {
+        return out;
+    }
+
+    // Six graph lines plus the two that land on the other side, per item.
+    let mut books: Vec<Vec<(&'static str, i32)>> = vec![Vec::new(); out.len()];
+    let add = |books: &mut Vec<Vec<(&'static str, i32)>>, at: Option<usize>, what, n: i32| {
+        if n == 0 {
+            return;
+        }
+        let Some(i) = at else { return };
+        let book = &mut books[i];
+        match book.iter_mut().find(|(w, _)| *w == what) {
+            Some((_, sum)) => *sum += n,
+            None => book.push((what, n)),
+        }
+    };
+
+    let mut acting: Option<usize> = None;
+    for (i, e) in log.entries.iter().enumerate() {
+        match &e.event {
+            // An activation opens the account and closes the last one.
+            Event::Activate { side: s, index, .. } if *s == side && mine(e) => {
+                acting = out.get(*index).map(|_| *index);
+                if let Some(a) = acting {
+                    out[a].activations += 1;
+                    out[a].entries.push(i);
+                }
+                continue;
+            }
+            // Two events name their own item rather than relying on the last
+            // activation, because both happen *instead* of one.
+            Event::Misfired { side: s, item } if *s == side && mine(e) => {
+                if let Some(a) = out.iter().position(|t| t.name == *item) {
+                    out[a].misfires += 1;
+                    out[a].entries.push(i);
+                }
+                continue;
+            }
+            Event::Stunned { on, index, duration_ms, .. } if *on == side && mine(e) => {
+                if let Some(t) = out.get_mut(*index) {
+                    t.stunned_ms += duration_ms;
+                    t.entries.push(i);
+                }
+                continue;
+            }
+            // Belongs to nobody: the clock, and the ending.
+            Event::SuddenDeath { .. } | Event::End { .. } => {
+                acting = None;
+                continue;
+            }
+            _ => {}
+        }
+
+        // Everything else is the standing item's, if it is on this side.
+        let ours = match &e.event {
+            Event::Hit { by, .. } | Event::MindHit { by, .. } => *by == side,
+            Event::GainResource { side: s, .. }
+            | Event::Spent { side: s, .. }
+            | Event::Cast { side: s, .. }
+            | Event::Grew { side: s, .. }
+            | Event::GainArmor { side: s, .. }
+            | Event::GainMana { side: s, .. }
+            | Event::ManaCheck { side: s, .. }
+            | Event::ResourceCheck { side: s, .. }
+            | Event::Burn { side: s, .. }
+            | Event::Regen { side: s, .. }
+            | Event::Hastened { side: s, .. }
+            | Event::Reflected { side: s, .. }
+            | Event::Fused { side: s, .. }
+            | Event::Watched { side: s, .. }
+            | Event::Empowered { side: s, .. }
+            | Event::Shielded { side: s, .. }
+            | Event::Whetted { side: s, .. }
+            | Event::Deflecting { side: s, .. }
+            | Event::Dreading { side: s, .. }
+            | Event::Forking { side: s, .. }
+            | Event::Warded { side: s, .. }
+            | Event::Fell { side: s } => *s == side,
+            // A curse and a drain are named for whoever they landed *on*, so
+            // this side owns them when the other side is the target.
+            Event::Cursed { on, .. } | Event::Drained { on, .. } => *on != side,
+            _ => false,
+        };
+        if !ours || !mine(e) {
+            continue;
+        }
+        let Some(a) = acting else { continue };
+        out[a].entries.push(i);
+
+        match &e.event {
+            Event::Hit { damage, .. } => add(&mut books, Some(a), "damage", *damage),
+            Event::MindHit { amount, .. } => add(&mut books, Some(a), "mind", *amount),
+            Event::Reflected { damage, .. } => add(&mut books, Some(a), "damage", *damage),
+            Event::Burn { damage, .. } => add(&mut books, Some(a), "damage", *damage),
+            Event::GainArmor { amount, .. } => add(&mut books, Some(a), "armour", *amount),
+            Event::GainMana { amount, .. } => add(&mut books, Some(a), "mana", *amount),
+            Event::ManaCheck { cost, paid, .. } => {
+                if *paid {
+                    add(&mut books, Some(a), "mana", -*cost)
+                }
+            }
+            Event::Cast { paid, cost, .. } => {
+                if *paid {
+                    add(&mut books, Some(a), "mana", -*cost)
+                }
+            }
+            Event::Regen { amount, .. } | Event::Grew { amount, .. } => {
+                add(&mut books, Some(a), "health", *amount)
+            }
+            Event::GainResource { what, amount, .. } => add(&mut books, Some(a), pool_line(what), *amount),
+            Event::ResourceCheck { what, cost, paid, .. } => {
+                if *paid {
+                    add(&mut books, Some(a), pool_line(what), -*cost)
+                }
+            }
+            Event::Spent { amount, .. } => add(&mut books, Some(a), "gold", *amount),
+            _ => {}
+        }
+    }
+
+    // A fixed order, so two tallies are read the same way round.
+    const ORDER: &[&str] =
+        &["damage", "mind", "health", "armour", "mana", "rage", "faith", "nature", "gold"];
+    for (t, book) in out.iter_mut().zip(books) {
+        for what in ORDER {
+            if let Some((_, n)) = book.iter().find(|(w, _)| w == what) {
+                t.contributed.push(Contribution { what, amount: *n });
+            }
+        }
+    }
+    out
+}
+
+/// The graph a pool's events belong to. `build_series` names them this way.
+fn pool_line(what: &str) -> &'static str {
+    match what {
+        "rage" => "rage",
+        "faith" => "faith",
+        _ => "nature",
+    }
+}
