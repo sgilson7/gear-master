@@ -168,53 +168,122 @@ fn a_subtitle_does_not_name_the_options_under_it() {
     }
 }
 
-#[test]
-fn every_scene_names_something() {
-    // A scene has to be about somebody or somewhere, and the cheap proof of
-    // that is a proper noun: Merrik, Gerald, Kettleworks, the Bog Toad, Lord
-    // Drabley Henpeck, Kolok Hold-Em. The register this file guards against
-    // has none - the old versions of these nine events, between them, named
-    // one creature and one lord and nothing else, which is why they read as
-    // the same scene told nine times.
-    //
-    // Checked per scene rather than per paragraph. A middle paragraph is
-    // allowed to run on pronouns once the first one has said who is talking,
-    // and an earlier draft of this test that demanded a name in every single
-    // paragraph ended up with a widening list of exceptions - which is a test
-    // being fitted to its data rather than checking it.
-    let named = |text: &str| -> bool {
-        let mut fresh = true;
-        for w in text.split_whitespace() {
-            let bare = w.trim_matches(|c: char| !c.is_alphanumeric());
-            let opener = std::mem::replace(
-                &mut fresh,
-                w.ends_with('.') || w.ends_with('!') || w.ends_with('?') || w.ends_with(','),
-            );
-            if bare.chars().any(|c| c.is_ascii_digit()) {
-                return true;
-            }
-            if !opener && bare.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
-                return true;
-            }
-        }
-        false
-    };
-
-    for e in EVENTS {
-        assert!(
-            named(&e.prose.join(" ")),
-            "{}: three paragraphs and not one name, place, sign or number in them.\n  {:?}",
-            e.id,
-            e.prose
+/// Does this text contain a proper noun?
+///
+/// The cheap proof that a scene is about somebody or somewhere: Merrik,
+/// Gerald, Kettleworks, the Bog Toad, EGGBERT on a brass plate. The register
+/// this file guards against has none - the old versions of nine of these
+/// events, between them, named one creature and one lord and nothing else,
+/// which is why they read as the same scene told nine times.
+///
+/// `on_a_digit` is the loophole, kept as a parameter so the two tests below
+/// can measure it. A number satisfied the original test as cheaply as a name
+/// did, and M14 and M15 duly bolted numbers onto the scenes that had no names
+/// in them - "rice for the trade board for 19 years", "the 3 chairs" - which
+/// left the lint green and the scenes exactly as anonymous as they were.
+///
+/// Checked per scene rather than per paragraph. A middle paragraph is allowed
+/// to run on pronouns once the first one has said who is talking, and an
+/// earlier draft that demanded a name in every single paragraph ended up with
+/// a widening list of exceptions - which is a test being fitted to its data
+/// rather than checking it.
+fn names_something(text: &str, on_a_digit: bool) -> bool {
+    let mut fresh = true;
+    for w in text.split_whitespace() {
+        let bare = w.trim_matches(|c: char| !c.is_alphanumeric());
+        let opener = std::mem::replace(
+            &mut fresh,
+            w.ends_with('.') || w.ends_with('!') || w.ends_with('?') || w.ends_with(','),
         );
+        if on_a_digit && bare.chars().any(|c| c.is_ascii_digit()) {
+            return true;
+        }
+        // "I" is a capital in the middle of a sentence and it is nobody.
+        if !opener && bare != "I" && bare.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Every scene, with the id to blame, for the two tests that walk them.
+fn every_scene() -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    for e in EVENTS {
+        out.push((format!("event {}", e.id), e.prose.join(" ")));
     }
     for t in TOWNS {
-        assert!(named(&t.blurb.join(" ")), "{}: the gate names nothing", t.id);
+        out.push((format!("town {}", t.id), t.blurb.join(" ")));
     }
     for d in DUNGEONS {
-        assert!(named(&d.blurb.join(" ")), "{}: the door names nothing", d.id);
-        assert!(named(&d.landings.join(" ")), "{}: the landings name nothing", d.id);
+        out.push((format!("dungeon {} blurb", d.id), d.blurb.join(" ")));
+        out.push((format!("dungeon {} landings", d.id), d.landings.join(" ")));
     }
+    out
+}
+
+#[test]
+fn every_scene_names_something() {
+    for (where_, text) in every_scene() {
+        assert!(
+            names_something(&text, true),
+            "{where_}: not one name, place, sign or number in it.\n  {text}"
+        );
+    }
+}
+
+// ----------------------------------------------- and the ratchet under it
+//
+// The test above is the one that has always been here, and it is satisfied by
+// a digit. These three are the same question asked without the loophole, shipped
+// as a budget the way `catalog_shape` and `two_voices` are: it goes down, or it
+// does not move.
+//
+// Eighteen, and every one of them is a scene that calls its people by their job
+// - "the tally man", "a woman with a clipboard", "The buyer" - and satisfies
+// the lint on a number bolted on for exactly that purpose. The number is the
+// symptom. The fix is a name.
+
+/// How many scenes still name nothing but a figure. It goes down.
+const DIGIT_PROPS: usize = 18;
+
+fn leaning_on_a_number() -> Vec<String> {
+    every_scene()
+        .into_iter()
+        .filter(|(_, text)| !names_something(text, false))
+        .map(|(where_, _)| where_)
+        .collect()
+}
+
+#[test]
+fn no_more_scenes_lean_on_a_number_than_already_did() {
+    let found = leaning_on_a_number();
+    assert!(
+        found.len() <= DIGIT_PROPS,
+        "{} scenes name nothing but a figure, over a budget of {}:\n{:#?}",
+        found.len(),
+        DIGIT_PROPS,
+        found
+    );
+}
+
+#[test]
+fn the_digit_budget_is_not_slack() {
+    let found = leaning_on_a_number();
+    assert_eq!(
+        found.len(),
+        DIGIT_PROPS,
+        "the list shrank to {} - lower DIGIT_PROPS in the commit that earned it",
+        found.len()
+    );
+}
+
+/// The target: every scene names somebody or somewhere, and no scene needs a
+/// number to prove it is about anything.
+#[test]
+#[ignore]
+fn every_scene_names_a_person_or_a_place() {
+    assert_eq!(leaning_on_a_number(), Vec::<String>::new());
 }
 
 #[test]

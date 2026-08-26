@@ -110,3 +110,100 @@ which is a statement of fact and exactly what the rest of the file is asking
 for.
 
 **Suites:** engine **777 green, 38 ignored, 0 warnings**; gui **61 green**.
+
+---
+
+## P3 - the cast, and the ratchet that says when it has landed
+
+No prose was rewritten here. Two things landed instead: the measurement that
+turns the mission into a countdown, and the cast verified against every
+namespace it could collide with.
+
+### The lint that let the fault through
+
+`every_scene_names_something` passes on **any digit**. That is the hole M15 went
+through: a scene with no name in it satisfied the lint as cheaply with a number
+as with a person, so the scenes that lost their proper nouns had numbers bolted
+onto them instead - "rice for the trade board for 19 years", "the 3 chairs",
+"40 years", "6 demands". Green lint, anonymous scenes.
+
+The same question without the loophole is now a budget, shipped the way
+`catalog_shape` and `two_voices` are:
+
+- `no_more_scenes_lean_on_a_number_than_already_did` - **<= 18**
+- `the_digit_budget_is_not_slack` - **== 18**, so it cannot silently drift
+- `every_scene_names_a_person_or_a_place` - `#[ignore]`d, asserts zero
+
+**`DIGIT_PROPS` is 18 at `a46294a`**, and this is the worklist for P4 and P5,
+in table order:
+
+```
+what-to-do-with-henpeck   what-the-table-said   the-thrumbus-race   mole-town
+the-inspection            the-sealed-bid        the-contract        the-payout
+the-buyer                 the-picket-line       the-exhibition      town extra-large
+dungeon the-threshold landings                  dungeon the-under-mine landings
+dungeon the-undertow landings                   dungeon den-rivals landings
+dungeon wumpus-world blurb                      dungeon wumpus-world landings
+```
+
+Every batch that lands lowers the number, and the number reaching zero is the
+mission being finished rather than the mission feeling finished.
+
+One incidental tightening: `names_something` no longer counts a bare **"I"**.
+It is a capital in the middle of a sentence and it is nobody. It changed nothing
+today - THE CROWNWRIGHT slips through on a capital after a closing quote mark
+instead - but it was a hole of the same kind.
+
+### The cast
+
+Five scenes needed no invention. The name was already in the game and M15
+simply did not reach for it:
+
+| Scene | Was | Is |
+|---|---|---|
+| `what-to-do-with-henpeck` | "The overseer" | **the Hollow King** - `LADDER[14]`, the rung you just cleared |
+| `the-under-mine` | boards stamped `HENPECK` | stamped **HOLLOW KING** |
+| `the-fork`, `the-slagworks`, the Foreman door | Ossery / "He has been down there" | Ossery, in all three |
+| `the-astronomer`, `through-the-cracked-lens` | Halloway | Halloway, said consistently |
+| `the-vip-area`, `the-wizards-thirst` | Merrik, Sam the Wise | left alone |
+
+Twenty-three invented, plain-port, no book pastiche:
+
+| Scene(s) | Was | Is |
+|---|---|---|
+| `back-in-a-minute` | "A man on the road" | Wint |
+| `the-casino` | "A woman with a clipboard" | Marlow |
+| `the-long-way`, `where-it-was-going` | "a man at the roadside" | Rowe (Gerald is the tortoise) |
+| `the-shrine-fork`, `the-crevice` | "an old watchman" / "one old analyst" | Wenlock |
+| `the-teller`, `the-bigger-sign` | "the man who runs the place" | Ollam |
+| `the-crownwright` | "The crownwright" | Padgett |
+| `the-inspection` | "A woman with a clipboard and a folding stool" | Nance Twiss |
+| `the-green-ledger` | "The tally man" | Creel |
+| `what-the-table-said` | "The landlord" | Salter |
+| `the-contract`, `the-payout` | "A man from an underwriting house" | Braddock |
+| `the-bird-problem` | "A courier" | Pether |
+| `the-buyer` | "The buyer" | Vell |
+| `the-exhibition` | "The two finest players" | Dorn and Ilder |
+| `the-sealed-bid` | nobody in it at all | Sarn |
+| `the-picket-line` | "somebody on this line" | Nettle |
+| `the-passenger` | "A courier", the second one | Larkin |
+| `the-glow-over-the-ridge` | "A carter coming the other way" | Gull |
+| `the-foundry-remembers` | "a man in Slagworks overalls" | Rusk, sent by Ossery |
+| `the-thrumbus-race` | "a steward" | Cobb |
+| `mole-town` | "an older mole with a case of tools" | Tibb |
+| `the-threshold` | "The man behind the cellar door" | Corvin |
+| `the-undertow` | "The old man fished here for 60 years" | Fenn |
+| `Action::Manager` | "He will confirm" | Mawes |
+
+Plus the four replacements for the shouted book words: gate and Manse plate
+**HOLLIS**, boat transom **PATIENCE**, boards **HOLLOW KING**, thrumbus ->
+**bolter**.
+
+**Verified, not assumed.** All twenty-nine were checked as whole words against
+every double-quoted string literal in `piece.rs`, `combat.rs`, `class.rs`,
+`town.rs`, `dungeon.rs`, `rumour.rs`, `theme.rs` and `naming.rs`, against the
+`BOOK` list, and against the turtle `vocabulary` keys - the last of which
+matters because a character called Frost would be retold as "nut-freeze". All
+clear.
+
+**Suites:** engine **779 green, 39 ignored, 0 warnings**.
