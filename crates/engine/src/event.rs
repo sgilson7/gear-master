@@ -1810,8 +1810,8 @@ pub const EVENTS: &[LadderEvent] = &[
         choices: &[
             Choice {
                 label: "\"We kept your best\"",
-                blurb: "Two melts or more, and the foundry has been holding one back.",
-                requires: Requirement::Counter { what: "crucible-melts", at_least: 2 },
+                blurb: "You used the crucible once, and the foundry has been holding one back.",
+                requires: Requirement::Counter { what: "crucible-melts", at_least: 1 },
                 outcome: Outcome::Give("The Cracked Lens"),
                 unmet: "He checks the page twice. Your column has nothing in it.",
             },
@@ -1894,7 +1894,12 @@ pub const EVENTS: &[LadderEvent] = &[
     LadderEvent {
         id: "the-picket-line",
         at: 38,
-        trigger: Trigger::Whispered { rumour: "A Word About the Picket", from: 12 },
+        // From nineteen, not twelve: the word is handed over by THE INSPECTION,
+        // which stands on rung twenty and nowhere else. A window that opens
+        // seven rungs before its own key can exist is not wrong so much as
+        // misleading - the route map draws it and the strip counts it, and a
+        // player reads a door that is not there.
+        trigger: Trigger::Whispered { rumour: "A Word About the Picket", from: 19 },
         blocked_by: &[],
         expects: "Gallowglass",
         title: "THE PICKET LINE",

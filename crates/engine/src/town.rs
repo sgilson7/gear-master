@@ -172,6 +172,21 @@ impl Action {
         }
     }
 
+    /// The counter this door moves, if it moves one.
+    ///
+    /// The reverse index for `Requirement::Counter`. A door that quietly
+    /// increments something is the watcher pattern working as designed - the
+    /// receipt says nothing and the door that reads the tally is thirty rungs
+    /// later - and the cost of that is that nothing could check the tally was
+    /// *reachable*. THE FOUNDRY REMEMBERS asked for two melts where the road
+    /// offers one. This is what `completable.rs` counts.
+    pub fn counts(self) -> Option<&'static str> {
+        match self {
+            Action::Crucible => Some("crucible-melts"),
+            _ => None,
+        }
+    }
+
     /// The dungeon this door opens, if it opens one.
     ///
     /// The gallery's is conditional - it wants something Legendary to sell -

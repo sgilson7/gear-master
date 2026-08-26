@@ -379,19 +379,26 @@ fn the_foundry_was_counting_and_says_so_thirty_rungs_later() {
         panic!("the book stopped being a book")
     };
     assert_eq!(what, "crucible-melts");
-    assert!(at_least >= 2, "one visit is not a habit");
+    // One, and not two.
+    //
+    // It asked for two, on the reasoning that one visit is not a habit. A town
+    // is one visit and one action, and the only second action in the game is
+    // the Second Key - whose only source is THE SEALED BID, which stands at or
+    // after the Slagworks' own gate. On a shared rung the town resolves before
+    // the event, so by the time the key could be won the visit is spent. Two
+    // melts was a number no run could reach.
+    assert_eq!(at_least, 1, "the foundry counts what a run can actually do");
 
     let mut never = a_run();
     standing_at(&mut never, "the-foundry-remembers");
     assert!(!never.choice_open(kept), "a column with nothing in it was read");
 
-    let mut twice = a_run();
-    twice.count("crucible-melts");
-    twice.count("crucible-melts");
-    standing_at(&mut twice, "the-foundry-remembers");
-    assert!(twice.choice_open(kept), "two melts is not two melts");
-    twice.take_choice(kept);
-    assert!(twice.holds("The Cracked Lens"), "the foundry kept it after all");
+    let mut once = a_run();
+    once.count("crucible-melts");
+    standing_at(&mut once, "the-foundry-remembers");
+    assert!(once.choice_open(kept), "a melt is not a melt");
+    once.take_choice(kept);
+    assert!(once.holds("The Cracked Lens"), "the foundry kept it after all");
 }
 
 #[test]
