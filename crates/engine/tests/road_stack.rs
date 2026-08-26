@@ -231,3 +231,97 @@ fn a_town_revealed_too_late_says_it_is_behind_you() {
     let receipt = run.take_receipt().expect("a receipt").join(" | ");
     assert!(receipt.contains("behind you"), "no warning at all: {}", receipt);
 }
+
+// ---------------------------------------------- two doors on one rung
+//
+// The bug the owner hit on rung three: a quick kill in the shallow end opens
+// THE CASINO, whose window is rungs two to nine, and TWO BY TWO stands on rung
+// three. `event::at` was a `find`, so the casino came back, the toad was never
+// asked, and answering the casino left the rung empty. A scheduled event has
+// one rung and no second chance.
+
+/// Both stand, the one that expires is asked first, and neither is lost.
+#[test]
+fn an_earned_window_over_a_scheduled_rung_leaves_both_on_the_stack() {
+    let mut run = a_run();
+    run.best_fight_ms = Some(1_000);
+    stand_at(&mut run, 2);
+
+    let ids: Vec<&str> = run
+        .road_stack()
+        .iter()
+        .filter_map(|i| match i {
+            Interrupt::Event(e) => Some(e.id),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        ids,
+        vec!["the-toads-offer", "the-casino"],
+        "rung three carries both; the toad expires here and the casino has seven more rungs"
+    );
+    assert_eq!(
+        run.pending_event().map(|e| e.id),
+        Some("the-toads-offer"),
+        "the door about to be lost is the one asked"
+    );
+}
+
+/// Answering the first leaves the second exactly where it stood.
+///
+/// Note the success test. `take_choice` returns `Option<&str>` and that option
+/// is the *component handed over*, not whether the door was answered - most
+/// choices hand over nothing and return `None` on the happy path. `answered`
+/// is the fact.
+#[test]
+fn answering_one_of_two_on_a_rung_does_not_take_the_other_with_it() {
+    let mut run = a_run();
+    run.best_fight_ms = Some(1_000);
+    stand_at(&mut run, 2);
+
+    let toad = gearmaster_engine::event::EVENTS.iter().find(|e| e.id == "the-toads-offer").unwrap();
+    let fight_it = toad.choices.iter().find(|c| c.label == "FIGHT IT ANYWAY").expect("authored");
+    run.take_choice(fight_it);
+    assert!(run.answered.contains(&"the-toads-offer"), "the toad was not the door standing here");
+
+    assert_eq!(
+        run.pending_event().map(|e| e.id),
+        Some("the-casino"),
+        "the casino was underneath and is still underneath"
+    );
+    let ids: Vec<&str> = run
+        .road_stack()
+        .iter()
+        .filter_map(|i| match i {
+            Interrupt::Event(e) => Some(e.id),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(ids, vec!["the-casino"], "and the answered one is off the stack");
+}
+
+/// You answer the door you are standing at, and the one behind it waits.
+#[test]
+fn the_door_underneath_cannot_be_answered_over_the_top_of_the_one_in_front() {
+    let mut run = a_run();
+    run.best_fight_ms = Some(1_000);
+    stand_at(&mut run, 2);
+    let casino = gearmaster_engine::event::EVENTS.iter().find(|e| e.id == "the-casino").unwrap();
+    let out = casino.choices.iter().find(|c| c.label == "Keep out of it").expect("authored");
+
+    // Refused while the toad is in front of it, which is the ownership guard
+    // doing its job rather than a door being lost.
+    run.take_choice(out);
+    assert!(
+        !run.answered.contains(&"the-casino"),
+        "answered a door that was not the one being asked"
+    );
+
+    let toad = gearmaster_engine::event::EVENTS.iter().find(|e| e.id == "the-toads-offer").unwrap();
+    run.take_choice(toad.choices.iter().find(|c| c.label == "FIGHT IT ANYWAY").unwrap());
+    run.take_choice(out);
+    assert!(
+        run.answered.contains(&"the-casino") && run.answered.contains(&"the-toads-offer"),
+        "both doors on rung three should end up answered, and neither should vanish"
+    );
+}

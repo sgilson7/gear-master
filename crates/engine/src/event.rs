@@ -1977,20 +1977,38 @@ pub const EVENTS: &[LadderEvent] = &[
     },
 ];
 
-/// The event standing on `rung`, if there is one.
-/// The event standing on `rung`, given what the run has managed so far.
+/// **Every** event standing on `rung`, given what the run has managed so far.
 ///
 /// `best_fight_ms` is the quickest win the run has had, or `None` if it has
 /// not won one yet. An earned event fires on the first rung after it qualifies
 /// rather than on a fixed one, so it turns up when you have earned it.
-pub fn at(
+///
+/// This was a `find` and returned one. That is the whole of a bug the owner
+/// hit at rung three: a quick kill in the shallow end opens THE CASINO, whose
+/// window is rungs two to nine, and TWO BY TWO stands on rung three - so the
+/// casino was returned, the toad was never asked, and answering the casino
+/// left the rung empty. A scheduled event stands on exactly one rung and is
+/// gone if it is not asked there, so an earned window passing over one used to
+/// delete it.
+///
+/// **Scheduled first**, which is the ordering rule and not an accident. A
+/// `Trigger::Rung` event has one rung and expires; an earned one roams a
+/// window and will still be there next rung. Ask the one that is about to be
+/// lost. Within each group the table's own order stands, which is what keeps
+/// THE CASINO ahead of GERALD - they are alternatives, and answering the first
+/// shuts the second through `blocked_by`.
+pub fn standing_at(
     rung: usize,
     best_fight_ms: Option<u32>,
     worst_fight_ms: Option<u32>,
     answered: &[&'static str],
-) -> Option<&'static LadderEvent> {
-    EVENTS.iter().find(|e| {
-        if e.blocked_by.iter().any(|id| answered.contains(id)) {
+) -> Vec<&'static LadderEvent> {
+    let mut out: Vec<&'static LadderEvent> = EVENTS.iter().filter(|e| {
+        // Answered shuts a door as hard as `blocked_by` does. This parameter
+        // used to gate only the second, which reads as a filter that does
+        // nothing of the sort - the caller filtered its own id afterwards and
+        // both halves of the question lived in different files.
+        if answered.contains(&e.id) || e.blocked_by.iter().any(|id| answered.contains(id)) {
             return false;
         }
         match e.trigger {
@@ -2002,11 +2020,14 @@ pub fn at(
                 (from..=e.at).contains(&rung) && worst_fight_ms.is_some_and(|ms| ms > over_ms)
             }
             // Not answerable from here: one is about the board and the run,
-            // the other about what the run has done, and `event::at` knows
-            // about neither. `Run::pending_event` answers both.
+            // the other about what the run has done, and this knows about
+            // neither. `Run::pending_event` answers both.
             Trigger::Whispered { .. } | Trigger::WhenFlagged { .. } => false,
         }
-    })
+    }).collect();
+    // A stable partition: scheduled, then earned, each in table order.
+    out.sort_by_key(|e| !matches!(e.trigger, Trigger::Rung));
+    out
 }
 
 /// Every choice whose outcome sets `flag`, as (event id, choice label).
@@ -2210,36 +2231,88 @@ mod tests {
         }
     }
 
-    /// A scheduled event standing inside an earned one's window has to be
-    /// written after it, or `find` returns the scheduled one every time and
-    /// the earned window is quietly shorter than it says.
+    /// A scheduled event inside an earned one's window is not eaten by it.
     ///
-    /// Only the two stopwatch triggers can be shadowed, and that is the whole
-    /// of why this test exists: `event::at` is a `find` over the table and
-    /// resolves those two. `Whispered` and `WhenFlagged` are refused there and
-    /// answered by `Run::standing_events`, which puts them *first* - so a
-    /// scheduled event cannot hide one however the table is ordered, and
-    /// asking it to would be pinning an ordering nothing depends on.
+    /// This used to assert the opposite thing, for the opposite reason:
+    /// `event::at` was a `find`, exactly one event came back, and the test
+    /// pinned the *write order* so that the earned one won. Which meant a
+    /// quick kill in the shallow end deleted TWO BY TWO - the casino's window
+    /// is rungs two to nine, the toad stands on rung three, and the toad was
+    /// simply never asked. The owner hit it on rung three.
+    ///
+    /// `standing_at` returns all of them now, so the question is no longer
+    /// which one wins but which is asked first, and the answer is the one
+    /// about to expire.
     #[test]
-    fn nothing_scheduled_shadows_an_earned_window() {
-        for (i, earned) in EVENTS.iter().enumerate() {
+    fn an_earned_window_does_not_eat_a_scheduled_rung() {
+        for earned in EVENTS.iter() {
             if !matches!(earned.trigger, Trigger::QuickKill { .. } | Trigger::SlowKill { .. }) {
                 continue;
             }
             let window = earned.trigger.from()..=earned.at;
-            for (j, sched) in EVENTS.iter().enumerate() {
+            for sched in EVENTS.iter() {
                 if !matches!(sched.trigger, Trigger::Rung) || !window.contains(&sched.at) {
                     continue;
                 }
+                // Standing on the shared rung, with the earned one qualified.
+                let both = standing_at(sched.at, Some(0), Some(u32::MAX), &[]);
                 assert!(
-                    j > i,
-                    "{} stands on rung {} inside {}'s window and is written first",
+                    both.iter().any(|e| e.id == sched.id),
+                    "{} stands on rung {} and {}'s window swallowed it",
                     sched.id,
                     sched.at + 1,
                     earned.id
                 );
+                assert_eq!(
+                    both.first().map(|e| e.id),
+                    Some(sched.id),
+                    "on rung {} the scheduled door is the one that expires and is asked first",
+                    sched.at + 1
+                );
             }
         }
+    }
+
+    /// The rung the owner reported, end to end.
+    #[test]
+    fn rung_three_offers_the_toad_and_the_casino_and_loses_neither() {
+        // A quick kill anywhere in the shallow end opens the casino, whose
+        // window covers rung three, where TWO BY TWO stands.
+        let standing = standing_at(2, Some(1_000), None, &[]);
+        let ids: Vec<&str> = standing.iter().map(|e| e.id).collect();
+        assert_eq!(
+            ids,
+            vec!["the-toads-offer", "the-casino"],
+            "both stand, and the one that expires is asked first"
+        );
+
+        // Answering one leaves the other exactly where it was.
+        let after = standing_at(2, Some(1_000), None, &["the-toads-offer"]);
+        assert_eq!(after.iter().map(|e| e.id).collect::<Vec<_>>(), vec!["the-casino"]);
+        let other = standing_at(2, Some(1_000), None, &["the-casino"]);
+        assert_eq!(other.iter().map(|e| e.id).collect::<Vec<_>>(), vec!["the-toads-offer"]);
+    }
+
+    /// The two shallow-end doors are still alternatives.
+    ///
+    /// They are both earned and both can qualify at once; the casino is
+    /// written first and `blocked_by` shuts GERALD once it is answered. That
+    /// survived the change from `find` to a list and is worth saying so.
+    #[test]
+    fn the_two_shallow_doors_are_still_one_question() {
+        let both = standing_at(8, Some(1_000), Some(20_000), &[]);
+        let ids: Vec<&str> = both.iter().map(|e| e.id).collect();
+        assert!(ids.contains(&"the-casino"), "the casino qualified and is not there: {ids:?}");
+        assert!(
+            ids.iter().position(|i| *i == "the-casino")
+                < ids.iter().position(|i| *i == "the-long-way").or(Some(usize::MAX)),
+            "the casino is asked first: {ids:?}"
+        );
+        let after = standing_at(8, Some(1_000), Some(20_000), &["the-casino"]);
+        assert!(
+            !after.iter().any(|e| e.id == "the-long-way"),
+            "answering the casino has to shut GERALD"
+        );
     }
 
     /// Every event has to offer a way through that needs nothing, or a player

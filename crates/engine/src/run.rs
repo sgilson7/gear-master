@@ -994,8 +994,13 @@ impl Run {
                 out.push(e);
             }
         }
-        if let Some(e) =
-            crate::event::at(self.rung, self.best_fight_ms, self.worst_fight_ms, &self.answered)
+        // Every one of them, not the first. Two can stand on one rung - an
+        // earned window passing over a scheduled rung - and the scheduled one
+        // is the one that expires, so `standing_at` puts it first and both are
+        // asked in turn.
+        for e in
+            crate::event::standing_at(self.rung, self.best_fight_ms, self.worst_fight_ms, &self.answered)
+                .into_iter()
                 .filter(|e| !self.answered.contains(&e.id))
         {
             if !out.iter().any(|o| o.id == e.id) {
