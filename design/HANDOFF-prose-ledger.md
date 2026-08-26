@@ -466,3 +466,107 @@ carries each destination's title as a second literal, so THE THRUMBUS RACE was
 written down twice and this lint could see neither copy.
 
 **Suites:** engine **781 green, 40 ignored, 0 warnings**; gui **61 green**.
+
+---
+
+## P6 - verification, and what is left
+
+### The numbers
+
+| | At `628185a` | At the end |
+|---|---|---|
+| engine suite | 776 green, 38 ignored | **781 green, 40 ignored** |
+| gui suite | 60 green | **61 green** |
+| warnings, whole workspace | 0 (under rustc 1.95) | **0** |
+| `DIGIT_PROPS` | 18 | **0, and the budget retired** |
+| `two_voices` budget | 5, compared case-sensitively | **5, compared case-insensitively** |
+| `COUNTERS_NOBODY_READS` | not measured | **3, recorded** |
+
+### The printers moved nothing
+
+```
+cargo test -p gearmaster-engine --test baseline -- --ignored --nocapture --test-threads=1
+cargo test -p gearmaster-engine --test catalog_shape -- --ignored --nocapture
+```
+
+Both ran clean and `git status analysis/` came back empty. A prose pass that
+moved a balance number would be a prose pass that touched something it should
+not have.
+
+### Two CLI replays, diffed
+
+Two scripted runs - one walking the road, shopping and visiting a town, one
+fighting three rungs and answering an event - each piped through
+`gearmaster-cli` twice and diffed. 547 lines and 336 lines, byte-identical
+both times. A scripted run replaying identically is the design contract and
+not a convenience.
+
+The replays also confirm the cast reaches the terminal: Marlow is working the
+ring with a book in the CLI's own rendering of THE CASINO, and the route map
+draws THE HOLLOW KING at rung 15 one line above HE IS STILL TALKING at 16 -
+which is the scene that now names him.
+
+### The road, read
+
+`read_the_road_aloud` over all 1,118 lines, then a scan for the fault this pass
+existed to remove. Every surviving "a man" / "the man" in shipped prose is
+followed by a name in the same sentence - "A man called Braddock", "The man who
+owns it is Ollam", "a steward called Cobb", "The foreman is called Ossery".
+The three that are not are the three that should not be:
+
+- Sump Bottom's gate has "a man selling out of a cart", and the Shop door says
+  "Whoever has the cart this week". It is a different man in three towns.
+- THE CASINO has "the dealer", which at a card table is a job.
+- THE TELLER has "a man who has done this three times", which is Ollam,
+  already named twice above it.
+
+### What this pass did not do
+
+- **Three counters are still read by nothing** - `shook-the-machine`,
+  `moles-paid`, `crossed`. Recorded as `COUNTERS_NOBODY_READS = 3` in
+  `completable.rs`, with an `#[ignore]`d target at zero. Closing it means
+  authoring three doors, which is content.
+- **The MSRV is still a lie.** `Cargo.toml` declares 1.75; this builds under
+  1.95 and the code needs 1.83. Untouched because it is not prose.
+- **`pedestal.rs::Destination::name` still duplicates each title** as a second
+  literal. It is walked by `two_voices` now, so a *book word* in one and not
+  the other would be caught, but two different titles still would not be.
+- **`the-thrumbus-race` is still the event's id**, and `what-to-do-with-henpeck`
+  is still an id naming a book character. Ids are keys and were left alone on
+  purpose; nothing shows them to a player.
+
+### CLAUDE.md
+
+**Not edited, deliberately.** The working tree carried an uncommitted rewrite of
+it from the previous session - the one that wrote `HANDOFF-prose.md` - along
+with an unfinished move of the handoffs into `design/`, and one reference in it
+(`analysis/post-unwinding.md`) points at a file that is at `design/` instead.
+Committing that would have meant finishing and signing somebody else's
+in-flight reorganisation inside a prose commit.
+
+Three things belong in its trap list when that lands:
+
+> **The book-word ratchet used to be blind to capitals.** `two_voices::leaks()`
+> compared exact case, and this game puts proper nouns on signs and brass
+> plates: EGGBERT, BUNKO, HENPECK and THRUMBUS all shipped in the canonical
+> column with a green budget of 5. It compares case-insensitively now. If you
+> add a `BOOK` word, add it in the case the book uses and trust the lint.
+>
+> **A silent counter with no door is dead content.** `no_flag_is_waited_on_forever`
+> catches a flag waited on and never set; nothing caught the mirror until
+> `completable.rs` gained `COUNTERS_NOBODY_READS`, which is 3.
+>
+> **`LadderEvent::at` is zero-based and prose is not.** THE CONTRACT promised
+> "rung 28" for a payout standing on rung 29. That is trap nine's fourth bug.
+> `structures.rs::the_contract_names_the_rung_the_payout_actually_stands_on`
+> pins that one; nothing pins the general case, because nothing can tell which
+> figure in a scene is meant to be a rung.
+
+And the counts, when they are re-read: engine **781 green, 40 ignored, 51
+binaries**; gui **61**.
+
+### `analysis/baseline.md`
+
+Not edited either, and that is the record: it is generated by a printer, the
+printer was re-run, and it came back byte-identical. The prose pass is visible
+in nothing it measures, which is the correct outcome.
