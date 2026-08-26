@@ -11,14 +11,19 @@ ladder of creatures, a final boss named Francis, and a fifty-first rung behind
 him. The player's job is packing boards; the engine's job is making every
 fight a pure function of what was packed.
 
-Read this file top to bottom once. Then read `design/rl-agent-plan.md` -
-that is **the mission** (§6). The previous two missions are finished and
-deployed: the gear-slot rewrite (`design/gear-slot-basis-rewrite.md`,
-`design/HANDOFF.md`'s predecessor) and the Unwinding (`design/the-unwinding.md`,
-`design/HANDOFF.md`, `design/HANDOFF-unwinding.md`). `design/post-unwinding.md`
-is the audit of the second against the code and is more recent than either
-handoff. The prose pass that followed both is `HANDOFF-prose.md` (the brief)
-and `design/HANDOFF-prose-ledger.md` (what it did).
+Read this file top to bottom once. Then read `design/rl-agent-plan.md`, which
+is **the mission** (§6), and `HANDOFF-solver.md`, which is the brief for it.
+
+Three missions are finished and deployed:
+
+- **the gear-slot rewrite** - `design/gear-slot-basis-rewrite.md`, and
+  `design/HANDOFF.md`'s predecessor as its record.
+- **the Unwinding** - `design/the-unwinding.md`, recorded in
+  `design/HANDOFF.md` and `design/HANDOFF-unwinding.md`.
+  `design/post-unwinding.md` audits it against the code and is more recent
+  than either handoff.
+- **the prose pass** - `HANDOFF-prose.md` is the brief and
+  `design/HANDOFF-prose-ledger.md` is what it did.
 
 ---
 
@@ -102,7 +107,7 @@ they disagree, this is the bug report"*. `analysis/` holds measurements.
 | `stats.rs` | 491 | `Stats`; `power` is a multiplier in hundredths |
 | `rumour.rs` | 446 | **8** rumours; 1-cell conditions that sit in the tray and open doors |
 | `curse.rs` | 396 | Searing, Frost, Stun, Misfire; `TICK_MS = 50` (`:12`) |
-| `share.rs` | 356 | Share codes, version 3, base-32; a placement is `def<<12 \| slot<<9 \| x<<6 \| y<<2 \| rot` (`:182`); `A_FRIENDS_RUN`, `A_WINNING_RUN`, `A_PERFECT_RUN` (`:159-180`). **Index-keyed into `CATALOG`** |
+| `share.rs` | 356 | Share codes, version 3, base-32; a placement is `def<<12 \| slot<<9 \| x<<6 \| y<<2 \| rot` (`:218`); `A_FRIENDS_RUN`, `A_WINNING_RUN`, `A_PERFECT_RUN` (`:159-180`). **Index-keyed into `CATALOG`** |
 | `dungeon.rs` | 349 | **6** dungeons; floors fought in order, exit returns you |
 | `relic.rs` | 188 | **4** run-relics (pay from a board, off run counters), crushables |
 | `pedestal.rs` | 129 | **4** destinations, once a run |
@@ -233,6 +238,14 @@ reinforcement-learning agent, with no generative AI anywhere in the loop, so
 that a trained agent becomes a better validity solver than the repo has. Read
 `design/rl-research.md` first for the stack recommendation. Its milestone 1 is
 a non-learning search baseline, and every later milestone reports against it.
+
+**Read `HANDOFF-solver.md` beside it.** The plan is a complete execution spec
+and this file does not duplicate it; the handoff is the difference between what
+the plan says and what the code says today. It was written against `18d1b85`
+and the prose pass moved sixteen of its `run.rs` and `combat.rs` line
+citations, changed one number it depends on (Rogue has **four** lives now, and
+§5's M3 says three), and named a seed in §7 that does not exist. Every API name
+in it is correct; the addresses are not.
 
 **What the repo uses today to say a build is valid or a rung is clearable**,
 which is what the mission has to beat:
