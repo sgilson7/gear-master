@@ -129,3 +129,58 @@ fn the_doors_a_town_offers_are_the_doors_it_carries() {
         }
     }
 }
+
+/// Walk a run into EXTRA LARGE, the long way, one rung at a time.
+///
+/// The bug this exists for: THE BIGGER SIGN stood on rung 41 and revealed a
+/// town standing in the gap after rung 14. Everything worked - the flag was
+/// set, the sign was offered, the reveal fired, the town went on the map - and
+/// the road had walked past the gap twenty-seven rungs earlier. Every test was
+/// green, because every test asked whether *something* revealed the town.
+///
+/// A reachability test has to walk. This one plugs its ears where the ears get
+/// plugged, finds the sign between there and the gate, follows it, arrives at
+/// the gap, and goes in.
+#[test]
+fn a_run_that_plugs_its_ears_can_walk_into_extra_large() {
+    let mut run = a_run();
+    run.gold = 100_000;
+
+    // The Teller, and the choice that opens the sign.
+    run.rung = 10;
+    let teller = run.pending_event().expect("the Teller stands on rung 11");
+    assert_eq!(teller.id, "the-teller");
+    let ears = teller.choices.iter().find(|c| c.label == "Plug your ears").expect("that choice");
+    run.take_choice(ears);
+    let receipt = run.take_receipt().expect("a receipt").join(" | ");
+    assert!(
+        receipt.contains("THE BIGGER SIGN"),
+        "nothing told the player they had just opened a door: {}",
+        receipt
+    );
+
+    // The sign, somewhere between the Teller and the gate.
+    let gate_at = gearmaster_engine::town::by_id("extra-large").expect("the town").after;
+    let mut signed = false;
+    for rung in 11..=gate_at {
+        run.rung = rung;
+        let Some(e) = run.pending_event() else { continue };
+        if e.id != "the-bigger-sign" {
+            continue;
+        }
+        let follow = e.choices.iter().find(|c| c.label == "Follow the sign").expect("authored");
+        assert!(run.choice_open(follow), "the sign was shut to a run that plugged its ears");
+        run.take_choice(follow);
+        run.take_receipt();
+        signed = true;
+        break;
+    }
+    assert!(signed, "the sign never stood between the Teller and the gate after rung {}", gate_at + 1);
+
+    // And the gap itself, which is the half nothing was checking.
+    run.rung = gate_at + 1;
+    run.town = run.town_between(run.rung);
+    let town = run.pending_town().expect("EXTRA LARGE is a gate you can walk into");
+    assert_eq!(town.id, "extra-large");
+    assert!(!town.actions.is_empty(), "a town with no doors is not a town");
+}

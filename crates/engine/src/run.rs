@@ -1200,6 +1200,7 @@ impl Run {
         // sends the player back to the road thinking the answer was "fight the
         // next thing", which is the one reading that is wrong.
         receipt.extend(self.opened_by(&chosen.outcome));
+        receipt.extend(self.opened_by_taking(chosen.label));
         self.last_receipt = Some(receipt);
         gave
     }
@@ -1252,6 +1253,29 @@ impl Run {
                     }
                 }
                 _ => {}
+            }
+        }
+        out
+    }
+
+    /// What *choosing this* has opened, as opposed to what its outcome did.
+    ///
+    /// A door can wait on a label rather than on a flag - `Requirement::Took`
+    /// - and that is the quietest unlock in the game: the choice's own outcome
+    /// is often `FightAsWritten`, so the receipt said "Fight the creature
+    /// standing here" and the player had no way to know they had just opened
+    /// something twenty rungs up. Plugging your ears at the Teller is exactly
+    /// this, and it is the one that gets you into EXTRA LARGE.
+    fn opened_by_taking(&self, label: &'static str) -> Vec<String> {
+        let mut out = Vec::new();
+        for e in crate::event::EVENTS.iter() {
+            if self.answered.contains(&e.id) {
+                continue;
+            }
+            for c in e.choices {
+                if matches!(c.requires, crate::event::Requirement::Took(l) if l == label) {
+                    out.push(format!("Opened: {} (rung {})", e.title, e.at + 1));
+                }
             }
         }
         out
