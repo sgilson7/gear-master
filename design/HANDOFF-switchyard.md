@@ -32,6 +32,7 @@ argue against.
 |---|---|---|
 | **M0** Baseline, and the MSRV told the truth | **done** | "M0 baseline at `e38d968`" |
 | **M1** The floor graph, landed inert | **done** | "M1 the floor graph" |
+| **M2** Run state, the four transitions, the stack | **done** | "M2 run state, the four transitions, the stack" |
 
 ## 3. Open questions for the user
 
@@ -141,3 +142,46 @@ will be the first to use.
 
 **Suite:** 813 passed, 41 ignored, 0 failed. GUI 62. No warnings.
 750 insertions, 123 deletions across 11 files.
+
+### M2 - Run state, the four transitions, the stack
+
+`Run` carries `cleared_floors`, `at_points`, `took_exits` and
+`entry_started_at`. `Interrupt` has a `Points` variant that blocks a rematch
+and says `"the points"`. Clearing a floor, throwing the lever, leaving,
+losing and coming back in are five transitions with a test each, and the
+fixture they are tested against is `common::A_YARD` - four rooms, a fork at
+the top, four creatures that already exist - which is **not** in `DUNGEONS`
+and never will be.
+
+**831 passed, 41 ignored, 0 failed. GUI 62. No warnings.** The `baseline`
+printer is still byte-identical to M0 and `acceptance` is green.
+
+**The walk-through rule in A1.3 is wrong, and a test found it.** The spec says
+to follow a cleared floor by taking "the single uncleared exit" - meaning the
+exit whose *next room* is unbeaten. A run that walked one road as far as its
+first room and left has beaten that road's first room, so the rule declares
+that road finished and quietly sends the player down the other one, past every
+room on the first that nobody fought. The engine asks
+`fights_ahead(to, cleared) > 0` instead - "is there still a fight down there" -
+which agrees with the spec everywhere the yard's own shape can produce,
+including A4's worked eight-floor example, and disagrees exactly where
+`leave_dungeon` lets a run stop half way. `a_road_half_walked_is_still_a_road`
+is the case.
+
+**Two other deviations, both recorded in `analysis/switchyard.md`:**
+
+- `enter_dungeon_at` takes `&'static Dungeon` rather than an id, because M2's
+  whole job is proving the primitive before content exists and a test-local
+  dungeon has no id to be found by. `enter_dungeon(id)` resolves and delegates.
+- `Interrupt::Dungeon` became a struct variant carrying the banner's two
+  numbers, because A1.4 asks `describe()` to say things only the run knows and
+  `describe(self)` has no run. One formatter, which is what A1.4 wanted.
+
+**Two pins moved, both re-pinned with the reason in the assertion.** The
+dungeon replay fixture gained the creature's name on fourteen banner lines and
+changed nothing else - `grep -vc banner:` over the diff is 0 - which is
+acceptance criterion 3 in its own words. And
+`road_stack::a_dungeon_sits_on_top_of_whatever_it_was_entered_from` now reads
+"floor 1 of 2" for a run hand-placed on floor 1, because a run put there has
+won no fights and has two ahead; a second run was added beside it that walks
+in properly and pins "2 of 3".

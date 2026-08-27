@@ -6900,7 +6900,7 @@ fn render_route(run: &Run, mx: f32, my: f32) {
 /// the last row, so the queue visibly ends somewhere rather than trailing off.
 fn render_stack_strip(run: &Run, mx: f32, my: f32) {
     let stack = run.road_stack();
-    let inside = stack.iter().any(|i| matches!(i, gearmaster_engine::run::Interrupt::Dungeon(..)));
+    let inside = stack.iter().any(|i| matches!(i, gearmaster_engine::run::Interrupt::Dungeon { .. }));
     if stack.len() < 2 && !inside {
         return;
     }

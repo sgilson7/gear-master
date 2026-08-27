@@ -106,3 +106,85 @@ pub fn run_from(code: &str) -> Run {
     run.refresh_class_effects();
     run
 }
+
+// -------------------------------------------------- a dungeon with points in it
+
+/// A four-room dungeon with a set of points at the top, for proving the graph
+/// primitive before any content exists.
+///
+/// It is not in `DUNGEONS` and never will be. That is the point of it: the
+/// transitions - clearing, throwing, leaving, losing, coming back - are worth
+/// testing against a shape the shipped six do not have, and adding a ninth
+/// dungeon to the table to get one would put a test fixture on the road.
+/// `Run::enter_dungeon_at` takes the dungeon rather than an id for exactly
+/// this reason.
+///
+/// ```text
+///        [0] The Reciter
+///         /            \
+///   [1] The Long Haul   [2] The Watchers
+///         |
+///   [3] The Current
+/// ```
+///
+/// Four creatures that already exist in `ALTERNATES`, so nothing here is a
+/// `MonsterSpec`. Two roads of unequal length on purpose: the longest road out
+/// of floor 0 is three fights and the short one is two, which is what makes
+/// `fights_ahead` say something a room count could not.
+pub static A_YARD: gearmaster_engine::dungeon::Dungeon = gearmaster_engine::dungeon::Dungeon {
+    id: "a-test-yard",
+    name: "A TEST YARD",
+    blurb: &["A yard that is not on the road, and never will be."],
+    entry: &["The gate is open and the rails go two ways from it."],
+    floors: &[
+        gearmaster_engine::dungeon::Floor {
+            creature: "The Reciter",
+            landing: "The recitation stops, and past it the rails part.",
+            exits: &[
+                gearmaster_engine::dungeon::Exit {
+                    to: 1,
+                    label: "The long road",
+                    blurb: "Two more fights, and a siding at the end of it.",
+                },
+                gearmaster_engine::dungeon::Exit {
+                    to: 2,
+                    label: "The short road",
+                    blurb: "One fight, and then the buffer stop.",
+                },
+            ],
+            fork: &["The rails part at a lever nobody is standing at."],
+            entry: &[],
+            also: &[],
+        },
+        gearmaster_engine::dungeon::Floor {
+            creature: "The Long Haul",
+            landing: "The train goes over on the bend, and the road goes on.",
+            exits: &[gearmaster_engine::dungeon::Exit {
+                to: 3,
+                label: "",
+                blurb: "",
+            }],
+            fork: &[],
+            entry: &["The siding puts you down halfway along the long road."],
+            also: &[],
+        },
+        gearmaster_engine::dungeon::Floor {
+            creature: "The Watchers",
+            landing: "The short road ends at a buffer stop, as painted.",
+            exits: &[],
+            fork: &[],
+            entry: &[],
+            also: &[gearmaster_engine::event::Outcome::Flag("took-the-short-road")],
+        },
+        gearmaster_engine::dungeon::Floor {
+            creature: "The Current",
+            landing: "The long road ends at a buffer stop, as painted.",
+            exits: &[],
+            fork: &[],
+            entry: &[],
+            also: &[gearmaster_engine::event::Outcome::Flag("took-the-long-road")],
+        },
+    ],
+    reward: "",
+    also: &[],
+};

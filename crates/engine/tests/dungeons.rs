@@ -420,6 +420,12 @@ fn transcript() -> String {
 ///
 /// Re-baseline with `REBASELINE_DUNGEON_REPLAY=1`, and say in the commit which
 /// dungeon started saying something else.
+///
+/// **Re-baselined once, at M2**, and the diff was fourteen banner lines and
+/// nothing else: every one gained the creature's name between the dungeon's
+/// and the floor count, which is what acceptance criterion 3 asks for in those
+/// words. Every `floor {n} of {m}` pair came back the same, which is the half
+/// of the banner that had to hold when its two numbers changed meaning.
 #[test]
 fn the_six_shipped_dungeons_replay_word_for_word() {
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../analysis/replays/dungeons.txt");

@@ -369,3 +369,117 @@ rather than one, it pins the landing prose and the banner as well as the
 outcome, and it runs in the suite instead of by hand. Acceptance criterion 1's
 CLI transcript is M6's, by which time `throw` and `leave` exist and there is
 something to say.
+
+---
+
+## M2 run state, the four transitions, the stack, at `87a391d`+
+
+The points exist. `Run` carries what it has beaten, `Interrupt` has a variant
+for standing at a lever, and clearing / throwing / leaving / losing /
+re-entering are five transitions with a test each. No content: the fixture is
+`common::A_YARD`, four rooms with a fork at the top, four creatures that
+already exist in `ALTERNATES`, and it is deliberately **not** in `DUNGEONS`.
+
+### The suite
+
+| | M1 | M2 |
+|---|---:|---:|
+| Engine passed | 813 | **831** |
+| Engine ignored | 41 | 41 |
+| GUI | 62 | 62 |
+| Warnings | 0 | 0 |
+
+The eighteen are the new binary `tests/switchyard.rs`.
+
+### Still inert where it has to be
+
+| What | Result |
+|---|---|
+| `baseline` printer, all six | **byte-identical to M0** |
+| `catalog_shape::no_creature_changed_what_it_wears` | green, 5,568 placements |
+| `acceptance` (10, `e6_1` among them) | green |
+| `route::ascii` fixture | green, unmoved |
+
+### Two pins moved, both re-pinned with the reason in the assertion
+
+**1. The dungeon banner gained the creature's name.** The replay fixture
+`analysis/replays/dungeons.txt` was re-baselined. The diff is **fourteen
+banner lines and nothing else** - `grep -vc 'banner:'` over the diff's changed
+lines is **0**. Every one gained the creature between the dungeon's name and
+the floor count:
+
+```
+- banner: THE THRESHOLD - floor 1 of 3
++ banner: THE THRESHOLD - DOORKEEP - floor 1 of 3
+```
+
+Every `floor {n} of {m}` pair came back the same, which is the half that had
+to hold: the two numbers changed *meaning* at M2 (from floor index and room
+count to which-fight-of-this-entry and how-many-this-entry-is) and a straight
+line walked from the top is where the old and new readings agree. That is
+acceptance criterion 3's "plus the creature's name", measured.
+
+**2. `road_stack::a_dungeon_sits_on_top_of_whatever_it_was_entered_from`.**
+It hand-assigns `run.dungeon = Some((d, 1))` and asserted `"floor 2 of 3"`.
+Under the new reading a run *put* on floor 1 without fighting anything has won
+no fights and has two ahead of it, so it is on **floor 1 of 2** - and a
+hand-assignment into the middle of a dungeon is exactly what a siding does, so
+the new answer is the right one. Re-pinned to 1 of 2, with a second run added
+beside it that walks in properly and pins **2 of 3**, so the number a real
+walk produces is still held down.
+
+---
+
+### Findings
+
+**8. A1.3's walk-through rule skips rooms nobody chose to skip.** The spec
+says: *"while `dungeon` is on a floor already in `cleared_floors`, follow it -
+one exit, take it; several, take the single uncleared one if exactly one is
+uncleared"*. "Uncleared" there means the exit's **next room**, and that is not
+the same question as whether the road is finished.
+
+The case, found by `a_road_half_walked_is_still_a_road` and reproduced in
+`A_YARD`: a run walks one road as far as its first room and leaves. Coming
+back to the fork, that road's next room *is* beaten, so the naive rule reads
+"one road left open" and throws the lever down the **other** one - past every
+room on the first road that nobody has fought.
+
+Fixed in the engine, not in the test: a road is open when
+`fights_ahead(to, cleared) > 0`, which is "there is still a fight somewhere
+down it". The two readings agree on every walk the yard's own shape produces,
+including A4's worked eight-floor example - which is why the spec's rule looks
+right - and they disagree the moment a run leaves half way down a line, which
+is a thing `leave_dungeon` exists to let it do.
+
+**9. `enter_dungeon_at` takes the dungeon, not an id.** A1.3 writes
+`Run::enter_dungeon_at(&mut self, id, floor)`. A dungeon that exists only in a
+test binary cannot be found by `dungeon::by_id`, and M2's whole test list is
+"prove the primitive before any content exists", so an id-keyed entry point
+would have forced a fixture into `DUNGEONS`. It takes
+`&'static Dungeon`; `enter_dungeon(id)` resolves and delegates, and
+`feed_pedestal` will do the same at M3. `by_id` is public and every road-side
+caller has already resolved one.
+
+**10. `Interrupt::Dungeon` is a struct variant carrying the banner's two
+numbers.** A1.4 requires `describe()` to produce `floor {n} of {m}` where both
+numbers are readings of the *run* - fights won this entry, and floors walked
+past because they were beaten before. `describe(self)` has no run. Putting the
+two numbers in the variant keeps one formatter for the banner and the stack
+strip, which is what A1.4 wanted; `road_stack()` computes them, and nothing
+holds an `Interrupt` across a transition because the stack is derived fresh
+every time it is asked for. Nine patterns changed, two of them outside
+`run.rs`.
+
+**11. A cleared road out of a cleared floor is an unreachable state the type
+allows.** If a siding put a run on a floor whose every road is walked out, the
+walk-through would have had nowhere to go and the run would have stood in a
+room it had already emptied - and fought the thing it beat. It cannot happen
+while a destination fires once a run, which is `pedestal.rs`'s rule, but the
+type does not say so. `walk_through_cleared` ends the dungeon and says
+`"Walked out of {name} - nothing left in it."` rather than guessing.
+
+**12. `wipe` needed nothing.** It builds a fresh `Run::seeded` and copies four
+things across, so the four new fields clear themselves.
+`wiping_forgets_the_yard` pins it, because "it happens to work" and "it is
+guaranteed" are different, and the next field added to `Run` will be added by
+somebody reading that test.
