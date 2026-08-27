@@ -8227,6 +8227,184 @@ const SKIP_TERM: &str = "THE WORN PATH";
 ///
 /// The page count needs to know how tall it is even on pages that do not show
 /// it, so measuring and drawing have to come apart.
+/// How a fight works, drawn.
+///
+/// The WORDS shelf is right for words - somebody looking up MISFIRE wants the
+/// sentence. This is for the half a sentence cannot carry, which is *what
+/// turns into what*: FAITH's entry reads "every point adds resistance of both
+/// types while held", and that is a sentence about an arrow.
+///
+/// Every number here is asked of the engine rather than written down.
+/// `Combatant::pool_pays` hands back what one point of a pool is worth by
+/// running `held_bonus` on a probe, so a diagram cannot disagree with the
+/// rulebook - the drawing code does not know the rates.
+///
+/// Returns the height it drew, so the panel can size itself.
+/// How many rows each section of the drawn shelf has, and how tall that is.
+///
+/// Split from the drawing so a test can ask - `text_width` and every `draw_*`
+/// need a graphics context, so measuring by drawing off-screen works at
+/// runtime and not in a test. The counts come from the engine, so a pool added
+/// there lengthens the page here and the height says so.
+fn fight_diagram_height() -> f32 {
+    use gearmaster_engine::combat::Combatant;
+    use gearmaster_engine::piece::Resource;
+    let pools = Resource::ALL.iter().filter(|r| !Combatant::pool_pays(**r).parts().is_empty()).count();
+    let fusions = Resource::ALL.iter().filter(|r| r.parents().is_some()).count();
+    let (lanes, clock) = (3usize, 2usize);
+    let (row, header, gap) = (44.0, 24.0, 10.0);
+    4.0 * header + (pools + fusions + lanes + clock) as f32 * row + 3.0 * gap
+}
+
+fn draw_fight_diagrams(x: f32, y: f32, w: f32, mx: f32, my: f32) -> f32 {
+    use gearmaster_engine::combat::Combatant;
+    use gearmaster_engine::piece::Resource;
+    let _ = (mx, my);
+    let g = 22.0;
+    let row = 44.0;
+    let mut ty = y;
+
+    let arrow = |from: f32, at: f32, to: f32| {
+        let c = Color::from_rgba(120, 120, 150, 255);
+        draw_line(from, at, to - 7.0, at, 2.0, c);
+        draw_triangle(
+            Vec2::new(to, at),
+            Vec2::new(to - 8.0, at - 5.0),
+            Vec2::new(to - 8.0, at + 5.0),
+            c,
+        );
+    };
+
+    ui_text(
+        words::word("what-a-pool-pays", "WHAT A BANKED POOL PAYS, PER POINT"),
+        x,
+        ty,
+        14.0,
+        col_gold(),
+    );
+    ty += 24.0;
+    for r in Resource::ALL {
+        let paid = Combatant::pool_pays(r);
+        let parts = paid.parts();
+        if parts.is_empty() {
+            continue;
+        }
+        let mid = ty + g * 0.35;
+        draw_keyword(x, ty, g, r.name());
+        let label = words::retell(r.name());
+        ui_text(&label, x + g + 6.0, mid + 5.0, 13.0, pool_color(r.name()));
+        let from = x + g + 10.0 + text_width(&label, 13.0);
+        arrow(from, mid + 1.0, from + 34.0);
+        // What it turns into, in the same symbols the cards use.
+        let mut cx = from + 42.0;
+        for (text, key) in &parts {
+            let shown = words::retell(text);
+            ui_text(&shown, cx, mid + 5.0, 13.0, Color::from_rgba(206, 214, 232, 255));
+            cx += text_width(&shown, 13.0) + 3.0;
+            if !key.is_empty() {
+                draw_keyword(cx, ty + 1.0, g * 0.8, key);
+                cx += g * 0.8;
+            }
+            cx += 10.0;
+        }
+        ty += row;
+    }
+
+    ty += 10.0;
+    ui_text(
+        words::word("what-fuses", "AND WHAT TWO OF THEM MAKE TOGETHER"),
+        x,
+        ty,
+        14.0,
+        col_gold(),
+    );
+    ty += 24.0;
+    for r in Resource::ALL {
+        let Some((a, b)) = fusion_parents(r.name()) else { continue };
+        let mid = ty + g * 0.35;
+        draw_keyword(x, ty, g, a);
+        ui_text("+", x + g + 5.0, mid + 5.0, 15.0, col_dim());
+        draw_keyword(x + g + 18.0, ty, g, b);
+        arrow(x + g * 2.0 + 26.0, mid + 1.0, x + g * 2.0 + 60.0);
+        draw_keyword(x + g * 2.0 + 66.0, ty, g, r.name());
+        let label = words::retell(r.name());
+        ui_text(&label, x + g * 3.0 + 72.0, mid + 5.0, 13.0, pool_color(r.name()));
+        // Both parents at double their own rate, which is the reason to want
+        // one - and it is `held_bonus` saying so, not this function.
+        ui_text(
+            &words::retell(&Combatant::pool_pays(r).summary()),
+            x + g * 3.0 + 78.0 + text_width(&label, 13.0),
+            mid + 5.0,
+            13.0,
+            Color::from_rgba(206, 214, 232, 255),
+        );
+        ty += row;
+    }
+
+    ty += 10.0;
+    ui_text(words::word("three-lanes", "THREE LANES, THREE ANSWERS"), x, ty, 14.0, col_gold());
+    ty += 24.0;
+    for (lane, answer) in [
+        ("physical", words::word("phys-answer", "resistance, and Deflection takes a flat cut first")),
+        ("magic", words::word("magic-answer", "resistance, and the mana shield blunts it")),
+        ("mind", words::word("mind-answer", "mind resistance alone - nothing else touches it")),
+    ] {
+        let mid = ty + g * 0.35;
+        draw_keyword(x, ty, g, lane);
+        let label = words::retell(lane);
+        ui_text(&label, x + g + 6.0, mid + 5.0, 13.0, keyword_color(lane));
+        let from = x + g + 10.0 + text_width(&label, 13.0);
+        arrow(from, mid + 1.0, from + 34.0);
+        ui_text(answer, from + 42.0, mid + 5.0, 13.0, Color::from_rgba(206, 214, 232, 255));
+        ty += row;
+    }
+
+    ty += 10.0;
+    ui_text(words::word("the-clock", "AND THE CLOCK"), x, ty, 14.0, col_gold());
+    ty += 24.0;
+    let mid = ty + g * 0.35;
+    draw_keyword(x, ty, g, "armor");
+    ui_text(
+        &format!(
+            "{}",
+            words::word(
+                "armour-note",
+                "soaks before health does, and every fight starts it at zero",
+            )
+        ),
+        x + g + 8.0,
+        mid + 5.0,
+        13.0,
+        Color::from_rgba(206, 214, 232, 255),
+    );
+    ty += row;
+    ui_text(
+        &format!(
+            "{}s  {}",
+            gearmaster_engine::combat::SUDDEN_DEATH_MS / 1000,
+            words::word(
+                "sudden-death-note",
+                "both sides start losing a growing share of maximum health each second",
+            )
+        ),
+        x,
+        ty + g * 0.35 + 5.0,
+        13.0,
+        col_bad(),
+    );
+    ty += row;
+    let _ = w;
+    let used = ty - y;
+    // The measure and the drawing have to agree, or the test that checks this
+    // page fits its panel is checking a number nothing draws.
+    debug_assert!(
+        (used - fight_diagram_height()).abs() < 0.5,
+        "drew {used:.0}px, measured {:.0}: a row was added to one and not the other",
+        fight_diagram_height()
+    );
+    used
+}
+
 fn draw_tile_legend_maybe(r: Rect, draw: bool) -> f32 {
     if draw {
         draw_tile_legend(r.x + 24.0, r.y + 86.0, r.w - 48.0)
@@ -9011,17 +9189,23 @@ fn render_glossary(tab: usize, pick: usize, mx: f32, my: f32) -> GlossaryHit {
     let close = Rect::new(r.x + r.w - 140.0, r.y + 16.0, 120.0, 34.0);
     button(close, "CLOSE", true, mx, my);
 
-    // Three shelves: the words, the classes, and the axes a fountain scores a
-    // build on.
+    // Four shelves: the words, the classes, the axes a fountain scores a build
+    // on, and the one that is drawn rather than written.
     let tw = 150.0;
     let tabs = [
         Rect::new(r.x + 320.0, r.y + 20.0, tw, 30.0),
         Rect::new(r.x + 320.0 + tw + 10.0, r.y + 20.0, tw, 30.0),
         Rect::new(r.x + 320.0 + (tw + 10.0) * 2.0, r.y + 20.0, tw, 30.0),
+        Rect::new(r.x + 320.0 + (tw + 10.0) * 3.0, r.y + 20.0, tw, 30.0),
     ];
-    let tab_names =
-        [words::word("classes", "CLASSES"), words::word("axes", "WHAT DECIDES")];
-    for (i, (rect, name)) in tabs.iter().zip(["WORDS", tab_names[0], tab_names[1]]).enumerate() {
+    let tab_names = [
+        words::word("classes", "CLASSES"),
+        words::word("axes", "WHAT DECIDES"),
+        words::word("how-a-fight-works", "HOW A FIGHT WORKS"),
+    ];
+    for (i, (rect, name)) in
+        tabs.iter().zip(["WORDS", tab_names[0], tab_names[1], tab_names[2]]).enumerate()
+    {
         let on = i == tab;
         draw_rectangle(
             rect.x,
@@ -9049,6 +9233,14 @@ fn render_glossary(tab: usize, pick: usize, mx: f32, my: f32) -> GlossaryHit {
             14.0,
             if on { col_gold() } else { col_dim() },
         );
+    }
+
+    // The drawn shelf has no chips: it is one page of diagrams, the way
+    // `draw_tile_legend` is one page of tile motifs. Returned early, before
+    // the chip machinery, because there is nothing on it to select.
+    if tab == 3 {
+        draw_fight_diagrams(r.x + 24.0, r.y + 104.0, r.w - 48.0, mx, my);
+        return GlossaryHit { close, chips: Vec::new(), skip: None, tabs };
     }
 
     let entries = glossary_entries(tab);
@@ -9147,7 +9339,7 @@ struct GlossaryHit {
     chips: Vec<Rect>,
     /// The one entry that is also a control - see `SKIP_TERM`.
     skip: Option<Rect>,
-    tabs: [Rect; 3],
+    tabs: [Rect; 4],
 }
 
 /// Name, health, armour, mana and curses for one side of the battle screen.
@@ -10398,8 +10590,9 @@ async fn main() {
     // Which word is open on each shelf. One apiece, so switching tabs and
     // coming back does not lose your place - and no page number, because there
     // are no pages any more.
-    let mut glossary_pick: [usize; 3] = [
+    let mut glossary_pick: [usize; 4] = [
         std::env::var("GEARMASTER_GLOSSARY_PICK").ok().and_then(|v| v.parse().ok()).unwrap_or(0),
+        0,
         0,
         0,
     ];
@@ -12351,6 +12544,50 @@ mod glossary_tests {
                 "{term} is defined in {:?}, which is not a definition",
                 meaning
             );
+        }
+    }
+
+    /// The drawn shelf fits on the page it is drawn on.
+    ///
+    /// `draw_fight_diagrams` returns the height it used, and the panel it sits
+    /// in is a fixed size - so the failure worth guarding is the one that only
+    /// shows up when a row is added: the last diagram drawn below the bottom
+    /// edge, where nobody sees it and nothing says so.
+    ///
+    /// Measured rather than eyeballed, and measured off-screen so it costs no
+    /// frame: the same trick `draw_tile_legend_maybe` uses to reserve its own
+    /// height on the pages it is not drawn on.
+    #[test]
+    fn the_drawn_glossary_fits_the_panel_it_is_drawn_in() {
+        let pad = 56.0;
+        let panel = Rect::new(pad, pad, LOGICAL_W - 2.0 * pad, LOGICAL_H - 2.0 * pad);
+        let top = panel.y + 104.0;
+        let used = fight_diagram_height();
+        assert!(used > 0.0, "the shelf has no rows at all");
+        assert!(
+            top + used <= panel.bottom(),
+            "the diagrams need {used:.0}px from y={top:.0} and the panel ends at \
+             {:.0}. A row was added and the last one is off the bottom.",
+            panel.bottom()
+        );
+    }
+
+    /// And every symbol it reaches for is one that can be drawn.
+    ///
+    /// The diagrams are built from `Resource::ALL` and the three lanes, so a
+    /// pool added to the engine appears here automatically - and would appear
+    /// as a blank if nothing draws it. That is the failure this catches, and
+    /// it is the same one `every_pool_the_engine_has_can_be_drawn` catches
+    /// from the other end.
+    #[test]
+    fn every_symbol_the_drawn_glossary_uses_has_a_shape() {
+        for lane in ["physical", "magic", "mind", "armor"] {
+            assert!(DRAWABLE.contains(&lane), "the diagrams draw {lane:?} and nothing can");
+        }
+        for r in gearmaster_engine::piece::Resource::ALL {
+            if let Some((a, b)) = fusion_parents(r.name()) {
+                assert!(DRAWABLE.contains(&a) && DRAWABLE.contains(&b), "{} has an undrawable parent", r.name());
+            }
         }
     }
 

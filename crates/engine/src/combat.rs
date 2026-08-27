@@ -3215,6 +3215,26 @@ impl Combatant {
         }
     }
 
+    /// What one point of a pool pays, while it is held.
+    ///
+    /// `held_bonus` is the rulebook for what a banked pool is worth and it has
+    /// never been shown to anybody - the glossary describes it in sentences
+    /// like "every point adds resistance of both types while held", which is a
+    /// sentence about an arrow.
+    ///
+    /// So the interface draws the arrow, and this is where it gets the numbers
+    /// from. Derived by asking `held_bonus` rather than by writing the rates
+    /// down a second time: a diagram that disagrees with the function is worse
+    /// than no diagram, and the only way to be sure it cannot is to not know
+    /// the numbers.
+    pub fn pool_pays(what: crate::piece::Resource) -> Stats {
+        // An empty player, holding one point of the pool and nothing else,
+        // so what comes back is that point and no other term.
+        let mut probe = Combatant::player(Stats::ZERO, &[]);
+        probe.set_pool(what, 1);
+        probe.held_bonus()
+    }
+
     pub fn held_bonus(&self) -> Stats {
         let m = self.overflowing.max(1);
         let (rage, faith, nature) = (self.rage * m, self.faith * m, self.nature * m);
