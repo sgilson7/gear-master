@@ -380,12 +380,69 @@ row and none overlaps, at every width the panel can take, the same shape as
    milestone most likely to need a `rating.rs` weight, which is the one thing
    that must be settled before anything is authored against it.
 
+### M9 - The pedestal gets a screen. **▲**
+
+**The bug.** Clicking the pedestal in High Wick does nothing, for ever. Three
+facts make the loop, and each one is correct on its own:
+
+- `town::Action::Pedestal.costs_the_visit()` returns **false** (`town.rs:114`),
+  deliberately - the pedestal "is not a door; it stands in the entryway and
+  takes its own key", so it must not spend the town's one action.
+- `run.rs:4160` answers `Action::Pedestal => {}`, also deliberately: the door
+  is answered by `feed_pedestal` with an orb in hand, not by being walked
+  through.
+- **Nothing ever calls `feed_pedestal`.** Not the GUI, not the CLI. The only
+  thing the GUI knows about `Action::Pedestal` is its blurb
+  (`main.rs:7704`), which counts the orbs in the bag and says so.
+
+So the click resolves to nothing, the visit is not spent, the town re-renders
+unchanged, and the player clicks again. `feed_pedestal` is complete, tested,
+guarded against duplicates and against a destination firing twice, and reached
+by no interface - which is trap 30 exactly, one milestone after that trap was
+written down.
+
+**What it becomes.** A screen of its own, because feeding the pedestal is the
+one action in the game that takes an *item* as its argument, and no existing
+screen has anywhere to put one.
+
+- **A slot you drag an orb into.** The pedestal is a thing you bring a key to,
+  so the interaction is carrying rather than choosing from a list.
+- **It reads the orb back.** Dropped, the screen says whether it is an Orb of
+  Travel (`pedestal::is_orb_of_travel`) and, if it is, where it goes
+  (`by_orb(..).name`). A duplicate says so and stays a weapon - the engine
+  already refuses it, and the screen has to say *why* rather than doing
+  nothing, which is the fault being fixed.
+- **The inventory is reachable from it**, or there is nothing to drag.
+- **A way out.** A LEAVE button that is always live, so an orbless run is not
+  trapped by the thing that was supposed to be furniture.
+- **INVOKE RITUAL**, enabled only with a valid orb seated, which calls
+  `feed_pedestal` and lands on whatever the orb's destination is - an event,
+  a dungeon, or a siding inside one.
+
+Six orbs and six destinations exist (`pedestal.rs:53`): Wayfarer's -> THE
+BOLTER RACE, Pilgrim's -> den-rivals, Ferry -> mole-town, Stray ->
+wumpus-world, Shunter's -> the-switchyard floor 5, Signalman's -> floor 1.
+Two events, two dungeons, two sidings. All six are unreachable today.
+
+**Deliverable:** every destination in `DESTINATIONS` can be arrived at by
+playing, which is the thing that has never been true.
+
+**Gate:** two tests. One in the house style asking, of every `Destination`,
+that some interface path reaches it - the `which_pools_a_board_can_actually_make`
+shape, aimed at the road instead of the pools. One that a town visit
+containing a pedestal click leaves the run in a state that differs from
+before it, so "the click resolves to nothing" cannot come back.
+
+**Worth checking while in there:** the CLI has no pedestal verb either, so the
+scripted-replay contract cannot exercise any of this. A `pedestal <n>` verb is
+cheap and makes the destinations testable from a script.
+
 ---
 
 ## 5. What shipped
 
-Written at `120db15`. Seven of eight milestones are in; M3 is blocked and §6
-says on what.
+Written at `b40e793`. Seven of nine milestones are in; M3 is blocked and §6
+says on what, and M9 is a bug report filed after the rest had shipped.
 
 | | Milestone | Commits | State |
 |---|---|---|---|
@@ -396,7 +453,8 @@ says on what.
 | M5 | Three new primitives | `de6648a` | **in** |
 | M6 | The pools get their symbols | `c406ed1` | **in** |
 | M7 | The visual battle glossary | `66507c0`, `6b7e275` | **in** |
-| M8 | Zealotry, DruidicMight, the record | `120db15` | **in** |
+| M8 | Zealotry, DruidicMight, the record | `120db15`, `b40e793` | **in** |
+| M9 | The pedestal gets a screen | - | **open** - a bug report, filed 2026-08-27 |
 
 Suite at the tip: **907 engine green**, 48 ignored; **75 GUI green**; 0
 warnings across the workspace. The ladder's movement from M8 is measured in
