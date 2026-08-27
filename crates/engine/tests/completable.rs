@@ -247,7 +247,21 @@ fn every_counter_can_reach_the_number_it_is_asked_for() {
                 .flat_map(|t| t.actions)
                 .filter(|a| a.counts() == Some(what))
                 .count();
-            let reachable = by_doors + by_towns;
+            // And the buffer stops. Each floor's `also` fires once per clearing
+            // and a floor cleared stays cleared, so a run can bank one apiece -
+            // which is exactly the arithmetic that makes "tell him both lines"
+            // ask for two and get them from two different buffer stops.
+            let by_floors = DUNGEONS
+                .iter()
+                .flat_map(|d| d.floors)
+                .filter(|f| {
+                    f.also
+                        .iter()
+                        .flat_map(every_outcome)
+                        .any(|o| matches!(o, Outcome::Count(n) if *n == what))
+                })
+                .count();
+            let reachable = by_doors + by_towns + by_floors;
             assert!(
                 reachable >= at_least as usize,
                 "{} wants {} of {:?} and the road offers {}",
@@ -297,6 +311,21 @@ fn counters_set() -> Vec<&'static str> {
         if let Some(what) = a.counts() {
             if !out.contains(&what) {
                 out.push(what);
+            }
+        }
+    }
+    // A dungeon floor's own `also`, which is the third place a counter can be
+    // written and did not exist until floors became a graph. A buffer stop is
+    // where a graph puts its rewards - which buffer stop you reached is the
+    // whole of what a graph asks - so a counter written there is a counter the
+    // road really can move, and a lint that walked only doors and town actions
+    // would call it dead content.
+    for f in DUNGEONS.iter().flat_map(|d| d.floors) {
+        for o in f.also.iter().flat_map(every_outcome) {
+            if let Outcome::Count(what) = o {
+                if !out.contains(&what) {
+                    out.push(what);
+                }
             }
         }
     }

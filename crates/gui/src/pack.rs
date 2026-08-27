@@ -541,8 +541,18 @@ mod tests {
     /// suite gets by actually fighting.
     #[test]
     fn nothing_on_the_ladder_is_toothless_at_any_setting() {
+        // Creatures that have not been packed yet land nothing, because they
+        // have nothing to land it with - that is what "undressed" means, and
+        // `bestiary::unpacked()` is the list the frame lint budgets. Skipping
+        // them here rather than exempting them by name keeps the two in step:
+        // a creature dressed at the Switchyard's M9 leaves that list and walks
+        // straight into this check on the same commit.
+        let naked: Vec<&str> = gearmaster_engine::bestiary::unpacked()
+            .iter()
+            .map(|f| f.name)
+            .collect();
         let mut bad = Vec::new();
-        for spec in everyone() {
+        for spec in everyone().into_iter().filter(|s| !naked.contains(&s.name)) {
             let mut run = Run::new();
             load_into(&mut run, spec);
             let (gear, chunks) = emit_gear(&run);

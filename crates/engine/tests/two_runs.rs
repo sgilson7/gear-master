@@ -80,6 +80,18 @@ fn play(
             continue;
         }
 
+        // A set of points is a decision, and a walker that cannot make one
+        // stands at the lever until `stuck` runs out - which reads as "the
+        // board stalled at rung 26" and is really "nobody threw the lever".
+        // Takes the first road every time: this helper is for walking the
+        // road, and which line of a yard it walks is `switchyard.rs`'s
+        // question rather than this file's.
+        if run.at_points {
+            assert!(run.throw_points(0), "standing at points that refuse to throw");
+            run.take_receipt();
+            continue;
+        }
+
         // A fight an event arranged stands beside the rung, not on it.
         if let Some(specs) = run.pending_brawl() {
             let before = run.rung;
@@ -538,6 +550,28 @@ fn the_winning_board_can_walk_the_road_and_collect_on_it() {
     assert_eq!(run.rung, follow.at, "stalled at rung {} short of the pay-off", run.rung + 1);
 
     // Twelve rungs on, it is there, and it has something for you.
+    //
+    // Answering past whatever else is standing here first. A whispered door
+    // goes before a scheduled one on a shared rung, and since the Switchyard
+    // put THE TIMETABLE at 20 a run that buys a sheet carries a word into rung
+    // 21 and meets THE SIGNAL BOX before the cart. That is the road working:
+    // what this test is about is that the cart is *here* and its door is open,
+    // not that it is the only thing on the rung.
+    for _ in 0..4 {
+        match run.pending_event() {
+            Some(e) if e.id == "where-it-was-going" => break,
+            Some(e) => {
+                let c = e
+                    .choices
+                    .iter()
+                    .find(|c| run.choice_open(c))
+                    .expect("a door with nothing takeable in it");
+                run.take_choice(c);
+                run.take_receipt();
+            }
+            None => break,
+        }
+    }
     let ev = run.pending_event().expect("the cart is here");
     assert_eq!(ev.id, "where-it-was-going");
     let claim = ev

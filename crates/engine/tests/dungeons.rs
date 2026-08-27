@@ -14,7 +14,7 @@ mod common;
 
 use gearmaster_engine::bestiary::{frame, is_unpacked, MonsterTheme};
 use gearmaster_engine::combat::Difficulty;
-use gearmaster_engine::dungeon::{by_id, DUNGEONS};
+use gearmaster_engine::dungeon::{by_id, Dungeon, DUNGEONS};
 use gearmaster_engine::event::Outcome;
 use gearmaster_engine::piece::SlotKind;
 use gearmaster_engine::run::{Mode, Run};
@@ -45,7 +45,7 @@ fn walk(run: &mut Run, id: &'static str) {
 
 #[test]
 fn the_mission_adds_four_and_they_all_stand_beside_the_road() {
-    assert_eq!(DUNGEONS.len(), 6, "one shipped, and five the chain and the orbs add");
+    assert_eq!(DUNGEONS.len(), 7, "one shipped, five the Unwinding added, and the yard");
     for d in DUNGEONS {
         assert!(!d.floors.is_empty());
         // "One landing a floor" was two lists counted against each other. It
@@ -107,15 +107,33 @@ fn a_dungeon_reads_as_one_creature_all_the_way_down() {
         let themes: Vec<MonsterTheme> =
             d.floors.iter().filter_map(|f| frame(f.creature)).map(|f| f.theme).collect();
         assert!(!themes.is_empty());
-        let bands: Vec<usize> =
-            d.floors.iter().filter_map(|f| frame(f.creature)).map(|f| f.band).collect();
-        for w in bands.windows(2) {
-            assert!(w[1] >= w[0], "{}: the floors get easier as you go down", d.id);
+        // Along every *road out*, not along the list. The list is a graph now
+        // and its order is an index rather than a walk: THE SWITCHYARD's floor
+        // 5 is band 28 after floor 4's 30 because floors 5 to 8 are the other
+        // line, and a run walks one or the other. What has to hold is that
+        // nothing gets easier as you go deeper down a road somebody takes.
+        for (i, f) in d.floors.iter().enumerate() {
+            let Some(here) = frame(f.creature).map(|x| x.band) else { continue };
+            for e in f.exits {
+                let Some(next) = frame(d.floors[e.to].creature).map(|x| x.band) else { continue };
+                assert!(
+                    next >= here,
+                    "{}: floor {i} is band {here} and leads to band {next}",
+                    d.id
+                );
+            }
         }
-        // WUMPUS WORLD is the one that changes, and it changes on purpose: the
-        // dark floor is what *lives near* a wumpus, and the wumpus is not
-        // that. Everything else holds one idea.
-        if d.id != "wumpus-world" {
+        // Two exceptions, both on purpose. WUMPUS WORLD changes because the
+        // dark floor is what *lives near* a wumpus and the wumpus is not that.
+        //
+        // THE SWITCHYARD is not a creature at all - it is a place, and the
+        // nine things in it are a shunter, a gang of platelayers, what came up
+        // with the ballast, a coal stage, a water tower, a gantry, a lamp
+        // room, a goods shed and an engine in steam. The two lines are meant
+        // to read differently in the first three seconds: the Down line is
+        // weight and the Up line is light, which is how a run that has walked
+        // one of them knows the other is worth an orb.
+        if !matches!(d.id, "wumpus-world" | "the-switchyard") {
             assert!(
                 themes.windows(2).all(|w| w[0] == w[1]),
                 "{}: {:?} is two dungeons stapled together",
@@ -130,13 +148,20 @@ fn a_dungeon_reads_as_one_creature_all_the_way_down() {
 fn every_dungeon_pays_something_and_two_of_them_pay_no_class_at_all() {
     let no_class: Vec<&str> =
         DUNGEONS.iter().filter(|d| d.reward.is_empty()).map(|d| d.id).collect();
-    assert_eq!(no_class, vec!["the-undertow", "den-rivals"]);
+    // THE SWITCHYARD joins them, and for a third reason: it pays neither a
+    // class nor a dungeon-wide `also`, because every reward is a *buffer
+    // stop's*. Which one you reached is the whole of what a graph asks, so a
+    // payout on the way out would be a payout for having been there at all.
+    assert_eq!(no_class, vec!["the-undertow", "den-rivals", "the-switchyard"]);
     for d in DUNGEONS {
-        assert!(
-            !d.reward.is_empty() || !d.also.is_empty(),
-            "{} is a walk there and a walk back",
-            d.id
-        );
+        // On any way out, or at every buffer stop. The second is what a graph
+        // wants: THE SWITCHYARD pays four different things depending on which
+        // of its four ends you reached, and a dungeon-wide payout would be a
+        // payout for having been there at all.
+        let on_any_exit = !d.reward.is_empty() || !d.also.is_empty();
+        let every_stop_pays =
+            d.floors.iter().filter(|f| f.is_leaf()).all(|f| !f.also.is_empty());
+        assert!(on_any_exit || every_stop_pays, "{} is a walk there and a walk back", d.id);
     }
 }
 
@@ -321,10 +346,25 @@ fn the_ascii_map_did_not_change_for_a_linear_dungeon() {
         before.contains(" floors)"),
         "the fixture is supposed to be the pre-M1 bytes, and those say floors"
     );
-    assert_eq!(got.len(), want.len(), "the map grew or lost a line");
-    for (i, (a, b)) in want.iter().zip(&got).enumerate() {
-        assert_eq!(a, b, "line {i} of the map moved");
+    // Every line of the pre-M1 road is still on the map, in order.
+    //
+    // It compared lengths until M6, which was right while the road was the
+    // road the fixture was taken from. The Switchyard adds four doors and a
+    // dungeon, so the map is longer - and what M1 promised is that the lines
+    // that were there did not *move*, which is a subsequence check and not a
+    // length check. A line that changed a character still fails, and so does
+    // one that got reordered.
+    let mut at = 0usize;
+    for line in &want {
+        match got[at..].iter().position(|g| g == line) {
+            Some(k) => at += k + 1,
+            None => panic!("the map lost or changed {line:?}"),
+        }
     }
+    assert!(
+        got.len() >= want.len(),
+        "the map is shorter than the road it was taken from"
+    );
 }
 
 /// A dungeon with points says so on the map, and one without does not.
@@ -349,7 +389,10 @@ fn the_map_counts_points_only_where_there_are_some() {
         let d = by_id(id).expect("a node names a dungeon");
         assert_eq!(fights, d.fights_ahead(0, &[]));
         assert_eq!(forks, d.forks());
-        assert_eq!(forks, 0, "{id} is not a straight line any more");
+        // One dungeon in the game asks which way, and the map says so by
+        // naming it rather than by tolerating any number of points anywhere.
+        let want = if id == "the-switchyard" { 3 } else { 0 };
+        assert_eq!(forks, want, "{id} has {forks} sets of points and should have {want}");
     }
 }
 
@@ -363,8 +406,15 @@ fn the_map_counts_points_only_where_there_are_some() {
 /// transcript rather than asserting a list of facts is deliberate: the failure
 /// this guards against is a *word* changing, and a diff says which word.
 fn transcript() -> String {
+    // The six that predate the floor graph, and only those. THE SWITCHYARD has
+    // points in it, and a walk that does not throw them stands at the lever for
+    // ever - which is what this loop did for six minutes before anybody noticed
+    // it was not a slow test. The yard's own walk is `tests/switchyard.rs`'s,
+    // where there is something to decide.
     let mut out = String::new();
-    for d in DUNGEONS {
+    let six: Vec<&Dungeon> = DUNGEONS.iter().filter(|d| d.id != "the-switchyard").collect();
+    assert_eq!(six.len(), 6, "a dungeon arrived that this fixture does not know about");
+    for d in six {
         let mut run = a_run();
         run.rung = 20;
         run.enter_dungeon(d.id);
@@ -372,7 +422,12 @@ fn transcript() -> String {
         for line in d.entry {
             out.push_str(&format!("  entry: {line}\n"));
         }
+        // Bounded. A dungeon that cannot be walked out of is a hang, and a
+        // hang is a worse bug than a wrong room.
+        let mut guard = 0;
         while let Some((_, floor)) = run.dungeon {
+            guard += 1;
+            assert!(guard < 32, "{} never ended", d.id);
             let banner = run
                 .road_stack()
                 .first()

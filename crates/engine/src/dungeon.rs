@@ -394,7 +394,256 @@ pub const DUNGEONS: &[Dungeon] = &[
         ],
         reward: "Wumpus Hunter",
         also: &[],
-    },];
+    },
+
+    // ---- THE SWITCHYARD -------------------------------------------------
+    //
+    // Nine rooms under the cutting, and four fights whichever way you walk.
+    // The first dungeon in the game with points in it, which is what the floor
+    // graph was built for.
+    //
+    // One entry sees four floors. One orb sees seven, two orbs see eight, and
+    // nothing sees nine - each line's buffer stops pay the ticket to the
+    // *other* line, so the ninth room is always behind an orb that has been
+    // spent. `switchyard::nine_floors_and_the_most_a_run_can_see_is_eight`
+    // walks it and counts.
+    //
+    // Nothing on the dungeon's own `also`: every reward is a buffer stop's,
+    // because which buffer stop you reached is the whole of what the yard asks.
+    Dungeon {
+        id: "the-switchyard",
+        name: "THE SWITCHYARD",
+        blurb: &[
+            "The yard is nine rooms under the cutting, and the turntable is \
+             the first, and from it two lines go off into the dark with points \
+             on each of them, and a buffer stop at the end of every road.",
+            "The timetable Hesketh sells lists eleven trains a day out of \
+             here, and Ambrose keeps the times. There are no trains. Something \
+             has to be moving for a time to be kept, and whatever it is, it is \
+             moving to the sheet.",
+            "Four fights down either line. What is at the buffer stop was left \
+             there on purpose. Nobody who left it expected to be back for it.",
+        ],
+        entry: &[
+            "The turntable takes you a quarter of the way round and stops, and \
+             the bell rings once, and when it turns back you are facing the \
+             other way, down the yard.",
+            "Somewhere past the lamp the points are already thrown. Ambrose \
+             was here first. Ambrose is always here first.",
+        ],
+        floors: &[
+            // [0] The mouth, and the first set of points.
+            Floor {
+                creature: "THE SHUNTER",
+                landing: "The shunter goes back to the turntable pit when it \
+                          is done with you and lies down on it, which is what \
+                          it does between trains, and the turntable turns a \
+                          quarter of the way round under it and stops.",
+                exits: &[
+                    Exit {
+                        to: 1,
+                        label: "Down line",
+                        blurb: "Two fights and a set of points, and the ballast is soft underfoot.",
+                    },
+                    Exit {
+                        to: 5,
+                        label: "Up line",
+                        blurb: "Two fights and a set of points, and the lamps on the gantry are lit.",
+                    },
+                ],
+                fork: &[
+                    "The two lines leave the turntable pit together and part at \
+                     a set of points a hundred yards out, and the lever for \
+                     them is in a box you cannot reach, and it has been pulled. \
+                     The man who pulled it was Ambrose, and he did not say \
+                     which way.",
+                    "Whichever way you walk, the other line is there the whole \
+                     time, a few yards off in the dark, going somewhere you are \
+                     not.",
+                ],
+                entry: &[],
+                also: &[],
+            },
+            // [1] Down line, and where the Signalman's Orb puts you down.
+            Floor {
+                creature: "THE PLATELAYERS",
+                landing: "The platelayers put the rail back where it was. They \
+                          were only ever going to put it back where it was. \
+                          Ahead the ballast dips, and the sleepers stop being \
+                          level.",
+                exits: &[Exit::on(2)],
+                fork: &[],
+                entry: &[
+                    "The orb goes into the socket and the socket is a set of \
+                     points, and the points throw, and you are standing on the \
+                     Down line a hundred yards past the pit, and the turntable \
+                     is behind you and already turning.",
+                ],
+                also: &[],
+            },
+            // [2] The pit points.
+            Floor {
+                creature: "THE BALLAST",
+                landing: "The pit is where the ballast came from, and what came \
+                          up out of it with the ballast is still down here, and \
+                          it goes back into the pit when it has finished, and \
+                          the lamp on the post beyond it is lit.",
+                exits: &[
+                    Exit {
+                        to: 3,
+                        label: "The coal road",
+                        blurb: "It ends at the coal stage. There is still coal in it.",
+                    },
+                    Exit {
+                        to: 4,
+                        label: "The water road",
+                        blurb: "It ends at the tower. The tank is full and nothing has drunk from it.",
+                    },
+                ],
+                fork: &[
+                    "Past the ballast pit the Down line splits again, and there \
+                     is a lamp on a post here that says COAL one way and WATER \
+                     the other, and the lamp is lit, and there is nobody to \
+                     have lit it.",
+                    "Both roads end. That was painted on the wall at the top. \
+                     What they end at is the question.",
+                ],
+                entry: &[],
+                also: &[],
+            },
+            // [3] Buffer stop: the coal stage.
+            Floor {
+                creature: "THE COAL STAGE",
+                landing: "The coal stage is a wooden platform with a heap on it \
+                          and a shovel, and the heap is warm, and under the \
+                          shovel there is a ledger with a row of times in it, \
+                          and the last time is this morning's. Whoever was \
+                          shovelling was here today. What they laid under the \
+                          boards, they laid for somebody with a chest to put \
+                          over it.",
+                exits: &[],
+                fork: &[],
+                entry: &[],
+                also: &[
+                    crate::event::Outcome::Give("Ballast Bed"),
+                    crate::event::Outcome::Give("Shunter's Orb"),
+                    crate::event::Outcome::Flag("switchyard-cleared"),
+                    crate::event::Outcome::Count("sidings-cleared"),
+                ],
+            },
+            // [4] Buffer stop: the water tower.
+            Floor {
+                creature: "THE WATER TOWER",
+                landing: "The tank is full. It has been full for as long as the \
+                          yard has been shut, because nothing here has drunk. \
+                          Under the tower there is a length of rodding laid out \
+                          straight, oiled, and a note pinned to it in Ambrose's \
+                          hand that says FOR THE FEET, which is either a joke or \
+                          the only instruction you are going to get.",
+                exits: &[],
+                fork: &[],
+                entry: &[],
+                also: &[
+                    crate::event::Outcome::Give("Points Rodding"),
+                    crate::event::Outcome::Give("Shunter's Orb"),
+                    crate::event::Outcome::Flag("switchyard-cleared"),
+                    crate::event::Outcome::Count("sidings-cleared"),
+                ],
+            },
+            // [5] Up line, and where the Shunter's Orb puts you down.
+            Floor {
+                creature: "THE GANTRY",
+                landing: "The gantry carries eleven signal arms and all eleven \
+                          are lowered, which is clear, and something up there \
+                          was pulling them one at a time, and now nothing is. \
+                          Ahead the lamp room door is open and the room is lit.",
+                exits: &[Exit::on(6)],
+                fork: &[],
+                entry: &[
+                    "The orb goes into the socket and the socket is a signal, \
+                     and the arm drops, and you are under the gantry on the Up \
+                     line with eleven lamps lit above you, and the turntable is \
+                     behind you and already turning.",
+                ],
+                also: &[],
+            },
+            // [6] The shed points.
+            Floor {
+                creature: "THE LAMP ROOM",
+                landing: "Every lamp in the room is trimmed and filled and \
+                          burning, and the lamp room keeper is on the floor, and \
+                          the lamps go on burning, because a lamp does not know. \
+                          Beyond the room the roads part under the last one.",
+                exits: &[
+                    Exit {
+                        to: 7,
+                        label: "The shed road",
+                        blurb: "It ends at the goods shed, and the shed is locked from the inside.",
+                    },
+                    Exit {
+                        to: 8,
+                        label: "The roundhouse road",
+                        blurb: "It ends at the roundhouse, and something in the roundhouse is in steam.",
+                    },
+                ],
+                fork: &[
+                    "The Up line splits under the last lamp, and the two roads \
+                     run side by side for a while before one bends off to the \
+                     shed and the other straight on to the roundhouse, and from \
+                     the points you can see both ends and reach one.",
+                    "Ambrose has thrown these too. He throws them every day at \
+                     14:05, for a train that is not coming, and today they are \
+                     thrown for you.",
+                ],
+                entry: &[],
+                also: &[],
+            },
+            // [7] Buffer stop: the goods shed.
+            Floor {
+                creature: "THE GOODS SHED",
+                landing: "The goods shed was locked from the inside because the \
+                          clerk was inside, and the clerk is a very careful \
+                          person and has kept the ledger up to the minute, and \
+                          the ledger is what is worth having: it is enchanted \
+                          into a hat-shaped plate on the counter, because the \
+                          clerk had a head and wanted somewhere to keep the \
+                          accounts.",
+                exits: &[],
+                fork: &[],
+                entry: &[],
+                also: &[
+                    crate::event::Outcome::Give("Booking Hall"),
+                    crate::event::Outcome::Give("Signalman's Orb"),
+                    crate::event::Outcome::Flag("switchyard-cleared"),
+                    crate::event::Outcome::Count("sidings-cleared"),
+                ],
+            },
+            // [8] Buffer stop: the roundhouse. The ninth room, and the one
+            // nothing can reach twice.
+            Floor {
+                creature: "THE ROUNDHOUSE",
+                landing: "It was in steam. It is still in steam. It is on the \
+                          turntable in the roundhouse and it will be on it \
+                          tomorrow, and the roundhouse is the end of the yard \
+                          in every sense there is. On the driver's seat there is \
+                          a coil of signal wire, wound neat, warm from the \
+                          boiler, and a ball of glass in the firebox that has \
+                          not melted and is not going to.",
+                exits: &[],
+                fork: &[],
+                entry: &[],
+                also: &[
+                    crate::event::Outcome::Give("Signal Wire"),
+                    crate::event::Outcome::Give("Signalman's Orb"),
+                    crate::event::Outcome::Flag("switchyard-cleared"),
+                    crate::event::Outcome::Count("sidings-cleared"),
+                ],
+            },
+        ],
+        reward: "",
+        also: &[],
+    },
+];
 
 impl Dungeon {
     /// How many fights are left from `floor`, counting the one standing on it,
@@ -694,7 +943,16 @@ mod tests {
     /// change, and it should have to say so here first.
     #[test]
     fn every_shipped_dungeon_is_a_straight_line() {
-        for d in DUNGEONS {
+        // Re-pinned at M6, not loosened. The claim is about the six that
+        // predate the floor graph: the primitive landed inert and they are
+        // the measurement of that. THE SWITCHYARD is the dungeon the graph was
+        // built for and it is named here rather than skipped by a shape test,
+        // so a *seventh* growing points would still fail this.
+        const STRAIGHT: usize = 6;
+        let lines: Vec<&Dungeon> =
+            DUNGEONS.iter().filter(|d| d.id != "the-switchyard").collect();
+        assert_eq!(lines.len(), STRAIGHT, "a dungeon appeared that nothing here knows about");
+        for d in lines {
             assert_eq!(d.forks(), 0, "{} has points in it", d.id);
             for (i, f) in d.floors.iter().enumerate() {
                 let want = if i + 1 == d.floors.len() { 0 } else { 1 };

@@ -1174,7 +1174,7 @@ creature, as the shipped banners print DOORKEEP.
 
 *Fork scenes* (`Floor.fork`, read at the points):
 
-- **THE YARD THROAT** (floor 0): "The two lines leave the turntable pit together and part at a set of points a hundred yards out, and the lever for them is in a box you cannot reach, and it has been pulled. Ambrose pulled it. He did not say which way." / "Whichever way you walk, the other line is there the whole time, a few yards off in the dark, going somewhere you are not."
+- **THE YARD THROAT** (floor 0): "The two lines leave the turntable pit together and part at a set of points a hundred yards out, and the lever for them is in a box you cannot reach, and it has been pulled. The man who pulled it was Ambrose, and he did not say which way." / "Whichever way you walk, the other line is there the whole time, a few yards off in the dark, going somewhere you are not."
 - **THE PIT POINTS** (floor 2): "Past the ballast pit the Down line splits again, and there is a lamp on a post here that says COAL one way and WATER the other, and the lamp is lit, and there is nobody to have lit it." / "Both roads end. That was painted on the wall at the top. What they end at is the question."
 - **THE SHED POINTS** (floor 6): "The Up line splits under the last lamp, and the two roads run side by side for a while before one bends off to the shed and the other straight on to the roundhouse, and from the points you can see both ends and reach one." / "Ambrose has thrown these too. He throws them every day at 14:05, for a train that is not coming, and today they are thrown for you."
 

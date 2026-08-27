@@ -36,6 +36,7 @@ argue against.
 | **M3** Sidings, the CLI verbs, the interface | **done** | "M3 sidings, the CLI verbs, the interface" |
 | **M4** Four actions, four weights, four rows - inert | **done** | "M4 four actions, four weights, four rows" |
 | **M5** The catalogue lands once | **done** | "M5 the catalogue lands once" |
+| **M6** The chain, the yard, the frames, the destinations | **done** | "M6 the chain, the yard, the frames, the destinations" |
 
 ## 3. Open questions for the user
 
@@ -303,3 +304,47 @@ kept: **zero other tests moved.**
 `the_turtle_theme_covers_the_catalogue` demands a name for every component and
 the gear skill says to write it in the same change as the piece. M7 keeps the
 scenes, the creatures and the effect vocabulary.
+
+### M6 - The chain, the yard, the frames, the destinations
+
+Two rumours, four doors, THE SWITCHYARD's nine floors with three sets of
+points and four buffer stops, nine frames, nine undressed creatures and two
+sidings. **860 engine, 65 GUI, 5 CLI. No warnings.** Zero authored `gear:`
+boards, the four-board table byte-identical, `gear_at` unmoved.
+
+**The property the graph exists for is now measured.** A run that walks the
+yard greedily - in at the mouth, back by every siding a ticket can pay for,
+always taking a road with a fight left down it - fights **eight distinct
+floors of nine**, and the one it never reaches is always a buffer stop. Each
+line's ends pay the ticket to the *other* line, so the ninth room is behind an
+orb that has been spent.
+
+**Two of the four doors could not stand where the spec drew them.** A0's list
+of free rungs counts events and not towns, and a town gate has refused to share
+a rung with an event since long before this mission. THE TIMETABLE moved 18 to
+**20** (Kettleworks) and THE LAST TRAIN 32 to **33** (High Wick); the signal
+box's window opens at 21 rather than 20 in consequence. The spec's argument for
+18 - that the stack pops a gate first - is true of a *fountain* at index 7 and
+does not transfer.
+
+**Part B's own audit missed a fourth instance of the blind spot it warns
+about.** THE YARD THROAT named Ambrose only at a full stop, which
+`names_something` cannot tell from an article. Repaired in the engine **and in
+the spec**, which is what Part B asks for so the two never hold different
+versions of a scene.
+
+**The M1 replay fixture hung the suite for six minutes** by walking a dungeon
+with points and never throwing them. It walks the six it is a fixture for, and
+it is bounded now.
+
+**Five linear-dungeon assumptions surfaced at once** - bands rising along the
+list rather than along a road, theme uniformity, the pays rule, the map
+fixture's length check, the banner walk - and all five are re-pinned in
+`analysis/switchyard.md` §M6 with the reason each one was right about a list
+and wrong about a graph.
+
+**Four phase-discipline budgets went red together** and all four now read
+`bestiary::unpacked()` rather than a copied list, so M9 clears them by packing
+a creature rather than by editing a test. `bestiary::UNDRESSED` went 0 to 9,
+which is the only budget in the repository allowed to rise, and its doc comment
+says so.

@@ -6473,6 +6473,199 @@ pub const ALTERNATES: &[MonsterSpec] = &[
         drops: &["Harvest Crest"],
         items: &[5, 4, 4, 2, 2, 4, 4, 2, 3, 3, 3, 3, 4],
     },
+
+    // ---- THE SWITCHYARD, nine floors ------------------------------------
+    //
+    // Undressed on purpose. Phase 2 lands creatures as *frames* - a name, a
+    // band, a theme and the stats of the ladder creature standing at that
+    // band - and Phase 4 packs their boards by hand. `bestiary::unpacked()`
+    // is the count of what is left and the frame lint is red until it is
+    // zero, which is what the lint is for.
+    //
+    // Stats are the ladder's at each floor's entry band, per
+    // `post-unwinding.md` §3.11: THE SHUNTER takes Obsidian Colossus's
+    // (band 27), floors 1 and 5 Null Sentinel's (28), floors 2 and 6
+    // Silence's (29), and the four buffer stops Weeping Idol's (30). Four
+    // fights down the yard pay about 840 gold at a rung where a run has
+    // earned roughly 2,100, which is a reason to go down and not a jackpot.
+    //
+    // `rank: Ordinary` and `drops: &[]` for all nine: the dungeon-victory arm
+    // never reads `drops` (A0), and a drop list nobody can drop is dead
+    // content. What the yard pays, its buffer stops pay through `Floor::also`.
+    // The turntable's own engine, and it keeps the turntable's time. Warden at
+    // band 27: it makes you pay for the yard being slow, which is the first
+    // thing the yard has to teach.
+    MonsterSpec {
+        name: "THE SHUNTER",
+        health: 2490,
+        strength: 67,
+        regen: 6,
+        mind_resist: 59,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 59,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 197,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    // Many small blows, the rail put back as fast as it is lifted.
+    MonsterSpec {
+        name: "THE PLATELAYERS",
+        health: 2620,
+        strength: 70,
+        regen: 6,
+        mind_resist: 62,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 62,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 206,
+        sprite: MonsterSprite::Choir,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    // What came up out of the pit with the ballast. A wall, and the one weapon a
+    // wall carries.
+    MonsterSpec {
+        name: "THE BALLAST",
+        health: 2750,
+        strength: 73,
+        regen: 7,
+        mind_resist: 65,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 65,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 215,
+        sprite: MonsterSprite::Golem,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    // The heap is warm. Searing on the clock rather than on the swing.
+    MonsterSpec {
+        name: "THE COAL STAGE",
+        health: 2880,
+        strength: 76,
+        regen: 7,
+        mind_resist: 68,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 68,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 224,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    // The tank sets the pace and has nothing much of its own.
+    MonsterSpec {
+        name: "THE WATER TOWER",
+        health: 2880,
+        strength: 76,
+        regen: 7,
+        mind_resist: 68,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 68,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 224,
+        sprite: MonsterSprite::Wisp,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    // Eleven arms, eleven casts. Bursty and mana-gated.
+    MonsterSpec {
+        name: "THE GANTRY",
+        health: 2620,
+        strength: 70,
+        regen: 6,
+        mind_resist: 62,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 62,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 206,
+        sprite: MonsterSprite::Archer,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    // Every lamp lit and burning. Kills on the clock, not the swing.
+    MonsterSpec {
+        name: "THE LAMP ROOM",
+        health: 2750,
+        strength: 73,
+        regen: 7,
+        mind_resist: 65,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 65,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 215,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    // The clerk keeps the accounts, yours included.
+    MonsterSpec {
+        name: "THE GOODS SHED",
+        health: 2880,
+        strength: 76,
+        regen: 7,
+        mind_resist: 68,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 68,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 224,
+        sprite: MonsterSprite::Tallow,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    // It is in steam. Strength, health, and no trick at all.
+    MonsterSpec {
+        name: "THE ROUNDHOUSE",
+        health: 2880,
+        strength: 76,
+        regen: 7,
+        mind_resist: 68,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 68,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 224,
+        sprite: MonsterSprite::Golem,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
 ];
 
 /// The floors of Bunko's Cavern, pp. 84-85. Authored by the packing tool like

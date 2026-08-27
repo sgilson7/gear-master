@@ -57,9 +57,19 @@ fn answer(run: &mut Run, rung: usize, id: &str, label: &str) {
 fn the_chain_is_four_doors_and_each_one_opens_the_next() {
     let mut run = a_run(Mode::Grinder);
 
-    // Nothing at all until somebody says something.
+    // Nothing *of the chain's* until somebody says something.
+    //
+    // Re-pinned at the Switchyard's M6. This read "nothing at all", and rung
+    // 20 stopped being bare when THE TIMETABLE took it - the only rung in the
+    // stretch free of both a scheduled event and a town gate. What the line is
+    // actually about is that a whispered door does not open for a run carrying
+    // no word, and that is what it says now.
     run.rung = 20;
-    assert!(run.pending_event().is_none(), "a door opened for a run that heard nothing");
+    let standing = run.pending_event().map(|e| e.id);
+    assert!(
+        standing != Some("the-astronomer"),
+        "a door opened for a run that heard nothing"
+    );
 
     // One: the astronomer, met by carrying the word the bar sells.
     run.give(WRONG_STARS);

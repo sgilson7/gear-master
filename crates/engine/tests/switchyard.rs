@@ -21,7 +21,12 @@ fn a_run() -> Run {
     let mut run = Run::seeded(0xB0A7);
     run.mode = Mode::Grinder;
     run.difficulty = Difficulty::Easy;
-    run.rung = 20;
+    // A rung with nothing standing on it: no scheduled event, no town gate, no
+    // fountain. It was 20 until M6 put THE TIMETABLE there, and half the file
+    // then failed on `road_is_blocked` finding a door rather than the points.
+    // Every test here is about what a dungeon does to the road, so the road
+    // underneath has to be empty or the measurement is of something else.
+    run.rung = 43;
     run
 }
 
@@ -338,17 +343,24 @@ fn the_shipped_banner_did_not_change_except_to_say_who_is_in_front_of_you() {
     run.enter_dungeon("the-threshold");
     assert_eq!(d.fights_ahead(0, &[]), 3);
     assert_eq!(run.road_stack()[0].describe(), "THE THRESHOLD - DOORKEEP - floor 1 of 3");
-    for d in gearmaster_engine::dungeon::DUNGEONS {
+    // The six that predate the graph. For a straight line the room count and
+    // the road out are the same number, which is the whole of why their
+    // banners did not move; THE SWITCHYARD is nine rooms and four fights and
+    // is the reason the two stopped being interchangeable.
+    for d in gearmaster_engine::dungeon::DUNGEONS.iter().filter(|d| d.id != "the-switchyard") {
         let mut run = a_run();
         run.enter_dungeon(d.id);
-        let want = format!(
-            "{} - {} - floor 1 of {}",
-            d.name,
-            d.floors[0].creature,
-            d.floors.len()
-        );
+        let want =
+            format!("{} - {} - floor 1 of {}", d.name, d.floors[0].creature, d.floors.len());
         assert_eq!(run.road_stack()[0].describe(), want, "{}", d.id);
     }
+    let mut run = a_run();
+    run.enter_dungeon("the-switchyard");
+    assert_eq!(
+        run.road_stack()[0].describe(),
+        "THE SWITCHYARD - THE SHUNTER - floor 1 of 4",
+        "nine rooms, four fights"
+    );
 }
 
 // ------------------------------------------------------------------- replay
@@ -444,13 +456,11 @@ fn no_orb_in_the_catalogue_shares_a_footprint_with_these_two() {
     assert_ne!(shape("Shunter's Orb"), shape("Signalman's Orb"));
 }
 
-/// An orb is a piece before it is a ticket, and for one milestone it is only
-/// a piece.
+/// An orb is a piece before it is a ticket.
 ///
-/// The two destinations are M6's. A component with no destination is legal and
-/// deliberate - `pedestal.rs`'s own doctrine is that an orb is worth buying by
-/// somebody who never finds the pedestal - and saying so here stops a green
-/// suite reading as though the sidings had shipped.
+/// Both are worth building around by a run that never finds High Wick's
+/// pedestal at all, which is `pedestal.rs`'s own doctrine and the reason a
+/// duplicate is refused rather than eaten.
 #[test]
 fn the_two_orbs_are_pieces_before_they_are_tickets() {
     use gearmaster_engine::pedestal::is_orb_of_travel;
@@ -460,9 +470,295 @@ fn the_two_orbs_are_pieces_before_they_are_tickets() {
         let d = CATALOG.iter().find(|d| d.name == name).expect("appended at M5");
         assert!(!d.triggers.is_empty(), "{name} does nothing to the spells in it");
         assert!(d.power_bonus > 0, "{name} is not worth building around");
-        assert!(
-            !is_orb_of_travel(name),
-            "{name} became a key at M5; the destinations are M6's"
+        assert!(is_orb_of_travel(name), "{name} is a ticket as well, since M6");
+    }
+}
+
+// ============================================================ the content
+
+use gearmaster_engine::event::EVENTS;
+
+fn yard() -> &'static gearmaster_engine::dungeon::Dungeon {
+    by_id("the-switchyard").expect("M6")
+}
+
+/// Each of the four doors stands where it says, on the creature it names.
+#[test]
+fn the_chain_stands_where_it_says() {
+    let want = [
+        ("the-timetable", 20usize, "Ember Wisp"),
+        ("the-signal-box", 24, "Cog Priest"),
+        ("the-turntable", 27, "Obsidian Colossus"),
+        ("the-last-train", 33, "The Last Gearwright"),
+    ];
+    for (id, at, expects) in want {
+        let e = EVENTS.iter().find(|e| e.id == id).unwrap_or_else(|| panic!("{id} is not a door"));
+        assert_eq!(e.at, at, "{id} moved");
+        assert_eq!(e.expects, expects, "{id} names the wrong creature");
+        assert_eq!(
+            gearmaster_engine::combat::LADDER[at].name, expects,
+            "{id} expects a creature that is not on its rung"
         );
+    }
+    // And none of them shares a rung with a town gate, which is the rule that
+    // moved two of the four off the indices the spec drew them on.
+    for (id, at, _) in want {
+        for t in gearmaster_engine::town::TOWNS {
+            assert_ne!(t.after + 1, at, "{id} lands on {}'s gate", t.id);
+        }
+    }
+}
+
+/// Nine rooms, and the most a run can ever fight is eight of them.
+///
+/// The property the graph is shaped for. Each line's buffer stops pay the
+/// ticket to the *other* line, so the ninth room is always behind an orb that
+/// has been spent - and that is a fact about the tables rather than a promise
+/// in a document.
+#[test]
+fn nine_floors_and_the_most_a_run_can_see_is_eight() {
+    let d = yard();
+    assert_eq!(d.floors.len(), 9);
+    assert_eq!(d.forks(), 3, "the throat and one set of points down each line");
+    assert_eq!(d.fights_ahead(0, &[]), 4, "four fights whichever way you walk");
+
+    // Walk it the greedy way: in at the mouth, and back in by every siding an
+    // orb can pay for, taking the road with something left in it each time.
+    let mut run = a_run();
+    let mut fought: Vec<usize> = Vec::new();
+    let mut orbs: Vec<&str> = Vec::new();
+    let mut spent: Vec<&str> = Vec::new();
+
+    let mut enter_at = 0usize;
+    loop {
+        run.enter_dungeon_at(d, enter_at);
+        while let Some((_, floor)) = run.dungeon {
+            if run.at_points {
+                // Take whichever road still has a fight down it, preferring the
+                // one that has not been walked.
+                let here = floor;
+                let pick = d.floors[here]
+                    .exits
+                    .iter()
+                    .position(|e| d.fights_ahead(e.to, &run.cleared_floors) > 0)
+                    .expect("a set of points with nothing open");
+                run.throw_points(pick);
+                continue;
+            }
+            fought.push(floor);
+            run.pending_scene = None;
+            run.force_win();
+            run.settle();
+            run.back_to_loadout();
+        }
+        // What the buffer stop paid, in tickets.
+        for name in ["Shunter's Orb", "Signalman's Orb"] {
+            if run.holds(name) && !orbs.contains(&name) {
+                orbs.push(name);
+            }
+        }
+        let Some(&next) = orbs.iter().find(|n| !spent.contains(n)) else { break };
+        spent.push(next);
+        let dest = gearmaster_engine::pedestal::by_orb(next).expect("a ticket");
+        let gearmaster_engine::pedestal::Where::Siding { floor, .. } = dest.kind else {
+            unreachable!("the yard's orbs are sidings")
+        };
+        enter_at = floor;
+    }
+
+    fought.sort_unstable();
+    fought.dedup();
+    assert_eq!(
+        fought.len(),
+        8,
+        "a run fought {} floors: {fought:?}",
+        fought.len()
+    );
+    let missed: Vec<usize> = (0..9).filter(|i| !fought.contains(i)).collect();
+    assert_eq!(missed.len(), 1, "exactly one room is always left");
+    assert!(
+        d.floors[missed[0]].is_leaf(),
+        "the room nothing reaches is {} - it should be a buffer stop",
+        d.floors[missed[0]].creature
+    );
+    assert_eq!(run.cleared_floors.len(), 8, "and nine were never cleared");
+}
+
+/// Every buffer stop pays ground, a ticket, the flag and the count.
+#[test]
+fn each_buffer_stop_pays_its_ground_and_its_ball() {
+    use gearmaster_engine::event::Outcome;
+    let d = yard();
+    let stops: Vec<(usize, &gearmaster_engine::dungeon::Floor)> =
+        d.floors.iter().enumerate().filter(|(_, f)| f.is_leaf()).collect();
+    assert_eq!(stops.len(), 4, "four roads, four ends");
+
+    let mut ground: Vec<&str> = Vec::new();
+    for (i, f) in &stops {
+        let gives: Vec<&str> = f
+            .also
+            .iter()
+            .filter_map(|o| match o {
+                Outcome::Give(n) => Some(*n),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(gives.len(), 2, "floor {i} pays {gives:?}");
+        assert!(
+            f.also.iter().any(|o| matches!(o, Outcome::Flag("switchyard-cleared"))),
+            "floor {i} does not say the yard was walked"
+        );
+        assert!(
+            f.also.iter().any(|o| matches!(o, Outcome::Count("sidings-cleared"))),
+            "floor {i} does not count"
+        );
+        // One piece of ground and one ticket, never two of either.
+        let orbs = gives.iter().filter(|n| n.ends_with("Orb")).count();
+        assert_eq!(orbs, 1, "floor {i} pays {orbs} tickets");
+        let g = gives.iter().find(|n| !n.ends_with("Orb")).expect("ground");
+        assert!(!ground.contains(g), "{g} is paid by two different buffer stops");
+        ground.push(g);
+    }
+    assert_eq!(ground.len(), 4, "four enchantments, one a road");
+}
+
+/// A second copy of a ticket is a weapon, which is what stops a lucky run
+/// walking the whole yard.
+#[test]
+fn a_second_ball_is_a_weapon_and_not_a_second_trip() {
+    let mut run = a_run();
+    let first = run.give("Shunter's Orb").expect("a real orb");
+    let second = run.give("Shunter's Orb").expect("and another");
+    assert!(run.feed_pedestal(first).is_some(), "the first is a ticket");
+    assert!(run.feed_pedestal(second).is_none(), "it went twice");
+    assert!(run.owned.contains(&second), "and the spare was eaten for nothing");
+}
+
+/// Leaving before a buffer stop forfeits the line, and there is no way back.
+#[test]
+fn leaving_before_a_buffer_stop_forfeits_the_yard() {
+    let mut run = a_run();
+    run.enter_dungeon_at(yard(), 0);
+    run.pending_scene = None;
+    run.force_win();
+    run.settle();
+    run.back_to_loadout();
+    assert!(run.at_points, "at the throat");
+    assert!(run.leave_dungeon());
+
+    assert!(run.destinations_visited.is_empty(), "nothing was spent");
+    for name in ["Shunter's Orb", "Signalman's Orb"] {
+        assert!(!run.holds(name), "{name} was paid by a line nobody finished");
+    }
+    assert!(!run.flags.contains(&"switchyard-cleared"), "the yard was not cleared");
+    assert_eq!(run.counted("sidings-cleared"), 0);
+    // What was cleared stays cleared, which is the whole of what leaving keeps.
+    assert!(run.has_cleared("the-switchyard", 0));
+}
+
+/// The frame lint is red by nine, and says which nine.
+#[test]
+fn the_frame_lint_is_red_by_nine() {
+    let naked: Vec<&str> =
+        gearmaster_engine::bestiary::unpacked().iter().map(|f| f.name).collect();
+    assert_eq!(naked.len(), 9, "{naked:?}");
+    let d = yard();
+    for n in &naked {
+        assert!(
+            d.floors.iter().any(|f| f.creature == *n),
+            "{n} is undressed and is not one of the yard's"
+        );
+    }
+}
+
+/// The whole chain, walked in one run, in both modes.
+///
+/// Buy the sheet, ask for the points, step onto the turntable, walk a line to
+/// its buffer stop, spend the ticket it paid on the other line, walk that to
+/// its buffer stop, and tell Ambrose both. `force_win` does the fighting -
+/// this is the road graph and not the balance, which is M10's - and the
+/// counter reaching two is the thing the last door reads.
+#[test]
+fn the_chain_can_be_walked_in_one_run_in_either_mode() {
+    for mode in [Mode::Grinder, Mode::Rogue] {
+        let mut run = Run::seeded(0x5417);
+        run.mode = mode;
+        run.difficulty = Difficulty::Easy;
+
+        let answer = |run: &mut Run, id: &str, label: &str| {
+            let e = EVENTS.iter().find(|e| e.id == id).expect("a door");
+            run.rung = e.at;
+            let c = e
+                .choices
+                .iter()
+                .find(|c| c.label == label)
+                .unwrap_or_else(|| panic!("{id} has no choice {label:?}"));
+            assert!(run.choice_open(c), "{mode:?}: {id}/{label} was shut");
+            run.take_choice(c);
+            run.take_receipt();
+            assert!(run.answered.contains(&id), "{mode:?}: {id} was not answered");
+        };
+
+        // Hesketh wants a rung's bounty, and a run standing at rung 21 has one.
+        run.gold = 10_000;
+        answer(&mut run, "the-timetable", "Buy a timetable");
+        assert!(run.holds("A Word About the Sidings"));
+
+        answer(&mut run, "the-signal-box", "Ask him to throw the points");
+        assert!(run.holds("A Word About the Points"));
+
+        answer(&mut run, "the-turntable", "Step onto the turntable");
+        assert_eq!(run.dungeon.map(|(d, _)| d.id), Some("the-switchyard"));
+
+        // Down the first line to its buffer stop.
+        let walk = |run: &mut Run| {
+            let mut guard = 0;
+            while let Some((d, floor)) = run.dungeon {
+                guard += 1;
+                assert!(guard < 32, "{mode:?}: the yard never ended");
+                if run.at_points {
+                    let pick = d.floors[floor]
+                        .exits
+                        .iter()
+                        .position(|e| d.fights_ahead(e.to, &run.cleared_floors) > 0)
+                        .expect("a road with something down it");
+                    run.throw_points(pick);
+                    run.take_receipt();
+                    continue;
+                }
+                run.pending_scene = None;
+                run.force_win();
+                run.settle();
+                run.take_receipt();
+                run.back_to_loadout();
+            }
+        };
+        walk(&mut run);
+        assert!(run.flags.contains(&"switchyard-cleared"), "{mode:?}: one line and no flag");
+        assert_eq!(run.counted("sidings-cleared"), 1, "{mode:?}");
+
+        // The ticket that line paid, fed at a pedestal, is the other line.
+        let ticket = ["Shunter's Orb", "Signalman's Orb"]
+            .into_iter()
+            .find(|n| run.holds(n))
+            .expect("a buffer stop pays a ticket");
+        let id = run
+            .owned
+            .iter()
+            .copied()
+            .find(|&i| run.registry.def(i).name == ticket)
+            .expect("held");
+        assert!(run.feed_pedestal(id).is_some(), "{mode:?}: the pedestal refused {ticket}");
+        run.take_receipt();
+        walk(&mut run);
+        assert_eq!(run.counted("sidings-cleared"), 2, "{mode:?}: both lines");
+
+        // And Ambrose reads the count.
+        answer(&mut run, "the-last-train", "Tell him both lines");
+        assert!(run.underwritten_until.is_some(), "{mode:?}: the underwriter did not sign");
+
+        for id in ["the-timetable", "the-signal-box", "the-turntable", "the-last-train"] {
+            assert!(run.answered.contains(&id), "{mode:?}: {id} was never answered");
+        }
     }
 }

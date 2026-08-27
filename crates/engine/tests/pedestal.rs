@@ -24,7 +24,8 @@ fn a_run() -> Run {
 
 #[test]
 fn the_four_orbs_are_four_keys_to_four_places() {
-    assert_eq!(DESTINATIONS.len(), 4);
+    // Six: the Unwinding's four, and the yard's two sidings.
+    assert_eq!(DESTINATIONS.len(), 6);
     let mut kinds = 0;
     for d in DESTINATIONS {
         assert!(pedestal::is_orb_of_travel(d.via_orb));
@@ -35,16 +36,36 @@ fn the_four_orbs_are_four_keys_to_four_places() {
         // A piece first, and a ticket second. An orb that is only a ticket is
         // a reward that punishes buying one before you find the pedestal.
         assert_eq!(def.kind, gearmaster_engine::piece::PieceKind::Orb, "{}", d.via_orb);
+        // A piece first, whether it is bought or won. The four the Unwinding
+        // shipped are shop finds and this used to say so for all of them; the
+        // Switchyard's two are event-only, because what pays them is a buffer
+        // stop four fights down a yard and a shelf is a purchase. So what is
+        // asserted is the thing that was always the real claim - an orb does
+        // something to the spells slotted into it - rather than the route it
+        // arrived by.
         assert!(
-            !gearmaster_engine::piece::is_event_only(def.name),
-            "{} cannot be bought, which is what makes it a ticket and nothing else",
+            !def.triggers.is_empty() || def.power_bonus > 0 || def.speed_bonus != 0,
+            "{} is a ticket and nothing else, which punishes finding one early",
             def.name
         );
+        if matches!(d.kind, Where::Siding { .. }) {
+            assert!(
+                gearmaster_engine::piece::is_event_only(def.name),
+                "{} is a siding ticket and is on a shelf somewhere",
+                def.name
+            );
+        } else {
+            assert!(
+                !gearmaster_engine::piece::is_event_only(def.name),
+                "{} cannot be bought, and the four shipped orbs are shop finds",
+                def.name
+            );
+        }
         if matches!(d.kind, Where::Dungeon(_)) {
             kinds += 1;
         }
     }
-    assert_eq!(kinds, 2, "the four destinations are two fights and two places");
+    assert_eq!(kinds, 2, "two of the six destinations are dungeons entered at the mouth");
 }
 
 #[test]
@@ -231,15 +252,51 @@ fn a_siding_lands_you_on_a_floor_and_walks_past_what_you_cleared() {
     );
 }
 
-/// The variant exists and nothing uses it yet, which is the phase discipline.
+/// The two sidings go into one dungeon and land on different lines.
 ///
-/// M6 adds the two orbs and their sidings. Until then this says out loud that
-/// the plumbing is landed and inert, so a green suite is not mistaken for
-/// content that shipped.
+/// Two orbs pointing into one dungeon is the design, not a mistake - which is
+/// why `no_two_sidings_land_on_the_same_floor` in `pedestal.rs` exists: the
+/// older "no two destinations share an id or an orb" cannot see two sidings
+/// written onto one floor, and the second would be refused by the visited-set
+/// while looking like a fresh ticket.
 #[test]
-fn no_destination_is_a_siding_yet() {
-    assert!(
-        !DESTINATIONS.iter().any(|d| matches!(d.kind, Where::Siding { .. })),
-        "the sidings are M6's; if this is red, the milestone moved and this test should go"
-    );
+fn the_two_sidings_are_two_lines_of_one_yard() {
+    let sidings: Vec<_> = DESTINATIONS
+        .iter()
+        .filter_map(|d| match d.kind {
+            Where::Siding { dungeon, floor } => Some((d.via_orb, dungeon, floor)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(sidings.len(), 2, "the yard has two lines");
+    assert!(sidings.iter().all(|s| s.1 == "the-switchyard"));
+    assert_ne!(sidings[0].2, sidings[1].2, "both orbs land on one line");
+
+    // Each line's buffer stops pay the ticket to the other line. The Down
+    // line's are floors 3 and 4 and they pay the Shunter's, whose siding is
+    // the Up line's first floor - and the reverse.
+    let d = gearmaster_engine::dungeon::by_id("the-switchyard").expect("M6");
+    for (orb, _, lands_on) in sidings {
+        let payers: Vec<usize> = d
+            .floors
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| {
+                f.also.iter().any(|o| matches!(o, gearmaster_engine::event::Outcome::Give(n) if *n == orb))
+            })
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(payers.len(), 2, "{orb} is paid by two buffer stops: {payers:?}");
+        for p in payers {
+            assert!(
+                d.fights_ahead(lands_on, &[]) > 0,
+                "{orb} lands somewhere with nothing left in it"
+            );
+            assert!(
+                !d.floors[lands_on].entry.is_empty(),
+                "{orb} lands on floor {lands_on} and nobody says anything"
+            );
+            let _ = p;
+        }
+    }
 }

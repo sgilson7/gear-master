@@ -814,3 +814,143 @@ which is the part Part C is actually about.
   items became **eleven**. The chain is seeded by two words, both `Carried`
   and both bought from a door rather than sold at the bar, because `SHELVES`
   is six names and `SHOP_SIZE` is six - the pub is full (Part E, E-2).
+
+---
+
+## M6 the chain, the yard, the frames, the destinations, at `13ecad2`+
+
+Two rumours, four doors, nine floors, nine frames, nine undressed creatures
+and two sidings. The first content of the mission that a player can walk.
+
+### The exit criterion, measured
+
+**Zero authored `gear:` boards.** `grep` over the nine new `MonsterSpec`s
+finds `gear: &[]` nine times and `gear: &[(` never. The four-board table is
+byte-identical to M0 and `gear_at` still matches the M0 fixture, which is what
+it should be: nine creatures with no boards cannot move anybody's gear.
+
+The chain walks end to end in both modes
+(`the_chain_can_be_walked_in_one_run_in_either_mode`): buy the sheet, ask for
+the points, step onto the turntable, walk a line to its buffer stop, spend the
+ticket it paid on the other line, walk that one, and tell Ambrose both -
+`counted("sidings-cleared") == 2` and the underwriter signs.
+
+**Nine rooms, and the most a run can fight is eight.**
+`nine_floors_and_the_most_a_run_can_see_is_eight` walks the yard greedily -
+in at the mouth, back in by every siding a ticket can pay for, taking whichever
+road still has a fight down it - and counts **8 distinct floors**, with the one
+left over always a buffer stop. That is the property the whole floor graph was
+built for, and it is now a fact about the tables rather than a claim.
+
+### The suite
+
+| | M5 | M6 |
+|---|---:|---:|
+| Engine passed | 853 | **860** |
+| GUI | 65 | 65 |
+| CLI | 3 | **5** |
+| Warnings | 0 | 0 |
+
+### The census
+
+| | M5 | M6 |
+|---|---:|---:|
+| `EVENTS` | 33 | **37** |
+| `DUNGEONS` | 6 | **7** |
+| `RUMOURS` | 8 | **10** |
+| `DESTINATIONS` | 4 | **6** |
+| `FRAMES` | 15 | **24** |
+| `ALTERNATES` | 19 | **28** |
+| creatures | 69 | **78** |
+
+---
+
+### Findings
+
+**30. Two of the four doors could not stand where the spec drew them.** A0
+lists the free indices between Kettleworks and the Slagworks as 18, 20, 25, 27,
+32 and 34, which is true of *events* and takes no account of towns. Town gates
+stand on rungs 7, 14, 18, 25, 32 and 34, and
+`town::no_town_shares_a_rung_with_an_event` has refused a door on a gate's rung
+since before this mission - "both would want the screen, and there is no
+sensible order for that".
+
+So the intersection that is free of both is **20 and 27**, and two of the four
+doors had to move:
+
+| Door | Spec | Landed | Why |
+|---|---:|---:|---|
+| THE TIMETABLE | 18 | **20** | Kettleworks stands after 17 |
+| THE SIGNAL BOX | window from 20 | window from **21** | the timetable took 20 |
+| THE TURNTABLE | 27 | 27 | unchanged |
+| THE LAST TRAIN | 32 | **33** | High Wick stands after 31 |
+
+The spec's argument for 18 - "the stack pops the gate first, which is the shape
+Sump Bottom and the first fountain already share at index 7" - is true of a
+*fountain* and does not transfer: the lint only forbids events, and a fountain
+is not one. THE LAST TRAIN at 33 shares its rung with THE EXHIBITION, which is
+a window rather than an address, and two doors on a rung is a pairing the road
+already has three of.
+
+**31. `every_scene_names_something` caught a fourth instance of the blind spot
+Part B warns about.** Part B audits its own strings against a reimplementation
+of the lints and reports three failures, all `names_something`, all repaired.
+It missed one: THE YARD THROAT's fork scene named Ambrose only at a full stop
+("...it has been pulled. Ambrose pulled it. He did not say which way."), and a
+name that only ever opens a sentence is invisible to the predicate.
+
+Repaired the way Part B repairs the other three - one clause putting the name
+past the first word - and **repaired in the spec as well**, so the document and
+the engine do not hold two versions of a scene, which is what Part B asks for
+by name.
+
+**32. A generic road-walker has to know how to throw a lever.**
+`two_runs::play` walks the road answering whatever door is open, and three of
+its walks stalled at rung 26. Not a balance problem: the walk answered THE
+TURNTABLE by taking its first open choice, stepped into the yard, cleared the
+throat, and then stood at the points for forty iterations because nothing in
+the helper could decide which way. It throws the first road with a fight down
+it now. Any other walker that reaches a dungeon will need the same.
+
+**33. The M1 replay fixture hung the suite for six minutes.**
+`the_six_shipped_dungeons_replay_word_for_word` walks every dungeon in
+`DUNGEONS` with `while let Some(_) = run.dungeon`, and THE SWITCHYARD never
+ends without somebody throwing the points. It is filtered to the six it is a
+fixture for - the yard's walk is `switchyard.rs`'s, where there is something to
+decide - and the loop carries a bound, because a dungeon that cannot be walked
+out of is a hang and a hang is a worse bug than a wrong room.
+
+**34. Five linear-dungeon assumptions surfaced at once**, all in tests that
+were correct about a list and wrong about a graph:
+
+- Bands had to rise **along the list**; they now have to rise **along every
+  road out**, because the yard's floor 5 is band 28 after floor 4's 30 and the
+  two are different lines.
+- Theme uniformity: the yard is exempted beside WUMPUS WORLD, and for a
+  different reason - it is not a creature at all but a place, and the two lines
+  are meant to read differently in the first three seconds.
+- `every_dungeon_pays_something` needed "or every buffer stop pays its own
+  way", which M1 had already taught `dungeon.rs`'s copy and not this one.
+- The ascii-map fixture compared **lengths**; it is a subsequence check now,
+  because the road is longer and what M1 promised is that the old lines did not
+  move.
+- `the_shipped_banner_did_not_change` walked all of `DUNGEONS`; it walks the
+  six and pins the yard's `floor 1 of 4` separately.
+
+**35. `switchyard.rs`'s own fixture run stood on rung 20**, which THE TIMETABLE
+now occupies, so half the file failed on `road_is_blocked` finding a door
+instead of the points. It stands on rung 43 - no scheduled event, no gate, no
+fountain - because every test in that file is about what a dungeon does to the
+road, and the road underneath has to be empty or the measurement is of
+something else.
+
+**36. Four phase-discipline budgets went red together**, and all four are
+tied to `bestiary::unpacked()` rather than to a copied list of nine names, so
+M9 clears them by packing rather than by editing:
+
+- `bestiary::UNDRESSED` 0 → **9**. **The only budget in the repository that is
+  allowed to go up**, and it says so in its own doc comment.
+- `acceptance::e6_8` now asserts the undressed set *equals* the yard's nine.
+- `phase_two`'s copy asserts nothing of *the Unwinding's* is undressed.
+- `gui::pack`'s toothless lint skips what has not been packed - a creature with
+  no board lands nothing because it has nothing to land it with.

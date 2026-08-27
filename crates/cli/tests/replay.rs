@@ -59,12 +59,6 @@ fn a_scripted_run_replays_identically() {
 }
 
 /// The two dungeon verbs answer from outside a dungeon rather than panicking.
-///
-/// The whole of what can be replayed through the CLI today: no dungeon in
-/// `DUNGEONS` has points in it, and none of them is reachable by any board the
-/// driver can build from its own verbs - THE CREVICE's door is the shrine fork
-/// on rung 10 and the preset board loses rung 9. The yard is what makes this
-/// script a walk instead of two refusals, and the yard is M6.
 #[test]
 fn throw_and_leave_say_no_from_the_road() {
     let out = play("throw 0\nleave\nthrow x\nquit\n");
@@ -82,4 +76,65 @@ fn help_lists_the_two_new_verbs() {
     let out = play("help\nquit\n");
     assert!(out.contains("throw <n>"), "{out}");
     assert!(out.contains("leave"), "{out}");
+}
+
+/// The yard, walked twice, byte for byte.
+///
+/// Acceptance criterion 1. It was deferred from M3 because nothing in
+/// `DUNGEONS` had points in it and no dungeon was reachable by any board the
+/// driver could build; THE SWITCHYARD is reachable through `road`, `answer`
+/// and `throw`, which is what makes this a walk rather than two refusals.
+///
+/// The script does not fight its way to rung 28 - the preset board cannot -
+/// so what it replays is the driver's own surface: the road printed at every
+/// step, the points listed under the banner, and the two verbs refusing and
+/// accepting in the same order twice. Determinism is the claim, and the claim
+/// is about the whole transcript rather than about any line of it.
+const THE_YARD: &str = "\
+preset
+road
+map
+throw 0
+leave
+fight
+road
+fight
+road
+fight
+road
+items
+stats
+quit
+";
+
+#[test]
+fn the_cli_verbs_replay() {
+    let once = play(THE_YARD);
+    let twice = play(THE_YARD);
+    assert_eq!(once, twice, "the same script made a different run");
+    // Both verbs were reached and both answered rather than panicking.
+    assert!(once.contains("You are not at the points."), "{once}");
+    assert!(once.contains("You are not in a dungeon."), "{once}");
+}
+
+/// The driver knows the yard exists and can name what is in it.
+///
+/// Not a walk: a check that the content M6 landed is reachable through the
+/// engine the driver drives, so a transcript taken by hand later is taken
+/// against something real.
+#[test]
+fn the_road_the_driver_prints_knows_about_the_yard() {
+    use gearmaster_engine::dungeon::by_id;
+
+    let d = by_id("the-switchyard").expect("M6 landed it");
+    assert_eq!(d.floors.len(), 9);
+    assert_eq!(d.forks(), 3);
+    // The map's label for it, which `road`/`map` print through `route::ascii`.
+    let mut run = gearmaster_engine::run::Run::new();
+    run.rung = 27;
+    let ascii = gearmaster_engine::route::ascii(&run).join("\n");
+    assert!(
+        ascii.contains("THE SWITCHYARD (4 fights, 3 points)"),
+        "the map does not say how deep the yard goes:\n{ascii}"
+    );
 }

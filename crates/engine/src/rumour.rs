@@ -222,6 +222,35 @@ pub static RUMOURS: &[Rumour] = &[
         opens: "the-picket-line",
         needs: Condition::Carried,
     },
+    // ---- the Switchyard -------------------------------------------------
+    //
+    // Neither is on the bar, and not by preference: `SHELVES` is exactly six
+    // names and `SHOP_SIZE` is six, so the pub is full. The first is bought
+    // from a woman at the roadside and the second is told to you in a signal
+    // box, which is the shape the Unwinding's second and third words already
+    // have. Both are `Carried` for the reason the module note gives - a word
+    // somebody told you is a key, and a key with a second lock on it is a key
+    // with a second lock on it for no reason.
+    Rumour {
+        name: "A Word About the Sidings",
+        on_the_bar: false,
+        hint: "There is a yard under the road where the line used to be \
+               sorted, and Hesketh says the times are still being kept, which \
+               they would not be if nobody was keeping them.",
+        price: Barter::Kind(PieceKind::Mold),
+        opens: "the-signal-box",
+        needs: Condition::Carried,
+    },
+    Rumour {
+        name: "A Word About the Points",
+        on_the_bar: false,
+        hint: "Ambrose will throw the points for you the way he throws them \
+               for the trains, which is on time and one way only, and he has \
+               never once been asked which way.",
+        price: Barter::Rumour("A Word About the Sidings"),
+        opens: "the-turntable",
+        needs: Condition::Carried,
+    },
 ];
 
 /// What the bar will hand over, in shelf order.
@@ -245,6 +274,7 @@ const SHELVES: &[&str] = &[
     "A Word About the Thirsty Wizard",
     "A Word About the Exhibition",
     TROPHY_SHELF,
+
 ];
 
 pub fn by_name(name: &str) -> Option<&'static Rumour> {

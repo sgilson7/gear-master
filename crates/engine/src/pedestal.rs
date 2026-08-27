@@ -79,6 +79,33 @@ pub const DESTINATIONS: &[Destination] = &[
         via_orb: "Stray Orb",
         kind: Where::Dungeon("wumpus-world"),
     },
+
+    // ---- the Switchyard's two sidings -----------------------------------
+    //
+    // The only destinations that go somewhere a run has already been to the
+    // edge of, and the reason the yard's rewards are tickets: having walked
+    // one line of a yard with two, the somewhere a run wants most is the
+    // other line.
+    //
+    // Each line's buffer stops pay the orb for the *other* line, which makes
+    // "a single run cannot see all of it" a property of the graph rather than
+    // a promise. A run that walks Down and feeds the Shunter's enters Up,
+    // reaches a buffer stop and is paid the Signalman's - whose destination is
+    // the Down line, where two floors are already cleared and walked through.
+    // Eight floors. The ninth is the other Up-line buffer stop, and the only
+    // orb that goes there has been spent.
+    Destination {
+        id: "the-up-line",
+        name: "THE UP LINE",
+        via_orb: "Shunter's Orb",
+        kind: Where::Siding { dungeon: "the-switchyard", floor: 5 },
+    },
+    Destination {
+        id: "the-down-line",
+        name: "THE DOWN LINE",
+        via_orb: "Signalman's Orb",
+        kind: Where::Siding { dungeon: "the-switchyard", floor: 1 },
+    },
 ];
 
 pub fn by_orb(orb: &str) -> Option<&'static Destination> {
