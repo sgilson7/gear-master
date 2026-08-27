@@ -6948,7 +6948,21 @@ fn render_route(run: &Run, mx: f32, my: f32) {
 /// that out separately is three places that will one day disagree. The CLI
 /// reads the same string.
 fn dungeon_banner(run: &Run) -> Option<String> {
-    run.road_stack().into_iter().find(|i| i.kind() == "dungeon").map(|i| i.describe())
+    dungeon_banners(run).into_iter().next()
+}
+
+/// Every dungeon a run is standing in, innermost first.
+///
+/// Nearly always one. Two when a door that opens a dungeon stood on the rung a
+/// run walked into a dungeon from - THE MANSE is after rung 24 and THE
+/// TURNTABLE's window opens at 25 - and a panel that showed only the innermost
+/// was a panel that said the staircase had stopped existing.
+fn dungeon_banners(run: &Run) -> Vec<String> {
+    run.road_stack()
+        .into_iter()
+        .filter(|i| i.kind() == "dungeon")
+        .map(|i| i.describe())
+        .collect()
 }
 
 /// The pip row: how many fights are behind you this entry, and how many are
@@ -7132,6 +7146,17 @@ fn leave_strip(r: Rect, mx: f32, my: f32) -> bool {
 /// it needs no strip - the event is the screen. The rung's own fight is always
 /// the last row, so the queue visibly ends somewhere rather than trailing off.
 fn render_stack_strip(run: &Run, mx: f32, my: f32) {
+    render_stack_strip_at(run, Vec2::new(18.0, 96.0), mx, my)
+}
+
+/// The same strip, somewhere else.
+///
+/// The modal screens dim everything behind them, so the strip can sit in the
+/// top-left over the boards and cost nothing. The loadout screen does not -
+/// and the loadout is exactly where a run stands while it is inside a dungeon,
+/// which is the one time there is a stack worth reading. So it goes in the
+/// empty half of the tray band there, where it covers nothing.
+fn render_stack_strip_at(run: &Run, at: Vec2, mx: f32, my: f32) {
     let stack = run.road_stack();
     let inside = stack.iter().any(|i| matches!(i, gearmaster_engine::run::Interrupt::Dungeon { .. }));
     if stack.len() < 2 && !inside {
@@ -7140,7 +7165,7 @@ fn render_stack_strip(run: &Run, mx: f32, my: f32) {
     let w = 300.0;
     let row = 22.0;
     let h = 34.0 + (stack.len() + 1) as f32 * row;
-    let r = Rect::new(18.0, 96.0, w, h);
+    let r = Rect::new(at.x, at.y, w, h);
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(12, 12, 20, 236));
     draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.5, Color::from_rgba(70, 70, 96, 255));
     ui_text(
@@ -9989,6 +10014,18 @@ fn render_panel(
             }
         }
         y += 12.0;
+        // And whatever this one was opened from. Dimmer, and without pips: it
+        // is not what you are fighting, it is what you come back to.
+        for outer in dungeon_banners(run).into_iter().skip(1) {
+            y += 14.0;
+            ui_text(
+                &format!("{} {}", words::word("still-in", "STILL IN"), words::retell_naming(&outer).to_uppercase()),
+                x + 20.0,
+                y,
+                11.0,
+                Color::from_rgba(132, 118, 152, 255),
+            );
+        }
     } else {
         ui_text(
             &format!("rung {} of {}  ·  {} hp", run.rung + 1, LADDER.len(), m.health),
@@ -10468,6 +10505,18 @@ async fn main() {
             Some((id, "points")) => (id.to_string(), true),
             _ => (v.clone(), false),
         };
+        // `a,b` walks into a, then into b from inside it - the nesting a run
+        // meets when a door that opens a dungeon stands on the rung it walked
+        // into one from.
+        let ids: Vec<&str> = id.split(',').map(str::trim).collect();
+        for outer in &ids[..ids.len().saturating_sub(1)] {
+            if let Some(d) = gearmaster_engine::dungeon::by_id(outer) {
+                run.rung = 26;
+                run.enter_dungeon_at(d, 0);
+                run.pending_scene = None;
+            }
+        }
+        let id = ids[ids.len() - 1].to_string();
         if let Some(d) = gearmaster_engine::dungeon::by_id(&id) {
             run.rung = 26;
             run.enter_dungeon_at(d, 0);
@@ -10783,6 +10832,27 @@ async fn main() {
             render_inventory(&layout, &run, &drag, bartering, mx, my);
             if let Some(pk) = packing.as_ref() {
                 render_pack_bar(pk, &run, searching, mx, my);
+            }
+            // What is standing on this rung, on the screen a run actually
+            // stands on while it is inside a dungeon.
+            //
+            // The strip was drawn over the town, the event and the points -
+            // three modal screens that dim everything behind them - and never
+            // here, which is the one screen where a stack lasts longer than a
+            // click. A run two dungeons deep had nowhere at all to read that.
+            //
+            // It gates itself: nothing is drawn unless two things are queued
+            // or the run is inside a dungeon, so an ordinary rung sees it
+            // never. In the right-hand half of the tray band, which is empty
+            // whenever the tray is not full.
+            if packing.is_none() {
+                let inv = layout.inv;
+                render_stack_strip_at(
+                    &run,
+                    Vec2::new(inv.x + inv.w - 318.0, inv.y + 10.0),
+                    mx,
+                    my,
+                );
             }
         }
 

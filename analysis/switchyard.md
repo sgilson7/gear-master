@@ -1801,3 +1801,68 @@ only while there is a dungeon to be out of, and
 of every button so neither steals the other's click.
 
 **882 engine, 71 GUI, 5 CLI. No warnings.** The four-board table is unmoved.
+
+---
+
+## Dungeons nest (2026-08-27)
+
+Reported from play: went into the Manse's cellar, then took the Switchyard's
+mini dungeon, and the two did not stack.
+
+**They could not.** `Run::dungeon` was one slot, so entering the second
+**erased the first** - THE THRESHOLD, its floors, and its reward, gone, with no
+way back to a door that was already answered.
+
+### Why it is reachable, and why it is new
+
+THE MANSE stands after rung 24, so its cellar door is taken standing on rung
+25. THE TURNTABLE's window is `Whispered { from: 25 }`. A run that walks into
+the staircase carrying A Word About the Points is standing in one dungeon with
+the door to another open in front of it - and nothing blocked it, because
+`Interrupt::Dungeon::blocks_a_rematch` is false by design: a dungeon *is* where
+the fighting happens while you are in one.
+
+`route.rs`'s rule 2 has said *"a dungeon opened mid-event extends the loop
+deeper before it returns to the rung it left"* since the Unwinding drew the
+map. The run state could not say it.
+
+### What changed
+
+`Run::outer_dungeons` is what you come back to. Entering pushes; **finishing,
+walking out and being carried out all come back up through one place**
+(`back_up_a_dungeon`), so the three cannot drift apart. `road_stack` carries
+every dungeon a run is standing in, innermost first.
+
+| | |
+|---|---|
+| Enter a second | the first goes underneath, not away |
+| Finish the inner | back up into the outer, on the floor you left it |
+| Walk out of the inner | the same, and the receipt says *"You are still in THE THRESHOLD."* |
+| Rogue carried out on its last life | out of the inner one, still standing in the outer |
+| Wipe | forgets the whole nest |
+
+Five tests in `validity.rs`, headed by
+`a_second_dungeon_does_not_swallow_the_first`.
+
+### And somewhere to read it
+
+The other half of the report: there was no way to see the stack. The strip that
+lists what is standing on the rung was drawn over the **town**, the **event**
+and the **points** - three modal screens that dim everything behind them - and
+never on the **loadout**, which is the one screen a run stands on for any
+length of time and the only one it stands on while inside a dungeon.
+
+- `render_stack_strip_at` puts it in the empty right-hand half of the tray
+  band on the loadout screen. It gates itself as it always did: nothing is
+  drawn unless two things are queued or the run is in a dungeon.
+- The opponent panel's dungeon banner is `dungeon_banners`, plural. The
+  innermost keeps its pips; each outer one gets a dim `STILL IN ...` line under
+  them, because it is not what you are fighting - it is what you come back to.
+
+Verified by rendering two deep: the strip reads **THE SWITCHYARD / THE
+THRESHOLD / THE BIRD PROBLEM / THE SHUNTER**.
+
+`GEARMASTER_DUNGEON=the-threshold,the-switchyard` walks into a nest, which is
+how it was looked at.
+
+**887 engine, 71 GUI, 5 CLI. No warnings.**

@@ -692,6 +692,23 @@ pub struct Run {
     pub contract_honoured: bool,
     /// What the courier pays for a passenger delivered.
     pub passenger_pays: &'static str,
+    /// Dungeons entered and not yet finished, outermost first.
+    ///
+    /// `dungeon` is the one you are standing in; this is what you come back to
+    /// when you finish it or walk out of it. Nearly always empty - one dungeon
+    /// at a time is the ordinary case - and not always, because a door that
+    /// opens a dungeon can stand on the rung you walked into a dungeon from:
+    /// THE MANSE is after rung 24 and THE TURNTABLE's window opens at 25, so a
+    /// run in the cellar carrying A Word About the Points has a second door in
+    /// front of it.
+    ///
+    /// It was one slot, and entering the second dungeon **erased the first** -
+    /// the staircase and everything cleared in it, gone, with no way back to a
+    /// door that was already answered. `route.rs`'s rule 2 has said "a dungeon
+    /// opened mid-event extends the loop deeper before it returns to the rung
+    /// it left" since the Unwinding drew the map; the run state could not say
+    /// it.
+    pub outer_dungeons: Vec<(&'static crate::dungeon::Dungeon, usize)>,
     /// Floors of dungeons this run has cleared, by dungeon id and floor index.
     ///
     /// Kept for the rest of the run rather than for the visit, because a floor
@@ -848,6 +865,7 @@ impl Run {
             town: None,
             towns_seen: Vec::new(),
             towns_revealed: Vec::new(),
+            outer_dungeons: Vec::new(),
             cleared_floors: Vec::new(),
             at_points: false,
             took_exits: Vec::new(),
@@ -1027,6 +1045,21 @@ impl Run {
                 floor,
                 nth: won + 1,
                 of: won + d.fights_ahead(floor, &self.cleared_floors),
+            });
+        }
+        // And whatever is underneath it. Innermost first, so the strip reads
+        // downwards the way the run walked: the yard, then the staircase you
+        // opened it from, then the rung.
+        //
+        // Their banners count the fights of the entry that is paused, which is
+        // the number that will be true again when the run comes back up to
+        // them.
+        for &(d, floor) in self.outer_dungeons.iter().rev() {
+            out.push(Interrupt::Dungeon {
+                at: d,
+                floor,
+                nth: 1,
+                of: d.fights_ahead(floor, &self.cleared_floors),
             });
         }
         // `self.town`, not `pending_town`: the phase gate on that one asks
@@ -1782,6 +1815,12 @@ impl Run {
         if floor >= d.floors.len() {
             return;
         }
+        // Whatever you were in, you are still in - underneath this one.
+        if let Some(outer) = self.dungeon {
+            if outer.0.id != d.id {
+                self.outer_dungeons.push(outer);
+            }
+        }
         self.dungeon = Some((d, floor));
         self.at_points = false;
         self.entry_started_at = self.cleared_floors.len();
@@ -1794,6 +1833,19 @@ impl Run {
         if !walked.is_empty() {
             self.last_receipt = Some(walked);
         }
+    }
+
+    /// Come back up: out of the dungeon you were in, into the one under it.
+    ///
+    /// The one place `dungeon` is cleared, so that finishing, walking out and
+    /// being carried out all leave a run in the same place - which is the one
+    /// under it, or the road.
+    fn back_up_a_dungeon(&mut self) {
+        self.dungeon = self.outer_dungeons.pop();
+        self.at_points = false;
+        // The entry counter belongs to whatever you are standing in now, and
+        // the floors of the outer one were cleared before this entry began.
+        self.entry_started_at = self.entry_started_at.min(self.cleared_floors.len());
     }
 
     /// Have you beaten this floor of this dungeon, at any point this run?
@@ -1916,10 +1968,12 @@ impl Run {
             return false;
         }
         let Some((d, _)) = self.dungeon else { return false };
-        self.dungeon = None;
-        self.at_points = false;
-        self.last_receipt =
-            Some(vec![format!("Left {}. What you cleared stays cleared.", d.name)]);
+        self.back_up_a_dungeon();
+        let mut lines = vec![format!("Left {}. What you cleared stays cleared.", d.name)];
+        if let Some((outer, _)) = self.dungeon {
+            lines.push(format!("You are still in {}.", outer.name));
+        }
+        self.last_receipt = Some(lines);
         true
     }
 
@@ -2485,8 +2539,7 @@ impl Run {
                     // went in for - and with whatever else it pays, which for
                     // THE THRESHOLD is the pool and not the class.
                     0 => {
-                        self.dungeon = None;
-                        self.at_points = false;
+                        self.back_up_a_dungeon();
                         for o in d.also {
                             lines.extend(self.apply_outcome(o, crate::event::Requirement::None).1);
                         }
@@ -2686,7 +2739,11 @@ impl Run {
                         // cost.
                         if in_a_dungeon && self.lives <= 1 {
                             let name = self.dungeon.map(|(d, _)| d.name).unwrap_or("");
-                            self.dungeon = None;
+                            // Out of this one and into whatever is under it.
+                            // A run carried out of the innermost of two is
+                            // still standing in the other, which is a place it
+                            // can walk out of on its own terms.
+                            self.back_up_a_dungeon();
                             self.last_receipt = Some(vec![
                                 format!("Carried out of {name}"),
                                 if self.lives == 0 {

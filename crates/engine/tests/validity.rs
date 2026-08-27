@@ -1106,3 +1106,125 @@ fn the_yards_content_is_on_the_map() {
         "a straight line grew a points clause"
     );
 }
+
+/// A dungeon entered while inside a dungeon must not erase the one you are in.
+///
+/// The Manse stands after rung 24, so its cellar door is taken at rung 25 -
+/// and THE TURNTABLE's window is rungs 26 to 28, `at` 27, opening at 25. So a
+/// run that walks into THE THRESHOLD carrying A Word About the Points is
+/// standing in one dungeon with the door to another open in front of it.
+#[test]
+fn a_second_dungeon_does_not_swallow_the_first() {
+    let mut run = Walk::new().run;
+    run.rung = 25;
+    run.enter_dungeon("the-threshold");
+    assert_eq!(run.dungeon.map(|(d, _)| d.id), Some("the-threshold"));
+
+    // Down a floor, so there is something to lose.
+    run.pending_scene = None;
+    run.force_win();
+    run.settle();
+    run.back_to_loadout();
+    assert_eq!(run.dungeon.map(|(_, f)| f), Some(1), "one floor down");
+
+    run.enter_dungeon("the-switchyard");
+    assert_eq!(run.dungeon.map(|(d, _)| d.id), Some("the-switchyard"), "in the yard");
+
+    // Walking out of the yard has to put you back in the staircase, one floor
+    // down, where you left it.
+    assert!(run.leave_dungeon(), "could not walk out of the yard");
+    assert_eq!(
+        run.dungeon.map(|(d, f)| (d.id, f)),
+        Some(("the-threshold", 1)),
+        "THE THRESHOLD was swallowed by the dungeon opened inside it"
+    );
+}
+
+/// Finishing the inner dungeon comes back up into the outer one.
+#[test]
+fn finishing_a_nested_dungeon_comes_back_up_into_the_one_under_it() {
+    let mut w = Walk::new();
+    w.run.rung = 25;
+    w.run.enter_dungeon("the-threshold");
+    w.run.pending_scene = None;
+    w.run.force_win();
+    w.run.settle();
+    w.run.back_to_loadout();
+
+    // Into the under-mine, which is two floors and ends.
+    w.run.enter_dungeon("the-under-mine");
+    assert_eq!(w.run.outer_dungeons.len(), 1, "the staircase is underneath");
+    for _ in 0..2 {
+        w.run.pending_scene = None;
+        w.run.force_win();
+        w.run.settle();
+        w.run.take_receipt();
+        w.run.back_to_loadout();
+    }
+    assert_eq!(
+        w.run.dungeon.map(|(d, f)| (d.id, f)),
+        Some(("the-threshold", 1)),
+        "finishing the inner one did not come back up"
+    );
+    assert!(w.run.outer_dungeons.is_empty());
+    // And the inner one still paid: the Prospector is its reward.
+    assert!(w.run.classes.iter().any(|c| c.name == "Prospector"), "the inner one paid nothing");
+}
+
+/// The stack says what a run is standing in, all of it.
+///
+/// The second half of the bug: a run two dungeons deep had nowhere to read
+/// that. `road_stack` carries every one of them, innermost first, so the strip
+/// and the panel can both say so.
+#[test]
+fn the_stack_names_every_dungeon_a_run_is_standing_in() {
+    let mut run = Walk::new().run;
+    run.rung = 25;
+    run.enter_dungeon("the-threshold");
+    run.enter_dungeon("the-switchyard");
+
+    let names: Vec<&str> = run
+        .road_stack()
+        .iter()
+        .filter(|i| i.kind() == "dungeon")
+        .map(|i| i.name())
+        .collect();
+    assert_eq!(names, vec!["THE SWITCHYARD", "THE THRESHOLD"], "innermost first");
+}
+
+/// A Rogue carried out of the inner one is still standing in the outer one.
+#[test]
+fn being_carried_out_of_the_inner_dungeon_leaves_you_in_the_outer() {
+    let mut run = Walk::new().run;
+    run.mode = Mode::Rogue;
+    run.lives = 2;
+    run.rung = 25;
+    run.enter_dungeon("the-threshold");
+    run.enter_dungeon("the-switchyard");
+
+    // A fight this board cannot win, inside the inner one.
+    run.pending_scene = None;
+    run.fight(gearmaster_engine::combat::LADDER.last().expect("a hard one"));
+    run.settle();
+
+    assert_eq!(run.lives, 1);
+    assert_eq!(
+        run.dungeon.map(|(d, _)| d.id),
+        Some("the-threshold"),
+        "carried out of the yard and out of the staircase with it"
+    );
+}
+
+/// Wiping forgets the whole nest.
+#[test]
+fn a_wipe_forgets_every_dungeon_underneath() {
+    let mut run = Walk::new().run;
+    run.mode = Mode::Rogue;
+    run.rung = 25;
+    run.enter_dungeon("the-threshold");
+    run.enter_dungeon("the-switchyard");
+    assert_eq!(run.outer_dungeons.len(), 1);
+    run.wipe();
+    assert!(run.dungeon.is_none());
+    assert!(run.outer_dungeons.is_empty(), "a new run is standing in a dungeon");
+}
