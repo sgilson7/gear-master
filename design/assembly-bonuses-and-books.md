@@ -437,12 +437,66 @@ before it, so "the click resolves to nothing" cannot come back.
 scripted-replay contract cannot exercise any of this. A `pedestal <n>` verb is
 cheap and makes the destinations testable from a script.
 
+### M10 - The second voice stops advertising itself. **▲**
+
+The turtle telling is on the mode-select screen as a card the size of the
+mode cards, captioned TALES FROM THE CRYPT and blurbed *"The same game, told
+in the language of the book. It's about a turtle."* It is the first thing a
+new player is asked to choose between, under a heading that says IN WHOSE
+WORDS?, and it is a little raunchy. It should not be the front door.
+
+**What it becomes.** The row offers one voice. The second is behind a hotspot
+in the **top right** of that screen that is drawn as nothing at all -
+background, no border, no hover tint, no cursor change. Clicking it turns the
+turtle on.
+
+**How it is built, and the three things that will bite:**
+
+- `render_mode_select` (`main.rs:8758`) builds the row by iterating
+  `theme::THEMES` and laying `n` cards centred on `LOGICAL_W`. With `n = 1`
+  that centres a single card, which is the right look for free - the row keeps
+  its IN WHOSE WORDS? heading only while there is a choice to make.
+- **The hotspot rect must come out of a pure function**, not be computed
+  between draw calls - trap 32, and `render_mode_select` already returns its
+  rects rather than handling its own clicks, so it is the shape the file
+  already uses.
+- **`GEARMASTER_THEME` must keep working.** It is how screenshots and any
+  scripted opening reach the turtle telling, and it is read at
+  `main.rs:10656` before any of this. An env-set theme should arrive already
+  unlocked, or the picker will hide the theme the run is actually in.
+
+**Where the state lives.** Beside `chosen_theme` in `main`, session-only.
+There is no settings file in this repo and this is not the milestone that
+introduces one; a player who wants it every time can set the env var.
+
+**Once it is on**, the card appears and is selected, because a hidden control
+with no feedback is indistinguishable from a broken one. Clicking the hotspot
+again puts it away.
+
+**Deliverable:** a player who does not know it is there cannot find it by
+reading the screen, and a player who does can turn it on in one click.
+
+**Gate:** three tests, all in `gui`'s existing style.
+
+1. The row offers exactly one theme by default, and both after the hotspot.
+2. The hotspot overlaps **no** other control on that screen - the mode cards,
+   the difficulty cards, the theme card. `no_two_buttons_share_a_pixel` is
+   the test already in the file that does this shape, and the failure it
+   guards against is a player finding the thing by accident, which is the
+   whole point.
+3. `GEARMASTER_THEME=td` arrives unlocked.
+
+**Not in scope:** the turtle text itself, which is untouched, and
+`two_voices`'s budget of 5, which this cannot move - the engine's themes are
+unchanged and only the picker's iteration is.
+
 ---
 
 ## 5. What shipped
 
-Written at `b40e793`. Seven of nine milestones are in; M3 is blocked and §6
-says on what, and M9 is a bug report filed after the rest had shipped.
+Written at `b40e793`. Seven of ten milestones are in; M3 is blocked and §6
+says on what. M9 and M10 were filed after the rest had shipped - one a bug
+found in play, one a decision about what the front door offers.
 
 | | Milestone | Commits | State |
 |---|---|---|---|
@@ -455,6 +509,7 @@ says on what, and M9 is a bug report filed after the rest had shipped.
 | M7 | The visual battle glossary | `66507c0`, `6b7e275` | **in** |
 | M8 | Zealotry, DruidicMight, the record | `120db15`, `b40e793` | **in** |
 | M9 | The pedestal gets a screen | - | **open** - a bug report, filed 2026-08-27 |
+| M10 | The second voice stops advertising itself | - | **open** - filed 2026-08-27 |
 
 Suite at the tip: **907 engine green**, 48 ignored; **75 GUI green**; 0
 warnings across the workspace. The ladder's movement from M8 is measured in
