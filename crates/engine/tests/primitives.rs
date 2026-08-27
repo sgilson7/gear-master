@@ -749,9 +749,17 @@ fn the_armed_assembly_bonuses_are_the_ones_that_were_authored() {
         armed,
         vec![
             "Ambush Mold",
+            // M8. Arming these two moved the ladder, which is what this
+            // assertion exists to make somebody look at: owner 41/50 -> 42/50
+            // at the hard setting, friend 97.3% -> 97.4%, Warded Idol 2.80s ->
+            // 2.60s, Iron Sentinel's Easy clear 31.5s -> 38.0s. Headline
+            // clears unchanged at 48/50 both sides. Measured off `6b7e275`
+            // with the printer, before and after, and diffed.
+            "Breaker's Fist",
             "Coldstep Mold",
             "Deadfall Mold",
             "Deeprooted Sole",
+            "Heartwood Base",
             "Pilgrim Sole",
             "Ridge Runner",
             "Rimebound Mold",

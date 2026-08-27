@@ -163,6 +163,82 @@ fn a_deadfall_is_worth_the_room_around_it() {
     );
 }
 
+/// Seat a piece in its own slot with whatever assembles it, and fight.
+///
+/// `fight_wearing` is greaves-only, and the last two fusions live on a glove
+/// and a chest. The partner is chosen by kind rather than by name so the test
+/// does not go stale the day a piece is renamed.
+fn fight_wearing_in_slot(piece: &str) -> gearmaster_engine::combat::CombatLog {
+    let mut run = Run::with_all_pieces();
+    let id = |run: &Run, n: &str| {
+        run.owned.iter().copied().find(|&p| run.registry.def(p).name == n).expect(n)
+    };
+    let def = CATALOG.iter().find(|d| d.name == piece).expect("a real piece");
+    let wants = match def.kind {
+        PieceKind::Material => PieceKind::Mold,
+        PieceKind::Base => PieceKind::Layer,
+        PieceKind::Mold => PieceKind::Material,
+        other => panic!("no partner rule for {other:?}"),
+    };
+    let partner = CATALOG
+        .iter()
+        .find(|d| d.slot == def.slot && d.kind == wants && d.assembly_bonus.is_none())
+        .expect("something to build it with");
+    let a = id(&run, piece);
+    let b = id(&run, partner.name);
+    run.equip(a, def.slot, 0, 0).expect("seats");
+    // Every anchor until the two touch, putting the partner back if they do
+    // not - an inner `break` leaves the loop, not the search, and the last
+    // placement tried is the one that sticks.
+    'seat: for y in 0..8u8 {
+        for x in 0..6u8 {
+            if run.equip(b, def.slot, x, y).is_ok() {
+                if run.report(def.slot).assembled_count() > 0 {
+                    break 'seat;
+                }
+                run.unequip(b);
+            }
+        }
+    }
+    assert!(
+        run.report(def.slot).assembled_count() > 0,
+        "{piece} never assembled, so its bonus was never live and this test proves nothing"
+    );
+    let spec = gearmaster_engine::combat::creature("Cave Rat").expect("exists");
+    simulate_at(run.player_stats(), &run.combat_items(), spec, Difficulty::Medium)
+}
+
+/// Zealotry, made by a board for the first time.
+///
+/// Anger and conviction. The pool has existed since the slot rewrite and
+/// `held_bonus` has priced it the whole time; nothing in 504 pieces could put
+/// a point in it.
+#[test]
+fn the_breakers_fist_makes_zealotry() {
+    let log = fight_wearing_in_slot("Breaker's Fist");
+    assert!(
+        log.entries.iter().any(|e| matches!(&e.event, Event::Fused { what: "zealotry", .. })),
+        "no zealotry was made. The bonus banks rage and faith at the bell and \
+         fuses them on every activation, so if neither parent arrived the \
+         gain half is unwired, and if they did the fuse half is."
+    );
+}
+
+/// DruidicMight, and the last pool nothing could make.
+///
+/// Heartwood is the one bonus whose payload is about its *neighbours*: every
+/// item beside it banks nature when it fires. That is the nature half. The
+/// rage is the half a chest cannot grow, so it comes at the bell.
+#[test]
+fn heartwood_makes_druidic_might_from_what_its_neighbours_pay() {
+    let log = fight_wearing_in_slot("Heartwood Base");
+    assert!(
+        log.entries.iter().any(|e| matches!(&e.event, Event::Fused { what: "druidic might", .. })),
+        "no druidic might was made, which was the state of the whole catalogue \
+         before this commit."
+    );
+}
+
 /// Every pool the game defines can now be made by some board.
 ///
 /// The lint that would have caught the fusions being unreachable in the first
@@ -199,20 +275,16 @@ fn which_pools_a_board_can_actually_make() {
             });
         }
     }
+    // Every one of them, now, which is what this test was always going to be
+    // asked - it shipped naming the two it could not yet claim, so that the
+    // commit which earned them had to come here and say so.
+    let missing: Vec<&str> =
+        Resource::ALL.iter().filter(|r| !reachable.contains(r)).map(|r| r.name()).collect();
     assert!(
-        reachable.contains(&Resource::Communion),
-        "communion is not made by anything: {reachable:?}"
-    );
-    // The other two are M8's, and this says so rather than pretending.
-    let missing: Vec<Resource> = [Resource::DruidicMight, Resource::Zealotry]
-        .into_iter()
-        .filter(|r| !reachable.contains(r))
-        .collect();
-    assert_eq!(
-        missing,
-        vec![Resource::DruidicMight, Resource::Zealotry],
-        "a fusion became reachable and this list was not lowered - which is \
-         the good direction, but the commit that earned it owns this line"
+        missing.is_empty(),
+        "no board can make: {missing:?}. A pool the engine defines, prices in \
+         `held_bonus` and draws in the glossary, that nothing produces - which \
+         is the shape all three fusions had before they were armed."
     );
 }
 

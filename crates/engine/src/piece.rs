@@ -1701,7 +1701,27 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Material,
         cells: &[(0,0),(1,0),(0,1),(1,1),(0,2),(1,2)],
         base: Stats { physical_damage: 14, physical_pierce: 35, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "Breaker", stats: Stats { strength: 6, ..Stats::ZERO }, triggers: &[] }),
+        assembly_bonus: Some(AssemblyBonus {
+            label: "Breaker",
+            stats: Stats { strength: 6, ..Stats::ZERO },
+            // Anger and conviction, which are the two things a person needs to
+            // break something on purpose. `Zealotry` had no maker in the
+            // catalogue: the pool existed, `held_bonus` priced it, and no board
+            // could produce a single point.
+            //
+            // Both parents at the bell, so the fist is worth wearing without a
+            // board built around it, and a board that banks either of them
+            // fuses for longer.
+            triggers: &[
+                Trigger::OnBattleStart(Action::Gain { what: Resource::Rage, amount: 4 }),
+                Trigger::OnBattleStart(Action::Gain { what: Resource::Faith, amount: 4 }),
+                Trigger::OnActivate(Action::Fuse {
+                    a: Resource::Rage,
+                    b: Resource::Faith,
+                    into: Resource::Zealotry,
+                }),
+            ],
+        }),
         effect: None,
         cooldown_ms: 2600,
         speed_bonus: 0,
@@ -2614,7 +2634,27 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Base,
         cells: &[(0,0),(1,0),(2,0),(0,1),(1,1),(2,1)],
         base: Stats { health: 175, nature: 2, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "Heartwood", stats: Stats { regen: 4, ..Stats::ZERO }, triggers: &[] }),
+        assembly_bonus: Some(AssemblyBonus {
+            label: "Heartwood",
+            stats: Stats { regen: 4, ..Stats::ZERO },
+            // Heartwood is the dead middle of a living tree, and everything
+            // around it feeds it. Every item beside this one pays nature when
+            // it fires, which is the first bonus that makes its *neighbours*
+            // worth something rather than itself.
+            //
+            // The rage is the half a chest cannot grow, so it comes at the
+            // bell; the nature is the half the board earns. `DruidicMight` was
+            // the last fusion nothing could make.
+            triggers: &[
+                Trigger::OnAdjacentActivate(Action::Gain { what: Resource::Nature, amount: 2 }),
+                Trigger::OnBattleStart(Action::Gain { what: Resource::Rage, amount: 4 }),
+                Trigger::OnActivate(Action::Fuse {
+                    a: Resource::Nature,
+                    b: Resource::Rage,
+                    into: Resource::DruidicMight,
+                }),
+            ],
+        }),
         effect: None,
         cooldown_ms: 3000,
         speed_bonus: 0,
