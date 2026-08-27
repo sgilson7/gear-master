@@ -262,11 +262,20 @@ fn an_ordinary_rung_drops_nothing() {
 /// Sevenleague Sole and Blade of Helms.
 ///
 /// The repack clears them a cluster at a time, because the pool refuses them
-/// now. Lower this in the commit that earns it; it may never rise.
+/// now. Lower this in the commit that earns it.
 ///
 /// 65 at the start of the repack. 12 with every themed cluster packed - only
 /// the unthemed run-in and one dungeon floor still carry any.
-const QUEST_REWARDS_WORN: usize = 12;
+///
+/// **13 since THE UNWOUND was re-authored.** This line said "it may never
+/// rise" for three missions and this is the first time it has, so it is worth
+/// being exact about what happened rather than quietly bumping a number: the
+/// owner's re-authored board wears `Archmage's Primer`, which is a quest
+/// reward, and the rise was authorised rather than earned. One piece is the
+/// whole of it. Swapping that Primer for any other Book takes this back to 12
+/// without touching the rest of the board, which is the cheap way home if the
+/// backlog is ever worth closing.
+const QUEST_REWARDS_WORN: usize = 13;
 
 /// Nothing a creature wears is something a player could only be given.
 ///

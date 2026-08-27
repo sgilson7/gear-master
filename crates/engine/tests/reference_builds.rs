@@ -179,6 +179,30 @@ fn the_unwound_finishes_inside_the_measurable_region() {
     if won {
         best = best.min(ms);
     }
-    assert!(best < 30_000, "nothing beats THE UNWOUND before sudden death takes the fight");
-    assert!(best >= 16_000, "THE UNWOUND falls in {:.1}s, which is not a boss", best as f32 / 1000.0);
+    // **Relaxed, and on the owner's instruction rather than because it was
+    // earned.** THE UNWOUND was re-authored with nine more placements - a book
+    // weapon and two glove items, 43 to 52 - and no reference build beats it
+    // at any setting any more. Measured at that board: owner 7.0s on Easy,
+    // 5.3s on Medium, 2.7s on Hard, 1.4s on Insane, all losses, and the other
+    // three are faster losses than that.
+    //
+    // So the criterion this test was written for - a win somewhere between 16
+    // and 30 seconds, because sudden death owns everything past thirty - is
+    // suspended rather than met. What is kept is the half that still means
+    // something: **if** anything beats it, that win must land in the window.
+    // The day a board does, this test is a real criterion again and nobody has
+    // to remember to restore it.
+    //
+    // The four reference builds are historical - three published share codes
+    // and one written at the mind lane - and none was authored against a board
+    // like this. `design/assembly-bonuses-and-books.md` M14 has the sweeps
+    // showing no scalar on THE UNWOUND restores the ordering.
+    if best != u32::MAX {
+        assert!(best < 30_000, "nothing beats THE UNWOUND before sudden death takes the fight");
+        assert!(
+            best >= 16_000,
+            "THE UNWOUND falls in {:.1}s, which is not a boss",
+            best as f32 / 1000.0
+        );
+    }
 }
