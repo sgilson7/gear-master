@@ -224,7 +224,7 @@ fn each_kind_of_watcher_counts_only_its_own_relation() {
             then: Action::GainMana(1),
             repeats: true,
         }];
-        // Only the adjacency watcher is told it touches the driver.
+        // Only the adjacent watcher is told it touches the driver.
         if what == Watched::AdjacentActivation {
             w.adjacent_items = vec![0];
         }
@@ -611,7 +611,7 @@ fn a_quest_item_carries_nothing_and_does_nothing() {
         assert_eq!(d.base, gearmaster_engine::stats::Stats::ZERO, "{} has stats", d.name);
         assert!(d.triggers.is_empty(), "{} has a trigger", d.name);
         assert!(d.effect.is_none(), "{} has an effect", d.name);
-        assert!(d.adjacency.is_none(), "{} has an adjacency", d.name);
+        assert!(d.assembly_bonus.is_none(), "{} has an assembly_bonus", d.name);
         assert_eq!(d.cells.len(), 1, "{} is bigger than a token", d.name);
     }
 }

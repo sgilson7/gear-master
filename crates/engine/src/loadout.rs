@@ -283,7 +283,7 @@ pub struct Loadout {
     /// the theme, but it has to live here: names are generated where items
     /// are, not where they are drawn.
     pub naming: &'static crate::naming::Naming,
-    /// Extra percent on every adjacency bonus, from Recycler.
+    /// Extra percent on every assembly bonus, from Recycler.
     ///
     /// It lives on the loadout rather than being passed in because `report` is
     /// called from a hundred and eight places and every one of them - the
@@ -293,7 +293,7 @@ pub struct Loadout {
     /// item card that disagrees with the fight.
     ///
     /// `Run::refresh_class_effects` is the only thing that writes it.
-    pub adjacency_pct: i32,
+    pub assembly_pct: i32,
 }
 
 impl Default for Loadout {
@@ -309,7 +309,7 @@ impl Loadout {
             slots: SlotKind::ALL.iter().map(|&k| Slot::new(k)).collect(),
             name_seed: 0,
             naming: &crate::naming::PLAIN_NAMING,
-            adjacency_pct: 0,
+            assembly_pct: 0,
         }
     }
 
@@ -533,12 +533,12 @@ impl Loadout {
             let mut item_notes = std::mem::take(&mut notes[gi]);
             if assembled[gi] {
                 for &p in group {
-                    if let Some(adj) = reg.def(p).adjacency {
+                    if let Some(adj) = reg.def(p).assembly_bonus {
                         // Recycler counts the bonus for more than it says on
                         // the piece. The label still quotes the printed
                         // number, so the note says what the component is and
                         // the total says what it came to.
-                        item_stats += adj.stats.scaled(100 + self.adjacency_pct);
+                        item_stats += adj.stats.scaled(100 + self.assembly_pct);
                         item_notes.push(adj.label.to_string());
                     }
                 }

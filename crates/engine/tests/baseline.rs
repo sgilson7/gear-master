@@ -322,7 +322,7 @@ fn reference_builds() -> Vec<Build> {
         standing: Stats::ZERO,
     });
 
-    // The engine's own reference board: all five grids, every adjacency lit.
+    // The engine's own reference board: all five grids, every assembly bonus lit.
     let mut run = Run::new();
     run.apply_preset();
     out.push(Build {
@@ -375,12 +375,12 @@ fn census() -> Census {
     };
 
     add("pieces", &|_| true);
-    add("inert (no trigger, effect or adjacency)", &|d| {
-        d.triggers.is_empty() && d.effect.is_none() && d.adjacency.is_none()
+    add("inert (no trigger, effect or assembly bonus)", &|d| {
+        d.triggers.is_empty() && d.effect.is_none() && d.assembly_bonus.is_none()
     });
-    add("positional (effect, adjacency or reaction)", &|d| {
+    add("positional (effect, assembly bonus or reaction)", &|d| {
         d.effect.is_some()
-            || d.adjacency.is_some()
+            || d.assembly_bonus.is_some()
             || d.triggers.iter().any(|t| {
                 matches!(
                     t,
@@ -392,7 +392,7 @@ fn census() -> Census {
             })
     });
     add("- effect", &|d| d.effect.is_some());
-    add("- adjacency bonus", &|d| d.adjacency.is_some());
+    add("- assembly bonus", &|d| d.assembly_bonus.is_some());
 
     add("curse application", &|d| does(d, |a| matches!(a, Action::Curse { .. })));
     add("- searing", &|d| {

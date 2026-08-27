@@ -54,7 +54,7 @@ fn floats(kind: PieceKind) -> bool {
 /// Anything that reads or answers the board rather than only adding to it.
 fn interacts(def: &PieceDef) -> bool {
     def.effect.is_some()
-        || def.adjacency.is_some()
+        || def.assembly_bonus.is_some()
         || has(def, |t| {
             matches!(
                 t,
@@ -80,9 +80,9 @@ fn spends_a_pool(def: &PieceDef) -> bool {
     })
 }
 
-/// No trigger, no effect, no adjacency bonus. A stat line and nothing else.
+/// No trigger, no effect, no assembly bonus. A stat line and nothing else.
 fn inert(def: &PieceDef) -> bool {
-    def.triggers.is_empty() && def.effect.is_none() && def.adjacency.is_none()
+    def.triggers.is_empty() && def.effect.is_none() && def.assembly_bonus.is_none()
 }
 
 fn rarity(def: &PieceDef) -> Rarity {

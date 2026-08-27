@@ -389,10 +389,10 @@ pub enum ClassPower {
     /// it buys about half again as much armour for a quarter less of
     /// everything, which is a decision.
     Trundle { slower: i32, armour: i32 },
-    /// Every assembled item's adjacency bonus counts `pct` percent more, per
+    /// Every assembled item's assembly bonus counts `pct` percent more, per
     /// stack held.
     ///
-    /// An adjacency bonus is the flat lump a component pays only once its item
+    /// An assembly bonus is the flat lump a component pays only once its item
     /// comes together, so this rewards a board that finishes what it seats
     /// rather than one that fills cells with loose pieces - which is the
     /// difference between the two finished boards in `share`.
@@ -559,7 +559,7 @@ impl ClassPower {
     pub fn short(self) -> String {
         match self {
             ClassPower::Guilt => "you cannot heal".to_string(),
-            ClassPower::Recycler { pct } => format!("+{}% adjacency bonuses", pct),
+            ClassPower::Recycler { pct } => format!("+{}% assembly bonuses", pct),
             ClassPower::Piety { faith } => format!("start with {} faith", faith),
             ClassPower::Tired { mana } => format!("start {} mana in debt", mana),
             ClassPower::Ticket { nth } => {
@@ -618,9 +618,9 @@ impl ClassPower {
     pub fn describe(self) -> String {
         match self {
             ClassPower::Recycler { pct } => format!(
-                "Every adjacency bonus on your boards counts {}% more, for each stack of \
+                "Every assembly bonus on your boards counts {}% more, for each stack of \
                  Recycler you are carrying. Five stacks is half again on all five slots. \
-                 An adjacency bonus is the lump a component pays only when its item comes \
+                 An assembly bonus is the lump a component pays only when its item comes \
                  together, so this pays a board that finishes what it seats.",
                 pct
             ),

@@ -238,7 +238,7 @@ fn the_predicate_knows_both_halves_of_the_lane() {
         kind: PieceKind::Crest,
         cells: &[(0, 0)],
         base: Stats::ZERO,
-        adjacency: None,
+        assembly_bonus: None,
         effect: None,
         cooldown_ms: 0,
         quest: None,

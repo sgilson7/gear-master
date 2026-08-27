@@ -221,7 +221,7 @@ fn an_enchantment_definition_is_expressible() {
         kind: PieceKind::Enchantment,
         cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
         base: Stats::health(10),
-        adjacency: None,
+        assembly_bonus: None,
         effect: Some(Effect {
             label: "for each item built on top of it",
             kind: EffectKind::PerOverlappingCore { stat: StatKind::Power, amount: 10 },
@@ -255,7 +255,7 @@ fn an_enchantment_is_worth_something_before_anything_stands_on_it() {
         kind: PieceKind::Enchantment,
         cells: &[(0, 0)],
         base: Stats::health(10),
-        adjacency: None,
+        assembly_bonus: None,
         effect: None,
         cooldown_ms: 0,
         quest: None,

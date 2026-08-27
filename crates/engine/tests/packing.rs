@@ -423,7 +423,7 @@ fn author_the_mid_boss_rest() {
 /// Candidate layouts holding `k` finished items in one slot.
 ///
 /// The single-item lists are what `candidates` produces, and a sampler built
-/// from those can never exercise adjacency: two items never share a grid, so
+/// from those can never exercise assembly_bonus: two items never share a grid, so
 /// the weave axis reads zero however it is weighted. Combining two of them and
 /// packing the result gives the thing players actually build.
 fn combined_candidates(slot: SlotKind, k: usize) -> Vec<(i32, Vec<&'static str>)> {

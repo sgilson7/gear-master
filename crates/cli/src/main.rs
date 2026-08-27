@@ -531,7 +531,7 @@ fn show_slot(run: &Run, kind: SlotKind) {
             if let Some(e) = def.effect {
                 println!("        effect: {}", e.describe());
             }
-            if let Some(b) = def.adjacency {
+            if let Some(b) = def.assembly_bonus {
                 println!("        on assembly: {}", b.label);
             }
         }
@@ -558,7 +558,7 @@ fn show_inventory(run: &Run) {
             shape.width(),
             shape.height(),
             def.base.summary(),
-            def.adjacency
+            def.assembly_bonus
                 .map(|b| format!("   [on assembly: {}]", b.label))
                 .or_else(|| def.effect.map(|e| format!("   [{}]", e.describe())))
                 .unwrap_or_default()

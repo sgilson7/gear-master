@@ -402,7 +402,7 @@ pub fn after_defences(raw: i32, resist: i32, pierce: i32, harden: i32) -> i32 {
 impl Stats {
     /// Every field taken to `percent` of itself, rounding toward zero.
     ///
-    /// Used for adjacency bonuses under Recycler. Percentages are applied to
+    /// Used for assembly bonuses under Recycler. Percentages are applied to
     /// the whole lump rather than field by field on purpose: a bonus is one
     /// thing a component pays, and scaling half of it would be a different
     /// bonus.

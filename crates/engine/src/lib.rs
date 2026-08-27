@@ -7,7 +7,7 @@
 //!     (polyominoes) dropped into a slot.
 //!   * A slot whose contents satisfy its recipe AND form one connected group
 //!     becomes assembled gear. Placed pieces always contribute their base
-//!     stats; a piece's **adjacency bonus** fires only once its slot assembles.
+//!     stats; a piece's **assembly bonus** fires only once its slot assembles.
 //!   * Combat is fully deterministic and simulated to completion up front
 //!     (`combat::simulate`), producing a log the GUI replays.
 

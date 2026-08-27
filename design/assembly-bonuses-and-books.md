@@ -1,7 +1,10 @@
 # Assembly bonuses, and the book
 
-Written against commit `e38d968` (2026-08-27). Every figure below was read off
-that tip. Code follows this document; where it records what the code *does
+Written against commit `1634614` (2026-08-27), and **re-verified against it**:
+this document was first drafted while the session's view of the repo was a day
+stale, and the Switchyard, the validity solver and the road past Francis had
+all landed in between. Every finding below was re-read on the current tip and
+all three still hold. Every figure was read off it. Code follows this document; where it records what the code *does
 today*, it was read and cited, and there the code is the news.
 
 Four pieces of work in one milestone chain. Two of them move balance - the
@@ -43,38 +46,37 @@ their pieces touch.
 
 ### 1.2 The numbers are not on the screen
 
-There are fifteen assembly bonuses and they were written by two different
-hands:
+There are **37** assembly bonuses. (`piece.rs:302` said *"Exactly one piece per
+slot carries one"*, which was true once and is seven times wrong now - the
+first thing this milestone corrects.) They were written by two different hands:
 
-| Slot | Label | What it actually is |
+**29 are specifications** - a name, a colon, and the figure. `Timeworn: +0.30x
+weapon power`, `Stonewall: +25% physical resistance`, `Breaker: +6 strength`,
+`Heartwood: +4 regen a second`.
+
+**8 are atmosphere with no number in them**, and every one of them is greaves:
+
+| Piece | Label | What it actually is |
 |---|---|---|
-| Weapon | `Timeworn: +0.30x weapon power` | power 30 |
-| Helmet | `Stonewall: +25% physical resistance` | physical_resist 25 |
-| Chest | `Voidsilk: +20% magic resist` | magic_resist 20 |
-| Chest | `Bulwark: +20% physical hardening` | physical_harden 20 |
-| Chest | `Rimeguard: 20% magic hardening` | magic_harden 20 |
-| Chest | `Heartwood: +4 regen a second` | regen 4 |
-| Gloves | `Breaker: +6 strength` | strength 6 |
-| Greaves | `the road knows you` | curse_resist 4, faith 1 |
-| Greaves | `one stride ahead` | curse_resist 5 |
-| Greaves | `planted` | curse_resist 10 |
-| Greaves | `downhill all the way` | curse_resist 4, strength 2 |
-| Greaves | `the cold gets into the works` | curse_resist 6 |
-| Greaves | `sure-footed on ice` | curse_resist 8 |
-| Greaves | `already moving` | strength 4 |
-| Greaves | `set before they arrive` | armor 6 |
+| Pilgrim Sole | `the road knows you` | curse_resist 4, faith 1 |
+| Worldstrider Sole | `one stride ahead` | curse_resist 5 |
+| Deeprooted Sole | `planted` | curse_resist 10 |
+| Ridge Runner | `downhill all the way` | curse_resist 4, strength 2 |
+| Rimebound Mold | `the cold gets into the works` | curse_resist 6 |
+| Coldstep Mold | `sure-footed on ice` | curse_resist 8 |
+| Ambush Mold | `already moving` | strength 4 |
+| Deadfall Mold | `set before they arrive` | armor 6 |
 
-Every non-greaves label is a specification. Every greaves label is atmosphere
-with no number in it. Both go through one renderer (`main.rs:4182`) which
-prints `"when assembled: {label}"` verbatim - so a Deeprooted Sole card reads
-**"when assembled: planted"**, which is the largest assembly bonus in the game
-and says so nowhere. The figure is printed on no card, no tooltip and no CLI
-line; the only trace is the keyword rail, which shows a curse-resist glyph and
-no quantity.
+Both kinds go through one renderer (`main.rs:4182`) which prints
+`"when assembled: {label}"` verbatim - so a Deeprooted Sole card reads **"when
+assembled: planted"**, which is worth +10 curse resist and says so nowhere. The
+figure is printed on no card, no tooltip and no CLI line; the only trace is the
+keyword rail, which shows a curse-resist glyph and no quantity.
 
-**And six of the eight greaves bonuses are curse resist.** They are not merely
-vague, they are interchangeable. That is the real fault: one slot's worth of
-bonuses is one bonus with eight names.
+**Six of the eight are curse resist**, and greaves carries five *more* curse
+resist bonuses that do state their numbers (`Reliquary: +12`, `Overflow: +10`).
+So the eight are not merely vague - they are eight names for a bonus the same
+slot already sells plainly twice over. That is the real fault.
 
 ### 1.3 The fusion pools are unreachable
 
@@ -206,7 +208,7 @@ name; the cost column is honest about what exists.
 | **already moving** | Every item on the board starts at 40% of its cooldown | **new** - board-wide priming. `ReduceCooldown` is deliberately clamped to `cooldown_ms - 1` so it *cannot* do this |
 | **one stride ahead** | When an **enemy** item activates, push this one forward 150 ms | **new** - `Trigger::OnEnemyActivate`; every relational trigger today looks only at your own board |
 
-The seven specification labels keep their bonuses and lose the `Name: number`
+The 29 specification labels keep their bonuses and lose the `Name: number`
 half of their text once the renderer prints the stat block, or the card says
 the number twice. `Stonewall`, `Breaker`, `Timeworn`.
 
@@ -231,7 +233,9 @@ the Unwinding shipped with the ladder byte-identical.
   hardcoded copy in `main.rs:4077`.
 - The card, the tooltip and the CLI print the bonus's **stat block** beside its
   label, from `Stats::summary`, the way every other stat block is printed.
-- The seven specification labels lose their now-duplicated numbers.
+- The 29 specification labels lose their now-duplicated numbers.
+- `piece.rs:302`'s "exactly one piece per slot carries one" is corrected to
+  what the table actually holds.
 - **Deliverable:** no assembly bonus can ship without its numbers on screen,
   because the numbers come from the stat block and not from whoever wrote the
   label.

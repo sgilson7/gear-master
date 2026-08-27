@@ -18,7 +18,7 @@
 //! happens in a fight.
 
 use crate::piece::{
-    default_cooldown_ms, Action, Adjacency, Effect, EffectKind, PieceDef, PieceId, PieceKind,
+    default_cooldown_ms, Action, AssemblyBonus, Effect, EffectKind, PieceDef, PieceId, PieceKind,
     PieceRegistry, SlotKind, Trigger, When, CATALOG,
 };
 use crate::stats::Stats;
@@ -762,7 +762,7 @@ fn stat_weight(stat: crate::stats::StatKind) -> f32 {
     }
 }
 
-fn adjacency_points(a: &Adjacency, rate: f32) -> f32 {
+fn adjacency_points(a: &AssemblyBonus, rate: f32) -> f32 {
     standing_points(&a.stats) + activated_points(&a.stats, rate)
 }
 
@@ -801,7 +801,7 @@ fn piece_points(def: &PieceDef, cooldown_ms: u32) -> f32 {
         + activated_points(&def.base, rate) * intensity
         + held_points(&def.base, rate)
         + def.power_bonus as f32 * weight::POWER_BONUS;
-    if let Some(adj) = def.adjacency {
+    if let Some(adj) = def.assembly_bonus {
         points += adjacency_points(&adj, rate);
     }
     if let Some(eff) = def.effect {

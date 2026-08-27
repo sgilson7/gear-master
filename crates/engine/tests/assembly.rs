@@ -1,5 +1,5 @@
 //! Placement and assembly rules: recipes, the touching requirement, several
-//! finished items per slot, and adjacency bonuses firing only on success.
+//! finished items per slot, and assembly bonuses firing only on success.
 
 mod common;
 
@@ -272,7 +272,7 @@ fn every_slot_assembles_on_the_preset_loadout() {
     assert_eq!(run.report(SlotKind::Greaves).assembled_count(), 2);
 }
 
-// ---------------------------------------------------- adjacency bonuses
+// ---------------------------------------------------- assembly bonuses
 
 #[test]
 fn an_adjacency_bonus_stays_dormant_until_the_item_assembles() {

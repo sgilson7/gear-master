@@ -1613,7 +1613,7 @@ fn pool_index(what: &str) -> Option<usize> {
 /// Every keyword a component touches, so a card can show at a glance what it
 /// deals in without anyone reading the tooltip.
 ///
-/// Derived from what the piece actually carries - its stats, its adjacency
+/// Derived from what the piece actually carries - its stats, its assembly bonus
 /// bonus, its effect and its triggers - rather than from a hand-written list,
 /// so a new component is described correctly the moment it exists.
 fn note(k: &'static str, out: &mut Vec<&'static str>) {
@@ -1642,7 +1642,7 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
         }
     }
     from_stats(&def.base, &mut out);
-    if let Some(a) = def.adjacency {
+    if let Some(a) = def.assembly_bonus {
         from_stats(&a.stats, &mut out);
     }
     if let Some(e) = def.effect {
@@ -3328,7 +3328,7 @@ fn render_slots(
 
                 let live = assembled_piece(id);
                 // Top-right: assembly bonus. Filled once its item is finished.
-                if def.adjacency.is_some() {
+                if def.assembly_bonus.is_some() {
                     let cx = px + dx as f32 * SLOT_CELL + SLOT_CELL - 6.0;
                     let cy = py + dy as f32 * SLOT_CELL + 6.0;
                     draw_marker(cx, cy, Marker::Bonus, live);
@@ -3803,7 +3803,7 @@ fn render_shop(layout: &Layout, run: &Run, mx: f32, my: f32) {
 
         // Same markers as the inventory, so a triggered piece is obvious
         // before you pay for it.
-        if def.adjacency.is_some() {
+        if def.assembly_bonus.is_some() {
             draw_marker(card.rect.x + card.rect.w - 12.0, card.rect.y + 12.0, Marker::Bonus, true);
         }
         if def.effect.is_some() {
@@ -4025,7 +4025,7 @@ fn render_inventory(
             centered_text(&role, cx, ty.min(card.rect.bottom() - 8.0), rs, col_dim());
         }
 
-        if def.adjacency.is_some() {
+        if def.assembly_bonus.is_some() {
             draw_marker(card.rect.x + card.rect.w - 12.0, card.rect.y + 12.0, Marker::Bonus, true);
         }
         if def.effect.is_some() {
@@ -4083,7 +4083,7 @@ fn render_def_tooltip_inner(
         lines.push((String::new(), WHITE));
         for l in wrap_px(
             &words::retell_naming(
-                "Hand over anything you took off a named creature and they will show you how                  to look at gear. A stack of Recycler: every adjacency bonus on your boards                  counts ten percent more.",
+                "Hand over anything you took off a named creature and they will show you how                  to look at gear. A stack of Recycler: every assembly bonus on your boards                  counts ten percent more.",
             ),
             420.0,
             14.0,
@@ -4188,7 +4188,7 @@ fn render_def_tooltip_inner(
         ));
     }
 
-    if let Some(adj) = def.adjacency {
+    if let Some(adj) = def.assembly_bonus {
         for (i, l) in wrap(adj.label, 46).into_iter().enumerate() {
             lines.push((
                 if i == 0 { format!("when assembled: {}", l) } else { format!("  {}", l) },
@@ -11785,12 +11785,12 @@ async fn main() {
                         bartering = None;
                         message = if trophy {
                             format!(
-                                "The {} goes behind the bar. {} x{} - every adjacency bonus \
+                                "The {} goes behind the bar. {} x{} - every assembly bonus \
                                  you own counts {}% more.",
                                 words::piece(paying),
                                 words::class("Recycler"),
                                 run.stacks_of("Recycler"),
-                                run.loadout.adjacency_pct
+                                run.loadout.assembly_pct
                             )
                         } else {
                             format!(

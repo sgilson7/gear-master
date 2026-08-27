@@ -3947,9 +3947,9 @@ pub fn simulate_party(
             // The two that stack. Every other arm here assigns, because the
             // fountains never hand out the same class twice; a town hands out
             // the same one over and over on purpose, so these add.
-            // Recycler is a board rule, not a fight rule: it scales adjacency
+            // Recycler is a board rule, not a fight rule: it scales assembly
             // bonuses, which are already in the stats and the item profiles
-            // this fight was handed. See `Loadout::adjacency_pct`.
+            // this fight was handed. See `Loadout::assembly_pct`.
             crate::class::ClassPower::Recycler { .. } => {}
             crate::class::ClassPower::Piety { faith } => start_player.faith += faith,
             crate::class::ClassPower::Tired { mana } => start_player.mana -= mana,

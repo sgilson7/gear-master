@@ -4175,7 +4175,7 @@ impl Run {
 
     /// Push the class rules that live on the board back onto the board.
     ///
-    /// Recycler scales adjacency bonuses, and `Loadout::report` is the single
+    /// Recycler scales assembly bonuses, and `Loadout::report` is the single
     /// place that maths happens - so the loadout has to be told. Every path
     /// that changes `self.classes` calls this; `a_class_gained_any_way_reaches_the_board`
     /// is the test that says so.
@@ -4188,7 +4188,7 @@ impl Run {
                 _ => None,
             })
             .sum();
-        self.loadout.adjacency_pct = pct;
+        self.loadout.assembly_pct = pct;
     }
 
     /// Add one to a stacking class, or the class itself if it does not stack.

@@ -62,7 +62,7 @@ pub fn equip(run: &mut Run, name: &str, slot: SlotKind, ax: u8, ay: u8) {
 }
 
 /// A complete, legal loadout that assembles all five slots and lights every
-/// adjacency bonus. Delegates to the engine's own preset so the tests assert
+/// assembly bonus. Delegates to the engine's own preset so the tests assert
 /// against the same arrangement the GUI's auto-build button produces.
 pub fn build_full_loadout(run: &mut Run) {
     run.apply_preset();

@@ -868,20 +868,20 @@ fn a_class_gained_any_way_reaches_the_board() {
     let pay = *run.payment_for(shelf).first().expect("the coat pays for it");
     run.barter(shelf, pay).expect("the trade goes through");
     assert_eq!(run.stacks_of("Recycler"), 1);
-    assert_eq!(run.loadout.adjacency_pct, 10, "the pub granted it and the board never heard");
+    assert_eq!(run.loadout.assembly_pct, 10, "the pub granted it and the board never heard");
 
     // And pushed straight on, the way a test or a debug hook does.
     let mut plain = the_winning_board();
     plain.classes.push(recycler);
     plain.classes.push(recycler);
     plain.refresh_class_effects();
-    assert_eq!(plain.loadout.adjacency_pct, 20, "two stacks are twenty percent");
+    assert_eq!(plain.loadout.assembly_pct, 20, "two stacks are twenty percent");
 }
 
 #[test]
 fn recycler_pays_a_board_that_finishes_what_it_seats() {
     // The point of the class, and the reason it is worth a trophy: it scales
-    // adjacency bonuses, which only pay on an assembled item. Measured on the
+    // assembly bonuses, which only pay on an assembled item. Measured on the
     // owner's board, which finishes nearly everything it seats.
     let recycler = CLASSES.iter().find(|c| c.name == "Recycler").expect("authored");
     let mut run = the_winning_board();
@@ -891,7 +891,7 @@ fn recycler_pays_a_board_that_finishes_what_it_seats() {
     for n in 1..=5 {
         run.classes.push(recycler);
         run.refresh_class_effects();
-        assert_eq!(run.loadout.adjacency_pct, n * 10);
+        assert_eq!(run.loadout.assembly_pct, n * 10);
     }
     let after = run.player_stats().health;
     assert!(
@@ -909,7 +909,7 @@ fn recycler_pays_a_board_that_finishes_what_it_seats() {
 
 #[test]
 fn a_board_that_assembles_nothing_gets_nothing_from_recycler() {
-    // The other half of the contract. An adjacency bonus pays only when its
+    // The other half of the contract. An assembly bonus pays only when its
     // item comes together, so a tray full of loose pieces is worth no more
     // with the class than without it.
     let recycler = CLASSES.iter().find(|c| c.name == "Recycler").expect("authored");
