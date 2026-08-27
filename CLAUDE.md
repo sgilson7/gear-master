@@ -197,7 +197,10 @@ CLI - 936 in the workspace - and it builds with **no warnings** under rustc
 | The yard | **`switchyard` (30 + 1 ignored)** - the floor graph, the points, the chain and the balance |
 | The driver | **`crates/cli/tests/replay.rs` (5)** - a scripted run piped in twice and byte-compared |
 
-The printers, which write `analysis/`:
+The printers. They **print**; they do not write `analysis/` despite what this
+line used to say, and `analysis/baseline.md` has not been touched since M17.
+`git status analysis/` after running one is therefore not a measurement of
+anything - capture the output and diff it against the previous commit's:
 
 ```
 cargo test -p gearmaster-engine --test baseline -- --ignored --nocapture --test-threads=1

@@ -297,6 +297,34 @@ impl PieceKind {
     }
 }
 
+/// Every action a trigger can run, composites unpacked.
+///
+/// The mirror of `event::every_outcome`, and here for the same reason it is
+/// there: half the triggers in this file *wrap* something - `SpendMana` has
+/// two branches, `Consume` has a payload, `PerAdjacentEmpty` wraps a whole
+/// trigger - so a lint that matches on the trigger alone sees a composite and
+/// nothing inside it. That blind spot cost `event.rs` twice.
+///
+/// It is what "can a board ever make a communion" is asked through, which is
+/// the question nothing was asking while three pools sat unreachable.
+pub fn every_action(t: &Trigger) -> Vec<Action> {
+    match *t {
+        Trigger::OnActivate(a)
+        | Trigger::OnAdjacentActivate(a)
+        | Trigger::OnAlignedActivate(a)
+        | Trigger::OnDiagonalActivate(a)
+        | Trigger::OnOtherCast(a)
+        | Trigger::OnBattleStart(a) => vec![a],
+        Trigger::SpendMana { on_success, on_failure, .. }
+        | Trigger::Spend { on_success, on_failure, .. } => vec![on_success, on_failure],
+        Trigger::SpendGold { on_success, .. } => vec![on_success],
+        Trigger::PerAdjacentItem { action, .. } => vec![action],
+        Trigger::Consume { per, .. } => vec![per],
+        Trigger::Watch { then, .. } => vec![then],
+        Trigger::PerAdjacentEmpty(inner) => every_action(inner),
+    }
+}
+
 /// A flat stat bonus that fires **only** once the piece's item assembles into
 /// finished gear.
 ///
@@ -6798,7 +6826,29 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0,0),(1,0),(0,1),(1,1)],
         base: Stats { faith: 3, magic_resist: 10, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "the road knows you", stats: Stats { curse_resist: 4, faith: 1, ..Stats::ZERO }, triggers: &[] }),
+        assembly_bonus: Some(AssemblyBonus {
+            label: "the road knows you",
+            stats: Stats { curse_resist: 4, faith: 1, ..Stats::ZERO },
+            // The pilgrim starts with a little of both and turns them into the
+            // pool they make together. A fusion pays both its parents at
+            // double their own rate, uncapped, and nothing in the catalogue
+            // could make one until this line - `Action::Fuse` was written,
+            // guarded and complete, and reached by nothing.
+            //
+            // Both parents at the bell rather than one, so the bonus is worth
+            // wearing on its own. A board that banks faith or nature of its
+            // own fuses for longer, which is the interaction rather than the
+            // requirement.
+            triggers: &[
+                Trigger::OnBattleStart(Action::Gain { what: Resource::Faith, amount: 4 }),
+                Trigger::OnBattleStart(Action::Gain { what: Resource::Nature, amount: 4 }),
+                Trigger::OnActivate(Action::Fuse {
+                    a: Resource::Faith,
+                    b: Resource::Nature,
+                    into: Resource::Communion,
+                }),
+            ],
+        }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
@@ -7486,7 +7536,16 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0,0),(1,0),(2,0)],
         base: Stats { curse_resist: 12, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "planted", stats: Stats { curse_resist: 10, ..Stats::ZERO }, triggers: &[] }),
+        assembly_bonus: Some(AssemblyBonus {
+            label: "planted",
+            stats: Stats { curse_resist: 10, ..Stats::ZERO },
+            // Roots draw. Growth every time it comes round, which is worth
+            // regeneration on its own and is the other half of what the
+            // pilgrim's road fuses.
+            triggers: &[
+                Trigger::OnActivate(Action::Gain { what: Resource::Nature, amount: 3 }),
+            ],
+        }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
@@ -9205,7 +9264,21 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0, 0), (1, 0), (1, 1)],
         base: Stats { curse_resist: 4, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "the cold gets into the works", stats: Stats { curse_resist: 6, ..Stats::ZERO }, triggers: &[] }),
+        assembly_bonus: Some(AssemblyBonus {
+            label: "the cold gets into the works",
+            stats: Stats { curse_resist: 6, ..Stats::ZERO },
+            // Cold in the works is cold in *theirs*. Every second curse landed
+            // pushes one of their items back - a derail rather than a curse,
+            // so curse resistance does not answer the thing curses caused.
+            triggers: &[
+                Trigger::Watch {
+                    what: Watched::CurseApplied,
+                    count: 2,
+                    then: Action::Derail { window_ms: 2_000, back_ms: 400 },
+                    repeats: true,
+                },
+            ],
+        }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 10,
@@ -9327,7 +9400,16 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0, 0), (0, 1), (1, 1)],
         base: Stats { curse_resist: 3, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "set before they arrive", stats: Stats { armor: 6, ..Stats::ZERO }, triggers: &[] }),
+        assembly_bonus: Some(AssemblyBonus {
+            label: "set before they arrive",
+            stats: Stats { armor: 6, ..Stats::ZERO },
+            // A trap wants room to be laid in. Armour at the bell for every
+            // empty cell around it, which is the one thing the feet can do
+            // with space they were given rather than gear.
+            triggers: &[
+                Trigger::PerAdjacentEmpty(&Trigger::OnBattleStart(Action::GainArmor(3))),
+            ],
+        }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,

@@ -4010,11 +4010,22 @@ pub fn simulate_party(
             .iter()
             .enumerate()
             .flat_map(|(i, it)| {
+                let open = it.open_cells;
                 it.triggers
                     .iter()
-                    .filter_map(move |t| match t {
-                        Trigger::OnBattleStart(a) => Some((i, *a)),
-                        _ => None,
+                    .flat_map(move |t| match t {
+                        Trigger::OnBattleStart(a) => vec![(i, *a)],
+                        // `PerAdjacentEmpty` wraps a trigger, and until now it
+                        // was only ever unwrapped on the *activation* path - so
+                        // "for each empty cell, at the bell" matched nothing
+                        // here and did nothing at all. It composes with the
+                        // spending triggers by design; it has to compose with
+                        // this one too.
+                        Trigger::PerAdjacentEmpty(inner) => match **inner {
+                            Trigger::OnBattleStart(a) => vec![(i, a); open],
+                            _ => Vec::new(),
+                        },
+                        _ => Vec::new(),
                     })
                     .collect::<Vec<_>>()
             })
