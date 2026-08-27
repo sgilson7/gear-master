@@ -379,3 +379,73 @@ row and none overlaps, at every width the panel can take, the same shape as
    `stepped_component` puts them on creatures at the wrong rung. This is the
    milestone most likely to need a `rating.rs` weight, which is the one thing
    that must be settled before anything is authored against it.
+
+---
+
+## 5. What shipped
+
+Written at `120db15`. Seven of eight milestones are in; M3 is blocked and §6
+says on what.
+
+| | Milestone | Commits | State |
+|---|---|---|---|
+| M1 | The name, and the numbers | `84552b7`, `e8abe09` | **in** |
+| M2 | The bonus can act, inert | `d22b34a` | **in**, ladder byte-identical |
+| M3 | The book, rebuilt | - | **blocked** - see §6 |
+| M4 | Four free bonuses, and Communion | `cee6459` | **in** |
+| M5 | Three new primitives | `de6648a` | **in** |
+| M6 | The pools get their symbols | `c406ed1` | **in** |
+| M7 | The visual battle glossary | `66507c0`, `6b7e275` | **in** |
+| M8 | Zealotry, DruidicMight, the record | `120db15` | **in** |
+
+Suite at the tip: **907 engine green**, 48 ignored; **75 GUI green**; 0
+warnings across the workspace. The ladder's movement from M8 is measured in
+`analysis/baseline.md` under "The three fusions, and what arming the last two
+cost".
+
+Two things came out differently from how they were planned.
+
+**M7's gate could not be written as specified.** "Every diagram lands inside
+its row and none overlaps, at every width the panel can take" cannot be asked
+of a page laid out inside `draw_*` calls, because `measure_text` needs a
+graphics context and a test has none. So the geometry was split out:
+`fight_diagram_layout(w, measure)` returns where every mark goes, the way
+`wrap_measured` takes a measure, and `draw_fight_diagrams` paints that list
+and chooses nothing. The test hands it a stand-in font deliberately *wider*
+than the real one, so a row that fits under it fits in the face - a one-sided
+guarantee rather than a guess. Worth knowing: the page ends 22px above the
+panel floor, so one more section overflows and now something says so.
+
+**M8's Heartwood is larger than the plan's one line.** The plan said only
+"Heartwood -> DruidicMight". Built as described in the brief it came from, it
+is also the first assembly bonus that pays for what you put *around* it: every
+item beside it banks nature when it fires. That needed no new primitive -
+`OnAdjacentActivate(Gain)` was already there - and it is what makes the
+fusion self-sustaining rather than a one-shot at the bell.
+
+---
+
+## 6. Why M3 is blocked
+
+Relaxing the book recipe to Book + Spells (inks and alignments optional) does
+what it was meant to: the friend's weapon grid re-partitions into a
+fully-loaded book weapon, 17 items becoming 18. It then beats THE UNWOUND in
+10.0s, and `acceptance::e6_5` is the test that says it must not.
+
+Repacking the reference boards does not help, and it is worth writing down
+why: a packer maximises assembly, so it makes the problem larger.
+
+The root cause is not the recipe. **THE UNWOUND lives in `ALTERNATES`, not
+`LADDER`**, so `loadout_at`'s depth lookup returns `None` for it and it is
+geared with no piercing and no hardening at all. Its 30/30/40/60 resist block
+is decorative against reference boards that pierce 75-110. Two sweeps confirm
+it: health is a cliff rather than a dial (15,000 and both boards win; 20,000
+and both lose), and a magic-resist sweep from 30 to 70 is perfectly flat.
+
+The fix is on branch `unwound-depth`: an `OFF_LADDER_DEPTH` table beside
+`ALTERNATES`, because `combat.rs` references no other module by design, linted
+from `the_road.rs` so a creature added off the ladder cannot skip it. It
+breaks exactly one test, and honestly: restoring the defences makes THE
+UNWOUND unbeatable by the boards that exist - the owner's 28.5s win becomes a
+12.6s death - and no single scalar restores the ordering. It wants
+re-authoring, not tuning, and that is the owner's call.

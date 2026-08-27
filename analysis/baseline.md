@@ -2006,3 +2006,48 @@ heavy, which is the whole of what the two dials are for.
 | Suite | **764 green**, 0 warnings |
 
 Two CLI replays of the same script diff clean.
+
+### The three fusions, and what arming the last two cost
+
+`Resource` has carried three fused pools since the slot rewrite, and
+`Combatant::held_bonus` has priced every one of them at **double both parents'
+rates, uncapped** - which makes them the best-paying pools in the game.
+Nothing in the 504-piece catalogue could produce a single point of any of
+them. The machinery was written, guarded and complete; `Action::Fuse` was
+reached by no board.
+
+M4 armed the first (Pilgrim Sole, faith + nature -> Communion). M8 armed the
+other two:
+
+| Piece | Slot | Bonus | Makes |
+|---|---|---|---|
+| Breaker's Fist | Gloves | Breaker | rage + faith -> **Zealotry** |
+| Heartwood Base | Chest | Heartwood | nature + rage -> **DruidicMight** |
+
+Heartwood is the first assembly bonus whose payload is about its *neighbours*:
+every item beside it banks nature when it fires. The rage is the half a chest
+cannot grow, so that arrives at the bell.
+
+`primitives.rs::the_armed_assembly_bonuses_are_the_ones_that_were_authored`
+says the commit that arms one owns the re-measurement. Measured off `6b7e275`,
+printer before and after, diffed:
+
+| | Before | After |
+|---|---|---|
+| owner cleared, hard setting | 41/50 | **42/50** |
+| friend weapon share | 97.3% | 97.4% |
+| Warded Idol (rung 10) | 2.80s | **2.60s** |
+| Iron Sentinel, Easy clear | 31.50s | 38.00s |
+| Rust Colossus | 3.10s | 3.00s |
+| owner / friend cleared | 48/50 | 48/50 |
+| `gear_at` fixture | 6,180 placements | 6,180 |
+
+Everything that moved is small and most of it is in the good direction: the
+reference boards wear both pieces, so they gained a little fusion income.
+Nothing re-geared, because no `rating.rs` weight moved and no footprint
+sibling was appended - `stepped_component`'s two triggers both stayed still.
+
+The lint that would have caught the whole thing is
+`assembly_bonuses.rs::which_pools_a_board_can_actually_make`, and it is
+written from the end that matters: not "is this machinery correct" but "can
+anybody ever get here". It now asks it of every `Resource` the engine defines.

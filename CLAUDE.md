@@ -1,10 +1,9 @@
 # CLAUDE.md — Gear Master, for a fresh agent
 
-Written against commit `41e2180` (2026-08-27), at the end of the Switchyard's
-M10 - the mission is finished on branch `switchyard` and **not yet merged**.
-Every count below was read off that tip; if `git log --oneline -1` says
-something else, the numbers are quotes and the printers in §5 are the
-measurements.
+Written against commit `120db15` (2026-08-27), at the end of the assembly
+bonuses. The Switchyard is merged. Every count below was read off that tip; if
+`git log --oneline -1` says something else, the numbers are quotes and the
+printers in §5 are the measurements.
 
 You are working on **Gear Master**: a deterministic, browser-playable
 puzzle-autobattler in Rust. Five gear grids, polyomino pieces, a fifty-rung
@@ -36,8 +35,8 @@ Four missions are finished. Three are deployed; the fourth is on a branch:
 ## 1. Orientation in five minutes
 
 ```
-cargo test -p gearmaster-engine          # the safety net: 866 tests, 51 binaries + lib, ~35s
-cargo test -p gearmaster-gui             # 65 more; cargo build does NOT compile them
+cargo test -p gearmaster-engine          # the safety net: 907 tests, 53 binaries + lib, ~35s
+cargo test -p gearmaster-gui             # 75 more; cargo build does NOT compile them
 cargo test -p gearmaster-cli             # 5 more: a scripted run, piped in twice
 cargo run  -p gearmaster-cli             # headless REPL: play the real game in a terminal
 cargo run  -p gearmaster-gui             # macroquad GUI (native window)
@@ -60,7 +59,7 @@ M3 it is also a test (`crates/cli/tests/replay.rs`), which it had never been.
 
 **Workspace:** `crates/engine` (all rules, **zero dependencies** -
 `crates/engine/Cargo.toml` has an empty `[dependencies]` and a comment saying
-why), `crates/cli` (595 lines), `crates/gui` (macroquad; `main.rs` 12,903
+why), `crates/cli` (595 lines), `crates/gui` (macroquad; `main.rs` 13,953
 lines, `pack.rs` 627). `design/` holds the living design documents and the
 repo's rule is *"code follows this document, not the other way round - when
 they disagree, this is the bug report"*. `analysis/` holds measurements.
@@ -93,26 +92,26 @@ they disagree, this is the bug report"*. `analysis/` holds measurements.
 
 ---
 
-## 3. Engine map (`crates/engine/src/`, 37,892 lines)
+## 3. Engine map (`crates/engine/src/`, 38,644 lines)
 
 | Module | Lines | Owns |
 |---|---:|---|
-| `piece.rs` | 10,986 | Everything a piece is: `SlotKind` (5), `PieceKind` (17, `Enchantment` and `Quest` among them), `EffectKind`, `Resource` (8: Mana, Rage, Faith, Nature, three fusions, Insight), `Action`, `Trigger` (`Watch` among them), `Quest`, recipes (`:1039`), per-slot default cooldowns (`:1089`: weapon 1500 ms, gloves 3000, greaves 3500, helmet 4000, chest 5000), `PieceRegistry` (instance = def index + rotation, `:1120`), and the **512**-entry `CATALOG` (`:1202`; helmet 99, chest 72, gloves 84, greaves 68, weapon 189). `BOSS_ONLY`, `EVENT_ONLY`, `VIP_ONLY`, `TOWN_ONLY` lists at the bottom |
-| `combat.rs` | 7,174 | The fight: 50 ms ticks (`curse::TICK_MS`), `SUDDEN_DEATH_MS = 30_000` (`:40`), `MAX_DURATION_MS = 60_000`, `Difficulty {Easy, Medium, Hard, Insane}` (`:527`; Medium is gear-as-written, others step gear via `stepped_component`, `:292`), `MonsterSpec` (`:234`), **78 creatures**: `LADDER` 50 (`RUST_GOLEM` spliced in by name), `ALTERNATES` 28, `CREVICE` 0. `CombatLog { outcome, duration_ms, entries, .. }` (`:3513`); `tally_items` - what one item did in a fight, attributed by the last `Activate` |
-| `run.rs` | 4,053 | A run: `Mode {Grinder, Rogue}`, `Phase`, gold, rung, lives, the shop, classes, every road flag and counter, `road_stack()` (derived, `:912`), `take_choice`/`apply_outcome`, `visit_town`, `enter_dungeon`, `melt`, `crush`, `fight_next` (`:3437`), `settle` (`:2043`), `apply_preset` (`:3224`), `skip_to`/`force_win` (`:2440`, `:2434` - test and picker helpers that win without fighting) |
-| `event.rs` | 2,659 | `EVENTS` - **37**, a `pub const` (`:590`), each `LadderEvent { id, at (zero-based), trigger, choices }`; `Requirement` (12 variants), `Outcome` (35), `Trigger` (Rung, QuickKill, SlowKill, Whispered, WhenFlagged - the last three carry `from`, a window); six `Brawl`s; reverse indexes `set_by`, `every_outcome`, `opened_by_taking` |
+| `piece.rs` | 11,223 | Everything a piece is: `SlotKind` (5), `PieceKind` (18, `Enchantment` and `Quest` among them), `EffectKind`, `Resource` (8: Mana, Rage, Faith, Nature, three fusions, Insight - **all eight makeable by a board** since M8), `Action` (25), `Trigger` (14, `Watch` and `OnEnemyActivate` among them), `Quest`, recipes (`:1039`), per-slot default cooldowns (`:1089`: weapon 1500 ms, gloves 3000, greaves 3500, helmet 4000, chest 5000), `PieceRegistry` (instance = def index + rotation, `:1120`), and the **512**-entry `CATALOG` (`:1202`; helmet 99, chest 72, gloves 84, greaves 68, weapon 189). `BOSS_ONLY`, `EVENT_ONLY`, `VIP_ONLY`, `TOWN_ONLY` lists at the bottom |
+| `combat.rs` | 7,320 | The fight: 50 ms ticks (`curse::TICK_MS`), `SUDDEN_DEATH_MS = 30_000` (`:40`), `MAX_DURATION_MS = 60_000`, `Difficulty {Easy, Medium, Hard, Insane}` (`:527`; Medium is gear-as-written, others step gear via `stepped_component`, `:292`), `MonsterSpec` (`:234`), **78 creatures**: `LADDER` 50 (`RUST_GOLEM` spliced in by name), `ALTERNATES` 28, `CREVICE` 0. `CombatLog { outcome, duration_ms, entries, .. }` (`:3513`); `tally_items` - what one item did in a fight, attributed by the last `Activate` |
+| `run.rs` | 4,214 | A run: `Mode {Grinder, Rogue}`, `Phase`, gold, rung, lives, the shop, classes, every road flag and counter, `road_stack()` (derived, `:912`), `take_choice`/`apply_outcome`, `visit_town`, `enter_dungeon`, `melt`, `crush`, `fight_next` (`:3437`), `settle` (`:2043`), `apply_preset` (`:3224`), `skip_to`/`force_win` (`:2440`, `:2434` - test and picker helpers that win without fighting) |
+| `event.rs` | 2,711 | `EVENTS` - **38**, a `pub const` (`:590`), each `LadderEvent { id, at (zero-based), trigger, choices }`; `Requirement` (12 variants), `Outcome` (35), `Trigger` (Rung, QuickKill, SlowKill, Whispered, WhenFlagged - the last three carry `from`, a window); six `Brawl`s; reverse indexes `set_by`, `every_outcome`, `opened_by_taking` |
 | `theme.rs` | 2,189 | The turtle theme: names, story, `vocabulary`, `told: &[Retold]` keyed by road id - all display-only |
-| `class.rs` | 1,370 | `CLASSES` - **31**; `ClassPower` (SlowTime, Overflowing, Leeching, WrongSense, FirstBlood, ...); fountains score axes; Piety and Unionized stack |
-| `rating.rs` | 1,305 | Worth: `piece_rating`, `monster_value` (`:815`, the creature-side correction), `RARE_AT=90, EPIC_AT=130, LEGENDARY_AT=170` (`:230`), `ACTIVATIONS_PER_S = 5.0` (`:497`) |
-| `loadout.rs` | 1,014 | Five `Slot`s, `ItemProfile`, assembly, `lock_assembled_in` (`:243`), `combat_items` (`:658`). **No player-build solver anywhere** - the nearest things are `Run::apply_preset` (twenty-two hard-coded placements) and the three share codes in `share.rs` |
-| `naming.rs` | 746 | Generated item names; names grow with rarity (3/4/5/6 words) |
+| `class.rs` | 1,371 | `CLASSES` - **31**; `ClassPower` (SlowTime, Overflowing, Leeching, WrongSense, FirstBlood, ...); fountains score axes; Piety and Unionized stack |
+| `rating.rs` | 1,388 | Worth: `piece_rating`, `monster_value` (`:815`, the creature-side correction), `RARE_AT=90, EPIC_AT=130, LEGENDARY_AT=170` (`:230`), `ACTIVATIONS_PER_S = 5.0` (`:497`) |
+| `loadout.rs` | 1,026 | Five `Slot`s, `ItemProfile`, assembly, `lock_assembled_in` (`:243`), `combat_items` (`:658`). **No player-build solver anywhere** - the nearest things are `Run::apply_preset` (twenty-two hard-coded placements) and the three share codes in `share.rs` |
+| `naming.rs` | 754 | Generated item names; names grow with rarity (3/4/5/6 words) |
 | `bestiary.rs` | 756 | `MonsterTheme` (**10**: Striker, Wall, Burner, Slower, Drainer, Caster, Hollow, Swarm, Beast, Warden; slots per theme at `:119-134`), `theme_for(rung)` (`:343`), `MonsterFrame` and `FRAMES` (**24**, all dressed, `:400`), the frame lint |
 | `slot.rs` | 603 | One grid: `SLOT_W = 6`, `SLOT_H = 8` base (`:5, :8`), growable by rows; `can_place` (`:221`), `legal_anchors` (`:289`), items, neighbours, groups, `sets_touch_diagonally` |
 | `town.rs` | 577 | `TOWNS` - **6** (3 pinned after rung indices 6, 17, 31; 3 hidden), `Action` (17 doors), one action a visit |
-| `shop.rs` | 524 | `SHOP_SIZE = 6`, `STARTING_GOLD = 28`, `REROLL_COST = 1`, `SHELF_TILT`, `insight_open`, standing orders; town stock and enchantments never dealt on the road |
-| `route.rs` | 583 | `route(run)` (`:124`) and `ascii(run)` (`:265`): the road drawn from the tables plus the run |
-| `stats.rs` | 491 | `Stats`; `power` is a multiplier in hundredths |
-| `rumour.rs` | 476 | **10** rumours; 1-cell conditions that sit in the tray and open doors |
+| `shop.rs` | 536 | `SHOP_SIZE = 6`, `STARTING_GOLD = 28`, `REROLL_COST = 1`, `SHELF_TILT`, `insight_open`, standing orders; town stock and enchantments never dealt on the road |
+| `route.rs` | 605 | `route(run)` (`:124`) and `ascii(run)` (`:265`): the road drawn from the tables plus the run |
+| `stats.rs` | 506 | `Stats`; `power` is a multiplier in hundredths; `parts()` walks it once and returns each figure with the glyph key that draws it, so `summary()` and the tooltip cannot disagree |
+| `rumour.rs` | 479 | **10** rumours; 1-cell conditions that sit in the tray and open doors |
 | `curse.rs` | 396 | Searing, Frost, Stun, Misfire; `TICK_MS = 50` (`:12`) |
 | `share.rs` | 356 | Share codes, version 3, base-32; a placement is `def<<12 \| slot<<9 \| x<<6 \| y<<2 \| rot` (`:218`); `A_FRIENDS_RUN`, `A_WINNING_RUN`, `A_PERFECT_RUN` (`:159-180`). **Index-keyed into `CATALOG`** |
 | `dungeon.rs` | 993 | **7** dungeons. `Floor` and `Exit`: floors are a **graph**, so a floor with one exit is the next room, none is a buffer stop and two are a set of points. `fights_ahead` is what a banner counts; seven graph lints |
@@ -127,8 +126,8 @@ they disagree, this is the bug report"*. `analysis/` holds measurements.
 **The road.** Fifty creature rungs and a fifty-first (THE UNWOUND, opened by a
 finished chain and a beaten Francis), three bosses, seven mini-bosses. Towns
 stand *between* rungs (six, three hidden until revealed), events stand *in
-front of* rungs (thirty-three), dungeons stand *beside* them (six), pedestals
-send you to four destinations. Nothing on the road gets walked past
+front of* rungs (thirty-eight), dungeons stand *beside* them (seven), pedestals
+send you to six destinations. Nothing on the road gets walked past
 (`tests/the_road.rs`); the road stack pops gate, then fountain, then events
 (`the-unwinding.md` #12). Fountains before each boss score the build on axes
 and grant classes; the third can double one. Named creatures leave gear
@@ -179,14 +178,14 @@ every creature on Easy, Hard and Insane when a weight moves **or when
 
 ## 5. The test suite is the map of what matters
 
-51 integration binaries in `crates/engine/tests/` plus the lib's 173.
-**866 green, 44 ignored** in the engine, **65** in the GUI and **5** in the
-CLI - 936 in the workspace - and it builds with **no warnings** under rustc
+53 integration binaries in `crates/engine/tests/` plus the lib's 168.
+**907 green, 48 ignored** in the engine, **75** in the GUI and **5** in the
+CLI - 987 in the workspace - and it builds with **no warnings** under rustc
 1.95.
 
 | Group | Binaries (tests) |
 |---|---|
-| Catalogue and assembly | `assembly` (66), `catalog_shape` (3 + 2 ignored, the ratchet), `fixtures` (3), `prices` (1 ignored), `enchantment` (21), `primitives` (17) |
+| Catalogue and assembly | `assembly` (66), `catalog_shape` (3 + 2 ignored, the ratchet), `fixtures` (3), `prices` (1 ignored), `enchantment` (21), `primitives` (25), **`assembly_bonuses` (12)** - each armed bonus fought, because a declared trigger is not a connected one |
 | Combat | `fight` (22), `effects` (26), `reactions` (12), `drains` (3), `curses_in_combat` (4), `sudden_death` (6), `brawl` (7), `typed_lanes` (8), `insight` (13), `slash_and_burn` (4), `class_reaches_combat` (2), `classes` (20) |
 | Whole runs | `progression` (82, 12.8 s), `the_long_way` (9), `two_runs` (13 + 1 ignored), `taller_boards` (7), `decode_build` (6 + 4 ignored) |
 | The road | `the_road` (6), `towns` (32), `casino` (15), `vip` (10), `earned_events` (6), `hidden_towns` (8), `road_stack` (11), `road_machinery` (23), `unconditional_events` (12), `structures` (24), `chain` (13), `dungeons` (14), `pedestal` (9), `relics` (17), `tooltips` (13), `phase_two` (7), **`completable` (4)** - can every key exist before its door shuts |
@@ -194,6 +193,7 @@ CLI - 936 in the workspace - and it builds with **no warnings** under rustc
 | Analysis | `tallies` (7) - per-item attribution over a log |
 | Words | `prose` (8 + 1 ignored printer), `two_voices` (6 + 1 ignored), `avail` (5, **43 s** - 400 seeded runs) |
 | Measurement | `baseline` (4 + 6 ignored printers), `prices` (2 + 3 ignored) |
+| Validity | **`validity` (19 + 3 ignored)** - what the repo can currently say about a build being clearable |
 | The yard | **`switchyard` (30 + 1 ignored)** - the floor graph, the points, the chain and the balance |
 | The driver | **`crates/cli/tests/replay.rs` (5)** - a scripted run piped in twice and byte-compared |
 
@@ -256,19 +256,38 @@ scenes say what the buttons under them say.
 it was executed from. Rogue also gets a fourth life (`ROGUE_LIVES`, and five is
 the eventual intent).
 
-**The Switchyard is finished and NOT merged.** Eleven milestones on branch
-`switchyard`, M0 to M10 plus this record. A four-door chain across rungs 21-34,
-a nine-floor dungeon that is a **graph** rather than a list, four new combat
-verbs, six components and two Orbs of Travel that are tickets back into a yard
-you have already half-walked. `design/HANDOFF-switchyard.md` is the decisions
-and what is not done; `analysis/switchyard.md` is every measurement, one block
-a milestone, each headed by the commit it was read off. All twelve of the
-spec's acceptance criteria are met. **Merging and publishing are the owner's
-to do.**
+**The Switchyard is merged.** Eleven milestones, M0 to M10 plus its record. A
+four-door chain across rungs 21-34, a nine-floor dungeon that is a **graph**
+rather than a list, four new combat verbs, six components and two Orbs of
+Travel that are tickets back into a yard you have already half-walked.
+`design/HANDOFF-switchyard.md` is the decisions and what is not done;
+`analysis/switchyard.md` is every measurement, one block a milestone, each
+headed by the commit it was read off. All twelve of the spec's acceptance
+criteria are met.
 
-**The mission is `design/rl-agent-plan.md`**: make the game playable by a
-reinforcement-learning agent, with no generative AI anywhere in the loop, so
-that a trained agent becomes a better validity solver than the repo has. Read
+**The assembly bonuses are merged and published, seven of eight.**
+`Adjacency` was never adjacency - it was gated on assembly and had no
+neighbour test - so it is `AssemblyBonus` now, and it can carry triggers. Ten
+pieces carry armed ones; three new combat verbs (cadence drift, board-wide
+priming, `Unshakable`) and the first trigger that watches the *other* board
+(`OnEnemyActivate`) landed to pay for them. All eight `Resource` pools are
+makeable by a board for the first time. The pools have symbols, the tooltips
+print them beside their figures, and the glossary's fourth shelf draws what
+each one pays instead of describing it.
+`design/assembly-bonuses-and-books.md` §5 is the ledger.
+
+**M3, the book recipe, is blocked and it is the one thing left.** Relaxing it
+to Book + Spells does what it should and then beats THE UNWOUND in 10.0s,
+which `acceptance::e6_5` refuses. The cause is not the recipe: **THE UNWOUND
+lives in `ALTERNATES`, not `LADDER`**, so `loadout_at`'s depth lookup returns
+`None` and it is geared with no piercing and no hardening at all. Branch
+`unwound-depth` carries the fix and breaks exactly one test, because restoring
+the defences makes it unbeatable by the boards that exist. It wants
+re-authoring, not tuning. §6 of the design document has the sweeps.
+
+**The mission after that is `design/rl-agent-plan.md`**: make the game playable
+by a reinforcement-learning agent, with no generative AI anywhere in the loop,
+so that a trained agent becomes a better validity solver than the repo has. Read
 `design/rl-research.md` first for the stack recommendation. Its milestone 1 is
 a non-learning search baseline, and every later milestone reports against it.
 
@@ -399,6 +418,38 @@ fights its way to any given door. That is the gap.
     chairs", "19 years", "40 years" - and stayed anonymous. Eighteen of them.
     The loophole is closed and the budget retired at zero; if you write a new
     lint, ask what the cheapest way to satisfy it is before you ship it.
+
+30. **Machinery can be complete, guarded, correct and reached by nothing.**
+    `Resource` carried three fused pools for two missions. `held_bonus` priced
+    every one at double both parents' rates, uncapped - the best-paying pools
+    in the game. `Action::Fuse` was written and guarded. No board in 504 pieces
+    could make a single point of any of them, and the whole suite was green the
+    entire time, because every test asked whether the machinery was *correct*
+    and none asked whether anybody could *get there*. The lint is
+    `assembly_bonuses::which_pools_a_board_can_actually_make`, and it is worth
+    copying the shape: walk the catalogue, collect what it can produce, and
+    assert the engine defines nothing more. `cursed_for_good` before the
+    Unwinding was the same fault.
+
+31. **Arming an assembly bonus moves the ladder, and a ratchet says so.**
+    `primitives::the_armed_assembly_bonuses_are_the_ones_that_were_authored`
+    holds the list and its message tells you the commit that changes it owns
+    the re-measurement. Do that with the printer, before and after, diffed -
+    and write the diff into `analysis/baseline.md` rather than the commit
+    message. M8's is there.
+
+32. **A page laid out inside `draw_*` calls cannot be tested.** `measure_text`
+    needs a graphics context, so any geometry computed between draw calls can
+    only be checked by looking at it. Split the layout out and hand it a
+    measure, the way `wrap_measured` and `fight_diagram_layout` take one; the
+    test then supplies a stand-in font. Make the stand-in *wider* than the real
+    face and a fit test becomes a one-sided guarantee instead of a guess.
+
+33. **An inner `break` leaves the loop, not the search.** A nested seat-hunt
+    that tries anchors until two pieces assemble will keep going and leave the
+    last placement tried, not the one that worked - and the failure reads as
+    "never assembled", which points at the recipe rather than the loop. Label
+    the outer loop and put the piece back when it does not work.
 
 One blind spot in `prose.rs` worth knowing before it finds you: a name that
 only ever **opens** a sentence is invisible to `names_something`, because at a
