@@ -31,6 +31,7 @@ argue against.
 | Milestone | State | Block in `analysis/switchyard.md` |
 |---|---|---|
 | **M0** Baseline, and the MSRV told the truth | **done** | "M0 baseline at `e38d968`" |
+| **M1** The floor graph, landed inert | **done** | "M1 the floor graph" |
 
 ## 3. Open questions for the user
 
@@ -81,3 +82,62 @@ filter - were all re-derived and all hold.
 
 **Suite:** 802 passed, 41 ignored, 0 failed (801/40 before M0's own two).
 GUI 62 passed. No warnings, `cargo check --workspace --all-targets`.
+
+### M1 - The floor graph
+
+`Dungeon.floors` is a list of `Floor`s that know where they lead, and
+`Dungeon.landings` is gone into `Floor.landing`. The six shipped dungeons are
+straight lines in the new shape and `every_shipped_dungeon_is_a_straight_line`
+is what holds them there.
+
+**Landed inert, and inert was measured three ways.** The whole `baseline`
+printer is byte-identical to M0, cargo's timing lines apart - so the
+four-board table, the cadence, the mind figures, rungs 1-14, no-weapon
+viability and the census have not moved. `no_creature_changed_what_it_wears`
+is green on all 5,568 placements. And every one of the six dungeons was walked
+from the top on the **pre-M1 code**, by stashing the milestone and running the
+same walk against `&[&str]` floors, then diffed against M1's transcript:
+`diff` is empty. That transcript is `analysis/replays/dungeons.txt` and it is
+now a fixture with a test on it.
+
+**Seven decisions worth reading before M2**, all in `analysis/switchyard.md`
+under "M1 the floor graph" with the reasoning:
+
+1. `route::ascii` prints `(3 fights)` where it printed `(3 floors)`. A1.4
+   specifies that word and acceptance criterion 3 says "byte-identical"; they
+   cannot both hold, and A1.4 wins because it is the section that specifies
+   the printer. The **number** does not move. The fixture holds the real
+   pre-M1 bytes and the test applies the one substitution in its own body, so
+   the word that moved is named in the assertion.
+2. THE THRESHOLD is not on the route map at all - criterion 3 names a dungeon
+   that has no node, because a dungeon node hangs off an event choice and THE
+   THRESHOLD is a town door. THE CREVICE IN THE ROCK is the one the map draws.
+3. `Floor::along` takes the exits rather than a floor number: a `const fn`
+   cannot return a reference into a temporary built from its own arguments.
+4. The seventh graph lint is half-written until `Where::Siding` lands at M3,
+   and its own comment says so rather than reading green and meaning nothing.
+5. A1.7's call-site table missed three sites; all three were mechanical.
+6. `Theme::landing` falls back per floor where `Theme::landings` fell back per
+   dungeon, which fixes a latent hole nothing had stepped in.
+7. M1's replay is the six-dungeon transcript rather than a CLI script, because
+   no board the CLI can build from its own verbs clears rung 9, which is where
+   THE CREVICE's door stands.
+
+**The eight graph lints** (A1.1 asks for seven; the eighth is `fights_ahead`'s
+own arithmetic): `every_exit_leads_somewhere_that_exists`,
+`no_exit_points_at_the_mouth_or_at_itself`, `no_dungeon_doubles_back`,
+`every_floor_is_reachable_from_the_mouth`,
+`the_points_have_a_scene_and_nothing_else_does`,
+`no_floor_offers_a_way_in_that_nothing_uses`,
+`every_shipped_dungeon_is_a_straight_line`,
+`fights_ahead_counts_the_road_out_and_not_the_rooms`.
+
+Two existing lints changed rather than moved. `every_floor_names_a_creature_
+that_exists` lost its `landings.len() == floors.len()` assertion, because the
+type guarantees it now, and gained "a cleared floor says something" in its
+place. `every_dungeon_pays_something` gained "or every buffer stop pays its
+own way", which is the shape a graph wants and which the yard's four leaves
+will be the first to use.
+
+**Suite:** 813 passed, 41 ignored, 0 failed. GUI 62. No warnings.
+750 insertions, 123 deletions across 11 files.

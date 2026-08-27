@@ -1614,10 +1614,10 @@ fn every_alternate_is_a_finished_creature() {
         // end of it, and only the last floor leaves a trophy.
         let is_floor = gearmaster_engine::dungeon::DUNGEONS
             .iter()
-            .any(|d| d.floors.contains(&m.name));
+            .any(|d| d.floors.iter().any(|f| f.creature == m.name));
         let is_last = gearmaster_engine::dungeon::DUNGEONS
             .iter()
-            .any(|d| d.floors.last() == Some(&m.name));
+            .any(|d| d.floors.last().is_some_and(|f| f.creature == m.name));
         // And a frame leaves nothing behind because a frame has nothing yet.
         // See `bestiary::FRAMES`.
         if (!is_floor || is_last) && !gearmaster_engine::bestiary::is_unpacked(m.name) {
@@ -1862,12 +1862,12 @@ fn the_crevice_opens_only_for_the_seller_and_pays_in_a_class() {
     run.take_choice(door);
 
     let d = dungeon::by_id("the-crevice").unwrap();
-    assert_eq!(run.monster().name, d.floors[0], "standing on the first floor");
+    assert_eq!(run.monster().name, d.floors[0].creature, "standing on the first floor");
     assert_eq!(run.rung, 9, "and the rung has not moved");
 
     // Walk it. Each floor cleared moves you down, not along.
     for (i, floor) in d.floors.iter().enumerate() {
-        assert_eq!(run.monster().name, *floor, "floor {}", i + 1);
+        assert_eq!(run.monster().name, floor.creature, "floor {}", i + 1);
         run.force_win();
         assert_eq!(run.rung, 9, "a floor is not a rung");
     }

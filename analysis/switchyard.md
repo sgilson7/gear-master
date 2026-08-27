@@ -240,3 +240,132 @@ And the tables the content milestones stand on:
   34**, which is what the spec claims and what the four doors need.
 - `EVENTS` 33, `DUNGEONS` 6, rumours 8, `TOWNS` 6, `FRAMES` 15,
   `DESTINATIONS` 4, `ALTERNATES` 19 - all as cited.
+
+---
+
+## M1 the floor graph, at `7c2dcfe`+
+
+`Dungeon.floors` is `&[Floor]`, `Dungeon.landings` is gone into
+`Floor.landing`, and the six shipped dungeons are straight lines in the new
+shape. Landed inert, and "inert" here is three diffs rather than three
+sentences.
+
+### The three inertness diffs
+
+| What | Command | Result |
+|---|---|---|
+| The six dungeons, walked | `dungeons::the_six_shipped_dungeons_replay_word_for_word` | **byte-identical** |
+| The four-board table and every other baseline figure | `--test baseline -- --ignored` | **byte-identical**, whole printer output |
+| Every creature's gear at every difficulty | `catalog_shape::no_creature_changed_what_it_wears` | **green**, 5,568 placements unmoved |
+
+The first was measured rather than argued. The transcript in
+`analysis/replays/dungeons.txt` - banner, creature, fights ahead, landing,
+receipt and map figures for all six dungeons walked from the top - was
+captured **off the pre-M1 code**, by stashing M1 and running the same walk
+against `Dungeon.floors: &[&str]`, then diffed against M1's. `diff` is empty.
+83 lines.
+
+The second: the whole of `baseline`'s six printers differ only in cargo's own
+two timing lines. So the four-board table, the cadence figures, the mind
+figures, rungs 1-14, no-weapon viability, slot-mattering and the census are
+all where M0 left them.
+
+The ratchet (`catalog_shape -- --ignored`) is identical apart from one status
+line's position, which is thread scheduling. `prose::read_the_road_aloud` is
+identical.
+
+### The suite
+
+| | M0 | M1 |
+|---|---:|---:|
+| Engine passed | 802 | **813** |
+| Engine ignored | 41 | 41 |
+| GUI | 62 | 62 |
+| Warnings | 0 | 0 |
+
+The eleven: eight graph lints in `dungeon.rs`'s own test module, and three in
+`tests/dungeons.rs` (the map fixture, the points count, the replay).
+
+### The size of it, counted
+
+750 insertions, 123 deletions across 11 files. `dungeon.rs` is most of it
+(542 changed lines, of which the six rewritten tables are about 300). Ten call
+sites across five source files and twenty-two across six test binaries, which
+is what A1.7 predicted; the three it missed are listed below.
+
+---
+
+### Findings - where the code was not what the spec said
+
+**1. `route::ascii` changes by exactly one word, and the spec asks for both.**
+A1.4 spells out the two strings the printer must produce - `(4 fights, 2
+points)` for the yard and `(3 fights)` for THE THRESHOLD - and acceptance
+criterion 3 says `route::ascii` is "byte-identical". Today's printer says
+`(3 floors)`. The two cannot both hold.
+
+Taken: **A1.4**, because it is the section that specifies the printer, in
+detail, with both example strings written out, and because "floors" is a room
+count, which stops being a thing a run experiences the moment a dungeon has
+points in it. Criterion 3's number - which is what it exists to protect -
+does not move: for a straight line `fights_ahead(0, &[])` is `floors.len()`.
+
+Re-pinned with the reason in the assertion rather than in this file:
+`dungeons::the_ascii_map_did_not_change_for_a_linear_dungeon` holds the real
+pre-M1 bytes as a fixture (`tests/fixtures/route-ascii-m0.txt`, 89 lines,
+captured off `e38d968`) and applies the one substitution in the test body, so
+the word that moved is named in the assertion instead of hidden in a file.
+
+**2. THE THRESHOLD is never on the route map.** Criterion 3 names it, and a
+`NodeKind::Dungeon` is only ever pushed for an event choice whose outcome is
+`Enter` or `StartDungeon` (`route.rs:266-283`). THE THRESHOLD is reached
+through a town door, so it has no node. The one shipped dungeon the ascii map
+draws is **THE CREVICE IN THE ROCK**. The fixture pins the whole 89-line map
+rather than one line, so it would catch either.
+
+**3. `Floor::along` cannot take a floor number.** A1.1 writes the six
+conversions as `exits: &[Exit { to: i+1, .. }]`. A `const fn` cannot hand back
+a reference to a slice built out of its own arguments - there is nowhere for
+the temporary to live, and rvalue static promotion does not reach anything
+argument-dependent (`E0716`). So the constructor takes the exits:
+`Floor::along("The Reciter", "...", &[Exit::on(1)])`, and `Floor::last` is the
+same call with `&[]`. No loss: a fork spells its levers out in the same place.
+
+**4. The seventh graph lint is half a lint until M3.** A1.1's seventh asks
+that every floor with a non-empty `entry` is some destination's
+`Where::Siding` and every `Where::Siding` lands on a floor that has one.
+`Where::Siding` is M3. The forward half is
+`dungeon::no_floor_offers_a_way_in_that_nothing_uses`, asking
+`pedestal::lands_on(id, floor)`, which today answers "floor 0 of a
+`Where::Dungeon`" and nothing else - so the lint is **vacuous until a floor
+has an entry**, which is M6. Said out loud in the test's own comment rather
+than discovered, per `CLAUDE.md` §6 trap 22. The backward half lands in
+`pedestal.rs` at M3.
+
+**5. A1.7's table missed three call sites**, all mechanical:
+
+| Site | What |
+|---|---|
+| `tests/dungeons.rs:102, :104` | `frame(f)` and `f.band` over `d.floors` - the frame lookups, not the name walk the table lists |
+| `tests/two_voices.rs:222` | `PLAIN.landings(d.id, d.landings)` - the *signature* change, not the field |
+| `tests/two_voices.rs:243` | reads `Retold.landings`, which does **not** move and needed nothing |
+
+**6. `Theme::landing` falls back per floor, where `landings` fell back per
+dungeon.** `landings(id, canonical)` handed back the whole themed list or the
+whole canonical one, and `run.rs` then did `.get(floor)` - so a theme that
+retold two floors of a three-floor dungeon produced **no landing at all** on
+the third. `landing(id, floor, canonical)` falls through to that floor's
+canonical line. Strictly better and the same fallback in spirit; nothing in
+the tree exercised the old behaviour, because no `Retold` is short.
+
+**7. M1's replay is an engine transcript, not a CLI one.** The spec's M1 exit
+asks for "the CLI replay of a scripted run through THE CREVICE". THE CREVICE's
+door is the shrine fork at event index 9, met on clearing rung 9, and **no
+board the CLI can build from its own verbs clears rung 9**: `preset` loses
+there (M0's shallow-ladder table), there is no `skip`, and `sandbox` plus
+seventy-five `equip` lines is a script nobody will read a diff of.
+`the_six_shipped_dungeons_replay_word_for_word` is what replaced it, and it
+is stronger on every axis that matters here - it walks **all six** dungeons
+rather than one, it pins the landing prose and the banner as well as the
+outcome, and it runs in the suite instead of by hand. Acceptance criterion 1's
+CLI transcript is M6's, by which time `throw` and `leave` exist and there is
+something to say.

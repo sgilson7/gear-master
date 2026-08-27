@@ -40,8 +40,13 @@ pub enum NodeKind {
     Town { pinned: bool },
     /// An event standing in front of a rung.
     Event,
-    /// A mini dungeon, and how deep it goes.
-    Dungeon { floors: usize },
+    /// A mini dungeon: how many fights the longest road through it is, and
+    /// how many places it asks which way.
+    ///
+    /// Fights rather than floors, because a graph's room count is not a thing
+    /// a run experiences - nine rooms with points in them are four fights
+    /// whichever way you walk.
+    Dungeon { fights: usize, forks: usize },
     /// A fountain owed at this rung.
     Fountain,
     /// The thing past Francis. Present only when the Mainspring is held.
@@ -262,7 +267,10 @@ pub fn route(run: &Run) -> RouteMap {
                     let Some(d) = crate::dungeon::by_id(id) else { continue };
                     let inside = run.dungeon.is_some_and(|(x, _)| x.id == d.id);
                     map.nodes.push(Node {
-                        kind: NodeKind::Dungeon { floors: d.floors.len() },
+                        kind: NodeKind::Dungeon {
+                            fights: d.fights_ahead(0, &[]),
+                            forks: d.forks(),
+                        },
                         id: d.id,
                         label: d.name,
                         at,
@@ -357,9 +365,15 @@ pub fn ascii(run: &Run) -> Vec<String> {
                 NodeKind::Event => {
                     out.push(format!("{} -- {} (event, between {} and {})", mark(n.fill), n.label, rung, rung + 1))
                 }
-                NodeKind::Dungeon { floors } => {
-                    out.push(format!("     \\_ {} ({} floors)", n.label, floors))
-                }
+                // The word is "points" and it is dropped at zero, so a
+                // straight line reads the way it always did apart from the one
+                // word: `floors` was the room count and `fights` is what a run
+                // walks, and for the six straight lines the number is the same.
+                NodeKind::Dungeon { fights, forks } => out.push(if forks == 0 {
+                    format!("     \\_ {} ({} fights)", n.label, fights)
+                } else {
+                    format!("     \\_ {} ({} fights, {} points)", n.label, fights, forks)
+                }),
                 NodeKind::Fountain => out.push(format!(
                     "{} -- {} (fountain, between {} and {})",
                     mark(n.fill),

@@ -217,8 +217,10 @@ fn the_cellar_door_opens_the_lane_and_nothing_else_does() {
     assert_eq!(d.id, "the-threshold");
     assert!(run.pending_scene.is_some(), "you walked into a dungeon and nobody said so");
 
-    // Three floors, and the pool at the bottom.
-    for _ in 0..d.floors.len() {
+    // Three floors, and the pool at the bottom. `fights_ahead` rather than a
+    // room count, because a room count stopped being what a run walks when
+    // floors became a graph - the two agree for every straight line.
+    for _ in 0..d.fights_ahead(0, &[]) {
         run.pending_scene = None;
         run.force_win();
         run.settle();
@@ -287,8 +289,8 @@ fn the_chain_can_be_finished_in_one_run_in_either_mode() {
         run.settle();
         run.visit_town(Action::CellarDoor);
         run.take_receipt();
-        let floors = run.dungeon.expect("in it").0.floors.len();
-        for _ in 0..floors {
+        let fights = run.dungeon.expect("in it").0.fights_ahead(0, &[]);
+        for _ in 0..fights {
             run.pending_scene = None;
             run.force_win();
             run.settle();

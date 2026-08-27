@@ -87,6 +87,21 @@ pub fn is_orb_of_travel(name: &str) -> bool {
     by_orb(name).is_some()
 }
 
+/// Does any destination put you down on this floor of this dungeon?
+///
+/// Half of a lint that lives in two files. A floor carries its own entry
+/// cutscene only when something can land a run on it rather than walk it
+/// there, and `dungeon.rs`'s `no_floor_offers_a_way_in_that_nothing_uses`
+/// asks this. Today nothing lands anywhere but floor 0, so it is false for
+/// every floor and the lint is vacuous; `Where::Siding` is what gives it
+/// something to say.
+pub fn lands_on(dungeon: &str, floor: usize) -> bool {
+    DESTINATIONS.iter().any(|d| match d.kind {
+        Where::Dungeon(id) => id == dungeon && floor == 0,
+        Where::Event(_) => false,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

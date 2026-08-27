@@ -144,15 +144,18 @@ impl Theme {
         }
     }
 
-    /// The same for the lines said between a dungeon's floors.
-    pub fn landings(
-        &'static self,
-        id: &str,
-        canonical: &'static [&'static str],
-    ) -> &'static [&'static str] {
+    /// The same for one of the lines said between a dungeon's floors.
+    ///
+    /// Keyed by floor index, because that is the stable key: `Retold.landings`
+    /// is still a list parallel to `floors` and floor numbers do not move. A
+    /// theme that retells some floors and not others - or one written before a
+    /// dungeon grew a room - falls through to the canonical line for the ones
+    /// it has nothing to say about, which is one floor's worth of silence
+    /// rather than the whole dungeon's.
+    pub fn landing(&'static self, id: &str, floor: usize, canonical: &'static str) -> &'static str {
         match self.told.iter().find(|r| r.id == id) {
-            Some(r) if !r.landings.is_empty() => r.landings,
-            _ => canonical,
+            Some(r) => r.landings.get(floor).copied().unwrap_or(canonical),
+            None => canonical,
         }
     }
 

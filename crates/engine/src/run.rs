@@ -886,7 +886,9 @@ impl Run {
         // whichever way you answered.
         // A dungeon floor stands in front of everything else.
         if let Some((d, floor)) = self.dungeon {
-            if let Some(spec) = d.floors.get(floor).and_then(|n| crate::combat::alternate(n)) {
+            if let Some(spec) =
+                d.floors.get(floor).and_then(|f| crate::combat::alternate(f.creature))
+            {
                 return spec;
             }
         }
@@ -2214,7 +2216,8 @@ impl Run {
                 // Through the theme, at the source. A landing is prose the
                 // run hands to whatever is drawing, and the two interfaces
                 // would otherwise have to remember to translate it twice.
-                settlement.landing = self.theme.landings(d.id, d.landings).get(floor).copied();
+                settlement.landing =
+                    d.floors.get(floor).map(|f| self.theme.landing(d.id, floor, f.landing));
                 self.pending_landing = settlement.landing;
                 if floor + 1 < d.floors.len() {
                     self.dungeon = Some((d, floor + 1));

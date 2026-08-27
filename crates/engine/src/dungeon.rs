@@ -1,9 +1,15 @@
 //! Mini dungeons: a short chain of fights off the side of the road.
 //!
-//! A dungeon is a few floors, fought in order, that ends in a class you cannot
-//! get anywhere else. It does not advance the ladder - when you come out you
-//! are standing exactly where you went in, in front of the fight you had not
-//! got to yet.
+//! A dungeon is a few floors that ends in a class you cannot get anywhere
+//! else. It does not advance the ladder - when you come out you are standing
+//! exactly where you went in, in front of the fight you had not got to yet.
+//!
+//! Floors are a **graph**, not a list. Each one names where it leads, so a
+//! floor with one exit is the next room, a floor with none is a buffer stop,
+//! and a floor with two is a set of points and a decision. All six dungeons
+//! written before this were lists, and all six are straight lines in the new
+//! shape - `every_shipped_dungeon_is_a_straight_line` is what holds them
+//! there.
 //!
 //! Adding one is adding an entry to `DUNGEONS` and the alternates its floors
 //! name. Nothing else has to know.
@@ -24,10 +30,12 @@ pub struct Dungeon {
     /// uses, and it is how you know you have gone somewhere. A dungeon you can
     /// walk into without noticing is a dungeon nobody knows they are in.
     pub entry: &'static [&'static str],
-    /// Floors in order, each naming an alternate creature.
-    pub floors: &'static [&'static str],
-    /// Said between floors, one per floor cleared. The last is the ending.
-    pub landings: &'static [&'static str],
+    /// The rooms, and what leads to what. Floor 0 is always the way in.
+    ///
+    /// An index into this list is a stable key - it is what the theme's
+    /// landings are keyed on and what a siding names - so floors are appended
+    /// rather than reordered, for the same reason `CATALOG` is.
+    pub floors: &'static [Floor],
     /// The class only this dungeon hands out, or empty for one that pays
     /// something that is not a class.
     ///
@@ -42,6 +50,94 @@ pub struct Dungeon {
     /// list of outcomes as well, applied on the way out, and the receipt says
     /// what they were.
     pub also: &'static [crate::event::Outcome],
+}
+
+
+/// One way out of a floor.
+///
+/// A label and a line under it, because an exit is drawn as a choice and read
+/// the way a `Choice` is read. Both are empty on a floor with one way on:
+/// there is no decision to name, and `the_points_have_a_scene` is what stops
+/// a real fork shipping without one.
+#[derive(Copy, Clone, Debug)]
+pub struct Exit {
+    /// Index into the dungeon's `floors`.
+    pub to: usize,
+    /// What the lever is called. Shown as a choice; through the theme layer.
+    pub label: &'static str,
+    /// One line under it, in the register a `Choice::blurb` has.
+    pub blurb: &'static str,
+}
+
+impl Exit {
+    /// The only way on. A corridor rather than a decision.
+    pub const fn on(to: usize) -> Exit {
+        Exit { to, label: "", blurb: "" }
+    }
+}
+
+/// One room of a dungeon: a fight, what is said after it, and where it goes.
+#[derive(Copy, Clone, Debug)]
+pub struct Floor {
+    /// The creature. An alternate, as it always was.
+    pub creature: &'static str,
+    /// Said on the landing after this floor is cleared. For a leaf this is the
+    /// ending.
+    ///
+    /// It lives here rather than in a list beside `floors` because the two
+    /// were required to be the same length and nothing but a test said so.
+    /// Now the type says it.
+    pub landing: &'static str,
+    /// Where this floor leads. Empty: a buffer stop, and the dungeon ends
+    /// here. One: the next floor, which is every floor of every dungeon
+    /// written before the yard. Two or more: points, and a decision.
+    pub exits: &'static [Exit],
+    /// Read when the exits are two or more: the scene at the points. Empty
+    /// otherwise.
+    pub fork: &'static [&'static str],
+    /// Played when a dungeon is *entered at* this floor rather than walked to.
+    /// Empty for every floor nothing can land you on.
+    pub entry: &'static [&'static str],
+    /// Applied on clearing this floor, before the landing.
+    ///
+    /// For a buffer stop this is what clearing the dungeon by this route pays;
+    /// for a floor in the middle it is nearly always empty. `Dungeon::also`
+    /// and `Dungeon::reward` go on meaning "on any way out", so a floor's own
+    /// `also` is on top of them and the six shipped dungeons need no change of
+    /// meaning.
+    pub also: &'static [crate::event::Outcome],
+}
+
+impl Floor {
+    /// A floor that leads on: one fight, one landing, and the ways out.
+    ///
+    /// The exits are a slice at the call site rather than a floor number here
+    /// because a `const fn` cannot hand back a reference to something built
+    /// out of its own arguments - there is nowhere for it to live. Which is
+    /// no loss: `&[Exit::on(1)]` says "one way on, to floor 1" and a fork
+    /// spells its levers out in the same place.
+    pub const fn along(
+        creature: &'static str,
+        landing: &'static str,
+        exits: &'static [Exit],
+    ) -> Floor {
+        Floor { creature, landing, exits, fork: &[], entry: &[], also: &[] }
+    }
+
+    /// A buffer stop. Nothing leads out of it and the dungeon ends here.
+    pub const fn last(creature: &'static str, landing: &'static str) -> Floor {
+        Floor::along(creature, landing, &[])
+    }
+
+    /// Is this a buffer stop - a floor the dungeon ends at?
+    pub fn is_leaf(&self) -> bool {
+        self.exits.is_empty()
+    }
+
+    /// Is this a set of points - a floor that asks which way?
+    pub fn is_fork(&self) -> bool {
+        self.exits.len() > 1
+    }
 }
 
 pub const DUNGEONS: &[Dungeon] = &[
@@ -78,22 +174,32 @@ pub const DUNGEONS: &[Dungeon] = &[
             "Wenlock is already ahead of you. He has been ahead of you for \
              six years.",
         ],
-        floors: &["The Reciter", "The Long Haul", "The Watchers"],
-        landings: &[
-            "The recitation stops mid-verse. Behind the pulpit, the shell has \
-             grown out over a crack in the rock the way a lip grows over a bad \
-             tooth. Wenlock gets a bar under it. Wenlock is seventy-one.",
-            "The train goes over on the bend. Whatever was in the cars is out \
-             in the dark now, and it does not appear to want anything from \
-             you at all, and it does not appear to want anything from Wenlock \
-             either, who keeps walking and does not look at it once.",
-            "The Core is soup and light with a piece of somewhere else \
-             sitting in the middle of it. Wenlock looks at it for a while, \
-             and stops being an old man, and there is a moment there where he \
-             could have kept the lot. He splits it instead, the way he always \
-             said he would, and puts your share in your hand on his way past. \
-             Somewhere above you, for the first time in a long time, somebody \
-             is casting a line.",
+        floors: &[
+            Floor::along(
+                "The Reciter",
+                "The recitation stops mid-verse. Behind the pulpit, the shell has \
+                 grown out over a crack in the rock the way a lip grows over a bad \
+                 tooth. Wenlock gets a bar under it. Wenlock is seventy-one.",
+                &[Exit::on(1)],
+            ),
+            Floor::along(
+                "The Long Haul",
+                "The train goes over on the bend. Whatever was in the cars is out \
+                 in the dark now, and it does not appear to want anything from \
+                 you at all, and it does not appear to want anything from Wenlock \
+                 either, who keeps walking and does not look at it once.",
+                &[Exit::on(2)],
+            ),
+            Floor::last(
+                "The Watchers",
+                "The Core is soup and light with a piece of somewhere else \
+                 sitting in the middle of it. Wenlock looks at it for a while, \
+                 and stops being an old man, and there is a moment there where he \
+                 could have kept the lot. He splits it instead, the way he always \
+                 said he would, and puts your share in your hand on his way past. \
+                 Somewhere above you, for the first time in a long time, somebody \
+                 is casting a line.",
+            ),
         ],
         reward: "Ascendant",
         also: &[],
@@ -118,17 +224,27 @@ pub const DUNGEONS: &[Dungeon] = &[
             "Behind you it is a cellar. Ahead of you it is not, and the \
              difference happened somewhere in the middle without a line.",
         ],
-        floors: &["DOORKEEP", "THE STAIR THAT LISTENS", "THE LAST LANDING"],
-        landings: &[
-            "The thing at the top is called DOORKEEP and it stands aside. It \
-             was always going to stand aside. What it was doing was making \
-             sure you went down rather than in.",
-            "The stair has been counting. Not the steps - there are 402 steps \
-             and it has known that since before there were steps - it has been \
-             counting *you*, and the number it has reached is one.",
-            "There is light at the bottom and the light is a person, or was, \
-             and it is pleased to see you, which is the worst of it. You come \
-             back up seeing with the wrong sense, and it does not stop.",
+        floors: &[
+            Floor::along(
+                "DOORKEEP",
+                "The thing at the top is called DOORKEEP and it stands aside. It \
+                 was always going to stand aside. What it was doing was making \
+                 sure you went down rather than in.",
+                &[Exit::on(1)],
+            ),
+            Floor::along(
+                "THE STAIR THAT LISTENS",
+                "The stair has been counting. Not the steps - there are 402 steps \
+                 and it has known that since before there were steps - it has been \
+                 counting *you*, and the number it has reached is one.",
+                &[Exit::on(2)],
+            ),
+            Floor::last(
+                "THE LAST LANDING",
+                "There is light at the bottom and the light is a person, or was, \
+                 and it is pleased to see you, which is the worst of it. You come \
+                 back up seeing with the wrong sense, and it does not stop.",
+            ),
         ],
         reward: "Threshold-Sighted",
         also: &[
@@ -154,15 +270,21 @@ pub const DUNGEONS: &[Dungeon] = &[
             "Ossery said the foundry keeps melting down what keeps climbing \
              out of the melt. He did not say what climbs out of a seam.",
         ],
-        floors: &["THE DIGGERS", "WHAT THE SEAM HID"],
-        landings: &[
-            "The diggers put their tools down when you come round the corner \
-             and pick them up again after, which is the only part of it that \
-             is frightening. There are fourteen of them, which is the number \
-             Ossery gave, and Ossery has never been down here.",
-            "It was sealed for a reason and the reason is looking at you, and \
-             behind the reason there is a vein of something the colour of a \
-             very old bar of chocolate going down further than the lamp goes.",
+        floors: &[
+            Floor::along(
+                "THE DIGGERS",
+                "The diggers put their tools down when you come round the corner \
+                 and pick them up again after, which is the only part of it that \
+                 is frightening. There are fourteen of them, which is the number \
+                 Ossery gave, and Ossery has never been down here.",
+                &[Exit::on(1)],
+            ),
+            Floor::last(
+                "WHAT THE SEAM HID",
+                "It was sealed for a reason and the reason is looking at you, and \
+                 behind the reason there is a vein of something the colour of a \
+                 very old bar of chocolate going down further than the lamp goes.",
+            ),
         ],
         reward: "Prospector",
         also: &[],
@@ -184,14 +306,20 @@ pub const DUNGEONS: &[Dungeon] = &[
             "The water goes down and does not come back up. Neither does the light.",
             "Sixty years is a long time to fish somewhere nothing swims.",
         ],
-        floors: &["THE CURRENT", "THE THING ON THE HOOK"],
-        landings: &[
-            "The water decides how fast you are allowed to be. It decided that \
-             about Fenn too, for sixty years, and there is no arguing with a \
-             decision made by a quantity.",
-            "It comes up on the line the way a thing comes up when it has \
-             chosen to. Underneath it the water is deeper than the world is, \
-             and you understand, all at once, what Fenn was patient about.",
+        floors: &[
+            Floor::along(
+                "THE CURRENT",
+                "The water decides how fast you are allowed to be. It decided that \
+                 about Fenn too, for sixty years, and there is no arguing with a \
+                 decision made by a quantity.",
+                &[Exit::on(1)],
+            ),
+            Floor::last(
+                "THE THING ON THE HOOK",
+                "It comes up on the line the way a thing comes up when it has \
+                 chosen to. Underneath it the water is deeper than the world is, \
+                 and you understand, all at once, what Fenn was patient about.",
+            ),
         ],
         // No class at all. What the Undertow pays is room - one board of your
         // choice, one row taller for the rest of the run - and H3 says the
@@ -214,14 +342,20 @@ pub const DUNGEONS: &[Dungeon] = &[
             "The exhibit promised the fury of a thousand bears. The museum \
              never lied.",
         ],
-        floors: &["THE DEN MOUTH", "THE THOUSANDTH BEAR"],
-        landings: &[
-            "That was a hundred of them and the den goes back further than a \
-             hundred, and every one of them was in the way rather than in \
-             front.",
-            "The thousandth is the one the diorama was of. The diorama was to \
-             scale. The placard said A THOUSAND BEARS and did not say to what \
-             scale.",
+        floors: &[
+            Floor::along(
+                "THE DEN MOUTH",
+                "That was a hundred of them and the den goes back further than a \
+                 hundred, and every one of them was in the way rather than in \
+                 front.",
+                &[Exit::on(1)],
+            ),
+            Floor::last(
+                "THE THOUSANDTH BEAR",
+                "The thousandth is the one the diorama was of. The diorama was to \
+                 scale. The placard said A THOUSAND BEARS and did not say to what \
+                 scale.",
+            ),
         ],
         reward: "",
         also: &[crate::event::Outcome::Give("Bearhide")],
@@ -242,19 +376,61 @@ pub const DUNGEONS: &[Dungeon] = &[
             "Something in the dark already knows your footsteps.",
             "You smell it. Worse: that is how it finds you.",
         ],
-        floors: &["DARK FLOOR", "THE WUMPUS"],
-        landings: &[
-            "Whatever lives near a wumpus lives there by being too quick and \
-             too many to be worth the trouble. Neither is a defence against \
-             somebody with a torch and twenty rooms to get through.",
-            "It knew where you were the whole way in. What it did not know is \
-             that you had stopped moving quietly a hundred yards back and had \
-             been listening to it work that out. The card at the mouth said \
-             WUMPUS ONE, and the card was right about the number.",
+        floors: &[
+            Floor::along(
+                "DARK FLOOR",
+                "Whatever lives near a wumpus lives there by being too quick and \
+                 too many to be worth the trouble. Neither is a defence against \
+                 somebody with a torch and twenty rooms to get through.",
+                &[Exit::on(1)],
+            ),
+            Floor::last(
+                "THE WUMPUS",
+                "It knew where you were the whole way in. What it did not know is \
+                 that you had stopped moving quietly a hundred yards back and had \
+                 been listening to it work that out. The card at the mouth said \
+                 WUMPUS ONE, and the card was right about the number.",
+            ),
         ],
         reward: "Wumpus Hunter",
         also: &[],
     },];
+
+impl Dungeon {
+    /// How many fights are left from `floor`, counting the one standing on it,
+    /// down the longest road out.
+    ///
+    /// This is the number a banner wants and `floors.len()` is not. Nine rooms
+    /// in a graph with points in it are four fights whichever way you walk, and
+    /// a run that came back in by a siding and found two rooms already beaten
+    /// has fewer than that. For a straight line entered at floor 0 with
+    /// nothing cleared it is exactly `floors.len()`, which is why the six
+    /// dungeons written before the graph read what they always read.
+    ///
+    /// `cleared` is the run's whole list, across every dungeon; the ones that
+    /// are not this dungeon's are ignored, so a caller hands over
+    /// `&run.cleared_floors` and thinks about nothing.
+    pub fn fights_ahead(&self, floor: usize, cleared: &[(&'static str, usize)]) -> usize {
+        let beaten = |i: usize| cleared.iter().any(|&(id, f)| id == self.id && f == i);
+        // The graph is acyclic - `no_dungeon_doubles_back` is the guard - so
+        // this terminates without a visited set. A depth cap stands anyway,
+        // because a lint that has not run yet is not a proof.
+        fn walk(d: &Dungeon, at: usize, beaten: &dyn Fn(usize) -> bool, depth: usize) -> usize {
+            if depth == 0 {
+                return 0;
+            }
+            let Some(f) = d.floors.get(at) else { return 0 };
+            let here = usize::from(!beaten(at));
+            here + f.exits.iter().map(|e| walk(d, e.to, beaten, depth - 1)).max().unwrap_or(0)
+        }
+        walk(self, floor, &beaten, self.floors.len() + 1)
+    }
+
+    /// How many floors in this one ask which way.
+    pub fn forks(&self) -> usize {
+        self.floors.iter().filter(|f| f.is_fork()).count()
+    }
+}
 
 pub fn by_id(id: &str) -> Option<&'static Dungeon> {
     DUNGEONS.iter().find(|d| d.id == id)
@@ -275,26 +451,37 @@ mod tests {
             assert!(!d.floors.is_empty(), "{} has no floors", d.id);
             for f in d.floors {
                 assert!(
-                    crate::combat::alternate(f).is_some(),
+                    crate::combat::alternate(f.creature).is_some(),
                     "{}: no such creature as {}",
                     d.id,
-                    f
+                    f.creature
+                );
+                // The landing used to be checked by counting two lists against
+                // each other. `Floor` carries its own, so the count cannot be
+                // wrong; what can still be wrong is a floor that says nothing.
+                assert!(
+                    !f.landing.is_empty(),
+                    "{}: {} is cleared and nobody says anything",
+                    d.id,
+                    f.creature
                 );
             }
-            assert_eq!(
-                d.landings.len(),
-                d.floors.len(),
-                "{}: one landing per floor, the last being the ending",
-                d.id
-            );
         }
     }
 
+    /// Nothing here is three fights and a walk home.
+    ///
+    /// A dungeon pays on any way out (`reward`, `also`), or every buffer stop
+    /// pays its own way - which is the shape a graph wants, because which
+    /// buffer stop you reached is the whole of what a graph asks.
     #[test]
     fn every_dungeon_pays_something() {
         for d in DUNGEONS {
+            let on_any_exit = !d.reward.is_empty() || !d.also.is_empty();
+            let every_leaf_pays =
+                d.floors.iter().filter(|f| f.is_leaf()).all(|f| !f.also.is_empty());
             assert!(
-                !d.reward.is_empty() || !d.also.is_empty(),
+                on_any_exit || every_leaf_pays,
                 "{} is three fights and a walk home",
                 d.id
             );
@@ -345,5 +532,204 @@ mod tests {
                 }
             }
         }
+    }
+
+    // ------------------------------------------------------- the graph lints
+    //
+    // Six of the seven A1.1 asks for. The seventh - that every floor with an
+    // `entry` is the landing point of some destination - needs
+    // `pedestal::Where::Siding`, which is M3; its forward half is
+    // `no_floor_offers_a_way_in_that_nothing_uses` below and it is vacuous
+    // until a floor has an entry, which is stated here rather than discovered.
+
+    #[test]
+    fn every_exit_leads_somewhere_that_exists() {
+        for d in DUNGEONS {
+            for (i, f) in d.floors.iter().enumerate() {
+                for e in f.exits {
+                    assert!(
+                        e.to < d.floors.len(),
+                        "{}: floor {i} leads to {}, and there are {} floors",
+                        d.id,
+                        e.to,
+                        d.floors.len()
+                    );
+                }
+            }
+        }
+    }
+
+    /// Nothing leads back to the way in, and nothing leads to itself.
+    ///
+    /// Floor 0 is the mouth, and a mouth you can be sent back to is a dungeon
+    /// you can walk twice by accident.
+    #[test]
+    fn no_exit_points_at_the_mouth_or_at_itself() {
+        for d in DUNGEONS {
+            for (i, f) in d.floors.iter().enumerate() {
+                for e in f.exits {
+                    assert_ne!(e.to, 0, "{}: floor {i} leads back to the mouth", d.id);
+                    assert_ne!(e.to, i, "{}: floor {i} leads to itself", d.id);
+                }
+            }
+        }
+    }
+
+    /// A dungeon goes one way.
+    ///
+    /// `fights_ahead` walks the graph without a visited set, and the interface
+    /// draws a path rather than a loop. Both of those are true because of this
+    /// test and not because of anything in the type.
+    #[test]
+    fn no_dungeon_doubles_back() {
+        for d in DUNGEONS {
+            // Grey while a floor is on the stack, black once it is finished.
+            // A grey floor met again is a road that comes back on itself.
+            let mut colour = vec![0u8; d.floors.len()];
+            fn walk(d: &Dungeon, at: usize, colour: &mut Vec<u8>, path: &mut Vec<usize>) {
+                assert_ne!(
+                    colour[at], 1,
+                    "{}: {:?} comes back to floor {at}",
+                    d.id, path
+                );
+                if colour[at] == 2 {
+                    return;
+                }
+                colour[at] = 1;
+                path.push(at);
+                for e in d.floors[at].exits {
+                    walk(d, e.to, colour, path);
+                }
+                path.pop();
+                colour[at] = 2;
+            }
+            walk(d, 0, &mut colour, &mut Vec::new());
+        }
+    }
+
+    /// Every room can be got to from the mouth.
+    ///
+    /// A floor nothing leads to is a fight, a landing and a reward that no run
+    /// can ever meet - the dead content `completable.rs` exists to catch one
+    /// rung over.
+    #[test]
+    fn every_floor_is_reachable_from_the_mouth() {
+        for d in DUNGEONS {
+            let mut seen = vec![false; d.floors.len()];
+            let mut stack = vec![0usize];
+            while let Some(at) = stack.pop() {
+                if std::mem::replace(&mut seen[at], true) {
+                    continue;
+                }
+                stack.extend(d.floors[at].exits.iter().map(|e| e.to));
+            }
+            for (i, ok) in seen.iter().enumerate() {
+                assert!(ok, "{}: nothing leads to floor {i} ({})", d.id, d.floors[i].creature);
+            }
+        }
+    }
+
+    /// A decision is a scene, and only a decision is.
+    ///
+    /// Points with nothing written at them are two unlabelled buttons; a scene
+    /// on a corridor is a paragraph nobody will ever be shown.
+    #[test]
+    fn the_points_have_a_scene_and_nothing_else_does() {
+        for d in DUNGEONS {
+            for (i, f) in d.floors.iter().enumerate() {
+                if f.is_fork() {
+                    assert!(
+                        !f.fork.is_empty(),
+                        "{}: floor {i} asks which way and says nothing",
+                        d.id
+                    );
+                    for e in f.exits {
+                        assert!(!e.label.is_empty(), "{}: floor {i} has an unnamed lever", d.id);
+                        assert!(
+                            e.blurb.len() > 20,
+                            "{}: floor {i}'s lever {:?} needs a line under it",
+                            d.id,
+                            e.label
+                        );
+                    }
+                } else {
+                    assert!(
+                        f.fork.is_empty(),
+                        "{}: floor {i} has one way on and a scene at the points",
+                        d.id
+                    );
+                }
+            }
+        }
+    }
+
+    /// A way in that nothing can use is a paragraph nobody will be shown.
+    ///
+    /// The other half - that every siding lands on a floor which has one - is
+    /// in `pedestal.rs`, where `Where::Siding` lives.
+    #[test]
+    fn no_floor_offers_a_way_in_that_nothing_uses() {
+        for d in DUNGEONS {
+            for (i, f) in d.floors.iter().enumerate() {
+                if f.entry.is_empty() {
+                    continue;
+                }
+                assert!(
+                    crate::pedestal::lands_on(d.id, i),
+                    "{}: floor {i} has an entry cutscene and nothing lands on it",
+                    d.id
+                );
+                for line in f.entry {
+                    assert!(line.len() > 20, "{}: floor {i}'s entry is worth reading", d.id);
+                }
+            }
+        }
+    }
+
+    /// Every dungeon written before the yard is a straight line, and stays one.
+    ///
+    /// This is what "landed inert" means for M1: the graph is a new shape and
+    /// the six things standing in it are the same six things. A dungeon that
+    /// grows points is a dungeon whose banner, map label and pip row all
+    /// change, and it should have to say so here first.
+    #[test]
+    fn every_shipped_dungeon_is_a_straight_line() {
+        for d in DUNGEONS {
+            assert_eq!(d.forks(), 0, "{} has points in it", d.id);
+            for (i, f) in d.floors.iter().enumerate() {
+                let want = if i + 1 == d.floors.len() { 0 } else { 1 };
+                assert_eq!(f.exits.len(), want, "{}: floor {i} is not a straight line", d.id);
+                if want == 1 {
+                    assert_eq!(f.exits[0].to, i + 1, "{}: floor {i} skips a room", d.id);
+                }
+                assert!(f.fork.is_empty(), "{}: floor {i} is a corridor with a scene", d.id);
+                assert!(f.entry.is_empty(), "{}: floor {i} is not a siding", d.id);
+                assert!(f.also.is_empty(), "{}: floor {i} pays on its own", d.id);
+            }
+            // And the number the banner has always printed is the number
+            // `fights_ahead` gives back for a straight line walked from the top.
+            assert_eq!(
+                d.fights_ahead(0, &[]),
+                d.floors.len(),
+                "{}: a straight line is as many fights as it has rooms",
+                d.id
+            );
+        }
+    }
+
+    #[test]
+    fn fights_ahead_counts_the_road_out_and_not_the_rooms() {
+        let d = by_id("the-threshold").expect("shipped");
+        assert_eq!(d.fights_ahead(0, &[]), 3, "three floors, three fights");
+        assert_eq!(d.fights_ahead(1, &[]), 2);
+        assert_eq!(d.fights_ahead(2, &[]), 1, "the last one is still a fight");
+        // Cleared floors are walked through rather than fought, so they do not
+        // count - which is the whole reason a siding can read "floor 1 of 1".
+        assert_eq!(d.fights_ahead(0, &[("the-threshold", 0), ("the-threshold", 1)]), 1);
+        assert_eq!(
+            d.fights_ahead(0, &[("the-crevice", 0)]),
+            3,
+            "another dungeon's cleared floors are not this one's"
+        );
     }
 }
