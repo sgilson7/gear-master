@@ -165,7 +165,21 @@ impl Shop {
         // both tests pass, which is the only place either of them is happy.
         let mut tickets: Vec<SlotKind> = Vec::new();
         for k in SlotKind::ALL {
-            let n = CATALOG.iter().filter(|d| d.slot == k).count();
+            // Counted over the **pool**, not over `CATALOG`.
+            //
+            // It was the catalogue, which meant every piece the filters above
+            // had just removed still bought its slot a ticket: boss gear,
+            // quest rewards, town stock, the mind lane before it is open, and
+            // a hundred and twenty event-only components. A slot was dealt in
+            // proportion to how much of it exists rather than to how much of
+            // it is for sale, and the two have not been the same number since
+            // the Unwinding appended thirty-one rewards.
+            //
+            // Found by appending eight unsellable components and watching
+            // `avail::the_shelves_are_not_the_same_six_things_every_time`
+            // move - the shelves shifted because the catalogue grew in places
+            // no shelf can reach.
+            let n = pool.iter().filter(|&&i| CATALOG[i].slot == k).count();
             let weight = ((n as f32).powf(SHELF_TILT) / 6.0).round().max(1.0) as usize;
             for _ in 0..weight {
                 tickets.push(k);

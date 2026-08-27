@@ -1323,35 +1323,3 @@ fn every_action_is_well_formed() {
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
-
-/// The four verbs the yard speaks are spoken by nothing yet.
-///
-/// M4 lands them inert on purpose: the weights price no existing piece, so no
-/// creature re-gears on any setting, and the four-board table cannot move.
-/// M5 is where the six components arrive, and this test should go with them.
-#[test]
-fn nothing_in_the_catalogue_speaks_the_yards_verbs_yet() {
-    use gearmaster_engine::piece::{walk_actions, Action, CATALOG};
-
-    let mut speakers: Vec<&str> = Vec::new();
-    for d in CATALOG {
-        for t in d.triggers {
-            walk_actions(t, &mut |a| {
-                if matches!(
-                    a,
-                    Action::Shunt { .. }
-                        | Action::Ballast(_)
-                        | Action::Derail { .. }
-                        | Action::Accrue { .. }
-                ) {
-                    speakers.push(d.name);
-                }
-            });
-        }
-    }
-    assert!(
-        speakers.is_empty(),
-        "the yard's components landed early: {speakers:?}. If that is deliberate, \
-         delete this test in the same commit and say which milestone moved."
-    );
-}

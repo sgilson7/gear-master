@@ -416,3 +416,53 @@ fn wiping_forgets_the_yard() {
     assert!(!run.at_points);
     assert!(run.dungeon.is_none());
 }
+
+// ------------------------------------------------------------ the catalogue
+
+/// The two orbs open no new footprint family.
+///
+/// `stepped_component` groups by kind, slot and cells, and appending a sibling
+/// to an existing family re-sorts it - which is how a catalogue addition
+/// re-dresses creatures that nobody edited (`the-unwinding.md` #19). Both orbs
+/// are event-only, so they would be filtered out of every family anyway; the
+/// footprints are chosen so the claim does not have to *depend* on that.
+#[test]
+fn no_orb_in_the_catalogue_shares_a_footprint_with_these_two() {
+    use gearmaster_engine::piece::{PieceKind, CATALOG};
+
+    for name in ["Shunter's Orb", "Signalman's Orb"] {
+        let mine = CATALOG.iter().find(|d| d.name == name).expect("appended at M5");
+        let sharers: Vec<&str> = CATALOG
+            .iter()
+            .filter(|d| d.name != name && d.kind == PieceKind::Orb && d.cells == mine.cells)
+            .map(|d| d.name)
+            .collect();
+        assert!(sharers.is_empty(), "{name} shares its shape with {sharers:?}");
+    }
+    // And the two are not each other's siblings either.
+    let shape = |n: &str| CATALOG.iter().find(|d| d.name == n).expect("appended").cells;
+    assert_ne!(shape("Shunter's Orb"), shape("Signalman's Orb"));
+}
+
+/// An orb is a piece before it is a ticket, and for one milestone it is only
+/// a piece.
+///
+/// The two destinations are M6's. A component with no destination is legal and
+/// deliberate - `pedestal.rs`'s own doctrine is that an orb is worth buying by
+/// somebody who never finds the pedestal - and saying so here stops a green
+/// suite reading as though the sidings had shipped.
+#[test]
+fn the_two_orbs_are_pieces_before_they_are_tickets() {
+    use gearmaster_engine::pedestal::is_orb_of_travel;
+    use gearmaster_engine::piece::CATALOG;
+
+    for name in ["Shunter's Orb", "Signalman's Orb"] {
+        let d = CATALOG.iter().find(|d| d.name == name).expect("appended at M5");
+        assert!(!d.triggers.is_empty(), "{name} does nothing to the spells in it");
+        assert!(d.power_bonus > 0, "{name} is not worth building around");
+        assert!(
+            !is_orb_of_travel(name),
+            "{name} became a key at M5; the destinations are M6's"
+        );
+    }
+}

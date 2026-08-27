@@ -770,8 +770,15 @@ fn no_budget_is_slack() {
 /// **M5 empties this list.** It cannot be left behind by accident:
 /// `no_rule_waits_for_a_piece_that_has_arrived` goes red the moment any of
 /// these finds a carrier.
-const RULES_AWAITING_THEIR_PIECES: &[&str] =
-    &["Ballast", "Derail", "Shunt outside the weapon", "Accrue"];
+/// Empty since M5, and it stays empty.
+///
+/// It held the yard's four verbs for exactly one milestone, which is what it
+/// was for: M4 landed the rows so the weights could be settled while they
+/// priced nothing, and M5 landed the six components that speak them. The list
+/// is kept rather than deleted because the next mission that wants to settle
+/// a weight before its carriers exist should find the mechanism already here
+/// and already ratcheted, rather than reinventing it or loosening the lint.
+const RULES_AWAITING_THEIR_PIECES: &[&str] = &[];
 
 #[test]
 fn every_rule_names_a_mechanic_that_exists() {

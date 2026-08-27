@@ -895,6 +895,24 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Wrathful Mold", "Gorillathon Mold"),
         ("Wrathful Talons", "Frong Talons"),
         ("Wrathwrit Ink", "Power Serenade"),
+        // The Switchyard's eight. The scenes and the creatures are M7's; a
+        // *piece* gets its name in the same change that writes the piece,
+        // which is the gear skill's own rule and what
+        // `the_turtle_theme_covers_the_catalogue` is for.
+        //
+        // Built from vocabulary the theme already spends: the Cork Train and
+        // the Holy Cork Empire's line, the Sprocketmen who are the player's
+        // own people, Multicity, and the planeswalking flavour the four
+        // shipped Orbs of Travel already wear. The two balls are the warp
+        // device's lesser cousins by another road.
+        ("Ballast Bed", "Cork Ballast"),
+        ("Points Rodding", "The Sprocketman's Rodding"),
+        ("Booking Hall", "The Cork Booking Hall"),
+        ("Signal Wire", "The Signal Wire from Multicity"),
+        ("Shunter's Orb", "The Shunting Ball"),
+        ("Signalman's Orb", "The Signal Ball"),
+        ("A Word About the Sidings", "A Word About the Cork Yards"),
+        ("A Word About the Points", "A Word About the Sprocketman's Lever"),
         ("Zealot's Crest", "Rice Crier Crest"),
         ("Zealot's Haft", "Rice Crier Haft"),
         ("Zealot's Sole", "Rice Crier Sole"),

@@ -115,10 +115,27 @@ fn the_mind_lane_is_reachable_once_the_pool_is_open() {
 
 #[test]
 fn town_gear_is_reachable_and_only_in_a_town() {
-    use gearmaster_engine::piece::{is_town_stock, town_shelf};
+    use gearmaster_engine::piece::{is_event_only, is_town_stock, town_shelf};
     let shelf = town_shelf();
-    for d in CATALOG.iter().filter(|d| is_town_stock(d)) {
+    // Re-pinned, not loosened. This read "every piece that is town stock is on
+    // the cart", and the Switchyard's four enchantments are town stock - they
+    // are ground, so `shop.rs` refuses them on the road for that reason - and
+    // are deliberately not for sale anywhere: they are what a four-fight line
+    // pays, and a shelf is a purchase (`the-switchyard.md` A3).
+    //
+    // The half that is the law is untouched and is asserted below: nothing on
+    // the cart is ever offered by the road. What narrowed is the half that was
+    // a consequence of collecting by kind.
+    for d in CATALOG.iter().filter(|d| is_town_stock(d) && !is_event_only(d.name)) {
         assert!(shelf.contains(&d.name), "{} is town gear nobody stocks", d.name);
+    }
+    // And the cart holds nothing else: a filter that took one piece too many
+    // would leave a shipped underlay unbuyable, and the loop above cannot see
+    // that because it walks the catalogue rather than the cart.
+    for name in shelf {
+        let d = CATALOG.iter().find(|d| &d.name == name).expect("a real component");
+        assert!(is_town_stock(d), "{name} is on the cart and is not town gear");
+        assert!(!is_event_only(name), "{name} is dug up and is on the cart");
     }
     let counts = shelf_counts(false, 60, 40);
     let leaked: Vec<&str> =

@@ -700,3 +700,117 @@ hand-build a profile will hit it too.
 compounds across a run exactly as `Grow` does **with no new arm anywhere** -
 which is the argument for the field, and `ballast_banks_as_growth` is the test
 of it rather than a comment claiming it.
+
+---
+
+## M5 the catalogue lands once, at `d648df5`+
+
+Eight components appended in one block at the end of `CATALOG`: four
+enchantments, two orbs, two words. All eight event-only.
+
+### The exit criterion, measured
+
+**`gear_at` matches the M0 fixture. All 5,568 placements. 0 creatures
+re-geared.** That is A6's whole claim - eight event-only components cannot
+re-dress anybody, because `stepped_component` filters event-only out of every
+footprint family - and it is now measured at the milestone that could have
+broken it.
+
+The four-board table at Medium is **unmoved**, and so is every other figure
+`baseline` prints. The only diff in the whole printer is the census:
+
+| slot | M0 | M5 |
+|---|---:|---:|
+| Helmet | 96 | **99** |
+| Chest | 71 | **72** |
+| Gloves | 83 | **84** |
+| Greaves | 67 | **68** |
+| Weapon | 187 | **189** |
+| **total** | **504** | **512** |
+
+### The ratchet
+
+Every exclusivity row is **0 away at budget 0**, and every quota is **0 away**
+- the shares moved by fractions of a percent on 512 pieces and every one
+stayed inside its band. The four rows M4 landed empty now carry:
+
+```
+Ballast                        1/1    0    0
+Derail                         1/2    0    0
+Shunt outside the weapon       1/2    0    0
+Accrue                         1/1    0    0
+```
+
+`RULES_AWAITING_THEIR_PIECES` is empty, which is what M4's second ratchet
+forced: `no_rule_waits_for_a_piece_that_has_arrived` was red until the four
+names came off, which put the rows back under the lint they were exempted
+from.
+
+### The suite
+
+| | M4 | M5 |
+|---|---:|---:|
+| Engine passed | 848 | **853** |
+| GUI | 65 | 65 |
+| CLI | 3 | 3 |
+| Warnings | 0 | 0 |
+
+---
+
+### Findings
+
+**26. `PieceKind::Orb` is twenty-three pieces over eight footprints, not the
+four Orbs of Travel.** A6 says "the four shipped orbs use the 2x2 square and
+the plus", which is true of the four *Orbs of Travel* and not of the kind.
+Shunter's Orb was drawn as a T-tetromino and the T is already Timeworn Orb's
+and Spinning Orb's. It is an L now - `(0,0),(0,1),(0,2),(1,2)` - which no
+other Orb carries, and `no_orb_in_the_catalogue_shares_a_footprint_with_
+these_two` walks all twenty-three rather than the four.
+
+The claim never had to hold, because both orbs are event-only and
+`stepped_component` skips them either way. It is held anyway so the guarantee
+does not *depend* on the exemption, which is the difference between a rule and
+a coincidence.
+
+**27. The shop's shelf tilt counted the catalogue rather than the pool it was
+dealing from.** A real bug, and the eight unsellable components are what
+exposed it: `avail::the_shelves_are_not_the_same_six_things_every_time` went
+red at 4.1x spread against a 2.0x bound, because the shelves shifted when the
+catalogue grew *in places no shelf can reach*.
+
+`Shop::restock` builds a pool, filtering out boss gear, quest rewards,
+event-only pieces, town stock and the mind lane while it is locked. It then
+deals slots round-robin on `n.powf(SHELF_TILT)` tickets - and `n` was
+`CATALOG.iter().filter(|d| d.slot == k).count()`, the **whole** catalogue. So
+a slot was dealt in proportion to how much of it exists rather than to how
+much of it is for sale, and the two have not been the same number since the
+Unwinding appended thirty-one event-only rewards.
+
+Fixed to count the pool. **The blast radius was zero**: the distribution test
+went green and no other test in the suite moved, which is the measurement that
+made it safe to take inside a catalogue-only milestone rather than record and
+defer.
+
+**28. The theme's piece names had to land at M5, not M7.**
+`theme::the_turtle_theme_covers_the_catalogue` requires every component to
+have a turtle name, so it went red the moment the block landed and would have
+stayed red for two milestones. That is not a scheduling accident - it is the
+gear skill's own rule (`.claude/skills/gearmaster-gear`: author the piece "and
+give it its Turtle Dick name in the same change"). The eight `pieces` entries
+are in. M7 still owns the scenes, the creatures and the effect vocabulary,
+which is the part Part C is actually about.
+
+**29. Two pins moved, both re-pinned with the reason in the assertion.**
+
+- `avail::town_gear_is_reachable_and_only_in_a_town` read "every piece that is
+  town stock is on the cart". A3 breaks exactly that: the four are town stock
+  - they are ground, and `shop.rs` refuses them on the road for that reason -
+  and are on no cart, because they are what a four-fight line pays and a shelf
+  is a purchase. Narrowed to town stock that is not event-only, and **widened**
+  in the other direction: everything on the cart must be town stock and must
+  not be dug up, which the old loop could not see because it walked the
+  catalogue rather than the cart.
+- `primitives::every_rumour_and_the_trophy_trade_is_a_quest_item`: nine quest
+  items became **eleven**. The chain is seeded by two words, both `Carried`
+  and both bought from a door rather than sold at the bar, because `SHELVES`
+  is six names and `SHOP_SIZE` is six - the pub is full (Part E, E-2).

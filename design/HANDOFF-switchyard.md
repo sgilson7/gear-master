@@ -35,6 +35,7 @@ argue against.
 | **M2** Run state, the four transitions, the stack | **done** | "M2 run state, the four transitions, the stack" |
 | **M3** Sidings, the CLI verbs, the interface | **done** | "M3 sidings, the CLI verbs, the interface" |
 | **M4** Four actions, four weights, four rows - inert | **done** | "M4 four actions, four weights, four rows" |
+| **M5** The catalogue lands once | **done** | "M5 the catalogue lands once" |
 
 ## 3. Open questions for the user
 
@@ -264,3 +265,41 @@ says - so a player built from `Stats::ZERO` has no maximum health and is dead
 on the first tick, and every measurement off that fight reads as "the
 mechanic does nothing". Both are written into the code that would otherwise
 teach them again.
+
+### M5 - The catalogue lands once
+
+Eight components appended at the end of `CATALOG` and never inserted: Ballast
+Bed, Points Rodding, Booking Hall and Signal Wire; the Shunter's and
+Signalman's Orbs; A Word About the Sidings and A Word About the Points. All
+eight event-only, which is doing four jobs at once - off the road shelves, out
+of the crucible both ways, out of `dearer_than`, and out of every footprint
+family `stepped_component` walks.
+
+**`gear_at` is unmoved across all 5,568 placements**, which is A6's claim
+measured at the milestone that could have broken it, and the four-board table
+is byte-identical. The only thing in the whole `baseline` printer that moved
+is the census: 504 pieces to **512**.
+
+**853 engine, 65 GUI, 3 CLI. No warnings. Every ratchet row and every quota
+still 0 away.**
+
+**M4's second ratchet did its job.** `no_rule_waits_for_a_piece_that_has_
+arrived` was red until the four verb names came off
+`RULES_AWAITING_THEIR_PIECES`, which put the four exclusivity rows back under
+the lint they had been exempted from. The list is kept but empty, so the next
+mission that wants to settle a weight before its carriers exist finds the
+mechanism rather than reinventing it.
+
+**One real bug found, and it was not ours.** `Shop::restock` deals slots on
+`n.powf(SHELF_TILT)` tickets where `n` counted the **whole catalogue**, not
+the pool it had just finished filtering - so a slot was dealt in proportion to
+how much of it exists rather than to how much of it is for sale. Appending
+eight unsellable components moved the shelves and
+`avail::the_shelves_are_not_the_same_six_things_every_time` refused them at
+4.1x. It counts the pool now. The blast radius was measured before the fix was
+kept: **zero other tests moved.**
+
+**The theme's piece names came in at M5 rather than M7**, because
+`the_turtle_theme_covers_the_catalogue` demands a name for every component and
+the gear skill says to write it in the same change as the piece. M7 keeps the
+scenes, the creatures and the effect vocabulary.
