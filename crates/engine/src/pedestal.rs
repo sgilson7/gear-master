@@ -27,6 +27,13 @@ pub enum Where {
     Event(&'static str),
     /// A mini dungeon, entered the way any other is.
     Dungeon(&'static str),
+    /// A floor of a dungeon, entered directly.
+    ///
+    /// Cleared floors from there are walked through and the first one with a
+    /// fight in it is fought. An orb is the only way back into a dungeon whose
+    /// door is answered, which is what makes a siding worth more than the
+    /// door was: it takes you somewhere you have not been.
+    Siding { dungeon: &'static str, floor: usize },
 }
 
 /// Somewhere an orb goes.
@@ -98,6 +105,7 @@ pub fn is_orb_of_travel(name: &str) -> bool {
 pub fn lands_on(dungeon: &str, floor: usize) -> bool {
     DESTINATIONS.iter().any(|d| match d.kind {
         Where::Dungeon(id) => id == dungeon && floor == 0,
+        Where::Siding { dungeon: id, floor: f } => id == dungeon && f == floor,
         Where::Event(_) => false,
     })
 }
@@ -128,6 +136,50 @@ mod tests {
                     d.id,
                     id
                 ),
+                Where::Siding { dungeon, floor } => {
+                    let x = crate::dungeon::by_id(dungeon).unwrap_or_else(|| {
+                        panic!("{} sides into {dungeon}, which is not a dungeon", d.id)
+                    });
+                    assert!(
+                        floor < x.floors.len(),
+                        "{} sides onto floor {floor} of {dungeon}, which has {}",
+                        d.id,
+                        x.floors.len()
+                    );
+                    // The other half of `dungeon::no_floor_offers_a_way_in_
+                    // that_nothing_uses`. A siding drops a run into the middle
+                    // of a building it may never have been in, and a floor
+                    // that says nothing when you arrive is the walked-into-by-
+                    // accident problem the entry cutscene exists to answer.
+                    assert!(
+                        !x.floors[floor].entry.is_empty(),
+                        "{} lands on floor {floor} of {dungeon} and nobody says anything",
+                        d.id
+                    );
+                }
+            }
+        }
+    }
+
+    /// A siding is the only kind of destination that can go somewhere twice.
+    ///
+    /// Two orbs may point into one dungeon, because the whole design is that
+    /// each line's buffer stops pay the ticket to the *other* line. What they
+    /// may not do is point at the same floor: that is one destination written
+    /// twice, and the second orb would be refused as a duplicate destination
+    /// while looking like a fresh one.
+    #[test]
+    fn no_two_sidings_land_on_the_same_floor() {
+        let sidings: Vec<_> = DESTINATIONS
+            .iter()
+            .filter_map(|d| match d.kind {
+                Where::Siding { dungeon, floor } => Some((d.id, dungeon, floor)),
+                _ => None,
+            })
+            .collect();
+        for (i, a) in sidings.iter().enumerate() {
+            for b in &sidings[i + 1..] {
+                assert_ne!((a.1, a.2), (b.1, b.2), "{} and {} are one place", a.0, b.0);
             }
         }
     }

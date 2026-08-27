@@ -58,6 +58,13 @@ fn feeding_it_an_orb_spends_the_orb_and_goes_where_the_orb_goes() {
     assert!(run.destinations_visited.contains(&d.id));
     match d.kind {
         Where::Dungeon(x) => assert_eq!(run.dungeon.map(|(x2, _)| x2.id), Some(x)),
+        Where::Siding { dungeon, floor } => {
+            assert_eq!(run.dungeon.map(|(x2, _)| x2.id), Some(dungeon));
+            // Where it *lands* is the floor; where it ends up may be further
+            // on, because a run that has been here before walks past what it
+            // beat. That is the walk-through and it is not this test's.
+            assert!(run.dungeon.map(|(_, f)| f >= floor).unwrap_or(false));
+        }
         Where::Event(x) => assert_eq!(run.forced_event, Some(x)),
     }
     let receipt = run.take_receipt().expect("a resolution");
@@ -157,6 +164,10 @@ fn every_orb_is_a_key_to_exactly_one_place() {
         assert!(pedestal::is_orb_of_travel(a.via_orb));
         match a.kind {
             Where::Dungeon(id) => assert!(gearmaster_engine::dungeon::by_id(id).is_some()),
+            Where::Siding { dungeon, floor } => {
+                let d = gearmaster_engine::dungeon::by_id(dungeon).expect("a real dungeon");
+                assert!(floor < d.floors.len());
+            }
             Where::Event(id) => {
                 assert!(gearmaster_engine::event::EVENTS.iter().any(|e| e.id == id))
             }
@@ -180,4 +191,55 @@ fn an_event_can_be_asked_from_somewhere_that_is_not_a_rung() {
     run.take_choice(walk_on);
     assert!(run.forced_event.is_none(), "it was asked and is still being asked");
     assert!(run.pending_event().is_none());
+}
+
+/// A siding puts you down inside a dungeon and walks you past what you beat.
+///
+/// The destination this proves against is built here rather than taken from
+/// `DESTINATIONS`, because the two real ones are M6's content and this is the
+/// plumbing they will arrive on. Everything it exercises - the arm in
+/// `feed_pedestal`, `enter_dungeon_at`, the walk-through - is shipped.
+#[test]
+fn a_siding_lands_you_on_a_floor_and_walks_past_what_you_cleared() {
+    let d = gearmaster_engine::dungeon::by_id("the-crevice").expect("shipped");
+
+    // A run that walked the first floor and lost the second is out of it, and
+    // the first floor stays beaten.
+    let mut run = a_run();
+    run.enter_dungeon_at(d, 0);
+    run.pending_scene = None;
+    run.force_win();
+    run.settle();
+    run.back_to_loadout();
+    assert!(run.leave_dungeon());
+    run.take_receipt();
+    assert!(run.has_cleared("the-crevice", 0));
+
+    // Coming back in at the mouth walks past it rather than fighting it again.
+    run.enter_dungeon_at(d, 0);
+    assert_eq!(run.dungeon.map(|(_, f)| f), Some(1), "at the first fight it has not had");
+    assert_eq!(
+        run.take_receipt(),
+        Some(vec!["Walked through: The Reciter - cleared".to_string()])
+    );
+
+    // And the banner counts this entry's fights, not the building's rooms.
+    assert!(
+        run.road_stack()[0].describe().contains("floor 1 of 2"),
+        "{}",
+        run.road_stack()[0].describe()
+    );
+}
+
+/// The variant exists and nothing uses it yet, which is the phase discipline.
+///
+/// M6 adds the two orbs and their sidings. Until then this says out loud that
+/// the plumbing is landed and inert, so a green suite is not mistaken for
+/// content that shipped.
+#[test]
+fn no_destination_is_a_siding_yet() {
+    assert!(
+        !DESTINATIONS.iter().any(|d| matches!(d.kind, Where::Siding { .. })),
+        "the sidings are M6's; if this is red, the milestone moved and this test should go"
+    );
 }

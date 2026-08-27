@@ -6836,9 +6836,21 @@ fn render_route(run: &Run, mx: f32, my: f32) {
                 _ => draw_circle(g.x, y, 3.5, ink),
             }
             if Rect::new(g.x - 8.0, y - 9.0, 17.0, 17.0).contains(Vec2::new(mx, my)) {
+                // A dungeon says how far into it a run is going to have to
+                // walk, and how many times it will be asked which way. The
+                // word "points" is dropped at zero, so a straight line reads
+                // the way it always did.
+                let how_deep = match n.kind {
+                    NodeKind::Dungeon { fights, forks: 0 } => format!("  ({} fights)", fights),
+                    NodeKind::Dungeon { fights, forks } => {
+                        format!("  ({} fights, {} points)", fights, forks)
+                    }
+                    _ => String::new(),
+                };
                 tip = Some(format!(
-                    "{}  (between {} and {})",
+                    "{}{}  (between {} and {})",
                     words::retell(n.label),
+                    how_deep,
                     n.at,
                     n.at + 1
                 ));
@@ -6892,6 +6904,187 @@ fn render_route(run: &Run, mx: f32, my: f32) {
     }
 }
 
+/// The banner over a dungeon, or `None` when you are not in one.
+///
+/// Read off `Interrupt::describe()` rather than formatted here. Its two
+/// numbers are a reading of the run *now* - fights won this entry, and floors
+/// walked past because they were beaten before - and three places working
+/// that out separately is three places that will one day disagree. The CLI
+/// reads the same string.
+fn dungeon_banner(run: &Run) -> Option<String> {
+    run.road_stack().into_iter().find(|i| i.kind() == "dungeon").map(|i| i.describe())
+}
+
+/// The pip row: how many fights are behind you this entry, and how many are
+/// ahead of you counting the one you are looking at.
+///
+/// The total is `fights_ahead` plus what this entry has already won, which is
+/// exactly the banner's `m`. It changes length only when a run leaves cleared
+/// floors behind, which is the one time it should.
+fn pip_row(run: &Run) -> (usize, usize) {
+    let Some((d, floor)) = run.dungeon else { return (0, 0) };
+    (run.fights_this_entry(), d.fights_ahead(floor, &run.cleared_floors))
+}
+
+/// Which pips of this entry stand where a lever was thrown.
+///
+/// Indexed into the filled pips, in the order they were won, so the row can
+/// put a tick under the ones that were decisions.
+fn ticked_pips(run: &Run) -> Vec<usize> {
+    let Some((d, _)) = run.dungeon else { return Vec::new() };
+    run.cleared_floors
+        .iter()
+        .skip(run.entry_started_at)
+        .enumerate()
+        .filter(|(_, &(id, at))| {
+            id == d.id && run.took_exits.iter().any(|&(x, f, _)| x == id && f == at)
+        })
+        .map(|(i, _)| i)
+        .collect()
+}
+
+/// Where the buttons sit on the points screen, for `n` roads out.
+///
+/// `measure` is passed in for the same reason `chip_rects` takes one: this
+/// wants testing and `text_width` wants macroquad's font context. The last
+/// cell is the leave button, which is why the count is `n + 1`.
+fn points_cells(r: Rect, n: usize) -> Vec<Rect> {
+    let gap = 18.0;
+    let cols = n.max(1);
+    let cw = (r.w - 56.0 - (cols - 1) as f32 * gap) / cols as f32;
+    let top = r.y + r.h - 150.0;
+    let mut out: Vec<Rect> = (0..cols)
+        .map(|i| Rect::new(r.x + 28.0 + i as f32 * (cw + gap), top, cw, 120.0))
+        .collect();
+    // Leaving is a different kind of thing from choosing a road, so it is a
+    // different kind of shape: a strip under the roads rather than a third
+    // road-sized button beside them.
+    out.push(Rect::new(r.x + 28.0, top + 128.0, r.w - 56.0, 30.0));
+    out
+}
+
+/// What the leave button says, everywhere it is offered.
+const LEAVE_BLURB: &str = "What you cleared stays cleared. The door does not reopen.";
+
+/// The points: the roads out of the floor you just cleared, and the way home.
+///
+/// Built on the event screen's layout on purpose. A set of points is a
+/// question with two answers and a paragraph over it, which is what an event
+/// is; making it look like one is telling the truth about it rather than
+/// inventing a fourth kind of screen.
+///
+/// `Some(Some(i))` is a road taken, `Some(None)` is leaving, `None` is nothing
+/// clicked.
+#[allow(clippy::type_complexity)]
+fn render_points(
+    run: &Run,
+    d: &'static gearmaster_engine::dungeon::Dungeon,
+    floor: usize,
+    mx: f32,
+    my: f32,
+) -> Option<Option<usize>> {
+    let pad = 70.0;
+    let w = LOGICAL_W - 2.0 * pad;
+    let scene = d.floors[floor].fork;
+    let lines: usize =
+        scene.iter().map(|p| wrap_px(&words::retell_naming(p), w - 56.0, 15.0).len()).sum();
+    let prose_h = lines as f32 * 20.0 + scene.len() as f32 * 10.0;
+    let h = (78.0 + prose_h + 24.0 + 158.0 + 30.0).clamp(300.0, LOGICAL_H - 40.0);
+    let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, w, h);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
+    ui_text(&words::retell(d.name), r.x + 28.0, r.y + 42.0, 24.0, col_gold());
+    let sub = words::word("the-points", "WHICH WAY");
+    ui_text(&sub, r.x + r.w - 28.0 - text_width(&sub, 13.0), r.y + 42.0, 13.0, col_dim());
+
+    let mut y = r.y + 78.0;
+    for para in scene {
+        for l in wrap_px(&words::retell_naming(para), r.w - 56.0, 15.0) {
+            ui_text(&l, r.x + 28.0, y, 15.0, Color::from_rgba(198, 200, 218, 255));
+            y += 20.0;
+        }
+        y += 10.0;
+    }
+
+    let exits = d.floors[floor].exits;
+    let cells = points_cells(r, exits.len());
+    let mut picked = None;
+    for (i, e) in exits.iter().enumerate() {
+        let cell = cells[i];
+        let hot = cell.contains(Vec2::new(mx, my));
+        draw_rectangle(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { Color::from_rgba(46, 42, 30, 255) } else { Color::from_rgba(26, 26, 38, 255) },
+        );
+        draw_rectangle_lines(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { 2.5 } else { 1.5 },
+            if hot { col_gold() } else { Color::from_rgba(64, 64, 88, 255) },
+        );
+        let mut cy = cell.y + 28.0;
+        ui_text(&words::retell(e.label), cell.x + 14.0, cy, 18.0, col_gold());
+        cy += 22.0;
+        for l in wrap_px(&words::retell_naming(e.blurb), cell.w - 28.0, 13.0) {
+            ui_text(&l, cell.x + 14.0, cy, 13.0, col_ok());
+            cy += 16.0;
+        }
+        // A road already walked says so. It is not shut - walking it again
+        // goes past what you beat rather than fighting it - and a shut door's
+        // colours would be a lie about that.
+        if run.has_cleared(d.id, e.to) {
+            cy += 4.0;
+            ui_text(
+                words::word("road-walked", "you have been down here"),
+                cell.x + 14.0,
+                cy,
+                12.0,
+                col_dim(),
+            );
+        }
+        if hot && is_mouse_button_pressed(MouseButton::Left) {
+            picked = Some(Some(i));
+        }
+    }
+    if leave_strip(cells[exits.len()], mx, my) {
+        picked = Some(None);
+    }
+    picked
+}
+
+/// The way out, drawn wherever it is offered.
+///
+/// One shape and one sentence in one function, because a landing and a set of
+/// points are two screens offering the same verb, and a button that says
+/// something slightly different on each is a button players will read twice.
+/// Returns true when it has been clicked.
+fn leave_strip(r: Rect, mx: f32, my: f32) -> bool {
+    let hot = r.contains(Vec2::new(mx, my));
+    draw_rectangle_lines(
+        r.x,
+        r.y,
+        r.w,
+        r.h,
+        if hot { 2.0 } else { 1.0 },
+        if hot { col_bad() } else { Color::from_rgba(64, 64, 88, 255) },
+    );
+    let label = format!("{}  -  {}", words::word("leave-dungeon", "WALK OUT"), LEAVE_BLURB);
+    ui_text(
+        &words::retell(&label),
+        r.x + 14.0,
+        r.y + 20.0,
+        13.0,
+        if hot { col_bad() } else { col_dim() },
+    );
+    hot && is_mouse_button_pressed(MouseButton::Left)
+}
+
 /// The road stack, drawn.
 ///
 /// Shown only when there is something to explain: two or more things queued on
@@ -6922,7 +7115,25 @@ fn render_stack_strip(run: &Run, mx: f32, my: f32) {
     for (i, it) in stack.iter().enumerate() {
         let cell = Rect::new(r.x, y - 15.0, r.w, row);
         if cell.contains(Vec2::new(mx, my)) {
-            tip = Some(it.describe());
+            // The points hover names each road and says whether it has been
+            // walked, which is `Requirement::describe`'s job done for a lever.
+            tip = Some(match it {
+                gearmaster_engine::run::Interrupt::Points(d, floor) => {
+                    let roads: Vec<String> = d.floors[*floor]
+                        .exits
+                        .iter()
+                        .map(|e| {
+                            format!(
+                                "{}{}",
+                                words::retell(e.label),
+                                if run.has_cleared(d.id, e.to) { " - cleared" } else { "" }
+                            )
+                        })
+                        .collect();
+                    format!("{} - {}", words::retell(d.name), roads.join(" / "))
+                }
+                _ => it.describe(),
+            });
         }
         let (mark, c) = if i == 0 {
             ("\u{25b8}", col_gold())
@@ -9509,11 +9720,11 @@ fn render_panel(
         draw_rectangle(opp_card.x, opp_card.y, opp_card.w, opp_card.h, Color::from_rgba(255, 255, 255, 12));
     }
     ui_text(
-        if let Some((d, floor)) = run.dungeon {
+        if let Some(banner) = dungeon_banner(run) {
             // A dungeon is not the road, and the panel should not pretend it
             // is - "rung 10 of 50" while you are three floors under a hamlet
             // is the sort of thing that reads as a bug.
-            Box::leak(format!("{}  ·  FLOOR {} OF {}", d.name, floor + 1, d.floors.len()).into_boxed_str())
+            Box::leak(banner.to_uppercase().into_boxed_str())
         } else if run.at_fountain() || run.at_doubling_fountain() {
             words::word("beyond-fountain", "BEYOND THE FOUNTAIN")
         } else {
@@ -9556,26 +9767,42 @@ fn render_panel(
     // same number for three fights in a row - which reads as nothing
     // happening. Floor pips say the thing that is actually changing, and the
     // banner above them says which door you went through.
-    if let Some((d, floor)) = run.dungeon {
+    if let Some(banner) = dungeon_banner(run) {
         ui_text(
-            &format!("{} - FLOOR {} OF {}", words::retell(d.name), floor + 1, d.floors.len()),
+            &words::retell_naming(&banner).to_uppercase(),
             x + 20.0,
             y,
             13.0,
             Color::from_rgba(196, 168, 220, 255),
         );
+        // One pip a fight, which is not one pip a room: a graph's room count
+        // is not what a run walks, and a run that came back in by a siding
+        // walks past floors it beat. `pip_row` says how many pips and which
+        // one you are standing on, and it is a pure function so a test can
+        // read the row without a window.
+        let (won, ahead) = pip_row(run);
         let mut px = x + 20.0;
         let py = y + 12.0;
-        for i in 0..d.floors.len() {
-            if i < floor {
+        for i in 0..won + ahead {
+            if i < won {
                 draw_circle(px, py, 4.0, Color::from_rgba(150, 130, 176, 255));
-            } else if i == floor {
+            } else if i == won {
                 draw_circle(px, py, 4.5, Color::from_rgba(214, 186, 240, 255));
                 draw_circle_lines(px, py, 8.0, 1.5, Color::from_rgba(214, 186, 240, 255));
             } else {
                 draw_circle_lines(px, py, 4.0, 1.5, Color::from_rgba(96, 84, 116, 255));
             }
             px += 22.0;
+        }
+        // A pip that was a set of points gets a tick under it once its lever
+        // has been thrown. A fork is never drawn ahead of time - a run at
+        // floor 1 of 4 does not know the yard has points - and is marked
+        // afterwards, because it chose.
+        for i in ticked_pips(run) {
+            if i < won {
+                let tx = x + 20.0 + i as f32 * 22.0;
+                draw_line(tx - 4.0, py + 9.0, tx + 4.0, py + 9.0, 1.5, col_gold());
+            }
         }
         y += 12.0;
     } else {
@@ -10530,6 +10757,19 @@ async fn main() {
             if is_mouse_button_pressed(MouseButton::Left) && go.contains(Vec2::new(mx, my)) {
                 run.pending_scene = None;
             }
+            // A landing inside a dungeon is the other place the way out is
+            // offered. Not at the points, which draws its own: the points
+            // screen is what you are looking at there, and this scene is not.
+            if run.dungeon.is_some() && !run.at_points {
+                let strip = Rect::new(go.x - 90.0, go.y + go.h + 14.0, go.w + 180.0, 30.0);
+                if leave_strip(strip, mx, my) {
+                    let name = run.dungeon.map(|(d, _)| d.name).unwrap_or("");
+                    if run.leave_dungeon() {
+                        run.pending_scene = None;
+                        message = format!("You walk out of {}.", words::retell(name));
+                    }
+                }
+            }
             #[cfg(not(target_arch = "wasm32"))]
             {
                 frame += 1;
@@ -10637,6 +10877,43 @@ async fn main() {
                     }
                 };
             }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
+        }
+
+        // The points sit over everything, above even an event: you are
+        // standing at a lever inside a building, and nothing on the road can
+        // be asked of somebody who is not on the road. `road_stack` puts it on
+        // top for the same reason.
+        if let Some((d, floor)) = run.dungeon.filter(|_| run.at_points) {
+            match render_points(&run, d, floor, mx, my) {
+                Some(Some(i)) => {
+                    let label = d.floors[floor].exits[i].label;
+                    if run.throw_points(i) {
+                        message = format!("{}.", words::retell(label));
+                    }
+                }
+                Some(None) => {
+                    let name = d.name;
+                    if run.leave_dungeon() {
+                        message = format!("You walk out of {}.", words::retell(name));
+                    }
+                }
+                None => {}
+            }
+            render_stack_strip(&run, mx, my);
             #[cfg(not(target_arch = "wasm32"))]
             {
                 frame += 1;
@@ -11936,6 +12213,80 @@ mod tests {
         let r = chip_rects(&huge, 10.0, 10.0, 60.0, m);
         assert_eq!(r.len(), 1, "a wide title lost its chip");
         assert_eq!(r[0].x, 10.0, "a wide title should still start the row");
+    }
+
+    /// The points screen lays out one cell a road, and a way out under them.
+    ///
+    /// A fixture rather than a screenshot: `points_cells` is the whole of the
+    /// layout, so a test can read the geometry without macroquad's font
+    /// context - the same reason `chip_rects` takes a `measure`.
+    #[test]
+    fn the_points_screen_lays_out_one_cell_a_road_and_a_way_out() {
+        let r = Rect::new(70.0, 100.0, 1000.0, 500.0);
+        for roads in 2..=4usize {
+            let cells = points_cells(r, roads);
+            assert_eq!(cells.len(), roads + 1, "{roads} roads and a way out");
+            // The roads are one row, in order, inside the frame.
+            for i in 0..roads {
+                assert_eq!(cells[i].y, cells[0].y, "road {i} is off the row");
+                assert!(cells[i].x >= r.x + 28.0, "road {i} is outside the frame");
+                assert!(
+                    cells[i].x + cells[i].w <= r.x + r.w - 28.0 + 0.01,
+                    "road {i} runs off the right edge"
+                );
+                if i > 0 {
+                    assert!(
+                        cells[i].x >= cells[i - 1].x + cells[i - 1].w,
+                        "roads {} and {i} overlap",
+                        i - 1
+                    );
+                }
+            }
+            // The way out is a strip under them, full width, and a different
+            // shape from a road because it is a different kind of thing.
+            let out = cells[roads];
+            assert!(out.y > cells[0].y + cells[0].h, "the way out sits under the roads");
+            assert!(out.w > cells[0].w, "the way out is a strip, not a third road");
+            assert!(out.h < cells[0].h);
+        }
+    }
+
+    /// Everywhere the way out is offered, it says the same sentence.
+    #[test]
+    fn the_way_out_says_what_leaving_costs() {
+        assert!(LEAVE_BLURB.contains("cleared stays cleared"));
+        assert!(LEAVE_BLURB.contains("does not reopen"), "the half that is a cost");
+    }
+
+    /// The banner and the pips are the same reading of the run.
+    ///
+    /// They were two formatters over `d.floors.len()` and they agreed because
+    /// they were the same expression written twice. They are a graph's now,
+    /// and the pip row has to be the banner's `m` or the row and the words
+    /// over it will say different things about the same walk.
+    #[test]
+    fn the_pip_row_is_the_banner_read_as_circles() {
+        use gearmaster_engine::run::Run;
+        let mut run = Run::seeded(0xB0A7);
+        run.rung = 20;
+        assert_eq!(pip_row(&run), (0, 0), "no dungeon, no pips");
+        assert!(dungeon_banner(&run).is_none());
+
+        run.enter_dungeon("the-threshold");
+        let (won, ahead) = pip_row(&run);
+        assert_eq!((won, ahead), (0, 3));
+        let banner = dungeon_banner(&run).expect("in one");
+        assert!(banner.ends_with(&format!("floor {} of {}", won + 1, won + ahead)), "{banner}");
+
+        run.pending_scene = None;
+        run.force_win();
+        run.settle();
+        run.back_to_loadout();
+        let (won, ahead) = pip_row(&run);
+        assert_eq!((won, ahead), (1, 2), "one behind you, two counting the one in front");
+        let banner = dungeon_banner(&run).expect("still in one");
+        assert!(banner.ends_with("floor 2 of 3"), "{banner}");
+        assert!(ticked_pips(&run).is_empty(), "nothing here was a decision");
     }
 
     /// The worn path is still on the words shelf, and still not signposted.

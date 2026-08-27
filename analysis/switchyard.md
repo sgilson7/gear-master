@@ -483,3 +483,101 @@ things across, so the four new fields clear themselves.
 `wiping_forgets_the_yard` pins it, because "it happens to work" and "it is
 guaranteed" are different, and the next field added to `Run` will be added by
 somebody reading that test.
+
+---
+
+## M3 sidings, the CLI verbs, the interface, at `afeff32`+
+
+`Where::Siding` exists and nothing is one yet. The two dungeon verbs are on
+the CLI. The GUI has a points screen, a way out, a pip row that counts fights,
+and a map label that says how deep a dungeon goes.
+
+### The suite
+
+| | M2 | M3 |
+|---|---:|---:|
+| Engine passed | 831 | **834** |
+| GUI passed | 62 | **65** |
+| CLI passed | - | **3** |
+| Warnings | 0 | 0 |
+
+`crates/cli/tests/` did not exist before this milestone. The workspace is
+**902 tests**.
+
+### Still inert where it has to be
+
+`baseline`'s whole printer output is **byte-identical to M0**, three
+milestones in. `no_creature_changed_what_it_wears` green.
+`an_orbless_run_meets_a_pedestal_and_nothing_happens` green, which is M3's
+own exit criterion.
+
+---
+
+### Findings
+
+**13. The CLI verb replay cannot walk a yard until M6, so M3 built the
+harness instead.** The spec's M3 test is
+`switchyard::the_cli_verbs_replay` - "a script using `throw` and `leave`
+piped twice diffs clean". Neither verb can be exercised through the driver
+today: no dungeon in `DUNGEONS` has points in it until M6, and no dungeon is
+*reachable* by any board the driver can build from its own verbs, which is
+M1's finding 7 again.
+
+What landed is `crates/cli/tests/replay.rs`, **the first test the CLI crate
+has ever had**:
+
+- `a_scripted_run_replays_identically` - a fourteen-line script piped into the
+  built binary twice, byte-compared. It walks the preset board up eight rungs
+  to a town gate and prints the map.
+- `throw_and_leave_say_no_from_the_road` - both verbs asked from where they
+  are illegal, so their refusals are in a transcript rather than in nobody's
+  memory.
+- `help_lists_the_two_new_verbs` - a help line for a verb that does not exist
+  is worse than no help line, and two verbs were added here.
+
+This is worth more than the test it replaces. `post-unwinding.md` §1 records
+that the two CLI replays `HANDOFF.md` cites "were not re-run here (the CLI
+builds; nobody wrote the script down) - **unverified**". The script is written
+down now and it runs in the suite. Acceptance criterion 1 extends this file at
+M6 rather than inventing a harness under deadline.
+
+**14. M1's half-lint is whole.** `pedestal::lands_on` answers for
+`Where::Siding`, so `dungeon::no_floor_offers_a_way_in_that_nothing_uses` has
+something to say the moment a floor carries an `entry`. The other direction -
+every siding lands on a floor that has one - is asserted in `pedestal.rs`'s
+own test module, beside the range check, because that is where `Where` lives.
+
+**15. A lint the spec does not ask for: `no_two_sidings_land_on_the_same_
+floor`.** Two orbs pointing into one dungeon is the design - each line's
+buffer stops pay the ticket to the *other* line - so the existing "no two
+destinations share an id or an orb" does not catch two sidings written onto
+one floor. The second would be refused by the visited-set at the pedestal
+while looking like a fresh ticket, which is the worst kind of dead content:
+one that costs the player an orb to discover.
+
+**16. The GUI's layout is four pure functions, for the reason `chip_rects`
+is one.** `dungeon_banner`, `pip_row`, `ticked_pips` and `points_cells` take
+no font context, so `cargo test -p gearmaster-gui` reads the geometry and the
+words without macroquad. `the_pip_row_is_the_banner_read_as_circles` pins the
+one that matters: the pips and the banner were two formatters over
+`d.floors.len()` and they agreed because they were the same expression twice.
+They are a graph's reading now, and the row has to be the banner's `m` or the
+circles and the words over them describe different walks.
+
+**17. Three places now read one banner.** `Interrupt::describe()` is the only
+formatter: the GUI's opponent panel, the GUI's pip row and the CLI's
+`show_road` all read it, which is what A1.4 asked for and the change M3 needed
+anyway.
+
+**18. `no_destination_is_a_siding_yet` is a test that says the plumbing is
+inert.** M5 and M6 are where the content lands, and a green suite over an
+unused variant is easy to mistake for a shipped feature. The test names the
+milestone that should delete it.
+
+### The leave button
+
+`leave_strip` is one shape and one sentence in one function, offered on two
+screens - the landing and the points. `LEAVE_BLURB` is the spec's wording
+verbatim: *"What you cleared stays cleared. The door does not reopen."*
+`the_way_out_says_what_leaving_costs` pins both halves, because the second one
+is the cost and a blurb that loses it is a blurb that makes leaving look free.

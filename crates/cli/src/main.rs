@@ -205,6 +205,25 @@ fn main() {
                 }
                 None => println!("error: chapel, pub, factory or shop"),
             },
+            ["throw", n] => match n.parse::<usize>() {
+                Ok(i) if run.throw_points(i) => {
+                    print_receipt(&mut run);
+                    show_road(&run);
+                }
+                Ok(_) if !run.at_points => println!("You are not at the points."),
+                Ok(i) => println!("error: there is no road {} here", i),
+                Err(_) => println!("error: throw <n>"),
+            },
+            ["leave"] => {
+                if run.leave_dungeon() {
+                    print_receipt(&mut run);
+                    show_road(&run);
+                } else if run.dungeon.is_none() {
+                    println!("You are not in a dungeon.");
+                } else {
+                    println!("Not from here. A landing or the points, and never mid-fight.");
+                }
+            }
             ["drink"] => {
                 if run.at_fountain() {
                     let c = run.drink();
@@ -316,6 +335,8 @@ fn help() {
     println!("  answer <n> [figure]      take choice n at the event in front of you");
     println!("  town | town on | town <door>   the gate, walking past it, or going in");
     println!("  drink                    take what the fountain is offering");
+    println!("  throw <n>                at a set of points, take road n");
+    println!("  leave                    walk out of a dungeon, keeping what you cleared");
     println!("  slots: helmet chest gloves greaves weapon");
 }
 
@@ -338,14 +359,13 @@ fn print_receipt(run: &mut Run) {
 /// visibly ends somewhere.
 fn show_road(run: &Run) {
     let stack = run.road_stack();
-    if let Some((d, floor)) = run.dungeon {
-        // You always know you are inside one.
-        println!(
-            "\n{} - FLOOR {} OF {}",
-            run.theme.place(d.id, d.name),
-            floor + 1,
-            d.floors.len()
-        );
+    // You always know you are inside one. Read off `describe()` rather than
+    // formatted here: the banner's two numbers are a reading of the run now -
+    // fights won this entry, and floors walked past because they were already
+    // beaten - and two interfaces working them out separately is two
+    // interfaces that will one day disagree.
+    if let Some(i) = stack.iter().find(|i| i.kind() == "dungeon") {
+        println!("\n{}", run.theme.retell(&i.describe()).to_uppercase());
     }
     println!("\nRung {} - {}", run.rung + 1, run.monster().name);
     if stack.is_empty() {
@@ -357,6 +377,19 @@ fn show_road(run: &Run) {
     }
     if !stack.is_empty() {
         println!("     {:<10} {}", "fight", run.monster().name);
+    }
+    // At the points, the roads out are the question, printed the way an
+    // event's choices are printed because that is what they are.
+    if let Some((d, floor)) = run.dungeon.filter(|_| run.at_points) {
+        for line in d.floors[floor].fork {
+            println!("  {}", run.theme.retell(line));
+        }
+        for (i, e) in d.floors[floor].exits.iter().enumerate() {
+            let walked = run.has_cleared(d.id, e.to);
+            println!("    {}. {}{}", i, e.label, if walked { "   (cleared)" } else { "" });
+            println!("        {}", e.blurb);
+        }
+        println!("    `throw <n>`, or `leave`.");
     }
     if let Some(e) = run.pending_event() {
         println!("\n{}", run.theme.place(e.id, e.title));

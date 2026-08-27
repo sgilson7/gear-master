@@ -1943,6 +1943,11 @@ impl Run {
         self.forget_undo();
         match dest.kind {
             crate::pedestal::Where::Dungeon(d) => self.enter_dungeon(d),
+            crate::pedestal::Where::Siding { dungeon, floor } => {
+                if let Some(d) = crate::dungeon::by_id(dungeon) {
+                    self.enter_dungeon_at(d, floor);
+                }
+            }
             crate::pedestal::Where::Event(e) => self.forced_event = Some(e),
         }
         self.last_receipt = Some(vec![

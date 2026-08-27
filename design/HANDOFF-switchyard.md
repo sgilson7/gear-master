@@ -33,6 +33,7 @@ argue against.
 | **M0** Baseline, and the MSRV told the truth | **done** | "M0 baseline at `e38d968`" |
 | **M1** The floor graph, landed inert | **done** | "M1 the floor graph" |
 | **M2** Run state, the four transitions, the stack | **done** | "M2 run state, the four transitions, the stack" |
+| **M3** Sidings, the CLI verbs, the interface | **done** | "M3 sidings, the CLI verbs, the interface" |
 
 ## 3. Open questions for the user
 
@@ -185,3 +186,40 @@ acceptance criterion 3 in its own words. And
 "floor 1 of 2" for a run hand-placed on floor 1, because a run put there has
 won no fights and has two ahead; a second run was added beside it that walks
 in properly and pins "2 of 3".
+
+### M3 - Sidings, the CLI verbs, the interface
+
+`Where::Siding` lands and nothing is one yet (`no_destination_is_a_siding_yet`
+says so out loud, and names M6 as the milestone that should delete it). The
+CLI has `throw <n>` and `leave`, and `show_road` prints the roads out under
+the banner. The GUI has a points screen built on the event screen's layout, a
+way out on two screens, a pip row that counts fights rather than rooms, and a
+map hover that says how deep a dungeon goes and how many times it asks which
+way.
+
+**834 engine, 65 GUI, 3 CLI. 902 in the workspace. No warnings.** `baseline`
+is still byte-identical to M0, three milestones in.
+
+**The CLI verb replay could not be written as specified, so the harness was
+written instead.** Neither verb can be walked through the driver yet: nothing
+in `DUNGEONS` has points until M6, and no dungeon is reachable by any board
+the driver can build from its own verbs. What landed is
+`crates/cli/tests/replay.rs` - the first test the CLI crate has ever had - a
+scripted run piped in twice and byte-compared, plus both verbs' refusal paths
+and a check that `help` does not advertise a verb that is not there. This ends
+a standing gap: `post-unwinding.md` §1 marks the two CLI replays **unverified**
+because "nobody wrote the script down". It is written down and it runs in the
+suite, and acceptance criterion 1 extends this file at M6 rather than
+inventing a harness under deadline.
+
+**One lint the spec does not ask for.** `no_two_sidings_land_on_the_same_floor`
+- two orbs may point into one dungeon, which is the whole design, so the
+existing "no two destinations share an id or an orb" does not catch two
+sidings written onto one floor. The second would be refused by the visited-set
+while looking like a fresh ticket, which costs a player an orb to find out.
+
+**Four pure functions carry the GUI's layout** - `dungeon_banner`, `pip_row`,
+`ticked_pips`, `points_cells` - for the reason `chip_rects` is one: the
+geometry and the words are testable without a font context, and
+`cargo test -p gearmaster-gui` is the only thing that compiles that module
+(`CLAUDE.md` §6 trap 14).
