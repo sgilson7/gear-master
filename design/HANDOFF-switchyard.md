@@ -308,7 +308,7 @@ mechanism rather than reinventing it.
 the pool it had just finished filtering - so a slot was dealt in proportion to
 how much of it exists rather than to how much of it is for sale. Appending
 eight unsellable components moved the shelves and
-`avail::the_shelves_are_not_the_same_six_things_every_time` refused them at
+`avail::the_shelves_are_not_the_same_few_things_every_time` refused them at
 4.1x. It counts the pool now. The blast radius was measured before the fix was
 kept: **zero other tests moved.**
 

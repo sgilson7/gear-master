@@ -225,7 +225,10 @@ pub static RUMOURS: &[Rumour] = &[
     // ---- the Switchyard -------------------------------------------------
     //
     // Neither is on the bar, and not by preference: `SHELVES` is exactly six
-    // names and `SHOP_SIZE` is six, so the pub is full. The first is bought
+    // names and every one of them is spoken for, so the pub is full. (It is
+    // `SHELVES` that is six and not `SHOP_SIZE`, which went to seven in
+    // 2026-08-27 and does not reach the bar at all - a pub stocks itself
+    // through `stock_exactly`.) The first is bought
     // from a woman at the roadside and the second is told to you in a signal
     // box, which is the shape the Unwinding's second and third words already
     // have. Both are `Carried` for the reason the module note gives - a word

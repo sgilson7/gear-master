@@ -774,7 +774,7 @@ a coincidence.
 
 **27. The shop's shelf tilt counted the catalogue rather than the pool it was
 dealing from.** A real bug, and the eight unsellable components are what
-exposed it: `avail::the_shelves_are_not_the_same_six_things_every_time` went
+exposed it: `avail::the_shelves_are_not_the_same_few_things_every_time` went
 red at 4.1x spread against a 2.0x bound, because the shelves shifted when the
 catalogue grew *in places no shelf can reach*.
 
@@ -1428,3 +1428,55 @@ boards went in through a targeted splice instead (M9).
    is the right order and was checked by reading. Nobody has looked at it.
 3. **Nobody has played any of it**, which is what `post-unwinding.md` §4 says
    of the Unwinding too.
+
+---
+
+## The shop, after the merge review (2026-08-27)
+
+Two changes asked for on top of the mission, and one measurement that came out
+better than expected.
+
+### The shop was already the seed's, and is now pinned as such
+
+`avail::two_seeds_are_two_shops`: sixteen seeds produce **sixteen distinct
+opening shops**, no two of them share every shelf, and one seed twice is the
+same shop. It was always true - the shop's rolls come off the run's own
+xorshift and `Run::seeded` is the only way in - and nothing in the suite would
+have noticed a refactor that started every shop from a constant. Now something
+would.
+
+### A seventh shelf, and what it did to the mix
+
+`SHOP_SIZE` 6 -> **7**. It fits the strip the interface already draws: a card
+is 126 wide with a 10 gap and the band is 1,186, so seven need 1,088 and eight
+would not fit.
+
+The interesting part is not the extra card. **The weapon's share of every
+shelf fell from 53.2% to 48.7%**, measured over 400 opening shops at each
+size:
+
+| slot | at six | at seven |
+|---|---:|---:|
+| Weapon | **53.2%** | **48.7%** |
+| Gloves | 13.3% | 14.6% |
+| Helmet | 12.0% | 13.4% |
+| Greaves | 11.2% | 12.1% |
+| Chest | 10.2% | 11.2% |
+
+The shelf is dealt round-robin over slot tickets, so a seventh card is one more
+pass, and the pass after the weapon's tickets are spent is an armour slot's.
+Every one of the four gains about a point. `avail::report_shelf_mix` is the
+measurement and it says both numbers.
+
+That is the second thing this branch does to the shop, and it pulls the same
+way as the first: M5 stopped the tilt counting pieces no shelf can reach, and
+this gives the round-robin one more turn. The weapon is still half the shelf,
+which is the thing to look at next.
+
+`stock_exactly` ignores `SHOP_SIZE`, so the pub's six shelves and a town's
+curated five are unmoved. The bar is full because `SHELVES` is six names, and
+three comments that said "because `SHOP_SIZE` is six" have been corrected -
+that was true and coincidental, and it stopped being either.
+
+**The four-board table is still byte-identical to M0.** 868 engine, 65 GUI, 5
+CLI. No warnings.

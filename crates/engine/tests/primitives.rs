@@ -593,7 +593,9 @@ fn every_rumour_and_the_trophy_trade_is_a_quest_item() {
     // Ten words and the trophy trade. Was nine: the Switchyard's chain is
     // seeded by two, and both are `Carried` conditions bought from a door
     // rather than sold at the bar, because `SHELVES` is exactly six names and
-    // `SHOP_SIZE` is six - the pub is full (Part E, E-2).
+    // all six are spoken for - the pub is full (Part E, E-2). The bar's six is
+    // `SHELVES`, not `SHOP_SIZE`: a pub stocks itself with `stock_exactly` and
+    // never saw the seventh shelf the road shop grew.
     assert_eq!(quest_items().len(), 11, "ten words and the trophy trade");
 }
 
