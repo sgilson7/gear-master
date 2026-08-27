@@ -920,3 +920,33 @@ fn a_board_that_assembles_nothing_gets_nothing_from_recycler() {
     run.refresh_class_effects();
     assert_eq!(run.player_stats(), before, "a loose frame paid a bonus it never earned");
 }
+
+/// The cart holds the six enchantments that are sold, and not the four that
+/// are dug up.
+///
+/// `town_shelf` collects enchantments by kind, which was written so a new
+/// underlay would be town gear without anybody having to remember. The
+/// Switchyard's four are a four-fight line's reward rather than a purchase,
+/// so the collection gained an event-only filter - and this is the assertion
+/// that the filter took exactly the four it was aimed at. Counting is the
+/// point: a filter one entry too greedy would leave a shipped underlay
+/// unbuyable and no other test would notice.
+#[test]
+fn the_cart_sells_ground_and_does_not_sell_what_was_dug_up() {
+    use gearmaster_engine::piece::{is_event_only, town_shelf, CATALOG};
+
+    let cart = town_shelf();
+    let sold: Vec<&str> = CATALOG
+        .iter()
+        .filter(|d| d.kind.is_enchantment())
+        .filter(|d| !is_event_only(d.name))
+        .map(|d| d.name)
+        .collect();
+    assert_eq!(sold.len(), 6, "six enchantments are for sale: {sold:?}");
+    for name in &sold {
+        assert!(cart.contains(name), "{name} is sold and is not on the cart");
+    }
+    for d in CATALOG.iter().filter(|d| d.kind.is_enchantment() && is_event_only(d.name)) {
+        assert!(!cart.contains(&d.name), "{} was dug up and is on the cart", d.name);
+    }
+}

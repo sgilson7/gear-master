@@ -144,15 +144,18 @@ impl Theme {
         }
     }
 
-    /// The same for the lines said between a dungeon's floors.
-    pub fn landings(
-        &'static self,
-        id: &str,
-        canonical: &'static [&'static str],
-    ) -> &'static [&'static str] {
+    /// The same for one of the lines said between a dungeon's floors.
+    ///
+    /// Keyed by floor index, because that is the stable key: `Retold.landings`
+    /// is still a list parallel to `floors` and floor numbers do not move. A
+    /// theme that retells some floors and not others - or one written before a
+    /// dungeon grew a room - falls through to the canonical line for the ones
+    /// it has nothing to say about, which is one floor's worth of silence
+    /// rather than the whole dungeon's.
+    pub fn landing(&'static self, id: &str, floor: usize, canonical: &'static str) -> &'static str {
         match self.told.iter().find(|r| r.id == id) {
-            Some(r) if !r.landings.is_empty() => r.landings,
-            _ => canonical,
+            Some(r) => r.landings.get(floor).copied().unwrap_or(canonical),
+            None => canonical,
         }
     }
 
@@ -892,6 +895,24 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Wrathful Mold", "Gorillathon Mold"),
         ("Wrathful Talons", "Frong Talons"),
         ("Wrathwrit Ink", "Power Serenade"),
+        // The Switchyard's eight. The scenes and the creatures are M7's; a
+        // *piece* gets its name in the same change that writes the piece,
+        // which is the gear skill's own rule and what
+        // `the_turtle_theme_covers_the_catalogue` is for.
+        //
+        // Built from vocabulary the theme already spends: the Cork Train and
+        // the Holy Cork Empire's line, the Sprocketmen who are the player's
+        // own people, Multicity, and the planeswalking flavour the four
+        // shipped Orbs of Travel already wear. The two balls are the warp
+        // device's lesser cousins by another road.
+        ("Ballast Bed", "Cork Ballast"),
+        ("Points Rodding", "The Sprocketman's Rodding"),
+        ("Booking Hall", "The Cork Booking Hall"),
+        ("Signal Wire", "The Signal Wire from Multicity"),
+        ("Shunter's Orb", "The Shunting Ball"),
+        ("Signalman's Orb", "The Signal Ball"),
+        ("A Word About the Sidings", "A Word About the Cork Yards"),
+        ("A Word About the Points", "A Word About the Sprocketman's Lever"),
         ("Zealot's Crest", "Rice Crier Crest"),
         ("Zealot's Haft", "Rice Crier Haft"),
         ("Zealot's Sole", "Rice Crier Sole"),
@@ -984,6 +1005,18 @@ pub static TURTLE_DICK: Theme = Theme {
         ("The Last Light", "The Last Wimpler Oxen"),
         ("Gilt", "The Money Coat"),
         ("Francis", "Francis the Gambler"),
+        // ---- THE SWITCHYARD ---------------------------------------------
+        //
+        // The Cork Train ran on the Holy Cork Empire's own line, and the line
+        // had a yard where the Empire sorted what it took from the planes it
+        // took things from. Four of the nine keep their names, because a coal
+        // stage is a coal stage on any plane and all caps is a universal
+        // language.
+        ("THE SHUNTER", "THE CORK SHUNTER"),
+        ("THE PLATELAYERS", "THE SPROCKETMEN WHO KEPT THE LINE"),
+        ("THE BALLAST", "WHAT THE EMPIRE LEFT IN THE PIT"),
+        ("THE GANTRY", "THE ELEVEN CORK SIGNALS"),
+        ("THE LAMP ROOM", "THE ROOM WITH EVERY LAMP LIT"),
     ],
     words: &[
         // The interface, in the book's vocabulary. Slugs are keyed by what the
@@ -1058,6 +1091,19 @@ pub static TURTLE_DICK: Theme = Theme {
         // funny up, and a stop you get in the way.
         ("spellblade", "funnyblade"),
         ("deflection", "corkwork"),
+        // ---- the Switchyard's four verbs ---------------------------------
+        //
+        // The engine prints these in tooltips and log lines through
+        // `Action::describe`, which is the same mechanism that turns "mana"
+        // into "Jokes" and needs no new code. A railway word is a railway word
+        // on any plane, so "shunt" is kept; the other three are the Empire's.
+        ("ballast", "cork-ballast"),
+        ("Ballast", "Cork-ballast"),
+        ("derail", "skoogle"),
+        ("Derail", "Skoogle"),
+        ("derails", "skoogles"),
+        ("accrue", "fnorp-interest"),
+        ("Accrue", "Fnorp-interest"),
     ],
     glossary: &[
         (
@@ -1618,6 +1664,73 @@ pub static TURTLE_DICK: Theme = Theme {
             entry: &[],
             landings: &[],
         },
+        // ---- THE SWITCHYARD ---------------------------------------------
+        //
+        // The Empire left; the Sprocketman on the points did not. The
+        // timetable is a Cork timetable and every train on it is a train the
+        // Empire ran once, and the yard throws its points for them still, on
+        // the Yonk standard, because nobody has told it the Empire is gone and
+        // it would not believe them.
+        //
+        // Titles only, for three of the four. `retell` reaches the common
+        // nouns a word at a time and a theme spends paragraphs only where a
+        // *proper noun* is carrying the scene - which here is Ambrose and
+        // Hesketh, and both are roles in the canonical column already.
+        Retold {
+            id: "the-timetable",
+            title: "THE CORK TIMETABLE",
+            prose: &[], entry: &[], landings: &[],
+        },
+        Retold {
+            id: "the-signal-box",
+            title: "THE SPROCKETMAN IN THE BOX",
+            prose: &[], entry: &[], landings: &[],
+        },
+        Retold {
+            id: "the-turntable",
+            title: "THE TURNTABLE ON THE YONK STANDARD",
+            prose: &[], entry: &[], landings: &[],
+        },
+        Retold {
+            id: "the-last-train",
+            title: "THE LAST CORK TRAIN",
+            prose: &[], entry: &[], landings: &[],
+        },
+        // The dungeon itself, retold: the yard is the Empire's, the points are
+        // a Sprocketman's, and what is at the buffer stops is what the Empire
+        // left behind everywhere it went.
+        //
+        // The landings are keyed by floor index, which is why the graph keeps
+        // floors in a flat list: an index is a stable key. Per-floor *entry*
+        // lines are left canonical - Part E's E-3, taken as recommended -
+        // because both name no proper noun and a missing entry falls through.
+        Retold {
+            id: "the-switchyard",
+            title: "THE CORK TRAIN YARDS",
+            prose: &[
+                "The yards are nine rooms under the cutting, and the turntable \
+                 is the first, and from it two lines go off into the dark with \
+                 points on each of them, and a buffer stop at the end of every \
+                 road.",
+                "The timetable lists eleven Cork trains a day out of here and \
+                 the Sprocketman keeps the times. There are no trains. \
+                 Something has to be moving for a time to be kept, and whatever \
+                 it is, it is moving to the sheet.",
+                "Four fights down either line. What is at the buffer stop was \
+                 left there on purpose, by an Empire that did not expect to be \
+                 back for it.",
+            ],
+            entry: &[
+                "The turntable takes you a quarter of the way round on the Yonk \
+                 standard and stops, and the Sprocketman's bell rings once, and \
+                 when it turns back you are facing the other way, down the \
+                 yards.",
+                "Somewhere past the lamp the points are already thrown. The \
+                 Sprocketman was here first. The Sprocketman is always here \
+                 first.",
+            ],
+            landings: &[],
+        },
     ],
 
 };
@@ -1868,6 +1981,50 @@ mod tests {
             .filter(|n| TURTLE_DICK.monster(n) == *n)
             .collect();
         assert!(missed.is_empty(), "still in plain words: {:?}", missed);
+    }
+
+    /// And every creature beside the road that a theme has something to say
+    /// about, said.
+    ///
+    /// Not "every alternate": four of the Switchyard's nine keep their names
+    /// on purpose - a coal stage is a coal stage on any plane, and all caps is
+    /// a universal language (`theme.rs`'s own note on the shipped four). What
+    /// this asserts is that the five the theme *does* rename are renamed, so a
+    /// half-finished table is a failure here rather than a run in two voices.
+    #[test]
+    fn the_turtle_theme_retells_the_yard() {
+        const RENAMED: &[&str] = &[
+            "THE SHUNTER",
+            "THE PLATELAYERS",
+            "THE BALLAST",
+            "THE GANTRY",
+            "THE LAMP ROOM",
+        ];
+        const KEPT: &[&str] =
+            &["THE COAL STAGE", "THE WATER TOWER", "THE GOODS SHED", "THE ROUNDHOUSE"];
+
+        for n in RENAMED {
+            assert_ne!(TURTLE_DICK.monster(n), *n, "{n} is still in plain words");
+        }
+        for n in KEPT {
+            assert_eq!(TURTLE_DICK.monster(n), *n, "{n} grew a themed name; add it above");
+        }
+        // The yard's own four floors that are places rather than things are
+        // exactly the ones kept, which is what makes the split a rule.
+        let d = crate::dungeon::by_id("the-switchyard").expect("M6");
+        for f in d.floors {
+            assert!(
+                RENAMED.contains(&f.creature) || KEPT.contains(&f.creature),
+                "{} is a floor nothing here knows about",
+                f.creature
+            );
+        }
+        // And the four doors and the dungeon are retitled.
+        for id in ["the-timetable", "the-signal-box", "the-turntable", "the-last-train"] {
+            let e = crate::event::EVENTS.iter().find(|e| e.id == id).expect("a door");
+            assert_ne!(TURTLE_DICK.place(id, e.title), e.title, "{id} is untitled");
+        }
+        assert_ne!(TURTLE_DICK.place(d.id, d.name), d.name, "the yard is untitled");
     }
 
     /// Two creatures sharing a themed name would be two rungs the player

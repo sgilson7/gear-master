@@ -2658,6 +2658,15 @@ pub struct RunningItem {
     /// How much longer this one item is stopped for. A stun holds a single
     /// item rather than the whole fighter, so it lives here.
     pub stun_ms: u32,
+    /// Bar-fill this item owes, because it gave the time away.
+    ///
+    /// A `Shunt` hands `ms` to a neighbour and takes on `ms` of debt; the debt
+    /// is paid down out of the step before any of the step reaches
+    /// `progress_ms`, so the same millisecond that left one bar arrives on the
+    /// other and time is conserved. Kept as a debt rather than subtracted from
+    /// `progress_ms` on the spot because a bar cannot go below zero, and an
+    /// item that had just fired would otherwise swallow the cost.
+    pub owed_ms: u32,
     /// Run gold this item has spent so far this fight, and how many times it
     /// has paid. The budget belongs to the item, so the tally does too.
     pub gold_spent: i32,
@@ -2714,6 +2723,7 @@ impl RunningItem {
             cooldown_ms: p.cooldown_ms,
             progress_ms: 0,
             stun_ms: 0,
+            owed_ms: 0,
             gold_spent: 0,
             gold_paid: 0,
             physical_damage: p.stats.physical_damage,
@@ -2752,6 +2762,7 @@ impl RunningItem {
             cooldown_ms: a.cooldown_ms.max(TICK_MS),
             progress_ms: 0,
             stun_ms: 0,
+            owed_ms: 0,
             gold_spent: 0,
             gold_paid: 0,
             physical_damage: a.damage,
@@ -3392,7 +3403,7 @@ pub enum Event {
     /// the same name stay distinguishable.
     Activate { side: Side, item: String, index: usize },
     /// Rage, faith or nature banked.
-    GainResource { side: Side, what: &'static str, amount: i32, total: i32 },
+    GainResource { side: Side, what: &'static str, amount: i32, total: i32, accrued: bool },
     /// A pool taken off someone. `amount` is what was actually there to take.
     Drained { on: Side, what: &'static str, amount: i32, total: i32 },
     /// Run gold spent mid-fight. `remaining` is what is left in the purse,
@@ -3409,10 +3420,14 @@ pub enum Event {
     /// A spell went off. `paid` says whether it was cast in full or weakly.
     Cast { side: Side, paid: bool, cost: i32, remaining: i32 },
     /// Maximum health grew mid-fight.
-    Grew { side: Side, amount: i32, total: i32 },
+    /// `paid_armor` is what was spent to buy the growth, which is nonzero only
+    /// for `Ballast`. A field rather than a second event, so every reader of
+    /// `Grew` - `settle`'s growth banking among them - keeps working and the
+    /// one that wants to know reads the field.
+    Grew { side: Side, amount: i32, total: i32, paid_armor: i32 },
     MindHit { by: Side, amount: i32, target_max_health: i32 },
     GainArmor { side: Side, amount: i32, total: i32 },
-    GainMana { side: Side, amount: i32, total: i32 },
+    GainMana { side: Side, amount: i32, total: i32, accrued: bool },
     /// `paid` says which branch of a mana trigger ran.
     ManaCheck { side: Side, cost: i32, paid: bool, remaining: i32 },
     /// A spend against rage, faith or nature.
@@ -3430,6 +3445,14 @@ pub enum Event {
     Regen { side: Side, amount: i32, health: i32 },
     /// A reaction pushed an item's cooldown forward.
     Hastened { side: Side, item: String, by_ms: u32 },
+    /// Time moved from one bar to another on the same board.
+    ///
+    /// Both names, because the whole of what a shunt does is take from one and
+    /// give to the other, and a log that says only where it landed reads as
+    /// free haste.
+    Shunted { side: Side, from: String, to: String, ms: u32 },
+    /// The enemy's best item, caught at the top of its swing and set back.
+    Derailed { side: Side, item: String, by_ms: u32 },
     /// Armour turned a blow back on whoever threw it.
     Reflected { side: Side, damage: i32 },
     /// Two pools became one of a fused pool. `total` is what is now held of
@@ -3577,7 +3600,15 @@ impl CombatLog {
             Event::Activate { side, item, .. } => {
                 format!("{} {} activates {}", t, self.who(*side), item)
             }
-            Event::Grew { side, amount, total } => format!(
+            Event::Grew { side, amount, total, paid_armor } if *paid_armor > 0 => format!(
+                "{} {} beds {} of its armour down into {} more to lose ({} max health)",
+                t,
+                self.who(*side),
+                paid_armor,
+                amount,
+                total
+            ),
+            Event::Grew { side, amount, total, .. } => format!(
                 "{} {} grows {} tougher ({} max health)",
                 t,
                 self.who(*side),
@@ -3616,8 +3647,9 @@ impl CombatLog {
                 what,
                 remaining
             ),
-            Event::GainResource { side, what, amount, total } => {
-                format!("{} {} gains {} {} ({})", t, self.who(*side), amount, what, total)
+            Event::GainResource { side, what, amount, total, accrued } => {
+                let how = if *accrued { " on what it was holding" } else { "" };
+                format!("{} {} gains {} {}{} ({})", t, self.who(*side), amount, what, how, total)
             }
             Event::Reflected { side, damage } => {
                 format!("{} {} turns back {}", t, self.who(*side), damage)
@@ -3682,8 +3714,9 @@ impl CombatLog {
             Event::GainArmor { side, amount, total } => {
                 format!("{} {} gains {} armor ({})", t, self.who(*side), amount, total)
             }
-            Event::GainMana { side, amount, total } => {
-                format!("{} {} gains {} mana ({})", t, self.who(*side), amount, total)
+            Event::GainMana { side, amount, total, accrued } => {
+                let how = if *accrued { " on what it was holding" } else { "" };
+                format!("{} {} gains {} mana{} ({})", t, self.who(*side), amount, how, total)
             }
             Event::ManaCheck { side, cost, paid, remaining } => {
                 if *paid {
@@ -3742,6 +3775,21 @@ impl CombatLog {
             Event::Regen { side, amount, health } => {
                 format!("{} {} regenerates {} -> {} hp", t, self.who(*side), amount, health)
             }
+            Event::Shunted { side, from, to, ms } => format!(
+                "{} {}'s {} hands {:.1}s to {}",
+                t,
+                self.who(*side),
+                from,
+                *ms as f32 / 1000.0,
+                to
+            ),
+            Event::Derailed { side, item, by_ms } => format!(
+                "{} {} catches {} at the top of its swing and sets it back {:.1}s",
+                t,
+                self.who(*side),
+                item,
+                *by_ms as f32 / 1000.0
+            ),
             Event::Hastened { side, item, by_ms } => format!(
                 "{} {}'s {} hastened by {:.1}s",
                 t,
@@ -4102,6 +4150,18 @@ pub fn simulate_party(
                             * (100 + haste)
                             / 100)
                             .max(1) as u32;
+                        // A debt is paid out of the bar before the bar moves.
+                        // Frost and stun reach it the way they reach everything
+                        // else, which is correct twice over: a slowed item pays
+                        // slower because it is slower, and a stopped one does
+                        // not pay at all because a stopped bar does not move.
+                        let step = if item.owed_ms > 0 {
+                            let paid = step.min(item.owed_ms);
+                            item.owed_ms -= paid;
+                            step - paid
+                        } else {
+                            step
+                        };
                         item.progress_ms += step;
                         if item.progress_ms >= item.cooldown_ms {
                             item.progress_ms -= item.cooldown_ms;
@@ -4709,7 +4769,7 @@ fn activate(
         let me = pick(p, foes, me);
         me.mana += item.mana;
         let total = me.mana;
-        log.push(LogEntry { who, at_ms: t, event: Event::GainMana { side, amount: item.mana, total } });
+        log.push(LogEntry { who, at_ms: t, event: Event::GainMana { side, amount: item.mana, total, accrued: false } });
     }
 
     let banked = pick(p, foes, me).adaptable;
@@ -4746,7 +4806,7 @@ fn activate(
             log.push(LogEntry {
                 who,
                 at_ms: t,
-                event: Event::GainResource { side, what: label, amount, total },
+                event: Event::GainResource { side, what: label, amount, total, accrued: false },
             });
         }
     }
@@ -5177,6 +5237,7 @@ fn apply(
                             what: Resource::Rage.name(),
                             amount: gain,
                             total,
+                            accrued: false,
                         },
                     });
                 }
@@ -5265,7 +5326,7 @@ fn apply(
             log.push(LogEntry {
                 who,
                 at_ms: t,
-                event: Event::GainResource { side, what: what.name(), amount, total: now },
+                event: Event::GainResource { side, what: what.name(), amount, total: now, accrued: false },
             });
         }
         Action::Drain { what, amount, hurt, target } => {
@@ -5314,7 +5375,7 @@ fn apply(
             let c = pick(p, foes, me);
             c.mana += n;
             let total = c.mana;
-            log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::GainMana { side, amount: n, total } });
+            log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::GainMana { side, amount: n, total, accrued: false } });
         }
         Action::Grow(n) => {
             // Maximum health up, and the new room filled - growing into a gap
@@ -5324,7 +5385,7 @@ fn apply(
             c.max_health += n;
             c.health += n;
             let total = c.max_health;
-            log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::Grew { side, amount: n, total } });
+            log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::Grew { side, amount: n, total, paid_armor: 0 } });
         }
         Action::GainArmor(n) => {
             let c = pick(p, foes, me);
@@ -5387,6 +5448,113 @@ fn apply(
             c.forking += n;
             let total = c.forking;
             log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::Forking { side, total } });
+        }
+        // ---- the yard's four verbs ------------------------------------
+        Action::Shunt { ms } => {
+            let Some(idx) = owner else { return };
+            let c = pick(p, foes, me);
+            let Some(from_name) = c.items.get(idx).map(|i| i.name.clone()) else { return };
+            // The slowest neighbour, ties to the lowest index: a second is
+            // worth most on the bar that fills slowest, and "slowest" is the
+            // whole reason to hand it over rather than keep it.
+            let Some(&to) = c.items[idx]
+                .adjacent_items
+                .iter()
+                .filter(|&&j| j != idx && j < c.items.len())
+                .max_by_key(|&&j| (c.items[j].cooldown_ms, std::cmp::Reverse(j)))
+            else {
+                return;
+            };
+            let (name, cap) = {
+                let it = &c.items[to];
+                (it.name.clone(), it.cooldown_ms.saturating_sub(TICK_MS))
+            };
+            let before = c.items[to].progress_ms;
+            c.items[to].progress_ms = (before + ms).min(cap);
+            // Only what actually landed is owed. The cap means a bar already
+            // near the top takes less than was offered, and charging for time
+            // that went nowhere would make a shunt a net loss.
+            let moved = c.items[to].progress_ms.saturating_sub(before);
+            if moved == 0 {
+                return;
+            }
+            c.items[idx].owed_ms += moved;
+            log.push(LogEntry {
+                who: me.logged_as(front),
+                at_ms: t,
+                event: Event::Shunted { side, from: from_name, to: name, ms: moved },
+            });
+        }
+        Action::Ballast(n) => {
+            let c = pick(p, foes, me);
+            let paid = n.min(c.armor.max(0));
+            if paid <= 0 {
+                return;
+            }
+            c.armor -= paid;
+            c.max_health += paid;
+            c.health += paid;
+            let total = c.max_health;
+            log.push(LogEntry {
+                who: me.logged_as(front),
+                at_ms: t,
+                event: Event::Grew { side, amount: paid, total, paid_armor: paid },
+            });
+        }
+        Action::Derail { window_ms, back_ms } => {
+            // The front foe's, always. A `Yourself` derail is refused by
+            // `assembly::every_action_is_well_formed`, because there is no
+            // reading of it that is not a stun on your own bar.
+            let on = me.other(front);
+            let c = pick(p, foes, on);
+            let Some(i) = c
+                .items
+                .iter()
+                .enumerate()
+                .filter(|(_, it)| it.cooldown_ms.saturating_sub(it.progress_ms) <= window_ms)
+                .max_by_key(|(i, it)| (it.rating, std::cmp::Reverse(*i)))
+                .map(|(i, _)| i)
+            else {
+                return;
+            };
+            c.items[i].progress_ms = c.items[i].progress_ms.saturating_sub(back_ms);
+            let name = c.items[i].name.clone();
+            log.push(LogEntry {
+                who: me.logged_as(front),
+                at_ms: t,
+                event: Event::Derailed { side: on.side, item: name, by_ms: back_ms },
+            });
+        }
+        Action::Accrue { what, pct } => {
+            // A fused pool is deliberately fuel for nothing (`piece.rs`), so a
+            // proportional income on one would be a second currency at better
+            // rates. `assembly::every_action_is_well_formed` keeps it out of
+            // the catalogue; this keeps it out of the fight, because a rule
+            // that only a lint enforces is a rule a hand-built profile can
+            // walk straight through.
+            if what.is_fused() {
+                return;
+            }
+            let c = pick(p, foes, me);
+            let held = c.pool(what).max(0);
+            let gain = held * pct / 100;
+            if gain <= 0 {
+                return;
+            }
+            let total = c.pool(what) + gain;
+            c.set_pool(what, total);
+            log.push(LogEntry {
+                who: me.logged_as(front),
+                at_ms: t,
+                event: if what == Resource::Mana {
+                    // Mana is counted through its own event by `settle`
+                    // (`run.rs`), so an accrual has to arrive on that one or
+                    // the run's books would miss it.
+                    Event::GainMana { side, amount: gain, total, accrued: true }
+                } else {
+                    Event::GainResource { side, what: what.name(), amount: gain, total, accrued: true }
+                },
+            });
         }
         Action::ReduceCooldown(ms) => {
             let Some(idx) = owner else { return };
@@ -6305,6 +6473,361 @@ pub const ALTERNATES: &[MonsterSpec] = &[
         drops: &["Harvest Crest"],
         items: &[5, 4, 4, 2, 2, 4, 4, 2, 3, 3, 3, 3, 4],
     },
+
+    // ---- THE SWITCHYARD, nine floors ------------------------------------
+    //
+    // Undressed on purpose. Phase 2 lands creatures as *frames* - a name, a
+    // band, a theme and the stats of the ladder creature standing at that
+    // band - and Phase 4 packs their boards by hand. `bestiary::unpacked()`
+    // is the count of what is left and the frame lint is red until it is
+    // zero, which is what the lint is for.
+    //
+    // Stats are the ladder's at each floor's entry band, per
+    // `post-unwinding.md` §3.11: THE SHUNTER takes Obsidian Colossus's
+    // (band 27), floors 1 and 5 Null Sentinel's (28), floors 2 and 6
+    // Silence's (29), and the four buffer stops Weeping Idol's (30). Four
+    // fights down the yard pay about 840 gold at a rung where a run has
+    // earned roughly 2,100, which is a reason to go down and not a jackpot.
+    //
+    // `rank: Ordinary` and `drops: &[]` for all nine: the dungeon-victory arm
+    // never reads `drops` (A0), and a drop list nobody can drop is dead
+    // content. What the yard pays, its buffer stops pay through `Floor::also`.
+    // The turntable's own engine, and it keeps the turntable's time. Warden at
+    // band 27: it makes you pay for the yard being slow, which is the first
+    // thing the yard has to teach.
+    MonsterSpec {
+        name: "THE SHUNTER",
+        health: 2490,
+        strength: 67,
+        regen: 6,
+        mind_resist: 59,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 59,
+        attacks: &[],
+        gear: &[
+            ("Tallykeeper's Weave", SlotKind::Greaves, 0, 0, 0),
+            ("Widow's Sole", SlotKind::Greaves, 2, 0, 1),
+            ("Overflow Plate", SlotKind::Greaves, 4, 0, 0),
+            ("Rootwoven Material", SlotKind::Greaves, 0, 2, 0),
+            ("Widow's Sole", SlotKind::Greaves, 2, 1, 1),
+            ("Overflow Plate", SlotKind::Greaves, 3, 2, 0),
+            ("Tallykeeper's Weave", SlotKind::Greaves, 0, 3, 0),
+            ("Widow's Sole", SlotKind::Greaves, 2, 3, 0),
+            ("Consecrated Plating", SlotKind::Greaves, 3, 4, 0),
+            ("Witch's Stilts", SlotKind::Greaves, 0, 5, 1),
+            ("Sapling Mold", SlotKind::Greaves, 1, 6, 1),
+            ("Overflow Plate", SlotKind::Greaves, 3, 6, 0),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 0, 0, 0),
+            ("Gripping Mold", SlotKind::Gloves, 2, 0, 0),
+            ("Unshod Signet", SlotKind::Gloves, 4, 0, 0),
+            ("Warding Ring", SlotKind::Gloves, 5, 0, 0),
+            ("Tallykeeper's Weave", SlotKind::Gloves, 3, 1, 0),
+            ("Deft Mold", SlotKind::Gloves, 5, 1, 1),
+            ("Reliquary Sole", SlotKind::Gloves, 0, 2, 0),
+            ("Deft Mold", SlotKind::Gloves, 2, 2, 1),
+            ("Unshod Signet", SlotKind::Gloves, 3, 3, 0),
+            ("Warding Ring", SlotKind::Gloves, 4, 3, 0),
+            ("Witch's Claw", SlotKind::Gloves, 0, 4, 1),
+            ("Featherweight Mold", SlotKind::Gloves, 3, 4, 0),
+        ],
+        gear_offset: 0,
+        bounty: 197,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[3, 3, 3, 3, 4, 2, 4, 2],
+    },
+    // Many small blows, the rail put back as fast as it is lifted.
+    MonsterSpec {
+        name: "THE PLATELAYERS",
+        health: 2620,
+        strength: 70,
+        regen: 6,
+        mind_resist: 62,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 62,
+        attacks: &[],
+        gear: &[
+            ("Grovemind Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 0, 0),
+            ("Kingsbane", SlotKind::Weapon, 3, 1, 0),
+            ("Cometfall", SlotKind::Weapon, 0, 2, 0),
+            ("Rootwork Alignment", SlotKind::Weapon, 2, 3, 0),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 0, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 2, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 3, 2, 0),
+            ("Tithe Collector", SlotKind::Helmet, 5, 2, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 4, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 4, 0),
+            ("Martyr's Crest", SlotKind::Helmet, 5, 4, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 6, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 6, 0),
+        ],
+        gear_offset: 0,
+        bounty: 206,
+        sprite: MonsterSprite::Choir,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[5, 3, 3, 3, 2],
+    },
+    // What came up out of the pit with the ballast. A wall, and the one weapon a
+    // wall carries.
+    MonsterSpec {
+        name: "THE BALLAST",
+        health: 2750,
+        strength: 73,
+        regen: 7,
+        mind_resist: 65,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 65,
+        attacks: &[],
+        gear: &[
+            ("Grovemind Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 0, 0),
+            ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+            ("Cometfall", SlotKind::Weapon, 3, 1, 0),
+            ("Rootwork Alignment", SlotKind::Weapon, 0, 3, 0),
+            ("Anvil Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 0, 2, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 0, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 2, 2, 0),
+            ("Mana Ward", SlotKind::Helmet, 0, 4, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 3, 4, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 2, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 6, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 6, 0),
+            ("Martyr's Crest", SlotKind::Helmet, 5, 4, 1),
+        ],
+        gear_offset: 0,
+        bounty: 215,
+        sprite: MonsterSprite::Golem,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[5, 4, 4, 3],
+    },
+    // The heap is warm. Searing on the clock rather than on the swing.
+    MonsterSpec {
+        name: "THE COAL STAGE",
+        health: 2880,
+        strength: 76,
+        regen: 7,
+        mind_resist: 68,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 68,
+        attacks: &[],
+        gear: &[
+            ("Grovemind Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Kingsbane", SlotKind::Weapon, 3, 0, 0),
+            ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+            ("Last Rite", SlotKind::Weapon, 4, 1, 1),
+            ("Prism Alignment", SlotKind::Weapon, 0, 3, 0),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Mana Ward", SlotKind::Helmet, 3, 0, 0),
+            ("Warding Plate", SlotKind::Helmet, 0, 2, 0),
+            ("Martyr's Crest", SlotKind::Helmet, 3, 1, 1),
+            ("Anvil Frame", SlotKind::Helmet, 4, 2, 1),
+            ("Overflow Plate", SlotKind::Helmet, 2, 4, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 0, 4, 0),
+            ("Stonewall Frame", SlotKind::Helmet, 4, 5, 1),
+            ("Overflow Plate", SlotKind::Helmet, 2, 6, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 0, 6, 0),
+        ],
+        gear_offset: 0,
+        bounty: 224,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[5, 4, 3, 3],
+    },
+    // The tank sets the pace and has nothing much of its own.
+    MonsterSpec {
+        name: "THE WATER TOWER",
+        health: 2880,
+        strength: 76,
+        regen: 7,
+        mind_resist: 68,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 68,
+        attacks: &[],
+        gear: &[
+            ("Grovemind Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 0, 0),
+            ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+            ("Cometfall", SlotKind::Weapon, 3, 1, 0),
+            ("Rootwork Alignment", SlotKind::Weapon, 0, 3, 0),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 0, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 2, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 2, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 0, 4, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 2, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 2, 4, 0),
+            ("Overflow Plate", SlotKind::Helmet, 1, 6, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 3, 6, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 4, 1),
+        ],
+        gear_offset: 0,
+        bounty: 224,
+        sprite: MonsterSprite::Wisp,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[5, 3, 4, 4],
+    },
+    // Eleven arms, eleven casts. Bursty and mana-gated.
+    MonsterSpec {
+        name: "THE GANTRY",
+        health: 2620,
+        strength: 70,
+        regen: 6,
+        mind_resist: 62,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 62,
+        attacks: &[],
+        gear: &[
+            ("Grovemind Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 0, 0),
+            ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+            ("Cometfall", SlotKind::Weapon, 3, 1, 0),
+            ("Rootwork Alignment", SlotKind::Weapon, 0, 3, 0),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 0, 2, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 0, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 2, 2, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 1, 4, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 3, 4, 0),
+            ("Martyr's Crest", SlotKind::Helmet, 5, 2, 1),
+            ("Buttressed Frame", SlotKind::Helmet, 0, 5, 3),
+            ("Overflow Plate", SlotKind::Helmet, 2, 6, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 4, 6, 0),
+        ],
+        gear_offset: 0,
+        bounty: 206,
+        sprite: MonsterSprite::Archer,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[5, 4, 4, 3],
+    },
+    // Every lamp lit and burning. Kills on the clock, not the swing.
+    MonsterSpec {
+        name: "THE LAMP ROOM",
+        health: 2750,
+        strength: 73,
+        regen: 7,
+        mind_resist: 65,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 65,
+        attacks: &[],
+        gear: &[
+            ("Grovemind Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 0, 0),
+            ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+            ("Cometfall", SlotKind::Weapon, 3, 1, 0),
+            ("Rootwork Alignment", SlotKind::Weapon, 0, 3, 0),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 0, 2, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 0, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 2, 2, 0),
+            ("Overflow Plate", SlotKind::Helmet, 1, 4, 0),
+            ("Warding Plate", SlotKind::Helmet, 3, 4, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 2, 1),
+            ("Buttressed Frame", SlotKind::Helmet, 0, 5, 3),
+            ("Overflow Plate", SlotKind::Helmet, 2, 6, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 4, 6, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 4, 1),
+        ],
+        gear_offset: 0,
+        bounty: 215,
+        sprite: MonsterSprite::Idol,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[5, 4, 4, 4],
+    },
+    // The clerk keeps the accounts, yours included.
+    MonsterSpec {
+        name: "THE GOODS SHED",
+        health: 2880,
+        strength: 76,
+        regen: 7,
+        mind_resist: 68,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 68,
+        attacks: &[],
+        gear: &[
+            ("Emberheart Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Cometfall", SlotKind::Weapon, 3, 0, 0),
+            ("Emberburst", SlotKind::Weapon, 2, 1, 0),
+            ("Cometfall", SlotKind::Weapon, 0, 2, 2),
+            ("Rootwork Alignment", SlotKind::Weapon, 5, 1, 1),
+            ("Stormcaught Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 0, 2, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 0, 1),
+            ("Buttressed Frame", SlotKind::Helmet, 2, 2, 0),
+            ("Overflow Plate", SlotKind::Helmet, 4, 3, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 2, 4, 0),
+            ("The Empty Crown", SlotKind::Helmet, 0, 4, 0),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 5, 1),
+            ("Overflow Plate", SlotKind::Helmet, 2, 6, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 4, 5, 0),
+            ("The Empty Crown", SlotKind::Helmet, 4, 7, 0),
+        ],
+        gear_offset: 0,
+        bounty: 224,
+        sprite: MonsterSprite::Tallow,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[5, 4, 4, 4],
+    },
+    // It is in steam. Strength, health, and no trick at all.
+    MonsterSpec {
+        name: "THE ROUNDHOUSE",
+        health: 2880,
+        strength: 76,
+        regen: 7,
+        mind_resist: 68,
+        physical_resist: 45,
+        magic_resist: 40,
+        curse_resist: 68,
+        attacks: &[],
+        gear: &[
+            ("Grovemind Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 0, 0),
+            ("Hollow Lance", SlotKind::Weapon, 0, 2, 1),
+            ("Cometfall", SlotKind::Weapon, 3, 1, 0),
+            ("Rootwork Alignment", SlotKind::Weapon, 0, 3, 0),
+            ("Anvil Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 0, 0),
+            ("Watchful Crest", SlotKind::Helmet, 5, 0, 0),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 2, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 2, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 2, 1),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 4, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 4, 0),
+            ("Stonewall Frame", SlotKind::Helmet, 0, 6, 0),
+            ("Overflow Plate", SlotKind::Helmet, 3, 6, 0),
+            ("The Empty Crown", SlotKind::Helmet, 5, 5, 1),
+        ],
+        gear_offset: 0,
+        bounty: 224,
+        sprite: MonsterSprite::Golem,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[5, 3, 3, 2, 3],
+    },
 ];
 
 /// The floors of Bunko's Cavern, pp. 84-85. Authored by the packing tool like
@@ -6573,6 +7096,8 @@ pub fn tally_items(log: &CombatLog, side: Side, who: u8) -> Vec<ItemTally> {
             | Event::Burn { side: s, .. }
             | Event::Regen { side: s, .. }
             | Event::Hastened { side: s, .. }
+            | Event::Shunted { side: s, .. }
+            | Event::Derailed { side: s, .. }
             | Event::Reflected { side: s, .. }
             | Event::Fused { side: s, .. }
             | Event::Watched { side: s, .. }

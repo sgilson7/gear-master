@@ -1,0 +1,83 @@
+
+=== THE CREVICE IN THE ROCK [the-crevice] ===
+  entry: The hole in the back wall is a hole in the back wall for about four feet, and then it is a staircase somebody cut, and then it is not a staircase.
+  entry: Wenlock is already ahead of you. He has been ahead of you for six years.
+  banner: THE CREVICE IN THE ROCK - The Reciter - floor 1 of 3
+  at floor 0, fighting The Reciter, 3 fights ahead
+  landing: The recitation stops mid-verse. Behind the pulpit, the shell has grown out over a crack in the rock the way a lip grows over a bad tooth. Wenlock gets a bar under it. Wenlock is seventy-one.
+  banner: THE CREVICE IN THE ROCK - The Long Haul - floor 2 of 3
+  at floor 1, fighting The Long Haul, 2 fights ahead
+  landing: The train goes over on the bend. Whatever was in the cars is out in the dark now, and it does not appear to want anything from you at all, and it does not appear to want anything from Wenlock either, who keeps walking and does not look at it once.
+  banner: THE CREVICE IN THE ROCK - The Watchers - floor 3 of 3
+  at floor 2, fighting The Watchers, 1 fights ahead
+  landing: The Core is soup and light with a piece of somewhere else sitting in the middle of it. Wenlock looks at it for a while, and stops being an old man, and there is a moment there where he could have kept the lot. He splits it instead, the way he always said he would, and puts your share in your hand on his way past. Somewhere above you, for the first time in a long time, somebody is casting a line.
+  out the other side at rung 20, in front of Ember Wisp
+  map: 3 fights, 0 points
+
+=== THE THRESHOLD [the-threshold] ===
+  entry: The door was not locked. Doors like this never are.
+  entry: Behind you it is a cellar. Ahead of you it is not, and the difference happened somewhere in the middle without a line.
+  banner: THE THRESHOLD - DOORKEEP - floor 1 of 3
+  at floor 0, fighting DOORKEEP, 3 fights ahead
+  landing: The thing at the top is called DOORKEEP and it stands aside. It was always going to stand aside. What it was doing was making sure you went down rather than in.
+  banner: THE THRESHOLD - THE STAIR THAT LISTENS - floor 2 of 3
+  at floor 1, fighting THE STAIR THAT LISTENS, 2 fights ahead
+  landing: The stair has been counting. Not the steps - there are 402 steps and it has known that since before there were steps - it has been counting *you*, and the number it has reached is one.
+  banner: THE THRESHOLD - THE LAST LANDING - floor 3 of 3
+  at floor 2, fighting THE LAST LANDING, 1 fights ahead
+  landing: There is light at the bottom and the light is a person, or was, and it is pleased to see you, which is the worst of it. You come back up seeing with the wrong sense, and it does not stop.
+  receipt: Insight unlocked
+  receipt: Noted: threshold cleared
+  out the other side at rung 20, in front of Ember Wisp
+  map: 3 fights, 0 points
+
+=== THE UNDER-MINE [the-under-mine] ===
+  entry: The seam was sealed from the outside. Whatever the boards are for, they are not for keeping people out.
+  entry: Ossery said the foundry keeps melting down what keeps climbing out of the melt. He did not say what climbs out of a seam.
+  banner: THE UNDER-MINE - THE DIGGERS - floor 1 of 2
+  at floor 0, fighting THE DIGGERS, 2 fights ahead
+  landing: The diggers put their tools down when you come round the corner and pick them up again after, which is the only part of it that is frightening. There are fourteen of them, which is the number Ossery gave, and Ossery has never been down here.
+  banner: THE UNDER-MINE - WHAT THE SEAM HID - floor 2 of 2
+  at floor 1, fighting WHAT THE SEAM HID, 1 fights ahead
+  landing: It was sealed for a reason and the reason is looking at you, and behind the reason there is a vein of something the colour of a very old bar of chocolate going down further than the lamp goes.
+  out the other side at rung 20, in front of Ember Wisp
+  map: 2 fights, 0 points
+
+=== THE UNDERTOW [the-undertow] ===
+  entry: The water goes down and does not come back up. Neither does the light.
+  entry: Sixty years is a long time to fish somewhere nothing swims.
+  banner: THE UNDERTOW - THE CURRENT - floor 1 of 2
+  at floor 0, fighting THE CURRENT, 2 fights ahead
+  landing: The water decides how fast you are allowed to be. It decided that about Fenn too, for sixty years, and there is no arguing with a decision made by a quantity.
+  banner: THE UNDERTOW - THE THING ON THE HOOK - floor 2 of 2
+  at floor 1, fighting THE THING ON THE HOOK, 1 fights ahead
+  landing: It comes up on the line the way a thing comes up when it has chosen to. Underneath it the water is deeper than the world is, and you understand, all at once, what Fenn was patient about.
+  receipt: +1 row on a board of your choice, for the rest of the run
+  out the other side at rung 20, in front of Ember Wisp
+  map: 2 fights, 0 points
+
+=== DEN RIVALS [den-rivals] ===
+  entry: You counted the eyes. You stopped at forty.
+  entry: The exhibit promised the fury of a thousand bears. The museum never lied.
+  banner: DEN RIVALS - THE DEN MOUTH - floor 1 of 2
+  at floor 0, fighting THE DEN MOUTH, 2 fights ahead
+  landing: That was a hundred of them and the den goes back further than a hundred, and every one of them was in the way rather than in front.
+  banner: DEN RIVALS - THE THOUSANDTH BEAR - floor 2 of 2
+  at floor 1, fighting THE THOUSANDTH BEAR, 1 fights ahead
+  landing: The thousandth is the one the diorama was of. The diorama was to scale. The placard said A THOUSAND BEARS and did not say to what scale.
+  receipt: Gained: Bearhide
+  receipt: It arrives loose, and takes up room
+  out the other side at rung 20, in front of Ember Wisp
+  map: 2 fights, 0 points
+
+=== WUMPUS WORLD [wumpus-world] ===
+  entry: Something in the dark already knows your footsteps.
+  entry: You smell it. Worse: that is how it finds you.
+  banner: WUMPUS WORLD - DARK FLOOR - floor 1 of 2
+  at floor 0, fighting DARK FLOOR, 2 fights ahead
+  landing: Whatever lives near a wumpus lives there by being too quick and too many to be worth the trouble. Neither is a defence against somebody with a torch and twenty rooms to get through.
+  banner: WUMPUS WORLD - THE WUMPUS - floor 2 of 2
+  at floor 1, fighting THE WUMPUS, 1 fights ahead
+  landing: It knew where you were the whole way in. What it did not know is that you had stopped moving quietly a hundred yards back and had been listening to it work that out. The card at the mouth said WUMPUS ONE, and the card was right about the number.
+  out the other side at rung 20, in front of Ember Wisp
+  map: 2 fights, 0 points

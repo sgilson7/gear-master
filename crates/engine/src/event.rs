@@ -1975,6 +1975,229 @@ pub const EVENTS: &[LadderEvent] = &[
             },
         ],
     },
+    // ---- THE SWITCHYARD ---------------------------------------------------
+    //
+    // Four doors across the rung-19-to-35 stretch, seeded by two words. Every
+    // index is zero-based and the displayed rung is one more; every gold
+    // figure is a multiple of the standing rung's bounty rather than a number,
+    // which `acceptance::e6_7` lints.
+    //
+    // The free indices between Kettleworks (after 17) and the Slagworks (after
+    // 33) are 18, 20, 25, 27, 32 and 34, and these four take four of them.
+    LadderEvent {
+        id: "the-timetable",
+        at: 20,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Ember Wisp",
+        title: "THE TIMETABLE",
+        // Unconditional, for the reason the Unwinding's F1 is: a chain most
+        // runs never see the start of is a chain nobody walks.
+        //
+        // **Index 20, not 18.** The spec puts it at 18 and argues that
+        // Kettleworks' gate can share the rung because the stack pops the gate
+        // first - which is true of a *fountain* at index 7 and is not allowed
+        // of an event: `town::no_town_shares_a_rung_with_an_event` has refused
+        // that since before this mission, on the grounds that both want the
+        // screen and there is no sensible order for it. Kettleworks stands
+        // after 17, so its gate is met on 18. Index 20 is the only other rung
+        // in the stretch that is free of both a scheduled event and a town.
+        prose: &[
+            "Hesketh sells timetables off a folding table at the side of the \
+             road, for a line that closed before the road was cut, and she \
+             sells them at the printed price because she has never seen a \
+             reason to change it.",
+            "The times in them are being kept, and Hesketh has checked. Every \
+             train on the sheet leaves the yard when the sheet says, and the \
+             yard is under your feet, and you have not heard a train because \
+             there are no trains, and the times are being kept anyway.",
+            "She will sell you one. She would also, if you had something small \
+             she could use, take that instead, because the money is not the \
+             point and never has been.",
+        ],
+        choices: &[
+            Choice {
+                label: "Buy a timetable",
+                blurb: "A rung's bounty. The printed price, which she is proud of.",
+                requires: Requirement::Purse { times: 1 },
+                outcome: Outcome::Give("A Word About the Sidings"),
+                unmet: "Hesketh does not do credit, and says so kindly.",
+            },
+            Choice {
+                label: "Trade her something small",
+                blurb: "A loose one-by-one. She turns it over twice and puts it in her coat.",
+                requires: Requirement::LooseItemOfSize { w: 1, h: 1 },
+                outcome: Outcome::Give("A Word About the Sidings"),
+                unmet: "You have nothing small enough to be worth her while.",
+            },
+            Choice {
+                label: "Leave the table alone",
+                blurb: "The times will go on being kept without you.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-signal-box",
+        at: 24,
+        // The window opens on the rung after the timetable, so the earliest a
+        // run can carry the word is the earliest the box can stand. 21 to 24,
+        // and a rumour door goes first on its rung in any case. The window
+        // shuts before the Manse (after 24) for the reason the astronomer's
+        // shuts before the VIP area: a rung with two doors on it is a rung
+        // where one of them is a surprise, and a town gate is a third.
+        trigger: Trigger::Whispered { rumour: "A Word About the Sidings", from: 21 },
+        blocked_by: &[],
+        expects: "Cog Priest",
+        title: "THE SIGNAL BOX",
+        prose: &[
+            "The signal box stands on legs over the cutting and the man in it \
+             is called Ambrose and he does not look up, because the 21:14 is \
+             due and the 21:14 is more important than you are, whatever you \
+             are.",
+            "He throws the lever. Below you, in the dark, something heavy \
+             moves a foot and stops, and Ambrose writes a time in a book, and \
+             the time is 21:14, and it is the right time.",
+            "He will set the points for you if you ask. He sets them one way. \
+             He has always set them one way, and nobody has ever asked him \
+             which, and he would like it noted that you did not ask either.",
+        ],
+        choices: &[
+            Choice {
+                label: "Ask him to throw the points",
+                blurb: "He writes you into the book. The yard is open, and he will not say what is in it.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("A Word About the Points"),
+                unmet: "",
+            },
+            // Pays and closes the chain this run, which is the "turn him in"
+            // shape: the word is spent on a bounty rather than on a door, and
+            // that is a real offer for a run one component short.
+            Choice {
+                label: "Ask what runs on the 21:14",
+                blurb: "Nothing. He knew that. The bounty again, for a question worth asking.",
+                requires: Requirement::None,
+                outcome: Outcome::Pay { times: 1 },
+                unmet: "",
+            },
+            Choice {
+                label: "Leave him to it",
+                blurb: "The 21:22 is due. He has already stopped seeing you.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-turntable",
+        at: 27,
+        // Index 25 is bare and 27 is bare; 26 carries THE BIRD PROBLEM, which
+        // is scheduled and is asked after this one. The window shuts one short
+        // of 28, where THE PAYOUT and the astronomer's deadline both stand.
+        trigger: Trigger::Whispered { rumour: "A Word About the Points", from: 25 },
+        blocked_by: &[],
+        expects: "Obsidian Colossus",
+        title: "THE TURNTABLE",
+        prose: &[
+            "The turntable is at the bottom of the cutting and it is turning. \
+             Nobody is on it. It turns a quarter of the way round, and stops, \
+             and a bell rings once in the dark, and it turns back.",
+            "The yard goes off from it in two directions and both of them are \
+             unlit, and on the wall of the turntable pit somebody has painted \
+             DOWN LINE and UP LINE with an arrow each, and under the arrows, \
+             smaller, the words BUFFER STOPS AT THE END OF BOTH.",
+            "Ambrose has thrown the points. You can hear them, thrown, \
+             somewhere out past the lamp. Which way he threw them is a thing \
+             you find out by walking.",
+        ],
+        choices: &[
+            Choice {
+                label: "Step onto the turntable",
+                blurb: "Four fights on either line, and the line is your choice at the first points. What is at the buffer stop stays there until somebody takes it.",
+                requires: Requirement::None,
+                outcome: Outcome::Enter("the-switchyard"),
+                unmet: "",
+            },
+            Choice {
+                label: "Sell the timetable to the man in the pit",
+                blurb: "There is a man in the pit who collects them. The bounty three times, and the yard stays shut.",
+                requires: Requirement::None,
+                outcome: Outcome::Pay { times: 3 },
+                unmet: "",
+            },
+            Choice {
+                label: "Come back up",
+                blurb: "The turntable turns a quarter of the way round, and stops, and turns back.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-last-train",
+        at: 33,
+        // Part E's E-1, taken as recommended: option (c). This was written as a
+        // `WhenFlagged` door waiting on `switchyard-cleared`, and its third
+        // choice is for the run that *sold* the sheet - which sets no flag and
+        // would never have met the door. `Trigger` has no "either flag".
+        //
+        // So it stands for everybody and greys what a run did not earn, which
+        // is the VIP area's shape ("the rope does not move") and teaches that
+        // the yard existed. A chain nobody can tell they missed is a chain
+        // they will not look for next run.
+        //
+        // **Index 33, not 32.** (c) says 32; High Wick stands after 31, so its
+        // gate is met on 32 and `town::no_town_shares_a_rung_with_an_event`
+        // refuses it. 33 is the next rung that is not a gate, it is still past
+        // the pedestal - which is the whole reason the door stands late, so
+        // the count is read after a run has had somewhere to spend its orbs -
+        // and it shares the rung with THE EXHIBITION, which is a window rather
+        // than an address and is a pairing the road already has three of.
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "The Last Gearwright",
+        title: "THE LAST TRAIN",
+        prose: &[
+            "Ambrose is on the road. He has never been on the road. He has the \
+             book under his arm and the lever is not in the box any more, \
+             because the box is not there any more, because the last train ran \
+             at 02:40 this morning and it took the box with it.",
+            "He wants to know how far down the yard you went, and Ambrose \
+             writes the answer in the book without looking at the page, in a \
+             hand that has written the same eleven times a day for longer than \
+             there has been a road.",
+            "There was one more train on the sheet. There was always one more \
+             train on the sheet. Ambrose says the sheet was right about that \
+             too.",
+        ],
+        choices: &[
+            Choice {
+                label: "Tell him both lines",
+                blurb: "You walked the yard twice. He closes the book. Three times the bounty, and your next loss inside five rungs does not count.",
+                requires: Requirement::Counter { what: "sidings-cleared", at_least: 2 },
+                outcome: Outcome::All(&[Outcome::Pay { times: 3 }, Outcome::Underwrite]),
+                unmet: "You walked one line. Ambrose knows, because he threw the points.",
+            },
+            Choice {
+                label: "Tell him one line",
+                blurb: "He writes it down. The bounty again, and a nod.",
+                requires: Requirement::Counter { what: "sidings-cleared", at_least: 1 },
+                outcome: Outcome::Pay { times: 1 },
+                unmet: "You did not go down. He knows that too.",
+            },
+            Choice {
+                label: "Tell him you never found it",
+                blurb: "He has heard that before and does not believe it, and writes it down anyway. There is no bounty for this and it costs you nothing.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
 ];
 
 /// **Every** event standing on `rung`, given what the run has managed so far.

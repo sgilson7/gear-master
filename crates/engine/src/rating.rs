@@ -121,6 +121,51 @@ mod weight {
     pub const AIMED: f32 = 2.4;
     /// A second shaved off a cooldown, per second.
     pub const HASTE_PS: f32 = 9.0;
+    /// A second of cooldown *moved* from one item to another, per second.
+    ///
+    /// Time is conserved, so the naive price is zero. What is bought is where
+    /// the second is spent: a second on a 5,000 ms chest item is worth more
+    /// than a second on a 1,500 ms weapon by roughly the ratio of what those
+    /// items carry. A third of `HASTE_PS`, and the third is the discount for
+    /// the fact that the rating cannot see which neighbour will be found - or
+    /// whether there will be one at all.
+    pub const SHUNT_PS: f32 = 3.0;
+    /// The share of `Grow` that a `Ballast` of the same size is worth.
+    ///
+    /// **Measured, at M8.** It was two-thirds - the flat discount every
+    /// condition in this file used to take for "what a build that wanted it
+    /// will actually manage" - and fighting it says 0.87.
+    ///
+    /// The measurement is `prices::report_what_the_two_conditionals_actually_
+    /// manage`: a chest item asking for 10, 20 or 30 against a rung-29
+    /// creature, over three sizes of armour income, spends all of what it asks
+    /// for in seven of nine configurations and a third to a half in the two
+    /// where the income cannot keep up. The mean is 0.87.
+    ///
+    /// The number it is *not* is zero, which is what the same probe read on
+    /// its first run: a wall granted once at the bell is gone before a
+    /// five-second chest item comes round, because the creature is hitting
+    /// you. A build that wants Ballast wants armour income, and that is the
+    /// build this discount is for.
+    pub const BALLAST_FUNDED: f32 = 0.87;
+    /// How often a `Derail` finds anything at all.
+    ///
+    /// **Measured, at M8.** It was 0.4, derived as the share of a *single*
+    /// item's duty cycle that a 1,000 ms window covers on a board cadenced
+    /// around 2,500 ms. That is the right arithmetic for the wrong question: a
+    /// creature at the bands the yard stands on wears fourteen to twenty-six
+    /// items, and the chance that *one of them* is within a second of firing
+    /// is nearly one.
+    ///
+    /// `prices::report_what_the_two_conditionals_actually_manage` fights a
+    /// Derail on a 2,500 ms glove against the four creatures at bands 27 to
+    /// 30: 59% against the thinnest board and 100% against the two densest,
+    /// **0.79 overall**.
+    ///
+    /// It is still a discount rather than 1.0, and the discount is the thin
+    /// boards - which is the honest shape, because a creature with three items
+    /// is exactly the one a denial is worth least against.
+    pub const DERAIL_WINDOW: f32 = 0.79;
     /// A stack of empowerment or shield per second. Both scale off held mana,
     /// so their real worth depends on a build the rating cannot see; this is
     /// the value of a stack in a build that is actually banking mana.
@@ -362,6 +407,16 @@ const SLOWED_ITEMS: f32 = 2.0;
 /// Eight is a build that banks deliberately without being about it.
 const DRAINED_ASSUMED: i32 = 8;
 
+/// The pool an `Accrue` is assumed to be reading.
+///
+/// The same shape `DRAINED_ASSUMED` has and deliberately not the same number.
+/// That one is "a deep-but-not-absurd pool as a *victim* holds one"; this is
+/// what a build that wanted proportional income holds itself, which
+/// `design/towns.md`'s table puts at 46 on the winning board and 6 on the
+/// auto-built one. Thirty is between them, leaning towards the build that
+/// went looking for it.
+const ACCRUED_ASSUMED: i32 = 30;
+
 /// What one action is worth each time it happens.
 fn action_points(a: &Action) -> f32 {
     match a {
@@ -461,6 +516,25 @@ fn action_points(a: &Action) -> f32 {
         // - which is more than a shield stack, and only to a build that has
         // something worth copying.
         Action::GainForking(n) => *n as f32 * weight::FORK_PS,
+        // Haste at a third of the price, because the time is not created -
+        // only moved somewhere it is worth more.
+        Action::Shunt { ms } => *ms as f32 / 1000.0 * weight::SHUNT_PS,
+        // Growth, funded. Priced as `Grow` and then discounted for the
+        // condition, which is that there was armour there to spend.
+        Action::Ballast(n) => {
+            *n as f32 * weight::HEALTH * TYPICAL_FIGHT_S * weight::BALLAST_FUNDED
+        }
+        // Denial, aimed, and found only some of the time. Aimed because it
+        // picks the best item there is; discounted because most activations
+        // find nothing in the window at all.
+        Action::Derail { back_ms, .. } => {
+            *back_ms as f32 / 1000.0 * weight::DENIAL_S * weight::AIMED * weight::DERAIL_WINDOW
+        }
+        // Income the rating cannot see the size of, so it is priced against an
+        // assumed balance the same way a drain is.
+        Action::Accrue { what, pct } => {
+            ACCRUED_ASSUMED as f32 * *pct as f32 / 100.0 * pool_weight(*what)
+        }
     }
 }
 

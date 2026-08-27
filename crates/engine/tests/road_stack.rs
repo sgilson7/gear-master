@@ -85,9 +85,28 @@ fn a_dungeon_sits_on_top_of_whatever_it_was_entered_from() {
     run.rung = gearmaster_engine::town::TOWNS[0].after + 1;
     let stack = run.road_stack();
     assert_eq!(stack.first().map(|i| i.kind()), Some("dungeon"));
-    assert!(matches!(stack[0], Interrupt::Dungeon(_, 1)));
+    assert!(matches!(stack[0], Interrupt::Dungeon { floor: 1, .. }));
     assert!(!stack[0].blocks_a_rematch());
-    assert!(stack[0].describe().contains("floor 2 of 3"));
+    // Re-pinned, not loosened. `floor {n} of {m}` used to be the floor index
+    // and the room count; it is now which fight of this entry this is and how
+    // many this entry turns out to be. This run was *put* on floor 1 without
+    // fighting anything, which is what a siding does, and a run that has won
+    // no fights and has two ahead of it is on floor 1 of 2. A run that walked
+    // in reads 2 of 3, and the line below is what pins that.
+    assert!(stack[0].describe().contains("floor 1 of 2"), "{}", stack[0].describe());
+
+    let mut walked = a_run();
+    walked.rung = gearmaster_engine::town::TOWNS[0].after + 1;
+    walked.enter_dungeon("the-crevice");
+    walked.pending_scene = None;
+    walked.force_win();
+    walked.settle();
+    walked.back_to_loadout();
+    assert!(
+        walked.road_stack()[0].describe().contains("floor 2 of 3"),
+        "{}",
+        walked.road_stack()[0].describe()
+    );
 }
 
 #[test]

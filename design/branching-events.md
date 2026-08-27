@@ -448,3 +448,36 @@ one fight from another once every unfinished fight ends near zero; an item
 ratio counted to the end of a fight that now stops at a different tick; and a
 mana-shield test read health after thirty seconds, which reads the overtime
 rather than the shield.
+
+---
+
+## The Switchyard's four doors (2026-08-27, status: **built**)
+
+`design/the-switchyard.md` Part B. Four doors across the rung-19-to-35
+stretch, seeded by two words that are not on the bar - the pub's six shelves
+are full, so the first is bought at a roadside table and the second is told to
+you in a signal box, which is the shape the Unwinding's second and third words
+already have.
+
+| Door | Index | Displayed rung | Trigger | Opens |
+|---|---:|---:|---|---|
+| THE TIMETABLE | 20 | 21 | `Rung` | A Word About the Sidings |
+| THE SIGNAL BOX | 24 | 21-25 | `Whispered { from: 21 }` | A Word About the Points |
+| THE TURNTABLE | 27 | 26-28 | `Whispered { from: 25 }` | THE SWITCHYARD |
+| THE LAST TRAIN | 33 | 34 | `Rung` | reads `sidings-cleared` |
+
+**Two of them are not where the spec drew them.** It put THE TIMETABLE at 18
+and THE LAST TRAIN at 32, from a list of free rungs that counts events and
+takes no account of towns. Kettleworks' gate stands on 18 and High Wick's on
+32, and `town::no_town_shares_a_rung_with_an_event` has refused a door on a
+gate's rung since long before this mission - both would want the screen, and
+there is no sensible order for that. The intersection free of both is 20 and
+27.
+
+**THE LAST TRAIN always stands** (Part E, E-1, option (c)). It was written as
+a `WhenFlagged` door waiting on `switchyard-cleared`, and its third choice was
+for the run that *sold* the sheet - which sets no flag and would never have met
+the door. `Trigger` has no "either flag". So it stands for everybody and greys
+what a run did not earn, which is the VIP area's shape and teaches that the
+yard existed: a chain nobody can tell they missed is a chain they will not look
+for next run.

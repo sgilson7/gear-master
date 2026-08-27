@@ -4,14 +4,26 @@ use crate::piece::{PieceKind, PieceDef, SlotKind, CATALOG};
 use crate::rng::Rng;
 
 /// How many components are on offer at once.
-pub const SHOP_SIZE: usize = 6;
+///
+/// **Seven since 2026-08-27.** It was six for the whole of the game's life,
+/// and six is a shelf that shows one slot's worth of choice at a time: the
+/// tilt deals the five slots round-robin, so at six a run sees one or two
+/// pieces of some slots and none of others, and the slot it saw nothing of is
+/// the slot it does not build. A seventh is a whole extra draw against the
+/// same pool and it fits the strip the interface already draws - a card is 126
+/// wide with a 10 gap and the band is 1,186, so seven need 1,088 and eight
+/// would not fit.
+///
+/// It is a shelf count and not a curated one: `stock_exactly` ignores it, so
+/// the pub's six shelves and a town's curated five are unmoved.
+pub const SHOP_SIZE: usize = 7;
 /// How hard the shelf tilts toward the slots with the most pieces.
 ///
 /// 1.0 deals every slot in proportion to its catalogue - perfectly even
 /// components, and the weapon on 54.8% of every shelf because it is two fifths
 /// of the pieces. 0.5 deals the five slots nearly evenly - a fair shelf, and a
 /// chest piece 2.5x as likely as a weapon piece, which
-/// `avail::the_shelves_are_not_the_same_six_things_every_time` refuses at 3.7x.
+/// `avail::the_shelves_are_not_the_same_few_things_every_time` refuses at 3.7x.
 ///
 /// The two rules pull against each other and this is where both hold.
 const SHELF_TILT: f32 = 0.9;
@@ -153,7 +165,7 @@ impl Shop {
         // something else: a slot's share is then spread over however many
         // pieces it has, so a chest piece (69 of them) turns up two and a half
         // times as often as a weapon piece (172), and
-        // `avail::the_shelves_are_not_the_same_six_things_every_time` says 3.7x
+        // `avail::the_shelves_are_not_the_same_few_things_every_time` says 3.7x
         // and refuses. Dealing in proportion to the catalogue is what we had,
         // and that is the weapon taking 55% of every shelf.
         //
@@ -165,7 +177,21 @@ impl Shop {
         // both tests pass, which is the only place either of them is happy.
         let mut tickets: Vec<SlotKind> = Vec::new();
         for k in SlotKind::ALL {
-            let n = CATALOG.iter().filter(|d| d.slot == k).count();
+            // Counted over the **pool**, not over `CATALOG`.
+            //
+            // It was the catalogue, which meant every piece the filters above
+            // had just removed still bought its slot a ticket: boss gear,
+            // quest rewards, town stock, the mind lane before it is open, and
+            // a hundred and twenty event-only components. A slot was dealt in
+            // proportion to how much of it exists rather than to how much of
+            // it is for sale, and the two have not been the same number since
+            // the Unwinding appended thirty-one rewards.
+            //
+            // Found by appending eight unsellable components and watching
+            // `avail::the_shelves_are_not_the_same_few_things_every_time`
+            // move - the shelves shifted because the catalogue grew in places
+            // no shelf can reach.
+            let n = pool.iter().filter(|&&i| CATALOG[i].slot == k).count();
             let weight = ((n as f32).powf(SHELF_TILT) / 6.0).round().max(1.0) as usize;
             for _ in 0..weight {
                 tickets.push(k);

@@ -57,9 +57,19 @@ fn answer(run: &mut Run, rung: usize, id: &str, label: &str) {
 fn the_chain_is_four_doors_and_each_one_opens_the_next() {
     let mut run = a_run(Mode::Grinder);
 
-    // Nothing at all until somebody says something.
+    // Nothing *of the chain's* until somebody says something.
+    //
+    // Re-pinned at the Switchyard's M6. This read "nothing at all", and rung
+    // 20 stopped being bare when THE TIMETABLE took it - the only rung in the
+    // stretch free of both a scheduled event and a town gate. What the line is
+    // actually about is that a whispered door does not open for a run carrying
+    // no word, and that is what it says now.
     run.rung = 20;
-    assert!(run.pending_event().is_none(), "a door opened for a run that heard nothing");
+    let standing = run.pending_event().map(|e| e.id);
+    assert!(
+        standing != Some("the-astronomer"),
+        "a door opened for a run that heard nothing"
+    );
 
     // One: the astronomer, met by carrying the word the bar sells.
     run.give(WRONG_STARS);
@@ -217,8 +227,10 @@ fn the_cellar_door_opens_the_lane_and_nothing_else_does() {
     assert_eq!(d.id, "the-threshold");
     assert!(run.pending_scene.is_some(), "you walked into a dungeon and nobody said so");
 
-    // Three floors, and the pool at the bottom.
-    for _ in 0..d.floors.len() {
+    // Three floors, and the pool at the bottom. `fights_ahead` rather than a
+    // room count, because a room count stopped being what a run walks when
+    // floors became a graph - the two agree for every straight line.
+    for _ in 0..d.fights_ahead(0, &[]) {
         run.pending_scene = None;
         run.force_win();
         run.settle();
@@ -287,8 +299,8 @@ fn the_chain_can_be_finished_in_one_run_in_either_mode() {
         run.settle();
         run.visit_town(Action::CellarDoor);
         run.take_receipt();
-        let floors = run.dungeon.expect("in it").0.floors.len();
-        for _ in 0..floors {
+        let fights = run.dungeon.expect("in it").0.fights_ahead(0, &[]);
+        for _ in 0..fights {
             run.pending_scene = None;
             run.force_win();
             run.settle();

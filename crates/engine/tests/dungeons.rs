@@ -14,7 +14,7 @@ mod common;
 
 use gearmaster_engine::bestiary::{frame, is_unpacked, MonsterTheme};
 use gearmaster_engine::combat::Difficulty;
-use gearmaster_engine::dungeon::{by_id, DUNGEONS};
+use gearmaster_engine::dungeon::{by_id, Dungeon, DUNGEONS};
 use gearmaster_engine::event::Outcome;
 use gearmaster_engine::piece::SlotKind;
 use gearmaster_engine::run::{Mode, Run};
@@ -30,8 +30,11 @@ fn a_run() -> Run {
 /// Walk one from the top, and hand back what came out of it.
 fn walk(run: &mut Run, id: &'static str) {
     run.enter_dungeon(id);
-    let floors = run.dungeon.expect("in it").0.floors.len();
-    for _ in 0..floors {
+    // Fights on the road out, not rooms in the building. The two are the same
+    // number for every dungeon shipped before the floor graph, and the graph
+    // lints are what keep them so.
+    let fights = run.dungeon.expect("in it").0.fights_ahead(0, &[]);
+    for _ in 0..fights {
         run.pending_scene = None;
         run.force_win();
         run.settle();
@@ -42,18 +45,20 @@ fn walk(run: &mut Run, id: &'static str) {
 
 #[test]
 fn the_mission_adds_four_and_they_all_stand_beside_the_road() {
-    assert_eq!(DUNGEONS.len(), 6, "one shipped, and five the chain and the orbs add");
+    assert_eq!(DUNGEONS.len(), 7, "one shipped, five the Unwinding added, and the yard");
     for d in DUNGEONS {
         assert!(!d.floors.is_empty());
-        assert_eq!(d.landings.len(), d.floors.len(), "{}: one landing a floor", d.id);
+        // "One landing a floor" was two lists counted against each other. It
+        // is a field on `Floor` now, so the type says it and the assertion is
+        // retired rather than loosened.
         assert!(!d.entry.is_empty(), "{} lets you in without a word", d.id);
         // Nothing on the ladder: a dungeon is reached by an event, a town door
         // or a pedestal, and never by climbing.
         for f in d.floors {
             assert!(
-                !gearmaster_engine::combat::LADDER.iter().any(|m| m.name == *f),
+                !gearmaster_engine::combat::LADDER.iter().any(|m| m.name == f.creature),
                 "{} is on the road as well as beside it",
-                f
+                f.creature
             );
         }
     }
@@ -63,8 +68,9 @@ fn the_mission_adds_four_and_they_all_stand_beside_the_road() {
 fn every_floor_is_a_frame_with_a_band_and_a_theme() {
     for d in DUNGEONS.iter().filter(|d| d.id != "the-crevice") {
         for f in d.floors {
-            let fr = frame(f).unwrap_or_else(|| panic!("{} has no frame", f));
-            assert!(fr.band >= 20, "{} packs to rung {}", f, fr.band);
+            let c = f.creature;
+            let fr = frame(c).unwrap_or_else(|| panic!("{c} has no frame"));
+            assert!(fr.band >= 20, "{c} packs to rung {}", fr.band);
             assert!(!fr.note.is_empty());
         }
     }
@@ -83,11 +89,11 @@ fn the_frame_lint_and_the_floors_agree_about_who_is_dressed() {
         gearmaster_engine::bestiary::unpacked().iter().map(|f| f.name).collect();
     for d in DUNGEONS.iter().filter(|d| d.id != "the-crevice") {
         for f in d.floors {
+            let c = f.creature;
             assert_eq!(
-                is_unpacked(f),
-                naked.contains(f),
-                "{} disagrees with the frame lint about whether it has a board",
-                f
+                is_unpacked(c),
+                naked.contains(&c),
+                "{c} disagrees with the frame lint about whether it has a board"
             );
         }
     }
@@ -99,16 +105,35 @@ fn a_dungeon_reads_as_one_creature_all_the_way_down() {
     // disagree is two dungeons somebody stapled together.
     for d in DUNGEONS.iter().filter(|d| d.id != "the-crevice") {
         let themes: Vec<MonsterTheme> =
-            d.floors.iter().filter_map(|f| frame(f)).map(|f| f.theme).collect();
+            d.floors.iter().filter_map(|f| frame(f.creature)).map(|f| f.theme).collect();
         assert!(!themes.is_empty());
-        let bands: Vec<usize> = d.floors.iter().filter_map(|f| frame(f)).map(|f| f.band).collect();
-        for w in bands.windows(2) {
-            assert!(w[1] >= w[0], "{}: the floors get easier as you go down", d.id);
+        // Along every *road out*, not along the list. The list is a graph now
+        // and its order is an index rather than a walk: THE SWITCHYARD's floor
+        // 5 is band 28 after floor 4's 30 because floors 5 to 8 are the other
+        // line, and a run walks one or the other. What has to hold is that
+        // nothing gets easier as you go deeper down a road somebody takes.
+        for (i, f) in d.floors.iter().enumerate() {
+            let Some(here) = frame(f.creature).map(|x| x.band) else { continue };
+            for e in f.exits {
+                let Some(next) = frame(d.floors[e.to].creature).map(|x| x.band) else { continue };
+                assert!(
+                    next >= here,
+                    "{}: floor {i} is band {here} and leads to band {next}",
+                    d.id
+                );
+            }
         }
-        // WUMPUS WORLD is the one that changes, and it changes on purpose: the
-        // dark floor is what *lives near* a wumpus, and the wumpus is not
-        // that. Everything else holds one idea.
-        if d.id != "wumpus-world" {
+        // Two exceptions, both on purpose. WUMPUS WORLD changes because the
+        // dark floor is what *lives near* a wumpus and the wumpus is not that.
+        //
+        // THE SWITCHYARD is not a creature at all - it is a place, and the
+        // nine things in it are a shunter, a gang of platelayers, what came up
+        // with the ballast, a coal stage, a water tower, a gantry, a lamp
+        // room, a goods shed and an engine in steam. The two lines are meant
+        // to read differently in the first three seconds: the Down line is
+        // weight and the Up line is light, which is how a run that has walked
+        // one of them knows the other is worth an orb.
+        if !matches!(d.id, "wumpus-world" | "the-switchyard") {
             assert!(
                 themes.windows(2).all(|w| w[0] == w[1]),
                 "{}: {:?} is two dungeons stapled together",
@@ -123,13 +148,20 @@ fn a_dungeon_reads_as_one_creature_all_the_way_down() {
 fn every_dungeon_pays_something_and_two_of_them_pay_no_class_at_all() {
     let no_class: Vec<&str> =
         DUNGEONS.iter().filter(|d| d.reward.is_empty()).map(|d| d.id).collect();
-    assert_eq!(no_class, vec!["the-undertow", "den-rivals"]);
+    // THE SWITCHYARD joins them, and for a third reason: it pays neither a
+    // class nor a dungeon-wide `also`, because every reward is a *buffer
+    // stop's*. Which one you reached is the whole of what a graph asks, so a
+    // payout on the way out would be a payout for having been there at all.
+    assert_eq!(no_class, vec!["the-undertow", "den-rivals", "the-switchyard"]);
     for d in DUNGEONS {
-        assert!(
-            !d.reward.is_empty() || !d.also.is_empty(),
-            "{} is a walk there and a walk back",
-            d.id
-        );
+        // On any way out, or at every buffer stop. The second is what a graph
+        // wants: THE SWITCHYARD pays four different things depending on which
+        // of its four ends you reached, and a dungeon-wide payout would be a
+        // payout for having been there at all.
+        let on_any_exit = !d.reward.is_empty() || !d.also.is_empty();
+        let every_stop_pays =
+            d.floors.iter().filter(|f| f.is_leaf()).all(|f| !f.also.is_empty());
+        assert!(on_any_exit || every_stop_pays, "{} is a walk there and a walk back", d.id);
     }
 }
 
@@ -275,5 +307,198 @@ fn every_dungeon_can_be_reached_by_something() {
         }
         assert!(opened, "{} is a dungeon nobody can open", d.id);
         assert!(by_id(d.id).is_some());
+    }
+}
+
+// ------------------------------------------------- the map, before and after
+
+/// The route map draws a straight-line dungeon exactly as it drew one before
+/// floors became a graph, apart from one word.
+///
+/// The fixture is the real pre-M1 bytes: `route::ascii` for a seeded run,
+/// captured off `e38d968` before `NodeKind::Dungeon` changed shape. What M1
+/// promised is that a dungeon with no points in it reads the same, and what M1
+/// actually changed is the noun - `floors` was the room count and `fights` is
+/// the length of the road out, which for a straight line is the same number.
+/// The substitution is applied here rather than baked into the fixture so that
+/// the one word that moved is named in the assertion instead of hidden in a
+/// file.
+///
+/// The spec's acceptance criterion 3 says "`route::ascii` for a run inside THE
+/// THRESHOLD". THE THRESHOLD is never on the map: a `NodeKind::Dungeon` hangs
+/// off an event choice whose outcome enters one (`route.rs`), and THE
+/// THRESHOLD is reached through a town door. The one shipped dungeon the map
+/// draws is THE CREVICE IN THE ROCK, and this pins the whole map rather than
+/// its line, so it would catch either.
+#[test]
+fn the_ascii_map_did_not_change_for_a_linear_dungeon() {
+    let mut run = Run::seeded(0x8001);
+    run.difficulty = Difficulty::Easy;
+    run.rung = 20;
+    run.enter_dungeon("the-threshold");
+
+    let before = include_str!("fixtures/route-ascii-m0.txt");
+    let want: Vec<String> =
+        before.lines().map(|l| l.replace(" floors)", " fights)")).collect();
+    let got = gearmaster_engine::route::ascii(&run);
+
+    assert!(
+        before.contains(" floors)"),
+        "the fixture is supposed to be the pre-M1 bytes, and those say floors"
+    );
+    // Every line of the pre-M1 road is still on the map, in order.
+    //
+    // It compared lengths until M6, which was right while the road was the
+    // road the fixture was taken from. The Switchyard adds four doors and a
+    // dungeon, so the map is longer - and what M1 promised is that the lines
+    // that were there did not *move*, which is a subsequence check and not a
+    // length check. A line that changed a character still fails, and so does
+    // one that got reordered.
+    let mut at = 0usize;
+    for line in &want {
+        match got[at..].iter().position(|g| g == line) {
+            Some(k) => at += k + 1,
+            None => panic!("the map lost or changed {line:?}"),
+        }
+    }
+    assert!(
+        got.len() >= want.len(),
+        "the map is shorter than the road it was taken from"
+    );
+}
+
+/// A dungeon with points says so on the map, and one without does not.
+///
+/// The `points` clause is dropped at zero on purpose: six shipped dungeons
+/// have no forks and their line must not grow a `, 0 points` nobody needs.
+#[test]
+fn the_map_counts_points_only_where_there_are_some() {
+    let map = gearmaster_engine::route::route(&Run::seeded(0x8001));
+    let drawn: Vec<_> = map
+        .nodes
+        .iter()
+        .filter_map(|n| match n.kind {
+            gearmaster_engine::route::NodeKind::Dungeon { fights, forks } => {
+                Some((n.id, fights, forks))
+            }
+            _ => None,
+        })
+        .collect();
+    assert!(!drawn.is_empty(), "no dungeon is on the map at all");
+    for (id, fights, forks) in drawn {
+        let d = by_id(id).expect("a node names a dungeon");
+        assert_eq!(fights, d.fights_ahead(0, &[]));
+        assert_eq!(forks, d.forks());
+        // One dungeon in the game asks which way, and the map says so by
+        // naming it rather than by tolerating any number of points anywhere.
+        let want = if id == "the-switchyard" { 3 } else { 0 };
+        assert_eq!(forks, want, "{id} has {forks} sets of points and should have {want}");
+    }
+}
+
+// ------------------------------------------------------------- the transcript
+
+/// Walk every shipped dungeon from the top and write down everything a run is
+/// told on the way through.
+///
+/// Banner, creature, fights ahead, landing, receipt and the map's line for it -
+/// which between them are every string and every number M1 moved. Reading a
+/// transcript rather than asserting a list of facts is deliberate: the failure
+/// this guards against is a *word* changing, and a diff says which word.
+fn transcript() -> String {
+    // The six that predate the floor graph, and only those. THE SWITCHYARD has
+    // points in it, and a walk that does not throw them stands at the lever for
+    // ever - which is what this loop did for six minutes before anybody noticed
+    // it was not a slow test. The yard's own walk is `tests/switchyard.rs`'s,
+    // where there is something to decide.
+    let mut out = String::new();
+    let six: Vec<&Dungeon> = DUNGEONS.iter().filter(|d| d.id != "the-switchyard").collect();
+    assert_eq!(six.len(), 6, "a dungeon arrived that this fixture does not know about");
+    for d in six {
+        let mut run = a_run();
+        run.rung = 20;
+        run.enter_dungeon(d.id);
+        out.push_str(&format!("\n=== {} [{}] ===\n", d.name, d.id));
+        for line in d.entry {
+            out.push_str(&format!("  entry: {line}\n"));
+        }
+        // Bounded. A dungeon that cannot be walked out of is a hang, and a
+        // hang is a worse bug than a wrong room.
+        let mut guard = 0;
+        while let Some((_, floor)) = run.dungeon {
+            guard += 1;
+            assert!(guard < 32, "{} never ended", d.id);
+            let banner = run
+                .road_stack()
+                .first()
+                .map(|i| i.describe())
+                .unwrap_or_else(|| "<nothing on the stack>".into());
+            out.push_str(&format!(
+                "  banner: {banner}\n  at floor {floor}, fighting {}, {} fights ahead\n",
+                run.monster().name,
+                d.fights_ahead(floor, &[])
+            ));
+            run.pending_scene = None;
+            run.force_win();
+            run.settle();
+            if let Some(l) = run.pending_landing {
+                out.push_str(&format!("  landing: {l}\n"));
+            }
+            if let Some(r) = run.take_receipt() {
+                for line in r {
+                    out.push_str(&format!("  receipt: {line}\n"));
+                }
+            }
+            run.back_to_loadout();
+        }
+        out.push_str(&format!(
+            "  out the other side at rung {}, in front of {}\n",
+            run.rung,
+            run.monster().name
+        ));
+        out.push_str(&format!(
+            "  map: {} fights, {} points\n",
+            d.fights_ahead(0, &[]),
+            d.forks()
+        ));
+    }
+    out
+}
+
+/// Every shipped dungeon says and does exactly what it said and did at M0.
+///
+/// The fixture is `analysis/replays/dungeons.txt`. M1 rewrote the floor tables,
+/// moved the landings into them, changed how a landing is looked up in the
+/// theme, and rewrote the map's node - and none of it is allowed to change one
+/// character of what a run walking a straight line is told. That is the whole
+/// of what "landed inert" means, and it is a diff rather than an argument.
+///
+/// Re-baseline with `REBASELINE_DUNGEON_REPLAY=1`, and say in the commit which
+/// dungeon started saying something else.
+///
+/// **Re-baselined once, at M2**, and the diff was fourteen banner lines and
+/// nothing else: every one gained the creature's name between the dungeon's
+/// and the floor count, which is what acceptance criterion 3 asks for in those
+/// words. Every `floor {n} of {m}` pair came back the same, which is the half
+/// of the banner that had to hold when its two numbers changed meaning.
+#[test]
+fn the_six_shipped_dungeons_replay_word_for_word() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../analysis/replays/dungeons.txt");
+    let got = transcript();
+    if std::env::var("REBASELINE_DUNGEON_REPLAY").as_deref() == Ok("1") {
+        std::fs::create_dir_all(concat!(env!("CARGO_MANIFEST_DIR"), "/../../analysis/replays"))
+            .unwrap();
+        std::fs::write(path, &got).unwrap();
+        return;
+    }
+    let want = include_str!("../../../analysis/replays/dungeons.txt");
+    if want != got {
+        let first = want
+            .lines()
+            .zip(got.lines())
+            .find(|(a, b)| a != b)
+            .map(|(a, b)| format!("was: {a}\nnow: {b}"))
+            .unwrap_or_else(|| "the transcript changed length".into());
+        panic!("a shipped dungeon replays differently:\n{first}\n(fixture: {path})");
     }
 }

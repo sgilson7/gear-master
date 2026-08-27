@@ -590,7 +590,13 @@ fn every_rumour_and_the_trophy_trade_is_a_quest_item() {
         .find(|d| d.name == gearmaster_engine::rumour::TROPHY_SHELF)
         .expect("the trophy trade is a component");
     assert_eq!(trophy.kind, gearmaster_engine::piece::PieceKind::Quest);
-    assert_eq!(quest_items().len(), 9, "eight words and the trophy trade");
+    // Ten words and the trophy trade. Was nine: the Switchyard's chain is
+    // seeded by two, and both are `Carried` conditions bought from a door
+    // rather than sold at the bar, because `SHELVES` is exactly six names and
+    // all six are spoken for - the pub is full (Part E, E-2). The bar's six is
+    // `SHELVES`, not `SHOP_SIZE`: a pub stocks itself with `stock_exactly` and
+    // never saw the seventh shelf the road shop grew.
+    assert_eq!(quest_items().len(), 11, "ten words and the trophy trade");
 }
 
 #[test]

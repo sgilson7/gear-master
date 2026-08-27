@@ -1812,7 +1812,7 @@ fn alternate_rung(name: &str) -> usize {
     // A dungeon floor is pitched at the rung its door stands on, stepping up a
     // little with each floor down.
     for d in gearmaster_engine::dungeon::DUNGEONS {
-        if let Some(i) = d.floors.iter().position(|f| *f == name) {
+        if let Some(i) = d.floors.iter().position(|f| f.creature == name) {
             return 9 + i * 2;
         }
     }

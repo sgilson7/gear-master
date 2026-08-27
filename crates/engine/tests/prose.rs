@@ -56,8 +56,24 @@ fn scenes() -> Vec<(String, &'static str, bool)> {
         for p in d.blurb {
             out.push((format!("{} blurb", d.id), p, true));
         }
-        for p in d.landings {
-            out.push((format!("{} landing", d.id), p, true));
+        for f in d.floors {
+            out.push((format!("{} landing", d.id), f.landing, true));
+            // A fork's scene and a siding's way in are player-facing
+            // paragraphs like any other, and they are walked from the
+            // milestone that introduces the fields rather than the one that
+            // fills them - a scene the lints do not walk is a scene that
+            // drifts.
+            for p in f.fork {
+                out.push((format!("{} fork", d.id), p, true));
+            }
+            for p in f.entry {
+                out.push((format!("{} siding entry", d.id), p, true));
+            }
+        }
+        for f in d.floors {
+            for e in f.exits.iter().filter(|e| !e.label.is_empty()) {
+                out.push((format!("{} exit {}", d.id, e.label), e.blurb, false));
+            }
         }
     }
     // A class blurb is the line under a title on the fountain screen, and it
@@ -263,7 +279,13 @@ fn every_scene() -> Vec<(String, String)> {
     }
     for d in DUNGEONS {
         out.push((format!("dungeon {} blurb", d.id), d.blurb.join(" ")));
-        out.push((format!("dungeon {} landings", d.id), d.landings.join(" ")));
+        out.push((
+            format!("dungeon {} landings", d.id),
+            d.floors.iter().map(|f| f.landing).collect::<Vec<_>>().join(" "),
+        ));
+        for (i, f) in d.floors.iter().enumerate().filter(|(_, f)| !f.fork.is_empty()) {
+            out.push((format!("dungeon {} points at {i}", d.id), f.fork.join(" ")));
+        }
     }
     out
 }
@@ -432,8 +454,14 @@ fn read_the_road_aloud() {
         for p in d.blurb.iter().chain(d.entry) {
             out.push_str(&format!("\n    {}\n", wrapped(p)));
         }
-        for (f, l) in d.floors.iter().zip(d.landings) {
-            out.push_str(&format!("\n  -- {} --\n    {}\n", f, wrapped(l)));
+        for f in d.floors {
+            out.push_str(&format!("\n  -- {} --\n    {}\n", f.creature, wrapped(f.landing)));
+            for p in f.fork {
+                out.push_str(&format!("\n    {}\n", wrapped(p)));
+            }
+            for e in f.exits.iter().filter(|e| !e.label.is_empty()) {
+                out.push_str(&format!("\n      > {}\n          {}\n", e.label, wrapped(e.blurb)));
+            }
         }
         // A dungeon stands beside the road rather than on it; printed last so
         // the rung order above stays the walk.

@@ -608,6 +608,51 @@ pub enum Action {
     /// piece carrying it is worth more the longer the fight lasts - which is
     /// the opposite of everything else, and why they cost what they cost.
     Grow(i32),
+    /// Hand `ms` of this item's next cooldown to its slowest neighbour.
+    ///
+    /// Time is conserved: the same `ms` leaves one bar and enters another.
+    /// What is bought is *where* the time is spent - a second on a 5,000 ms
+    /// chest item is worth more than a second on a 1,500 ms weapon by roughly
+    /// the ratio of what those items carry - so the naive price of zero is
+    /// wrong and the real one is a discount on haste.
+    ///
+    /// The neighbour is the adjacent assembled item with the longest cooldown,
+    /// ties to the lowest index. Nothing adjacent, nothing happens.
+    Shunt { ms: u32 },
+    /// Turn up to `n` armour into `n` maximum health, and heal for it.
+    ///
+    /// `Grow` funded from the wall rather than granted. Armour is worthless
+    /// past thirty seconds - sudden death takes health straight past it
+    /// (`combat::SUDDEN_DEATH_MS`) - and this is the only thing that converts
+    /// it into the one number the clock respects. Which is the reason to want
+    /// it, and the reason a Wall-shaped creature carrying it is a different
+    /// creature.
+    Ballast(i32),
+    /// If the enemy's best item is within `window_ms` of firing, set it back
+    /// `back_ms`.
+    ///
+    /// Reads the front foe's bars, picks the highest-rated item inside the
+    /// window, ties to the lowest index. Nothing in the window, nothing
+    /// happens.
+    ///
+    /// Deliberately **not** a curse: `curse_resist` does not answer it and no
+    /// `Watched::CurseApplied` counts it, because it is the answer to a
+    /// creature whose whole board is curse resist. The Wumpus Hunter's
+    /// unblockable first blow is the only precedent for something with no
+    /// answer, and the dial if this proves too much is `back_ms` rather than
+    /// a new resistance.
+    Derail { window_ms: u32, back_ms: u32 },
+    /// Gain `pct` percent of the pool you are already holding.
+    ///
+    /// Every other income in the game is flat. This one reads the balance, so
+    /// it is worth nothing to a board that spends everything and a great deal
+    /// to one that banks - which is the mirror of `Drain`, and `Drain` is its
+    /// counterplay.
+    ///
+    /// Integer division, so nothing accrues below `100 / pct` held. Never a
+    /// fusion: a fused pool is deliberately fuel for nothing, and a
+    /// proportional income on one would be a second currency at better rates.
+    Accrue { what: Resource, pct: i32 },
     /// Spend one of each parent pool to bank one of a fused pool. Nothing
     /// happens unless both parents have something in them.
     ///
@@ -661,6 +706,22 @@ impl Action {
             Action::GainDeflection(n) => format!("gain {} deflection", n),
             Action::GainForking(n) => format!("gain {} spell forking", n),
             Action::Grow(n) => format!("gain {} maximum health for the rest of the fight", n),
+            Action::Shunt { ms } => format!(
+                "hand {:.1}s of this item's next cooldown to its slowest neighbour",
+                *ms as f32 / 1000.0
+            ),
+            Action::Ballast(n) => format!(
+                "turn up to {} armour into {} maximum health, for the rest of the fight",
+                n, n
+            ),
+            Action::Derail { window_ms, back_ms } => format!(
+                "if the enemy's best item is within {:.1}s of firing, set it back {:.1}s",
+                *window_ms as f32 / 1000.0,
+                *back_ms as f32 / 1000.0
+            ),
+            Action::Accrue { what, pct } => {
+                format!("gain {}% of the {} you are holding", pct, what.name())
+            }
         }
     }
 }
@@ -687,9 +748,13 @@ impl Action {
             Action::ReduceCooldown(ms) => {
                 Action::ReduceCooldown(((ms as i64 * pct as i64) / 100) as u32)
             }
+            Action::Shunt { ms } => Action::Shunt { ms: ((ms as i64 * pct as i64) / 100) as u32 },
+            Action::Ballast(n) => Action::Ballast(m(n)),
+            Action::Accrue { what, pct: p } => Action::Accrue { what, pct: m(p) },
             // Stacks and curses are not quantities of anything - a stack is a
             // stack and a curse is a curse - so a multiplier has nothing to
-            // multiply.
+            // multiply. A window and a setback are the same reading: neither
+            // is a quantity of a thing, they are a shape the effect has.
             other => other,
         }
     }
@@ -10152,6 +10217,218 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 0,
         price: 1,
     },
+
+    // ---- THE SWITCHYARD -------------------------------------------------
+    //
+    // `design/the-switchyard.md` A6. Eight components in one block at the end
+    // of the list, appended and never inserted, because a share code stores a
+    // piece as its *position* here and anything else silently re-points every
+    // board anybody has saved.
+    //
+    // All eight are event-only, and that is what makes the block safe to land
+    // a milestone ahead of the content that hands it out: `stepped_component`
+    // filters event-only pieces out of every footprint family, so no creature
+    // can be re-dressed by their arrival on any difficulty. The measurement of
+    // that sentence is `catalog_shape::no_creature_changed_what_it_wears`,
+    // which compares all 5,568 placements against a fixture taken at M0.
+    //
+    // The four enchantments are dug up rather than sold. `is_town_stock` is
+    // still true of them - they are enchantments - so `shop.rs` keeps them off
+    // the road three separate ways; what changed is `town_shelf`, which now
+    // filters event-only out of the enchantment half, because collecting by
+    // kind would otherwise have put a rung-27 dungeon's reward on every town
+    // cart in the game the day it was written.
+    //
+    // Each carries two payouts read on two layers, which is the enchantment
+    // mechanic as it already stands: the `effect` is what it is worth while
+    // merely *live*, and scales with whatever is standing on it; the
+    // `triggers` are what it hands to an item that covers every one of its
+    // cells and *bonds*. Live wants them spread out, bonded wants gear packed
+    // tight, and the two halves are meant to fight.
+    PieceDef {
+        name: "Ballast Bed",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (1, 0), (2, 0)],
+        base: Stats { armor: 8, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect {
+            label: "for each piece bedded on it",
+            kind: EffectKind::PerOverlappingItem { stat: StatKind::Armor, amount: 4 },
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // The coal road is the heavy road, and what it pays is the only thing
+        // in the game that turns a wall into a number the clock respects.
+        triggers: &[Trigger::OnActivate(Action::Ballast(30))],
+        quest: None,
+        power_bonus: 0,
+        price: 58,
+    },
+    PieceDef {
+        name: "Points Rodding",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (0, 1), (0, 2), (0, 3)],
+        base: Stats { curse_resist: 10, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect {
+            label: "for each item standing on the rod",
+            kind: EffectKind::PerOverlappingCore { stat: StatKind::Regen, amount: 1 },
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // Rodding runs along the ground to the points. The feet are the ground
+        // grid, and a note pinned to it in Ambrose's hand says FOR THE FEET.
+        triggers: &[Trigger::OnActivate(Action::Shunt { ms: 400 })],
+        quest: None,
+        power_bonus: 0,
+        price: 54,
+    },
+    PieceDef {
+        name: "Booking Hall",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats { mana: 4, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect {
+            label: "for each item booked into it",
+            kind: EffectKind::PerOverlappingCore { stat: StatKind::Mana, amount: 2 },
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // The clerk's ledger, kept to the minute. The head is where accounts
+        // are kept, and this is the only income that reads the balance.
+        triggers: &[Trigger::OnActivate(Action::Accrue { what: Resource::Mana, pct: 10 })],
+        quest: None,
+        power_bonus: 0,
+        price: 60,
+    },
+    PieceDef {
+        name: "Signal Wire",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (1, 0), (2, 0), (3, 0)],
+        base: Stats { curse_resist: 6, ..Stats::ZERO },
+        adjacency: None,
+        effect: Some(Effect {
+            label: "for each piece on the wire",
+            kind: EffectKind::PerOverlappingItem { stat: StatKind::Strength, amount: 2 },
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // A hand on the wire stops a train at the top of its run. Bonded on a
+        // neighbour's activation rather than its own, so the reaction is a
+        // reaction twice over - which is the axis saying the same thing in two
+        // words, and `OnAdjacentActivate` is Gloves-only besides.
+        triggers: &[Trigger::OnAdjacentActivate(Action::Derail {
+            window_ms: 1000,
+            back_ms: 600,
+        })],
+        quest: None,
+        power_bonus: 0,
+        // 60, which is Chalked Circle's and the dearest any ground in this
+        // game has been. It was 62 and that is two gold outside a band the
+        // shipped six have held since the Unwinding.
+        price: 60,
+    },
+
+    // The two orbs. Event-only, unlike the four shipped, which are shop finds
+    // - and pieces first for all that: a weapon core with a real effect on the
+    // spells slotted into it, worth building around by a run that never finds
+    // High Wick's pedestal at all.
+    //
+    // Their footprints are an L-tetromino and an S-tetromino, which no other
+    // Orb in `CATALOG` carries; `switchyard::no_orb_in_the_catalogue_shares_a_
+    // footprint_with_these_two` is what keeps that true. Being event-only,
+    // `stepped_component` would skip them regardless - the footprints are
+    // chosen so that the claim does not *depend* on that.
+    //
+    // Worth knowing before choosing one: `PieceKind::Orb` is twenty-three
+    // pieces over eight shapes, not the four Orbs of Travel. A6 counted the
+    // four and the first draft of the Shunter's took the T-tetromino, which
+    // Timeworn and Spinning already share.
+    PieceDef {
+        name: "Shunter's Orb",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Orb,
+        // An L, not the T the spec drew. `PieceKind::Orb` has twenty-three
+        // members over eight footprints, not the four Orbs of Travel A6 was
+        // counting, and the T is already Timeworn's and Spinning's.
+        cells: &[(0, 0), (0, 1), (0, 2), (1, 2)],
+        base: Stats { mana: 2, magic_damage: 5, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 2800,
+        speed_bonus: 0,
+        // A shunter moves stock between roads. This moves time between items,
+        // and it does it on somebody else's cast rather than its own, which is
+        // what makes it worth building spells around.
+        triggers: &[Trigger::OnOtherCast(Action::Shunt { ms: 500 })],
+        quest: None,
+        power_bonus: 18,
+        price: 24,
+    },
+    PieceDef {
+        name: "Signalman's Orb",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Orb,
+        cells: &[(0, 0), (0, 1), (1, 1), (1, 2)],
+        base: Stats { mana: 3, magic_damage: 4, ..Stats::ZERO },
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 3000,
+        speed_bonus: 0,
+        // A signal is a thing that stops a train.
+        triggers: &[Trigger::OnOtherCast(Action::Derail {
+            window_ms: 1000,
+            back_ms: 400,
+        })],
+        quest: None,
+        power_bonus: 20,
+        price: 22,
+    },
+
+    // The chain's two words. Neither is on the bar: `SHELVES` is exactly six
+    // names and `SHOP_SIZE` is six, so the pub is full - the first is bought
+    // from Hesketh at the roadside and the second is told to you in a signal
+    // box, which is the shape the Unwinding's second and third words already
+    // have.
+    PieceDef {
+        name: "A Word About the Sidings",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Quest,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
+    PieceDef {
+        name: "A Word About the Points",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Quest,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        adjacency: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
 ];
 
 /// Gear that exists only on a boss.
@@ -10204,6 +10481,23 @@ pub const EVENT_ONLY: &[&str] = &[
     "the Second Key",
     "the Appeal",
     "the Skip Stone",
+
+    // The Switchyard's eight. Ground you dug up, two tickets, and two words.
+    //
+    // Event-only is doing four separate jobs here: it keeps them off the road
+    // shelves, keeps them out of `melt` in both directions, keeps them out of
+    // `dearer_than` so consignment cannot return one, and keeps them out of
+    // every footprint family `stepped_component` walks - which is why the
+    // block could land a milestone before the doors that hand it out, with
+    // the ladder byte-identical.
+    "Ballast Bed",
+    "Points Rodding",
+    "Booking Hall",
+    "Signal Wire",
+    "Shunter's Orb",
+    "Signalman's Orb",
+    "A Word About the Sidings",
+    "A Word About the Points",
 ];
 
 /// The five things on the shelves behind the velvet rope.
@@ -10284,7 +10578,24 @@ pub fn town_shelf() -> &'static [&'static str] {
     static SHELF: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
     SHELF.get_or_init(|| {
         let mut out: Vec<&'static str> = TOWN_ONLY.to_vec();
-        out.extend(CATALOG.iter().filter(|d| d.kind.is_enchantment()).map(|d| d.name));
+        out.extend(
+            CATALOG
+                .iter()
+                .filter(|d| d.kind.is_enchantment())
+                // Ground is bought in a town, **or dug up**. It is never for
+                // sale on the road, and that half of the law is unchanged and
+                // still enforced three times over in `shop.rs`.
+                //
+                // Collecting by kind was written so that "every underlay
+                // written after this one is town gear without anybody having
+                // to remember", which is right for an enchantment somebody
+                // sells and wrong for one somebody left at a buffer stop. The
+                // Switchyard's four are the price of a four-fight line, and a
+                // shelf is a purchase - so a cart that stocked them would be
+                // selling what the yard is for.
+                .filter(|d| !is_event_only(d.name))
+                .map(|d| d.name),
+        );
         out
     })
 }
@@ -10337,7 +10648,13 @@ pub fn touches_insight(def: &PieceDef) -> bool {
         walk_actions(t, &mut |a| {
             found |= matches!(
                 a,
-                Action::GainDread(_) | Action::Gain { what: Resource::Insight, .. }
+                Action::GainDread(_)
+                    | Action::Gain { what: Resource::Insight, .. }
+                    // Nothing accrues Insight in this mission's content, and
+                    // the gate is written anyway so that the shelf holds if
+                    // anybody ever does. A pool locked behind a dungeon has to
+                    // be locked in every direction it can be reached from.
+                    | Action::Accrue { what: Resource::Insight, .. }
             );
         });
         found

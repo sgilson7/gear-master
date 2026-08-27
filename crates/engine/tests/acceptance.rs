@@ -155,16 +155,28 @@ fn e6_7_every_figure_in_the_mission_is_a_multiple_of_a_bounty() {
 
 // --------------------------------------------------- 8. phase discipline held
 
+/// Creatures the Switchyard has landed as frames and not yet dressed.
+///
+/// Re-pinned at the Switchyard's M6, and it empties at that mission's M9. It
+/// is a *list* rather than a count because a list says which nine, and because
+/// packing one creature without striking its name fails just as loudly as
+/// adding a tenth.
+///
+/// The Unwinding left this at zero and the phase discipline is what put nine
+/// back: Phase 2 ships a creature as a name, a band, a theme and the stats of
+/// the ladder creature standing at that band, and Phase 4 packs the boards.
+/// **Empty since M9.** It held the yard's nine for three milestones.
+const UNDRESSED_UNTIL_THE_YARD_IS_PACKED: &[&str] = &[];
+
 #[test]
 fn e6_8_every_creature_in_the_game_is_dressed() {
     // The frame lint's own target, asserted from outside it. Phase 4's whole
     // job: red before, green after, and no scaffold board left anywhere.
-    let naked = gearmaster_engine::bestiary::unpacked();
-    assert!(
-        naked.is_empty(),
-        "{} creature(s) still have no board: {:?}",
-        naked.len(),
-        naked.iter().map(|f| f.name).collect::<Vec<_>>()
+    let naked: Vec<&str> =
+        gearmaster_engine::bestiary::unpacked().iter().map(|f| f.name).collect();
+    assert_eq!(
+        naked, UNDRESSED_UNTIL_THE_YARD_IS_PACKED,
+        "the undressed creatures are not the ones this test is waiting for"
     );
 }
 
@@ -233,10 +245,13 @@ fn e6_12_scouting_is_knowledge_and_knowledge_is_not_a_stat() {
 fn e6_the_road_holds_everything_the_mission_promised() {
     // A census rather than a claim. If any of these numbers falls, something
     // was deleted rather than finished.
-    assert_eq!(EVENTS.len(), 33, "the road lost a door");
+    // The Switchyard adds four doors, one dungeon, two words and two
+    // destinations. Every one of these is an equality rather than a bound, so
+    // the census fails on a deletion *and* on an arrival nobody wrote down.
+    assert_eq!(EVENTS.len(), 37, "the road lost a door");
     assert_eq!(gearmaster_engine::town::TOWNS.len(), 6, "the road lost a town");
-    assert_eq!(gearmaster_engine::dungeon::DUNGEONS.len(), 6, "the road lost a dungeon");
-    assert_eq!(gearmaster_engine::rumour::RUMOURS.len(), 8, "the road lost a word");
-    assert_eq!(gearmaster_engine::pedestal::DESTINATIONS.len(), 4, "an orb lost its place");
-    assert_eq!(gearmaster_engine::bestiary::FRAMES.len(), 15, "a creature went missing");
+    assert_eq!(gearmaster_engine::dungeon::DUNGEONS.len(), 7, "the road lost a dungeon");
+    assert_eq!(gearmaster_engine::rumour::RUMOURS.len(), 10, "the road lost a word");
+    assert_eq!(gearmaster_engine::pedestal::DESTINATIONS.len(), 6, "an orb lost its place");
+    assert_eq!(gearmaster_engine::bestiary::FRAMES.len(), 24, "a creature went missing");
 }

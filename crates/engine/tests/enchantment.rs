@@ -568,3 +568,94 @@ fn half_a_cover_is_no_bond_at_all() {
         "one cell of four is not a cover"
     );
 }
+
+// ------------------------------------------- the yard's ground, and only it
+
+/// The four the Switchyard pays out, in the order their buffer stops pay them.
+const THE_YARDS_GROUND: [&str; 4] =
+    ["Ballast Bed", "Points Rodding", "Booking Hall", "Signal Wire"];
+
+/// Ground is bought in a town, or dug up. It is never for sale on the road.
+///
+/// The law used to read "ground is bought where somebody has a floor to sell,
+/// never off the road", and read against the code that was two facts wearing
+/// one sentence. **An enchantment never reaches a road shelf** is the law, it
+/// is enforced three times in `shop.rs` by kind, and nothing here touches it.
+/// **Every enchantment reaches every town cart** was a consequence of
+/// `town_shelf` collecting by kind - written so that a new underlay would be
+/// town gear without anybody having to remember - and it is the half that had
+/// to give, because a cart stocking these would be selling what the yard is
+/// for.
+///
+/// So: `is_town_stock` is still true of all four, every road shelf still
+/// refuses them for that reason, and the cart refuses them for a second one.
+#[test]
+fn the_yards_ground_is_dug_up_and_never_sold() {
+    use gearmaster_engine::piece::{is_event_only, is_town_stock, town_shelf, CATALOG};
+
+    let cart = town_shelf();
+    for name in THE_YARDS_GROUND {
+        let d = CATALOG.iter().find(|d| d.name == name).unwrap_or_else(|| panic!("{name}"));
+        assert!(d.kind.is_enchantment(), "{name} is not ground at all");
+        assert!(is_event_only(name), "{name} could be dealt somewhere");
+        // Still ground, so `shop.rs`'s three filters still refuse it: the law
+        // is unchanged and this is the assertion that says so.
+        assert!(is_town_stock(d), "{name} stopped being ground, which is not the change");
+        assert!(!cart.contains(&name), "{name} is on a town cart");
+    }
+
+    // And the six that came before are still on it. A filter that took the
+    // wrong four would read green above and be a silent loss here.
+    let shipped = CATALOG
+        .iter()
+        .filter(|d| d.kind.is_enchantment() && !is_event_only(d.name))
+        .count();
+    assert_eq!(shipped, 6, "the cart should hold the six that are sold");
+    for d in CATALOG.iter().filter(|d| d.kind.is_enchantment() && !is_event_only(d.name)) {
+        assert!(cart.contains(&d.name), "{} fell off the cart", d.name);
+    }
+    assert_eq!(
+        CATALOG.iter().filter(|d| d.kind.is_enchantment()).count(),
+        10,
+        "six sold and four dug up"
+    );
+}
+
+/// The crucible cannot make one and cannot eat one.
+#[test]
+fn the_yards_ground_cannot_be_melted_into_or_out_of() {
+    use gearmaster_engine::run::Run;
+
+    for name in THE_YARDS_GROUND {
+        let mut run = Run::with_all_pieces();
+        let id = run
+            .owned
+            .iter()
+            .copied()
+            .find(|&i| run.registry.def(i).name == name)
+            .unwrap_or_else(|| panic!("{name} is not in the sandbox"));
+        assert!(run.melt(id).is_none(), "{name} went into the crucible");
+    }
+}
+
+/// Nothing steps into one, on any setting.
+///
+/// `stepped_component` sorts a footprint family by `monster_value` and walks
+/// along it, and it filters event-only pieces out of every family - so asking
+/// for two steps either way off one of these comes back with the piece itself.
+/// That is the mechanism behind "no creature can ever wear one", and it is
+/// worth asserting at the source as well as through the `gear_at` fixture.
+#[test]
+fn nothing_steps_into_the_yards_ground() {
+    use gearmaster_engine::combat::stepped_component;
+
+    for name in THE_YARDS_GROUND.iter().chain(&["Shunter's Orb", "Signalman's Orb"]) {
+        for step in [-2, -1, 1, 2] {
+            assert_eq!(
+                stepped_component(name, step),
+                *name,
+                "{name} was stepped {step} into something else"
+            );
+        }
+    }
+}

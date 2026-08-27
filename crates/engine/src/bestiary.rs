@@ -505,6 +505,70 @@ pub const FRAMES: &[MonsterFrame] = &[
         theme: MonsterTheme::Hollow,
         note: "harder than Francis, and it must be over before 30s",
     },
+    // ---- THE SWITCHYARD -------------------------------------------------
+    //
+    // Nine floors, entry bands rather than the rung the mouth stands on: the
+    // yard is met at displayed rung 26-28 by a build that has had twenty-five
+    // rungs to form, and a dungeon packed for the rung that unlocked it is a
+    // dungeon nobody notices. The bands step with depth, so the fourth fight
+    // down either line is the hardest thing in it.
+    //
+    // The two lines read differently in the first three seconds on purpose:
+    // the Down line is weight and the Up line is light.
+    MonsterFrame {
+        name: "THE SHUNTER",
+        band: 27,
+        theme: MonsterTheme::Warden,
+        note: "makes you pay for the turntable's time; teaches the yard is slow",
+    },
+    MonsterFrame {
+        name: "THE PLATELAYERS",
+        band: 28,
+        theme: MonsterTheme::Swarm,
+        note: "many small blows, the rail put back as fast as it is lifted",
+    },
+    MonsterFrame {
+        name: "THE BALLAST",
+        band: 29,
+        theme: MonsterTheme::Wall,
+        note: "what came up with the ballast; reflect, and the one weapon a wall carries",
+    },
+    MonsterFrame {
+        name: "THE COAL STAGE",
+        band: 30,
+        theme: MonsterTheme::Burner,
+        note: "the heap is warm; searing on the clock",
+    },
+    MonsterFrame {
+        name: "THE WATER TOWER",
+        band: 30,
+        theme: MonsterTheme::Slower,
+        note: "the tank sets the pace; frost, and nothing much of its own",
+    },
+    MonsterFrame {
+        name: "THE GANTRY",
+        band: 28,
+        theme: MonsterTheme::Caster,
+        note: "eleven arms, eleven casts; bursty and mana-gated",
+    },
+    MonsterFrame {
+        name: "THE LAMP ROOM",
+        band: 29,
+        theme: MonsterTheme::Burner,
+        note: "every lamp lit; kills on the clock, not the swing",
+    },
+    MonsterFrame {
+        name: "THE GOODS SHED",
+        band: 30,
+        theme: MonsterTheme::Drainer,
+        note: "the clerk keeps the accounts, yours included",
+    },
+    MonsterFrame {
+        name: "THE ROUNDHOUSE",
+        band: 30,
+        theme: MonsterTheme::Beast,
+        note: "it is in steam; strength, health, no trick at all",
+    },
 ];
 
 pub fn frame(name: &str) -> Option<&'static MonsterFrame> {
@@ -622,13 +686,25 @@ mod tests {
     /// asserts zero. Lower the budget in the commit that dresses a creature;
     /// never raise it.
     ///
-    /// **Zero, since M17.** Every frame has a board.
+    /// **Zero again, since the Switchyard's M9.** Nine between its M6 and M9.
     ///
     /// The number went 14 -> 15 in M15, when THE UNWOUND turned out to be a
     /// label on the route map with no creature under it, and 15 -> 13 when the
     /// owner packed two by hand. M17 packed the remaining thirteen with the
-    /// generator and it is at its target, where it stays: a frame that ships
-    /// without a board now fails the suite outright rather than eating budget.
+    /// generator and it sat at its target through three missions.
+    ///
+    /// It is nine again because THE SWITCHYARD's nine floors landed as frames,
+    /// which is the phase discipline working rather than failing: Phase 2
+    /// ships creatures as a name, a band, a theme and the stats of the ladder
+    /// creature at that band, and Phase 4 packs the boards. **This is the one
+    /// budget in the repository that is allowed to go up**, and only here,
+    /// and only because the mechanism exists to make "nobody has dressed these
+    /// yet" a number somebody has to look at rather than a thing to forget.
+    ///
+    /// `design/the-switchyard.md` Part D M9 took it back to zero, one creature
+    /// at a time. It is an equality, not a bound, so packing a creature
+    /// without lowering it fails just as loudly as adding one without raising
+    /// it - which is how this went red the moment the ninth board landed.
     const UNDRESSED: usize = 0;
 
     #[test]

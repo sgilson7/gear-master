@@ -65,8 +65,18 @@ fn canonical_prose() -> Vec<(String, String)> {
     }
     for d in DUNGEONS {
         push(format!("dungeon {} name", d.id), d.name);
-        for p in d.blurb.iter().chain(d.entry).chain(d.landings) {
+        for p in d.blurb.iter().chain(d.entry) {
             push(format!("dungeon {} prose", d.id), p);
+        }
+        for f in d.floors {
+            push(format!("dungeon {} landing", d.id), f.landing);
+            for p in f.fork.iter().chain(f.entry) {
+                push(format!("dungeon {} prose", d.id), p);
+            }
+            for e in f.exits.iter().filter(|e| !e.label.is_empty()) {
+                push(format!("dungeon {} lever", d.id), e.label);
+                push(format!("dungeon {} lever", d.id), e.blurb);
+            }
         }
     }
     for r in RUMOURS {
@@ -219,7 +229,9 @@ fn a_theme_with_nothing_to_say_says_the_canonical_thing() {
     }
     for d in DUNGEONS {
         assert_eq!(PLAIN.entry(d.id, d.entry), d.entry);
-        assert_eq!(PLAIN.landings(d.id, d.landings), d.landings);
+        for (i, f) in d.floors.iter().enumerate() {
+            assert_eq!(PLAIN.landing(d.id, i, f.landing), f.landing);
+        }
     }
 }
 

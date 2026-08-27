@@ -227,11 +227,12 @@ fn every_creature_the_mission_added_is_a_frame_with_a_brief() {
         assert!(f.band >= 1, "{} has no band, so nothing can pack it", f.name);
         assert!(!f.note.is_empty(), "{} tells its packer nothing", f.name);
     }
-    assert!(
-        bestiary::unpacked().is_empty(),
-        "Phase 4 is finished and {:?} still has no board",
-        bestiary::unpacked().iter().map(|f| f.name).collect::<Vec<_>>()
-    );
+    // Every frame in the game has a board again. It carried a hole for the
+    // Switchyard's nine between that mission's M6 and M9, and the hole was
+    // shaped like the dungeon rather than like a list of names, so packing the
+    // ninth creature closed it without anybody editing this file.
+    let naked: Vec<&str> = bestiary::unpacked().iter().map(|f| f.name).collect();
+    assert!(naked.is_empty(), "Phase 4 is finished and {naked:?} still has no board");
 }
 
 // ------------------------------------------------------ 4. a run reaches them

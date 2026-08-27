@@ -1,0 +1,89 @@
+#  1 Cave Rat
+. -- THE CASINO (event, between 1 and 2)
+. -- GERALD (event, between 1 and 2)
+#  2 Bog Toad
+. -- TWO BY TWO (event, between 2 and 3)
+#  3 Bone Archer
+. -- BACK IN A MINUTE (event, between 3 and 4)
+#  4 Rust Golem
+#  5 Frost Wisp
+#  6 Plague Hound
+#  7 The Iron Warden
+# <> SUMP BOTTOM (a town, between 7 and 8)
+# -- A FOUNTAIN (fountain, between 7 and 8)
+. -- THE WIZARD'S THIRST (event, between 7 and 8)
+#  8 Iron Sentinel
+#  9 Whisperling [mini]
+. -- THREE THINGS IN THE SHRINE (event, between 9 and 10)
+     \_ THE CREVICE IN THE ROCK (3 floors)
+# 10 Warded Idol
+. -- THE TELLER (event, between 10 and 11)
+# 11 Mirror Fiend
+# 12 Rust Colossus
+. -- THE BIGGER SIGN (event, between 12 and 13)
+# 13 Ashen Marshal
+# 14 Grave Chorus
+# -- A FOUNTAIN (fountain, between 14 and 15)
+# 15 The Hollow King [boss]
+. -- HE IS STILL TALKING (event, between 15 and 16)
+# 16 The Curator
+. -- THE DISPENSER (event, between 16 and 17)
+# 17 Salt Idol
+. -- THE ASTRONOMER (event, between 17 and 18)
+# 18 Pale Twin
+# <> KETTLEWORKS (a town, between 18 and 19)
+. -- THE EXHIBITION (event, between 18 and 19)
+# 19 Ruin Hound
+. -- THE CROWNWRIGHT (event, between 19 and 20)
+. -- THE INSPECTION (event, between 19 and 20)
+. -- THE PICKET LINE (event, between 19 and 20)
+# 20 Bone Cantor [mini]
+O 21 Ember Wisp
+. -- AHEAD OF SCHEDULE (event, between 21 and 22)
+. 22 Slag Warden
+. -- THE GREEN LEDGER (event, between 22 and 23)
+. -- THE LOCKED GATE (event, between 22 and 23)
+. 23 The Gearwright [mini]
+. -- WHAT THE TABLE SAID (event, between 23 and 24)
+. 24 Crowned Hollow [mini]
+. -- THE CONTRACT (event, between 24 and 25)
+. 25 Cog Priest
+. 26 Mire Behemoth
+. -- THE BIRD PROBLEM (event, between 26 and 27)
+. 27 Vermin Sovereign
+. 28 Obsidian Colossus
+. -- THE PAYOUT (event, between 28 and 29)
+. 29 Null Sentinel
+. -- MEMBERS AND GUESTS (event, between 29 and 30)
+. 30 Silence
+. -- THE GLOW OVER THE RIDGE (event, between 30 and 31)
+. 31 Weeping Idol [boss]
+. -- THE BUYER (event, between 31 and 32)
+. 32 The Long Mirror
+. <> HIGH WICK (a town, between 32 and 33)
+. 33 Iron Abbot
+. -- THE SEALED BID (event, between 33 and 34)
+. -- THE FORK (event, between 33 and 34)
+. 34 The Last Gearwright
+. 35 Rimefather
+. 36 The Tallow Saint
+. 37 Hollowmarch
+. 38 The Iron Choir
+. 39 Gallowglass [mini]
+. -- THE PASSENGER (event, between 39 and 40)
+. 40 The Rust Parliament
+. -- THE BOLTER RACE (event, between 40 and 41)
+. -- MOLE TOWN (event, between 40 and 41)
+. 41 Sootmother
+. 42 The Quiet Hour
+. -- THE SECOND SHADOW (event, between 42 and 43)
+. 43 Verdigris [mini]
+. 44 The Drowned Court
+. -- THE FOUNDRY REMEMBERS (event, between 44 and 45)
+. 45 Anvilheart
+. 46 The Salt Wedding
+. 47 Nine of Ashes [boss]
+. -- THROUGH THE CRACKED LENS (event, between 47 and 48)
+. 48 The Last Light
+. 49 Gilt [mini]
+. 50 Francis

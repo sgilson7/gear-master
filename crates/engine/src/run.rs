@@ -369,9 +369,27 @@ impl From<PlaceError> for RuleError {
 /// pop where it left off because the rest of the stack never went anywhere.
 #[derive(Copy, Clone, Debug)]
 pub enum Interrupt {
-    /// A mini dungeon being walked, and which floor. Innermost: you are
-    /// standing inside it, so everything else is underneath you.
-    Dungeon(&'static crate::dungeon::Dungeon, usize),
+    /// A mini dungeon being walked. Innermost: you are standing inside it, so
+    /// everything else is underneath you.
+    ///
+    /// `nth` and `of` are the banner's two numbers, worked out by
+    /// `road_stack` because only the run knows them - which fights this entry
+    /// has already won, and which floors it walked past because it had beaten
+    /// them before. They are a reading of the run at the moment the stack was
+    /// built, and nothing holds an `Interrupt` across a transition; the stack
+    /// is derived fresh every time it is asked for.
+    Dungeon {
+        at: &'static crate::dungeon::Dungeon,
+        floor: usize,
+        /// Which fight of this entry this is, counting from one.
+        nth: usize,
+        /// How many fights this entry is, as things stand.
+        of: usize,
+    },
+    /// Standing at a set of points: the floor just cleared has more than one
+    /// way on and nobody has said which. Above the dungeon, because the lever
+    /// is in the dungeon and you are standing at the lever.
+    Points(&'static crate::dungeon::Dungeon, usize),
     /// A town's gate, standing between the rung just cleared and the next.
     TownGate(&'static crate::town::Town),
     /// A fountain owed at this rung. Carries the rung it stands on.
@@ -387,7 +405,8 @@ impl Interrupt {
     /// theme layer looks the word up.
     pub fn kind(self) -> &'static str {
         match self {
-            Interrupt::Dungeon(..) => "dungeon",
+            Interrupt::Dungeon { .. } => "dungeon",
+            Interrupt::Points(..) => "points",
             Interrupt::TownGate(_) => "town",
             Interrupt::Fountain(_) => "fountain",
             Interrupt::Event(_) => "event",
@@ -399,7 +418,8 @@ impl Interrupt {
     /// table entries.
     pub fn id(self) -> &'static str {
         match self {
-            Interrupt::Dungeon(d, _) => d.id,
+            Interrupt::Dungeon { at, .. } => at.id,
+            Interrupt::Points(d, _) => d.id,
             Interrupt::TownGate(t) => t.id,
             Interrupt::Event(e) => e.id,
             Interrupt::Fountain(_) | Interrupt::Brawl(_) => "",
@@ -409,7 +429,13 @@ impl Interrupt {
     /// What it calls itself. Canonical: the theme layer swaps the noun.
     pub fn name(self) -> &'static str {
         match self {
-            Interrupt::Dungeon(d, _) => d.name,
+            Interrupt::Dungeon { at, .. } => at.name,
+            // Not the dungeon's name. The stack shows a row per interrupt and
+            // the points sit directly on top of the dungeon they are in, so
+            // naming both after the building printed it twice and read as two
+            // buildings. The same shape `Fountain` and `Brawl` already have:
+            // an interrupt that is a *moment* says what the moment is.
+            Interrupt::Points(..) => "THE POINTS",
             Interrupt::TownGate(t) => t.name,
             Interrupt::Fountain(_) => "A FOUNTAIN",
             Interrupt::Event(e) => e.title,
@@ -420,9 +446,29 @@ impl Interrupt {
     /// One line for a hover: what it is, and where you are in it.
     pub fn describe(self) -> String {
         match self {
-            Interrupt::Dungeon(d, floor) => {
-                format!("{} - floor {} of {}", d.name, floor + 1, d.floors.len())
-            }
+            // Three parts, and the middle one is new: the creature. `floor
+            // {n} of {m}` used to be an index and a room count, and a graph
+            // makes both of them lies - a floor's index says nothing about how
+            // deep it is, and nine rooms with points in them are four fights.
+            // So `n` is which fight of this entry this is and `m` is how many
+            // this entry turns out to be, and for a straight line walked from
+            // the top they are exactly the old two numbers.
+            Interrupt::Dungeon { at, floor, nth, of } => format!(
+                "{} - {} - floor {} of {}",
+                at.name,
+                at.floors.get(floor).map(|f| f.creature).unwrap_or(""),
+                nth,
+                of
+            ),
+            Interrupt::Points(d, floor) => format!(
+                "{} - the points after {}: {}",
+                d.name,
+                d.floors.get(floor).map(|f| f.creature).unwrap_or(""),
+                d.floors
+                    .get(floor)
+                    .map(|f| f.exits.iter().map(|e| e.label).collect::<Vec<_>>().join(" / "))
+                    .unwrap_or_default()
+            ),
             Interrupt::TownGate(t) => format!("{} - a town, and one thing to do in it", t.name),
             Interrupt::Fountain(_) => {
                 "A fountain, which reads your build and names you something".into()
@@ -436,9 +482,11 @@ impl Interrupt {
     ///
     /// Everything except a dungeon. A dungeon *is* where the fighting happens
     /// while you are in one, so treating it as a blockage would stop the
-    /// thing it stands for.
+    /// thing it stands for. The points are the exception inside the
+    /// exception: standing at a lever is not standing in front of a fight,
+    /// and which fight it will be is the thing that has not been decided.
     pub fn blocks_a_rematch(self) -> bool {
-        !matches!(self, Interrupt::Dungeon(..))
+        !matches!(self, Interrupt::Dungeon { .. })
     }
 
     /// The word `road_is_blocked` has always answered with.
@@ -446,6 +494,7 @@ impl Interrupt {
         match self {
             Interrupt::TownGate(_) => "a town",
             Interrupt::Fountain(_) => "a fountain",
+            Interrupt::Points(..) => "the points",
             _ => "something on the road",
         }
     }
@@ -457,7 +506,8 @@ impl PartialEq for Interrupt {
     /// its prose.
     fn eq(&self, other: &Self) -> bool {
         let floor = |i: &Interrupt| match i {
-            Interrupt::Dungeon(_, f) => *f,
+            Interrupt::Dungeon { floor, .. } => *floor,
+            Interrupt::Points(_, f) => *f,
             Interrupt::Fountain(r) => *r,
             _ => 0,
         };
@@ -642,6 +692,36 @@ pub struct Run {
     pub contract_honoured: bool,
     /// What the courier pays for a passenger delivered.
     pub passenger_pays: &'static str,
+    /// Floors of dungeons this run has cleared, by dungeon id and floor index.
+    ///
+    /// Kept for the rest of the run rather than for the visit, because a floor
+    /// cleared is a floor cleared: coming back in by another door walks past it
+    /// rather than fighting it again. That is the whole reward of a siding -
+    /// an orb that took you somewhere you had already been would be a worse
+    /// version of the door you already used. It survives a loss, too, which
+    /// matters only if something brings you back, and then it matters
+    /// completely.
+    pub cleared_floors: Vec<(&'static str, usize)>,
+    /// Standing at the points: the floor just cleared has more than one way on
+    /// and the player has not said which.
+    ///
+    /// Not derived, because it is genuinely new information. `dungeon` says
+    /// where you are and `cleared_floors` says you have beaten it, and neither
+    /// says whether you have chosen.
+    pub at_points: bool,
+    /// Which lever was thrown where, in the order they were thrown: dungeon
+    /// id, the floor it was thrown at, and which exit was taken.
+    ///
+    /// For the map, which draws the road walked and not the ones that were
+    /// there, and for the receipt.
+    pub took_exits: Vec<(&'static str, usize, usize)>,
+    /// Where `cleared_floors` stood when this entry into a dungeon began.
+    ///
+    /// The banner counts fights won *this entry*, and a run that came back in
+    /// by a siding has cleared floors it did not fight today. One index is
+    /// enough to tell the two apart, and it is one index rather than a second
+    /// counter because a second copy of a fact is a second thing to keep true.
+    pub entry_started_at: usize,
     /// Destinations a pedestal has already sent this run to, by id.
     ///
     /// One set for both pedestals. Each destination fires once a run.
@@ -768,6 +848,10 @@ impl Run {
             town: None,
             towns_seen: Vec::new(),
             towns_revealed: Vec::new(),
+            cleared_floors: Vec::new(),
+            at_points: false,
+            took_exits: Vec::new(),
+            entry_started_at: 0,
             destinations_visited: Vec::new(),
             cursed_for_good: Vec::new(),
             deferred: Vec::new(),
@@ -886,7 +970,9 @@ impl Run {
         // whichever way you answered.
         // A dungeon floor stands in front of everything else.
         if let Some((d, floor)) = self.dungeon {
-            if let Some(spec) = d.floors.get(floor).and_then(|n| crate::combat::alternate(n)) {
+            if let Some(spec) =
+                d.floors.get(floor).and_then(|f| crate::combat::alternate(f.creature))
+            {
                 return spec;
             }
         }
@@ -931,7 +1017,17 @@ impl Run {
     pub fn road_stack(&self) -> Vec<Interrupt> {
         let mut out = Vec::new();
         if let Some((d, floor)) = self.dungeon {
-            out.push(Interrupt::Dungeon(d, floor));
+            // The lever is in the dungeon and you are standing at the lever.
+            if self.at_points {
+                out.push(Interrupt::Points(d, floor));
+            }
+            let won = self.fights_this_entry();
+            out.push(Interrupt::Dungeon {
+                at: d,
+                floor,
+                nth: won + 1,
+                of: won + d.fights_ahead(floor, &self.cleared_floors),
+            });
         }
         // `self.town`, not `pending_town`: the phase gate on that one asks
         // "should this screen be drawn", which is no during a fight. This asks
@@ -1668,11 +1764,163 @@ impl Run {
     /// skips the same way everything else does.
     pub fn enter_dungeon(&mut self, id: &'static str) {
         let Some(d) = crate::dungeon::by_id(id) else { return };
-        self.dungeon = Some((d, 0));
-        let entry = self.theme.entry(d.id, d.entry);
+        self.enter_dungeon_at(d, 0);
+    }
+
+    /// Step into a dungeon at a particular floor.
+    ///
+    /// The way in a siding uses, and what `enter_dungeon` is now written on
+    /// top of. Takes the dungeon rather than its id because that is what the
+    /// caller has - `by_id` is public and every road-side caller has already
+    /// resolved one - and because a graph is worth proving against a dungeon
+    /// that exists only in a test binary, where an id would find nothing.
+    ///
+    /// The floor's own entry scene is played if it has one, and the dungeon's
+    /// otherwise. Then the walk-through runs, because the whole point of a
+    /// siding is that you may have been here.
+    pub fn enter_dungeon_at(&mut self, d: &'static crate::dungeon::Dungeon, floor: usize) {
+        if floor >= d.floors.len() {
+            return;
+        }
+        self.dungeon = Some((d, floor));
+        self.at_points = false;
+        self.entry_started_at = self.cleared_floors.len();
+        let own = d.floors[floor].entry;
+        let entry = if own.is_empty() { self.theme.entry(d.id, d.entry) } else { own };
         if !entry.is_empty() {
             self.pending_scene = Some(entry);
         }
+        let walked = self.walk_through_cleared();
+        if !walked.is_empty() {
+            self.last_receipt = Some(walked);
+        }
+    }
+
+    /// Have you beaten this floor of this dungeon, at any point this run?
+    pub fn has_cleared(&self, dungeon: &str, floor: usize) -> bool {
+        self.cleared_floors.iter().any(|&(id, f)| id == dungeon && f == floor)
+    }
+
+    /// Fights won since this entry into a dungeon began.
+    ///
+    /// Floors walked through do not count, because they were not fought
+    /// today - which is exactly the difference the banner exists to show.
+    pub fn fights_this_entry(&self) -> usize {
+        self.cleared_floors.len().saturating_sub(self.entry_started_at)
+    }
+
+    /// Follow the road as far as floors this run has already beaten allow.
+    ///
+    /// A floor cleared is a floor cleared, so coming back in by a siding walks
+    /// past the yard you know rather than fighting it again. Stops at the
+    /// first floor with a fight still in it, or at a set of points where more
+    /// than one road still has one - which is a decision and has to be handed
+    /// back.
+    ///
+    /// **A road is open when there is still a fight somewhere down it**, which
+    /// is `fights_ahead(to) > 0` and not "the next room is unbeaten". The two
+    /// differ, and the difference is a bug: a run that walked one road as far
+    /// as its second room and left has beaten that road's *first* room, so
+    /// asking about the next room alone says that road is finished and quietly
+    /// sends the player down the other one, past two rooms nobody has fought.
+    /// `a_cleared_floor_is_walked_through_on_re_entry` is the case.
+    ///
+    /// Returns the receipt lines, one a floor, so the player who came in by a
+    /// siding watches the part they already walked go past instead of seeing a
+    /// banner that jumped.
+    fn walk_through_cleared(&mut self) -> Vec<String> {
+        let mut lines = Vec::new();
+        // The graph is acyclic (`dungeon::no_dungeon_doubles_back`) so this
+        // terminates on its own. The bound stands anyway: a lint that has not
+        // run yet is not a proof, and a hang is a worse bug than a wrong room.
+        for _ in 0..64 {
+            let Some((d, here)) = self.dungeon else { return lines };
+            if self.at_points || !self.has_cleared(d.id, here) {
+                return lines;
+            }
+            let open: Vec<usize> = d.floors[here]
+                .exits
+                .iter()
+                .map(|e| e.to)
+                .filter(|&to| d.fights_ahead(to, &self.cleared_floors) > 0)
+                .collect();
+            match open.len() {
+                // Every road out of here is walked out. Reaching a buffer stop
+                // is what ends a dungeon, so this is unreachable while a
+                // destination fires once a run - but the type allows it and a
+                // run standing in a room it has already emptied would fight
+                // the thing it beat.
+                0 => {
+                    self.dungeon = None;
+                    lines.push(format!("Walked out of {} - nothing left in it.", d.name));
+                    return lines;
+                }
+                // One road with a fight left throws itself: there is no
+                // decision in a lever with one position.
+                1 => {
+                    lines.push(format!("Walked through: {} - cleared", d.floors[here].creature));
+                    self.dungeon = Some((d, open[0]));
+                }
+                // Two roads still worth walking. Not this function's to decide.
+                _ => {
+                    self.at_points = true;
+                    return lines;
+                }
+            }
+        }
+        lines
+    }
+
+    /// Throw the points, and go the way you said.
+    ///
+    /// Refused unless you are standing at them. Recorded in `took_exits`, so a
+    /// replay of the same script makes the same walk and the map can draw the
+    /// road taken rather than the roads that were there.
+    pub fn throw_points(&mut self, exit: usize) -> bool {
+        let Some((d, here)) = self.dungeon else { return false };
+        if !self.at_points {
+            return false;
+        }
+        let Some(e) = d.floors[here].exits.get(exit) else { return false };
+        self.at_points = false;
+        self.took_exits.push((d.id, here, exit));
+        self.dungeon = Some((d, e.to));
+        let mut lines = vec![format!("The points are thrown: {}", e.label)];
+        // A thrown lever can land you on a road you have already walked.
+        lines.extend(self.walk_through_cleared());
+        self.last_receipt = Some(lines);
+        true
+    }
+
+    /// Walk out of a dungeon without finishing it.
+    ///
+    /// The flee this game did not have, and it is deliberately not a flee from
+    /// a *fight*: legal at a landing or at the points, never mid-fight, because
+    /// a fight you can stop is a fight whose outcome depends on when you
+    /// stopped it and the oracle would stop being one.
+    ///
+    /// It costs no life, no knock-back and nothing against `losses`, and what
+    /// was cleared stays cleared. What it costs is the line: the door does not
+    /// reopen, because the event that opened it is answered. Leaving that could
+    /// be undone by walking back in would make a set of points free to sample,
+    /// and a free sample is not a decision.
+    ///
+    /// Why it exists at all, when six dungeons lived without it: a three-floor
+    /// dungeon whose last floor you cannot beat costs one life to learn. A
+    /// four-deep one with points costs a life to learn *per branch*, and a
+    /// branch you cannot see before you throw the lever is a fight you did not
+    /// choose - which `dungeon.rs` says is the one kind this game must never
+    /// hand out.
+    pub fn leave_dungeon(&mut self) -> bool {
+        if self.phase != Phase::Loadout {
+            return false;
+        }
+        let Some((d, _)) = self.dungeon else { return false };
+        self.dungeon = None;
+        self.at_points = false;
+        self.last_receipt =
+            Some(vec![format!("Left {}. What you cleared stays cleared.", d.name)]);
+        true
     }
 
     /// Feed a pedestal an orb, and go where the orb goes.
@@ -1700,6 +1948,11 @@ impl Run {
         self.forget_undo();
         match dest.kind {
             crate::pedestal::Where::Dungeon(d) => self.enter_dungeon(d),
+            crate::pedestal::Where::Siding { dungeon, floor } => {
+                if let Some(d) = crate::dungeon::by_id(dungeon) {
+                    self.enter_dungeon_at(d, floor);
+                }
+            }
             crate::pedestal::Where::Event(e) => self.forced_event = Some(e),
         }
         self.last_receipt = Some(vec![
@@ -2211,36 +2464,54 @@ impl Run {
                 // the fight you had not got to.
                 self.wins += 1;
                 let (d, floor) = self.dungeon.expect("just checked");
+                self.cleared_floors.push((d.id, floor));
+                // What this floor pays, before what the dungeon pays, so the
+                // receipt reads buffer stop and then dungeon. Nearly always
+                // empty in the middle of a road; a buffer stop is where a
+                // graph puts its rewards, because which one you reached is the
+                // whole of what a graph asks.
+                let mut lines = Vec::new();
+                for o in d.floors[floor].also {
+                    lines.extend(self.apply_outcome(o, crate::event::Requirement::None).1);
+                }
                 // Through the theme, at the source. A landing is prose the
                 // run hands to whatever is drawing, and the two interfaces
                 // would otherwise have to remember to translate it twice.
-                settlement.landing = self.theme.landings(d.id, d.landings).get(floor).copied();
+                settlement.landing =
+                    d.floors.get(floor).map(|f| self.theme.landing(d.id, floor, f.landing));
                 self.pending_landing = settlement.landing;
-                if floor + 1 < d.floors.len() {
-                    self.dungeon = Some((d, floor + 1));
-                } else {
-                    // Out the other side, with the thing you went in for -
-                    // and with whatever else it pays, which for THE THRESHOLD
-                    // is the pool and not the class.
-                    self.dungeon = None;
-                    let mut lines = Vec::new();
-                    for o in d.also {
-                        lines.extend(self.apply_outcome(o, crate::event::Requirement::None).1);
-                    }
-                    if !lines.is_empty() {
-                        self.last_receipt = Some(lines);
-                    }
-                    if let Some(c) = crate::class::CLASSES
-                        .iter()
-                        .filter(|_| !d.reward.is_empty())
-                        .find(|c| c.name == d.reward)
-                    {
-                        if !self.classes.iter().any(|k| k.name == c.name) {
-                            self.classes.push(c);
-                            self.refresh_class_effects();
-                            settlement.class_won = Some(c.name);
+                match d.floors[floor].exits.len() {
+                    // A buffer stop: out the other side, with the thing you
+                    // went in for - and with whatever else it pays, which for
+                    // THE THRESHOLD is the pool and not the class.
+                    0 => {
+                        self.dungeon = None;
+                        self.at_points = false;
+                        for o in d.also {
+                            lines.extend(self.apply_outcome(o, crate::event::Requirement::None).1);
+                        }
+                        if let Some(c) = crate::class::CLASSES
+                            .iter()
+                            .filter(|_| !d.reward.is_empty())
+                            .find(|c| c.name == d.reward)
+                        {
+                            if !self.classes.iter().any(|k| k.name == c.name) {
+                                self.classes.push(c);
+                                self.refresh_class_effects();
+                                settlement.class_won = Some(c.name);
+                            }
                         }
                     }
+                    // One way on: the next room, which is every floor of every
+                    // dungeon written before the yard.
+                    1 => self.dungeon = Some((d, d.floors[floor].exits[0].to)),
+                    // Points. Stay standing on the floor just cleared - the
+                    // lever is out past it and nobody has pulled it.
+                    _ => self.at_points = true,
+                }
+                lines.extend(self.walk_through_cleared());
+                if !lines.is_empty() {
+                    self.last_receipt = Some(lines);
                 }
                 self.restock(false);
             }
@@ -2321,7 +2592,13 @@ impl Run {
                 self.losses += 1;
                 // Losing in a dungeon puts you out of it. The door does not
                 // reopen - you sold the thing that opened it.
+                //
+                // `cleared_floors` is deliberately *not* rolled back. The
+                // floors you beat before the one that beat you stay beaten,
+                // which matters only if a siding brings you back, and then it
+                // matters completely.
                 self.dungeon = None;
+                self.at_points = false;
                 // And a passenger is a fragile thing that was riding on you.
                 // It goes whatever the mode does about the loss, including a
                 // loss the underwriter eats: the underwriter buys back a rung,

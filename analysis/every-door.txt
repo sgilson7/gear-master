@@ -1,0 +1,257 @@
+## Every door, and how a run reaches it
+
+
+THE CROWNWRIGHT  [the-crownwright]
+  stands: rungs 20 to 20, carrying "A Word About the Crownwright"
+  expects: Bone Cantor (rung 20)
+  its key: "A Word About the Crownwright" from ["the pub's bar"]
+    - Stand still for it                     -
+    - Ask what he made last                  -
+
+THE GREEN LEDGER  [the-green-ledger]
+  stands: rungs 23 to 23, carrying "A Word About the Green Ledger"
+  expects: The Gearwright (rung 23)
+  its key: "A Word About the Green Ledger" from ["the pub's bar"]
+    - Close the column                       -
+    - Add your own line                      -
+
+AHEAD OF SCHEDULE  [where-it-was-going]
+  stands: rung 22
+  expects: Slag Warden (rung 22)
+    - Ask him again                          Requires: having chosen "Ask how he does it" earlier
+    - Let them eat                           -
+
+MEMBERS AND GUESTS  [the-vip-area]
+  stands: rung 30
+  expects: Silence (rung 30)
+    - Keep your face still                   Requires: Platinum Chip
+    - Get them out                           Requires: Platinum Chip
+    - Walk on                                -
+
+THE CASINO  [the-casino]
+  stands: rungs 2 to 9, after a win under 3.5s
+  expects: Whisperling (rung 9)
+    - Step in                                -
+    - Keep out of it                         -
+
+GERALD  [the-long-way]
+  stands: rungs 2 to 9, after a win over 15.0s; shut by ["the-casino"]
+  expects: Whisperling (rung 9)
+    - Ask how he does it                     -
+    - Walk with them a while                 -
+
+HE IS STILL TALKING  [what-to-do-with-henpeck]
+  stands: rung 16
+  expects: The Curator (rung 16)
+    - LET HIM TALK                           -
+    - FINISH IT                              -
+
+TWO BY TWO  [the-toads-offer]
+  stands: rung 3
+  expects: Bone Archer (rung 3)
+    - TAKE THE DEAL                          Requires: a loose component 2 by 2
+    - FIGHT IT ANYWAY                        -
+
+THREE THINGS IN THE SHRINE  [the-shrine-fork]
+  stands: rung 10
+  expects: Warded Idol (rung 10)
+    - FIGHT THE IDOL                         -
+    - FOLLOW THE THING YOU SOLD              Requires: having chosen "TAKE THE DEAL" earlier
+    - GO ROUND THE BACK                      -
+
+THE ASTRONOMER  [the-astronomer]
+  stands: rungs 18 to 29, carrying "A Word About the Wrong Stars"
+  expects: Null Sentinel (rung 29)
+  its key: "A Word About the Wrong Stars" from ["the pub's bar"]
+    - Hear him out                           -
+    - Buy the lens                           -
+    - Turn him in                            -
+
+THE LOCKED GATE  [the-locked-gate]
+  stands: rungs 23 to 41, carrying "A Word About the Cellar"
+  expects: Sootmother (rung 41)
+  its key: "A Word About the Cellar" from ["the-astronomer rung 29", "the-slagworks (Foreman)"]
+    - Use the word                           -
+    - Walk on                                -
+
+THE GLOW OVER THE RIDGE  [the-glow-over-the-ridge]
+  stands: rungs 31 to 46, carrying "A Word About the Glow"
+  expects: The Salt Wedding (rung 46)
+  its key: "A Word About the Glow" from ["the-manse (Gallery)"]
+    - Follow it                              -
+    - Ignore it                              -
+
+THE SECOND SHADOW  [the-second-shadow]
+  stands: rungs 43 to 49, having done "threshold-cleared"
+  expects: Gilt (rung 49)
+  its key: "threshold-cleared" from ["the-threshold (on any way out)"]
+    - Face it                                -
+    - Refuse                                 -
+
+BACK IN A MINUTE  [back-in-a-minute]
+  stands: rung 4
+  expects: Rust Golem (rung 4)
+    - Keep it                                -
+    - Leave it on the milestone              -
+
+THE TELLER  [the-teller]
+  stands: rung 11
+  expects: Mirror Fiend (rung 11)
+    - Hear it all                            -
+    - Hear the short version                 -
+    - Plug your ears                         -
+
+THE DISPENSER  [the-dispenser]
+  stands: rung 17
+  expects: Salt Idol (rung 17)
+    - One coin                               Costs 1 times this rung's bounty
+    - The red one behind the glass           Costs 10 times this rung's bounty
+    - Shake it                               -
+
+WHAT THE TABLE SAID  [what-the-table-said]
+  stands: rung 24
+  expects: Crowned Hollow (rung 24)
+    - Set a piece on it                      -
+    - Keep your gear to yourself             -
+
+THE BIRD PROBLEM  [the-bird-problem]
+  stands: rung 27
+  expects: Vermin Sovereign (rung 27)
+    - Arm up                                 -
+    - Pay the toll                           Costs 1 times this rung's bounty
+    - Ignore the memo                        -
+
+THE BIGGER SIGN  [the-bigger-sign]
+  stands: rung 13
+  expects: Ashen Marshal (rung 13)
+    - Follow the sign                        Requires: having chosen "Plug your ears" earlier
+    - Forget you saw it                      -
+
+THE BOLTER RACE  [the-thrumbus-race]
+  stands: rungs 41 to 41, having done "never"
+  expects: Sootmother (rung 41)
+  its key: "never" from []
+    - Back a runner                          Costs 3 times this rung's bounty
+    - Ride                                   -
+
+MOLE TOWN  [mole-town]
+  stands: rungs 41 to 41, having done "never"
+  expects: Sootmother (rung 41)
+  its key: "never" from []
+    - The little shop                        -
+    - The mole with the tools                Costs 4 times this rung's bounty
+
+THE INSPECTION  [the-inspection]
+  stands: rung 20
+  expects: Bone Cantor (rung 20)
+    - Show her everything                    Requires: 3 assembled items sharing an alignment
+    - Show her the good half                 Requires: 2 assembled items sharing an alignment
+    - Decline the inspection                 -
+
+THE SEALED BID  [the-sealed-bid]
+  stands: rungs 34 to 36, having done "slagworks-known"
+  expects: The Tallow Saint (rung 36)
+  its key: "slagworks-known" from ["the-glow-over-the-ridge/\"Follow it\""]
+    - Name a figure                          Name a figure between 0 and 5000
+    - Watch                                  -
+
+THE CONTRACT  [the-contract]
+  stands: rung 25
+  expects: Cog Priest (rung 25)
+    - Sign it                                -
+    - Walk past the milestone                -
+
+THE PAYOUT  [the-payout]
+  stands: rung 29
+  expects: Null Sentinel (rung 29)
+    - Collect                                Requires: having chosen "Sign it" earlier
+    - Walk on                                -
+
+THE PASSENGER  [the-passenger]
+  stands: rungs 40 to 42, having done "threshold-cleared"
+  expects: The Quiet Hour (rung 42)
+  its key: "threshold-cleared" from ["the-threshold (on any way out)"]
+    - Take it aboard                         -
+    - Wish him luck                          -
+
+THE BUYER  [the-buyer]
+  stands: rung 32
+  expects: The Long Mirror (rung 32)
+    - Sell him a word                        Requires: a word you have not spent
+    - Sell him a title                       Requires: 1 title(s)
+    - Sell him a hundred of your maximum     -
+
+THE FORK  [the-fork]
+  stands: rungs 34 to 37, having done "slagworks-known"
+  expects: Hollowmarch (rung 37)
+  its key: "slagworks-known" from ["the-glow-over-the-ridge/\"Follow it\""]
+    - The shelf, then the seam               -
+    - The seam, then the shelf               -
+
+THE FOUNDRY REMEMBERS  [the-foundry-remembers]
+  stands: rungs 45 to 47, having done "slagworks-known"
+  expects: Nine of Ashes (rung 47)
+  its key: "slagworks-known" from ["the-glow-over-the-ridge/\"Follow it\""]
+    - "We kept your best"                    Requires: crucible melts at least 1 times
+    - Say nothing                            -
+
+THROUGH THE CRACKED LENS  [through-the-cracked-lens]
+  stands: rung 48
+  expects: The Last Light (rung 48)
+    - Look through it                        Requires: The Cracked Lens
+    - Keep your eyes on the road             -
+
+THE WIZARD'S THIRST  [the-wizards-thirst]
+  stands: rungs 8 to 31, carrying "A Word About the Thirsty Wizard"
+  expects: Weeping Idol (rung 31)
+  its key: "A Word About the Thirsty Wizard" from ["the pub's bar"]
+    - Trade him one                          Requires: a loose component 1 by 2
+    - Refuse him                             -
+
+THE PICKET LINE  [the-picket-line]
+  stands: rungs 20 to 39, carrying "A Word About the Picket"
+  expects: Gallowglass (rung 39)
+  its key: "A Word About the Picket" from ["the-inspection rung 20"]
+    - Honor the line                         -
+    - Cross it                               -
+
+THE EXHIBITION  [the-exhibition]
+  stands: rungs 19 to 34, carrying "A Word About the Exhibition"
+  expects: The Last Gearwright (rung 34)
+  its key: "A Word About the Exhibition" from ["the pub's bar"]
+    - Give them a bout                       Requires: an assembled rare
+    - Decline politely                       -
+
+THE TIMETABLE  [the-timetable]
+  stands: rung 21
+  expects: Ember Wisp (rung 21)
+    - Buy a timetable                        Costs 1 times this rung's bounty
+    - Trade her something small              Requires: a loose component 1 by 1
+    - Leave the table alone                  -
+
+THE SIGNAL BOX  [the-signal-box]
+  stands: rungs 22 to 25, carrying "A Word About the Sidings"
+  expects: Cog Priest (rung 25)
+  its key: "A Word About the Sidings" from ["the-timetable rung 21", "the-timetable rung 21"]
+    - Ask him to throw the points            -
+    - Ask what runs on the 21:14             -
+    - Leave him to it                        -
+
+THE TURNTABLE  [the-turntable]
+  stands: rungs 26 to 28, carrying "A Word About the Points"
+  expects: Obsidian Colossus (rung 28)
+  its key: "A Word About the Points" from ["the-signal-box rung 25"]
+    - Step onto the turntable                -
+    - Sell the timetable to the man in the pit -
+    - Come back up                           -
+
+THE LAST TRAIN  [the-last-train]
+  stands: rung 34
+  expects: The Last Gearwright (rung 34)
+    - Tell him both lines                    Requires: sidings cleared at least 2 times
+    - Tell him one line                      Requires: sidings cleared at least 1 times
+    - Tell him you never found it            -
+test report_every_door_and_what_it_wants ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+

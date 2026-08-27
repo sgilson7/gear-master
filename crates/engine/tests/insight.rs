@@ -304,3 +304,61 @@ fn the_family_has_landed_and_lives_where_the_lane_does() {
         );
     }
 }
+
+/// Accruing Insight is income, and income on the mind lane is gated like it.
+///
+/// Nothing in this mission's content accrues Insight. The gate is written
+/// anyway, because a pool locked behind a dungeon has to be locked in every
+/// direction it can be reached from, and `touches_insight` is the direction
+/// the shelves read.
+#[test]
+fn accrue_on_insight_is_gated_like_income() {
+    use gearmaster_engine::piece::{is_town_stock, Action, PieceDef, PieceKind, Trigger};
+
+    // A definition that exists only here: `touches_insight` reads a `PieceDef`,
+    // and M5 is where the catalogue grows. Nothing in `CATALOG` should answer
+    // yes to this yet, and the assertion below says so.
+    let accruer = PieceDef {
+        triggers: &[Trigger::OnActivate(Action::Accrue {
+            what: gearmaster_engine::piece::Resource::Insight,
+            pct: 10,
+        })],
+        ..*CATALOG.iter().find(|d| d.kind == PieceKind::Frame).expect("a helmet frame")
+    };
+    assert!(
+        gearmaster_engine::piece::touches_insight(&accruer),
+        "an income on Insight has to read as touching it, or the shelf gate opens early"
+    );
+
+    // And the mirror: a flat gain of a pool that is not Insight does not.
+    let plain = PieceDef {
+        triggers: &[Trigger::OnActivate(Action::Accrue {
+            what: gearmaster_engine::piece::Resource::Mana,
+            pct: 10,
+        })],
+        ..*CATALOG.iter().find(|d| d.kind == PieceKind::Frame).expect("a helmet frame")
+    };
+    assert!(!gearmaster_engine::piece::touches_insight(&plain));
+    assert!(!is_town_stock(&plain), "and it is not ground, whatever else it is");
+
+    let accruers: Vec<&str> = CATALOG
+        .iter()
+        .filter(|d| {
+            d.triggers.iter().any(|t| {
+                let mut found = false;
+                gearmaster_engine::piece::walk_actions(t, &mut |a| {
+                    found |= matches!(
+                        a,
+                        Action::Accrue { what: gearmaster_engine::piece::Resource::Insight, .. }
+                    );
+                });
+                found
+            })
+        })
+        .map(|d| d.name)
+        .collect();
+    assert!(
+        accruers.is_empty(),
+        "nothing in the catalogue accrues Insight, and these do: {accruers:?}"
+    );
+}

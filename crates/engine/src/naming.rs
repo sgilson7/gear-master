@@ -167,6 +167,10 @@ const PRIORITY: &[&str] = &[
     "Welling",
     "Striking",
     "Keen",
+    "Shunting",
+    "Ballasted",
+    "Derailing",
+    "Accruing",
 ];
 
 fn action_word(a: &Action) -> Option<&'static str> {
@@ -207,6 +211,11 @@ fn action_word(a: &Action) -> Option<&'static str> {
         Action::GainDread(_) => "Foreboding",
         Action::GainDeflection(_) => "Glancing",
         Action::GainForking(_) => "Forked",
+        // A shunt moves time between bars; the word is the yard's own.
+        Action::Shunt { .. } => "Shunting",
+        Action::Ballast(_) => "Ballasted",
+        Action::Derail { .. } => "Derailing",
+        Action::Accrue { .. } => "Accruing",
     })
 }
 

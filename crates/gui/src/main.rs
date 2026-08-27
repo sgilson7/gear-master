@@ -1682,6 +1682,15 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
         Action::GainDread(_) => note("mind", out),
         Action::GainDeflection(_) => note("armor", out),
         Action::Grow(_) => note("health", out),
+        Action::Ballast(_) => {
+            // Both, because it is both: a wall spent, and health bought
+            // with it. A chip that said only one would hide the trade.
+            note("armor", out);
+            note("health", out);
+        }
+        Action::Shunt { .. } => note("speed", out),
+        Action::Derail { .. } => note("speed", out),
+        Action::Accrue { what, .. } => note(what.name(), out),
         Action::Fuse { into, .. } => note(into.name(), out),
     } }
     // A repeat carries a trigger, so unwrap it once and read that: a piece
@@ -2175,7 +2184,16 @@ fn button(rect: Rect, label: &str, enabled: bool, mx: f32, my: f32) -> bool {
         2.0,
         if hovered { col_gold() } else { Color::from_rgba(80, 80, 105, 255) },
     );
-    centered_text(label, rect.x + rect.w / 2.0, rect.y + rect.h / 2.0 + 6.0, 18.0, fg);
+    // Sized to the box rather than to 18 and hoped.
+    //
+    // A label wider than its button does not clip - it is drawn centred, so it
+    // spills out of *both* ends and into whatever is beside it. "WHAT THE
+    // WORDS MEAN" sits next to TOOLS on a shared row and the two have read as
+    // "WHAT THE WORDS MEANTOOLS" for as long as they have shared it. A theme
+    // is free to write a longer word than the plain game's, so this is not a
+    // matter of picking a better string.
+    let size = fitting_size(label, rect.w - 16.0, &[18.0, 16.0, 15.0, 14.0, 13.0, 12.0]);
+    centered_text(label, rect.x + rect.w / 2.0, rect.y + rect.h / 2.0 + 6.0, size, fg);
     hovered
 }
 
@@ -2727,6 +2745,10 @@ impl Playback {
             // Reads as a plain line: the health bar it moves is the other
             // side's, and that already animates.
             Event::Reflected { .. } => {}
+            // Both bars move, and the row draws its own cooldowns from the
+            // simulation rather than from the log, so there is nothing to
+            // animate here. The line says it.
+            Event::Shunted { .. } | Event::Derailed { .. } => {}
             // A watcher coming round is the one thing on a board that happens
             // on somebody else's clock, so nothing else on the row shows it:
             // the cooldown bar is mid-sweep and the count has just wrapped to
@@ -6430,6 +6452,34 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("  SEARING", "10 damage a second, for 10 seconds. Stacks burn together, so a second one landing doubles the rate."),
     ("  FROST", "ALL of the target's gear runs 50% slower, for 1 second - not just the item that was hit. Stacks add up to 75%, and never past it: frost slows gear, it never stops it."),
     ("CURSE RESIST", "Shortens curses landed on you. At 100% they never land."),
+    (
+        "SHUNT",
+        "Hands part of an item's next cooldown to the slowest item beside it. The \
+         time is moved, never made: the giver waits exactly as long as the taker \
+         gains. Worth doing because a second is worth more on a slow bar than a \
+         fast one.",
+    ),
+    (
+        "BALLAST",
+        "Turns armour into MAXIMUM health, point for point, for the rest of the \
+         fight. Nothing without a wall to spend. Past thirty seconds the clock \
+         takes health straight past armour, so this is the only thing that turns \
+         a wall into something sudden death respects.",
+    ),
+    (
+        "DERAIL",
+        "If the enemy's best item is close to firing, its bar is pushed back. It \
+         is not a curse, so CURSE RESIST is no answer to it - which is the point \
+         of it, and the only thing in the game that answers a board built \
+         entirely out of resistance.",
+    ),
+    (
+        "ACCRUE",
+        "Income that reads the balance: a percentage of the pool you are already \
+         holding, rather than a flat amount. Worth nothing to a build that spends \
+         everything, and a great deal to one that banks - which is what makes a \
+         DRAIN the answer to it.",
+    ),
     ("STACKS", "Landing the same curse again while it is still up. Searing burns faster, frost slows harder, misfire eats more, and stun lasts longer - each up to its own ceiling. The count sits beside the curse's name on the bar."),
     (
         "MANA EMPOWERMENT",
@@ -6836,9 +6886,21 @@ fn render_route(run: &Run, mx: f32, my: f32) {
                 _ => draw_circle(g.x, y, 3.5, ink),
             }
             if Rect::new(g.x - 8.0, y - 9.0, 17.0, 17.0).contains(Vec2::new(mx, my)) {
+                // A dungeon says how far into it a run is going to have to
+                // walk, and how many times it will be asked which way. The
+                // word "points" is dropped at zero, so a straight line reads
+                // the way it always did.
+                let how_deep = match n.kind {
+                    NodeKind::Dungeon { fights, forks: 0 } => format!("  ({} fights)", fights),
+                    NodeKind::Dungeon { fights, forks } => {
+                        format!("  ({} fights, {} points)", fights, forks)
+                    }
+                    _ => String::new(),
+                };
                 tip = Some(format!(
-                    "{}  (between {} and {})",
+                    "{}{}  (between {} and {})",
                     words::retell(n.label),
+                    how_deep,
                     n.at,
                     n.at + 1
                 ));
@@ -6892,6 +6954,191 @@ fn render_route(run: &Run, mx: f32, my: f32) {
     }
 }
 
+/// The banner over a dungeon, or `None` when you are not in one.
+///
+/// Read off `Interrupt::describe()` rather than formatted here. Its two
+/// numbers are a reading of the run *now* - fights won this entry, and floors
+/// walked past because they were beaten before - and three places working
+/// that out separately is three places that will one day disagree. The CLI
+/// reads the same string.
+fn dungeon_banner(run: &Run) -> Option<String> {
+    run.road_stack().into_iter().find(|i| i.kind() == "dungeon").map(|i| i.describe())
+}
+
+/// The pip row: how many fights are behind you this entry, and how many are
+/// ahead of you counting the one you are looking at.
+///
+/// The total is `fights_ahead` plus what this entry has already won, which is
+/// exactly the banner's `m`. It changes length only when a run leaves cleared
+/// floors behind, which is the one time it should.
+fn pip_row(run: &Run) -> (usize, usize) {
+    let Some((d, floor)) = run.dungeon else { return (0, 0) };
+    (run.fights_this_entry(), d.fights_ahead(floor, &run.cleared_floors))
+}
+
+/// Which pips of this entry stand where a lever was thrown.
+///
+/// Indexed into the filled pips, in the order they were won, so the row can
+/// put a tick under the ones that were decisions.
+fn ticked_pips(run: &Run) -> Vec<usize> {
+    let Some((d, _)) = run.dungeon else { return Vec::new() };
+    run.cleared_floors
+        .iter()
+        .skip(run.entry_started_at)
+        .enumerate()
+        .filter(|(_, &(id, at))| {
+            id == d.id && run.took_exits.iter().any(|&(x, f, _)| x == id && f == at)
+        })
+        .map(|(i, _)| i)
+        .collect()
+}
+
+/// Where the buttons sit on the points screen, for `n` roads out.
+///
+/// `measure` is passed in for the same reason `chip_rects` takes one: this
+/// wants testing and `text_width` wants macroquad's font context. The last
+/// cell is the leave button, which is why the count is `n + 1`.
+fn points_cells(r: Rect, n: usize) -> Vec<Rect> {
+    let gap = 18.0;
+    let cols = n.max(1);
+    let cw = (r.w - 56.0 - (cols - 1) as f32 * gap) / cols as f32;
+    // 186 and not the event screen's 150: this panel has a strip under the
+    // roads that the event screen has no equivalent of, and at 150 the way out
+    // hung eight pixels past the bottom border. Roads end at `r.h - 66`, the
+    // strip runs to `r.h - 28`, and the border is at `r.h`.
+    let top = r.y + r.h - 186.0;
+    let mut out: Vec<Rect> = (0..cols)
+        .map(|i| Rect::new(r.x + 28.0 + i as f32 * (cw + gap), top, cw, 120.0))
+        .collect();
+    // Leaving is a different kind of thing from choosing a road, so it is a
+    // different kind of shape: a strip under the roads rather than a third
+    // road-sized button beside them.
+    out.push(Rect::new(r.x + 28.0, top + 128.0, r.w - 56.0, 30.0));
+    out
+}
+
+/// What the leave button says, everywhere it is offered.
+const LEAVE_BLURB: &str = "What you cleared stays cleared. The door does not reopen.";
+
+/// The points: the roads out of the floor you just cleared, and the way home.
+///
+/// Built on the event screen's layout on purpose. A set of points is a
+/// question with two answers and a paragraph over it, which is what an event
+/// is; making it look like one is telling the truth about it rather than
+/// inventing a fourth kind of screen.
+///
+/// `Some(Some(i))` is a road taken, `Some(None)` is leaving, `None` is nothing
+/// clicked.
+#[allow(clippy::type_complexity)]
+fn render_points(
+    run: &Run,
+    d: &'static gearmaster_engine::dungeon::Dungeon,
+    floor: usize,
+    mx: f32,
+    my: f32,
+) -> Option<Option<usize>> {
+    let pad = 70.0;
+    let w = LOGICAL_W - 2.0 * pad;
+    let scene = d.floors[floor].fork;
+    let lines: usize =
+        scene.iter().map(|p| wrap_px(&words::retell_naming(p), w - 56.0, 15.0).len()).sum();
+    let prose_h = lines as f32 * 20.0 + scene.len() as f32 * 10.0;
+    let h = (78.0 + prose_h + 24.0 + 194.0 + 30.0).clamp(320.0, LOGICAL_H - 40.0);
+    let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, w, h);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
+    ui_text(&words::retell(d.name), r.x + 28.0, r.y + 42.0, 24.0, col_gold());
+    let sub = words::word("the-points", "WHICH WAY");
+    ui_text(&sub, r.x + r.w - 28.0 - text_width(&sub, 13.0), r.y + 42.0, 13.0, col_dim());
+
+    let mut y = r.y + 78.0;
+    for para in scene {
+        for l in wrap_px(&words::retell_naming(para), r.w - 56.0, 15.0) {
+            ui_text(&l, r.x + 28.0, y, 15.0, Color::from_rgba(198, 200, 218, 255));
+            y += 20.0;
+        }
+        y += 10.0;
+    }
+
+    let exits = d.floors[floor].exits;
+    let cells = points_cells(r, exits.len());
+    let mut picked = None;
+    for (i, e) in exits.iter().enumerate() {
+        let cell = cells[i];
+        let hot = cell.contains(Vec2::new(mx, my));
+        draw_rectangle(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { Color::from_rgba(46, 42, 30, 255) } else { Color::from_rgba(26, 26, 38, 255) },
+        );
+        draw_rectangle_lines(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { 2.5 } else { 1.5 },
+            if hot { col_gold() } else { Color::from_rgba(64, 64, 88, 255) },
+        );
+        let mut cy = cell.y + 28.0;
+        ui_text(&words::retell(e.label), cell.x + 14.0, cy, 18.0, col_gold());
+        cy += 22.0;
+        for l in wrap_px(&words::retell_naming(e.blurb), cell.w - 28.0, 13.0) {
+            ui_text(&l, cell.x + 14.0, cy, 13.0, col_ok());
+            cy += 16.0;
+        }
+        // A road already walked says so. It is not shut - walking it again
+        // goes past what you beat rather than fighting it - and a shut door's
+        // colours would be a lie about that.
+        if run.has_cleared(d.id, e.to) {
+            cy += 4.0;
+            ui_text(
+                words::word("road-walked", "you have been down here"),
+                cell.x + 14.0,
+                cy,
+                12.0,
+                col_dim(),
+            );
+        }
+        if hot && is_mouse_button_pressed(MouseButton::Left) {
+            picked = Some(Some(i));
+        }
+    }
+    if leave_strip(cells[exits.len()], mx, my) {
+        picked = Some(None);
+    }
+    picked
+}
+
+/// The way out, drawn wherever it is offered.
+///
+/// One shape and one sentence in one function, because a landing and a set of
+/// points are two screens offering the same verb, and a button that says
+/// something slightly different on each is a button players will read twice.
+/// Returns true when it has been clicked.
+fn leave_strip(r: Rect, mx: f32, my: f32) -> bool {
+    let hot = r.contains(Vec2::new(mx, my));
+    draw_rectangle_lines(
+        r.x,
+        r.y,
+        r.w,
+        r.h,
+        if hot { 2.0 } else { 1.0 },
+        if hot { col_bad() } else { Color::from_rgba(64, 64, 88, 255) },
+    );
+    let label = format!("{}  -  {}", words::word("leave-dungeon", "WALK OUT"), LEAVE_BLURB);
+    ui_text(
+        &words::retell(&label),
+        r.x + 14.0,
+        r.y + 20.0,
+        13.0,
+        if hot { col_bad() } else { col_dim() },
+    );
+    hot && is_mouse_button_pressed(MouseButton::Left)
+}
+
 /// The road stack, drawn.
 ///
 /// Shown only when there is something to explain: two or more things queued on
@@ -6900,7 +7147,7 @@ fn render_route(run: &Run, mx: f32, my: f32) {
 /// the last row, so the queue visibly ends somewhere rather than trailing off.
 fn render_stack_strip(run: &Run, mx: f32, my: f32) {
     let stack = run.road_stack();
-    let inside = stack.iter().any(|i| matches!(i, gearmaster_engine::run::Interrupt::Dungeon(..)));
+    let inside = stack.iter().any(|i| matches!(i, gearmaster_engine::run::Interrupt::Dungeon { .. }));
     if stack.len() < 2 && !inside {
         return;
     }
@@ -6922,7 +7169,25 @@ fn render_stack_strip(run: &Run, mx: f32, my: f32) {
     for (i, it) in stack.iter().enumerate() {
         let cell = Rect::new(r.x, y - 15.0, r.w, row);
         if cell.contains(Vec2::new(mx, my)) {
-            tip = Some(it.describe());
+            // The points hover names each road and says whether it has been
+            // walked, which is `Requirement::describe`'s job done for a lever.
+            tip = Some(match it {
+                gearmaster_engine::run::Interrupt::Points(d, floor) => {
+                    let roads: Vec<String> = d.floors[*floor]
+                        .exits
+                        .iter()
+                        .map(|e| {
+                            format!(
+                                "{}{}",
+                                words::retell(e.label),
+                                if run.has_cleared(d.id, e.to) { " - cleared" } else { "" }
+                            )
+                        })
+                        .collect();
+                    format!("{} - {}", words::retell(d.name), roads.join(" / "))
+                }
+                _ => it.describe(),
+            });
         }
         let (mark, c) = if i == 0 {
             ("\u{25b8}", col_gold())
@@ -8477,6 +8742,40 @@ fn chip_rects(titles: &[String], x: f32, y: f32, w: f32, measure: impl Fn(&str) 
 
 const CHIP_TEXT: f32 = 12.0;
 
+/// The classes a run is wearing, collapsed to one entry each.
+///
+/// `Run::classes` holds a stacking class once per stack - Piety, Unionized and
+/// Gear Salvager all stack - so a panel that drew the list drew the same name
+/// three times and called it three classes. What a player has is one title
+/// they hold three times over, and the number belongs on the chip.
+///
+/// Order is the order they were earned, which is the order the list is in: a
+/// shelf that re-sorted itself every time a fountain poured would move the
+/// chip somebody was about to point at.
+fn class_stacks(run: &Run) -> Vec<(&'static gearmaster_engine::class::ClassDef, usize)> {
+    let mut out: Vec<(&'static gearmaster_engine::class::ClassDef, usize)> = Vec::new();
+    for c in &run.classes {
+        match out.iter_mut().find(|(d, _)| d.name == c.name) {
+            Some((_, n)) => *n += 1,
+            None => out.push((c, 1)),
+        }
+    }
+    out
+}
+
+/// What a class chip says: its title, and how many of it you hold.
+///
+/// The count is only ever drawn where there is one to draw. A `x1` on every
+/// chip would be noise on the twenty-odd classes that cannot stack at all.
+fn class_chip_label(c: &gearmaster_engine::class::ClassDef, n: usize) -> String {
+    let name = words::class(c.name);
+    if n > 1 {
+        format!("{name}  x{n}")
+    } else {
+        name.to_string()
+    }
+}
+
 /// The glossary: every term on one screen, and one of them open.
 ///
 /// It was four columns of term-and-paragraph, paginated, and a shelf of forty
@@ -9385,40 +9684,60 @@ fn render_panel(
             col_dim(),
         );
         y += 22.0;
-        // The band below this is pinned, so a long list has to stop somewhere.
-        // Two lines each, and one line held back for the "+ N more" that says
-        // where the rest went. Classes stack now - Piety and Tired both do -
-        // so "however many there are" is no longer a small number.
-        let room = ((opp_top - 26.0 - y) / 36.0).floor().max(1.0) as usize;
-        let show = if run.classes.len() > room { room.saturating_sub(1).max(1) } else { run.classes.len() };
-        for c in run.classes.iter().take(show) {
-            ui_text(words::class(c.name), x + 20.0, y, 19.0, col_gold());
-            y += 18.0;
-            // The band is pinned, so the text shrinks to fit rather than being
-            // cut off - a power whose description is a word longer than the
-            // last one must not silently lose its ending.
-            let text = words::retell(&c.power.short());
-            let size = fitting_size(&text, PANEL_W - 48.0, &[13.0, 12.0, 11.0, 10.0]);
-            draw_capped(&text, x + 24.0, y, PANEL_W - 48.0, size, LIGHTGRAY, 1);
-            y += 18.0;
-        }
-        if show < run.classes.len() {
-            let rest = &run.classes[show..];
-            let row = Rect::new(x + 16.0, y - 4.0, PANEL_W - 32.0, 20.0);
-            let hot = row.contains(Vec2::new(mx, my));
-            ui_text(&format!("+{} more", rest.len()), x + 20.0, y + 10.0, 13.0, if hot { col_gold() } else { col_dim() });
+        // A shelf of chips, the way the glossary lays its words out.
+        //
+        // It was a list of names with a paragraph under each and a "+ N more"
+        // holding the overflow, which answered "how many" and not "what": the
+        // band below is pinned, so a run wearing six titles saw two of them
+        // and a number. A chip is a title at its own width, so the whole shelf
+        // fits above the fold and finding one is reading rather than hovering.
+        //
+        // And a stacking class is one chip with a number on it. Piety,
+        // Unionized and Gear Salvager are held several times over, and the
+        // list drew each stack as a separate title - three chips saying the
+        // same word, which reads as three classes.
+        let stacks = class_stacks(run);
+        let titles: Vec<String> =
+            stacks.iter().map(|(c, n)| class_chip_label(c, *n)).collect();
+        let strip_w = PANEL_W - 40.0;
+        let chips = chip_rects(&titles, x + 20.0, y, strip_w, |t| text_width(t, CHIP_TEXT));
+        for ((c, n), rect) in stacks.iter().zip(&chips) {
+            let hot = rect.contains(Vec2::new(mx, my));
+            draw_rectangle(
+                rect.x,
+                rect.y,
+                rect.w,
+                rect.h,
+                if hot { Color::from_rgba(52, 46, 30, 255) } else { Color::from_rgba(28, 28, 40, 255) },
+            );
+            draw_rectangle_lines(
+                rect.x,
+                rect.y,
+                rect.w,
+                rect.h,
+                if hot { 2.0 } else { 1.0 },
+                if hot { col_gold() } else { Color::from_rgba(70, 70, 95, 255) },
+            );
+            centered_text(
+                &class_chip_label(c, *n),
+                rect.x + rect.w / 2.0,
+                rect.y + 17.0,
+                CHIP_TEXT,
+                if hot { col_gold() } else { Color::from_rgba(196, 178, 128, 255) },
+            );
+            // What it does, on the chip the cursor is over. The paragraph used
+            // to be under every name at once, which is what made the shelf too
+            // tall to show; asking for one at a time is what buys the room.
             if hot {
-                // Wins over the class chart: a cursor on this line is asking
-                // about these, not about the fountain schedule behind them.
                 hover.class_card = false;
                 hover.overflow = Some(Pinned {
-                    title: format!("{} MORE", rest.len()),
-                    at: Vec2::new(x - 312.0, y),
-                    entries: rest.iter().map(|c| PinnedEntry::Class(*c)).collect(),
+                    title: words::class(c.name).to_string(),
+                    at: Vec2::new(x - 312.0, rect.y),
+                    entries: vec![PinnedEntry::Class(*c)],
                 });
             }
-            y += 24.0;
         }
+        y = chips.last().map(|c| c.y + c.h).unwrap_or(y) + 8.0;
     }
     // Everything below is pinned, so this block has a hard ceiling: it must
     // never grow into the opponent. Each line is asked for room first.
@@ -9509,11 +9828,11 @@ fn render_panel(
         draw_rectangle(opp_card.x, opp_card.y, opp_card.w, opp_card.h, Color::from_rgba(255, 255, 255, 12));
     }
     ui_text(
-        if let Some((d, floor)) = run.dungeon {
+        if let Some(banner) = dungeon_banner(run) {
             // A dungeon is not the road, and the panel should not pretend it
             // is - "rung 10 of 50" while you are three floors under a hamlet
             // is the sort of thing that reads as a bug.
-            Box::leak(format!("{}  ·  FLOOR {} OF {}", d.name, floor + 1, d.floors.len()).into_boxed_str())
+            Box::leak(banner.to_uppercase().into_boxed_str())
         } else if run.at_fountain() || run.at_doubling_fountain() {
             words::word("beyond-fountain", "BEYOND THE FOUNTAIN")
         } else {
@@ -9556,26 +9875,42 @@ fn render_panel(
     // same number for three fights in a row - which reads as nothing
     // happening. Floor pips say the thing that is actually changing, and the
     // banner above them says which door you went through.
-    if let Some((d, floor)) = run.dungeon {
+    if let Some(banner) = dungeon_banner(run) {
         ui_text(
-            &format!("{} - FLOOR {} OF {}", words::retell(d.name), floor + 1, d.floors.len()),
+            &words::retell_naming(&banner).to_uppercase(),
             x + 20.0,
             y,
             13.0,
             Color::from_rgba(196, 168, 220, 255),
         );
+        // One pip a fight, which is not one pip a room: a graph's room count
+        // is not what a run walks, and a run that came back in by a siding
+        // walks past floors it beat. `pip_row` says how many pips and which
+        // one you are standing on, and it is a pure function so a test can
+        // read the row without a window.
+        let (won, ahead) = pip_row(run);
         let mut px = x + 20.0;
         let py = y + 12.0;
-        for i in 0..d.floors.len() {
-            if i < floor {
+        for i in 0..won + ahead {
+            if i < won {
                 draw_circle(px, py, 4.0, Color::from_rgba(150, 130, 176, 255));
-            } else if i == floor {
+            } else if i == won {
                 draw_circle(px, py, 4.5, Color::from_rgba(214, 186, 240, 255));
                 draw_circle_lines(px, py, 8.0, 1.5, Color::from_rgba(214, 186, 240, 255));
             } else {
                 draw_circle_lines(px, py, 4.0, 1.5, Color::from_rgba(96, 84, 116, 255));
             }
             px += 22.0;
+        }
+        // A pip that was a set of points gets a tick under it once its lever
+        // has been thrown. A fork is never drawn ahead of time - a run at
+        // floor 1 of 4 does not know the yard has points - and is marked
+        // afterwards, because it chose.
+        for i in ticked_pips(run) {
+            if i < won {
+                let tx = x + 20.0 + i as f32 * 22.0;
+                draw_line(tx - 4.0, py + 9.0, tx + 4.0, py + 9.0, 1.5, col_gold());
+            }
         }
         y += 12.0;
     } else {
@@ -10020,6 +10355,47 @@ async fn main() {
     if std::env::var("GEARMASTER_PRESET").is_ok() {
         run.apply_preset();
         message = "Auto-built a complete loadout - every bonus is lit.".to_string();
+    }
+    // Wear a set of titles, for looking at the shelf without earning them.
+    //
+    // `GEARMASTER_CLASSES=Piety,Piety,Piety,Berserker` - repeats are what a
+    // stacking class looks like in `Run::classes`, so this is also how the
+    // count on a chip is looked at.
+    if let Ok(v) = std::env::var("GEARMASTER_CLASSES") {
+        for want in v.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            if let Some(c) =
+                gearmaster_engine::class::CLASSES.iter().find(|c| c.name == want)
+            {
+                run.classes.push(c);
+            }
+        }
+        run.refresh_class_effects();
+    }
+    // Drop into a dungeon, for looking at one without playing to it.
+    //
+    // `GEARMASTER_DUNGEON=the-switchyard` walks in at the mouth;
+    // `=the-switchyard:points` walks in and clears the first floor, which is
+    // how you get a screenshot of a set of points without fighting twenty
+    // rungs first. A debug hook beside `GEARMASTER_TOOLS`, `_PRESET` and
+    // `_STUN`, and like them it does nothing unless somebody asks.
+    if let Ok(v) = std::env::var("GEARMASTER_DUNGEON") {
+        let (id, at_points) = match v.split_once(':') {
+            Some((id, "points")) => (id.to_string(), true),
+            _ => (v.clone(), false),
+        };
+        if let Some(d) = gearmaster_engine::dungeon::by_id(&id) {
+            run.rung = 26;
+            run.enter_dungeon_at(d, 0);
+            if at_points {
+                run.pending_scene = None;
+                run.force_win();
+                run.settle();
+                run.take_receipt();
+                run.pending_scene = None;
+                run.back_to_loadout();
+            }
+            message = format!("Dropped into {}.", d.name);
+        }
     }
     if let Ok(r) = std::env::var("GEARMASTER_RUNG") {
         if let Ok(n) = r.parse::<usize>() {
@@ -10530,6 +10906,19 @@ async fn main() {
             if is_mouse_button_pressed(MouseButton::Left) && go.contains(Vec2::new(mx, my)) {
                 run.pending_scene = None;
             }
+            // A landing inside a dungeon is the other place the way out is
+            // offered. Not at the points, which draws its own: the points
+            // screen is what you are looking at there, and this scene is not.
+            if run.dungeon.is_some() && !run.at_points {
+                let strip = Rect::new(go.x - 90.0, go.y + go.h + 14.0, go.w + 180.0, 30.0);
+                if leave_strip(strip, mx, my) {
+                    let name = run.dungeon.map(|(d, _)| d.name).unwrap_or("");
+                    if run.leave_dungeon() {
+                        run.pending_scene = None;
+                        message = format!("You walk out of {}.", words::retell(name));
+                    }
+                }
+            }
             #[cfg(not(target_arch = "wasm32"))]
             {
                 frame += 1;
@@ -10637,6 +11026,43 @@ async fn main() {
                     }
                 };
             }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(path) = &shot_path {
+                if frame >= shot_after {
+                    get_screen_data().export_png(path);
+                    println!("screenshot: {}", path);
+                    return;
+                }
+            }
+            next_frame().await;
+            continue;
+        }
+
+        // The points sit over everything, above even an event: you are
+        // standing at a lever inside a building, and nothing on the road can
+        // be asked of somebody who is not on the road. `road_stack` puts it on
+        // top for the same reason.
+        if let Some((d, floor)) = run.dungeon.filter(|_| run.at_points) {
+            match render_points(&run, d, floor, mx, my) {
+                Some(Some(i)) => {
+                    let label = d.floors[floor].exits[i].label;
+                    if run.throw_points(i) {
+                        message = format!("{}.", words::retell(label));
+                    }
+                }
+                Some(None) => {
+                    let name = d.name;
+                    if run.leave_dungeon() {
+                        message = format!("You walk out of {}.", words::retell(name));
+                    }
+                }
+                None => {}
+            }
+            render_stack_strip(&run, mx, my);
             #[cfg(not(target_arch = "wasm32"))]
             {
                 frame += 1;
@@ -11936,6 +12362,175 @@ mod tests {
         let r = chip_rects(&huge, 10.0, 10.0, 60.0, m);
         assert_eq!(r.len(), 1, "a wide title lost its chip");
         assert_eq!(r[0].x, 10.0, "a wide title should still start the row");
+    }
+
+    /// The points screen lays out one cell a road, and a way out under them.
+    ///
+    /// A fixture rather than a screenshot: `points_cells` is the whole of the
+    /// layout, so a test can read the geometry without macroquad's font
+    /// context - the same reason `chip_rects` takes a `measure`.
+    #[test]
+    fn the_points_screen_lays_out_one_cell_a_road_and_a_way_out() {
+        let r = Rect::new(70.0, 100.0, 1000.0, 500.0);
+        for roads in 2..=4usize {
+            let cells = points_cells(r, roads);
+            assert_eq!(cells.len(), roads + 1, "{roads} roads and a way out");
+            // The roads are one row, in order, inside the frame.
+            for i in 0..roads {
+                assert_eq!(cells[i].y, cells[0].y, "road {i} is off the row");
+                assert!(cells[i].x >= r.x + 28.0, "road {i} is outside the frame");
+                assert!(
+                    cells[i].x + cells[i].w <= r.x + r.w - 28.0 + 0.01,
+                    "road {i} runs off the right edge"
+                );
+                if i > 0 {
+                    assert!(
+                        cells[i].x >= cells[i - 1].x + cells[i - 1].w,
+                        "roads {} and {i} overlap",
+                        i - 1
+                    );
+                }
+            }
+            // The way out is a strip under them, full width, and a different
+            // shape from a road because it is a different kind of thing.
+            let out = cells[roads];
+            assert!(out.y > cells[0].y + cells[0].h, "the way out sits under the roads");
+            assert!(out.w > cells[0].w, "the way out is a strip, not a third road");
+            assert!(out.h < cells[0].h);
+        }
+    }
+
+    /// Everywhere the way out is offered, it says the same sentence.
+    #[test]
+    fn the_way_out_says_what_leaving_costs() {
+        assert!(LEAVE_BLURB.contains("cleared stays cleared"));
+        assert!(LEAVE_BLURB.contains("does not reopen"), "the half that is a cost");
+    }
+
+    /// The banner and the pips are the same reading of the run.
+    ///
+    /// They were two formatters over `d.floors.len()` and they agreed because
+    /// they were the same expression written twice. They are a graph's now,
+    /// and the pip row has to be the banner's `m` or the row and the words
+    /// over it will say different things about the same walk.
+    #[test]
+    fn the_pip_row_is_the_banner_read_as_circles() {
+        use gearmaster_engine::run::Run;
+        let mut run = Run::seeded(0xB0A7);
+        run.rung = 20;
+        assert_eq!(pip_row(&run), (0, 0), "no dungeon, no pips");
+        assert!(dungeon_banner(&run).is_none());
+
+        run.enter_dungeon("the-threshold");
+        let (won, ahead) = pip_row(&run);
+        assert_eq!((won, ahead), (0, 3));
+        let banner = dungeon_banner(&run).expect("in one");
+        assert!(banner.ends_with(&format!("floor {} of {}", won + 1, won + ahead)), "{banner}");
+
+        run.pending_scene = None;
+        run.force_win();
+        run.settle();
+        run.back_to_loadout();
+        let (won, ahead) = pip_row(&run);
+        assert_eq!((won, ahead), (1, 2), "one behind you, two counting the one in front");
+        let banner = dungeon_banner(&run).expect("still in one");
+        assert!(banner.ends_with("floor 2 of 3"), "{banner}");
+        assert!(ticked_pips(&run).is_empty(), "nothing here was a decision");
+    }
+
+    /// A class held three times is one chip with a three on it.
+    ///
+    /// The panel drew `run.classes` straight, and a stacking class sits in
+    /// that list once per stack - so Piety held three times drew three chips
+    /// saying "Piety", which reads as three classes rather than one title held
+    /// three times over.
+    #[test]
+    fn a_stacking_class_is_one_chip_with_a_number_on_it() {
+        use gearmaster_engine::class::{stacks, CLASSES};
+        use gearmaster_engine::run::Run;
+
+        let stacker = CLASSES
+            .iter()
+            .find(|c| stacks(c.name))
+            .expect("some class stacks; Piety and Gear Salvager both do");
+        let plain = CLASSES
+            .iter()
+            .find(|c| !stacks(c.name))
+            .expect("most classes do not");
+
+        let mut run = Run::seeded(0xC1A55);
+        run.classes = vec![stacker, plain, stacker, stacker];
+
+        let shelf = class_stacks(&run);
+        assert_eq!(shelf.len(), 2, "four entries, two titles: {shelf:?}");
+        assert_eq!(shelf[0].0.name, stacker.name, "order is the order they were earned");
+        assert_eq!(shelf[0].1, 3, "three of them");
+        assert_eq!(shelf[1].1, 1);
+
+        // The number is only ever drawn where there is one to draw.
+        assert!(class_chip_label(shelf[0].0, 3).contains("x3"));
+        assert!(!class_chip_label(shelf[1].0, 1).contains('x'), "a lone class says no number");
+    }
+
+    /// Every class a run can hold fits the shelf it is drawn on.
+    ///
+    /// The band under the classes is pinned - it must never grow into the
+    /// opponent panel - which is what the old "+ N more" was for. A chip is a
+    /// title at its own width and wraps, so the question is whether the whole
+    /// shelf still fits when a run is wearing everything a run can wear.
+    #[test]
+    fn a_run_wearing_everything_still_fits_the_shelf() {
+        use gearmaster_engine::class::CLASSES;
+        use gearmaster_engine::run::Run;
+
+        let mut run = Run::seeded(0xC1A55);
+        // Three fountains, and the stacking ones can be doubled - so the most
+        // a run holds is a handful, not the whole table. Taking the whole
+        // table anyway is the harder question and the one worth asking.
+        run.classes = CLASSES.iter().collect();
+
+        let stacks = class_stacks(&run);
+        let titles: Vec<String> =
+            stacks.iter().map(|(c, n)| class_chip_label(c, *n)).collect();
+        let m = |t: &str| t.chars().count() as f32 * 7.0;
+        let chips = chip_rects(&titles, 0.0, 0.0, PANEL_W - 40.0, m);
+
+        assert_eq!(chips.len(), titles.len(), "a chip went missing");
+        for (t, c) in titles.iter().zip(&chips) {
+            assert!(c.w <= PANEL_W - 40.0, "{t:?} is wider than the panel");
+            assert!(c.x >= 0.0);
+        }
+        // Rows, not one long line: the shelf has to wrap or it runs off the
+        // side of the panel.
+        let rows = chips.iter().map(|c| c.y as i32).collect::<std::collections::BTreeSet<_>>();
+        assert!(rows.len() > 1, "thirty-one classes laid out on one row");
+    }
+
+    /// No two buttons share a pixel, and every one is inside the panel.
+    ///
+    /// The geometry half of the row. The *text* half - a label wider than its
+    /// box spilling out of both ends into whatever shares the row, which is
+    /// how "WHAT THE WORDS MEAN" and TOOLS read as "WHAT THE WORDS MEANTOOLS"
+    /// for as long as they shared it - cannot be asserted here: measuring a
+    /// string wants macroquad's font context, which is the same reason
+    /// `chip_rects` takes a `measure` and this does not. `button` sizes the
+    /// label to the box now, and the fix was confirmed by looking at it.
+    #[test]
+    fn no_two_buttons_share_a_pixel() {
+        let panel_x = LOGICAL_W - PANEL_W;
+        let r = button_rects(panel_x);
+        for (i, a) in r.iter().enumerate() {
+            assert!(a.x >= panel_x, "button {i} is off the panel");
+            assert!(a.x + a.w <= LOGICAL_W, "button {i} runs off the screen");
+            assert!(a.y + a.h <= LOGICAL_H, "button {i} runs off the bottom");
+            for (j, b) in r.iter().enumerate().skip(i + 1) {
+                let apart = a.x + a.w <= b.x + 0.01
+                    || b.x + b.w <= a.x + 0.01
+                    || a.y + a.h <= b.y + 0.01
+                    || b.y + b.h <= a.y + 0.01;
+                assert!(apart, "buttons {i} and {j} overlap");
+            }
+        }
     }
 
     /// The worn path is still on the words shelf, and still not signposted.
