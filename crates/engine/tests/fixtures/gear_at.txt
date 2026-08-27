@@ -21,7 +21,7 @@ LADDER[1] Bog Toad HARD Weapon 0,1 r1
 LADDER[1] Bog Toad HARD Gloves 0,0 r0
     Worldweave Material
 LADDER[1] Bog Toad HARD Gloves 3,0 r0
-    Gripping Mold
+    Bramble Mold
 LADDER[1] Bog Toad INSANE Weapon 0,0 r1
     Godsteel Haft
 LADDER[1] Bog Toad INSANE Weapon 0,1 r1
@@ -29,7 +29,7 @@ LADDER[1] Bog Toad INSANE Weapon 0,1 r1
 LADDER[1] Bog Toad INSANE Gloves 0,0 r0
     Worldweave Material
 LADDER[1] Bog Toad INSANE Gloves 3,0 r0
-    Ravener's Mold
+    Bramble Mold
 LADDER[2] Bone Archer EASY Weapon 0,0 r0
     Tidecaller Orb
 LADDER[2] Bone Archer EASY Weapon 3,0 r0
@@ -55,29 +55,29 @@ LADDER[2] Bone Archer MEDIUM Chest 0,0 r0
 LADDER[2] Bone Archer MEDIUM Chest 1,2 r2
     Wrathbreaker
 LADDER[2] Bone Archer HARD Weapon 0,0 r0
-    Orb of the Nine
+    Emberheart Orb
 LADDER[2] Bone Archer HARD Weapon 3,0 r0
-    Starfall
+    Cometfall
 LADDER[2] Bone Archer HARD Weapon 0,2 r1
     Hollow Lance
 LADDER[2] Bone Archer HARD Weapon 4,1 r1
-    Starfall
+    Cometfall
 LADDER[2] Bone Archer HARD Chest 0,0 r0
     Mana Loom
 LADDER[2] Bone Archer HARD Chest 1,2 r2
-    Ungloved Layer
+    Wrathbreaker
 LADDER[2] Bone Archer INSANE Weapon 0,0 r0
-    Reliquary Orb
+    Emberheart Orb
 LADDER[2] Bone Archer INSANE Weapon 3,0 r0
-    Starfall
+    Cometfall
 LADDER[2] Bone Archer INSANE Weapon 0,2 r1
     Hollow Lance
 LADDER[2] Bone Archer INSANE Weapon 4,1 r1
-    Starfall
+    Cometfall
 LADDER[2] Bone Archer INSANE Chest 0,0 r0
     Mana Loom
 LADDER[2] Bone Archer INSANE Chest 1,2 r2
-    Ungloved Layer
+    Wrathbreaker
 LADDER[3] Rust Golem EASY Weapon 0,0 r1
     Chained Codex
 LADDER[3] Rust Golem EASY Weapon 3,0 r0
@@ -95,21 +95,21 @@ LADDER[3] Rust Golem MEDIUM Weapon 0,2 r1
 LADDER[3] Rust Golem MEDIUM Weapon 4,1 r1
     Bloodstone Bead
 LADDER[3] Rust Golem HARD Weapon 0,0 r1
-    Runebound Tome
+    Chained Codex
 LADDER[3] Rust Golem HARD Weapon 3,0 r0
     Kingsblood Ink
 LADDER[3] Rust Golem HARD Weapon 0,2 r1
     Hollow Lance
 LADDER[3] Rust Golem HARD Weapon 4,1 r1
-    Oathstone Bead
+    Bloodstone Bead
 LADDER[3] Rust Golem INSANE Weapon 0,0 r1
-    Runebound Tome
+    Chained Codex
 LADDER[3] Rust Golem INSANE Weapon 3,0 r0
     Kingsblood Ink
 LADDER[3] Rust Golem INSANE Weapon 0,2 r1
     Hollow Lance
 LADDER[3] Rust Golem INSANE Weapon 4,1 r1
-    Oathstone Bead
+    Bloodstone Bead
 LADDER[4] Frost Wisp EASY Weapon 0,0 r0
     Tidecaller Orb
 LADDER[4] Frost Wisp EASY Weapon 3,0 r1
@@ -131,25 +131,25 @@ LADDER[4] Frost Wisp MEDIUM Gloves 0,0 r0
 LADDER[4] Frost Wisp MEDIUM Gloves 3,0 r0
     Flaying Mold
 LADDER[4] Frost Wisp HARD Weapon 0,0 r0
-    Orb of the Nine
+    Emberheart Orb
 LADDER[4] Frost Wisp HARD Weapon 3,0 r1
-    Resonant Chord
+    Unmaking
 LADDER[4] Frost Wisp HARD Weapon 5,0 r0
     Hollow Lance
 LADDER[4] Frost Wisp HARD Gloves 0,0 r0
     Worldweave Material
 LADDER[4] Frost Wisp HARD Gloves 3,0 r0
-    Spiked Vambrace
+    Flaying Mold
 LADDER[4] Frost Wisp INSANE Weapon 0,0 r0
-    Reliquary Orb
+    Emberheart Orb
 LADDER[4] Frost Wisp INSANE Weapon 3,0 r1
-    Resonant Chord
+    Unmaking
 LADDER[4] Frost Wisp INSANE Weapon 5,0 r0
     Hollow Lance
 LADDER[4] Frost Wisp INSANE Gloves 0,0 r0
     Worldweave Material
 LADDER[4] Frost Wisp INSANE Gloves 3,0 r0
-    Spiked Vambrace
+    Flaying Mold
 LADDER[5] Plague Hound EASY Weapon 0,0 r0
     Tidecaller Orb
 LADDER[5] Plague Hound EASY Weapon 3,0 r0
@@ -171,7 +171,7 @@ LADDER[5] Plague Hound MEDIUM Gloves 0,0 r1
 LADDER[5] Plague Hound MEDIUM Gloves 2,0 r0
     Sovereign Mold
 LADDER[5] Plague Hound HARD Weapon 0,0 r0
-    Orb of the Nine
+    Emberheart Orb
 LADDER[5] Plague Hound HARD Weapon 3,0 r0
     Slash and Burn
 LADDER[5] Plague Hound HARD Weapon 0,2 r1
@@ -181,7 +181,7 @@ LADDER[5] Plague Hound HARD Gloves 0,0 r1
 LADDER[5] Plague Hound HARD Gloves 2,0 r0
     Sovereign Mold
 LADDER[5] Plague Hound INSANE Weapon 0,0 r0
-    Reliquary Orb
+    Emberheart Orb
 LADDER[5] Plague Hound INSANE Weapon 3,0 r0
     Slash and Burn
 LADDER[5] Plague Hound INSANE Weapon 0,2 r1
@@ -231,7 +231,7 @@ LADDER[6] The Iron Warden HARD Helmet 2,0 r0
 LADDER[6] The Iron Warden HARD Chest 1,6 r0
     Grove Base
 LADDER[6] The Iron Warden HARD Chest 3,7 r0
-    Felt Layer
+    Rag Layer
 LADDER[6] The Iron Warden INSANE Weapon 0,0 r1
     Zealot's Haft
 LADDER[6] The Iron Warden INSANE Weapon 3,0 r1
@@ -245,7 +245,7 @@ LADDER[6] The Iron Warden INSANE Helmet 2,0 r0
 LADDER[6] The Iron Warden INSANE Chest 1,6 r0
     Grove Base
 LADDER[6] The Iron Warden INSANE Chest 3,7 r0
-    Mail Layer
+    Rag Layer
 LADDER[7] Iron Sentinel EASY Weapon 0,0 r1
     Cursed Handle
 LADDER[7] Iron Sentinel EASY Weapon 3,0 r1
@@ -279,7 +279,7 @@ LADDER[7] Iron Sentinel HARD Helmet 0,0 r1
 LADDER[7] Iron Sentinel HARD Helmet 2,0 r0
     Lonely Plating
 LADDER[7] Iron Sentinel HARD Chest 0,0 r0
-    Adamant Base
+    Heartwood Base
 LADDER[7] Iron Sentinel HARD Chest 0,2 r0
     Vast Tapestry
 LADDER[7] Iron Sentinel INSANE Weapon 0,0 r1
@@ -291,7 +291,7 @@ LADDER[7] Iron Sentinel INSANE Helmet 0,0 r1
 LADDER[7] Iron Sentinel INSANE Helmet 2,0 r0
     Lonely Plating
 LADDER[7] Iron Sentinel INSANE Chest 0,0 r0
-    Adamant Base
+    Heartwood Base
 LADDER[7] Iron Sentinel INSANE Chest 0,2 r0
     Vast Tapestry
 LADDER[8] Whisperling EASY Weapon 0,0 r0
@@ -363,31 +363,31 @@ LADDER[8] Whisperling HARD Weapon 0,0 r0
 LADDER[8] Whisperling HARD Weapon 3,0 r0
     Echo Sigil
 LADDER[8] Whisperling HARD Weapon 4,1 r0
-    Rime Nova
+    Mirror Ward
 LADDER[8] Whisperling HARD Weapon 0,3 r0
     Rime Nova
 LADDER[8] Whisperling HARD Helmet 0,0 r0
     Bone Frame
 LADDER[8] Whisperling HARD Helmet 3,0 r0
-    Bulwark Plating
+    Braced Plating
 LADDER[8] Whisperling HARD Helmet 0,1 r2
     Bone Frame
 LADDER[8] Whisperling HARD Helmet 3,2 r0
-    Bulwark Plating
+    Braced Plating
 LADDER[8] Whisperling HARD Chest 0,0 r0
-    Voidsilk Base
+    Hexweave Shroud
 LADDER[8] Whisperling HARD Chest 3,0 r0
-    Aether Layer
+    Ironbark Layer
 LADDER[8] Whisperling HARD Chest 3,2 r0
-    Voidsilk Base
+    Hexweave Shroud
 LADDER[8] Whisperling HARD Chest 0,3 r0
-    Verdant Weave
+    Scale Layer
 LADDER[8] Whisperling HARD Greaves 0,0 r1
-    Breaker's Fist
+    Steel Material
 LADDER[8] Whisperling HARD Greaves 3,0 r3
     Warded Sabatons
 LADDER[8] Whisperling HARD Greaves 4,1 r0
-    Breaker's Fist
+    Steel Material
 LADDER[8] Whisperling HARD Greaves 1,2 r3
     Warded Sabatons
 LADDER[8] Whisperling INSANE Weapon 0,0 r0
@@ -395,31 +395,31 @@ LADDER[8] Whisperling INSANE Weapon 0,0 r0
 LADDER[8] Whisperling INSANE Weapon 3,0 r0
     Echo Sigil
 LADDER[8] Whisperling INSANE Weapon 4,1 r0
-    Rime Nova
+    Mirror Ward
 LADDER[8] Whisperling INSANE Weapon 0,3 r0
     Rime Nova
 LADDER[8] Whisperling INSANE Helmet 0,0 r0
     Bone Frame
 LADDER[8] Whisperling INSANE Helmet 3,0 r0
-    Consecrated Plating
+    Braced Plating
 LADDER[8] Whisperling INSANE Helmet 0,1 r2
     Bone Frame
 LADDER[8] Whisperling INSANE Helmet 3,2 r0
-    Consecrated Plating
+    Braced Plating
 LADDER[8] Whisperling INSANE Chest 0,0 r0
-    Voidsilk Base
+    Hexweave Shroud
 LADDER[8] Whisperling INSANE Chest 3,0 r0
-    Bulwark Layer
+    Ironbark Layer
 LADDER[8] Whisperling INSANE Chest 3,2 r0
-    Voidsilk Base
+    Hexweave Shroud
 LADDER[8] Whisperling INSANE Chest 0,3 r0
-    Riveted Layer
+    Scale Layer
 LADDER[8] Whisperling INSANE Greaves 0,0 r1
-    Breaker's Fist
+    Steel Material
 LADDER[8] Whisperling INSANE Greaves 3,0 r3
     Warded Sabatons
 LADDER[8] Whisperling INSANE Greaves 4,1 r0
-    Breaker's Fist
+    Steel Material
 LADDER[8] Whisperling INSANE Greaves 1,2 r3
     Warded Sabatons
 LADDER[9] Warded Idol EASY Weapon 0,0 r1
@@ -451,9 +451,9 @@ LADDER[9] Warded Idol HARD Weapon 0,0 r1
 LADDER[9] Warded Idol HARD Weapon 0,1 r1
     Iron Blade
 LADDER[9] Warded Idol HARD Helmet 0,0 r0
-    Covenant Frame
+    Reliquary Frame of Nine
 LADDER[9] Warded Idol HARD Helmet 3,0 r0
-    Braced Plating
+    Warded Plating
 LADDER[9] Warded Idol HARD Chest 0,0 r0
     Voidsilk Base
 LADDER[9] Warded Idol HARD Chest 0,3 r0
@@ -463,9 +463,9 @@ LADDER[9] Warded Idol INSANE Weapon 0,0 r1
 LADDER[9] Warded Idol INSANE Weapon 0,1 r1
     Iron Blade
 LADDER[9] Warded Idol INSANE Helmet 0,0 r0
-    Buttressed Frame
+    Reliquary Frame of Nine
 LADDER[9] Warded Idol INSANE Helmet 3,0 r0
-    Bulwark Plating
+    Warded Plating
 LADDER[9] Warded Idol INSANE Chest 0,0 r0
     Voidsilk Base
 LADDER[9] Warded Idol INSANE Chest 0,3 r0
@@ -499,33 +499,33 @@ LADDER[10] Mirror Fiend MEDIUM Chest 0,0 r0
 LADDER[10] Mirror Fiend MEDIUM Chest 3,0 r0
     Verdant Weave
 LADDER[10] Mirror Fiend HARD Weapon 0,0 r0
-    Codex Interminable
+    Grand Grimoire
 LADDER[10] Mirror Fiend HARD Weapon 3,0 r0
     Starlit Ink
 LADDER[10] Mirror Fiend HARD Weapon 2,1 r3
-    Resonant Chord
+    Unmaking
 LADDER[10] Mirror Fiend HARD Helmet 0,0 r1
     Ossuary Frame
 LADDER[10] Mirror Fiend HARD Helmet 2,0 r0
-    Lonely Plating
+    Scarred Plating
 LADDER[10] Mirror Fiend HARD Chest 0,0 r0
-    Adamant Base
+    Heartwood Base
 LADDER[10] Mirror Fiend HARD Chest 3,0 r0
-    Riveted Layer
+    Verdant Weave
 LADDER[10] Mirror Fiend INSANE Weapon 0,0 r0
-    Codex Interminable
+    Grand Grimoire
 LADDER[10] Mirror Fiend INSANE Weapon 3,0 r0
     Starlit Ink
 LADDER[10] Mirror Fiend INSANE Weapon 2,1 r3
-    Resonant Chord
+    Unmaking
 LADDER[10] Mirror Fiend INSANE Helmet 0,0 r1
     Ossuary Frame
 LADDER[10] Mirror Fiend INSANE Helmet 2,0 r0
-    Lonely Plating
+    Scarred Plating
 LADDER[10] Mirror Fiend INSANE Chest 0,0 r0
-    Adamant Base
+    Heartwood Base
 LADDER[10] Mirror Fiend INSANE Chest 3,0 r0
-    Runic Weave
+    Verdant Weave
 LADDER[11] Rust Colossus EASY Helmet 0,0 r0
     Steel Frame
 LADDER[11] Rust Colossus EASY Helmet 3,0 r0
@@ -579,57 +579,57 @@ LADDER[11] Rust Colossus MEDIUM Gloves 2,1 r0
 LADDER[11] Rust Colossus MEDIUM Gloves 2,2 r0
     Empowering Mold
 LADDER[11] Rust Colossus HARD Helmet 0,0 r0
-    Chapel Frame
+    Mage's Circlet
 LADDER[11] Rust Colossus HARD Helmet 3,0 r0
     Bloomcap
 LADDER[11] Rust Colossus HARD Chest 0,0 r0
-    Leyline Cuirass
+    Hide Base
 LADDER[11] Rust Colossus HARD Chest 3,0 r0
-    Emberplate
+    Berserker's Plate
 LADDER[11] Rust Colossus HARD Gloves 0,0 r0
-    Leather Material
+    Mage's Wrapping
 LADDER[11] Rust Colossus HARD Gloves 2,0 r0
-    Padded Mold
+    Featherweight Mold
 LADDER[11] Rust Colossus HARD Greaves 0,0 r0
     Mage's Sandals
 LADDER[11] Rust Colossus HARD Greaves 2,0 r0
-    Rimebound Mold
+    Striding Mold
 LADDER[11] Rust Colossus HARD Weapon 0,0 r0
-    Traveller's Codex
+    Apprentice's Primer
 LADDER[11] Rust Colossus HARD Weapon 2,0 r0
     Bloodletter's Ink
 LADDER[11] Rust Colossus HARD Weapon 4,0 r0
-    Attendant Flame
+    Warding Sigil
 LADDER[11] Rust Colossus HARD Gloves 2,1 r0
-    Ironthread Material
+    Duskweave Material
 LADDER[11] Rust Colossus HARD Gloves 2,2 r0
-    Nimble Mold
+    Empowering Mold
 LADDER[11] Rust Colossus INSANE Helmet 0,0 r0
-    Chapel Frame
+    Mage's Circlet
 LADDER[11] Rust Colossus INSANE Helmet 3,0 r0
     Bloomcap
 LADDER[11] Rust Colossus INSANE Chest 0,0 r0
-    Ribbed Base
+    Hide Base
 LADDER[11] Rust Colossus INSANE Chest 3,0 r0
-    Unbound Core
+    Berserker's Plate
 LADDER[11] Rust Colossus INSANE Gloves 0,0 r0
-    Anchor Material
+    Mage's Wrapping
 LADDER[11] Rust Colossus INSANE Gloves 2,0 r0
-    Braced Mold
+    Featherweight Mold
 LADDER[11] Rust Colossus INSANE Greaves 0,0 r0
     Mage's Sandals
 LADDER[11] Rust Colossus INSANE Greaves 2,0 r0
-    Ambush Mold
+    Striding Mold
 LADDER[11] Rust Colossus INSANE Weapon 0,0 r0
-    Scholar's Codex
+    Apprentice's Primer
 LADDER[11] Rust Colossus INSANE Weapon 2,0 r0
     Bloodletter's Ink
 LADDER[11] Rust Colossus INSANE Weapon 4,0 r0
-    Last Rite
+    Warding Sigil
 LADDER[11] Rust Colossus INSANE Gloves 2,1 r0
-    Ironthread Material
+    Duskweave Material
 LADDER[11] Rust Colossus INSANE Gloves 2,2 r0
-    Quickfinger Mold
+    Empowering Mold
 LADDER[12] Ashen Marshal EASY Weapon 0,0 r0
     Chapbook
 LADDER[12] Ashen Marshal EASY Weapon 2,0 r0
@@ -691,65 +691,65 @@ LADDER[12] Ashen Marshal MEDIUM Greaves 2,3 r0
 LADDER[12] Ashen Marshal MEDIUM Greaves 2,2 r0
     Ashwoven Material
 LADDER[12] Ashen Marshal HARD Weapon 0,0 r0
-    Traveller's Codex
+    Apprentice's Primer
 LADDER[12] Ashen Marshal HARD Weapon 2,0 r0
     Starlit Ink
 LADDER[12] Ashen Marshal HARD Weapon 4,0 r2
-    Resonant Chord
+    Unmaking
 LADDER[12] Ashen Marshal HARD Helmet 0,0 r1
     Ossuary Frame
 LADDER[12] Ashen Marshal HARD Helmet 2,0 r0
-    Lonely Plating
+    Scarred Plating
 LADDER[12] Ashen Marshal HARD Helmet 4,0 r0
     Overflow Plate
 LADDER[12] Ashen Marshal HARD Chest 0,0 r0
-    Adamant Base
+    Heartwood Base
 LADDER[12] Ashen Marshal HARD Chest 3,0 r0
-    Emberplate
+    Berserker's Plate
 LADDER[12] Ashen Marshal HARD Weapon 0,6 r0
-    Obsidian Orb
+    Polished Orb
 LADDER[12] Ashen Marshal HARD Weapon 2,4 r0
     Crimson Alignment
 LADDER[12] Ashen Marshal HARD Weapon 0,4 r1
     Last Rite
 LADDER[12] Ashen Marshal HARD Weapon 3,5 r0
-    Siphon
-LADDER[12] Ashen Marshal HARD Weapon 2,5 r0
     Sympathetic Bloom
+LADDER[12] Ashen Marshal HARD Weapon 2,5 r0
+    Wildgrowth
 LADDER[12] Ashen Marshal HARD Greaves 2,3 r0
     Fumbler's Mold
 LADDER[12] Ashen Marshal HARD Greaves 2,2 r0
-    Rootwoven Material
+    Ashwoven Material
 LADDER[12] Ashen Marshal INSANE Weapon 0,0 r0
-    Scholar's Codex
+    Apprentice's Primer
 LADDER[12] Ashen Marshal INSANE Weapon 2,0 r0
     Starlit Ink
 LADDER[12] Ashen Marshal INSANE Weapon 4,0 r2
-    Resonant Chord
+    Unmaking
 LADDER[12] Ashen Marshal INSANE Helmet 0,0 r1
     Ossuary Frame
 LADDER[12] Ashen Marshal INSANE Helmet 2,0 r0
-    Lonely Plating
+    Scarred Plating
 LADDER[12] Ashen Marshal INSANE Helmet 4,0 r0
     Overflow Plate
 LADDER[12] Ashen Marshal INSANE Chest 0,0 r0
-    Adamant Base
+    Heartwood Base
 LADDER[12] Ashen Marshal INSANE Chest 3,0 r0
-    Unbound Core
+    Berserker's Plate
 LADDER[12] Ashen Marshal INSANE Weapon 0,6 r0
-    Fateglass Orb
+    Polished Orb
 LADDER[12] Ashen Marshal INSANE Weapon 2,4 r0
     Crimson Alignment
 LADDER[12] Ashen Marshal INSANE Weapon 0,4 r1
     Last Rite
 LADDER[12] Ashen Marshal INSANE Weapon 3,5 r0
-    Siphon
+    Sympathetic Bloom
 LADDER[12] Ashen Marshal INSANE Weapon 2,5 r0
-    Siphon
+    Wildgrowth
 LADDER[12] Ashen Marshal INSANE Greaves 2,3 r0
     Fumbler's Mold
 LADDER[12] Ashen Marshal INSANE Greaves 2,2 r0
-    Rootwoven Material
+    Ashwoven Material
 LADDER[13] Grave Chorus EASY Weapon 0,0 r1
     Chained Codex
 LADDER[13] Grave Chorus EASY Weapon 3,0 r0
@@ -791,13 +791,13 @@ LADDER[13] Grave Chorus MEDIUM Greaves 4,2 r0
 LADDER[13] Grave Chorus MEDIUM Greaves 0,3 r0
     Consecrated Plating
 LADDER[13] Grave Chorus HARD Weapon 0,0 r1
-    Runebound Tome
+    Chained Codex
 LADDER[13] Grave Chorus HARD Weapon 3,0 r0
     Kingsblood Ink
 LADDER[13] Grave Chorus HARD Weapon 3,1 r2
-    Starfall
+    Cometfall
 LADDER[13] Grave Chorus HARD Weapon 0,2 r0
-    Oathstone Bead
+    Bloodstone Bead
 LADDER[13] Grave Chorus HARD Greaves 0,0 r0
     Rootwoven Material
 LADDER[13] Grave Chorus HARD Greaves 3,0 r0
@@ -805,19 +805,19 @@ LADDER[13] Grave Chorus HARD Greaves 3,0 r0
 LADDER[13] Grave Chorus HARD Greaves 0,1 r0
     Consecrated Plating
 LADDER[13] Grave Chorus HARD Greaves 2,2 r0
-    Warplate Greave
+    Plaguewalkers
 LADDER[13] Grave Chorus HARD Greaves 4,2 r0
     Pilgrim Sole
 LADDER[13] Grave Chorus HARD Greaves 0,3 r0
     Consecrated Plating
 LADDER[13] Grave Chorus INSANE Weapon 0,0 r1
-    Runebound Tome
+    Chained Codex
 LADDER[13] Grave Chorus INSANE Weapon 3,0 r0
     Kingsblood Ink
 LADDER[13] Grave Chorus INSANE Weapon 3,1 r2
-    Starfall
+    Cometfall
 LADDER[13] Grave Chorus INSANE Weapon 0,2 r0
-    Oathstone Bead
+    Bloodstone Bead
 LADDER[13] Grave Chorus INSANE Greaves 0,0 r0
     Rootwoven Material
 LADDER[13] Grave Chorus INSANE Greaves 3,0 r0
@@ -825,7 +825,7 @@ LADDER[13] Grave Chorus INSANE Greaves 3,0 r0
 LADDER[13] Grave Chorus INSANE Greaves 0,1 r0
     Consecrated Plating
 LADDER[13] Grave Chorus INSANE Greaves 2,2 r0
-    Reliquary Sole
+    Plaguewalkers
 LADDER[13] Grave Chorus INSANE Greaves 4,2 r0
     Pilgrim Sole
 LADDER[13] Grave Chorus INSANE Greaves 0,3 r0
@@ -901,7 +901,7 @@ LADDER[14] The Hollow King MEDIUM Gloves 2,3 r0
 LADDER[14] The Hollow King HARD Weapon 0,0 r0
     Timeworn Orb
 LADDER[14] The Hollow King HARD Weapon 3,0 r1
-    Resonant Chord
+    Unmaking
 LADDER[14] The Hollow King HARD Weapon 4,0 r1
     Last Rite
 LADDER[14] The Hollow King HARD Weapon 1,1 r0
@@ -913,7 +913,7 @@ LADDER[14] The Hollow King HARD Greaves 0,0 r0
 LADDER[14] The Hollow King HARD Greaves 2,0 r3
     Witherroot
 LADDER[14] The Hollow King HARD Greaves 4,0 r0
-    Hide Material
+    Warmed Material
 LADDER[14] The Hollow King HARD Greaves 2,1 r1
     Witherroot
 LADDER[14] The Hollow King HARD Greaves 0,2 r0
@@ -923,19 +923,19 @@ LADDER[14] The Hollow King HARD Greaves 2,3 r3
 LADDER[14] The Hollow King HARD Gloves 0,0 r0
     Thornweald Grip
 LADDER[14] The Hollow King HARD Gloves 2,0 r0
-    Gripping Mold
+    Bramble Mold
 LADDER[14] The Hollow King HARD Gloves 4,0 r0
     Tallykeeper's Weave
 LADDER[14] The Hollow King HARD Gloves 2,1 r2
-    Spiked Vambrace
+    Flaying Mold
 LADDER[14] The Hollow King HARD Gloves 0,2 r0
     Tallykeeper's Weave
 LADDER[14] The Hollow King HARD Gloves 2,3 r0
-    Gripping Mold
+    Bramble Mold
 LADDER[14] The Hollow King INSANE Weapon 0,0 r0
     Timeworn Orb
 LADDER[14] The Hollow King INSANE Weapon 3,0 r1
-    Resonant Chord
+    Unmaking
 LADDER[14] The Hollow King INSANE Weapon 4,0 r1
     Last Rite
 LADDER[14] The Hollow King INSANE Weapon 1,1 r0
@@ -947,7 +947,7 @@ LADDER[14] The Hollow King INSANE Greaves 0,0 r0
 LADDER[14] The Hollow King INSANE Greaves 2,0 r3
     Witherroot
 LADDER[14] The Hollow King INSANE Greaves 4,0 r0
-    Ironhide Wrap
+    Warmed Material
 LADDER[14] The Hollow King INSANE Greaves 2,1 r1
     Witherroot
 LADDER[14] The Hollow King INSANE Greaves 0,2 r0
@@ -957,15 +957,15 @@ LADDER[14] The Hollow King INSANE Greaves 2,3 r3
 LADDER[14] The Hollow King INSANE Gloves 0,0 r0
     Thornweald Grip
 LADDER[14] The Hollow King INSANE Gloves 2,0 r0
-    Ravener's Mold
+    Bramble Mold
 LADDER[14] The Hollow King INSANE Gloves 4,0 r0
     Tallykeeper's Weave
 LADDER[14] The Hollow King INSANE Gloves 2,1 r2
-    Spiked Vambrace
+    Flaying Mold
 LADDER[14] The Hollow King INSANE Gloves 0,2 r0
     Tallykeeper's Weave
 LADDER[14] The Hollow King INSANE Gloves 2,3 r0
-    Ravener's Mold
+    Bramble Mold
 LADDER[15] The Curator EASY Weapon 0,0 r0
     Tidecaller Orb
 LADDER[15] The Curator EASY Weapon 3,0 r0

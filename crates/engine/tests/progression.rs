@@ -356,15 +356,35 @@ fn every_piece_a_creature_wears_is_on_its_board() {
             let (_, lo) = m.loadout_at(*d);
             let seated: usize =
                 SlotKind::ALL.iter().map(|&k| lo.slot(k).pieces().len()).sum();
-            assert_eq!(
-                seated,
-                m.gear.len(),
-                "{} on {} is written as wearing {} pieces and seats {}",
+            // Before M15 this was `seated == m.gear.len()` flat: a setting
+            // only swapped components for better ones of the same kind, so the
+            // count could not move. It adds whole items now.
+            //
+            // Deliberately *not* checked against a recomputed expected count -
+            // working that out would mean asking `loadout_at` how many pieces
+            // it seated, which is the thing under test, and an assertion that
+            // derives its own expectation from its subject passes whatever the
+            // subject does. So the two independent claims instead: nothing
+            // authored was dropped, and a setting that adds nothing adds
+            // nothing.
+            let extra = seated as i64 - m.gear.len() as i64;
+            assert!(
+                extra >= 0,
+                "{} on {} is written as wearing {} pieces and seats only {}",
                 m.name,
                 d.name(),
                 m.gear.len(),
                 seated
             );
+            if m.extra_items_at(*d) == 0 {
+                assert_eq!(
+                    seated,
+                    m.gear.len(),
+                    "{} on {} adds no items and should seat exactly what is written",
+                    m.name,
+                    d.name()
+                );
+            }
         }
     }
 }
@@ -750,7 +770,10 @@ fn effectiveness_climbs_with_the_setting() {
     // end to end - what it can survive times what it can dish out.
     use gearmaster_engine::combat::{Combatant, Difficulty};
     let effectiveness = |d: Difficulty| -> f32 {
-        let c = Combatant::monster_at(&LADDER[8], d);
+        // Past The Hollow King. `LADDER[8]` was the subject until M15, and
+        // it is in the run-in - where Hard and Insane are now Medium exactly,
+        // so a climb there would be the bug rather than the check.
+        let c = Combatant::monster_at(&LADDER[24], d);
         let dps: i64 = c
             .items
             .iter()
@@ -770,11 +793,25 @@ fn effectiveness_climbs_with_the_setting() {
     assert!(easy < medium, "easy {} should be under medium {}", easy, medium);
     assert!(medium < hard, "medium {} should be under hard {}", medium, hard);
     assert!(hard < insane, "hard {} should be under insane {}", hard, insane);
+    // Was `> 3.0` when Insane multiplied health and damage by 9^0.25 on top
+    // of two stepped components and two passives. M15 took all of that away:
+    // the whole difference is now two more assembled items, so the gap is
+    // narrower and it is made of board rather than of arithmetic.
     assert!(
-        insane / medium > 3.0,
+        insane / medium > 1.5,
         "insane should be a different fight, not a nudge: {:.1}x medium",
         insane / medium
     );
+
+    // And the other half of the same rule, which is the sharpest edge M15 has:
+    // through The Hollow King the three settings are one fight.
+    let run_in = |d: Difficulty| Combatant::monster_at(&LADDER[8], d).max_health;
+    assert_eq!(
+        run_in(Difficulty::Medium),
+        run_in(Difficulty::Hard),
+        "the run-in is meant to be the same road whichever setting you picked"
+    );
+    assert_eq!(run_in(Difficulty::Medium), run_in(Difficulty::Insane));
 }
 
 #[test]
@@ -812,9 +849,15 @@ fn higher_difficulties_hand_the_monster_passives() {
     for &d in &[Difficulty::Medium, Difficulty::Hard, Difficulty::Insane] {
         assert!(!d.passives().is_empty(), "{:?} should carry passives", d);
     }
-    assert!(
-        Difficulty::Insane.passives().len() > Difficulty::Medium.passives().len(),
-        "they should stack up with the setting"
+    // They used to stack - Hard added `Warded`, Insane added `Relentless` on
+    // top. M15 took both away: a standing rule handed to a creature is the
+    // same crude lever `each_way` was, and the setting's difference is a board
+    // now. `Hardened` stays because Medium is the game as written and this
+    // milestone is about what the *other* settings do differently.
+    assert_eq!(
+        Difficulty::Insane.passives(),
+        Difficulty::Medium.passives(),
+        "a setting above Medium grants no standing rule of its own any more"
     );
 }
 
@@ -2085,4 +2128,105 @@ fn beating_a_stand_in_clears_it_the_same_way() {
     run.force_win();
     run.settle();
     assert!(run.substitute.is_none());
+}
+
+// ------------------------------------------------- M15: difficulty is a board
+//
+// A setting used to hand the creature better components, multiply its health
+// and damage by `factor^0.25`, and grant it standing rules on top. All of that
+// except the component step is gone: a harder setting is a fuller grid.
+
+/// Through The Hollow King, every setting above Easy is the same fight.
+///
+/// The rule's sharpest edge and the cheapest thing to get wrong, because it is
+/// a boundary and boundaries are where off-by-ones live. Checked on the gear,
+/// the stats and the assembled items, because any one of the three moving
+/// would make the run-in a difficulty selection again.
+#[test]
+fn the_run_in_is_the_same_road_whichever_setting_you_picked() {
+    use gearmaster_engine::combat::{Combatant, Difficulty};
+    const SAME_AS_MEDIUM_THROUGH: usize = Difficulty::SAME_AS_MEDIUM_THROUGH;
+    assert_eq!(
+        LADDER[SAME_AS_MEDIUM_THROUGH].name, "The Hollow King",
+        "the boundary moved off the creature it was chosen for"
+    );
+    for m in LADDER.iter().take(SAME_AS_MEDIUM_THROUGH + 1) {
+        for d in [Difficulty::Hard, Difficulty::Insane] {
+            assert_eq!(
+                m.gear_at(Difficulty::Medium),
+                m.gear_at(d),
+                "{} wears different gear on {}",
+                m.name,
+                d.name()
+            );
+            assert_eq!(m.extra_items_at(d), 0, "{} is handed an item on {}", m.name, d.name());
+            let (med, other) = (
+                Combatant::monster_at(m, Difficulty::Medium),
+                Combatant::monster_at(m, d),
+            );
+            assert_eq!(med.max_health, other.max_health, "{} has more health on {}", m.name, d.name());
+            assert_eq!(med.strength, other.strength, "{} hits harder on {}", m.name, d.name());
+            assert_eq!(
+                med.items.len(),
+                other.items.len(),
+                "{} acts through more items on {}",
+                m.name,
+                d.name()
+            );
+        }
+    }
+}
+
+/// After him, Hard is Medium and one more item, and Insane is one more again.
+///
+/// Counted through the assembled items the fight actually runs, not through
+/// the `items` partition: a declared item is not an assembled one, and the
+/// whole milestone would be satisfied by placing pieces that never bind.
+#[test]
+fn every_creature_past_the_hollow_king_gains_an_item_a_setting() {
+    use gearmaster_engine::combat::{Difficulty, ALTERNATES};
+    const SAME_AS_MEDIUM_THROUGH: usize = Difficulty::SAME_AS_MEDIUM_THROUGH;
+    let after = LADDER.iter().skip(SAME_AS_MEDIUM_THROUGH + 1).chain(ALTERNATES.iter());
+    for m in after {
+        let n = |d| m.outfit_at(d).1.len();
+        let med = n(Difficulty::Medium);
+        assert_eq!(
+            n(Difficulty::Hard),
+            med + 1,
+            "{} acts through {} items on Medium and {} on Hard, wanted one more. \
+             The board may have had no room and refused to grow.",
+            m.name,
+            med,
+            n(Difficulty::Hard)
+        );
+        assert_eq!(
+            n(Difficulty::Insane),
+            med + 2,
+            "{} is {} on Medium and {} on Insane, wanted two more",
+            m.name,
+            med,
+            n(Difficulty::Insane)
+        );
+    }
+}
+
+/// And no setting above Easy multiplies anything any more.
+#[test]
+fn nothing_above_medium_is_a_multiplier() {
+    use gearmaster_engine::combat::Difficulty;
+    for d in [Difficulty::Medium, Difficulty::Hard, Difficulty::Insane] {
+        assert_eq!(
+            d.each_way(),
+            1.0,
+            "{} still scales health and damage, which M15 replaced with a board",
+            d.name()
+        );
+        assert_eq!(
+            d.passives(),
+            Difficulty::Medium.passives(),
+            "{} carries a standing rule of its own",
+            d.name()
+        );
+    }
+    assert!(Difficulty::Easy.each_way() < 1.0, "Easy stopped softening the run-in");
 }

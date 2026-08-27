@@ -582,3 +582,106 @@ the change is mechanical everywhere. That is luck rather than design, and worth
 saying: had one of them cached the reference, the doubling would have been
 correct in the fight and stale on the screen, which is the exact fault §16
 describes and the hardest kind to see.
+
+---
+
+## 24. A harder board needs somewhere to put the board
+
+M15 replaces difficulty multipliers with an extra assembled item. The obvious
+implementation places a copy of one of the creature's own items in the free
+cells of its slot, and it worked for most of the ladder and silently did
+nothing for the rest: **twenty-two of fifty creatures could not fit another
+item anywhere.** Hollowmarch packs ten, The Rust Parliament ten, Sootmother
+nine. The densest boards - which is to say the hardest creatures - were exactly
+the ones where the setting stopped meaning anything.
+
+Dropping the item is the wrong answer twice over: it makes the difficulty
+weakest where it matters most, and it fails silently, which is the shape half
+this document is about.
+
+So a board with no room **grows a row** and tries again, bounded by
+`GROW_ATTEMPTS`, two rows a time. Slots have been growable since the slot
+rewrite and the player's grids already do it; a harder creature standing in a
+bigger board is a sentence the game can already say.
+
+Worth keeping in mind for the density half of the same milestone: **packing
+Medium boards tighter makes this harder, not easier.** The two halves of M15
+pull against each other and the row growth is what absorbs it.
+
+## 25. An empty `items` field is not one item, it is five slots in a trenchcoat
+
+`MonsterSpec::items` partitions the gear list; empty means "work it out", which
+`loadout_at` reads as one chunk covering everything. That is right for placing,
+because placing walks the chunk piece by piece and does not care.
+
+It is wrong for anything that wants a *whole item*. The new packer rejects a
+chunk whose pieces are in more than one slot - an item that straddles two grids
+is not an item - so for the three creatures with an empty `items` field
+(Anvilheart, The Salt Wedding, The Last Light) it rejected the only chunk there
+was and added nothing. Three of the fifty, and the failure looked exactly like
+the "board is too full" case it was mixed in with.
+
+The fallback now splits on consecutive placements in the same slot, which is
+the nearest honest reading of "work it out". The general lesson: **a default
+that is correct for one consumer is a fact about that consumer, not about the
+data.** The moment a second thing reads the field, ask what the default means
+to *it*.
+
+## 26. A test that computes its expectation from its subject cannot fail
+
+`every_piece_a_creature_wears_is_on_its_board` asserted `seated ==
+m.gear.len()`. M15 breaks it honestly - a setting adds items now - and the
+tempting repair is to work out the expected count and compare.
+
+The first draft did exactly that, by asking `loadout_at` how many pieces it
+seated and adding the difference. That is the thing under test supplying its
+own expectation, and it passes whatever the subject does, including nothing.
+
+Replaced by two claims that are independently true: nothing authored was
+dropped (`seated >= gear.len()`), and a setting that adds no items seats
+exactly what is written. The count itself is checked in
+`every_creature_past_the_hollow_king_gains_an_item_a_setting`, through
+`outfit_at(..).1.len()` - the items the fight actually runs, not the partition,
+because a declared item is not an assembled one.
+
+## 27. Two questions wearing one lint
+
+`every_theme_can_find_something_to_wear_in_every_grid_it_fills` required four
+non-plain pieces per grid, and it was one assertion doing two jobs: *can this
+theme be packed at all*, and *does it say something here*.
+
+They had the same answer for two missions because every grid a theme filled was
+one it was authored around. M15 gives five themes a weapon grid they were never
+written for, and the two answers come apart: a Drainer has **three** weapons in
+its own vocabulary and **forty-five** it can wear.
+
+Widening the vocabulary to reach four would loosen what "a drainer's weapon"
+means in order to satisfy a lint - the tail wagging the dog, and the milestone
+asked for something that swings rather than for a themed arsenal. So the lint
+splits: every grid must be packable, and a theme must say something in at least
+two of its three.
+
+**Design outcome for the owner:** the five themes that gained a weapon will
+pack it mostly from plain filler. If a Drainer ought to have draining weapons,
+that is catalogue work and its own milestone - the lint will notice when it
+lands, because the expressive count will rise on its own.
+
+## 28. What M15 cost, measured
+
+The owner's board against the whole ladder, before and after, all four
+settings:
+
+| | Easy | Medium | Hard | Insane |
+|---|---|---|---|---|
+| before | 48/50 | 48/50 | 47/50 | 45/50 |
+| after | 48/50 | 48/50 | **46/50** | **44/50** |
+
+Easy and Medium are untouched, which is the promise: `each_way` still softens
+Easy and Medium was never scaled. `analysis/baseline.md`'s printer is
+**byte-identical**, and that is not evidence of nothing happening - it measures
+Medium only, which is precisely what M15 undertook not to move.
+
+One rung harder at each setting above Medium, from removing a `9^0.25`
+multiplier, two standing passives and the run-in's component step, and putting
+one or two assembled items back in their place. The settings still separate,
+and what separates them is now a board.

@@ -358,6 +358,50 @@ pub fn stepped_component(name: &str, step: i32) -> &'static str {
 /// and a negative one.
 pub const MOST_DOUBLINGS: u32 = 12;
 
+/// How many times a full board may grow looking for room for the setting's
+/// item, two rows a time.
+///
+/// Bounded because a creature whose items are wider than the grid would never
+/// fit one, and a loop that grew until it did would hang the fight rather than
+/// lose it. Three is enough for every board in the game today; when it is not,
+/// the count is the thing to look at rather than the ceiling to raise.
+const GROW_ATTEMPTS: usize = 3;
+
+/// Where each authored item starts and ends in a creature's gear list.
+///
+/// The `items` field is a partition by length; this is the same partition as
+/// index pairs, which is what anything wanting to copy a whole item needs.
+fn chunk_bounds(gear: &[GearPlacement], items: &'static [usize]) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    // An empty `items` means "work it out", which is right for the loose
+    // boards - but one chunk spanning the whole gear list is not an item, it
+    // is five slots in a trenchcoat, and anything copying a whole item would
+    // reject it for straddling. Consecutive placements in the same slot is the
+    // nearest honest reading.
+    let chunks: Vec<usize> = if items.is_empty() {
+        let mut runs: Vec<usize> = Vec::new();
+        for (i, p) in gear.iter().enumerate() {
+            if i > 0 && gear[i - 1].1 == p.1 {
+                *runs.last_mut().expect("started above") += 1;
+            } else {
+                runs.push(1);
+            }
+        }
+        runs
+    } else {
+        items.to_vec()
+    };
+    for take in chunks {
+        let end = (at + take).min(gear.len());
+        if end > at {
+            out.push((at, end));
+        }
+        at = end;
+    }
+    out
+}
+
 impl MonsterSpec {
     /// This creature, `n` doublings harder.
     ///
@@ -393,8 +437,33 @@ impl MonsterSpec {
     /// Lay this monster's gear out in real slots. Returned so the interface can
     /// draw an enemy's board exactly the way it draws yours.
     /// This monster's gear, stepped for a difficulty.
+    /// Where this creature stands on the ladder, if it stands on it at all.
+    ///
+    /// By name, because `LADDER` is spliced (`RUST_GOLEM` goes in by name) and
+    /// a creature does not otherwise know its own rung. `ALTERNATES` answers
+    /// `None`: a dungeon floor or an event's creature is not on the road, so
+    /// the run-in rule below does not reach it.
+    pub fn ladder_index(&self) -> Option<usize> {
+        LADDER.iter().position(|m| m.name == self.name)
+    }
+
+    /// The step this creature's components take at a setting.
+    ///
+    /// Not simply `difficulty.gear_step()`: through The Hollow King, Hard and
+    /// Insane are Medium exactly. The run-in is the same road whichever
+    /// setting you picked, and the difficulty starts arguing after him.
+    pub fn step_at(&self, difficulty: Difficulty) -> i32 {
+        let softened = difficulty.gear_step() > 0
+            && self.ladder_index().is_some_and(|i| i <= Difficulty::SAME_AS_MEDIUM_THROUGH);
+        if softened {
+            0
+        } else {
+            difficulty.gear_step()
+        }
+    }
+
     pub fn gear_at(&self, difficulty: Difficulty) -> Vec<GearPlacement> {
-        let step = difficulty.gear_step();
+        let step = self.step_at(difficulty);
         self.gear
             .iter()
             .map(|&(name, slot, x, y, rot)| {
@@ -454,7 +523,141 @@ impl MonsterSpec {
             }
             at = end;
         }
+
+        // And then the setting's own items, on top of the authored board.
+        //
+        // This is what M15 replaced the multipliers with. A harder setting
+        // used to hand the creature better components and then multiply its
+        // health and damage; now it hands it *another item*, which is the
+        // same thing the player would do with the same grid.
+        for _ in 0..self.extra_items_at(difficulty) {
+            self.pack_one_more(&mut reg, &mut loadout, &gear, &chunk_bounds(&gear, self.items));
+        }
         (reg, loadout)
+    }
+
+    /// How many items a setting adds to this creature's authored board.
+    ///
+    /// Mirrors `step_at`: nothing through The Hollow King, because the run-in
+    /// is the same road whichever setting you picked. Hard adds one after him
+    /// and Insane two, so Insane is Hard plus one rather than a separate
+    /// authoring of the same board.
+    pub fn extra_items_at(&self, difficulty: Difficulty) -> usize {
+        if self.step_at(difficulty) <= 0 {
+            return 0;
+        }
+        match difficulty {
+            Difficulty::Hard => 1,
+            Difficulty::Insane => 2,
+            _ => 0,
+        }
+    }
+
+    /// Copy one of this creature's own items into the free cells of its slot.
+    ///
+    /// Its own, rather than something drawn from the catalogue, for two
+    /// reasons. A creature stays in character - a Burner gets more burning,
+    /// not a random helmet - and the copy is known to assemble, because the
+    /// original did. Nothing here can invent an item the author did not.
+    ///
+    /// Largest item first, then anchors in reading order, first fit wins. All
+    /// of that is deterministic, which it has to be: `simulate_party` consults
+    /// no RNG and this runs inside it.
+    fn pack_one_more(
+        &self,
+        reg: &mut crate::piece::PieceRegistry,
+        loadout: &mut crate::loadout::Loadout,
+        gear: &[GearPlacement],
+        bounds: &[(usize, usize)],
+    ) {
+        let mut order: Vec<&(usize, usize)> = bounds.iter().collect();
+        // Biggest first, and ties broken by position so the order is total.
+        order.sort_by_key(|&&(a, b)| (std::cmp::Reverse(b - a), a));
+        let mut first: Option<(usize, usize, SlotKind)> = None;
+        for &&(from, to) in &order {
+            let pieces = &gear[from..to];
+            let Some(&(_, slot, ..)) = pieces.first() else { continue };
+            // One slot only: an item that straddles two grids is not an item.
+            if pieces.iter().any(|&(_, s, ..)| s != slot) {
+                continue;
+            }
+            if first.is_none() {
+                first = Some((from, to, slot));
+            }
+            if self.seat_copy(reg, loadout, pieces, slot) {
+                return;
+            }
+        }
+
+        // Nothing fitted anywhere. Rather than drop the setting's item - which
+        // would read as a difficulty that stops meaning anything against
+        // exactly the creatures that are already hardest - give the densest
+        // board a row and try the biggest item once more.
+        //
+        // Bounded to one retry on purpose. A creature that cannot take a copy
+        // after two extra rows has items wider than the grid, and growing for
+        // ever would hang the fight.
+        if let Some((from, to, slot)) = first {
+            for _ in 0..GROW_ATTEMPTS {
+                let before = loadout.slot(slot).rows();
+                loadout.grow_one(slot, 2);
+                if loadout.slot(slot).rows() == before {
+                    return;
+                }
+                if self.seat_copy(reg, loadout, &gear[from..to], slot) {
+                    return;
+                }
+            }
+        }
+    }
+
+    /// One attempt at seating a copy of `pieces` in `slot`, anchors in reading
+    /// order. Split out so the grow-a-row retry is the same code as the first
+    /// pass rather than a second copy of it.
+    fn seat_copy(
+        &self,
+        reg: &mut crate::piece::PieceRegistry,
+        loadout: &mut crate::loadout::Loadout,
+        pieces: &[GearPlacement],
+        slot: SlotKind,
+    ) -> bool {
+        let (ox, oy) = pieces.iter().fold((u8::MAX, u8::MAX), |(mx, my), &(_, _, x, y, _)| {
+            (mx.min(x), my.min(y))
+        });
+        let rows = loadout.slot(slot).rows();
+        for ay in 0..rows {
+            for ax in 0..crate::slot::SLOT_W {
+                let mut seated: Vec<crate::piece::PieceId> = Vec::new();
+                let mut ok = true;
+                for &(name, _, x, y, rot) in pieces {
+                    let Some(def) = crate::piece::CATALOG.iter().position(|d| d.name == name)
+                    else {
+                        ok = false;
+                        break;
+                    };
+                    let id = reg.alloc(def);
+                    reg.set_rotation(id, rot);
+                    let (nx, ny) = (ax + (x - ox), ay + (y - oy));
+                    if nx >= crate::slot::SLOT_W
+                        || ny >= rows
+                        || loadout.can_place(reg, id, slot, nx, ny).is_err()
+                    {
+                        ok = false;
+                        break;
+                    }
+                    loadout.slot_mut(slot).place(reg, id, nx, ny);
+                    seated.push(id);
+                }
+                if ok && !seated.is_empty() {
+                    crate::loadout::lock_assembled_in(loadout, reg, slot);
+                    return true;
+                }
+                for id in seated {
+                    loadout.slot_mut(slot).remove(id);
+                }
+            }
+        }
+        false
     }
 
     /// Build this monster's loadout and reduce it to stats plus activation
@@ -640,25 +843,47 @@ impl Difficulty {
 
     /// What is left for raw stats to carry, once gear has done its part.
     ///
-    /// Deliberately small. Multiplying health and damage is the crude lever;
-    /// it is kept only as a floor, because a component has no better version
-    /// to swap to at the top of its kind and the setting still has to mean
-    /// something.
+    /// **Nothing, above Medium.** This was `factor().powf(0.25)` for every
+    /// setting, kept as a floor because a component at the top of its kind has
+    /// no better version to swap to. M15 answers that differently: a creature
+    /// that cannot be given a better component is given *another item*, which
+    /// is a board decision rather than a multiplier, and the whole point of
+    /// the milestone is that a harder setting is a harder board.
+    ///
+    /// Easy keeps its half, because softening the run-in is not the same
+    /// question and nothing asked for it to change.
     pub fn each_way(self) -> f32 {
-        self.factor().powf(0.25)
+        match self {
+            Difficulty::Easy => self.factor().powf(0.25),
+            _ => 1.0,
+        }
     }
 
     /// Standing bonuses the opposition gets on top of the raw scaling. These
     /// are the prototype for class passives: a named rule that edits a
     /// combatant's stats once, at the start of the fight.
+    /// Standing bonuses the opposition gets on top of the raw scaling.
+    ///
+    /// Hard and Insane carried `Warded` and `Relentless` on top of `Hardened`.
+    /// Both are gone at M15: they are the same crude lever `each_way` was, a
+    /// rule handed to the creature rather than a board it is standing in.
+    /// Medium keeps `Hardened` because Medium is the game as written and this
+    /// milestone is about what the other settings do differently.
     pub fn passives(self) -> &'static [Passive] {
         match self {
             Difficulty::Easy => &[],
-            Difficulty::Medium => &[Passive::Hardened],
-            Difficulty::Hard => &[Passive::Hardened, Passive::Warded],
-            Difficulty::Insane => &[Passive::Hardened, Passive::Warded, Passive::Relentless],
+            _ => &[Passive::Hardened],
         }
     }
+
+    /// The last rung that fights the same at every setting above Easy.
+    ///
+    /// `LADDER[14]` is The Hollow King, rung 15 spoken. Up to and including
+    /// him, Hard and Insane are Medium exactly - same components, same items,
+    /// same stats. A player who picks a harder setting should meet the game
+    /// before it starts arguing, and fifteen rungs is where the road's own
+    /// shape says that stops.
+    pub const SAME_AS_MEDIUM_THROUGH: usize = 14;
 }
 
 /// What kind of harm an attack is, so the matching defences apply.

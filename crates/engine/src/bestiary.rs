@@ -121,16 +121,22 @@ impl MonsterTheme {
             MonsterTheme::Striker => &[SlotKind::Weapon, SlotKind::Gloves],
             MonsterTheme::Wall => &[SlotKind::Chest, SlotKind::Helmet, SlotKind::Weapon],
             MonsterTheme::Burner => &[SlotKind::Weapon, SlotKind::Greaves],
-            MonsterTheme::Slower => &[SlotKind::Greaves, SlotKind::Gloves],
-            MonsterTheme::Drainer => &[SlotKind::Gloves, SlotKind::Helmet],
+            MonsterTheme::Slower => &[SlotKind::Greaves, SlotKind::Gloves, SlotKind::Weapon],
+            MonsterTheme::Drainer => &[SlotKind::Gloves, SlotKind::Helmet, SlotKind::Weapon],
             MonsterTheme::Caster => &[SlotKind::Weapon, SlotKind::Helmet],
             // The head takes your maximum health away and the body refuses to
-            // let go of its own. No weapon: mind damage is the helmet's, so
-            // unlike the Wall this one can already reach you.
-            MonsterTheme::Hollow => &[SlotKind::Helmet, SlotKind::Chest],
-            MonsterTheme::Swarm => &[SlotKind::Gloves, SlotKind::Greaves],
+            // let go of its own. Mind damage is the helmet's, so unlike the
+            // Wall this one could always reach you - which is why it had no
+            // weapon for two missions.
+            //
+            // It has one at M15 anyway. Every theme carries a weapon now, and
+            // the rule it answers is blunter than this theme's argument: a
+            // creature with nothing that swings is a creature a player can
+            // stand in front of and out-wait, and five of the ten were.
+            MonsterTheme::Hollow => &[SlotKind::Helmet, SlotKind::Chest, SlotKind::Weapon],
+            MonsterTheme::Swarm => &[SlotKind::Gloves, SlotKind::Greaves, SlotKind::Weapon],
             MonsterTheme::Beast => &[SlotKind::Weapon, SlotKind::Chest],
-            MonsterTheme::Warden => &[SlotKind::Chest, SlotKind::Greaves],
+            MonsterTheme::Warden => &[SlotKind::Chest, SlotKind::Greaves, SlotKind::Weapon],
         }
     }
 
@@ -612,30 +618,72 @@ mod tests {
         }
     }
 
+    /// Every theme reaches the weapon grid, and nothing fills more than three.
+    ///
+    /// This was `only_the_wall_fills_three`, and the Wall's reason was written
+    /// where it was enforced: its two grids deal no damage and a creature
+    /// fights entirely through its gear. M15 makes that everybody's reason.
+    /// Five themes had no weapon slot - Slower, Drainer, Hollow, Swarm and
+    /// Warden - and a creature with nothing that swings is one a player can
+    /// stand in front of and out-wait.
     #[test]
-    fn only_the_wall_fills_three() {
-        // And the reason is written where it is enforced: its two deal no
-        // damage, and a creature fights entirely through its gear.
+    fn every_theme_can_reach_you_and_none_fills_more_than_three() {
         for t in MonsterTheme::ALL {
-            if t.slots().len() == 3 {
-                assert_eq!(t, MonsterTheme::Wall, "{} grew a third grid", t.name());
-            }
+            assert!(
+                t.slots().contains(&SlotKind::Weapon),
+                "{} has no weapon grid, so nothing it wears can swing",
+                t.name()
+            );
+            assert!(t.slots().len() <= 3, "{} fills {} grids", t.name(), t.slots().len());
         }
     }
 
+    /// Every grid a theme fills can be packed, and it says something in most.
+    ///
+    /// Two questions, and M15 separated them because they stopped having the
+    /// same answer. *Can it be packed* is about anything wearable and it has
+    /// to hold in every grid, or the packer reports a board it could not
+    /// finish rather than a table that is wrong. *Does it say something* is
+    /// about pieces with an identity, and it holds in the two grids a theme
+    /// was authored around.
+    ///
+    /// The weapon grid is exempt from the second for the five themes that
+    /// gained it at M15: a Drainer has three weapons in its own vocabulary and
+    /// forty-five it can wear. Widening the vocabulary to reach four would
+    /// mean loosening what "a drainer's weapon" means to satisfy a lint, which
+    /// is the tail wagging the dog - the milestone asked for something that
+    /// swings, not for a themed arsenal.
     #[test]
     fn every_theme_can_find_something_to_wear_in_every_grid_it_fills() {
-        // A theme whose vocabulary matches nothing in one of its own grids is
-        // a theme that cannot be packed, and the packer would report that as
-        // a board it could not finish rather than as a table that is wrong.
         for t in MonsterTheme::ALL {
             for &s in t.slots() {
-                let n = crate::piece::CATALOG
-                    .iter()
-                    .filter(|d| d.fits(s) && t.allows(d) && !plain(d))
-                    .count();
-                assert!(n >= 4, "{} has {} things to say in the {}", t.name(), n, s.name());
+                let wearable =
+                    crate::piece::CATALOG.iter().filter(|d| d.fits(s) && t.allows(d)).count();
+                assert!(
+                    wearable >= 4,
+                    "{} has {} pieces it can wear in the {}, so it cannot be packed",
+                    t.name(),
+                    wearable,
+                    s.name()
+                );
             }
+            let expressive = t
+                .slots()
+                .iter()
+                .filter(|&&s| {
+                    crate::piece::CATALOG
+                        .iter()
+                        .filter(|d| d.fits(s) && t.allows(d) && !plain(d))
+                        .count()
+                        >= 4
+                })
+                .count();
+            assert!(
+                expressive >= 2,
+                "{} says something in only {} of its grids",
+                t.name(),
+                expressive
+            );
         }
     }
 
