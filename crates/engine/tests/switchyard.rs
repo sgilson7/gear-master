@@ -275,15 +275,20 @@ fn losing_keeps_cleared_floors_and_costs_what_it_costs() {
         run.settle();
         run.back_to_loadout();
 
-        assert!(run.dungeon.is_none(), "{mode:?}: losing puts you out of it");
-        assert!(!run.at_points);
+        // Re-pinned: a loss leaves you in the dungeon, standing in front of
+        // the floor that beat you. The line is not taken away from you - it is
+        // yours to fight again or to retreat from, and retreating is the verb.
+        assert!(run.dungeon.is_some(), "{mode:?}: a loss carried you out without asking");
+        assert!(!run.at_points, "{mode:?}: a loss is not a decision");
         assert!(
             run.has_cleared("a-test-yard", 0),
             "{mode:?}: the floor you beat before the one that beat you stays beaten"
         );
         match mode {
             Mode::Grinder => {
-                assert_eq!(run.rung, rung - 1, "a Grinder is knocked back");
+                // The loss still costs what it costs. What changed is where it
+                // leaves you standing, not the price.
+                assert_eq!(run.rung, rung - 1, "{mode:?}: a Grinder is knocked back");
                 assert_eq!(run.lives, lives);
             }
             Mode::Rogue => {
@@ -291,7 +296,35 @@ fn losing_keeps_cleared_floors_and_costs_what_it_costs() {
                 assert_eq!(run.rung, rung);
             }
         }
+
+        // And the way out is the verb, which costs the line and nothing else.
+        assert!(run.leave_dungeon(), "{mode:?}: could not retreat");
+        assert!(run.dungeon.is_none());
+        assert!(run.has_cleared("a-test-yard", 0), "{mode:?}: retreating unbeat a floor");
     }
+}
+
+/// A Rogue's last life is spent on the road, not four floors down.
+#[test]
+fn a_rogue_on_its_last_life_is_carried_out_of_the_yard() {
+    let mut run = a_run();
+    run.mode = Mode::Rogue;
+    run.lives = 2;
+    run.enter_dungeon_at(&A_YARD, 0);
+    clear_a_floor(&mut run);
+    run.throw_points(0);
+
+    run.pending_scene = None;
+    run.fight_next();
+    run.settle();
+    run.back_to_loadout();
+
+    assert_eq!(run.lives, 1, "the loss cost a life");
+    assert!(run.dungeon.is_none(), "left on its last life inside a dungeon");
+    assert!(
+        run.has_cleared("a-test-yard", 0),
+        "being carried out unbeat a floor"
+    );
 }
 
 // ------------------------------------------------------------------ the banner

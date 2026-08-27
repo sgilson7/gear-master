@@ -9196,6 +9196,20 @@ fn render_battle_side(
 ///
 /// UNDO and CLEAR ALL share a row on purpose: taking a clear back is the main
 /// reason anyone reaches for undo.
+/// Where the way out of a dungeon sits on the main screen.
+///
+/// Under the last button row, and drawn only while a run is standing in one.
+///
+/// It has to be here and not only on the landing and the points, because
+/// **losing a floor leaves you in the dungeon** - so the screen a beaten run
+/// is looking at is the loadout, and a verb that is not on it is a verb that
+/// does not exist. Before that change a loss carried you out whether you liked
+/// it or not, and the landing was the only place anybody needed to be offered
+/// the choice.
+fn dungeon_exit_rect(panel_x: f32) -> Rect {
+    Rect::new(panel_x + 20.0, LOGICAL_H - 62.0, PANEL_W - 40.0, 30.0)
+}
+
 fn button_rects(panel_x: f32) -> [Rect; 6] {
     let w = PANEL_W - 40.0;
     let x = panel_x + 20.0;
@@ -10108,6 +10122,13 @@ fn render_panel(
     button(r[3], "CLEAR ALL", true, mx, my);
     button(r[4], words::word("glossary", "WHAT THE WORDS MEAN"), true, mx, my);
     button(r[5], "TOOLS", true, mx, my);
+
+    // The way out, while there is a dungeon to be out of. Drawn here and
+    // clicked in the main loop, which is how every other button on this panel
+    // works.
+    if run.dungeon.is_some() && !run.at_points {
+        leave_strip(dungeon_exit_rect(layout.panel_x), mx, my);
+    }
 }
 
 // ================================================================= main
@@ -11474,6 +11495,18 @@ async fn main() {
         let clicked_button = |i: usize| {
             is_mouse_button_pressed(MouseButton::Left) && rects[i].contains(Vec2::new(mx, my))
         };
+        // Walking out, from the screen a beaten run is looking at.
+        if run.phase == Phase::Loadout
+            && run.dungeon.is_some()
+            && !run.at_points
+            && is_mouse_button_pressed(MouseButton::Left)
+            && dungeon_exit_rect(layout.panel_x).contains(Vec2::new(mx, my))
+        {
+            let name = run.dungeon.map(|(d, _)| d.name).unwrap_or("");
+            if run.leave_dungeon() {
+                message = format!("You walk out of {}.", words::retell(name));
+            }
+        }
 
         if run.phase == Phase::Fighting {
             let done = pb.as_ref().map(|p| p.done).unwrap_or(false);
@@ -12668,6 +12701,27 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// The way out of a dungeon is on the screen a beaten run is looking at.
+    ///
+    /// Losing a floor leaves you in the dungeon now, so the loadout is where a
+    /// run that just lost is standing - and the landing and the points, which
+    /// were the only two places offering the verb, are both screens you only
+    /// reach by *winning*. A retreat you can only take after a win is not a
+    /// retreat.
+    #[test]
+    fn the_way_out_is_reachable_from_the_screen_a_loss_leaves_you_on() {
+        let panel_x = LOGICAL_W - PANEL_W;
+        let exit = dungeon_exit_rect(panel_x);
+        assert!(exit.x >= panel_x, "the way out is off the panel");
+        assert!(exit.x + exit.w <= LOGICAL_W);
+        assert!(exit.y + exit.h <= LOGICAL_H, "the way out is off the bottom");
+        // And it is clear of every button, so neither steals the other's click.
+        for (i, b) in button_rects(panel_x).iter().enumerate() {
+            let apart = exit.y >= b.y + b.h - 0.01 || b.y >= exit.y + exit.h - 0.01;
+            assert!(apart, "the way out overlaps button {i}");
         }
     }
 

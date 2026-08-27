@@ -2027,3 +2027,53 @@ fn devotion_keeps_paying_past_forty_percent() {
     assert!(held(40) > 40, "forty faith should be worth more than the old cap");
     assert_eq!(held(40), 80, "and it should be linear");
 }
+
+/// Losing to something that stood in for a rung puts you back on the ladder.
+///
+/// THREE THINGS IN THE SHRINE offers GO ROUND THE BACK, which puts The
+/// Dreaming Idiot in front of you instead of rung ten's own creature. A
+/// substitute was cleared on a win and left alone on a loss - so a run that
+/// lost to it came back to find it still standing, and still standing after
+/// the next loss, with no way past but through. The rung's own fight was
+/// unreachable for the rest of the run.
+///
+/// A detour you cannot leave is not a detour.
+#[test]
+fn losing_to_a_stand_in_puts_you_back_on_the_ladder() {
+    use gearmaster_engine::combat::LADDER;
+    use gearmaster_engine::run::{Mode, Run};
+
+    let mut run = Run::seeded(0x1D107);
+    run.mode = Mode::Grinder;
+    run.rung = 9;
+    let idiot = gearmaster_engine::combat::alternate("The Dreaming Idiot").expect("authored");
+
+    run.substitute = Some(idiot);
+    assert_eq!(run.monster().name, "The Dreaming Idiot", "the detour is standing there");
+
+    // The starting board against a boss met at rung ten: a real loss.
+    run.fight_next();
+    run.settle();
+    run.back_to_loadout();
+
+    assert!(run.substitute.is_none(), "it is still standing in front of the ladder");
+    assert_eq!(
+        run.monster().name,
+        LADDER[run.rung].name,
+        "the rung's own creature is what is in front of you now"
+    );
+}
+
+/// And beating it clears it too, which it always did.
+#[test]
+fn beating_a_stand_in_clears_it_the_same_way() {
+    use gearmaster_engine::run::{Mode, Run};
+
+    let mut run = Run::seeded(0x1D107);
+    run.mode = Mode::Grinder;
+    run.rung = 9;
+    run.substitute = gearmaster_engine::combat::alternate("The Dreaming Idiot");
+    run.force_win();
+    run.settle();
+    assert!(run.substitute.is_none());
+}

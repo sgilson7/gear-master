@@ -2590,15 +2590,44 @@ impl Run {
             // neither advances the ladder.
             _ => {
                 self.losses += 1;
-                // Losing in a dungeon puts you out of it. The door does not
-                // reopen - you sold the thing that opened it.
+                // Whatever stood in for that rung stops standing in.
                 //
-                // `cleared_floors` is deliberately *not* rolled back. The
-                // floors you beat before the one that beat you stay beaten,
-                // which matters only if a siding brings you back, and then it
-                // matters completely.
-                self.dungeon = None;
+                // A substitute is a detour you chose - GO ROUND THE BACK puts
+                // The Dreaming Idiot in front of you instead of the rung's own
+                // creature - and it used to be cleared on a win and left alone
+                // on a loss. So a run that lost to it came back to find it
+                // still there, and still there after the next loss, with no
+                // way past but through: the rung's own fight was unreachable
+                // for the rest of the run. A detour you cannot leave is not a
+                // detour. Losing puts you back on the ladder.
+                self.substitute = None;
+
+                // Losing a dungeon floor **does not put you out of the
+                // dungeon**, and that is the whole shape of the decision.
+                //
+                // It used to. Which meant a floor you could not beat cost you
+                // the line whether you liked it or not, and `leave_dungeon` -
+                // the verb that exists so the points can be a decision rather
+                // than a trap - was only ever the polite version of something
+                // the game would do to you anyway. Now a loss costs the mode's
+                // own price and leaves you standing where you were: fight it
+                // again, or retreat. **Retreating is how you survive.**
+                //
+                // The one exception is a Rogue on the edge of dying. A run put
+                // out of the game inside a side-room, four fights from a road
+                // it could have walked away down, is a run that was never
+                // offered the choice this verb exists to offer - so the last
+                // life is spent on the road. See `out_of_the_dungeon` below.
+                //
+                // `cleared_floors` is deliberately *not* rolled back either
+                // way. The floors you beat before the one that beat you stay
+                // beaten, which matters only if a siding brings you back, and
+                // then it matters completely.
+                let in_a_dungeon = self.dungeon.is_some();
                 self.at_points = false;
+                if !in_a_dungeon {
+                    self.dungeon = None;
+                }
                 // And a passenger is a fragile thing that was riding on you.
                 // It goes whatever the mode does about the loss, including a
                 // loss the underwriter eats: the underwriter buys back a rung,
@@ -2629,6 +2658,15 @@ impl Run {
                     Mode::Grinder => {
                         // Back to the rung you last cleared, so there is
                         // always something easier to farm.
+                        //
+                        // Inside a dungeon too. What changed about losing in
+                        // one is where it leaves you standing, not what it
+                        // costs: a Grinder that could retry a floor for
+                        // nothing would be a Grinder for whom the way out is
+                        // never worth taking, and the whole point of leaving
+                        // is that it is a decision with a price on both sides.
+                        // The rung is the one you walked in on, so the cost is
+                        // paid when you walk back out.
                         if self.rung > 0 {
                             self.rung -= 1;
                             settlement.knocked_back = true;
@@ -2639,6 +2677,24 @@ impl Run {
                         settlement.lives_left = Some(self.lives);
                         if self.lives == 0 {
                             settlement.run_ended = true;
+                        }
+                        // Down to the last one, and standing in a dungeon: out
+                        // onto the road, where the next fight is one the run
+                        // chose rather than one it had walked four floors
+                        // into. Everything cleared stays cleared, and the door
+                        // does not reopen - which is what leaving has always
+                        // cost.
+                        if in_a_dungeon && self.lives <= 1 {
+                            let name = self.dungeon.map(|(d, _)| d.name).unwrap_or("");
+                            self.dungeon = None;
+                            self.last_receipt = Some(vec![
+                                format!("Carried out of {name}"),
+                                if self.lives == 0 {
+                                    "There was nothing left to carry".into()
+                                } else {
+                                    "One life left, and the road is safer".into()
+                                },
+                            ]);
                         }
                     }
                 }

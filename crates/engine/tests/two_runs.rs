@@ -102,10 +102,20 @@ fn play(
             continue;
         }
 
-        if run.fight_next().outcome == Outcome::Victory {
+        let won = run.fight_next().outcome == Outcome::Victory;
+        if won {
             t.wins += 1;
         }
         run.settle();
+        // Losing a dungeon floor leaves you in the dungeon now: the road out
+        // is `leave`, and a walker that does not know that stands in front of
+        // the floor that beat it until `stuck` runs out. Retreating is what
+        // the verb is for, and what the loss is meant to make you weigh.
+        if !won && run.dungeon.is_some() {
+            run.back_to_loadout();
+            run.leave_dungeon();
+            run.take_receipt();
+        }
         // Back to the board. `settle` does not do this for an ordinary fight -
         // the interface holds you on the replay until you ask to leave - and
         // `pending_event` is gated on the phase, so a walk that forgets this

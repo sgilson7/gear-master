@@ -137,6 +137,12 @@ impl Walk {
         self.seen.fights += 1;
         if log.outcome != Outcome::Victory {
             self.seen.losses += 1;
+            // A loss in a dungeon leaves you in the dungeon. The way out is
+            // the verb, not the defeat.
+            if self.run.dungeon.is_some() {
+                self.run.leave_dungeon();
+                self.run.take_receipt();
+            }
             self.seen.why = Some(format!(
                 "lost to {} at rung {} after {:.1}s",
                 log.enemy().name,

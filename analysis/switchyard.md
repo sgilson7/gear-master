@@ -1736,3 +1736,68 @@ nothing.
 looked at. A third debug hook beside `_DUNGEON` and `_CLASSES`.
 
 **878 engine, 70 GUI, 5 CLI. No warnings.**
+
+---
+
+## What losing costs (2026-08-27)
+
+Two changes, asked for after the deploy.
+
+### A stand-in stops standing in
+
+THREE THINGS IN THE SHRINE offers GO ROUND THE BACK, which puts **The Dreaming
+Idiot** in front of you instead of rung ten's own creature. `Run::substitute`
+was cleared on a win and **left alone on a loss** - so a run that lost to it
+came back to find it still standing, and still standing after the next loss,
+with no way past but through. The rung's own fight was unreachable for the rest
+of the run.
+
+A detour you cannot leave is not a detour. Losing to a stand-in clears it and
+puts you back on the ladder.
+`progression::losing_to_a_stand_in_puts_you_back_on_the_ladder`.
+
+### Losing a dungeon floor leaves you in the dungeon
+
+It used to put you out of it. Which meant a floor you could not beat cost you
+the line whether you liked it or not - and `leave_dungeon`, the verb that
+exists so a set of points is a decision rather than a trap, was only ever the
+polite version of something the game would do to you anyway.
+
+Now:
+
+| | Before | After |
+|---|---|---|
+| Where a loss leaves you | out on the road | **in front of the floor that beat you** |
+| What it costs | a life, or a rung | **unchanged** - a life, or a rung |
+| Getting out | done to you | **`leave`, and it is a decision** |
+| Cleared floors | kept | kept |
+
+**One exception: a Rogue whose loss brings it to its last life is carried
+out.** A run put out of the game inside a side-room, four fights from a road it
+could have walked away down, was never offered the choice the verb exists to
+offer - so the last life is spent on the road. The receipt says
+`Carried out of {name}` and `One life left, and the road is safer`.
+
+The Grinder's knock-back **stays**, inside a dungeon as outside it. What
+changed is where a loss leaves you, not what it costs: a Grinder that could
+retry a floor for nothing is a Grinder for whom walking out is never worth it,
+and the whole point of the verb is that it is a decision with a price on both
+sides.
+
+### What had to move with it
+
+**Both road-walkers had to learn to retreat.** `two_runs::play` and
+`validity::Walk` both fought, lost, and then stood in front of the floor that
+beat them until their stuck-counters ran out - which reads as "the board
+stalled at rung 26" and is really "nobody knew to leave". Retreating on a loss
+is what a player does and is now what they do.
+
+**The GUI had to grow the verb where a loss leaves you.** It was offered on the
+landing and at the points, and both of those are screens you reach by
+*winning*. A retreat you can only take after a win is not a retreat.
+`dungeon_exit_rect` puts it under the last button row on the loadout, drawn
+only while there is a dungeon to be out of, and
+`the_way_out_is_reachable_from_the_screen_a_loss_leaves_you_on` keeps it clear
+of every button so neither steals the other's click.
+
+**882 engine, 71 GUI, 5 CLI. No warnings.** The four-board table is unmoved.

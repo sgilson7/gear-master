@@ -269,15 +269,71 @@ fn coming_out_of_one_puts_you_where_you_went_in() {
     assert_eq!(run.rung, rung, "a dungeon moved the ladder");
 }
 
+/// Losing a floor leaves you standing in front of it.
+///
+/// Re-pinned, and the rule is inverted. It used to put you out of the dungeon,
+/// which meant a floor you could not beat cost you the line whether you liked
+/// it or not - and `leave_dungeon`, the verb that exists so a set of points is
+/// a decision rather than a trap, was only ever the polite version of
+/// something the game did to you anyway.
+///
+/// Now a loss costs the mode's own price and leaves you where you were. Fight
+/// it again, or retreat. **Retreating is how you survive**, and the door still
+/// does not reopen once you have.
 #[test]
-fn losing_in_one_puts_you_out_of_it_and_the_door_does_not_reopen() {
+fn losing_a_floor_leaves_you_in_the_dungeon_and_retreating_is_the_way_out() {
     let mut run = a_run();
+    run.mode = Mode::Grinder;
     run.rung = 20;
+    let rung = run.rung;
     run.enter_dungeon("the-under-mine");
     assert!(run.dungeon.is_some());
+
     run.fight(gearmaster_engine::combat::LADDER.last().expect("a hard one"));
     run.settle();
-    assert!(run.dungeon.is_none(), "still down there after losing");
+    assert!(run.dungeon.is_some(), "a loss carried you out without asking");
+    assert_eq!(run.losses, 1, "it still counts as a loss");
+    assert_eq!(
+        run.rung,
+        rung - 1,
+        "a Grinder still pays for a lost floor; what changed is where it leaves you"
+    );
+
+    // The way out is the verb.
+    run.back_to_loadout();
+    assert!(run.leave_dungeon());
+    assert!(run.dungeon.is_none());
+}
+
+/// A Rogue on its last life is carried out rather than left to die down there.
+///
+/// The one exception to the rule above. A run put out of the game inside a
+/// side-room, four fights from a road it could have walked away down, was
+/// never offered the choice the verb exists to offer - so the last life is
+/// spent on the road.
+#[test]
+fn a_rogue_down_to_its_last_life_is_carried_out_of_the_dungeon() {
+    let hard = gearmaster_engine::combat::LADDER.last().expect("a hard one");
+
+    // Two lives left: the loss costs one and leaves you in it.
+    let mut run = a_run();
+    run.mode = Mode::Rogue;
+    run.rung = 20;
+    run.lives = 3;
+    run.enter_dungeon("the-under-mine");
+    run.fight(hard);
+    run.settle();
+    assert_eq!(run.lives, 2);
+    assert!(run.dungeon.is_some(), "carried out with two lives still in hand");
+
+    // Down to one: out onto the road, with what was cleared still cleared.
+    run.back_to_loadout();
+    run.fight(hard);
+    run.settle();
+    assert_eq!(run.lives, 1);
+    assert!(run.dungeon.is_none(), "left on its last life inside a dungeon");
+    let receipt = run.take_receipt().expect("it says what happened");
+    assert!(receipt[0].contains("Carried out of"), "{receipt:?}");
 }
 
 #[test]
