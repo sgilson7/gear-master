@@ -1304,7 +1304,7 @@ walks all nine rather than the five the criterion names.
 
 | # | Criterion | State |
 |---:|---|---|
-| 1 | Determinism - a script replays identically | **met**, `cli::a_scripted_run_replays_identically` and `the_cli_verbs_replay`; `acceptance::e6_1` green |
+| 1 | Determinism - a script replays identically | **met at engine level, not through the CLI** - see finding 46. `switchyard::the_full_walk_replays_identically` over `analysis/replays/switchyard-full.txt`; `cli::a_scripted_run_replays_identically`; `acceptance::e6_1` green |
 | 2 | No regression - four-board table, `gear_at`, rungs 1-14 | **met**; the table is byte-identical to M0 ten milestones on |
 | 3 | The primitive is inert for six dungeons | **met with one word re-pinned** (M1 finding 1) |
 | 4 | The chain is completable at Medium in both modes | **met**, `the_chain_can_be_walked_in_one_run_in_either_mode` |
@@ -1352,3 +1352,79 @@ have published a table saying the auto-builder clears the yard in five
 seconds. `baseline.rs` builds the preset with `apply_preset` and keeps no
 share code for it. Caught before the numbers went into this file; the column
 says "perfect" now.
+
+---
+
+## After M11 - the merge review
+
+Written after the mission was recorded, going back over it for what a merge
+would carry that nobody asked for.
+
+### The one criterion that was overclaimed
+
+**46. Criterion 1's transcript did not exist, and it is an engine transcript
+now.** M10's table marked it met on the strength of
+`cli::a_scripted_run_replays_identically` and `acceptance::e6_1`. Neither is
+the artifact the criterion names: `analysis/replays/switchyard-full.txt`, a
+transcript of one specific walk - buy the sheet, ask for the points, Down line
+and the coal road, feed the Shunter's, roundhouse road, feed the Signalman's,
+be walked through to the water road, tell Ambrose both.
+
+It exists now, 109 lines, generated twice inside one test and compared before
+being compared against the committed file. The walk it records is the walk the
+criterion names: **8 floors cleared `[0, 1, 2, 3, 5, 6, 8, 4]`, three levers
+thrown, `sidings-cleared` 3, and three of the four pieces of ground** - the
+Booking Hall stays at the goods shed, which is the ninth room.
+
+**It is not a CLI transcript, and the reason is the driver.** The chain's first
+door stands at rung 21 and no board the CLI can build from its own verbs clears
+twenty rungs - `preset` wins nine of fifty, there is no `skip`, and there is no
+way to read a share code in. That is a limitation the driver has had since
+long before this mission (M1 finding 7, M3 finding 13) and closing it means
+giving the CLI an import verb, which is a change to the driver rather than to
+the yard.
+
+### Second-order effects a merge carries
+
+**47. The shop change is the most player-visible thing on this branch, and it
+is not content.** M5 fixed the shelf tilt to count the pool rather than the
+catalogue. Zero tests moved - but no test pins a specific shelf for a specific
+seed, so "zero tests moved" means "nothing was watching", not "nothing
+changed". **Every seed now deals different shelves from every seed before it.**
+A player mid-run on the deployed build, or anybody who remembers what a
+particular seed stocks, sees a different shop.
+
+It is a fix rather than a regression: a slot was dealt in proportion to how
+much of it exists rather than how much is for sale, and it had been wrong since
+the Unwinding appended thirty-one event-only rewards. But it is a live
+behaviour change riding into `main` inside a content mission, and it is the one
+thing on this branch worth reverting separately if the owner would rather ship
+the yard alone.
+
+**48. Every run now meets a new door at rung 21, whether or not it wants the
+yard.** THE TIMETABLE is `Trigger::Rung` and unconditional - by design, so the
+chain has an on-ramp - which means rungs 21-25 got busier for every run in the
+game. Two of `two_runs`'s walks had to be re-pointed because a whispered door
+now goes first on rung 21. Expected, and worth knowing before somebody asks why
+the mid-road feels fuller.
+
+**49. Four public signatures changed**, none with a caller outside the
+workspace: `Dungeon.floors` is `&[Floor]`, `Dungeon.landings` is gone,
+`Theme::landings` is `Theme::landing(id, floor, canonical)`, and
+`Interrupt::Dungeon` is a struct variant. Anything outside this repository that
+read them breaks; nothing does.
+
+**50. `make pack` still works and was not used.** Its save path writes `gear:`
+and `items:`, both unchanged, and `gui::pack`'s own tests are green. The nine
+boards went in through a targeted splice instead (M9).
+
+### What a merge still needs
+
+1. **`docs/` is stale** - built at `edcd9fc`, before any of this. `make
+   publish` rebuilds the wasm and pushes it; the wasm target is installed.
+2. **The GUI's points screen has never been rendered.** It compiles, its
+   layout is unit-tested without a font context, and the main loop draws it
+   after the landing scene and the receipt and before any road event - which
+   is the right order and was checked by reading. Nobody has looked at it.
+3. **Nobody has played any of it**, which is what `post-unwinding.md` §4 says
+   of the Unwinding too.

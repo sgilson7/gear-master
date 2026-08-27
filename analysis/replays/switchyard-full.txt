@@ -1,0 +1,109 @@
+
+> THE TIMETABLE - Buy a timetable
+  Hesketh sells timetables off a folding table at the side of the road, for a line that closed before the road was cut, and she sells them at the printed price because she has never seen a reason to change it.
+  The times in them are being kept, and Hesketh has checked. Every train on the sheet leaves the yard when the sheet says, and the yard is under your feet, and you have not heard a train because there are no trains, and the times are being kept anyway.
+  She will sell you one. She would also, if you had something small she could use, take that instead, because the money is not the point and never has been.
+  receipt: -134g
+  receipt: Gained: A Word About the Sidings
+  receipt: It arrives loose, and takes up room
+  receipt: Conditions: THE SIGNAL BOX - rungs 22 to 25
+
+> THE SIGNAL BOX - Ask him to throw the points
+  The signal box stands on legs over the cutting and the man in it is called Ambrose and he does not look up, because the 21:14 is due and the 21:14 is more important than you are, whatever you are.
+  He throws the lever. Below you, in the dark, something heavy moves a foot and stops, and Ambrose writes a time in a book, and the time is 21:14, and it is the right time.
+  He will set the points for you if you ask. He sets them one way. He has always set them one way, and nobody has ever asked him which, and he would like it noted that you did not ask either.
+  receipt: Gained: A Word About the Points
+  receipt: It arrives loose, and takes up room
+  receipt: Conditions: THE TURNTABLE - rungs 26 to 28
+
+> THE TURNTABLE - Step onto the turntable
+  The turntable is at the bottom of the cutting and it is turning. Nobody is on it. It turns a quarter of the way round, and stops, and a bell rings once in the dark, and it turns back.
+  The yard goes off from it in two directions and both of them are unlit, and on the wall of the turntable pit somebody has painted DOWN LINE and UP LINE with an arrow each, and under the arrows, smaller, the words BUFFER STOPS AT THE END OF BOTH.
+  Ambrose has thrown the points. You can hear them, thrown, somewhere out past the lamp. Which way he threw them is a thing you find out by walking.
+  receipt: Enter: THE SWITCHYARD
+
+> into the yard
+  scene: The turntable takes you a quarter of the way round and stops, and the bell rings once, and when it turns back you are facing the other way, down the yard.
+  scene: Somewhere past the lamp the points are already thrown. Ambrose was here first. Ambrose is always here first.
+  stack: THE SWITCHYARD - THE SHUNTER - floor 1 of 4
+
+> fight THE SHUNTER
+  landing: The shunter goes back to the turntable pit when it is done with you and lies down on it, which is what it does between trains, and the turntable turns a quarter of the way round under it and stops.
+  points: The two lines leave the turntable pit together and part at a set of points a hundred yards out, and the lever for them is in a box you cannot reach, and it has been pulled. The man who pulled it was Ambrose, and he did not say which way.
+  points: Whichever way you walk, the other line is there the whole time, a few yards off in the dark, going somewhere you are not.
+
+> throw Down line
+  receipt: The points are thrown: Down line
+
+> fight THE PLATELAYERS
+  landing: The platelayers put the rail back where it was. They were only ever going to put it back where it was. Ahead the ballast dips, and the sleepers stop being level.
+
+> fight THE BALLAST
+  landing: The pit is where the ballast came from, and what came up out of it with the ballast is still down here, and it goes back into the pit when it has finished, and the lamp on the post beyond it is lit.
+  points: Past the ballast pit the Down line splits again, and there is a lamp on a post here that says COAL one way and WATER the other, and the lamp is lit, and there is nobody to have lit it.
+  points: Both roads end. That was painted on the wall at the top. What they end at is the question.
+
+> throw The coal road
+  receipt: The points are thrown: The coal road
+
+> fight THE COAL STAGE
+  landing: The coal stage is a wooden platform with a heap on it and a shovel, and the heap is warm, and under the shovel there is a ledger with a row of times in it, and the last time is this morning's. Whoever was shovelling was here today. What they laid under the boards, they laid for somebody with a chest to put over it.
+  receipt: Gained: Ballast Bed
+  receipt: It arrives loose, and takes up room
+  receipt: Gained: Shunter's Orb
+  receipt: It arrives loose, and takes up room
+  receipt: Noted: switchyard cleared
+  receipt: Nothing you could point to
+
+> feed Shunter's Orb -> THE UP LINE
+  scene: The orb goes into the socket and the socket is a signal, and the arm drops, and you are under the gantry on the Up line with eleven lamps lit above you, and the turntable is behind you and already turning.
+  receipt: Fed the pedestal: Shunter's Orb
+  receipt: It takes you to THE UP LINE
+
+> fight THE GANTRY
+  landing: The gantry carries eleven signal arms and all eleven are lowered, which is clear, and something up there was pulling them one at a time, and now nothing is. Ahead the lamp room door is open and the room is lit.
+
+> fight THE LAMP ROOM
+  landing: Every lamp in the room is trimmed and filled and burning, and the lamp room keeper is on the floor, and the lamps go on burning, because a lamp does not know. Beyond the room the roads part under the last one.
+  points: The Up line splits under the last lamp, and the two roads run side by side for a while before one bends off to the shed and the other straight on to the roundhouse, and from the points you can see both ends and reach one.
+  points: Ambrose has thrown these too. He throws them every day at 14:05, for a train that is not coming, and today they are thrown for you.
+
+> throw The roundhouse road
+  receipt: The points are thrown: The roundhouse road
+
+> fight THE ROUNDHOUSE
+  landing: It was in steam. It is still in steam. It is on the turntable in the roundhouse and it will be on it tomorrow, and the roundhouse is the end of the yard in every sense there is. On the driver's seat there is a coil of signal wire, wound neat, warm from the boiler, and a ball of glass in the firebox that has not melted and is not going to.
+  receipt: Gained: Signal Wire
+  receipt: It arrives loose, and takes up room
+  receipt: Gained: Signalman's Orb
+  receipt: It arrives loose, and takes up room
+  receipt: Noted: switchyard cleared
+  receipt: Nothing you could point to
+
+> feed Signalman's Orb -> THE DOWN LINE
+  scene: The orb goes into the socket and the socket is a set of points, and the points throw, and you are standing on the Down line a hundred yards past the pit, and the turntable is behind you and already turning.
+  receipt: Fed the pedestal: Signalman's Orb
+  receipt: It takes you to THE DOWN LINE
+
+> fight THE WATER TOWER
+  landing: The tank is full. It has been full for as long as the yard has been shut, because nothing here has drunk. Under the tower there is a length of rodding laid out straight, oiled, and a note pinned to it in Ambrose's hand that says FOR THE FEET, which is either a joke or the only instruction you are going to get.
+  receipt: Gained: Points Rodding
+  receipt: It arrives loose, and takes up room
+  receipt: Gained: Shunter's Orb
+  receipt: It arrives loose, and takes up room
+  receipt: Noted: switchyard cleared
+  receipt: Nothing you could point to
+
+> the yard, closed
+  cleared 8 floors: [0, 1, 2, 3, 5, 6, 8, 4]
+  levers thrown: [(0, 0), (2, 0), (6, 1)]
+  sidings-cleared: 3
+  ground: ["Ballast Bed", "Points Rodding", "Signal Wire"]
+
+> THE LAST TRAIN - Tell him both lines
+  Ambrose is on the road. He has never been on the road. He has the book under his arm and the lever is not in the box any more, because the box is not there any more, because the last train ran at 02:40 this morning and it took the box with it.
+  He wants to know how far down the yard you went, and Ambrose writes the answer in the book without looking at the page, in a hand that has written the same eleven times a day for longer than there has been a road.
+  There was one more train on the sheet. There was always one more train on the sheet. Ambrose says the sheet was right about that too.
+  receipt: +753g
+  receipt: Your next loss within five rungs does not count
+  receipt: Good until rung 39

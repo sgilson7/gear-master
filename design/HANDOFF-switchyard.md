@@ -492,9 +492,19 @@ merged and nothing has been published**, deliberately. The mission ran
 overnight and unattended, and pushing a night's unsupervised work to a live
 site is a decision to make awake.
 
-To finish it: read `analysis/switchyard.md` (every number, one block a
-milestone), merge `switchyard` to `main`, and publish `docs/` the way the
-Unwinding and the prose pass were published.
+To finish it: read `analysis/switchyard.md` - every number, one block a
+milestone, and a **merge review** at the end listing what the branch carries
+that nobody asked for. Then merge `switchyard` to `main` and run `make
+publish`, which rebuilds the wasm into `docs/` and pushes it. `docs/` is
+currently built from `edcd9fc`, before any of this.
+
+**One thing to decide before merging.** M5 fixed a real bug in the shop - the
+shelf tilt dealt slots in proportion to how much of a slot *exists* rather than
+how much is *for sale*, wrong since the Unwinding. No test moved, but no test
+pins a seed's shelves, so that means nothing was watching rather than nothing
+changed: every seed now stocks differently. It is the one live behaviour change
+on this branch that is not the yard, and the one thing worth reverting
+separately if the yard should ship alone (`analysis/switchyard.md` finding 47).
 
 ## 6. What shipped
 

@@ -910,3 +910,183 @@ fn report_the_yard() {
         println!("{row}");
     }
 }
+
+// ============================================ acceptance criterion 1
+
+/// The full walk, written down: everything a run is told, in order.
+///
+/// Acceptance criterion 1 names a transcript of one specific walk - buy the
+/// timetable, ask for the points, take the Down line and the coal road, feed
+/// the Shunter's Orb, take the roundhouse road, feed the Signalman's Orb, be
+/// walked through to the water road, and tell Ambrose both lines - piped
+/// through the CLI twice and diffed.
+///
+/// **It is an engine transcript rather than a CLI one, and the reason is the
+/// driver rather than the yard.** The chain's first door stands at rung 21 and
+/// no board the CLI can build from its own verbs clears twenty rungs: `preset`
+/// wins nine of fifty, and there is no `skip` and no way to read a share code
+/// in. That is a limitation the driver has had since long before this mission,
+/// and it is why M1's replay is an engine transcript too.
+///
+/// What is here is stronger than the walk itself: every scene, every receipt,
+/// every banner and every decision, generated twice inside one test and
+/// compared, then compared again against the committed file. A word changing
+/// anywhere in the chain fails it and the diff says which word.
+fn full_walk() -> String {
+    let mut out = String::new();
+    let mut run = Run::seeded(0x5417);
+    run.mode = Mode::Grinder;
+    run.difficulty = Difficulty::Easy;
+    run.gold = 10_000;
+
+    let say = |out: &mut String, run: &mut Run, what: &str| {
+        out.push_str(&format!("\n> {what}\n"));
+        if let Some(s) = run.pending_scene.take() {
+            for line in s {
+                out.push_str(&format!("  scene: {line}\n"));
+            }
+        }
+        for i in run.road_stack() {
+            out.push_str(&format!("  stack: {}\n", i.describe()));
+        }
+        if let Some(r) = run.take_receipt() {
+            for line in r {
+                out.push_str(&format!("  receipt: {line}\n"));
+            }
+        }
+    };
+
+    let answer = |out: &mut String, run: &mut Run, id: &str, label: &str| {
+        let e = EVENTS.iter().find(|e| e.id == id).expect("a door");
+        run.rung = e.at;
+        out.push_str(&format!("\n> {} - {}\n", e.title, label));
+        for p in e.prose {
+            out.push_str(&format!("  {p}\n"));
+        }
+        let c = e.choices.iter().find(|c| c.label == label).expect("a choice");
+        assert!(run.choice_open(c), "{id}/{label} was shut");
+        run.take_choice(c);
+        if let Some(r) = run.take_receipt() {
+            for line in r {
+                out.push_str(&format!("  receipt: {line}\n"));
+            }
+        }
+    };
+
+    let fight = |out: &mut String, run: &mut Run| {
+        let who = run.monster().name;
+        out.push_str(&format!("\n> fight {who}\n"));
+        run.pending_scene = None;
+        run.force_win();
+        run.settle();
+        if let Some(l) = run.pending_landing.take() {
+            out.push_str(&format!("  landing: {l}\n"));
+        }
+        if let Some(r) = run.take_receipt() {
+            for line in r {
+                out.push_str(&format!("  receipt: {line}\n"));
+            }
+        }
+        run.back_to_loadout();
+    };
+
+    let throw = |out: &mut String, run: &mut Run, label: &str| {
+        let (d, floor) = run.dungeon.expect("in the yard");
+        for line in d.floors[floor].fork {
+            out.push_str(&format!("  points: {line}\n"));
+        }
+        let i = d.floors[floor]
+            .exits
+            .iter()
+            .position(|e| e.label == label)
+            .unwrap_or_else(|| panic!("no road called {label}"));
+        out.push_str(&format!("\n> throw {label}\n"));
+        assert!(run.throw_points(i));
+        if let Some(r) = run.take_receipt() {
+            for line in r {
+                out.push_str(&format!("  receipt: {line}\n"));
+            }
+        }
+    };
+
+    answer(&mut out, &mut run, "the-timetable", "Buy a timetable");
+    answer(&mut out, &mut run, "the-signal-box", "Ask him to throw the points");
+    answer(&mut out, &mut run, "the-turntable", "Step onto the turntable");
+    say(&mut out, &mut run, "into the yard");
+
+    fight(&mut out, &mut run); // [0] the throat
+    throw(&mut out, &mut run, "Down line");
+    fight(&mut out, &mut run); // [1]
+    fight(&mut out, &mut run); // [2]
+    throw(&mut out, &mut run, "The coal road");
+    fight(&mut out, &mut run); // [3] the coal stage
+
+    let feed = |out: &mut String, run: &mut Run, orb: &str| {
+        let id = run
+            .owned
+            .iter()
+            .copied()
+            .find(|&i| run.registry.def(i).name == orb)
+            .unwrap_or_else(|| panic!("{orb} was never paid"));
+        let dest = run.feed_pedestal(id).expect("the pedestal took it");
+        out.push_str(&format!("\n> feed {orb} -> {}\n", dest.name));
+        if let Some(s) = run.pending_scene.take() {
+            for line in s {
+                out.push_str(&format!("  scene: {line}\n"));
+            }
+        }
+        if let Some(r) = run.take_receipt() {
+            for line in r {
+                out.push_str(&format!("  receipt: {line}\n"));
+            }
+        }
+    };
+
+    feed(&mut out, &mut run, "Shunter's Orb");
+    fight(&mut out, &mut run); // [5] the gantry
+    fight(&mut out, &mut run); // [6] the lamp room
+    throw(&mut out, &mut run, "The roundhouse road");
+    fight(&mut out, &mut run); // [8] the roundhouse
+
+    feed(&mut out, &mut run, "Signalman's Orb");
+    fight(&mut out, &mut run); // [4] the water tower, walked through to
+
+    out.push_str(&format!(
+        "\n> the yard, closed\n  cleared {} floors: {:?}\n  levers thrown: {:?}\n  sidings-cleared: {}\n",
+        run.cleared_floors.len(),
+        run.cleared_floors.iter().map(|&(_, f)| f).collect::<Vec<_>>(),
+        run.took_exits.iter().map(|&(_, at, e)| (at, e)).collect::<Vec<_>>(),
+        run.counted("sidings-cleared")
+    ));
+    let mut held: Vec<&str> = ["Ballast Bed", "Points Rodding", "Booking Hall", "Signal Wire"]
+        .into_iter()
+        .filter(|n| run.holds(n))
+        .collect();
+    held.sort_unstable();
+    out.push_str(&format!("  ground: {held:?}\n"));
+
+    answer(&mut out, &mut run, "the-last-train", "Tell him both lines");
+    out
+}
+
+#[test]
+fn the_full_walk_replays_identically() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../analysis/replays/switchyard-full.txt");
+    let got = full_walk();
+    assert_eq!(got, full_walk(), "the same walk, walked twice, came out different");
+
+    if std::env::var("REBASELINE_SWITCHYARD_WALK").as_deref() == Ok("1") {
+        std::fs::write(path, &got).unwrap();
+        return;
+    }
+    let want = include_str!("../../../analysis/replays/switchyard-full.txt");
+    if want != got {
+        let first = want
+            .lines()
+            .zip(got.lines())
+            .find(|(a, b)| a != b)
+            .map(|(a, b)| format!("was: {a}\nnow: {b}"))
+            .unwrap_or_else(|| "the transcript changed length".into());
+        panic!("the chain says something different:\n{first}\n(fixture: {path})");
+    }
+}
