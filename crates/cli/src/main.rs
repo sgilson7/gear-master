@@ -532,7 +532,7 @@ fn show_slot(run: &Run, kind: SlotKind) {
                 println!("        effect: {}", e.describe());
             }
             if let Some(b) = def.assembly_bonus {
-                println!("        on assembly: {}", b.label);
+                println!("        on assembly: {} ({})", b.label, b.stats.summary());
             }
         }
         for note in &item.notes {
@@ -559,7 +559,7 @@ fn show_inventory(run: &Run) {
             shape.height(),
             def.base.summary(),
             def.assembly_bonus
-                .map(|b| format!("   [on assembly: {}]", b.label))
+                .map(|b| format!("   [on assembly: {} ({})]", b.label, b.stats.summary()))
                 .or_else(|| def.effect.map(|e| format!("   [{}]", e.describe())))
                 .unwrap_or_default()
         );

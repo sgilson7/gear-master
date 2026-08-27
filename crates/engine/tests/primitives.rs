@@ -658,3 +658,69 @@ fn a_quest_item_is_carried_and_never_worn() {
     }
     assert!(run.inventory().contains(&id), "and it is still in the tray");
 }
+
+// ------------------------------------------------- assembly bonuses
+//
+// It was called an `Adjacency` after the Backpack Battles bonus it was
+// modelled on, where the bonus really is adjacency-based. Here it is gated on
+// `assembled[gi]` and nothing else - there is no neighbour test on that path -
+// and the game uses five other names for genuine adjacency beside it.
+
+fn assembly_bonuses() -> Vec<(&'static str, gearmaster_engine::piece::AssemblyBonus)> {
+    gearmaster_engine::piece::CATALOG
+        .iter()
+        .filter_map(|d| d.assembly_bonus.map(|b| (d.name, b)))
+        .collect()
+}
+
+/// A label is a name. The figures come from the stat block.
+///
+/// Twenty-nine of the thirty-seven used to state their own numbers in prose -
+/// "Stonewall: +25% physical resistance" - and the other eight stated nothing
+/// at all, so a Deeprooted Sole card read "when assembled: planted" and its
+/// +10 curse resist appeared on no screen in the game. Both halves are the
+/// same fault: the number was wherever the author put it rather than where the
+/// renderer could find it.
+///
+/// This is the ratchet on that. A label may not carry a figure, because a
+/// figure in a label is a figure that can disagree with the bonus.
+#[test]
+fn no_assembly_bonus_states_its_own_numbers() {
+    for (piece, b) in assembly_bonuses() {
+        assert!(
+            !b.label.chars().any(|c| c.is_ascii_digit()) && !b.label.contains('%'),
+            "{piece}: the label {:?} states a figure. The stat block is {:?} and \
+             that is what the screen prints - a number in the label is a second \
+             copy nobody keeps in step.",
+            b.label,
+            b.stats.summary()
+        );
+    }
+}
+
+/// And every one of them is worth something, so the line it prints is never
+/// empty.
+#[test]
+fn every_assembly_bonus_carries_a_stat() {
+    for (piece, b) in assembly_bonuses() {
+        assert!(
+            !b.stats.summary().is_empty(),
+            "{piece}: {:?} is a label over an empty stat block, so the card \
+             would print a heading and nothing under it",
+            b.label
+        );
+    }
+}
+
+/// The count, so the next person who reads "exactly one per slot" is not
+/// misled the way this milestone was.
+#[test]
+fn the_catalogue_carries_the_assembly_bonuses_it_says_it_does() {
+    let n = assembly_bonuses().len();
+    assert_eq!(
+        n, 36,
+        "thirty-six. It was thirty-seven until this test found that Leaden \
+         Tome's was a label over Stats::ZERO - a heading for its power_bonus, \
+         which is unconditional and printed elsewhere"
+    );
+}

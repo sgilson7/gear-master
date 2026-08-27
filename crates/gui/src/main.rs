@@ -4189,11 +4189,18 @@ fn render_def_tooltip_inner(
     }
 
     if let Some(adj) = def.assembly_bonus {
-        for (i, l) in wrap(adj.label, 46).into_iter().enumerate() {
-            lines.push((
-                if i == 0 { format!("when assembled: {}", l) } else { format!("  {}", l) },
-                col_gold(),
-            ));
+        // The label and the numbers, and the numbers come from the stat block
+        // rather than from whoever wrote the label. Twenty-nine of these used
+        // to state their own figures in prose - "Stonewall: +25% physical
+        // resistance" - and the other eight stated nothing at all, so a
+        // Deeprooted Sole card read "when assembled: planted" and the +10
+        // curse resist appeared on no screen in the game.
+        let head = format!("when assembled: {}", words::retell(adj.label));
+        for l in wrap(&head, 46) {
+            lines.push((l, col_gold()));
+        }
+        for l in wrap(&adj.stats.summary(), 44) {
+            lines.push((format!("  {}", l), col_gold()));
         }
     }
     if let Some(eff) = def.effect {

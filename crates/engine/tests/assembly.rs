@@ -275,7 +275,7 @@ fn every_slot_assembles_on_the_preset_loadout() {
 // ---------------------------------------------------- assembly bonuses
 
 #[test]
-fn an_adjacency_bonus_stays_dormant_until_the_item_assembles() {
+fn an_assembly_bonus_stays_dormant_until_the_item_assembles() {
     let mut run = Run::with_all_pieces();
     // Runed Material alone: base +12 armour, and its +75 health bonus must NOT
     // fire.
@@ -306,7 +306,11 @@ fn an_adjacency_bonus_stays_dormant_until_the_item_assembles() {
     // means "the mold contributes nothing this report can see", which is the
     // truth. The two numbers that carry the test are the first two.
     assert_eq!((r.stats.armor, r.stats.health, r.stats.regen), (12, 75, 0), "base armour kept, bonus health added, and the mold's padding gone");
-    assert_eq!(r.notes(), vec!["Runed: +75 health"]);
+    // "Runed", not "Runed: +75 health". A label is a name now and the figure
+    // comes from the stat block, which is the line above this one - twenty-nine
+    // labels stated their own numbers in prose and eight stated nothing at all,
+    // and both halves were the same fault.
+    assert_eq!(r.notes(), vec!["Runed"]);
 }
 
 #[test]
@@ -333,13 +337,9 @@ fn each_slots_bonus_fires_exactly_once_on_the_preset() {
     build_full_loadout(&mut run);
 
     let notes: Vec<String> = run.reports().iter().flat_map(|r| r.notes()).collect();
-    for label in [
-        "Focused: +3 strength",
-        "Woven: +2 regen",
-        "Gauntleted: +2 strength",
-        "Runed: +75 health",
-        "Balanced: +0.50x weapon power",
-    ] {
+    // Names, not specifications: the figures are the stat block's and the card
+    // prints them from there.
+    for label in ["Focused", "Woven", "Gauntleted", "Runed", "Balanced"] {
         assert_eq!(
             notes.iter().filter(|n| n.as_str() == label).count(),
             1,
