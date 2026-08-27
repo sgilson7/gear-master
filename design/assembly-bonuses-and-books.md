@@ -761,7 +761,7 @@ the label is a lie. Hard and Insane want naming by what they now are - a board
 with one more item, and with two - which is a prose change on the difficulty
 cards rather than a number.
 
-**What landed, and what did not.** The difficulty rework is in at `da1f1a9`:
+**What landed, and what did not.** The difficulty rework is in at `069b57b`:
 the multipliers and passives are gone, the run-in is flat through The Hollow
 King, Hard adds one assembled item after him and Insane two, and every theme
 has a weapon. Measured, owner's board over the whole ladder: Hard 47/50 ->
@@ -814,7 +814,7 @@ is the note at the end of its section.
 | M12 | Francis doubles | - | **open** - filed 2026-08-27; n counts Francises beaten |
 | M13 | The second-order sweep | - | **open** - filed 2026-08-27 |
 | M14 | What the book recipe costs, and who decides | - | **open** - three options, owner's call |
-| M15 | Difficulty is packing, and every theme can hit you | `da1f1a9` | **in** - density half still open |
+| M15 | Difficulty is packing, and every theme can hit you | `069b57b` | **in** - density half still open |
 
 Suite at the tip: **907 engine green**, 48 ignored; **75 GUI green**; 0
 warnings across the workspace. The ladder's movement from M8 is measured in
