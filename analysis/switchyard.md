@@ -1033,3 +1033,105 @@ siding lines are per floor; both name no proper noun, so `two_voices` has
 nothing to catch and a missing entry falls through by design. `Retold.sidings`
 was not added. If the book ever supplies a line worth the code, that is the
 field to add.
+
+---
+
+## M8 rating pins, at `ab264a7`+
+
+Two of the four weights were starting points and are measurements now. Both
+moved, and both moved because a fight said so rather than because a price
+needed hitting.
+
+### The two that moved
+
+| Weight | Was | Is | What measured it |
+|---|---:|---:|---|
+| `DERAIL_WINDOW` | 0.4 | **0.79** | 65 activations against the four creatures at bands 27-30 |
+| `BALLAST_FUNDED` | 0.66 | **0.87** | 24 activations across nine armour-income configurations |
+
+**`DERAIL_WINDOW` was the right arithmetic for the wrong question.** 0.4 is
+the share of a *single* item's duty cycle that a 1,000 ms window covers on a
+2,500 ms board. A creature at these bands wears fourteen to twenty-six items,
+and the chance that one of them is within a second of firing is nearly one:
+
+| creature | items | activations | caught |
+|---|---:|---:|---:|
+| Obsidian Colossus | 23 | 16 | 16 (100%) |
+| Null Sentinel | 14 | 17 | 10 (59%) |
+| Silence | 14 | 16 | 12 (75%) |
+| Weeping Idol | 26 | 4 | 4 (100%) |
+| **overall** | | **53** | **42 (79%)** |
+
+Still a discount rather than 1.0, and the discount is the thin boards - which
+is the honest shape, because a creature with three items is exactly the one a
+denial is worth least against.
+
+**`BALLAST_FUNDED`'s first measurement was zero.** A wall granted once at the
+bell is gone before a five-second chest item comes round, because the creature
+is hitting you and armour absorbs first. Every one of nine configurations read
+0.00. That is a true fact about a build with no armour *income*, and the wrong
+build to price against: the discount is for "what a build that wanted it will
+manage", and a build that wants Ballast wants income. Re-probed with income:
+
+| asked | wall 10 | wall 30 | wall 60 |
+|---:|---:|---:|---:|
+| 10 x8 | 1.00 | 1.00 | 1.00 |
+| 20 x8 | 0.50 | 1.00 | 1.00 |
+| 30 x8 | 0.33 | 1.00 | 1.00 |
+
+Mean **0.87**. The two shortfalls are where the income cannot keep up, which
+is the condition the discount is for.
+
+`SHUNT_PS = 3.0` and `ACCRUED_ASSUMED = 30` were checked and **not moved**:
+Points Rodding rates 44 and Booking Hall 33, both inside the shipped
+enchantments' spread, and neither weight had a measurable claim behind it that
+a fight contradicts.
+
+### The six, priced
+
+| Component | Rating | Price | Shipped band |
+|---|---:|---:|---|
+| Ballast Bed | 59 | 58 | 34-60 |
+| Points Rodding | 44 | 54 | 34-60 |
+| Booking Hall | 33 | 60 | 34-60 |
+| Signal Wire | 26 | **60** (was 62) | 34-60 |
+| Shunter's Orb | 7 | 24 | 20-26 |
+| Signalman's Orb | 9 | 22 | 20-26 |
+
+All six inside. Signal Wire came down two gold, which is the only price that
+moved: 62 is outside a band the shipped six have held since the Unwinding, and
+60 is Chalked Circle's, the dearest ground in the game.
+
+### Nothing re-geared
+
+**`gear_at` matches the M0 fixture. The four-board table is byte-identical.**
+`only_the_yards_own_six_speak_the_verbs_the_new_weights_price` is why that is
+allowed to be true: the four weights price four verbs, exactly six components
+speak them, and all six are event-only - so `stepped_component` cannot reach
+one and a weight moving at M8 can only move those six ratings.
+
+### The suite
+
+**863 engine, 65 GUI, 5 CLI, 43 ignored, 0 warnings.**
+
+---
+
+### Findings
+
+**40. The spec's band is a price band, not a rating band.** M8 asks that each
+enchantment "rate within its slot's existing enchantments' band (Chalked
+Circle 60 is the dearest; the Lightning Rod 34 the cheapest)". Those two
+figures are **prices**: Chalked Circle rates 32 and is priced 60; the Lightning
+Rod rates 30 and is priced 34. Read as a price band it is 34-60 and all four
+land inside it, which is what
+`the_yards_six_are_priced_like_the_things_they_are` pins.
+
+Read as a *rating* band it is 30-50, and two of the four sit outside it:
+Ballast Bed at 59 and Signal Wire at 26. Left there rather than tuned back,
+because the weights behind both are measurements now and a measured weight
+bent to hit a band is not a measurement. Both readings are recorded so the
+next person does not have to re-derive which one the spec meant.
+
+Nothing downstream cares: `RARE_AT` is 90, so 26 and 59 are both Common like
+499 of the other 511, and rarity is the only thing a rating feeds that a
+player sees.

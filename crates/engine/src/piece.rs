@@ -10332,7 +10332,10 @@ pub static CATALOG: &[PieceDef] = &[
         })],
         quest: None,
         power_bonus: 0,
-        price: 62,
+        // 60, which is Chalked Circle's and the dearest any ground in this
+        // game has been. It was 62 and that is two gold outside a band the
+        // shipped six have held since the Unwinding.
+        price: 60,
     },
 
     // The two orbs. Event-only, unlike the four shipped, which are shop finds

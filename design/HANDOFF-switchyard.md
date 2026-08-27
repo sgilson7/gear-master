@@ -38,6 +38,7 @@ argue against.
 | **M5** The catalogue lands once | **done** | "M5 the catalogue lands once" |
 | **M6** The chain, the yard, the frames, the destinations | **done** | "M6 the chain, the yard, the frames, the destinations" |
 | **M7** The turtle telling | **done** | "M7 the turtle telling" |
+| **M8** Rating pins | **done** | "M8 rating pins" |
 
 ## 3. Open questions for the user
 
@@ -379,3 +380,39 @@ The three design documents this milestone owes are updated:
 them are not where the spec drew them), `towns.md` gains a §8 on the pedestal's
 third kind of destination, and `monster-themes.md` gains a §8 with the nine
 frames and what a dungeon floor's band means.
+
+### M8 - Rating pins
+
+Two of the four weights were starting points and are measurements now.
+
+**`DERAIL_WINDOW` 0.4 to 0.79.** The old number is the share of a single
+item's duty cycle a 1,000 ms window covers - right arithmetic, wrong question.
+A creature at bands 27-30 wears fourteen to twenty-six items and a Derail finds
+something in 42 of 53 activations. Still a discount, and the discount is the
+thin boards, which is the honest shape.
+
+**`BALLAST_FUNDED` 0.66 to 0.87.** Its first measurement was **zero**: a wall
+granted once at the bell is eaten before a five-second chest item comes round,
+because the creature is hitting you. That is a true fact about the wrong build.
+With armour income it spends all of what it asks for in seven of nine
+configurations, and the two shortfalls are where the income cannot keep up -
+which is the condition the discount is for.
+
+`SHUNT_PS` and `ACCRUED_ASSUMED` were checked and not moved.
+
+**One price moved**: Signal Wire 62 to 60, which is Chalked Circle's and the
+dearest ground in the game. 62 is outside a band the shipped six have held
+since the Unwinding.
+
+**Nothing re-geared**, and there is a test saying why it could not:
+`only_the_yards_own_six_speak_the_verbs_the_new_weights_price` - four weights,
+four verbs, six components, all event-only. `gear_at` matches the M0 fixture
+and the four-board table is byte-identical.
+
+**The spec's band is a price band.** "Chalked Circle 60 is the dearest" is a
+price; its rating is 32. Read as prices the band is 34-60 and all four are
+inside. Read as ratings it is 30-50 and two are outside - Ballast Bed at 59,
+Signal Wire at 26 - and they are left there, because a measured weight bent to
+hit a band is not a measurement. Nothing downstream cares: `RARE_AT` is 90.
+
+**863 engine, 65 GUI, 5 CLI. No warnings.**
