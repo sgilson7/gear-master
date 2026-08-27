@@ -761,6 +761,20 @@ the label is a lie. Hard and Insane want naming by what they now are - a board
 with one more item, and with two - which is a prose change on the difficulty
 cards rather than a number.
 
+**What landed, and what did not.** The difficulty rework is in at `da1f1a9`:
+the multipliers and passives are gone, the run-in is flat through The Hollow
+King, Hard adds one assembled item after him and Insane two, and every theme
+has a weapon. Measured, owner's board over the whole ladder: Hard 47/50 ->
+46/50, Insane 45/50 -> 44/50, Easy and Medium untouched.
+
+**Denser Medium boards did not land, and should be their own milestone.** It is
+the one part of the request that is authoring rather than machinery - sixty
+creatures repacked by hand or by a tool - and it pulls *against* the extra-item
+half: twenty-two of fifty boards already had no room for another item and had
+to grow a row to take one. Packing Medium tighter makes that worse everywhere.
+The order that works is to settle what a dense board is worth first, then
+re-derive how much room the settings need on top.
+
 **Gate.**
 - A test that **Hard equals Medium at or before `LADDER[14]`**, creature by
   creature, on gear and on stats. That is the rule's sharpest edge and the
@@ -779,9 +793,10 @@ cards rather than a number.
 
 ## 5. What shipped
 
-Written at `cab0364`, updated after the UNWOUND merge. Eleven of fifteen are
-in. M3 is blocked and M14 is the measured statement of what blocks it. M15 is
-the difficulty rework, filed against the code and carrying one open question.
+Written at `cab0364`, updated through M15. Twelve of fifteen are in. M3 is
+blocked and M14 is the measured statement of what blocks it. M15's difficulty
+rework landed; the half of it that asks for denser Medium boards did not, and
+is the note at the end of its section.
 
 | | Milestone | Commits | State |
 |---|---|---|---|
@@ -799,7 +814,7 @@ the difficulty rework, filed against the code and carrying one open question.
 | M12 | Francis doubles | - | **open** - filed 2026-08-27; n counts Francises beaten |
 | M13 | The second-order sweep | - | **open** - filed 2026-08-27 |
 | M14 | What the book recipe costs, and who decides | - | **open** - three options, owner's call |
-| M15 | Difficulty is packing, and every theme can hit you | - | **open** - filed 2026-08-27, one question open |
+| M15 | Difficulty is packing, and every theme can hit you | `da1f1a9` | **in** - density half still open |
 
 Suite at the tip: **907 engine green**, 48 ignored; **75 GUI green**; 0
 warnings across the workspace. The ladder's movement from M8 is measured in
