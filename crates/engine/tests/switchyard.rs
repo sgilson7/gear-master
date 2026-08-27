@@ -767,3 +767,146 @@ fn the_chain_can_be_walked_in_one_run_in_either_mode() {
         }
     }
 }
+
+// ================================================== M10, balance measured
+
+/// Every floor of the yard is decided by the boards, not by the clock.
+///
+/// Acceptance criterion 6. Sudden death starts at 30 s and bleeds a growing
+/// share of max health from both sides each second, so a fight that reaches it
+/// stopped being about what either side packed - "a floor that wins by the
+/// clock is a floor that failed this". The owner's board is the reference the
+/// packer aimed all nine at.
+#[test]
+fn a_full_yard_at_medium_finishes_inside_sudden_death() {
+    use gearmaster_engine::combat::{simulate_at, Difficulty, Outcome, SUDDEN_DEATH_MS};
+
+    let run = common::run_from(gearmaster_engine::share::A_WINNING_RUN);
+    let items = run.combat_items();
+    let stats = run.player_stats();
+
+    let mut slow: Vec<String> = Vec::new();
+    for f in yard().floors {
+        let spec = gearmaster_engine::combat::alternate(f.creature).expect("dressed at M9");
+        let log = simulate_at(stats, &items, spec, Difficulty::Medium);
+        assert_eq!(
+            log.outcome,
+            Outcome::Victory,
+            "the owner's board loses to {} at Medium",
+            f.creature
+        );
+        if log.duration_ms >= SUDDEN_DEATH_MS {
+            slow.push(format!("{} at {:.1}s", f.creature, log.duration_ms as f32 / 1000.0));
+        }
+    }
+    assert!(slow.is_empty(), "decided by the clock rather than the boards: {slow:?}");
+}
+
+/// And the whole yard is a real cost in time, not a detour.
+///
+/// Four fights down a line at these bands is most of a minute of fighting,
+/// which is the thing the road is trading a run for the ground and the tickets
+/// at the end of it. Recorded rather than bounded: this is a measurement the
+/// next balance pass wants, and it has no right answer.
+#[test]
+fn what_a_line_of_the_yard_costs_in_seconds() {
+    use gearmaster_engine::combat::{simulate_at, Difficulty};
+
+    let run = common::run_from(gearmaster_engine::share::A_WINNING_RUN);
+    let items = run.combat_items();
+    let stats = run.player_stats();
+    let d = yard();
+
+    let line = |floors: [usize; 4]| -> u32 {
+        floors
+            .iter()
+            .map(|&i| {
+                let spec =
+                    gearmaster_engine::combat::alternate(d.floors[i].creature).expect("dressed");
+                simulate_at(stats, &items, spec, Difficulty::Medium).duration_ms
+            })
+            .sum()
+    };
+    // Down to the coal stage, and up to the roundhouse: the two extremes.
+    let down = line([0, 1, 2, 3]);
+    let up = line([0, 5, 6, 8]);
+    for (name, ms) in [("down", down), ("up", up)] {
+        assert!(
+            (20_000..90_000).contains(&ms),
+            "a {name} line is {:.1}s of fighting, which is not a line",
+            ms as f32 / 1000.0
+        );
+    }
+}
+
+/// Every gold figure the chain deals in is a multiple of a bounty.
+///
+/// Acceptance criterion 11, asserted over this mission's four doors rather
+/// than over the whole road (which `acceptance::e6_7` does). The road prices
+/// in bounties because a flat figure written at rung 21 is worth a different
+/// thing at rung 34, and the yard's doors span thirteen rungs.
+#[test]
+fn every_figure_the_chain_deals_in_is_a_multiple_of_a_bounty() {
+    use gearmaster_engine::event::{every_outcome, Outcome, Requirement};
+
+    for id in ["the-timetable", "the-signal-box", "the-turntable", "the-last-train"] {
+        let e = EVENTS.iter().find(|e| e.id == id).expect("a door");
+        for c in e.choices {
+            // Nothing asks for or hands over a bare number.
+            assert!(
+                !matches!(c.requires, Requirement::Figure { .. }),
+                "{id}/{} asks for a figure",
+                c.label
+            );
+            for o in every_outcome(&c.outcome) {
+                if let Outcome::Pay { times } = o {
+                    assert!(*times > 0, "{id}/{} pays {times} bounties", c.label);
+                }
+            }
+        }
+    }
+}
+
+/// What the yard costs the four reference boards, at every setting.
+#[test]
+#[ignore]
+fn report_the_yard() {
+    use gearmaster_engine::combat::{simulate_at, Difficulty, Outcome};
+    use gearmaster_engine::share::{A_FRIENDS_RUN, A_PERFECT_RUN, A_WINNING_RUN};
+
+    let boards = [
+        // A_PERFECT_RUN is a finished run's board, not the auto-builder's
+        // preset - `baseline.rs` builds that one with `apply_preset` and does
+        // not keep a share code for it.
+        ("perfect", common::run_from(A_PERFECT_RUN)),
+        ("owner", common::run_from(A_WINNING_RUN)),
+        ("friend", common::run_from(A_FRIENDS_RUN)),
+    ];
+    println!("\n## THE SWITCHYARD, floor by floor\n");
+    println!("{:<20}{:>10}{:>10}{:>10}{:>10}", "floor", "band", "perfect", "owner", "friend");
+    for (i, f) in yard().floors.iter().enumerate() {
+        let spec = gearmaster_engine::combat::alternate(f.creature).expect("dressed");
+        let band = gearmaster_engine::bestiary::frame(f.creature).map(|x| x.band).unwrap_or(0);
+        let mut row = format!("{:<20}{:>10}", format!("[{i}] {}", f.creature), band);
+        for (_, run) in &boards {
+            let log = simulate_at(run.player_stats(), &run.combat_items(), spec, Difficulty::Medium);
+            let mark = if log.outcome == Outcome::Victory { "W" } else { "L" };
+            row.push_str(&format!("{:>10}", format!("{mark}{:.1}s", log.duration_ms as f32 / 1000.0)));
+        }
+        println!("{row}");
+    }
+
+    println!("\n## The owner's board, every setting\n");
+    let run = common::run_from(A_WINNING_RUN);
+    println!("{:<20}{:>9}{:>9}{:>9}{:>9}", "floor", "easy", "medium", "hard", "insane");
+    for f in yard().floors {
+        let spec = gearmaster_engine::combat::alternate(f.creature).expect("dressed");
+        let mut row = format!("{:<20}", f.creature);
+        for d in Difficulty::ALL {
+            let log = simulate_at(run.player_stats(), &run.combat_items(), spec, *d);
+            let mark = if log.outcome == Outcome::Victory { "W" } else { "L" };
+            row.push_str(&format!("{:>9}", format!("{mark}{:.1}", log.duration_ms as f32 / 1000.0)));
+        }
+        println!("{row}");
+    }
+}

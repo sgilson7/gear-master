@@ -40,6 +40,7 @@ argue against.
 | **M7** The turtle telling | **done** | "M7 the turtle telling" |
 | **M8** Rating pins | **done** | "M8 rating pins" |
 | **M9** Boards, by hand | **done** | "M9 boards, by hand" |
+| **M10** Balance, measured | **done** | "M10 balance, measured" |
 
 ## 3. Open questions for the user
 
@@ -450,3 +451,27 @@ its three equals were not. Re-pinned on what the rule is about - a floor that
 pays through `Floor::also` has already left something behind.
 
 **863 engine, 65 GUI, 5 CLI. No warnings.**
+
+### M10 - Balance, measured
+
+**All twelve acceptance criteria are met.** The table is in
+`analysis/switchyard.md` under "M10 balance, measured", criterion by criterion,
+with the test that holds each one.
+
+**Nothing in the yard is decided by the clock.** Every reference board wins
+every floor at Medium and the slowest fight in the building is 12.0 s against a
+sudden death that begins at 30. `a_full_yard_at_medium_finishes_inside_sudden_
+death` walks all nine rather than the five criterion 6 names.
+
+**Two things a later balance pass should look at**, both recorded rather than
+fixed:
+
+- Five of the nine run past 30 s on **Insane** (32.0 to 38.0 s). Those are the
+  clock's. The curve is defined at Medium and every floor is 12.0 s or better
+  there; weakening nine correct boards to fix a setting whose doctrine is that
+  it steps gear before touching a number is the wrong trade.
+- The owner's board kills eight of the nine in **exactly 12.0 s**. The Down
+  line is meant to be weight and the Up line light, and at Medium the owner
+  cannot tell them apart. That is the first thing worth looking at next.
+
+**866 engine, 65 GUI, 5 CLI - 936 in the workspace. No warnings.**

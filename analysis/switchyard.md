@@ -1242,3 +1242,94 @@ clock's, not the board's, and Insane is not what the curve is measured at.
 Recorded rather than tuned: the gate is Medium, and pulling Insane back inside
 30 s would mean weakening a board that is correct at the setting the game is
 built around.
+
+---
+
+## M10 balance, measured, at `1cb611a`+
+
+### The yard, floor by floor, at Medium
+
+| # | Floor | Band | perfect | owner | friend |
+|---:|---|---:|---:|---:|---:|
+| 0 | THE SHUNTER | 27 | W5.1 s | **W10.5 s** | W6.0 s |
+| 1 | THE PLATELAYERS | 28 | W5.1 s | **W12.0 s** | W7.6 s |
+| 2 | THE BALLAST | 29 | W5.5 s | **W12.0 s** | W7.6 s |
+| 3 | THE COAL STAGE | 30 | W5.5 s | **W12.0 s** | W7.6 s |
+| 4 | THE WATER TOWER | 30 | W5.5 s | **W12.0 s** | W6.0 s |
+| 5 | THE GANTRY | 28 | W5.1 s | **W12.0 s** | W7.6 s |
+| 6 | THE LAMP ROOM | 29 | W5.5 s | **W12.0 s** | W6.0 s |
+| 7 | THE GOODS SHED | 30 | W5.5 s | **W12.0 s** | W6.0 s |
+| 8 | THE ROUNDHOUSE | 30 | W5.5 s | **W12.0 s** | W6.0 s |
+
+Every board wins every floor and **nothing is decided by the clock**: the
+slowest fight in the yard is 12.0 s against a sudden death that starts at 30.
+
+`a_full_yard_at_medium_finishes_inside_sudden_death` is the assertion, and it
+walks all nine rather than the five the criterion names.
+
+### The owner's board at every setting
+
+| Floor | Easy | Medium | Hard | Insane |
+|---|---:|---:|---:|---:|
+| THE SHUNTER | W9.0 | W10.5 | W14.0 | W19.5 |
+| THE PLATELAYERS | W10.0 | W12.0 | W24.0 | **W38.0** |
+| THE BALLAST | W10.5 | W12.0 | W22.5 | **W37.5** |
+| THE COAL STAGE | W10.4 | W12.0 | W18.2 | **W32.0** |
+| THE WATER TOWER | W10.0 | W12.0 | W20.0 | **W33.0** |
+| THE GANTRY | W10.0 | W12.0 | W18.0 | **W35.0** |
+| THE LAMP ROOM | W9.0 | W12.0 | W18.0 | **W34.5** |
+| THE GOODS SHED | W9.0 | W12.0 | W16.5 | W26.0 |
+| THE ROUNDHOUSE | W10.5 | W12.0 | W20.0 | **W35.0** |
+
+### The twelve acceptance criteria
+
+| # | Criterion | State |
+|---:|---|---|
+| 1 | Determinism - a script replays identically | **met**, `cli::a_scripted_run_replays_identically` and `the_cli_verbs_replay`; `acceptance::e6_1` green |
+| 2 | No regression - four-board table, `gear_at`, rungs 1-14 | **met**; the table is byte-identical to M0 ten milestones on |
+| 3 | The primitive is inert for six dungeons | **met with one word re-pinned** (M1 finding 1) |
+| 4 | The chain is completable at Medium in both modes | **met**, `the_chain_can_be_walked_in_one_run_in_either_mode` |
+| 5 | Eight of nine, and the ninth named | **met**, `nine_floors_and_the_most_a_run_can_see_is_eight` |
+| 6 | Every leaf finishes inside the measurable region | **met**; slowest fight 12.0 s against 30 |
+| 7 | The four effects do what their sentences say; on no creature's board | **met**, eight effect tests + `only_the_yards_own_six_speak_the_verbs...` |
+| 8 | The ground is dug up and never sold | **met**, `the_yards_ground_is_dug_up_and_never_sold`, `avail` over 400 runs |
+| 9 | Leaving costs what the blurb says | **met**, both modes |
+| 10 | Phase discipline auditable | **met**; frame lint red M6 to M9, zero after |
+| 11 | Every gold figure a `Pay`/`Purse` multiple | **met**, `every_figure_the_chain_deals_in_is_a_multiple_of_a_bounty` |
+| 12 | Suite green, no warnings, every re-pin justified | **met** |
+
+### The suite
+
+**866 engine, 65 GUI, 5 CLI - 936 in the workspace. 44 ignored, 0 failed, 0
+warnings.**
+
+---
+
+### Findings
+
+**43. Five of nine floors run past sudden death on Insane**, at 32.0 to 38.0 s
+against the owner's board. Those fights are the clock's, and they are left
+there. The curve is defined at Medium, the packer's gate is the owner's board
+at Medium, and every floor is 12.0 s or better there. Pulling Insane back
+inside 30 s would mean weakening nine boards that are correct at the setting
+the game is built around, to fix a setting whose own doctrine is that it steps
+the gear before it touches any number.
+
+Worth knowing rather than worth fixing, and it is not new: `post-unwinding.md`
+§5 records the same shape on the no-weapon clears of rung 15.
+
+**44. The owner's board kills eight of the nine in exactly 12.0 s.** Not a
+bug and not a coincidence: the nine carry the same four resistances at four
+adjacent bands, and the owner's board is a 6.60/s cadence that lands its
+killing blow on the same activation of the same cycle against all of them. It
+is a sign the nine are more alike than the two lines' themes suggest, and it is
+the first thing a balance pass after this one should look at - the Down line is
+supposed to be weight and the Up line light, and at Medium the owner cannot
+tell them apart.
+
+**45. `A_PERFECT_RUN` is not the preset board.** It is a finished run's, and
+the first draft of `report_the_yard` labelled its column "preset" and would
+have published a table saying the auto-builder clears the yard in five
+seconds. `baseline.rs` builds the preset with `apply_preset` and keeps no
+share code for it. Caught before the numbers went into this file; the column
+says "perfect" now.
