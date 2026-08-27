@@ -685,13 +685,103 @@ number is the criterion, not the obstacle.
 `baseline` and `catalog_shape` diffs read, and a book board fought against the
 ladder with its rungs cleared written into `analysis/`.
 
+### M15 - Difficulty is packing, and every theme can hit you. **▲**
+
+The largest content milestone in this document. Difficulty stops being a
+multiplier and becomes a board.
+
+**Where it lives today** (`combat.rs`, `Difficulty`):
+
+| Piece | Now | After |
+|---|---|---|
+| `factor()` | Easy 0.5, Medium 1.0, **Hard 3.0, Insane 9.0** | the two labels lose their meaning - see below |
+| `each_way()` | `factor^0.25` on health and damage | **gone** for Hard and Insane |
+| `passives()` | Medium `Hardened`; Hard `+Warded`; Insane `+Relentless` | Medium keeps `Hardened`; the other two **gone** |
+| `gear_step()` | Easy -1, Medium 0, Hard +1, Insane +2 | **a decision - see the open question** |
+
+**The new rule.**
+
+1. **Hard is Medium until the Hollow King.** `LADDER[14]` is The Hollow King -
+   rung 15 spoken, and the boundary. Every creature at or before it fights on
+   Hard exactly as it does on Medium: same board, same stats, same fixture
+   lines. The run-in stops being a difficulty selection at all.
+2. **After him, Hard is Medium plus one more assembled item**, per creature.
+   Not a better component - an additional item, which is a different axis from
+   `gear_step` and the reason this milestone is packing rather than tuning.
+3. **Insane is Hard plus one more on top.** Two more than Medium, after the
+   Hollow King; identical to Medium before him.
+4. **Every theme gets at least one assembled weapon or spell.** Five of the ten
+   have no weapon slot today: Slower, Drainer, Hollow, Swarm and Warden
+   (`bestiary.rs:119`). Hollow's comment explains itself - *"No weapon: mind
+   damage is the helmet's"* - so this overrules a deliberate decision and the
+   comment has to change with it, not be left contradicting the table.
+5. **Monster boards get denser generally**, which is the thread running through
+   all of it: Francis packs 95% of his cells in nineteen items and most of the
+   ladder is nowhere near that.
+
+**What this costs, named up front.**
+
+- **`gear_at.txt` is re-baselined wholesale.** 6,216 placements today, and
+  effectively every line after `LADDER[14]` moves at two settings. The rule
+  that it may not be re-baselined without naming what changed cannot be met
+  creature by creature here, so this milestone owns a single statement of the
+  new rule instead - which is the honest version and should be written as such.
+- **`stepped_component` stops being the difficulty story.** Trap 3 says a
+  rating weight moving re-gears every creature on three settings; after this it
+  re-gears them on fewer, and the trap text needs updating rather than leaving
+  a stale warning in `CLAUDE.md`.
+- **Every creature after rung 15 needs two authored items.** Sixty-odd
+  creatures, two boards each. `make pack` is the tool that exists and the owner
+  has recorded it as too slow, preferring a local build tool; whichever authors
+  them, `tests/packing.rs` and `pack_francis.rs` are the harness and the TTK
+  curve is what says a board is right.
+- **`baseline` moves everywhere except Medium.** Its Easy/Hard/Insane columns
+  are the measurement, and the printer diff is the deliverable rather than an
+  afterthought.
+
+**The open question, and it wants an answer before authoring starts.**
+
+`gear_step` and "one more item" are two different ways to make a board harder,
+and the request says *all* scaling should be packing. Two readings:
+
+- **`gear_step` goes to 0 everywhere.** Hard and Insane differ from Medium
+  only by item count. Cleanest statement of the rule; also the biggest change,
+  because Easy's `-1` is what makes the early ladder gentle.
+- **`gear_step` stays as it is.** Better components *and* more items after the
+  Hollow King. Less pure, but it keeps Easy working and keeps two dials for
+  authoring.
+
+The milestone assumes the second unless told otherwise, because removing Easy's
+step is not something the request asks for and doing it silently would change
+the setting most new runs use.
+
+**And the labels.** `Difficulty::label()` prints `factor()` as "3x" and "9x",
+and those are shown on the mode screen. Once nothing is multiplied by three,
+the label is a lie. Hard and Insane want naming by what they now are - a board
+with one more item, and with two - which is a prose change on the difficulty
+cards rather than a number.
+
+**Gate.**
+- A test that **Hard equals Medium at or before `LADDER[14]`**, creature by
+  creature, on gear and on stats. That is the rule's sharpest edge and the
+  cheapest thing to get wrong.
+- A test that every creature after it has exactly one more assembled item on
+  Hard than Medium, and one more again on Insane - counted through
+  `combat_items`, not by reading the `items` partition, because a declared
+  item is not an assembled one.
+- A lint that **every `MonsterTheme` has a weapon or a spell** in its slots,
+  the same shape as the pool and destination lints: walk the table, collect
+  what can act, assert the enum defines nothing that cannot.
+- `baseline` and `catalog_shape` printers re-run, both diffs read, and the new
+  Easy/Hard/Insane columns written into `analysis/baseline.md`.
+
 ---
 
 ## 5. What shipped
 
-Written at `cab0364`. Eleven of fourteen are in. M3 is blocked and M14 is the
-measured statement of what blocks it; M13 is the sweep and M14 the one
-decision it turned up that is not mine to take.
+Written at `cab0364`, updated after the UNWOUND merge. Eleven of fifteen are
+in. M3 is blocked and M14 is the measured statement of what blocks it. M15 is
+the difficulty rework, filed against the code and carrying one open question.
 
 | | Milestone | Commits | State |
 |---|---|---|---|
@@ -709,6 +799,7 @@ decision it turned up that is not mine to take.
 | M12 | Francis doubles | - | **open** - filed 2026-08-27; n counts Francises beaten |
 | M13 | The second-order sweep | - | **open** - filed 2026-08-27 |
 | M14 | What the book recipe costs, and who decides | - | **open** - three options, owner's call |
+| M15 | Difficulty is packing, and every theme can hit you | - | **open** - filed 2026-08-27, one question open |
 
 Suite at the tip: **907 engine green**, 48 ignored; **75 GUI green**; 0
 warnings across the workspace. The ladder's movement from M8 is measured in
