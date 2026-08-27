@@ -412,3 +412,47 @@ number becomes a function of the run, the accessor everything already calls is
 the one that has to change.** Adding a second accessor beside it means every
 existing caller keeps reading the stale one, silently, and the interface is
 where that shows up last.
+
+---
+
+## 17. Hiding a control does not hide the thing it selects
+
+M10 puts the second voice behind an invisible corner on the mode screen. What
+that milestone is actually worth depends on a question it did not ask: **is
+the mode screen the only place the turtle telling announces itself?**
+
+It is, today. `theme::THEMES` is read in exactly two places in the interface -
+the picker's own row, and the `GEARMASTER_THEME` env lookup at start-up. So
+hiding the row hides the choice, and nothing else in the game mentions that a
+second telling exists.
+
+That is a fact about today rather than a property of the design, and it is
+worth writing down because the next thing that iterates `THEMES` - a settings
+screen, a share code that carries a theme, a title-screen credit - re-opens
+the door without touching M10 at all. **`THEMES` is now a list with a hidden
+member, and nothing enforces that.** A lint could: assert that the only
+interface site walking `THEMES` is the picker. It is not written, because one
+call site is not yet a pattern and a lint over "which files may mention a
+symbol" is the kind that ages badly.
+
+**Design outcome for the owner:** the latch is session-only. There is no
+settings file in this repo, so turning it on does not persist across a restart,
+and a player who wants the second voice every time sets `GEARMASTER_THEME=td`.
+Making it stick means introducing persistence, which is a mission rather than
+a milestone.
+
+## 18. An unfalsifiable guard is still worth having, but say which half is which
+
+The latch's test asks two things: that it is in the top-right corner, and that
+it overlaps no control. The second **cannot currently fail while the first
+passes**. Every control on the mode screen is centred - the widest row spans
+272 to 1328 of 1600 - so nothing comes within 200px of the right edge, and any
+latch in the corner is clear of everything by construction.
+
+Both halves were checked by breaking them deliberately, one at a time, which
+is the only way to know a two-part assertion is not half decoration.
+
+The overlap half stays, because what it guards is the future: a theme row that
+grows a third card, a control added at the right edge, a screen that stops
+being centred. Worth being honest in the doc comment about which half is doing
+work today - a guard nobody can trip reads as proof, and it is only a promise.

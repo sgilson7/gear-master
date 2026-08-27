@@ -8755,9 +8755,76 @@ fn render_story(theme: &'static gearmaster_engine::theme::Theme, mx: f32, my: f3
 }
 
 #[allow(clippy::type_complexity)]
+/// Where the second voice is turned on, and it is drawn as nothing at all.
+///
+/// A pure function so a test can ask two things it could not ask of a rect
+/// computed between draw calls: that it sits where it is meant to, and that it
+/// overlaps no control anybody is trying to click. The second is the one that
+/// matters - a hidden thing found by accident is not hidden, and the whole
+/// point of this corner is that nobody arrives at it by reading the screen.
+fn turtle_latch() -> Rect {
+    Rect::new(LOGICAL_W - 54.0, 0.0, 54.0, 54.0)
+}
+
+/// Where every control on the mode screen goes.
+///
+/// Split from the drawing for the reason trap 32 names: a rect computed
+/// between `draw_*` calls can only be checked by looking at it, and the one
+/// question this screen now has to answer - does anything sit under the hidden
+/// latch - is exactly the sort nobody notices by looking.
+///
+/// Pure arithmetic; no text is measured to place any of these.
+fn mode_select_rects(
+    _chosen: Difficulty,
+    _theme: &'static gearmaster_engine::theme::Theme,
+    unlocked: bool,
+) -> (
+    [(Mode, Rect); 2],
+    Vec<(Difficulty, Rect)>,
+    Vec<(&'static gearmaster_engine::theme::Theme, Rect)>,
+) {
+    let ty = 152.0;
+    let themes: &[&'static gearmaster_engine::theme::Theme] = if unlocked {
+        gearmaster_engine::theme::THEMES
+    } else {
+        &gearmaster_engine::theme::THEMES[..1]
+    };
+    let (tw, tgap) = (430.0, 30.0);
+    let n = themes.len() as f32;
+    let tx0 = (LOGICAL_W - (n * tw + (n - 1.0) * tgap)) / 2.0;
+    let theme_picks: Vec<_> = themes
+        .iter()
+        .enumerate()
+        .map(|(i, &t)| (t, Rect::new(tx0 + i as f32 * (tw + tgap), ty + 12.0, tw, 88.0)))
+        .collect();
+
+    let (cw, ch) = (500.0, 300.0);
+    let gap = 56.0;
+    let x0 = (LOGICAL_W - (2.0 * cw + gap)) / 2.0;
+    let y0 = 272.0;
+    let modes = [Mode::Grinder, Mode::Rogue];
+    let mut out = [(Mode::Grinder, Rect::new(0.0, 0.0, 0.0, 0.0)); 2];
+    for (i, &mode) in modes.iter().enumerate() {
+        out[i] = (mode, Rect::new(x0 + i as f32 * (cw + gap), y0, cw, ch));
+    }
+
+    let dy = y0 + ch + 46.0;
+    let dn = Difficulty::ALL.len() as f32;
+    let (dw, dgap) = (250.0, 18.0);
+    let dx0 = (LOGICAL_W - (dn * dw + (dn - 1.0) * dgap)) / 2.0;
+    let picks: Vec<_> = Difficulty::ALL
+        .iter()
+        .enumerate()
+        .map(|(i, &d)| (d, Rect::new(dx0 + i as f32 * (dw + dgap), dy + 46.0, dw, 230.0)))
+        .collect();
+
+    (out, picks, theme_picks)
+}
+
 fn render_mode_select(
     chosen: Difficulty,
     theme: &'static gearmaster_engine::theme::Theme,
+    unlocked: bool,
     mx: f32,
     my: f32,
 ) -> ([(Mode, Rect); 2], Vec<(Difficulty, Rect)>, Vec<(&'static gearmaster_engine::theme::Theme, Rect)>) {
@@ -8771,15 +8838,21 @@ fn render_mode_select(
     // little room, and the two big grids below it were already using every
     // pixel they had.
     let ty = 152.0;
-    centered_text("IN WHOSE WORDS?", LOGICAL_W / 2.0, ty, 16.0, col_gold());
-    let tw = 430.0;
-    let tgap = 30.0;
-    let themes = gearmaster_engine::theme::THEMES;
-    let n = themes.len() as f32;
-    let tx0 = (LOGICAL_W - (n * tw + (n - 1.0) * tgap)) / 2.0;
+    // The second voice is the book's, and the book is a little raunchy. It
+    // used to be the first thing a new player was asked to choose between,
+    // captioned and blurbed, under a heading asking whose words they wanted.
+    // It is behind `turtle_latch()` now: one card here until somebody finds
+    // the corner, and no heading either, because a question with one answer
+    // is not a question.
+    // Positions come from `mode_select_rects` and are not worked out twice:
+    // the test asking whether anything sits under the hidden latch is only
+    // worth something if it is asking about the rects this function draws.
+    let (mode_rects, diff_rects, theme_rects) = mode_select_rects(chosen, theme, unlocked);
+    if theme_rects.len() > 1 {
+        centered_text("IN WHOSE WORDS?", LOGICAL_W / 2.0, ty, 16.0, col_gold());
+    }
     let mut theme_picks = Vec::new();
-    for (i, &t) in themes.iter().enumerate() {
-        let rect = Rect::new(tx0 + i as f32 * (tw + tgap), ty + 12.0, tw, 88.0);
+    for &(t, rect) in &theme_rects {
         let hot = rect.contains(Vec2::new(mx, my));
         let picked = std::ptr::eq(t, theme);
         draw_rectangle(
@@ -8819,15 +8892,11 @@ fn render_mode_select(
         theme_picks.push((t, rect));
     }
 
-    let (cw, ch) = (500.0, 300.0);
-    let gap = 56.0;
-    let x0 = (LOGICAL_W - (2.0 * cw + gap)) / 2.0;
+    let ch = 300.0;
     let y0 = 272.0;
-    let modes = [Mode::Grinder, Mode::Rogue];
-    let mut out = [(Mode::Grinder, Rect::new(0.0, 0.0, 0.0, 0.0)); 2];
+    let out = mode_rects;
 
-    for (i, &mode) in modes.iter().enumerate() {
-        let rect = Rect::new(x0 + i as f32 * (cw + gap), y0, cw, ch);
+    for (mode, rect) in out {
         let hot = rect.contains(Vec2::new(mx, my));
         draw_rectangle(
             rect.x,
@@ -8900,7 +8969,6 @@ fn render_mode_select(
                 );
             }
         }
-        out[i] = (mode, rect);
     }
 
     // ---- difficulty ----
@@ -8908,13 +8976,8 @@ fn render_mode_select(
     centered_text("HOW HARD?", LOGICAL_W / 2.0, dy, 22.0, col_gold());
     centered_text(Difficulty::WHAT_THE_CHOICE_IS, LOGICAL_W / 2.0, dy + 30.0, 14.0, col_dim());
 
-    let n = Difficulty::ALL.len() as f32;
-    let dw = 250.0;
-    let dgap = 18.0;
-    let dx0 = (LOGICAL_W - (n * dw + (n - 1.0) * dgap)) / 2.0;
     let mut picks = Vec::new();
-    for (i, &d) in Difficulty::ALL.iter().enumerate() {
-        let rect = Rect::new(dx0 + i as f32 * (dw + dgap), dy + 46.0, dw, 230.0);
+    for &(d, rect) in &diff_rects {
         let hot = rect.contains(Vec2::new(mx, my));
         let picked = d == chosen;
         draw_rectangle(
@@ -10657,6 +10720,10 @@ async fn main() {
             Ok(id) => gearmaster_engine::theme::by_id(&id),
             Err(_) => gearmaster_engine::theme::THEMES[0],
         };
+    // An env-set theme arrives already unlocked, or the picker would hide the
+    // theme the run is actually in - which is how every screenshot and every
+    // scripted opening reaches the second voice.
+    let mut turtle_unlocked = !std::ptr::eq(chosen_theme, gearmaster_engine::theme::THEMES[0]);
     let mut opening = if skip_intro { Opening::Playing } else { Opening::Intro(0) };
     let mut chosen_difficulty = Difficulty::Easy;
     if let Ok(d) = std::env::var("GEARMASTER_DIFFICULTY") {
@@ -11129,7 +11196,22 @@ async fn main() {
                 }
                 Opening::ModeSelect => {
                     let (modes, difficulties, themes) =
-                        render_mode_select(chosen_difficulty, chosen_theme, mx, my);
+                        render_mode_select(chosen_difficulty, chosen_theme, turtle_unlocked, mx, my);
+                    // The corner. Drawn as nothing, so there is nothing here
+                    // to draw - only the click. Handled before every other
+                    // control on the screen because it is the only one that
+                    // has to work while it is invisible.
+                    if clicked && turtle_latch().contains(Vec2::new(mx, my)) {
+                        turtle_unlocked = !turtle_unlocked;
+                        if !turtle_unlocked {
+                            chosen_theme = gearmaster_engine::theme::THEMES[0];
+                        } else {
+                            // Found it, so show what was found: a hidden
+                            // control with no feedback is indistinguishable
+                            // from a broken one.
+                            chosen_theme = gearmaster_engine::theme::THEMES[1];
+                        }
+                    }
                     for (d, rect) in difficulties {
                         if clicked && rect.contains(Vec2::new(mx, my)) {
                             chosen_difficulty = d;
@@ -13268,6 +13350,70 @@ mod tests {
     /// `chip_rects` takes a `measure` and this does not. `button` sizes the
     /// label to the box now, and the fix was confirmed by looking at it.
     #[test]
+    /// The corner that turns the second voice on is out of everybody's way.
+    ///
+    /// The one test that matters for a thing meant to stay hidden. It is not
+    /// hidden if a player finds it reaching for a mode card, and the mode
+    /// screen is the one screen every run starts on.
+    ///
+    /// Checked against the layout the screen actually uses rather than
+    /// against numbers copied here: `render_mode_select` hands back its rects,
+    /// which is why it can be asked at all.
+    #[test]
+    fn the_latch_is_nowhere_anybody_clicks() {
+        let latch = turtle_latch();
+        assert!(latch.x + latch.w <= LOGICAL_W + 0.01, "the latch runs off the screen");
+        assert!(latch.y >= 0.0, "the latch is above the screen");
+        assert!(
+            latch.x > LOGICAL_W * 0.75 && latch.y < LOGICAL_H * 0.25,
+            "the latch left the top right corner, which is where it was described to be"
+        );
+        assert!(latch.w >= 30.0 && latch.h >= 30.0, "too small to hit on purpose either");
+
+        // The mode screen's own controls, both before and after unlocking -
+        // the row grows a card when it opens, and the new card must not land
+        // under the latch any more than the old ones do.
+        for unlocked in [false, true] {
+            let (modes, diffs, themes) =
+                mode_select_rects(Difficulty::Easy, gearmaster_engine::theme::THEMES[0], unlocked);
+            let all: Vec<Rect> = modes
+                .iter()
+                .map(|(_, r)| *r)
+                .chain(diffs.iter().map(|(_, r)| *r))
+                .chain(themes.iter().map(|(_, r)| *r))
+                .collect();
+            assert!(!all.is_empty(), "unlocked={unlocked}: no controls at all");
+            for (i, r) in all.iter().enumerate() {
+                let apart = r.x + r.w <= latch.x + 0.01
+                    || latch.x + latch.w <= r.x + 0.01
+                    || r.y + r.h <= latch.y + 0.01
+                    || latch.y + latch.h <= r.y + 0.01;
+                assert!(
+                    apart,
+                    "unlocked={unlocked}: control {i} at ({:.0},{:.0}) {:.0}x{:.0} is under the \
+                     hidden latch, so somebody will find it by accident",
+                    r.x, r.y, r.w, r.h
+                );
+            }
+        }
+    }
+
+    /// One voice until the corner is found, and two after.
+    #[test]
+    fn the_second_voice_is_not_offered_until_it_is_unlocked() {
+        let plain = gearmaster_engine::theme::THEMES[0];
+        let (_, _, shut) = mode_select_rects(Difficulty::Easy, plain, false);
+        assert_eq!(shut.len(), 1, "the second voice is on the screen by default");
+        assert!(std::ptr::eq(shut[0].0, plain), "the one on offer is not the plain one");
+
+        let (_, _, open) = mode_select_rects(Difficulty::Easy, plain, true);
+        assert_eq!(
+            open.len(),
+            gearmaster_engine::theme::THEMES.len(),
+            "unlocking did not offer every voice the engine has"
+        );
+    }
+
     fn no_two_buttons_share_a_pixel() {
         let panel_x = LOGICAL_W - PANEL_W;
         let r = button_rects(panel_x);
