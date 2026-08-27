@@ -259,12 +259,33 @@ pub fn route(run: &Run) -> RouteMap {
         if let Some(spine) = map.spine_of(at) {
             map.edges.push(Edge { from: spine, to: me, kind: EdgeKind::Branch });
         }
+        // Through `every_outcome`, not `c.outcome`.
+        //
+        // It matched the top of the outcome, so a door that opens a dungeon
+        // *and* does something else - `All[OpenShop, StartDungeon]` - drew no
+        // dungeon at all. THE UNDER-MINE has been in the game since the
+        // Unwinding and has never once been on this map, because the only two
+        // choices that open it buy you a shelf on the way past.
+        //
+        // The Unwinding learned this exact lesson about `class::is_earned`,
+        // `event::set_by` and its reachability lint, and wrote it down as the
+        // most expensive thing that mission found (`HANDOFF.md` §4). This is
+        // the one place it did not reach.
+        // One node a dungeon, however many of a door's choices open it. THE
+        // FOUNDRY offers the shelf then the seam and the seam then the shelf,
+        // and they are two ways through one door rather than two dungeons.
+        let mut drawn: Vec<&'static str> = Vec::new();
         for c in e.choices {
-            match c.outcome {
+            for out in crate::event::every_outcome(&c.outcome) {
+            match *out {
                 // ---- rule 2, deeper: a dungeon extends the loop.
                 crate::event::Outcome::Enter(id)
                 | crate::event::Outcome::StartDungeon(id) => {
                     let Some(d) = crate::dungeon::by_id(id) else { continue };
+                    if drawn.contains(&d.id) {
+                        continue;
+                    }
+                    drawn.push(d.id);
                     let inside = run.dungeon.is_some_and(|(x, _)| x.id == d.id);
                     map.nodes.push(Node {
                         kind: NodeKind::Dungeon {
@@ -287,6 +308,7 @@ pub fn route(run: &Run) -> RouteMap {
                     }
                 }
                 _ => {}
+            }
             }
         }
     }

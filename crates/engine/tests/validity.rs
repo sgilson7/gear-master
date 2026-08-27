@@ -1001,3 +1001,102 @@ fn every_floor_of_the_yard_is_won_on_the_way_through() {
     }
     let _ = d;
 }
+
+/// What the route map says about the yard.
+#[test]
+#[ignore]
+fn report_the_map() {
+    let mut run = Walk::new().run;
+    run.rung = 27;
+    for line in gearmaster_engine::route::ascii(&run) {
+        println!("{line}");
+    }
+}
+
+/// Every dungeon a door opens is drawn on the map, once.
+///
+/// The map draws a dungeon by scanning each door's outcomes for one that
+/// enters it, and it used to scan `c.outcome` rather than `every_outcome` -
+/// so a door that opens a dungeon *and* does something else drew nothing.
+/// THE UNDER-MINE has been in the game since the Unwinding and had never once
+/// been on the map, because both of the choices that open it buy you a shelf
+/// on the way past.
+///
+/// That is the Unwinding's own most expensive lesson (`HANDOFF.md` §4: every
+/// lint over `EVENTS` stopped at the top of an outcome) reaching the one place
+/// it had not been applied.
+#[test]
+fn every_dungeon_a_door_opens_is_on_the_map() {
+    use gearmaster_engine::event::{every_outcome, Outcome};
+    use gearmaster_engine::route::{route, NodeKind};
+
+    let mut want: Vec<&str> = Vec::new();
+    for e in EVENTS {
+        for c in e.choices {
+            for o in every_outcome(&c.outcome) {
+                if let Outcome::Enter(id) | Outcome::StartDungeon(id) = o {
+                    if !want.contains(id) {
+                        want.push(id);
+                    }
+                }
+            }
+        }
+    }
+    assert!(want.len() >= 3, "only {} dungeons are opened by a door", want.len());
+
+    let mut run = Walk::new().run;
+    run.rung = 45;
+    let map = route(&run);
+    let drawn: Vec<&str> = map
+        .nodes
+        .iter()
+        .filter(|n| matches!(n.kind, NodeKind::Dungeon { .. }))
+        .map(|n| n.id)
+        .collect();
+
+    for id in &want {
+        assert!(drawn.contains(id), "{id} is opened by a door and is not on the map");
+    }
+    // And once each: two choices of one door that both open the same dungeon
+    // are two ways through one door.
+    let mut seen = drawn.clone();
+    seen.sort_unstable();
+    let n = seen.len();
+    seen.dedup();
+    assert_eq!(seen.len(), n, "a dungeon is drawn twice: {drawn:?}");
+}
+
+/// The Switchyard's own content is on the map, and says how deep it goes.
+#[test]
+fn the_yards_content_is_on_the_map() {
+    use gearmaster_engine::route::{ascii, route, NodeKind};
+
+    let mut run = Walk::new().run;
+    run.rung = 27;
+    let map = route(&run);
+
+    for id in ["the-timetable", "the-signal-box", "the-turntable", "the-last-train"] {
+        assert!(
+            map.nodes.iter().any(|n| n.id == id && n.kind == NodeKind::Event),
+            "{id} is not on the map"
+        );
+    }
+    let yard = map
+        .nodes
+        .iter()
+        .find(|n| n.id == "the-switchyard")
+        .expect("the yard is not on the map");
+    assert_eq!(yard.kind, NodeKind::Dungeon { fights: 4, forks: 3 });
+
+    // And the label says both numbers, which is the one thing the ascii map
+    // gained: a straight line still says only its fights.
+    let lines = ascii(&run).join("\n");
+    assert!(
+        lines.contains("THE SWITCHYARD (4 fights, 3 points)"),
+        "the map does not say how deep the yard goes"
+    );
+    assert!(
+        lines.contains("THE CREVICE IN THE ROCK (3 fights)"),
+        "a straight line grew a points clause"
+    );
+}

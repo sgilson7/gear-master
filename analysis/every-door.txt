@@ -253,5 +253,5 @@ THE LAST TRAIN  [the-last-train]
     - Tell him you never found it            -
 test report_every_door_and_what_it_wants ... ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
 

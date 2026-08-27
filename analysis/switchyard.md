@@ -1569,3 +1569,59 @@ key, no `blocked_by` points forwards, no choice is gated on the unobtainable,
 and every scheduled door is met by a build that fights past it. The Switchyard's
 four are reachable by fighting, and so is every floor of its yard on both
 lines.
+
+---
+
+## Is the new content on the map? (2026-08-27)
+
+**Yes, all of it** - and asking found a piece of *old* content that was not.
+
+### The yard, drawn
+
+```
+# 20 Bone Cantor [mini]
+. -- THE TIMETABLE (event, between 20 and 21)
+# 21 Ember Wisp
+. -- AHEAD OF SCHEDULE (event, between 21 and 22)
+. -- THE SIGNAL BOX (event, between 21 and 22)
+...
+# 25 Cog Priest
+. -- THE TURNTABLE (event, between 25 and 26)
+     \_ THE SWITCHYARD (4 fights, 3 points)
+...
+. 33 Iron Abbot
+. -- THE LAST TRAIN (event, between 33 and 34)
+```
+
+All four doors, the dungeon hanging off the door that opens it, and the depth
+label saying **4 fights, 3 points** - while THE CREVICE IN THE ROCK still reads
+`(3 fights)` with no points clause, which is what A1.4 asked for.
+`the_yards_content_is_on_the_map` pins all of it.
+
+The two **sidings** are not drawn, and neither are the Unwinding's four
+destinations: a pedestal's ticket is not a place on the road, and the yard it
+returns you to is already a node. That is unchanged behaviour rather than a
+gap.
+
+### Finding 54: THE UNDER-MINE has never been on the map
+
+`route.rs` scanned `c.outcome` for the outcome that opens a dungeon. THE
+FOUNDRY's two choices open THE UNDER-MINE inside an `All` - the shelf then the
+seam, or the seam then the shelf, and both buy you a shelf on the way past - so
+the match fell through and **a whole dungeon the Unwinding shipped has never
+been drawn**.
+
+This is the Unwinding's own most expensive lesson arriving one mission late.
+`HANDOFF.md` §4: *"Every lint over `EVENTS` stopped at the top of an outcome.
+Half this mission's bargains are an `Outcome::All` ... `event::every_outcome`
+unpacks `All` and everything asks through it now."* Everything except this.
+
+Fixed, and the fix immediately drew it **twice**, because both of that door's
+choices open it - so the scan keeps one node a dungeon per door. Both halves
+are pinned by `every_dungeon_a_door_opens_is_on_the_map`, which walks every
+door's outcomes through `every_outcome` and asserts each dungeon is drawn, once.
+
+`analysis/every-door.txt` is regenerated.
+
+**878 engine, 65 GUI, 5 CLI. No warnings.** The M0 ascii fixture still passes:
+the lines that were on the map before are still on it, in order.
