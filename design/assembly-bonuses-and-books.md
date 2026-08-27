@@ -612,13 +612,86 @@ road far enough to meet what changed - the pedestal in High Wick, the mode
 screen, the door past Francis. `prose`'s ignored printer reads the road aloud
 and is the cheapest way to meet all three.
 
+### M14 - What the book recipe costs, and who decides. **▲**
+
+M3 was attempted at `cab0364` and the recipe itself is not the problem. This
+milestone is the decision it runs into, which is the owner's rather than the
+implementation's.
+
+**What was measured.** With the §2.2 recipe applied - `Book 1 + Spell 1-2 +
+Ink 0-2 + Alignment 0-1`, every bound relaxed - the engine goes to **909 green,
+6 failed**. Four are the re-pins M3 already named. Two are not:
+
+```
+e6_5_the_unwound_is_harder_than_francis
+  ["friend: won in 10.0s", "owner: won in 28.5s", "perfect: lost in 3.8s"]
+  wanted at least two losses, got one
+
+the_unwound_finishes_inside_the_measurable_region
+  THE UNWOUND falls in 10.0s, which is not a boss (wanted 16s-30s)
+```
+
+**Both are the same fact:** the friend's weapon grid re-partitions into a
+fully-loaded book weapon and its time against THE UNWOUND goes from a loss at
+8.6s to a win at 10.0s.
+
+**The narrower reading does not help.** Holding `Spell` at exactly one and
+relaxing only the ink gives byte-identical results. The optional ink *is* the
+change - a book and a spell with no ink now assemble, and the friend's run is
+described in `share.rs` as "half of it deliberately loose". Those pieces were
+loose because the old recipe would not take them. There is no version of
+"books buildable with just books plus spells" that leaves them loose.
+
+**And THE UNWOUND cannot be tuned to absorb it.** Four sweeps, all at Medium:
+
+| Dial | Range swept | Effect |
+|---|---|---|
+| `magic_resist` | 30 -> 80 | **perfectly flat** - the boards pierce straight through |
+| `strength` | 100% -> 25% | no change to who wins |
+| `health` | 15,000 -> 26,000 | no change at all; the boards die, so its health is never reached |
+| `gear_offset` | 0 -> -6 | still a loss for every board |
+
+Resistance is inert because piercing answers it and only *hardening* answers
+piercing - and `MonsterSpec` has no hardening field. Hardening comes from gear
+alone. The owner's own attempt at that is on branch **`unwound-gear`**: nine
+placements, taking it from 43 to 52, which beats all four boards, the best in
+5.30s. Trimmed to five placements it is 12.65s, to three 13.55s - still losses.
+Gear grants offence and defence together, and its offence is what the boards
+cannot survive.
+
+So the ordering cannot be restored by any scalar: friend kills it in 10.0s and
+owner in 28.5s, and every uniform buff moves both together. Friend will always
+get there first.
+
+**The three ways out, and they are all decisions:**
+
+1. **Re-author the friend share code** so it means what it meant - the loose
+   half stays loose under the new recipe. It is a published constant players
+   can paste, and it moves `baseline`, `progression`, `francis` and
+   `reference_builds` together.
+2. **Re-author THE UNWOUND** against boards that have book weapons, which is
+   the "re-authoring, not tuning" §6 has been saying, now with the sweeps that
+   prove tuning cannot do it.
+3. **Revisit E6.5 itself.** "At least two of three lose to it" was written
+   before books were worth building. A criterion measured against three
+   historical boards ages with the catalogue, and this is it ageing.
+
+**Not done, deliberately.** Re-pinning `lost >= 2` to `lost >= 1`, or the
+16-second floor down to 10, is loosening a test to make a change pass -
+doctrine 3 forbids it, and the reason it forbids it is exactly this case: the
+number is the criterion, not the obstacle.
+
+**Deliverable:** whichever of the three the owner picks, plus M3's own gate -
+`baseline` and `catalog_shape` diffs read, and a book board fought against the
+ladder with its rungs cleared written into `analysis/`.
+
 ---
 
 ## 5. What shipped
 
-Written at `b40e793`. Seven of twelve milestones are in; M3 is blocked and §6
-says on what. M9 to M12 were filed after the rest had shipped - two bugs found
-in play, and two decisions about what the game offers and where it ends.
+Written at `cab0364`. Eleven of fourteen are in. M3 is blocked and M14 is the
+measured statement of what blocks it; M13 is the sweep and M14 the one
+decision it turned up that is not mine to take.
 
 | | Milestone | Commits | State |
 |---|---|---|---|
@@ -635,6 +708,7 @@ in play, and two decisions about what the game offers and where it ends.
 | M11 | The road past Francis, for a run that earned it | - | **open** - a bug report, filed 2026-08-27 |
 | M12 | Francis doubles | - | **open** - filed 2026-08-27; n counts Francises beaten |
 | M13 | The second-order sweep | - | **open** - filed 2026-08-27 |
+| M14 | What the book recipe costs, and who decides | - | **open** - three options, owner's call |
 
 Suite at the tip: **907 engine green**, 48 ignored; **75 GUI green**; 0
 warnings across the workspace. The ladder's movement from M8 is measured in

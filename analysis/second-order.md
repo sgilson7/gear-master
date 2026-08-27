@@ -505,3 +505,80 @@ to.**
 rather than being silently refused. The engine's rule has always been that a
 duplicate stays a working weapon; nothing told the player that, because
 nothing told the player anything.
+
+---
+
+## 21. A relaxed recipe re-reads every board that was ever saved
+
+M3 relaxes the book: `Book 1 + Spell 1-2 + Ink 0-2 + Alignment 0-1`, every
+bound loosened, none tightened. That cannot stop a board assembling, which is
+why it looked safe. It can make a **loose pile start** assembling, and one did.
+
+`A_FRIENDS_RUN` is described in `share.rs` as "a finished run - 76 pieces, half
+of it deliberately loose". Those pieces were loose because the old recipe would
+not take them. Under the new one they bind into a book weapon, and the board's
+fight against THE UNWOUND goes from a loss at 8.6s to a win at 10.0s - which
+breaks E6.5 and the measurable-region floor together.
+
+**A share code stores placements, not items.** Assembly is derived at load,
+every time, by the current recipe. So a published code does not preserve a
+build - it preserves a *board*, and what that board becomes is whatever the
+rules say today. Three of them are baked into the suite as reference builds.
+
+The general form, and it is worth having in mind before any recipe is touched
+again: **relaxing a recipe is a retroactive edit to every saved board.** The
+narrower reading does not escape it either - holding `Spell` at exactly one and
+relaxing only the ink gives byte-identical results, because the optional ink is
+the whole change.
+
+Filed as M14 with the sweeps, because which of the three ways out to take is a
+decision about published artifacts and an acceptance criterion, not an
+implementation detail.
+
+## 22. A resistance that is fully pierced is not a dial at all
+
+Sweeping THE UNWOUND's `magic_resist` from 30 to 80 against all four reference
+boards changes **nothing**: same winners, same durations to the tick. The same
+sweep is recorded in the design document from before this mission, and it read
+then as "that dial does not work".
+
+It is sharper than that. The boards pierce 75-110 and the creature hardens
+nothing, so every point of resistance is answered before it is applied.
+Resistance is not a weak dial here, it is an **inert** one, and the reason is
+structural: `MonsterSpec` has resistance fields and no hardening field.
+Hardening comes only from gear.
+
+Which is why every attempt to fix THE UNWOUND has reached for gear, and why
+they all overshoot: a gear placement grants offence and defence in the same
+breath. Measured on branch `unwound-gear` - nine placements beats all four
+boards in 5.30s, five in 12.65s, three in 13.55s, all losses, where the
+shipped creature is beaten in 28.50s.
+
+**Design outcome for the owner:** if a creature should be tunable defensively
+without becoming more dangerous, `MonsterSpec` needs a hardening field. That is
+a real engine change and it is the thing standing between THE UNWOUND and
+being balanceable at all. It is not filed as a milestone because it is a
+larger question than the book recipe that surfaced it.
+
+## 23. What M13 swept, and what it did not find
+
+Both printers were re-run at `cab0364` and diffed against the tip before this
+run of milestones. **The ladder is byte-identical.** M11 changes a door's
+condition, M12 is inert until Francis has been beaten once, and M9 and M10 are
+interface. Nothing that moved a fight moved a fight anybody currently plays.
+
+All eight `prose` lints and the six `two_voices` ones still pass, and the three
+changed places were exercised directly rather than read: the pedestal fed end
+to end through the new CLI verb (Wayfarer's Orb comes back THE BOLTER RACE),
+the mode screen and the drawn glossary opened in a debug build, and the door
+past Francis walked in `validity`. The road has **not** been read aloud in full
+at this tip - `prose`'s ignored printer runs, and reading its output is the
+cheap check that has historically found what the lints cannot.
+
+One thing the sweep looked for and did not find: M12 makes `Run::monster`
+return an owned value, and forty-four call sites read it. Every one of them
+reads `.name` or a stat, and none stored the old `&'static` in a structure - so
+the change is mechanical everywhere. That is luck rather than design, and worth
+saying: had one of them cached the reference, the doubling would have been
+correct in the fight and stale on the screen, which is the exact fault §16
+describes and the hardest kind to see.
