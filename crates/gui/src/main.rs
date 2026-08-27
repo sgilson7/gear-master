@@ -7719,6 +7719,198 @@ fn town_note(run: &Run, a: gearmaster_engine::town::Action) -> String {
     }
 }
 
+/// What the pedestal screen was asked, if anything.
+enum PedestalHit {
+    None,
+    /// Picked a piece up off the tray.
+    Grab(PieceId),
+    /// Let go over the plinth.
+    Seat,
+    /// Let go anywhere else.
+    Drop,
+    Leave,
+    Invoke,
+}
+
+/// Where the pedestal screen puts things.
+///
+/// Pure, so the test can ask whether the plinth, the tray and the two buttons
+/// keep out of each other's way at the size the screen actually is - trap 32,
+/// and the same split `mode_select_rects` and `fight_diagram_layout` use.
+fn pedestal_rects(orbs: usize) -> (Rect, Rect, Rect, Rect, Vec<Rect>) {
+    let pad = 90.0;
+    let panel = Rect::new(pad, 70.0, LOGICAL_W - 2.0 * pad, LOGICAL_H - 150.0);
+    let plinth = Rect::new(panel.x + panel.w / 2.0 - 110.0, panel.y + 96.0, 220.0, 150.0);
+    let leave = Rect::new(panel.x + 28.0, panel.y + panel.h - 62.0, 200.0, 42.0);
+    let invoke = Rect::new(panel.x + panel.w - 268.0, panel.y + panel.h - 62.0, 240.0, 42.0);
+    // The tray, between the plinth and the buttons.
+    let (cw, chh, gap) = (128.0, 96.0, 14.0);
+    let top = plinth.y + plinth.h + 74.0;
+    let per_row = ((panel.w - 56.0 + gap) / (cw + gap)).floor().max(1.0) as usize;
+    let cards = (0..orbs)
+        .map(|i| {
+            let (col, row) = (i % per_row, i / per_row);
+            Rect::new(
+                panel.x + 28.0 + col as f32 * (cw + gap),
+                top + row as f32 * (chh + gap),
+                cw,
+                chh,
+            )
+        })
+        .collect();
+    (panel, plinth, leave, invoke, cards)
+}
+
+/// The pedestal: the one door in the game you bring a key to.
+///
+/// It had no screen at all. `Action::Pedestal` deliberately does not cost the
+/// town's one visit, `run.rs` deliberately answers it with an empty arm
+/// because the pedestal is answered by `feed_pedestal` with an orb in hand,
+/// and **nothing anywhere called `feed_pedestal`** - so the click resolved to
+/// nothing, the visit was not spent, the town re-rendered unchanged, and the
+/// player clicked again. Six destinations existed and none could be reached
+/// by playing.
+fn render_pedestal(
+    run: &Run,
+    seated: Option<PieceId>,
+    held: Option<PieceId>,
+    mx: f32,
+    my: f32,
+) -> PedestalHit {
+    let loose = run.inventory();
+    let (panel, plinth, leave, invoke, cards) = pedestal_rects(loose.len());
+
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 240));
+    draw_rectangle(panel.x, panel.y, panel.w, panel.h, Color::from_rgba(18, 16, 26, 252));
+    draw_rectangle_lines(panel.x, panel.y, panel.w, panel.h, 2.0, col_gold());
+    ui_text(
+        words::word("pedestal-title", "THE PEDESTAL"),
+        panel.x + 28.0,
+        panel.y + 40.0,
+        24.0,
+        col_gold(),
+    );
+    ui_text(
+        words::word(
+            "pedestal-sub",
+            "It is waist high, it is older than the shop around it, and there is a socket in the top of it.",
+        ),
+        panel.x + 28.0,
+        panel.y + 66.0,
+        14.0,
+        col_dim(),
+    );
+
+    // ---- the plinth
+    let over_plinth = plinth.contains(Vec2::new(mx, my));
+    draw_rectangle(
+        plinth.x,
+        plinth.y,
+        plinth.w,
+        plinth.h,
+        if over_plinth && held.is_some() {
+            Color::from_rgba(52, 46, 30, 255)
+        } else {
+            Color::from_rgba(26, 24, 34, 255)
+        },
+    );
+    draw_rectangle_lines(plinth.x, plinth.y, plinth.w, plinth.h, 2.0, if seated.is_some() { col_gold() } else { Color::from_rgba(96, 96, 120, 255) });
+
+    // What the socket says about whatever is in it. The engine answers this,
+    // not the screen: `is_orb_of_travel` and `by_orb` are the same two calls
+    // `feed_pedestal` makes, so the screen cannot promise a trip the run will
+    // then refuse.
+    let (verdict, ink) = match seated {
+        None => (
+            words::word("pedestal-empty", "Empty. Drag something into it.").to_string(),
+            col_dim(),
+        ),
+        Some(id) => {
+            let name = run.registry.def(id).name;
+            let shape = run.registry.shape(id);
+            draw_shape(
+                &shape,
+                plinth.x + plinth.w / 2.0 - 30.0,
+                plinth.y + 30.0,
+                26.0,
+                run.registry.def(id),
+                None,
+                1.0,
+            );
+            match gearmaster_engine::pedestal::by_orb(name) {
+                None => (
+                    format!("{} is not a key. It is a perfectly good weapon.", words::piece(name)),
+                    col_bad(),
+                ),
+                Some(d) if run.destinations_visited.contains(&d.id) => (
+                    format!("{} has been spent. A destination fires once a run.", words::piece(name)),
+                    col_bad(),
+                ),
+                Some(d) => (
+                    format!("An Orb of Travel. It goes to {}.", words::place(d.id, d.name)),
+                    col_gold(),
+                ),
+            }
+        }
+    };
+    centered_text(&verdict, panel.x + panel.w / 2.0, plinth.y + plinth.h + 30.0, 15.0, ink);
+
+    // ---- the tray
+    ui_text(
+        words::word("pedestal-tray", "WHAT YOU ARE CARRYING"),
+        panel.x + 28.0,
+        plinth.y + plinth.h + 62.0,
+        14.0,
+        col_gold(),
+    );
+    let mut hit = PedestalHit::None;
+    for (i, &id) in loose.iter().enumerate() {
+        let Some(&rect) = cards.get(i) else { break };
+        if held == Some(id) || seated == Some(id) {
+            continue;
+        }
+        let hot = rect.contains(Vec2::new(mx, my));
+        draw_rectangle(
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            if hot { Color::from_rgba(38, 38, 54, 255) } else { Color::from_rgba(24, 24, 36, 255) },
+        );
+        draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, 1.5, Color::from_rgba(74, 74, 98, 255));
+        let def = run.registry.def(id);
+        draw_shape(&run.registry.shape(id), rect.x + 10.0, rect.y + 10.0, 15.0, def, None, 1.0);
+        let label = words::piece(def.name);
+        let size = fitting_size(label, rect.w - 12.0, &[12.0, 11.0, 10.0]);
+        centered_text(label, rect.x + rect.w / 2.0, rect.y + rect.h - 8.0, size, LIGHTGRAY);
+        if hot && is_mouse_button_pressed(MouseButton::Left) {
+            hit = PedestalHit::Grab(id);
+        }
+    }
+
+    // ---- the way out, always live, because furniture must not trap anybody
+    if button(leave, words::word("pedestal-leave", "LEAVE"), true, mx, my) {
+        hit = PedestalHit::Leave;
+    }
+    let ready = seated
+        .map(|id| run.registry.def(id).name)
+        .and_then(gearmaster_engine::pedestal::by_orb)
+        .is_some_and(|d| !run.destinations_visited.contains(&d.id));
+    if button(invoke, words::word("pedestal-invoke", "INVOKE RITUAL"), ready, mx, my) && ready {
+        hit = PedestalHit::Invoke;
+    }
+
+    // ---- whatever is in the hand, under the cursor
+    if let Some(id) = held {
+        let def = run.registry.def(id);
+        draw_shape(&run.registry.shape(id), mx - 22.0, my - 22.0, 22.0, def, None, 0.9);
+        if is_mouse_button_released(MouseButton::Left) {
+            hit = if over_plinth { PedestalHit::Seat } else { PedestalHit::Drop };
+        }
+    }
+    hit
+}
+
 /// The third fountain: it takes a title you already hold and doubles it.
 ///
 /// Deliberately not the same screen as the other two. Those hand over
@@ -10724,6 +10916,12 @@ async fn main() {
     // theme the run is actually in - which is how every screenshot and every
     // scripted opening reaches the second voice.
     let mut turtle_unlocked = !std::ptr::eq(chosen_theme, gearmaster_engine::theme::THEMES[0]);
+    // The pedestal is a screen of its own, because feeding it takes an *item*
+    // as its argument and no other screen has anywhere to put one. All three
+    // pieces of state are local to it and die when you leave.
+    let mut at_pedestal = false;
+    let mut pedestal_seated: Option<PieceId> = None;
+    let mut pedestal_held: Option<PieceId> = None;
     let mut opening = if skip_intro { Opening::Playing } else { Opening::Intro(0) };
     let mut chosen_difficulty = Difficulty::Easy;
     if let Ok(d) = std::env::var("GEARMASTER_DIFFICULTY") {
@@ -11659,6 +11857,47 @@ async fn main() {
             continue;
         }
 
+        // The pedestal stands in the entryway of a town, so it goes over the
+        // town screen rather than beside it - and it is not a door, so
+        // leaving it puts you back in the town with the visit unspent.
+        if at_pedestal {
+            match render_pedestal(&run, pedestal_seated, pedestal_held, mx, my) {
+                PedestalHit::Grab(id) => pedestal_held = Some(id),
+                PedestalHit::Seat => {
+                    pedestal_seated = pedestal_held.take();
+                }
+                PedestalHit::Drop => {
+                    pedestal_held = None;
+                }
+                PedestalHit::Leave => {
+                    at_pedestal = false;
+                    pedestal_seated = None;
+                    pedestal_held = None;
+                }
+                PedestalHit::Invoke => {
+                    if let Some(id) = pedestal_seated.take() {
+                        // The engine refuses a duplicate or a non-orb, so a
+                        // `None` here is the screen having promised something
+                        // the run would not do - which is what the readback
+                        // above exists to make impossible.
+                        message = match run.feed_pedestal(id) {
+                            Some(d) => format!("The socket takes it. {}.", d.name),
+                            None => "The socket does not want it.".to_string(),
+                        };
+                    }
+                    at_pedestal = false;
+                    pedestal_held = None;
+                }
+                PedestalHit::None => {}
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            next_frame().await;
+            continue;
+        }
+
         // The town gate, ahead of the events: a town is a rung of its own and
         // the event on the next rung has not been arrived at yet.
         if let Some(t) = run.pending_town() {
@@ -11669,6 +11908,14 @@ async fn main() {
                     None => {
                         let paid = run.skip_town();
                         format!("You keep walking. {} gold for the trouble.", paid)
+                    }
+                    Some(gearmaster_engine::town::Action::Pedestal) => {
+                        // It used to call `visit_town`, which answers this one
+                        // with an empty arm and does not spend the visit, so
+                        // the town re-rendered unchanged and the player
+                        // clicked again. For ever.
+                        at_pedestal = true;
+                        String::new()
                     }
                     Some(a) => {
                         let v = run.visit_town(a);
@@ -13350,6 +13597,47 @@ mod tests {
     /// `chip_rects` takes a `measure` and this does not. `button` sizes the
     /// label to the box now, and the fix was confirmed by looking at it.
     #[test]
+    /// The pedestal screen fits, and nothing on it sits on anything else.
+    ///
+    /// The plinth is what a player drags onto and the two buttons are how they
+    /// leave or commit, so a tray card overlapping any of the three is the
+    /// failure that matters - and the tray grows with what the run is
+    /// carrying, which is the part nobody checks by looking at one screenshot.
+    #[test]
+    fn the_pedestal_screen_holds_everything_it_is_carrying() {
+        for orbs in [0usize, 1, 3, 8, 20, gearmaster_engine::run::INVENTORY_CAP] {
+            let (panel, plinth, leave, invoke, cards) = pedestal_rects(orbs);
+            assert!(panel.x >= 0.0 && panel.bottom() <= LOGICAL_H, "orbs={orbs}: the panel is off screen");
+            assert_eq!(cards.len(), orbs, "orbs={orbs}: the tray lost some");
+
+            let fixed = [("plinth", plinth), ("leave", leave), ("invoke", invoke)];
+            for (an, a) in fixed {
+                assert!(
+                    a.x >= panel.x && a.right() <= panel.right() && a.bottom() <= panel.bottom(),
+                    "orbs={orbs}: the {an} is outside the panel"
+                );
+            }
+            for (i, c) in cards.iter().enumerate() {
+                assert!(
+                    c.x >= panel.x && c.right() <= panel.right(),
+                    "orbs={orbs}: card {i} runs off the side of the panel"
+                );
+                assert!(
+                    c.bottom() <= panel.bottom(),
+                    "orbs={orbs}: card {i} is below the bottom of the panel, where a full \
+                     inventory puts it and one screenshot never will"
+                );
+                for (bn, b) in fixed {
+                    let apart = c.right() <= b.x + 0.01
+                        || b.right() <= c.x + 0.01
+                        || c.bottom() <= b.y + 0.01
+                        || b.bottom() <= c.y + 0.01;
+                    assert!(apart, "orbs={orbs}: card {i} is on top of the {bn}");
+                }
+            }
+        }
+    }
+
     /// The corner that turns the second voice on is out of everybody's way.
     ///
     /// The one test that matters for a thing meant to stay hidden. It is not

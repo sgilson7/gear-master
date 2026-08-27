@@ -300,3 +300,52 @@ fn the_two_sidings_are_two_lines_of_one_yard() {
         }
     }
 }
+
+// ------------------------------------------- and somewhere to actually do it
+//
+// The machinery above was complete, guarded and correct for two missions, and
+// reached by nothing: `feed_pedestal` had no caller in the GUI or the CLI, so
+// clicking the pedestal in High Wick resolved to nothing at all. The visit is
+// deliberately not spent, so the town re-rendered unchanged and the player
+// clicked again, for ever. Six destinations, none arrivable by playing.
+//
+// This is trap 30 in a different room, and the lint below is the same shape as
+// `assembly_bonuses::which_pools_a_board_can_actually_make`: walk the table,
+// collect what can be reached, and assert the engine defines nothing more.
+
+/// Every destination the engine defines can be arrived at.
+#[test]
+fn every_destination_can_be_reached_by_feeding_the_thing_that_opens_it() {
+    let mut unreachable: Vec<&str> = Vec::new();
+    for d in DESTINATIONS {
+        let mut run = a_run();
+        let Some(id) = run.give(d.via_orb) else {
+            unreachable.push(d.id);
+            continue;
+        };
+        let got = run.feed_pedestal(id);
+        match got {
+            Some(reached) if reached.id == d.id => {}
+            _ => unreachable.push(d.id),
+        }
+    }
+    assert!(
+        unreachable.is_empty(),
+        "nothing can arrive at {unreachable:?}. A destination the engine defines, names \
+         and draws on the route map that no run can be put down in is the pedestal's \
+         version of a pool nothing can make."
+    );
+}
+
+/// And every orb that opens one is a piece a run can actually come to hold.
+///
+/// The other half of the same question. A key in the table that is in no
+/// list any run draws from is a destination with no door, which reads exactly
+/// like one that works.
+#[test]
+fn every_orb_that_opens_a_destination_is_a_piece_that_exists() {
+    for d in DESTINATIONS {
+        let found = gearmaster_engine::piece::CATALOG.iter().any(|p| p.name == d.via_orb);
+        assert!(found, "{} is opened by {:?}, which is in no catalogue", d.id, d.via_orb);
+    }
+}

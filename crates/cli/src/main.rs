@@ -214,6 +214,31 @@ fn main() {
                 Ok(i) => println!("error: there is no road {} here", i),
                 Err(_) => println!("error: throw <n>"),
             },
+            // The pedestal takes an item as its argument, which no other verb
+            // does, so it is `pedestal <n>` against the inventory rather than
+            // a door name. Added because `feed_pedestal` had no caller in
+            // either driver: six destinations existed and a scripted run could
+            // not reach one of them.
+            ["pedestal", n] => match n.parse::<usize>() {
+                Ok(i) => match run.inventory().get(i.saturating_sub(1)).copied() {
+                    None => println!("error: no item {} in the inventory", i),
+                    Some(id) => {
+                        let name = run.registry.def(id).name;
+                        match run.feed_pedestal(id) {
+                            Some(d) => {
+                                println!("The socket takes it. It goes to {}.", d.name);
+                                print_receipt(&mut run);
+                                show_road(&run);
+                            }
+                            None => println!(
+                                "The socket does not want {}. It wants an Orb of Travel you have not spent.",
+                                name
+                            ),
+                        }
+                    }
+                },
+                Err(_) => println!("error: pedestal <n>"),
+            },
             ["leave"] => {
                 if run.leave_dungeon() {
                     print_receipt(&mut run);
@@ -336,6 +361,7 @@ fn help() {
     println!("  town | town on | town <door>   the gate, walking past it, or going in");
     println!("  drink                    take what the fountain is offering");
     println!("  throw <n>                at a set of points, take road n");
+    println!("  pedestal <n>             feed inventory item n to the pedestal");
     println!("  leave                    walk out of a dungeon, keeping what you cleared");
     println!("  slots: helmet chest gloves greaves weapon");
 }

@@ -456,3 +456,52 @@ The overlap half stays, because what it guards is the future: a theme row that
 grows a third card, a control added at the right edge, a screen that stops
 being centred. Worth being honest in the doc comment about which half is doing
 work today - a guard nobody can trip reads as proof, and it is only a promise.
+
+---
+
+## 19. The screen that fixes a loop has to be the thing the loop was missing
+
+M9's bug looked like a click handler doing the wrong thing. It was a click
+handler that did not exist: `Action::Pedestal` correctly does not spend the
+town's one visit, `run.rs` correctly answers it with an empty arm because the
+pedestal is answered by `feed_pedestal` with an orb in hand, and **nothing
+anywhere called `feed_pedestal`**. Two correct decisions and one absence, and
+the absence was invisible because both halves had tests.
+
+The second-order part: **fixing it in the GUI alone would have left the CLI
+exactly as broken**, and the CLI is where the replay contract lives - a
+scripted run piped in twice and byte-compared, which is the design promise
+this repo tests. Six destinations existed and no script could reach one. So
+M9 grew a `pedestal <n>` verb, and the reachability lint went in
+`tests/pedestal.rs` where both drivers are out of scope and the question is
+the engine's: can anything arrive here.
+
+That lint is the shape worth copying, and it is now the third one in the repo:
+`which_pools_a_board_can_actually_make`,
+`every_destination_can_be_reached_by_feeding_the_thing_that_opens_it`, and the
+`completable.rs` family. All three ask "can anybody get here" rather than "is
+this correct", and all three were written after something correct sat
+unreachable for two missions.
+
+## 20. A readback has to be the same call the commit will make
+
+The pedestal screen tells you what is in the socket: whether it is an Orb of
+Travel and where it goes. There are two ways to write that and only one is
+safe.
+
+The screen asks `pedestal::is_orb_of_travel` and `pedestal::by_orb`, and
+checks `destinations_visited` - which are the same three questions
+`feed_pedestal` asks before it does anything. So INVOKE RITUAL cannot be live
+for a trip the run will then refuse.
+
+Writing the readback from what the *screen* knows - "it has Orb in the name",
+"the player has not been here yet as far as this screen remembers" - produces a
+button that lies, and the lie only shows up on the frame after it is pressed.
+Same rule as M7's diagrams reading `held_bonus` rather than restating the
+rates: **the display asks the engine the question it is displaying the answer
+to.**
+
+**Design outcome for the owner:** a duplicate orb now says so on the plinth
+rather than being silently refused. The engine's rule has always been that a
+duplicate stays a working weapon; nothing told the player that, because
+nothing told the player anything.
