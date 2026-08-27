@@ -2226,10 +2226,11 @@ pub const EVENTS: &[LadderEvent] = &[
             "Francis is down and the road does not stop. It goes on past him \
              for about forty yards and then it goes down, and the going down \
              is the part the lens showed you.",
-            "You have seen this before, through a cracked lens, from thirty \
-             rungs back, and Merrik was right that it would still be here. \
-             Whatever is at the bottom has been unwinding the whole time you \
-             were climbing.",
+            "Merrik said there was a road under the road and that it would \
+             still be here when you got this far, and Merrik was right about \
+             it the way he was right about everything, which is to say he \
+             said it once and did not explain. Whatever is at the bottom has \
+             been unwinding the whole time you were climbing.",
             "The mainspring in your hand is the wrong shape for any lock on \
              this road. It is the right shape for that.",
         ],

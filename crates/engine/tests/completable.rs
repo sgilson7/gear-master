@@ -417,3 +417,91 @@ fn no_window_opens_before_its_own_key_can_exist() {
         }
     }
 }
+
+// ------------------------------------------------- the fifth shape
+//
+// A flag that only one choice sets, where that choice both stands in a
+// one-rung window and wants something of its own before it can be taken.
+//
+// This is the shape that got past every other audit in this file, and it cost
+// the game its ending. The road past Francis was gated on
+// `looked-through-the-lens`. The only thing that sets that flag is one choice
+// in THROUGH THE CRACKED LENS, which stands on exactly one rung and wants
+// `Holding("The Cracked Lens")` to take. So a run could do the entire chain,
+// hold the mainspring, put Francis down and be told the game was over -
+// reported from play, not by the suite.
+//
+// Nothing here was wrong on its own. The flag *is* set by something, so
+// `no_flag_is_waited_on_forever` was happy. The window is not before its key,
+// so `no_window_opens_before_its_own_key_can_exist` was happy. It takes both
+// facts at once to see it, which is the whole reason this file exists.
+
+/// Flags whose only setter is a gated choice in a one-rung window.
+fn flags_behind_a_second_key() -> Vec<&'static str> {
+    // Every flag any choice anywhere sets.
+    let mut all: Vec<&'static str> = Vec::new();
+    for c in EVENTS.iter().flat_map(|e| e.choices) {
+        for o in every_outcome(&c.outcome) {
+            if let Outcome::Flag(f) = o {
+                if !all.contains(f) {
+                    all.push(f);
+                }
+            }
+        }
+    }
+    let mut out: Vec<&'static str> = Vec::new();
+    for flag in all {
+        // Every choice anywhere that sets this flag.
+        let mut setters = Vec::new();
+        for e in EVENTS.iter() {
+            for c in e.choices {
+                if every_outcome(&c.outcome).iter().any(|o| matches!(o, Outcome::Flag(f) if *f == flag))
+                {
+                    setters.push((e, c));
+                }
+            }
+        }
+        // Easy if any one of them is free, or stands in a window wider than a
+        // single rung - either gives a run more than one chance at it.
+        let easy = setters.iter().any(|(e, c)| {
+            let (first, last) = window(e);
+            c.requires == Requirement::None || last > first
+        });
+        if !setters.is_empty() && !easy && !out.contains(&flag) {
+            out.push(flag);
+        }
+    }
+    out.sort_unstable();
+    out
+}
+
+/// One flag in the game is this hard to get, and it is not load-bearing.
+///
+/// `looked-through-the-lens` is the one, and it is deliberate: THROUGH THE
+/// CRACKED LENS stands on rung 48 and wants the lens Halloway sold you thirty
+/// rungs back. Missing it should cost you *scouting*, which is what the choice
+/// is actually for.
+///
+/// It cost the ending instead, because `run.rs` gated the road past Francis on
+/// it. **That gate is not in any table**, so nothing in this file could see it
+/// and nothing here can see the next one either - which is exactly why this is
+/// a budget rather than a pass. A flag that is this hard to get is a flag no
+/// door should hang on alone, and the number existing at all is what makes
+/// somebody check before they hang one.
+///
+/// The road past Francis now stands for a run holding the mainspring **or** a
+/// run that looked, so the flag opens a shortcut and no longer owns anything.
+const FLAGS_BEHIND_A_SECOND_KEY: &[&str] = &["looked-through-the-lens"];
+
+#[test]
+fn no_new_flag_is_set_only_by_a_gated_choice_in_a_one_rung_window() {
+    let found = flags_behind_a_second_key();
+    assert_eq!(
+        found, FLAGS_BEHIND_A_SECOND_KEY,
+        "the set of flags whose only setter is a gated choice on a single rung has \
+         moved. If something was added: a run that reaches that rung without the \
+         second thing can never set it, so nothing load-bearing may wait on it - \
+         and this file cannot check that for you, because the gate that broke the \
+         ending lived in `run.rs` where no table could see it."
+    );
+}

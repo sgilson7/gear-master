@@ -2647,17 +2647,35 @@ impl Run {
                 self.best_rung = self.best_rung.max(self.rung);
                 // Whatever stood in for that rung is done standing in.
                 self.substitute = None;
-                // The road past the top, for a run that knows it is there.
+                // The road past the top, for a run that earned it.
                 //
                 // Rung 51 is not on the ladder and cannot be: the door is
                 // pushed on rather than stood on, the way a pedestal's is.
-                // It asks for two things and they are different questions -
-                // having *looked* is what makes the door appear, and holding
-                // the mainspring is what opens it. A run that never looked
-                // through the lens finishes at Francis and is told nothing,
-                // which is the point: you cannot miss what you never saw.
+                //
+                // This used to ask for `looked-through-the-lens` instead of
+                // the mainspring, on the reasoning that having *looked* is
+                // what makes the door appear and the mainspring is what opens
+                // it - you cannot miss what you never saw. That is a good
+                // line about a hint and the wrong line about an ending. The
+                // only thing that sets that flag is one choice in THROUGH THE
+                // CRACKED LENS, which stands on exactly one rung and needs a
+                // second collectible to take, so a run could finish the whole
+                // chain, hold the mainspring, put Francis down and be told
+                // nothing at all. Reported from play.
+                //
+                // The item is the key. The lens keeps what it is good at,
+                // which is seeing the boards ahead - and it keeps one more
+                // thing, because the old condition was carrying a second
+                // idea worth keeping: a run that *looked* and then spent the
+                // mainspring is still shown the door, shut, so it learns
+                // what it missed. That is the VIP area's shape at the end of
+                // the road and it is why this is an `||` rather than a
+                // replacement. Either having earned it or having seen it
+                // makes the door stand; only the mainspring opens it, which
+                // the choice's own `Requirement` has always said.
                 if self.rung == LADDER.len()
-                    && self.flags.contains(&"looked-through-the-lens")
+                    && (self.holds(MAINSPRING)
+                        || self.flags.contains(&"looked-through-the-lens"))
                     && !self.answered.contains(&"the-unwound")
                 {
                     self.forced_event = Some("the-unwound");

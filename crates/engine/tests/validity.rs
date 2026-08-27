@@ -1284,17 +1284,24 @@ fn a_loose_item_door_will_not_take_a_key() {
 /// no way to fight it: a run that finished the chain, beat Francis and was
 /// holding An Unwound Mainspring was simply told the game was over.
 ///
-/// Two different questions, and they are asked separately on purpose. Having
-/// *looked* through the cracked lens is what makes the door appear - a run
-/// that never looked finishes at Francis and is told nothing, because you
-/// cannot miss what you never saw. Holding the mainspring is what opens it.
+/// Two questions, and they are asked separately on purpose. **Either** having
+/// earned the mainspring or having looked through the cracked lens makes the
+/// door stand; only the mainspring opens it.
+///
+/// It asked for the lens *alone* until it was reported from play: the only
+/// thing that sets `looked-through-the-lens` is one choice in THROUGH THE
+/// CRACKED LENS, which stands on exactly one rung and wants a second
+/// collectible to take. So a run could finish the entire chain, hold the
+/// mainspring, put Francis down and be told the game was over - which is the
+/// bug this file's first paragraph describes, arriving a second time by a
+/// different route.
 #[test]
-fn the_road_past_francis_opens_for_a_run_that_looked_and_is_carrying_the_key() {
+fn the_road_past_francis_opens_for_a_run_that_earned_it_or_looked() {
     use gearmaster_engine::combat::LADDER;
 
     let door = || EVENTS.iter().find(|e| e.id == "the-unwound").expect("the ending");
 
-    // A run that never looked is told nothing.
+    // A run that never looked, but did the work, is shown the way down.
     let mut blind = Walk::new().run;
     blind.rung = LADDER.len() - 1;
     blind.give("An Unwound Mainspring");
@@ -1302,9 +1309,22 @@ fn the_road_past_francis_opens_for_a_run_that_looked_and_is_carrying_the_key() {
     blind.settle();
     blind.back_to_loadout();
     assert_eq!(blind.rung, LADDER.len(), "Francis is down");
+    let e = blind
+        .pending_event()
+        .expect("a run holding the mainspring was told the game was over");
+    assert_eq!(e.id, "the-unwound");
+    let down = door().choices.iter().find(|c| c.label == "Go down").expect("a way down");
+    assert!(blind.choice_open(down), "it did the chain and the way down is shut");
+
+    // And a run that did neither is told nothing, which is still the rule.
+    let mut nobody = Walk::new().run;
+    nobody.rung = LADDER.len() - 1;
+    nobody.force_win();
+    nobody.settle();
+    nobody.back_to_loadout();
     assert!(
-        blind.pending_event().is_none(),
-        "a run that never looked through the lens was shown the way down anyway"
+        nobody.pending_event().is_none(),
+        "a run with no key and no idea it was there was shown the way down"
     );
 
     // A run that looked, and is carrying it.

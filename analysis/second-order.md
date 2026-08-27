@@ -299,3 +299,57 @@ Running list, so the last mile is not guesswork.
 - **Watchers that can feed themselves (see 11).** Guarded for curses; any new
   `Watched` variant needs the same question asked of it before it ships.
 - **The catalogue's slot mix (see 12).** The shop is dealt fairly now; the weapon is still two fifths of the pieces that exist.
+
+---
+
+## 13. The obvious fix to a gate deletes the feature the gate was carrying
+
+M11's bug: the road past Francis was gated on `looked-through-the-lens` and
+not on the mainspring at all, so a run could finish the chain, hold the key,
+put Francis down and be told the game was over.
+
+The obvious fix is to swap the condition - flag out, mainspring in. It is
+wrong, and the suite says so immediately:
+`the_way_down_is_shut_for_a_run_that_let_the_mainspring_go` pins a *second*
+idea the same condition was carrying, that a run which looked and then spent
+the mainspring is still shown the door, shut, so it learns what it missed.
+That is the VIP area's shape at the end of the road, and it is deliberate.
+
+Swapping the condition passes the new test and silently deletes that. **The
+answer is `||`**: either earning it or having seen it makes the door stand,
+and only the mainspring opens it - which the choice's own `Requirement` has
+said the whole time.
+
+Worth generalising: a compound condition that looks redundant is usually two
+requirements wearing one `if`. Before simplifying one, find the test that
+pins the half you were about to drop. Here it was one file away and named
+after the exact case.
+
+## 14. An audit cannot see a gate that lives in engine code
+
+The same bug, from the other end. `completable.rs` exists to catch a door
+whose key cannot exist in time, and it missed this one completely, having
+been written after three bugs of exactly this family.
+
+It missed it because every fact was individually fine. The flag *is* set by
+something, so `no_flag_is_waited_on_forever` was happy. The window is not
+before its key, so `no_window_opens_before_its_own_key_can_exist` was happy.
+It takes two facts at once to see the fault - the flag's only setter is
+gated, **and** it stands in a one-rung window.
+
+And even seeing that would not have been enough, because **the gate was in
+`run.rs`**. Every audit in that file walks `EVENTS`, `TOWNS`, `RUMOURS` and
+`DUNGEONS`. A condition written in engine code is invisible to all of them,
+and the ending hung on one.
+
+So the new lint is a **budget of one named flag** rather than a pass, and its
+doc says plainly that it cannot check the thing that actually broke. The
+number existing is what makes somebody look before hanging a door on that
+flag. This is the same admission `prose.rs` makes at the top of itself: every
+lint here is a cheap mechanical proxy, and saying so is worth more than
+pretending otherwise.
+
+**Design outcome for the owner:** the flag is now a shortcut rather than a
+key. A run that looks through the lens still gets the door early; a run that
+never looked but did the work gets it too. Nothing else in the game reads
+`looked-through-the-lens`.
