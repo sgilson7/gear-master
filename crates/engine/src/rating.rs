@@ -121,6 +121,28 @@ mod weight {
     pub const AIMED: f32 = 2.4;
     /// A second shaved off a cooldown, per second.
     pub const HASTE_PS: f32 = 9.0;
+    /// A second of cooldown *moved* from one item to another, per second.
+    ///
+    /// Time is conserved, so the naive price is zero. What is bought is where
+    /// the second is spent: a second on a 5,000 ms chest item is worth more
+    /// than a second on a 1,500 ms weapon by roughly the ratio of what those
+    /// items carry. A third of `HASTE_PS`, and the third is the discount for
+    /// the fact that the rating cannot see which neighbour will be found - or
+    /// whether there will be one at all.
+    pub const SHUNT_PS: f32 = 3.0;
+    /// The share of `Grow` that a `Ballast` of the same size is worth.
+    ///
+    /// The same two-thirds every condition in this file takes for "what a
+    /// build that wanted it will actually manage". Growth is granted;
+    /// ballast is funded, and a board with no armour left funds nothing.
+    pub const BALLAST_FUNDED: f32 = 0.66;
+    /// The share of a typical cooldown that a 1,000 ms window covers.
+    ///
+    /// A setback is denial, aimed at the best item, and found only when
+    /// something happens to be inside the window - which on a board cadenced
+    /// around 2,500 ms is about four times in ten. A starting point; Part D
+    /// M8 is where it is measured.
+    pub const DERAIL_WINDOW: f32 = 0.4;
     /// A stack of empowerment or shield per second. Both scale off held mana,
     /// so their real worth depends on a build the rating cannot see; this is
     /// the value of a stack in a build that is actually banking mana.
@@ -362,6 +384,16 @@ const SLOWED_ITEMS: f32 = 2.0;
 /// Eight is a build that banks deliberately without being about it.
 const DRAINED_ASSUMED: i32 = 8;
 
+/// The pool an `Accrue` is assumed to be reading.
+///
+/// The same shape `DRAINED_ASSUMED` has and deliberately not the same number.
+/// That one is "a deep-but-not-absurd pool as a *victim* holds one"; this is
+/// what a build that wanted proportional income holds itself, which
+/// `design/towns.md`'s table puts at 46 on the winning board and 6 on the
+/// auto-built one. Thirty is between them, leaning towards the build that
+/// went looking for it.
+const ACCRUED_ASSUMED: i32 = 30;
+
 /// What one action is worth each time it happens.
 fn action_points(a: &Action) -> f32 {
     match a {
@@ -461,6 +493,25 @@ fn action_points(a: &Action) -> f32 {
         // - which is more than a shield stack, and only to a build that has
         // something worth copying.
         Action::GainForking(n) => *n as f32 * weight::FORK_PS,
+        // Haste at a third of the price, because the time is not created -
+        // only moved somewhere it is worth more.
+        Action::Shunt { ms } => *ms as f32 / 1000.0 * weight::SHUNT_PS,
+        // Growth, funded. Priced as `Grow` and then discounted for the
+        // condition, which is that there was armour there to spend.
+        Action::Ballast(n) => {
+            *n as f32 * weight::HEALTH * TYPICAL_FIGHT_S * weight::BALLAST_FUNDED
+        }
+        // Denial, aimed, and found only some of the time. Aimed because it
+        // picks the best item there is; discounted because most activations
+        // find nothing in the window at all.
+        Action::Derail { back_ms, .. } => {
+            *back_ms as f32 / 1000.0 * weight::DENIAL_S * weight::AIMED * weight::DERAIL_WINDOW
+        }
+        // Income the rating cannot see the size of, so it is priced against an
+        // assumed balance the same way a drain is.
+        Action::Accrue { what, pct } => {
+            ACCRUED_ASSUMED as f32 * *pct as f32 / 100.0 * pool_weight(*what)
+        }
     }
 }
 

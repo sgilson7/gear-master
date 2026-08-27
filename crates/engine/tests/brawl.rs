@@ -242,3 +242,67 @@ fn a_brawl_is_worse_than_either_of_them_alone() {
         lasted(&one)
     );
 }
+
+/// Derail reads the front foe, the way `Damage` does.
+///
+/// A party has an aim (`combat::aim_of`) and everything that picks a target
+/// picks through it. A denial that read the whole party would be a different
+/// and much stronger effect; a denial that read the *last* foe would be a bug
+/// nobody notices in a duel, which is where every other test in the suite
+/// looks.
+#[test]
+fn derail_reads_the_front_foe_and_not_the_others() {
+    use gearmaster_engine::loadout::ItemProfile;
+    use gearmaster_engine::piece::{Action, SlotKind, Trigger};
+    use gearmaster_engine::stats::Stats;
+
+    let mut wire = ItemProfile {
+        sigil_seed: 0,
+        pieces: Vec::new(),
+        name: "Wire".to_string(),
+        full_name: "Wire".to_string(),
+        core: "Wire".to_string(),
+        slot: SlotKind::Gloves,
+        cooldown_ms: 1_800,
+        stats: Stats::ZERO,
+        triggers: Vec::new(),
+        adjacent_assembled_same_slot: 0,
+        diagonal_items: Vec::new(),
+        open_cells: 0,
+        attracts_curses: false,
+        steady: false,
+        power: 100,
+        rating: 0,
+        power_bonus: 0,
+        casts: Vec::new(),
+        adjacent_items: Vec::new(),
+        aligned_items: Vec::new(),
+    };
+    wire.triggers =
+        vec![Trigger::OnActivate(Action::Derail { window_ms: 5_000, back_ms: 400 })];
+
+    let specs: Vec<_> = ["Cog Priest", "Obsidian Colossus"]
+        .iter()
+        .map(|n| *LADDER.iter().find(|m| m.name == *n).expect("on the ladder"))
+        .collect();
+    let log = simulate_party(
+        Stats { health: 40_000, ..Stats::ZERO },
+        &[wire],
+        &specs,
+        Difficulty::Medium,
+        &[],
+        0,
+    );
+
+    let derailed: Vec<usize> = log
+        .entries
+        .iter()
+        .filter(|e| matches!(&e.event, Event::Derailed { .. }))
+        .map(|e| e.who as usize)
+        .collect();
+    assert!(!derailed.is_empty(), "nothing was derailed in a fight with two boards in it");
+    assert!(
+        derailed.iter().all(|&w| w == 0),
+        "it reached past the front foe: {derailed:?}"
+    );
+}

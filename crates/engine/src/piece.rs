@@ -608,6 +608,51 @@ pub enum Action {
     /// piece carrying it is worth more the longer the fight lasts - which is
     /// the opposite of everything else, and why they cost what they cost.
     Grow(i32),
+    /// Hand `ms` of this item's next cooldown to its slowest neighbour.
+    ///
+    /// Time is conserved: the same `ms` leaves one bar and enters another.
+    /// What is bought is *where* the time is spent - a second on a 5,000 ms
+    /// chest item is worth more than a second on a 1,500 ms weapon by roughly
+    /// the ratio of what those items carry - so the naive price of zero is
+    /// wrong and the real one is a discount on haste.
+    ///
+    /// The neighbour is the adjacent assembled item with the longest cooldown,
+    /// ties to the lowest index. Nothing adjacent, nothing happens.
+    Shunt { ms: u32 },
+    /// Turn up to `n` armour into `n` maximum health, and heal for it.
+    ///
+    /// `Grow` funded from the wall rather than granted. Armour is worthless
+    /// past thirty seconds - sudden death takes health straight past it
+    /// (`combat::SUDDEN_DEATH_MS`) - and this is the only thing that converts
+    /// it into the one number the clock respects. Which is the reason to want
+    /// it, and the reason a Wall-shaped creature carrying it is a different
+    /// creature.
+    Ballast(i32),
+    /// If the enemy's best item is within `window_ms` of firing, set it back
+    /// `back_ms`.
+    ///
+    /// Reads the front foe's bars, picks the highest-rated item inside the
+    /// window, ties to the lowest index. Nothing in the window, nothing
+    /// happens.
+    ///
+    /// Deliberately **not** a curse: `curse_resist` does not answer it and no
+    /// `Watched::CurseApplied` counts it, because it is the answer to a
+    /// creature whose whole board is curse resist. The Wumpus Hunter's
+    /// unblockable first blow is the only precedent for something with no
+    /// answer, and the dial if this proves too much is `back_ms` rather than
+    /// a new resistance.
+    Derail { window_ms: u32, back_ms: u32 },
+    /// Gain `pct` percent of the pool you are already holding.
+    ///
+    /// Every other income in the game is flat. This one reads the balance, so
+    /// it is worth nothing to a board that spends everything and a great deal
+    /// to one that banks - which is the mirror of `Drain`, and `Drain` is its
+    /// counterplay.
+    ///
+    /// Integer division, so nothing accrues below `100 / pct` held. Never a
+    /// fusion: a fused pool is deliberately fuel for nothing, and a
+    /// proportional income on one would be a second currency at better rates.
+    Accrue { what: Resource, pct: i32 },
     /// Spend one of each parent pool to bank one of a fused pool. Nothing
     /// happens unless both parents have something in them.
     ///
@@ -661,6 +706,22 @@ impl Action {
             Action::GainDeflection(n) => format!("gain {} deflection", n),
             Action::GainForking(n) => format!("gain {} spell forking", n),
             Action::Grow(n) => format!("gain {} maximum health for the rest of the fight", n),
+            Action::Shunt { ms } => format!(
+                "hand {:.1}s of this item's next cooldown to its slowest neighbour",
+                *ms as f32 / 1000.0
+            ),
+            Action::Ballast(n) => format!(
+                "turn up to {} armour into {} maximum health, for the rest of the fight",
+                n, n
+            ),
+            Action::Derail { window_ms, back_ms } => format!(
+                "if the enemy's best item is within {:.1}s of firing, set it back {:.1}s",
+                *window_ms as f32 / 1000.0,
+                *back_ms as f32 / 1000.0
+            ),
+            Action::Accrue { what, pct } => {
+                format!("gain {}% of the {} you are holding", pct, what.name())
+            }
         }
     }
 }
@@ -687,9 +748,13 @@ impl Action {
             Action::ReduceCooldown(ms) => {
                 Action::ReduceCooldown(((ms as i64 * pct as i64) / 100) as u32)
             }
+            Action::Shunt { ms } => Action::Shunt { ms: ((ms as i64 * pct as i64) / 100) as u32 },
+            Action::Ballast(n) => Action::Ballast(m(n)),
+            Action::Accrue { what, pct: p } => Action::Accrue { what, pct: m(p) },
             // Stacks and curses are not quantities of anything - a stack is a
             // stack and a curse is a curse - so a multiplier has nothing to
-            // multiply.
+            // multiply. A window and a setback are the same reading: neither
+            // is a quantity of a thing, they are a shape the effect has.
             other => other,
         }
     }
@@ -10337,7 +10402,13 @@ pub fn touches_insight(def: &PieceDef) -> bool {
         walk_actions(t, &mut |a| {
             found |= matches!(
                 a,
-                Action::GainDread(_) | Action::Gain { what: Resource::Insight, .. }
+                Action::GainDread(_)
+                    | Action::Gain { what: Resource::Insight, .. }
+                    // Nothing accrues Insight in this mission's content, and
+                    // the gate is written anyway so that the shelf holds if
+                    // anybody ever does. A pool locked behind a dungeon has to
+                    // be locked in every direction it can be reached from.
+                    | Action::Accrue { what: Resource::Insight, .. }
             );
         });
         found

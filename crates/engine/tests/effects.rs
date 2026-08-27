@@ -771,3 +771,232 @@ fn a_banked_pool_pays_out_where_it_is_supposed_to() {
         c.regen
     );
 }
+
+// ------------------------------------------------- the yard's four verbs
+//
+// Hand-built profiles, not catalogue entries: M4 lands the verbs and M5 lands
+// the six components that speak them, and a test that needed a component
+// would have forced the two together.
+
+use gearmaster_engine::combat::{simulate, Event, MonsterSpec, Side};
+use gearmaster_engine::loadout::ItemProfile;
+use gearmaster_engine::piece::{Action, Resource, Trigger};
+use gearmaster_engine::stats::Stats;
+
+fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfile {
+    ItemProfile {
+        sigil_seed: 0,
+        pieces: Vec::new(),
+        name: name.to_string(),
+        full_name: name.to_string(),
+        core: name.to_string(),
+        slot,
+        cooldown_ms,
+        stats,
+        triggers: Vec::new(),
+        adjacent_assembled_same_slot: 0,
+        diagonal_items: Vec::new(),
+        open_cells: 0,
+        attracts_curses: false,
+        steady: false,
+        power: 100,
+        rating: 0,
+        power_bonus: 0,
+        casts: Vec::new(),
+        adjacent_items: Vec::new(),
+        aligned_items: Vec::new(),
+    }
+}
+
+/// Stands there and does nothing, so a mechanic is the only thing moving.
+const DUMMY: MonsterSpec = MonsterSpec {
+    name: "Dummy",
+    health: 100_000,
+    strength: 0,
+    regen: 0,
+    mind_resist: 0,
+    physical_resist: 0,
+    magic_resist: 0,
+    curse_resist: 0,
+    attacks: &[],
+    gear: &[],
+    gear_offset: 0,
+    bounty: 0,
+    sprite: gearmaster_engine::combat::MonsterSprite::Rat,
+    rank: gearmaster_engine::combat::Rank::Ordinary,
+    drops: &[],
+    items: &[],
+};
+
+/// A player who can stand there while a mechanic is measured.
+///
+/// `Combatant::player` starts every pool and the wall at zero whatever the
+/// stats say - armour and mana are banked *during* a fight, by items - so the
+/// only thing `Stats` has to carry here is a body. Without one the player is
+/// dead on the first tick and every count below is zero, which is a way to
+/// read "the mechanic does nothing" off a fight that never happened.
+const ALIVE: Stats = Stats { health: 20_000, ..Stats::ZERO };
+
+fn activations(log: &gearmaster_engine::combat::CombatLog, of: &str) -> usize {
+    log.entries
+        .iter()
+        .filter(|e| {
+            matches!(&e.event, Event::Activate { side: Side::Player, item, .. } if item == of)
+        })
+        .count()
+}
+
+/// A shunt moves time. It does not make any.
+#[test]
+fn shunt_moves_time_and_conserves_it() {
+    // A fast weapon beside a slow chest item. Without the shunt each fires on
+    // its own bar; with it, the chest gains what the weapon gives up.
+    let plain = {
+        let mut w = item("Fast", SlotKind::Weapon, 1_000, Stats::ZERO);
+        w.adjacent_items = vec![1];
+        let slow = item("Slow", SlotKind::Chest, 5_000, Stats::ZERO);
+        simulate(ALIVE, &[w, slow], &DUMMY)
+    };
+    let shunting = {
+        let mut w = item("Fast", SlotKind::Weapon, 1_000, Stats::ZERO);
+        w.adjacent_items = vec![1];
+        w.triggers = vec![Trigger::OnActivate(Action::Shunt { ms: 400 })];
+        let slow = item("Slow", SlotKind::Chest, 5_000, Stats::ZERO);
+        simulate(ALIVE, &[w, slow], &DUMMY)
+    };
+
+    let (fast_before, slow_before) = (activations(&plain, "Fast"), activations(&plain, "Slow"));
+    let (fast_after, slow_after) = (activations(&shunting, "Fast"), activations(&shunting, "Slow"));
+
+    assert!(slow_after > slow_before, "the slow item gained nothing: {slow_before} -> {slow_after}");
+    assert!(fast_after < fast_before, "the fast item paid nothing: {fast_before} -> {fast_after}");
+
+    // Conserved, to the millisecond the bars actually hold. Every activation
+    // is one full cooldown of bar-fill, so the total time spent filling bars
+    // is the same on both sides of the trade.
+    let filled = |f: usize, s: usize| f * 1_000 + s * 5_000;
+    let before = filled(fast_before, slow_before);
+    let after = filled(fast_after, slow_after);
+    let drift = (before as i64 - after as i64).abs();
+    assert!(
+        drift <= 5_000,
+        "time was created or destroyed: {before} ms of bar-fill became {after} ms"
+    );
+
+    let shunts = shunting
+        .entries
+        .iter()
+        .filter(|e| matches!(&e.event, Event::Shunted { .. }))
+        .count();
+    assert!(shunts > 0, "nothing was logged");
+}
+
+#[test]
+fn shunt_with_no_neighbour_does_nothing() {
+    let mut w = item("Lonely", SlotKind::Weapon, 1_000, Stats::ZERO);
+    w.triggers = vec![Trigger::OnActivate(Action::Shunt { ms: 400 })];
+    let alone = simulate(ALIVE, &[w], &DUMMY);
+
+    let plain =
+        simulate(ALIVE, &[item("Lonely", SlotKind::Weapon, 1_000, Stats::ZERO)], &DUMMY);
+    assert_eq!(
+        activations(&alone, "Lonely"),
+        activations(&plain, "Lonely"),
+        "an item with nothing beside it paid a debt to nobody"
+    );
+    assert!(!alone.entries.iter().any(|e| matches!(&e.event, Event::Shunted { .. })));
+}
+
+/// Ballast spends the armour there is, and nothing it has not got.
+#[test]
+fn ballast_spends_exactly_the_armour_it_has() {
+    // One wall, built once at the bell, and an item that keeps asking for it.
+    let mut wall = item("Wall", SlotKind::Greaves, 60_000, Stats::ZERO);
+    wall.triggers = vec![Trigger::OnBattleStart(Action::GainArmor(20))];
+    let mut bed = item("Bed", SlotKind::Chest, 1_000, Stats::ZERO);
+    bed.triggers = vec![Trigger::OnActivate(Action::Ballast(30))];
+    let log = simulate(ALIVE, &[wall, bed], &DUMMY);
+
+    let grew: Vec<(i32, i32)> = log
+        .entries
+        .iter()
+        .filter_map(|e| match &e.event {
+            Event::Grew { side: Side::Player, amount, paid_armor, .. } => {
+                Some((*amount, *paid_armor))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        grew.len(),
+        1,
+        "it asked many times and there was one wall: {grew:?}"
+    );
+    assert_eq!(grew[0], (20, 20), "asked for 30, had 20, spent 20 and grew 20");
+}
+
+/// A `Grew` funded from armour is still growth, and `settle` banks it.
+/// A grow funded from armour banks across the run exactly as a granted one does.
+///
+/// `Run::settle` sums `Event::Grew { amount, .. }` over the log and adds it to
+/// `grown_health` (`run.rs`). Landing ballast on that event rather than on a
+/// new one is what makes this true with no new arm anywhere - which is the
+/// whole argument for a field on `Grew` instead of a second event, and it is
+/// worth a test rather than a comment.
+#[test]
+fn ballast_banks_as_growth() {
+    let banked = |action: Action| -> i32 {
+        let mut wall = item("Wall", SlotKind::Greaves, 60_000, Stats::ZERO);
+        wall.triggers = vec![Trigger::OnBattleStart(Action::GainArmor(20))];
+        let mut it = item("It", SlotKind::Chest, 1_000, Stats::ZERO);
+        it.triggers = vec![Trigger::OnActivate(action)];
+        let log = simulate(ALIVE, &[wall, it], &DUMMY);
+        log.entries
+            .iter()
+            .filter_map(|e| match e.event {
+                Event::Grew { side: Side::Player, amount, .. } => Some(amount),
+                _ => None,
+            })
+            .sum()
+    };
+    assert_eq!(banked(Action::Ballast(30)), 20, "the wall, spent");
+    assert!(banked(Action::Grow(20)) > 20, "a granted grow keeps arriving; a funded one cannot");
+}
+
+/// Accrue reads the balance, and integer division is the floor it stands on.
+#[test]
+fn accrue_pays_a_share_of_what_is_held() {
+    let paid = |held: i32, pct: i32| -> i32 {
+        let mut purse = item("Purse", SlotKind::Chest, 60_000, Stats::ZERO);
+        purse.triggers = vec![Trigger::OnBattleStart(Action::GainMana(held))];
+        let mut it = item("Hall", SlotKind::Helmet, 1_000, Stats::ZERO);
+        it.triggers = vec![Trigger::OnActivate(Action::Accrue { what: Resource::Mana, pct })];
+        let log = simulate(ALIVE, &[purse, it], &DUMMY);
+        log.entries
+            .iter()
+            .find_map(|e| match &e.event {
+                Event::GainMana { side: Side::Player, amount, accrued: true, .. } => Some(*amount),
+                _ => None,
+            })
+            .unwrap_or(0)
+    };
+    assert_eq!(paid(40, 10), 4, "ten percent of forty");
+    assert_eq!(paid(9, 10), 0, "integer division is the floor, and nothing is below it");
+    assert_eq!(paid(0, 10), 0, "a drained pool pays nothing, which is Drain's whole answer");
+}
+
+/// A fused pool is fuel for nothing, and that includes this.
+#[test]
+fn accrue_refuses_a_fusion_in_the_fight_as_well_as_in_the_catalogue() {
+    let mut it = item("Wrong", SlotKind::Helmet, 1_000, Stats::ZERO);
+    it.triggers =
+        vec![Trigger::OnActivate(Action::Accrue { what: Resource::DruidicMight, pct: 50 })];
+    let log = simulate(ALIVE, &[it], &DUMMY);
+    assert!(
+        !log.entries.iter().any(|e| matches!(
+            &e.event,
+            Event::GainResource { accrued: true, .. } | Event::GainMana { accrued: true, .. }
+        )),
+        "a proportional income on a fusion would be a second currency at better rates"
+    );
+}

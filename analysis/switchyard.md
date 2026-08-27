@@ -581,3 +581,122 @@ screens - the landing and the points. `LEAVE_BLURB` is the spec's wording
 verbatim: *"What you cleared stays cleared. The door does not reopen."*
 `the_way_out_says_what_leaving_costs` pins both halves, because the second one
 is the cost and a blurb that loses it is a blurb that makes leaving look free.
+
+---
+
+## M4 four actions, four weights, four rows - inert, at `0386d48`+
+
+`Shunt`, `Ballast`, `Derail` and `Accrue` are in the engine, priced, homed in
+the basis, described in three interfaces and tested to the tick. **No
+component speaks any of them**, which is the whole design of the milestone and
+the thing its exit criterion measures.
+
+### The exit criterion, measured
+
+| | Result |
+|---|---|
+| The four-board table at Medium | **byte-identical to M0** |
+| Every other `baseline` figure - cadence, mind, rungs 1-14, no-weapon, slot-mattering, census | **byte-identical to M0** |
+| `gear_at`, every creature at every difficulty | **5,568 placements unmoved. 0 creatures re-geared.** |
+| `acceptance` (10, `e6_2` among them) | green |
+
+A2.5's argument was that four weights added for verbs no piece speaks price
+six components and re-gear nobody, because `stepped_component` filters
+event-only pieces out of every footprint family and nothing at all speaks the
+verbs yet. That is now a fixture diff rather than a sentence.
+
+### The ratchet
+
+`report_shape` differs from M0 by **exactly four rows**, and every one reads
+`0/0`, 0 away, budget 0:
+
+```
+Ballast                        0/0    0    0
+Derail                         0/0    0    0
+Shunt outside the weapon       0/0    0    0
+Accrue                         0/0    0    0
+```
+
+Every other row and every quota is where M0 left it.
+
+### The suite
+
+| | M3 | M4 |
+|---|---:|---:|
+| Engine passed | 834 | **848** |
+| GUI passed | 65 | 65 |
+| CLI passed | 3 | 3 |
+| Warnings | 0 | 0 |
+
+### The numbers as landed
+
+| Effect | Variant | Home | Rule | Weight |
+|---|---|---|---|---|
+| Shunt | `Shunt { ms }` | Greaves, tempo | Only, shared with Weapon | `SHUNT_PS = 3.0` /s |
+| Ballast | `Ballast(n)` | Chest, reserve | Only | `HEALTH x TYPICAL_FIGHT_S x BALLAST_FUNDED (0.66)` |
+| Derail | `Derail { window_ms, back_ms }` | Gloves, reaction | Mostly(70) | `DENIAL_S x AIMED x DERAIL_WINDOW (0.4)` |
+| Accrue | `Accrue { what, pct }` | Helmet, economy | Mostly(70) | `ACCRUED_ASSUMED (30) x pct/100 x pool_weight` |
+
+All four are starting points and M8 is where they are measured.
+
+---
+
+### Findings
+
+**19. `assembly::every_action_is_well_formed` did not exist.** The spec's M4
+scope extends it; `grep -rn well_formed` over the tree finds nothing but the
+comment this milestone wrote. It exists now, and it carries half of what the
+spec asked of it - see the next finding.
+
+**20. `Derail`'s bad case is prevented by the type, not by a lint.** A2.3 asks
+the well-formedness test to refuse `Derail { target: Yourself }`, "because
+there is no reading of it that is not a stun on your own bar". If there is no
+reading of it, the type should not be able to write it: `Action::Derail`
+carries **no target** and always reads the front foe. A lint that can only
+ever pass is a type that should have said so, which is `CLAUDE.md` §6 trap 22
+read from the other end. The lint keeps the half that is genuinely
+representable - `Accrue` on a fused pool - and says in its own doc comment why
+the other half is missing.
+
+**21. A rule with no carriers is what `every_rule_names_a_mechanic_that_
+exists` exists to catch, and M4 lands four.** The phase discipline requires
+the rows before the pieces; the lint says "a rule matching nothing at all is a
+typo that would sit here reading green forever". Both are right.
+
+Resolved with a **two-way ratchet** rather than by loosening the lint:
+`RULES_AWAITING_THEIR_PIECES` names the four and the milestone that empties it,
+`every_rule_names_a_mechanic_that_exists` skips exactly those, and
+**`no_rule_waits_for_a_piece_that_has_arrived` goes red the moment any of them
+finds a carrier** - so M5 cannot land the components without taking the names
+off the list, which puts the rows back under the lint they were exempted from.
+An exemption that outlives its reason is a lint with a hole in it.
+
+**22. Two guards where the spec asks for one.** `Accrue` on a fused pool is
+refused by the catalogue lint *and* by `combat::apply`, which returns without
+banking. A rule only a lint enforces is a rule a hand-built `ItemProfile`
+walks straight through, and every test in this milestone is a hand-built
+`ItemProfile`.
+
+**23. A shunt owes only what it managed to give.** A2.1 caps the target's
+`progress_ms` at `cooldown_ms - TICK_MS` and adds `ms` to the source's debt.
+Read literally that charges the giver for time that went nowhere: a bar
+already near the top takes less than was offered, and the difference would
+vanish. The debt is the amount that actually landed, so time is conserved
+against the cap as well as across it, and
+`shunt_moves_time_and_conserves_it` measures total bar-fill on both sides of
+the trade rather than trusting the arithmetic.
+
+**24. `Combatant::player` starts every pool and the wall at zero, whatever
+`Stats` says.** Which means a hand-built profile testing armour or mana has to
+*bank* it in the fight, and - the part that cost twenty minutes - a player
+built from `Stats::ZERO` has **zero maximum health and is dead on the first
+tick**. Every count read off such a fight is zero, which reads exactly like
+"the mechanic does nothing". `effects.rs` and `reactions.rs` now carry an
+`ALIVE` constant with a doc comment saying so, because the next person to
+hand-build a profile will hit it too.
+
+**25. `Event::Grew` gained a field rather than a sibling.** `Run::settle` sums
+`Event::Grew { amount, .. }` over the log into `grown_health`, so ballast
+compounds across a run exactly as `Grow` does **with no new arm anywhere** -
+which is the argument for the field, and `ballast_banks_as_growth` is the test
+of it rather than a comment claiming it.

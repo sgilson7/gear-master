@@ -1682,6 +1682,15 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
         Action::GainDread(_) => note("mind", out),
         Action::GainDeflection(_) => note("armor", out),
         Action::Grow(_) => note("health", out),
+        Action::Ballast(_) => {
+            // Both, because it is both: a wall spent, and health bought
+            // with it. A chip that said only one would hide the trade.
+            note("armor", out);
+            note("health", out);
+        }
+        Action::Shunt { .. } => note("speed", out),
+        Action::Derail { .. } => note("speed", out),
+        Action::Accrue { what, .. } => note(what.name(), out),
         Action::Fuse { into, .. } => note(into.name(), out),
     } }
     // A repeat carries a trigger, so unwrap it once and read that: a piece
@@ -2727,6 +2736,10 @@ impl Playback {
             // Reads as a plain line: the health bar it moves is the other
             // side's, and that already animates.
             Event::Reflected { .. } => {}
+            // Both bars move, and the row draws its own cooldowns from the
+            // simulation rather than from the log, so there is nothing to
+            // animate here. The line says it.
+            Event::Shunted { .. } | Event::Derailed { .. } => {}
             // A watcher coming round is the one thing on a board that happens
             // on somebody else's clock, so nothing else on the row shows it:
             // the cooldown bar is mid-sweep and the count has just wrapped to
@@ -6430,6 +6443,34 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("  SEARING", "10 damage a second, for 10 seconds. Stacks burn together, so a second one landing doubles the rate."),
     ("  FROST", "ALL of the target's gear runs 50% slower, for 1 second - not just the item that was hit. Stacks add up to 75%, and never past it: frost slows gear, it never stops it."),
     ("CURSE RESIST", "Shortens curses landed on you. At 100% they never land."),
+    (
+        "SHUNT",
+        "Hands part of an item's next cooldown to the slowest item beside it. The \
+         time is moved, never made: the giver waits exactly as long as the taker \
+         gains. Worth doing because a second is worth more on a slow bar than a \
+         fast one.",
+    ),
+    (
+        "BALLAST",
+        "Turns armour into MAXIMUM health, point for point, for the rest of the \
+         fight. Nothing without a wall to spend. Past thirty seconds the clock \
+         takes health straight past armour, so this is the only thing that turns \
+         a wall into something sudden death respects.",
+    ),
+    (
+        "DERAIL",
+        "If the enemy's best item is close to firing, its bar is pushed back. It \
+         is not a curse, so CURSE RESIST is no answer to it - which is the point \
+         of it, and the only thing in the game that answers a board built \
+         entirely out of resistance.",
+    ),
+    (
+        "ACCRUE",
+        "Income that reads the balance: a percentage of the pool you are already \
+         holding, rather than a flat amount. Worth nothing to a build that spends \
+         everything, and a great deal to one that banks - which is what makes a \
+         DRAIN the answer to it.",
+    ),
     ("STACKS", "Landing the same curse again while it is still up. Searing burns faster, frost slows harder, misfire eats more, and stun lasts longer - each up to its own ceiling. The count sits beside the curse's name on the bar."),
     (
         "MANA EMPOWERMENT",

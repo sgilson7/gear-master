@@ -1269,3 +1269,89 @@ fn there_are_spells_that_answer_other_spells() {
         .count();
     assert!(answering >= 5, "only {} spells answer their siblings", answering);
 }
+
+// ------------------------------------------------- actions that make sense
+
+/// No action in the catalogue is written in a shape that has no reading.
+///
+/// Two rules, and only one of them needs a test. `Accrue` on a **fused** pool
+/// is representable and wrong: a fusion is deliberately fuel for nothing
+/// (`piece::Resource`), so a proportional income on one would be a second
+/// currency at better rates than the first. `combat::apply` refuses it at
+/// runtime as well, because a rule only a lint enforces is a rule a
+/// hand-built `ItemProfile` walks straight through.
+///
+/// The other rule is not here because it cannot be broken. The spec asks this
+/// test to refuse `Derail { target: Yourself }` - there being no reading of
+/// setting your own best item back that is not a stun you paid for - and
+/// `Action::Derail` carries no target at all. Making it unrepresentable beats
+/// linting it: a lint that can only ever pass is a type that should have said
+/// so, which is `CLAUDE.md` §6 trap 22 read from the other end.
+#[test]
+fn every_action_is_well_formed() {
+    use gearmaster_engine::piece::{walk_actions, Action, CATALOG};
+
+    let mut bad: Vec<String> = Vec::new();
+    for d in CATALOG {
+        for t in d.triggers {
+            walk_actions(t, &mut |a| {
+                if let Action::Accrue { what, pct } = a {
+                    if what.is_fused() {
+                        bad.push(format!("{} accrues {}, which is a fusion", d.name, what.name()));
+                    }
+                    if *pct <= 0 {
+                        bad.push(format!("{} accrues {}% of a pool", d.name, pct));
+                    }
+                }
+                if let Action::Shunt { ms } = a {
+                    if *ms == 0 {
+                        bad.push(format!("{} shunts nothing", d.name));
+                    }
+                }
+                if let Action::Derail { window_ms, back_ms } = a {
+                    if *window_ms == 0 || *back_ms == 0 {
+                        bad.push(format!("{} derails nothing", d.name));
+                    }
+                }
+                if let Action::Ballast(n) = a {
+                    if *n <= 0 {
+                        bad.push(format!("{} ballasts {}", d.name, n));
+                    }
+                }
+            });
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// The four verbs the yard speaks are spoken by nothing yet.
+///
+/// M4 lands them inert on purpose: the weights price no existing piece, so no
+/// creature re-gears on any setting, and the four-board table cannot move.
+/// M5 is where the six components arrive, and this test should go with them.
+#[test]
+fn nothing_in_the_catalogue_speaks_the_yards_verbs_yet() {
+    use gearmaster_engine::piece::{walk_actions, Action, CATALOG};
+
+    let mut speakers: Vec<&str> = Vec::new();
+    for d in CATALOG {
+        for t in d.triggers {
+            walk_actions(t, &mut |a| {
+                if matches!(
+                    a,
+                    Action::Shunt { .. }
+                        | Action::Ballast(_)
+                        | Action::Derail { .. }
+                        | Action::Accrue { .. }
+                ) {
+                    speakers.push(d.name);
+                }
+            });
+        }
+    }
+    assert!(
+        speakers.is_empty(),
+        "the yard's components landed early: {speakers:?}. If that is deliberate, \
+         delete this test in the same commit and say which milestone moved."
+    );
+}

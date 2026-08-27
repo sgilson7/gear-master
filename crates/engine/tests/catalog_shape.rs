@@ -150,6 +150,9 @@ fn economy(def: &PieceDef) -> bool {
                     | Action::GainEmpowerment(_)
                     | Action::GainShield(_)
                     | Action::MindDamage { .. }
+                    // Income that reads the balance is still income, and the
+                    // head is where the accounts are kept.
+                    | Action::Accrue { .. }
             )
         })
 }
@@ -163,7 +166,15 @@ fn reserve(def: &PieceDef) -> bool {
         || def.base.reflect != 0
         // Deflection is mitigation, which is what the body's axis is made of.
         || does(def, |a| {
-            matches!(a, Action::Grow(_) | Action::GainArmor(_) | Action::GainDeflection(_))
+            matches!(
+                a,
+                Action::Grow(_)
+                    | Action::GainArmor(_)
+                    | Action::GainDeflection(_)
+                    // Armour spent as growth is the reserve axis turning one
+                    // of its own numbers into another of its own numbers.
+                    | Action::Ballast(_)
+            )
         })
 }
 
@@ -175,7 +186,16 @@ fn reaction(def: &PieceDef) -> bool {
                 | Trigger::OnAlignedActivate(_)
                 | Trigger::PerAdjacentItem { .. }
         )
-    }) || does(def, |a| matches!(a, Action::Drain { .. } | Action::StunStrongest { .. }))
+    }) || does(def, |a| {
+        matches!(
+            a,
+            Action::Drain { .. }
+                | Action::StunStrongest { .. }
+                // A hand on the wire: reading the other side's bar and
+                // answering it is the reaction axis exactly.
+                | Action::Derail { .. }
+        )
+    })
         || effect_is(def, |e| {
             matches!(
                 e,
@@ -191,7 +211,9 @@ fn tempo(def: &PieceDef) -> bool {
         || def.base.curse_resist != 0
         || has(def, |t| matches!(t, Trigger::OnBattleStart(_)))
         || does(def, |a| {
-            matches!(a, Action::ReduceCooldown(_))
+            // Moving time between bars is a cadence tool, whoever ends up
+            // with the second.
+            matches!(a, Action::ReduceCooldown(_) | Action::Shunt { .. })
                 || matches!(
                     a,
                     Action::Curse { kind: CurseKind::Frost | CurseKind::Stun | CurseKind::Misfire, .. }
@@ -320,6 +342,12 @@ const RULES: &[Rule] = &[
         carries: |d| d.base.physical_harden != 0 || d.base.magic_harden != 0 },
     Rule { what: "health above 15", home: SlotKind::Chest, level: Level::Mostly(70),
         shared_with: &[], budget: 0, target: 0, carries: |d| d.base.health > 15 },
+    // Ballast rides in the `Grow` row rather than in one of its own: both turn
+    // a number into maximum health for the rest of the fight, and the only
+    // difference is where the number came from. A separate row would say the
+    // body has two mechanics here when it has one with two fundings.
+    Rule { what: "Ballast", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
+        budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::Ballast(_))) },
     // Deflection is the body's, beside reflection and for the same reason:
     // both are what a slot with no swing does about being hit. The feet keep a
     // minority share, because footwork is also a way of not being hit.
@@ -354,6 +382,12 @@ const RULES: &[Rule] = &[
     Rule { what: "GainSpellblade", home: SlotKind::Gloves, level: Level::Mostly(70),
         shared_with: &[], budget: 0, target: 0,
         carries: |d| does(d, |a| matches!(a, Action::GainSpellblade(_))) },
+    // Derail is a hand on the wire. The weapon keeps a minority share, which
+    // is Gloves' upstream in the bleed cycle - the weapon bleeds reaction -
+    // and it is where the Signalman's Orb carries it.
+    Rule { what: "Derail", home: SlotKind::Gloves, level: Level::Mostly(70),
+        shared_with: &[], budget: 0, target: 0,
+        carries: |d| does(d, |a| matches!(a, Action::Derail { .. })) },
 
     // Greaves - Tempo. Who moves, how often, and first. The weapon keeps its
     // own cadence tools; everything else gives them up.
@@ -368,6 +402,19 @@ const RULES: &[Rule] = &[
     Rule { what: "ReduceCooldown outside the weapon", home: SlotKind::Greaves, level: Level::Only,
         shared_with: &[SlotKind::Weapon, SlotKind::Gloves], budget: 0, target: 0,
         carries: |d| does(d, |a| matches!(a, Action::ReduceCooldown(_))) },
+    // The same row `ReduceCooldown` has, and for the same reason: the feet own
+    // cadence outside the weapon. The weapon's one is the Shunter's Orb.
+    // Gloves are *not* shared here, unlike the row above - that share exists
+    // because the hands' designed bleed is a reaction whose payout is tempo,
+    // and a shunt is not a reaction to anything.
+    Rule { what: "Shunt outside the weapon", home: SlotKind::Greaves, level: Level::Only,
+        shared_with: &[SlotKind::Weapon], budget: 0, target: 0,
+        carries: |d| does(d, |a| matches!(a, Action::Shunt { .. })) },
+    // Accrue is the head's, because income is. The body keeps a minority
+    // share: the chest is the one grid the cycle lets bleed economy.
+    Rule { what: "Accrue", home: SlotKind::Helmet, level: Level::Mostly(70),
+        shared_with: &[], budget: 0, target: 0,
+        carries: |d| does(d, |a| matches!(a, Action::Accrue { .. })) },
     // Enchantments are every grid's, which is a change of mind and worth
     // saying so.
     //
@@ -710,11 +757,27 @@ fn no_budget_is_slack() {
     );
 }
 
+/// Rules landed before the pieces that will satisfy them.
+///
+/// The Switchyard lands its four verbs one milestone ahead of the six
+/// components that speak them, so that the weights price nothing while they
+/// are being settled and no creature re-gears
+/// (`design/the-switchyard.md` A2.5, Part D M4). A row with no carriers is
+/// exactly what `every_rule_names_a_mechanic_that_exists` exists to catch, so
+/// the exemption is written down with the milestone that ends it rather than
+/// the lint being loosened.
+///
+/// **M5 empties this list.** It cannot be left behind by accident:
+/// `no_rule_waits_for_a_piece_that_has_arrived` goes red the moment any of
+/// these finds a carrier.
+const RULES_AWAITING_THEIR_PIECES: &[&str] =
+    &["Ballast", "Derail", "Shunt outside the weapon", "Accrue"];
+
 #[test]
 fn every_rule_names_a_mechanic_that_exists() {
     // A rule matching nothing at all is a typo that would sit here reading
     // green forever.
-    for r in RULES {
+    for r in RULES.iter().filter(|r| !RULES_AWAITING_THEIR_PIECES.contains(&r.what)) {
         assert!(
             CATALOG.iter().any(|d| (r.carries)(d)),
             "no piece in the catalogue carries {} - is the predicate right?",
@@ -723,6 +786,27 @@ fn every_rule_names_a_mechanic_that_exists() {
     }
     for q in quotas() {
         assert!(!q.pool().is_empty(), "{:?} {} scores an empty pool", q.slot, q.what);
+    }
+}
+
+/// The other half of the exemption, and the half that expires.
+///
+/// A name stays on `RULES_AWAITING_THEIR_PIECES` only while nothing carries
+/// it. The moment a component speaks one of the yard's verbs this goes red and
+/// the name has to come off, which puts the row back under the lint it was
+/// exempted from. An exemption that outlives its reason is a lint with a hole
+/// in it.
+#[test]
+fn no_rule_waits_for_a_piece_that_has_arrived() {
+    for name in RULES_AWAITING_THEIR_PIECES {
+        let r = RULES
+            .iter()
+            .find(|r| &r.what == name)
+            .unwrap_or_else(|| panic!("{name} is exempted and is not a rule"));
+        assert!(
+            !CATALOG.iter().any(|d| (r.carries)(d)),
+            "{name} has its pieces now - take it off RULES_AWAITING_THEIR_PIECES"
+        );
     }
 }
 

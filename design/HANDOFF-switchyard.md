@@ -34,6 +34,7 @@ argue against.
 | **M1** The floor graph, landed inert | **done** | "M1 the floor graph" |
 | **M2** Run state, the four transitions, the stack | **done** | "M2 run state, the four transitions, the stack" |
 | **M3** Sidings, the CLI verbs, the interface | **done** | "M3 sidings, the CLI verbs, the interface" |
+| **M4** Four actions, four weights, four rows - inert | **done** | "M4 four actions, four weights, four rows" |
 
 ## 3. Open questions for the user
 
@@ -223,3 +224,43 @@ while looking like a fresh ticket, which costs a player an orb to find out.
 geometry and the words are testable without a font context, and
 `cargo test -p gearmaster-gui` is the only thing that compiles that module
 (`CLAUDE.md` §6 trap 14).
+
+### M4 - Four actions, four weights, four rows, and nothing carrying any of them
+
+`Shunt`, `Ballast`, `Derail` and `Accrue` are in `piece.rs`, resolved in
+`combat::apply`, priced in `rating`, homed in the basis, described in the CLI,
+the GUI's glossary and the tooltip layer, and tested to the tick. **No
+component speaks one.**
+
+**The exit criterion is the measurement of A2.5's argument.** Four weights for
+verbs no piece speaks price nothing, so no creature re-gears on any setting:
+`gear_at` is unmoved across all **5,568 placements**, the whole `baseline`
+printer is byte-identical to M0, and `report_shape` differs by exactly four
+rows, all reading `0/0` at budget 0.
+
+**848 engine, 65 GUI, 3 CLI. No warnings.**
+
+**Two lints found the milestone before it found them.**
+
+`every_rule_names_a_mechanic_that_exists` refuses a rule that carries nothing,
+which is precisely what a phase-disciplined M4 lands four of. Rather than
+loosen it, `RULES_AWAITING_THEIR_PIECES` names the four and the milestone that
+empties it, and `no_rule_waits_for_a_piece_that_has_arrived` goes red the
+moment any of them finds a carrier - so M5 cannot land the components without
+putting the rows back under the lint. An exemption that outlives its reason is
+a lint with a hole in it.
+
+`assembly::every_action_is_well_formed`, which the spec extends, **did not
+exist**. It does now, carrying the half of its job that is representable.
+The other half - refusing `Derail { target: Yourself }` - is done by the type
+instead: `Action::Derail` carries no target at all. A lint that can only ever
+pass is a type that should have said so.
+
+**Two things the spec did not say, both worth knowing.** A shunt owes only
+what actually landed, because the target's bar is capped and charging the
+giver for time that went nowhere would make a shunt a net loss. And
+`Combatant::player` starts every pool and the wall at zero whatever `Stats`
+says - so a player built from `Stats::ZERO` has no maximum health and is dead
+on the first tick, and every measurement off that fight reads as "the
+mechanic does nothing". Both are written into the code that would otherwise
+teach them again.

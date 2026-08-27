@@ -357,3 +357,108 @@ fn a_ward_that_cannot_pay_falls_back_instead_of_stacking() {
     );
     assert!(log.entries.iter().any(|e| matches!(e.event, Event::GainArmor { .. })));
 }
+
+// --------------------------------------------------- Derail: a hand on the wire
+
+/// A player who can stand there while a mechanic is measured.
+///
+/// `Combatant::player` starts the wall and every pool at zero whatever the
+/// stats say, so the only thing `Stats` carries here is a body. Without one
+/// the player dies on the first tick and every count is zero, which reads as
+/// "the mechanic does nothing" off a fight that never happened.
+const ALIVE: Stats = Stats { health: 20_000, ..Stats::ZERO };
+
+/// A foe whose one attack comes round on a known bar.
+const TICKER: MonsterSpec = MonsterSpec {
+    name: "Ticker",
+    health: 100_000,
+    strength: 0,
+    regen: 0,
+    mind_resist: 0,
+    physical_resist: 0,
+    magic_resist: 0,
+    curse_resist: 100,
+    attacks: &[gearmaster_engine::combat::MonsterAttack::hit("swing", 2_000, 1)],
+    gear: &[],
+    gear_offset: 0,
+    bounty: 0,
+    sprite: gearmaster_engine::combat::MonsterSprite::Rat,
+    rank: gearmaster_engine::combat::Rank::Ordinary,
+    drops: &[],
+    items: &[],
+};
+
+fn foe_swings(log: &gearmaster_engine::combat::CombatLog) -> Vec<u32> {
+    log.entries
+        .iter()
+        .filter_map(|e| match &e.event {
+            Event::Activate { side: Side::Enemy, .. } => Some(e.at_ms),
+            _ => None,
+        })
+        .collect()
+}
+
+/// An item inside the window fires later than it would have, to the tick.
+#[test]
+fn derail_catches_an_item_inside_the_window() {
+    let plain = simulate(ALIVE, &[item("Idle", SlotKind::Weapon, 60_000, Stats::ZERO)], &TICKER);
+
+    // One derail, fired once, from an item whose own bar comes round while the
+    // foe's is near the top: at 1,800 ms the foe has 200 ms to go.
+    let mut wire = item("Wire", SlotKind::Gloves, 1_800, Stats::ZERO);
+    wire.triggers =
+        vec![Trigger::OnActivate(Action::Derail { window_ms: 1_000, back_ms: 600 })];
+    let derailed = simulate(ALIVE, &[wire], &TICKER);
+
+    let (a, b) = (foe_swings(&plain), foe_swings(&derailed));
+    assert_eq!(a[0], 2_000, "the plain bar comes round on its cooldown");
+    assert_eq!(b[0], 2_600, "600 ms of bar, taken off at 1,800 ms, to the tick");
+
+    assert!(
+        derailed.entries.iter().any(|e| matches!(
+            &e.event,
+            Event::Derailed { item, by_ms: 600, .. } if item == "swing"
+        )),
+        "nothing was logged"
+    );
+}
+
+/// Outside the window, nothing happens and the log says so by staying quiet.
+#[test]
+fn derail_ignores_an_item_outside_the_window() {
+    // Fires at 200 ms, when the foe's 2,000 ms bar has 1,800 ms to go - well
+    // outside a 1,000 ms window.
+    let mut wire = item("Wire", SlotKind::Gloves, 200, Stats::ZERO);
+    wire.triggers =
+        vec![Trigger::OnActivate(Action::Derail { window_ms: 1_000, back_ms: 600 })];
+    let log = simulate(ALIVE, &[wire], &TICKER);
+
+    let first = log
+        .entries
+        .iter()
+        .find(|e| matches!(&e.event, Event::Derailed { .. }))
+        .map(|e| e.at_ms);
+    assert!(
+        first.is_none_or(|t| t >= 1_000),
+        "it caught something at {first:?}, which was not inside the window"
+    );
+}
+
+/// It is not a curse, so curse resistance is not an answer to it.
+///
+/// Deliberate, and the point of the effect: it is what a board built entirely
+/// out of curse resist has no reply to. `TICKER` sits at 100 curse resist and
+/// is derailed anyway.
+#[test]
+fn derail_is_not_a_curse_and_curse_resist_does_not_answer_it() {
+    let mut wire = item("Wire", SlotKind::Gloves, 1_800, Stats::ZERO);
+    wire.triggers =
+        vec![Trigger::OnActivate(Action::Derail { window_ms: 1_000, back_ms: 600 })];
+    let log = simulate(ALIVE, &[wire], &TICKER);
+    assert_eq!(TICKER.curse_resist, 100, "the fixture is the point of the test");
+    assert!(log.entries.iter().any(|e| matches!(&e.event, Event::Derailed { .. })));
+    assert!(
+        !log.entries.iter().any(|e| matches!(&e.event, Event::Warded { .. })),
+        "a ward would mean the curse machinery had been asked, and it must not be"
+    );
+}
