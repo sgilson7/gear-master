@@ -297,34 +297,6 @@ impl PieceKind {
     }
 }
 
-/// Every action a trigger can run, composites unpacked.
-///
-/// The mirror of `event::every_outcome`, and here for the same reason it is
-/// there: half the triggers in this file *wrap* something - `SpendMana` has
-/// two branches, `Consume` has a payload, `PerAdjacentEmpty` wraps a whole
-/// trigger - so a lint that matches on the trigger alone sees a composite and
-/// nothing inside it. That blind spot cost `event.rs` twice.
-///
-/// It is what "can a board ever make a communion" is asked through, which is
-/// the question nothing was asking while three pools sat unreachable.
-pub fn every_action(t: &Trigger) -> Vec<Action> {
-    match *t {
-        Trigger::OnActivate(a)
-        | Trigger::OnAdjacentActivate(a)
-        | Trigger::OnAlignedActivate(a)
-        | Trigger::OnDiagonalActivate(a)
-        | Trigger::OnOtherCast(a)
-        | Trigger::OnBattleStart(a) => vec![a],
-        Trigger::SpendMana { on_success, on_failure, .. }
-        | Trigger::Spend { on_success, on_failure, .. } => vec![on_success, on_failure],
-        Trigger::SpendGold { on_success, .. } => vec![on_success],
-        Trigger::PerAdjacentItem { action, .. } => vec![action],
-        Trigger::Consume { per, .. } => vec![per],
-        Trigger::Watch { then, .. } => vec![then],
-        Trigger::PerAdjacentEmpty(inner) => every_action(inner),
-    }
-}
-
 /// A flat stat bonus that fires **only** once the piece's item assembles into
 /// finished gear.
 ///
@@ -705,6 +677,37 @@ pub enum Action {
     /// only worth it once income outruns what the passives are paying, which
     /// makes it a decision late in a fight rather than a thing to do on sight.
     Fuse { a: Resource, b: Resource, into: Resource },
+    /// Start this item's cooldown bar `pct` of the way along.
+    ///
+    /// `ReduceCooldown` is the neighbouring idea and deliberately cannot do
+    /// this: it is clamped to `cooldown_ms - 1` so it "fires sooner once and
+    /// cannot stack into a free item". This is the same clamp with a
+    /// different question - not "how much sooner" but "how far along does a
+    /// fight begin" - and every fight in this game begins at zero, which is
+    /// why the opening seconds look the same whatever you are wearing.
+    Prime { pct: i32 },
+    /// The same, for **every** item on this side.
+    ///
+    /// Its own variant rather than a target on `Prime`, because what it is
+    /// worth is not what one item's head start is worth: it scales with how
+    /// much is packed, which is the only thing in the game that pays for a
+    /// full board rather than for a good item.
+    PrimeBoard { pct: i32 },
+    /// Add `ms` to this item's cooldown, permanently, every time it runs.
+    ///
+    /// Nothing else in the game changes an item's cadence for good. Frost
+    /// slows while it lasts and haste is a standing percentage; this is a
+    /// board that gets slower the longer the fight goes, which is the only
+    /// way to write gear that is front-loaded on purpose.
+    Drift { ms: u32 },
+    /// This item cannot misfire and cannot be stunned, for the rest of the
+    /// fight.
+    ///
+    /// `steady` already existed and meant the first half. The second is the
+    /// answer to `StunStrongest`, which picks the best item a fighter owns -
+    /// so the thing this protects is exactly the thing that was being aimed
+    /// at.
+    Unshakable,
 }
 
 impl Action {
@@ -713,6 +716,14 @@ impl Action {
             Action::Curse { kind, target } => {
                 format!("apply curse of {} to {}", kind.name(), target.name())
             }
+            Action::Prime { pct } => format!("start {}% through its cooldown", pct),
+            Action::PrimeBoard { pct } => {
+                format!("every item on the board starts {}% through its cooldown", pct)
+            }
+            Action::Drift { ms } => {
+                format!("+{:.1}s to its own cooldown, for good, each time", *ms as f32 / 1000.0)
+            }
+            Action::Unshakable => "cannot misfire and cannot be stunned".to_string(),
             Action::Fuse { a, b, into } => {
                 format!("turn 1 {} and 1 {} into 1 {}", a.name(), b.name(), into.name())
             }
@@ -889,6 +900,16 @@ pub enum Trigger {
     /// after the event it watched has resolved. With `repeats` false it pays
     /// once and then stops counting.
     Watch { what: Watched, count: u32, then: Action, repeats: bool },
+    /// Fires whenever an item on the **other side** activates.
+    ///
+    /// Every other relation in this list looks at your own board - what is
+    /// touching you, what shares your rows, what your ball is casting. This is
+    /// the one that watches the opposition, and it is the feet's: moving when
+    /// they move is what a stride ahead means.
+    ///
+    /// Not a `Watched`, because those count *your* events and this answers
+    /// theirs.
+    OnEnemyActivate(Action),
 }
 
 /// What a `Watch` counts.
@@ -961,6 +982,7 @@ impl Trigger {
         match self {
             Trigger::OnActivate(a) => Trigger::OnActivate(a.scaled(pct)),
             Trigger::OnBattleStart(a) => Trigger::OnBattleStart(a.scaled(pct)),
+            Trigger::OnEnemyActivate(a) => Trigger::OnEnemyActivate(a.scaled(pct)),
             Trigger::OnAdjacentActivate(a) => Trigger::OnAdjacentActivate(a.scaled(pct)),
             Trigger::OnAlignedActivate(a) => Trigger::OnAlignedActivate(a.scaled(pct)),
             Trigger::OnOtherCast(a) => Trigger::OnOtherCast(a.scaled(pct)),
@@ -1004,6 +1026,9 @@ impl Trigger {
     pub fn describe(&self) -> String {
         match self {
             Trigger::OnActivate(a) => format!("on activation, {}", a.describe()),
+            Trigger::OnEnemyActivate(a) => {
+                format!("when one of theirs activates, {}", a.describe())
+            }
             Trigger::OnDiagonalActivate(a) => {
                 format!("when an item touching only a corner of this one acts, {}", a.describe())
             }
@@ -6913,7 +6938,14 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0,0),(1,0),(2,0),(1,1)],
         base: Stats { regen: 4, armor: 18, health: 200, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "one stride ahead", stats: Stats { curse_resist: 5, ..Stats::ZERO }, triggers: &[] }),
+        assembly_bonus: Some(AssemblyBonus {
+            label: "one stride ahead",
+            stats: Stats { curse_resist: 5, ..Stats::ZERO },
+            // A stride ahead of *them*. Every other relation in the game
+            // watches your own board; this one watches the opposition and
+            // moves when they move.
+            triggers: &[Trigger::OnEnemyActivate(Action::ReduceCooldown(150))],
+        }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 6,
@@ -9059,7 +9091,19 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0, 0), (1, 0), (2, 0), (3, 0)],
         base: Stats { health: 90, armor: 12, nature: 4, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "downhill all the way", stats: Stats { curse_resist: 4, strength: 2, ..Stats::ZERO }, triggers: &[] }),
+        assembly_bonus: Some(AssemblyBonus {
+            label: "downhill all the way",
+            stats: Stats { curse_resist: 4, strength: 2, ..Stats::ZERO },
+            // Fast off the top and slower every stride. It starts the fight
+            // half way through its own cooldown and gives 200ms back every
+            // time it comes round, which is the only gear in the game that is
+            // front-loaded on purpose - and the only thing that changes a
+            // cadence for good rather than for a while.
+            triggers: &[
+                Trigger::OnBattleStart(Action::Prime { pct: 50 }),
+                Trigger::OnActivate(Action::Drift { ms: 200 }),
+            ],
+        }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 8,
@@ -9323,7 +9367,15 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
         base: Stats { curse_resist: 6, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "sure-footed on ice", stats: Stats { curse_resist: 8, ..Stats::ZERO }, triggers: &[] }),
+        assembly_bonus: Some(AssemblyBonus {
+            label: "sure-footed on ice",
+            stats: Stats { curse_resist: 8, ..Stats::ZERO },
+            // Nothing stops it. `steady` was already half of this and had no
+            // way to be granted; the other half is the answer to
+            // `StunStrongest`, which aims at the best item a fighter owns -
+            // so what this protects is exactly what that picks.
+            triggers: &[Trigger::OnBattleStart(Action::Unshakable)],
+        }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
@@ -9368,7 +9420,16 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0, 0), (1, 0), (1, 1)],
         base: Stats::ZERO,
-        assembly_bonus: Some(AssemblyBonus { label: "already moving", stats: Stats { strength: 4, ..Stats::ZERO }, triggers: &[] }),
+        assembly_bonus: Some(AssemblyBonus {
+            label: "already moving",
+            stats: Stats { strength: 4, ..Stats::ZERO },
+            // Not this item: the whole board. Every fight in this game starts
+            // at zero and earns its way up, which is why the opening seconds
+            // look the same whatever you are wearing. This is the one that
+            // does not - and it pays for a full board rather than a good
+            // item, which nothing else does.
+            triggers: &[Trigger::OnBattleStart(Action::PrimeBoard { pct: 40 })],
+        }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
@@ -10677,7 +10738,8 @@ pub const TOWN_ONLY: &[&str] = &[
 /// same answer, and two of them would drift.
 pub fn walk_actions(t: &Trigger, f: &mut impl FnMut(&Action)) {
     match t {
-        Trigger::OnActivate(a)
+        Trigger::OnEnemyActivate(a)
+        | Trigger::OnActivate(a)
         | Trigger::OnAdjacentActivate(a)
         | Trigger::OnAlignedActivate(a)
         | Trigger::OnDiagonalActivate(a)
@@ -10920,6 +10982,7 @@ mod tests {
                 Trigger::Consume { per, .. } => is(per),
                 Trigger::OnBattleStart(a) => is(a),
                 Trigger::OnActivate(a)
+                | Trigger::OnEnemyActivate(a)
                 | Trigger::PerAdjacentItem { action: a, .. }
                 | Trigger::OnAdjacentActivate(a)
                 | Trigger::OnAlignedActivate(a)

@@ -166,6 +166,28 @@ mod weight {
     /// boards - which is the honest shape, because a creature with three items
     /// is exactly the one a denial is worth least against.
     pub const DERAIL_WINDOW: f32 = 0.79;
+
+    /// How much of an action a reaction to the *other* side is worth.
+    ///
+    /// The board-side reactions - adjacent, aligned, diagonal - are priced at
+    /// zero here and handled by the caller, which knows how many neighbours an
+    /// item has. There is no equivalent for the opposition: how often they act
+    /// is a fact about their board and not about this one.
+    ///
+    /// `trigger_points` is *per activation of its own item*, so this is the
+    /// ratio of how often the other side acts to how often this item comes
+    /// round. A greaves item fires about three times in a fight; a board acts
+    /// far more than that, and the first measurement of this said so loudly -
+    /// Cog Priest wears a Worldstrider Sole and the preset board went from
+    /// finishing rung 25 with 28 health to finishing it with -6.
+    ///
+    /// **Two**, and it is a compromise the scale cannot avoid making. What
+    /// this is worth depends on the *other* board, which `piece_rating` never
+    /// sees: worn by a player it answers a creature's four or five items, and
+    /// worn by a creature it answers a packed board's nineteen. Priced between
+    /// the two rather than at either, and deliberately not at the higher one -
+    /// the shop sells to the player.
+    pub const REACTION: f32 = 2.0;
     /// A stack of empowerment or shield per second. Both scale off held mana,
     /// so their real worth depends on a build the rating cannot see; this is
     /// the value of a stack in a build that is actually banking mana.
@@ -535,8 +557,65 @@ fn action_points(a: &Action) -> f32 {
         Action::Accrue { what, pct } => {
             ACCRUED_ASSUMED as f32 * *pct as f32 / 100.0 * pool_weight(*what)
         }
+        // ---- the cadence three ----
+        //
+        // None of these is a stat, so nothing above could see them and the
+        // shop would have priced every one at the floor. That is the failure
+        // this file was written about: an ink was priced as a blank page for a
+        // long time because the scale could not see a multiplier.
+        //
+        // A head start is haste that happens once. `Prime` is a percentage of
+        // this item's own cooldown, and `piece_points` divides a battle-start
+        // trigger by the fight length rather than multiplying it by the
+        // activation rate - so the seconds saved are priced at `HASTE_PS` and
+        // the once-a-fight discount is applied by the caller, exactly as it is
+        // for every other `OnBattleStart`.
+        Action::Prime { pct } => {
+            *pct as f32 / 100.0 * TYPICAL_COOLDOWN_S * weight::HASTE_PS
+        }
+        // The same head start, for everything on the board. Worth more than
+        // one item's, and not five times more: the fifth item primed is the
+        // fifth-best one, and a board that is not full gets less. `BOARD_ITEMS`
+        // is what a good board actually finishes.
+        Action::PrimeBoard { pct } => {
+            *pct as f32 / 100.0 * TYPICAL_COOLDOWN_S * weight::HASTE_PS * BOARD_ITEMS
+        }
+        // Haste's opposite, and it costs the wearer rather than paying them -
+        // so it is negative, and it compounds: an item that fires ten times in
+        // a fight has added `ms` ten times over. Priced at half of `HASTE_PS`,
+        // because the last additions land when the fight is nearly over and
+        // buy nothing.
+        Action::Drift { ms } => {
+            -(*ms as f32 / 1000.0) * weight::HASTE_PS * DRIFT_FIGHT_FIRINGS * 0.5
+        }
+        // What it saves is the activations a stun would have eaten. `STUN_CAP_MS`
+        // is what one item can be stopped for, and `StunStrongest` aims at the
+        // best item a fighter owns - which is what this protects, so it is
+        // priced at the aimed rate rather than the ordinary one.
+        Action::Unshakable => {
+            crate::curse::STUN_CAP_MS as f32 / 1000.0 * weight::DENIAL_S * weight::AIMED
+        }
     }
 }
+
+/// A middling cooldown, for pricing a head start as the seconds it saves.
+///
+/// The five slots run 1,500 to 5,000 ms and the mean of the defaults is a
+/// little over three seconds.
+const TYPICAL_COOLDOWN_S: f32 = 3.4;
+
+/// What a finished board actually carries, for a board-wide effect.
+///
+/// Not five: `report_damage_share_and_ttk` puts the owner's board at nineteen
+/// items across the five grids, and the marginal one primed is the worst one.
+/// Three is the number of items a head start is really worth paying for.
+const BOARD_ITEMS: f32 = 3.0;
+
+/// How many times a drifting item fires before the fight ends.
+///
+/// `TYPICAL_FIGHT_S` over `TYPICAL_COOLDOWN_S`, rounded down, which is what
+/// decides how much cadence it has given away by the end.
+const DRIFT_FIGHT_FIRINGS: f32 = 3.0;
 
 /// What a point of `what` costs to spend.
 ///
@@ -628,6 +707,10 @@ fn trigger_points(t: &Trigger) -> f32 {
         // activation, so multiplying it by the activation rate is exactly
         // backwards. See `piece_points`.
         Trigger::OnBattleStart(_) => 0.0,
+        // Answering the other side. Discounted like the other reactions: how
+        // often they act is a fact about their board, not this one, and a
+        // creature that fires twice a fight pays this nothing.
+        Trigger::OnEnemyActivate(a) => action_points(a) * weight::REACTION,
         // Mana income is finite, so assume it pays about two thirds of the
         // time and eats the failure branch the rest.
         Trigger::Spend { what, cost, on_success, on_failure } => {

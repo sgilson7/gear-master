@@ -747,7 +747,16 @@ fn the_armed_assembly_bonuses_are_the_ones_that_were_authored() {
     armed.sort_unstable();
     assert_eq!(
         armed,
-        vec!["Deadfall Mold", "Deeprooted Sole", "Pilgrim Sole", "Rimebound Mold"],
+        vec![
+            "Ambush Mold",
+            "Coldstep Mold",
+            "Deadfall Mold",
+            "Deeprooted Sole",
+            "Pilgrim Sole",
+            "Ridge Runner",
+            "Rimebound Mold",
+            "Worldstrider Sole",
+        ],
         "an assembly bonus was armed or disarmed. That moves the ladder, so the \
          commit that did it owns the re-measurement and this line."
     );

@@ -55,6 +55,39 @@ fn fight_wearing(piece: &str) -> gearmaster_engine::combat::CombatLog {
     simulate_at(run.player_stats(), &run.combat_items(), spec, Difficulty::Medium)
 }
 
+/// The same, plus whatever else the test needs on the board.
+fn fight_wearing_and(
+    piece: &str,
+    also: &[(&str, SlotKind)],
+) -> gearmaster_engine::combat::CombatLog {
+    let mut run = Run::with_all_pieces();
+    let id = |run: &Run, n: &str| {
+        run.owned.iter().copied().find(|&p| run.registry.def(p).name == n).expect(n)
+    };
+    let a = id(&run, piece);
+    let b = id(&run, "Runed Material");
+    run.equip(a, SlotKind::Greaves, 0, 0).expect("seats");
+    for x in 1..6u8 {
+        if run.equip(b, SlotKind::Greaves, x, 0).is_ok()
+            && run.report(SlotKind::Greaves).assembled_count() > 0
+        {
+            break;
+        }
+    }
+    for (name, slot) in also {
+        let p = id(&run, name);
+        for y in 0..4u8 {
+            for x in 0..4u8 {
+                if run.equip(p, *slot, x, y).is_ok() {
+                    break;
+                }
+            }
+        }
+    }
+    let spec = gearmaster_engine::combat::creature("Cave Rat").expect("exists");
+    simulate_at(run.player_stats(), &run.combat_items(), spec, Difficulty::Medium)
+}
+
 /// The wiring, proved: a trigger that exists only on the bonus reaches the log.
 #[test]
 fn a_bonus_trigger_reaches_the_fight() {
@@ -144,22 +177,26 @@ fn which_pools_a_board_can_actually_make() {
             .iter()
             .chain(d.assembly_bonus.iter().flat_map(|b| b.triggers.iter()));
         for t in triggers {
-            for a in gearmaster_engine::piece::every_action(t) {
+            // `walk_actions`, not a copy of it: two trigger variants hold
+            // more than one action and one wraps a whole trigger, and the
+            // engine's own walker says in its doc that two of these would
+            // drift. It was right - this test had one until it did not.
+            gearmaster_engine::piece::walk_actions(t, &mut |a| {
                 use gearmaster_engine::piece::Action;
                 match a {
                     Action::Gain { what, .. } | Action::Accrue { what, .. } => {
-                        if !reachable.contains(&what) {
-                            reachable.push(what)
+                        if !reachable.contains(what) {
+                            reachable.push(*what)
                         }
                     }
                     Action::Fuse { into, .. } => {
-                        if !reachable.contains(&into) {
-                            reachable.push(into)
+                        if !reachable.contains(into) {
+                            reachable.push(*into)
                         }
                     }
                     _ => {}
                 }
-            }
+            });
         }
     }
     assert!(
@@ -176,5 +213,170 @@ fn which_pools_a_board_can_actually_make() {
         vec![Resource::DruidicMight, Resource::Zealotry],
         "a fusion became reachable and this list was not lowered - which is \
          the good direction, but the commit that earned it owns this line"
+    );
+}
+
+// -------------------------------------------------- the cadence four
+//
+// These four need machinery the game did not have. Each test below fails if
+// the primitive is absent, which is the only way to know a new `Action` is
+// wired rather than merely priced.
+
+/// A head start, which every fight in this game otherwise begins without.
+#[test]
+fn downhill_starts_the_fight_already_part_way_through() {
+    let log = fight_wearing("Ridge Runner");
+    let primed = log
+        .entries
+        .iter()
+        .any(|e| e.at_ms == 0 && matches!(&e.event, Event::Hastened { side: Side::Player, .. }));
+    assert!(
+        primed,
+        "RIDGE RUNNER's bonus primes its bar at the bell and nothing was \
+         hastened at t=0. `ReduceCooldown` deliberately cannot do this - it is \
+         clamped so it cannot stack into a free item - which is why `Prime` \
+         exists at all."
+    );
+}
+
+/// And gives it back, permanently, which nothing else in the game does.
+#[test]
+fn downhill_gets_slower_every_time_it_fires() {
+    use gearmaster_engine::piece::SlotKind;
+    let mut run = Run::with_all_pieces();
+    let id = |run: &Run, n: &str| {
+        run.owned.iter().copied().find(|&p| run.registry.def(p).name == n).expect(n)
+    };
+    let a = id(&run, "Ridge Runner");
+    run.equip(a, SlotKind::Greaves, 0, 0).expect("seats");
+    let before = run
+        .combat_items()
+        .iter()
+        .find(|i| i.slot == SlotKind::Greaves)
+        .map(|i| i.cooldown_ms);
+    // The drift is a fight-time change, so it shows in the log's own items
+    // rather than in the profile the fight started from.
+    let spec = gearmaster_engine::combat::creature("Rust Golem").expect("exists");
+    let log = simulate_at(run.player_stats(), &run.combat_items(), spec, Difficulty::Medium);
+    let after = log.player.items.iter().find(|i| i.slot == Some(SlotKind::Greaves));
+    if let (Some(b), Some(a)) = (before, after) {
+        assert!(
+            a.cooldown_ms > b,
+            "RIDGE RUNNER fired and its cooldown did not grow: {b} -> {}",
+            a.cooldown_ms
+        );
+    }
+}
+
+/// The board, not the item. Nothing else in the game pays for a full board.
+#[test]
+fn already_moving_primes_everything_on_the_board() {
+    // A second item, in another grid, because a board of one cannot tell
+    // `PrimeBoard` from `Prime` - which is the whole distinction under test.
+    let log = fight_wearing_and("Ambush Mold", &[("Oak Handle", SlotKind::Weapon), ("Iron Blade", SlotKind::Weapon)]);
+    let at_bell: Vec<&str> = log
+        .entries
+        .iter()
+        .filter(|e| e.at_ms == 0)
+        .filter_map(|e| match &e.event {
+            Event::Hastened { side: Side::Player, item, .. } => Some(item.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        at_bell.len() >= 2,
+        "AMBUSH MOLD primes the whole board and only {:?} were hastened at the \
+         bell. One is the item itself, which `Prime` would have done - the \
+         point of `PrimeBoard` is the rest.",
+        at_bell
+    );
+}
+
+/// The relation that watches the opposition, which nothing did.
+#[test]
+fn one_stride_ahead_answers_the_other_side() {
+    let log = fight_wearing("Worldstrider Sole");
+    // Their activations, and ours answering them.
+    let theirs = log
+        .entries
+        .iter()
+        .filter(|e| matches!(&e.event, Event::Activate { side: Side::Enemy, .. }))
+        .count();
+    assert!(theirs > 0, "the fixture creature never acted, so this proves nothing");
+    let answered = log.entries.iter().any(|e| {
+        matches!(&e.event, Event::Hastened { side: Side::Player, .. }) && e.at_ms > 0
+    });
+    assert!(
+        answered,
+        "WORLDSTRIDER SOLE answers an enemy activation and there were {theirs} of \
+         them with no answer. Every other relation in the game looks at your own \
+         board; this is the only one that looks across."
+    );
+}
+
+/// Immunity, proved against a control rather than read off the log.
+///
+/// `CombatLog::player` is the combatant from *before* the fight - CLAUDE.md's
+/// own note about the watcher counters - so a flag set at the bell is not
+/// visible there. The only honest test is behavioural: the same board with and
+/// without the bonus, against something that stuns.
+#[test]
+fn sure_footed_cannot_be_stunned() {
+    // Its gear stuns; Francis's does not, which cost a fixture to find out.
+    let stunner = gearmaster_engine::combat::creature("Sootmother").expect("exists");
+
+    let stunned_items = |piece: &str| -> usize {
+        let mut run = Run::with_all_pieces();
+        let id = |run: &Run, n: &str| {
+            run.owned.iter().copied().find(|&p| run.registry.def(p).name == n).expect(n)
+        };
+        // A whole board, so the fight lasts long enough for a stun to land at
+        // all - and the same board both times, with only the mold swapped.
+        run.apply_preset();
+        for held in run.loadout.slot(SlotKind::Greaves).pieces() {
+            let _ = run.unequip(held);
+        }
+        let a = id(&run, piece);
+        let b = id(&run, "Runed Material");
+        run.equip(a, SlotKind::Greaves, 0, 0).expect("seats");
+        for x in 1..6u8 {
+            if run.equip(b, SlotKind::Greaves, x, 0).is_ok()
+                && run.report(SlotKind::Greaves).assembled_count() > 0
+            {
+                break;
+            }
+        }
+        // Stuns that land on *this* item, not on the board. A preset board has
+        // nineteen items and `StunStrongest` picks among all of them, so
+        // counting every stun compares the boards and not the bonus.
+        let items = run.combat_items();
+        let mine: Vec<usize> = items
+            .iter()
+            .enumerate()
+            .filter(|(_, i)| i.slot == SlotKind::Greaves)
+            .map(|(i, _)| i)
+            .collect();
+        let log = simulate_at(run.player_stats(), &items, stunner, Difficulty::Medium);
+        log.entries
+            .iter()
+            .filter(|e| match &e.event {
+                Event::Stunned { on: Side::Player, index, .. } => mine.contains(index),
+                _ => false,
+            })
+            .count()
+    };
+
+    // The control has to actually get stunned, or this proves nothing.
+    let control = stunned_items("Greave Mold");
+    assert!(
+        control > 0,
+        "the control board was never stunned, so the comparison below is empty"
+    );
+    assert_eq!(
+        stunned_items("Coldstep Mold"),
+        0,
+        "COLDSTEP MOLD's item was stunned {control} time(s) as a control and \
+         should be stunned none. `StunStrongest` aims at the best item a \
+         fighter owns, which is exactly what this protects."
     );
 }

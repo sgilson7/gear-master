@@ -178,6 +178,13 @@ fn action_word(a: &Action) -> Option<&'static str> {
     use crate::piece::Target::*;
     Some(match a {
         Action::Gain { .. } => "Brimming",
+        // The cadence three. A name is the only place a player meets these
+        // before the card, so each gets its own rather than falling into a
+        // shared word.
+        Action::Prime { .. } => "Waiting",
+        Action::PrimeBoard { .. } => "Marshalled",
+        Action::Drift { .. } => "Tiring",
+        Action::Unshakable => "Unshakable",
         // A fusion is named for the thing it makes, which is the whole reason
         // anybody builds one.
         Action::Fuse { into, .. } => match into {
@@ -235,6 +242,7 @@ pub fn qualifiers(reg: &PieceRegistry, pieces: &[PieceId]) -> Vec<&'static str> 
         for t in def.triggers {
             match t {
                 Trigger::PerAdjacentEmpty(_) => note(Some("Unbounded")),
+                Trigger::OnEnemyActivate(_) => note(Some("Answering")),
                 Trigger::Consume { .. } => note(Some("Emptying")),
                 Trigger::SpendGold { on_success, .. } => {
                     note(Some("Gilded"));

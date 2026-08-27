@@ -6,29 +6,17 @@ use gearmaster_engine::run::Run;
 
 /// Run `f` over every action a trigger can reach.
 ///
-/// Two of the trigger variants hold more than one action and one of them wraps
-/// another trigger, so "does this piece apply a curse" is a walk rather than a
-/// match. Anything counting mechanics across the catalogue wants this, or it
-/// silently misses the payload of every `PerAdjacentEmpty` in the game.
+/// This was a copy of `piece::walk_actions` and is now a call to it. The
+/// engine's own doc had already noticed: *"The test suite has carried a copy
+/// of this for a while; `rating.rs` needs the same answer, and two of them
+/// would drift."* They drifted the moment a trigger variant was added - the
+/// engine's walker knew about `OnEnemyActivate` and this one did not, and the
+/// only reason that was caught is that the match was exhaustive.
+///
+/// One walker. A lint over the catalogue that misses a payload is a lint that
+/// reports a clean catalogue.
 pub fn actions_of(t: &Trigger, f: &mut impl FnMut(&Action)) {
-    match t {
-        Trigger::OnActivate(a)
-        | Trigger::OnAdjacentActivate(a)
-        | Trigger::OnAlignedActivate(a)
-        | Trigger::OnDiagonalActivate(a)
-        | Trigger::OnBattleStart(a)
-        | Trigger::OnOtherCast(a) => f(a),
-        Trigger::Watch { then, .. } => f(then),
-        Trigger::PerAdjacentItem { action, .. } => f(action),
-        Trigger::Consume { per, .. } => f(per),
-        Trigger::SpendGold { on_success, .. } => f(on_success),
-        Trigger::SpendMana { on_success, on_failure, .. }
-        | Trigger::Spend { on_success, on_failure, .. } => {
-            f(on_success);
-            f(on_failure);
-        }
-        Trigger::PerAdjacentEmpty(inner) => actions_of(inner, f),
-    }
+    gearmaster_engine::piece::walk_actions(t, f)
 }
 
 /// Does any action this piece can reach satisfy `want`?

@@ -2676,6 +2676,12 @@ pub struct RunningItem {
     pub attracts_curses: bool,
     /// A misfire does not eat this one's activation.
     pub steady: bool,
+    /// Neither stunned nor misfiring, for the rest of the fight.
+    ///
+    /// `steady` is the first half and predates this. The second is the answer
+    /// to `StunStrongest`, which aims at the best item a fighter owns - so
+    /// what this protects is exactly what that picks.
+    pub unshakable: bool,
     /// What this item multiplies its own damage by, in hundredths.
     pub power: i32,
     pub physical_damage: i32,
@@ -2720,6 +2726,7 @@ impl RunningItem {
             slot: Some(p.slot),
             attracts_curses: p.attracts_curses,
             steady: p.steady,
+            unshakable: false,
             cooldown_ms: p.cooldown_ms,
             progress_ms: 0,
             stun_ms: 0,
@@ -2759,6 +2766,7 @@ impl RunningItem {
             // A monster's own teeth stand on nothing.
             attracts_curses: false,
             steady: false,
+            unshakable: false,
             cooldown_ms: a.cooldown_ms.max(TICK_MS),
             progress_ms: 0,
             stun_ms: 0,
@@ -4452,22 +4460,32 @@ fn land_stun(victim: &mut Combatant, aim: StunAim, at_ms: u32) -> Option<(usize,
     // the whole of the rule, and it is a decision rather than a reward: lay
     // the rod under something you do not mind losing the use of, and the thing
     // you do mind stops being picked.
-    if let Some(i) = victim.items.iter().position(|it| it.attracts_curses) {
+    // An unshakable item is not a candidate at all - not for the rod's pull,
+    // not for the aimed pick, not for the ordinary one.
+    if let Some(i) =
+        victim.items.iter().position(|it| it.attracts_curses && !it.unshakable)
+    {
         let item = &mut victim.items[i];
         item.stun_ms = (item.stun_ms + duration).min(STUN_CAP_MS);
         return Some((i, item.stun_ms));
     }
+    // Everything that can be stopped. An unshakable item is not a candidate
+    // for any of the three picks, so a board of nothing but those takes no
+    // stun at all rather than taking one somewhere odd.
+    let takers: Vec<usize> =
+        victim.items.iter().enumerate().filter(|(_, it)| !it.unshakable).map(|(i, _)| i).collect();
+    if takers.is_empty() {
+        return None;
+    }
     let idx = match aim {
-        StunAim::Strongest => victim
-            .items
+        StunAim::Strongest => takers
             .iter()
-            .enumerate()
+            .copied()
             // Among equals take the one still running: stunning what is
             // already stopped is the one outcome an aimed stun must not have.
-            .max_by_key(|(_, it)| (it.rating, it.stun_ms == 0))
-            .map(|(i, _)| i)?,
+            .max_by_key(|&i| (victim.items[i].rating, victim.items[i].stun_ms == 0))?,
         StunAim::Unaimed => {
-            let n = victim.items.len();
+            let n = takers.len();
             // A cheap integer hash of the fight's own state. Time alone
             // clusters, because stuns arrive on cooldown boundaries.
             let mix = (at_ms as u64)
@@ -4476,10 +4494,10 @@ fn land_stun(victim: &mut Combatant, aim: StunAim, at_ms: u32) -> Option<(usize,
             let start = (mix >> 33) as usize % n;
             // Walk from there to the first item that is not already stopped,
             // falling back to the original pick if every one of them is.
-            (0..n)
+            takers[(0..n)
                 .map(|k| (start + k) % n)
-                .find(|&i| victim.items[i].stun_ms == 0)
-                .unwrap_or(start)
+                .find(|&i| victim.items[takers[i]].stun_ms == 0)
+                .unwrap_or(start)]
         }
     };
 
@@ -4970,6 +4988,10 @@ fn activate(
             Trigger::PerAdjacentEmpty(_) => {}
             // Fired before the first tick, not on the cooldown.
             Trigger::OnBattleStart(_) => {}
+            // Waits for the *other side* to act, which `notify_opponents`
+            // answers. Here it does nothing, exactly like the three board-side
+            // reactions below it.
+            Trigger::OnEnemyActivate(_) => {}
             // These wait for someone else to act.
             Trigger::OnAdjacentActivate(_)
             | Trigger::OnAlignedActivate(_)
@@ -5013,6 +5035,49 @@ fn activate(
     // Finally, let the neighbours react. A reaction never emits an activation
     // of its own, so two items that react to each other cannot loop.
     notify_reactors(p, foes, me, idx, t, log);
+    // And the other side, which nothing answered until the feet learned to.
+    notify_opponents(p, foes, me, t, log);
+}
+
+/// Run every reaction the **other side** owes to an activation.
+///
+/// `notify_reactors` answers your own board - what is touching you, what shares
+/// your rows, what shares a corner. Nothing in the game answered the
+/// opposition until this, and the feet are what it is for: moving when they
+/// move is what a stride ahead means.
+///
+/// It cannot loop for the same reason a board-side reaction cannot: a reaction
+/// never emits an activation, so nothing it does can come back round as the
+/// event it was answering. `ReduceCooldown` in particular is clamped below the
+/// cooldown and so cannot fire the item it hastens.
+fn notify_opponents(
+    p: &mut Combatant,
+    foes: &mut Vec<Combatant>,
+    actor: Ref,
+    t: u32,
+    log: &mut Vec<LogEntry>,
+) {
+    // Every combatant but the one that acted. `Ref::Player` and one per foe,
+    // the same enumeration the opening scan walks.
+    let sides: Vec<Ref> =
+        std::iter::once(Ref::PLAYER).chain((0..foes.len()).map(Ref::foe)).collect();
+    for other in sides {
+        if other == actor {
+            continue;
+        }
+        let triggers: Vec<(usize, Trigger)> = pick(p, foes, other)
+            .items
+            .iter()
+            .enumerate()
+            .flat_map(|(j, it)| it.triggers.iter().map(move |t| (j, *t)).collect::<Vec<_>>())
+            .filter(|(_, tr)| matches!(tr, Trigger::OnEnemyActivate(_)))
+            .collect();
+        for (j, tr) in triggers {
+            if let Trigger::OnEnemyActivate(a) = tr {
+                apply(p, foes, other, a, t, log, Some(j));
+            }
+        }
+    }
 }
 
 /// Run every reaction owed to `actor_idx` firing.
@@ -5206,6 +5271,56 @@ fn apply(
     };
 
     match action {
+        // ---- the cadence three ----
+        Action::Prime { pct } => {
+            let Some(idx) = owner else { return };
+            let c = pick(p, foes, me);
+            let Some(it) = c.items.get_mut(idx) else { return };
+            // The same clamp `ReduceCooldown` uses, and for the same reason: a
+            // bar filled to the top is a free activation, and a head start is
+            // not one.
+            let to = (it.cooldown_ms as i64 * pct.clamp(0, 100) as i64 / 100) as u32;
+            it.progress_ms = to.min(it.cooldown_ms.saturating_sub(1));
+            let (name, by) = (it.name.clone(), it.progress_ms);
+            log.push(LogEntry {
+                who: me.logged_as(front),
+                at_ms: t,
+                event: Event::Hastened { side, item: name, by_ms: by },
+            });
+        }
+        Action::PrimeBoard { pct } => {
+            let c = pick(p, foes, me);
+            let mut primed: Vec<(String, u32)> = Vec::new();
+            for it in c.items.iter_mut() {
+                let to = (it.cooldown_ms as i64 * pct.clamp(0, 100) as i64 / 100) as u32;
+                it.progress_ms = to.min(it.cooldown_ms.saturating_sub(1));
+                primed.push((it.name.clone(), it.progress_ms));
+            }
+            for (name, by) in primed {
+                log.push(LogEntry {
+                    who: me.logged_as(front),
+                    at_ms: t,
+                    event: Event::Hastened { side, item: name, by_ms: by },
+                });
+            }
+        }
+        Action::Drift { ms } => {
+            let Some(idx) = owner else { return };
+            let c = pick(p, foes, me);
+            let Some(it) = c.items.get_mut(idx) else { return };
+            // Permanently. Nothing else in the game does this: frost lasts a
+            // while and haste is a standing percentage, and both are answers
+            // to what is happening. This is what the item is.
+            it.cooldown_ms = it.cooldown_ms.saturating_add(ms);
+        }
+        Action::Unshakable => {
+            let Some(idx) = owner else { return };
+            let c = pick(p, foes, me);
+            let Some(it) = c.items.get_mut(idx) else { return };
+            it.unshakable = true;
+            it.steady = true;
+            it.stun_ms = 0;
+        }
         Action::Fuse { a, b, into } => {
             // Both parents have to have something in them, and neither may
             // itself be a fusion - a product is not fuel. Anything else is a

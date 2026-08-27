@@ -47,24 +47,16 @@ enum Needs {
 
 impl Needs {
     fn holds(self, d: &PieceDef) -> bool {
+        // `piece::walk_actions`, not a fifth hand-written copy of it. This one
+        // returned `false` for `PerAdjacentEmpty` outright, so every payload
+        // wrapped in one was invisible to it - a lint that misses a mechanic
+        // reports a clean catalogue.
         let does = |want: fn(&Action) -> bool| {
-            d.triggers.iter().any(|t| match t {
-                Trigger::OnActivate(a)
-                | Trigger::OnBattleStart(a)
-                | Trigger::OnAdjacentActivate(a)
-                | Trigger::OnAlignedActivate(a)
-                | Trigger::OnDiagonalActivate(a)
-                | Trigger::OnOtherCast(a) => want(a),
-                Trigger::Watch { then, .. } => want(then),
-                Trigger::PerAdjacentItem { action, .. } => want(action),
-                Trigger::Consume { per, .. } => want(per),
-                Trigger::SpendGold { on_success, .. } => want(on_success),
-                Trigger::SpendMana { on_success, on_failure, .. }
-                | Trigger::Spend { on_success, on_failure, .. } => {
-                    want(on_success) || want(on_failure)
-                }
-                Trigger::PerAdjacentEmpty(_) => false,
-            })
+            let mut hit = false;
+            for t in d.triggers {
+                gearmaster_engine::piece::walk_actions(t, &mut |a| hit |= want(a));
+            }
+            hit
         };
         match self {
             Needs::OpensTheFight => {

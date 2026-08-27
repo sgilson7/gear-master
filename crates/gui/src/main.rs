@@ -1660,6 +1660,16 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
     fn from_action(a: &Action, out: &mut Vec<&'static str>) { match a {
         Action::Curse { .. } => note("curse", out),
         Action::StunStrongest { .. } => note("stun", out),
+        // The cadence three read as speed on the rail, because that is the
+        // thing they are all about - even the one that gives it away.
+        Action::Prime { .. } | Action::PrimeBoard { .. } | Action::Drift { .. } => {
+            note("speed", out)
+        }
+        // What it is proof against, which is the two the rail already draws.
+        Action::Unshakable => {
+            note("stun", out);
+            note("curse", out);
+        }
         Action::Drain { what, .. } => note(
             what.name(),
             out,
@@ -1705,6 +1715,7 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
         match t {
             Trigger::PerAdjacentEmpty(_) => {}
             Trigger::OnActivate(a)
+            | Trigger::OnEnemyActivate(a)
             | Trigger::OnBattleStart(a)
             | Trigger::PerAdjacentItem { action: a, .. }
             | Trigger::OnAdjacentActivate(a)
@@ -9316,6 +9327,7 @@ fn trigger_curses(t: &gearmaster_engine::piece::Trigger) -> bool {
         Trigger::Consume { per, .. } => curses(per),
         Trigger::OnActivate(a)
         | Trigger::OnBattleStart(a)
+        | Trigger::OnEnemyActivate(a)
         | Trigger::PerAdjacentItem { action: a, .. }
         | Trigger::OnAdjacentActivate(a)
         | Trigger::OnAlignedActivate(a)
