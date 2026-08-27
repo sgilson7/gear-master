@@ -312,6 +312,14 @@ impl PieceKind {
 pub struct AssemblyBonus {
     pub label: &'static str,
     pub stats: Stats,
+    /// Triggers the item gains, and only while it is assembled.
+    ///
+    /// The stat block above is a lump; this is behaviour. It reuses the whole
+    /// `Trigger` vocabulary rather than inventing a second one, so an assembly
+    /// bonus can do anything a piece can do - and it costs no new combat code,
+    /// because `Loadout::combat_items` has already filtered to assembled items
+    /// by the time it reads this.
+    pub triggers: &'static [Trigger],
 }
 
 /// When a piece's `Effect` is live, relative to whether the item it is part of
@@ -1343,6 +1351,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Blade of Helms",
             stats: Stats::health(175),
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 0,
@@ -1428,6 +1437,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Warlord",
             stats: Stats::strength(6),
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 0,
@@ -1466,6 +1476,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Reckoning",
             stats: Stats { curse_resist: 30, ..Stats::ZERO },
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 0,
@@ -1511,6 +1522,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Sevenleague",
             stats: Stats::power(35),
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 0,
@@ -1561,7 +1573,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Base,
         cells: &[(0,0),(1,0),(2,0),(0,1),(2,1),(0,2),(1,2),(2,2)],
         base: Stats { health: 150, magic_damage: 6, mana: 2, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "Voidsilk", stats: Stats { magic_resist: 20, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "Voidsilk", stats: Stats { magic_resist: 20, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 3600,
         speed_bonus: 0,
@@ -1636,7 +1648,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Material,
         cells: &[(0,0),(1,0),(0,1),(1,1),(0,2),(1,2)],
         base: Stats { physical_damage: 14, physical_pierce: 35, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "Breaker", stats: Stats { strength: 6, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "Breaker", stats: Stats { strength: 6, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 2600,
         speed_bonus: 0,
@@ -2004,7 +2016,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Orb,
         cells: &[(0,0),(1,0),(2,0),(1,1)],
         base: Stats { magic_damage: 2, mana: 2, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "Timeworn", stats: Stats { power: 30, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "Timeworn", stats: Stats { power: 30, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 2800,
         speed_bonus: 0,
@@ -2356,7 +2368,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Crest,
         cells: &[(0,0),(0,1)],
         base: Stats { mana: 2, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "Hastening", stats: Stats { power: 20, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "Hastening", stats: Stats { power: 20, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
@@ -2383,7 +2395,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Base,
         cells: &[(0,0),(1,0),(2,0),(0,1),(1,1),(2,1)],
         base: Stats { health: 200, magic_resist: 15, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "Rimeguard", stats: Stats { magic_harden: 20, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "Rimeguard", stats: Stats { magic_harden: 20, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 2600,
         speed_bonus: 0,
@@ -2413,7 +2425,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Frame,
         cells: &[(0,0),(1,0),(2,0),(0,1),(1,1),(2,1)],
         base: Stats { mind_resist: 20, mana: 4, physical_resist: 18, magic_resist: 25, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "Stonewall", stats: Stats { physical_resist: 25, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "Stonewall", stats: Stats { physical_resist: 25, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 2800,
         speed_bonus: 0,
@@ -2549,7 +2561,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Base,
         cells: &[(0,0),(1,0),(2,0),(0,1),(1,1),(2,1)],
         base: Stats { health: 175, nature: 2, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "Heartwood", stats: Stats { regen: 4, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "Heartwood", stats: Stats { regen: 4, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 3000,
         speed_bonus: 0,
@@ -2654,7 +2666,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Base,
         cells: &[(0,0),(1,0),(2,0),(3,0),(0,1),(1,1),(2,1),(3,1)],
         base: Stats { health: 225, physical_resist: 22, physical_damage: 6, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "Bulwark", stats: Stats { physical_harden: 20, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "Bulwark", stats: Stats { physical_harden: 20, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 3400,
         speed_bonus: 0,
@@ -2772,6 +2784,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Godsteel",
             stats: Stats::strength(8),
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 3600,
@@ -2808,6 +2821,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Aegis",
             stats: Stats { mind_resist: 25, curse_resist: 25, ..Stats::ZERO },
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 2800,
@@ -2826,6 +2840,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Adamant",
             stats: Stats::regen(3),
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 3400,
@@ -2844,6 +2859,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Titan",
             stats: Stats::power(60),
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 2400,
@@ -2862,6 +2878,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Sevenleague",
             stats: Stats::health(225),
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 2200,
@@ -3165,6 +3182,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Balanced",
             stats: Stats::power(50),
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 0,
@@ -3277,6 +3295,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Focused",
             stats: Stats::strength(3),
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 0,
@@ -3361,6 +3380,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Woven",
             stats: Stats::regen(2),
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 0,
@@ -3411,6 +3431,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Gauntleted",
             stats: Stats::strength(2),
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 0,
@@ -3446,6 +3467,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Runed",
             stats: Stats::health(75),
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 0,
@@ -3802,6 +3824,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Overflowing",
             stats: Stats { mana: 2, ..Stats::ZERO },
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 0,
@@ -3946,6 +3969,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Bilious",
             stats: Stats::mind(2),
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 0,
@@ -6774,7 +6798,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0,0),(1,0),(0,1),(1,1)],
         base: Stats { faith: 3, magic_resist: 10, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "the road knows you", stats: Stats { curse_resist: 4, faith: 1, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "the road knows you", stats: Stats { curse_resist: 4, faith: 1, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
@@ -6839,7 +6863,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0,0),(1,0),(2,0),(1,1)],
         base: Stats { regen: 4, armor: 18, health: 200, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "one stride ahead", stats: Stats { curse_resist: 5, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "one stride ahead", stats: Stats { curse_resist: 5, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 6,
@@ -7398,6 +7422,7 @@ pub static CATALOG: &[PieceDef] = &[
             // item and terrain never joins one.
             label: "The Money Jacket",
             stats: Stats { physical_resist: 12, magic_resist: 12, ..Stats::ZERO },
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 2600,
@@ -7461,7 +7486,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0,0),(1,0),(2,0)],
         base: Stats { curse_resist: 12, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "planted", stats: Stats { curse_resist: 10, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "planted", stats: Stats { curse_resist: 10, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
@@ -7857,6 +7882,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Reliquary",
             stats: Stats { curse_resist: 12, ..Stats::ZERO },
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 0,
@@ -7921,6 +7947,7 @@ pub static CATALOG: &[PieceDef] = &[
         assembly_bonus: Some(AssemblyBonus {
             label: "Overflow",
             stats: Stats { curse_resist: 10, ..Stats::ZERO },
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 0,
@@ -8073,6 +8100,7 @@ pub static CATALOG: &[PieceDef] = &[
             // bleed carrier is for.
             label: "Gilded Offcuts",
             stats: Stats::health(90),
+            triggers: &[],
         }),
         effect: None,
         cooldown_ms: 0,
@@ -8972,7 +9000,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0, 0), (1, 0), (2, 0), (3, 0)],
         base: Stats { health: 90, armor: 12, nature: 4, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "downhill all the way", stats: Stats { curse_resist: 4, strength: 2, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "downhill all the way", stats: Stats { curse_resist: 4, strength: 2, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 8,
@@ -9177,7 +9205,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0, 0), (1, 0), (1, 1)],
         base: Stats { curse_resist: 4, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "the cold gets into the works", stats: Stats { curse_resist: 6, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "the cold gets into the works", stats: Stats { curse_resist: 6, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 10,
@@ -9222,7 +9250,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
         base: Stats { curse_resist: 6, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "sure-footed on ice", stats: Stats { curse_resist: 8, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "sure-footed on ice", stats: Stats { curse_resist: 8, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
@@ -9267,7 +9295,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0, 0), (1, 0), (1, 1)],
         base: Stats::ZERO,
-        assembly_bonus: Some(AssemblyBonus { label: "already moving", stats: Stats { strength: 4, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "already moving", stats: Stats { strength: 4, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,
@@ -9299,7 +9327,7 @@ pub static CATALOG: &[PieceDef] = &[
         kind: PieceKind::Mold,
         cells: &[(0, 0), (0, 1), (1, 1)],
         base: Stats { curse_resist: 3, ..Stats::ZERO },
-        assembly_bonus: Some(AssemblyBonus { label: "set before they arrive", stats: Stats { armor: 6, ..Stats::ZERO } }),
+        assembly_bonus: Some(AssemblyBonus { label: "set before they arrive", stats: Stats { armor: 6, ..Stats::ZERO }, triggers: &[] }),
         effect: None,
         cooldown_ms: 0,
         speed_bonus: 0,

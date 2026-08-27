@@ -724,3 +724,32 @@ fn the_catalogue_carries_the_assembly_bonuses_it_says_it_does() {
          which is unconditional and printed elsewhere"
     );
 }
+
+/// Nothing is armed yet, and that is the milestone.
+///
+/// `AssemblyBonus` gained a `triggers` list and `Loadout::combat_items` folds
+/// it into the item's own. Every shipped bonus carries an empty one, so the
+/// ladder is byte-identical to the commit before it - which is the house rule
+/// from `design/HANDOFF.md` §5: land primitives inert, arm them separately.
+///
+/// **The wiring itself is not proved here, and cannot be**: `CATALOG` is
+/// static, so a test cannot invent a piece carrying a bonus trigger, and no
+/// shipped piece carries one. The first design that does is the proof, and its
+/// test is written to be exactly that. Until then this pins the *claim* -
+/// that nothing is armed - so the day one is, this test is what fails and says
+/// so.
+#[test]
+fn no_assembly_bonus_is_armed_yet() {
+    let armed: Vec<&str> = gearmaster_engine::piece::CATALOG
+        .iter()
+        .filter(|d| d.assembly_bonus.is_some_and(|b| !b.triggers.is_empty()))
+        .map(|d| d.name)
+        .collect();
+    assert!(
+        armed.is_empty(),
+        "these carry an assembly-bonus trigger: {armed:?}. That is fine and \
+         expected from M4 on - but the ladder moves when it happens, so the \
+         commit that arms the first one owns the re-measurement and this \
+         assertion becomes the list."
+    );
+}

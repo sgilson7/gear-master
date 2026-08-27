@@ -751,10 +751,22 @@ impl Loadout {
             let core = item.pieces.iter().copied().find(|&p| reg.def(p).kind.is_core());
             let cooldown_ms = item_cooldown_ms(reg, &item.pieces, *kind);
 
+            // A piece's own triggers, and the ones its assembly bonus lends
+            // the item.
+            //
+            // No `assembled` test here, and none is needed: `combat_items`
+            // filtered to finished items before this loop began, so anything
+            // reaching this line is already assembled. That is the whole of
+            // "only while assembled" - the condition is the function.
             let raw_triggers: Vec<Trigger> = item
                 .pieces
                 .iter()
-                .flat_map(|&p| reg.def(p).triggers.iter().copied())
+                .flat_map(|&p| {
+                    let d = reg.def(p);
+                    d.triggers.iter().copied().chain(
+                        d.assembly_bonus.into_iter().flat_map(|b| b.triggers.iter().copied()),
+                    )
+                })
                 .collect();
 
             // Ink scales the cast it is bound into rather than the wearer.
