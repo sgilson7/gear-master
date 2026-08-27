@@ -186,3 +186,97 @@ fn he_never_gets_easier_as_the_setting_rises() {
         }
     }
 }
+
+// ------------------------------------------------------- and again, doubled
+//
+// `Run::monster` ends by clamping to the last rung, so past the ladder every
+// rung is Francis again. That used to mean plain, unscaled Francis for ever:
+// the road did not end, it just stopped meaning anything. Rung `50 + n` is
+// `2^n` Francis now, counted in Francises beaten rather than in rungs past
+// fifty - the two agree on every run except one that took the road past him,
+// and a run that walked down there should not find him harder for it.
+
+/// Nothing anybody currently fights moves because the doubling exists.
+///
+/// The gate for the whole milestone. `doubled(0)` is the identity, and a run
+/// that has not put him down yet is a run at `n = 0`.
+#[test]
+fn the_first_francis_is_the_one_in_the_table() {
+    let him = LADDER.last().expect("a last rung");
+    assert_eq!(him.name, "Francis", "the clamp lands on somebody else now");
+    let plain = him.doubled(0);
+    assert_eq!(plain.health, him.health, "health moved at n=0");
+    assert_eq!(plain.strength, him.strength, "strength moved at n=0");
+    assert_eq!(plain.bounty, him.bounty, "the bounty moved at n=0");
+
+    let run = Run::seeded(1);
+    assert_eq!(run.francis_beaten, 0, "a fresh run has beaten nobody");
+    assert_eq!(run.doublings(), 0, "a fresh run is already being doubled");
+}
+
+/// Each one doubles, and the multiplier is a pure function of the count.
+#[test]
+fn the_man_at_the_top_doubles_every_time_he_goes_down() {
+    let him = LADDER.last().expect("a last rung");
+    for n in 0..6u32 {
+        let m = 1i64 << n;
+        let d = him.doubled(n);
+        assert_eq!(d.health as i64, him.health as i64 * m, "health at n={n}");
+        assert_eq!(d.strength as i64, him.strength as i64 * m, "strength at n={n}");
+        assert_eq!(d.bounty as i64, him.bounty as i64 * m, "bounty at n={n}");
+        // Twice, because a scaled spec that remembered anything would make the
+        // fight depend on how many times the interface asked for it.
+        assert_eq!(him.doubled(n).health, d.health, "asking twice gave two answers");
+    }
+}
+
+/// The resistances deliberately do not double.
+///
+/// They are percentages that piercing answers. Taking 78 to 156 does not make
+/// a fighter twice as hard to hurt; it makes a number the rest of the engine
+/// would have to be defended against.
+#[test]
+fn the_resistances_are_not_part_of_the_doubling() {
+    let him = LADDER.last().expect("a last rung");
+    let d = him.doubled(4);
+    assert_eq!(d.physical_resist, him.physical_resist);
+    assert_eq!(d.magic_resist, him.magic_resist);
+    assert_eq!(d.mind_resist, him.mind_resist);
+    assert_eq!(d.curse_resist, him.curse_resist);
+    assert_eq!(d.regen, him.regen, "regen is a rate and stays one");
+}
+
+/// The ceiling holds, and holding means stops rising rather than wrapping.
+#[test]
+fn the_doubling_stops_before_the_numbers_do() {
+    use gearmaster_engine::combat::MOST_DOUBLINGS;
+    let him = LADDER.last().expect("a last rung");
+    let top = him.doubled(MOST_DOUBLINGS);
+    for n in [MOST_DOUBLINGS + 1, MOST_DOUBLINGS + 20, u32::MAX] {
+        let past = him.doubled(n);
+        assert_eq!(past.health, top.health, "health moved past the ceiling at n={n}");
+        assert_eq!(past.strength, top.strength, "strength moved past the ceiling at n={n}");
+        assert!(past.health > 0, "health wrapped negative at n={n}");
+        assert!(past.strength > 0, "strength wrapped negative at n={n}");
+    }
+}
+
+/// Beating him is what counts, not standing past his rung.
+#[test]
+fn the_count_is_francises_and_not_rungs() {
+    let mut run = Run::seeded(7);
+    run.rung = LADDER.len() - 1;
+    assert_eq!(run.monster().name, "Francis");
+    assert_eq!(run.monster().health, LADDER.last().expect("him").health, "doubled on sight");
+
+    run.force_win();
+    run.settle();
+    assert_eq!(run.francis_beaten, 1, "putting him down did not count");
+    // Past the ladder the clamp gives him back, once doubled.
+    assert_eq!(run.monster().name, "Francis");
+    assert_eq!(
+        run.monster().health,
+        LADDER.last().expect("him").health * 2,
+        "the second Francis is not twice the first"
+    );
+}

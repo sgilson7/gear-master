@@ -11358,7 +11358,7 @@ async fn main() {
         } else if matches!(drag, Drag::None) && hover.enemy_card {
             // Left of the side panel, so the panel it was opened from stays
             // uncovered - a preview that hides its own hover target flickers.
-            let spec = *run.monster();
+            let spec = run.monster();
             let w = layout.panel_x - 48.0;
             render_enemy_preview(Rect::new(24.0, 40.0, w, 0.0), &spec, run.difficulty, run.rung);
         } else if matches!(drag, Drag::None) && hover.class_card {

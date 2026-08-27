@@ -353,3 +353,62 @@ pretending otherwise.
 key. A run that looks through the lens still gets the door early; a run that
 never looked but did the work gets it too. Nothing else in the game reads
 `looked-through-the-lens`.
+
+---
+
+## 15. "Twice as hard" cannot be twice the health, and the two dials disagree
+
+M12 doubles Francis every time he goes down. The obvious reading is twice the
+health, and the clock refuses it.
+
+`SUDDEN_DEATH_MS` is 30,000 and nothing runs past about 44 s. Measured against
+the three reference boards at Easy, plain Francis already takes the owner
+**45.0 s** - the fight is decided by the bleed, not the boards. Double his
+health alone and every fight past `n = 1` is a clock fight; quadruple it and
+the winner is whoever was ahead at thirty seconds, which is not *harder*, only
+less interesting.
+
+So health and strength both double, and they pull opposite ways on purpose:
+more health lengthens the fight, more strength shortens it. The measured
+result, owner board, Easy, `W` a win:
+
+| n | owner | friend | perfect |
+|---|---|---|---|
+| 0 | **W** 45.0s | **W** 14.0s | 12.0s |
+| 1 | **W** 44.0s | **W** 16.0s | 7.2s |
+| 2 | 21.6s | 9.6s | 4.8s |
+| 3 | 7.2s | 4.8s | 2.4s |
+
+One doubling is survivable by both boards that beat him. Two is a wall. The
+fight stays roughly the length it was and who wins it moves, which is the only
+reading of "harder" that survives a clock.
+
+**The resistances are deliberately left alone.** They are percentages that
+piercing answers, and taking 78 to 156 does not make a fighter twice as hard
+to hurt - it makes a number every other part of the engine would have to be
+defended against.
+
+**Design outcome for the owner:** the curve is steep. `n = 2` beats every
+board that exists, so an endless mode tops out at three Francises for a
+current build. That is the shape `2^n` has and it was asked for by name; if
+the wall should come later, the dial is which figures scale rather than the
+exponent.
+
+## 16. A display that reads the table lies about the fight
+
+`Run::monster` returned `&'static MonsterSpec` and forty-four things call it.
+The easy way to add scaling is a second method that returns an owned scaled
+copy and to fight through that, leaving `monster` alone.
+
+That is wrong, and the reason is two lines of interface: `main.rs` prints
+`m.health` in the enemy preview and again in the rung banner. A run fighting a
+doubled Francis would have been shown the written one, and the preview is the
+screen a player uses to decide whether to fight at all.
+
+So `monster` itself returns the scaled spec - it is `Copy`, so the change is
+mechanical - and `written_monster` is the new name for the table's own figure,
+which one or two things genuinely want. The rule worth keeping: **when a
+number becomes a function of the run, the accessor everything already calls is
+the one that has to change.** Adding a second accessor beside it means every
+existing caller keeps reading the stale one, silently, and the interface is
+where that shows up last.

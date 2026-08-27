@@ -347,7 +347,49 @@ pub fn stepped_component(name: &str, step: i32) -> &'static str {
     family[want].name
 }
 
+/// How many times the man at the top may double before the numbers stop
+/// meaning anything.
+///
+/// `2^n` on an `i32` leaves the rails at 31 and leaves *sense* long before
+/// that. Twelve is the ceiling because four thousand times Francis's strength
+/// is already a one-tick kill against any board that can exist, and a run that
+/// gets there has proved whatever it was proving. Past it the multiplier stops
+/// rising rather than wrapping, which is the difference between a hard fight
+/// and a negative one.
+pub const MOST_DOUBLINGS: u32 = 12;
+
 impl MonsterSpec {
+    /// This creature, `n` doublings harder.
+    ///
+    /// `n = 0` returns it exactly as written, which is the gate: nothing any
+    /// player currently fights may move because this exists.
+    ///
+    /// **Health and strength double. The resistances do not.** The resists are
+    /// percentages that piercing answers; taking 78 to 156 does not make a
+    /// fighter twice as hard to hurt, it makes a number the rest of the engine
+    /// would have to be defended against. Health and strength are plain
+    /// quantities and multiply cleanly.
+    ///
+    /// The two dials pull opposite ways on the clock, and that is the point.
+    /// More health is a longer fight; more strength is a shorter one. Doubling
+    /// both leaves the fight roughly the length it was and moves who wins it -
+    /// which is what "harder" has to mean in a game where `SUDDEN_DEATH_MS`
+    /// owns everything past thirty seconds. Health alone would hand every
+    /// fight past `n = 1` to the clock rather than to the boards.
+    pub fn doubled(&self, n: u32) -> MonsterSpec {
+        let mut out = *self;
+        if n == 0 {
+            return out;
+        }
+        let m = 1i64 << n.min(MOST_DOUBLINGS);
+        let scale = |v: i32| (v as i64).saturating_mul(m).min(i32::MAX as i64) as i32;
+        out.health = scale(self.health);
+        out.strength = scale(self.strength);
+        // Worth more every time it is worth more to beat.
+        out.bounty = scale(self.bounty);
+        out
+    }
+
     /// Lay this monster's gear out in real slots. Returned so the interface can
     /// draw an enemy's board exactly the way it draws yours.
     /// This monster's gear, stepped for a difficulty.

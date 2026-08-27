@@ -626,6 +626,13 @@ pub struct Run {
     /// The watcher pattern. Arming leaves a receipt line that explains
     /// nothing; the door that reads the tally is thirty rungs later.
     pub counters: Vec<(&'static str, u32)>,
+    /// How many times the man at the top has been put down this run.
+    ///
+    /// The road does not end at Francis: `monster` clamps to the last rung,
+    /// so every rung past fifty is him again. This is what makes that mean
+    /// something - rung `50 + n` is `2^n` Francis. See `MonsterSpec::doubled`
+    /// for what actually doubles and why it is not the resistances.
+    pub francis_beaten: u32,
     /// The last figure the player named, for a door that asked for one.
     pub last_figure: Option<i32>,
     /// Rows granted but not yet spent. "One board of your choice" is a
@@ -884,6 +891,7 @@ impl Run {
             forced_event: None,
             flags: Vec::new(),
             counters: Vec::new(),
+            francis_beaten: 0,
             last_figure: None,
             owed_rows: 0,
             claim_tickets: 0,
@@ -982,7 +990,16 @@ impl Run {
         self.report(SlotKind::Weapon).items.iter().all(|i| !i.assembled)
     }
 
-    pub fn monster(&self) -> &'static MonsterSpec {
+    pub fn monster(&self) -> MonsterSpec {
+        self.written_monster().doubled(self.doublings())
+    }
+
+    /// The same creature, exactly as the table writes it.
+    ///
+    /// Split from `monster` because the doubling is a property of the *run*,
+    /// not of the creature, and one or two things want the figure that was
+    /// authored rather than the figure being fought.
+    pub fn written_monster(&self) -> &'static MonsterSpec {
         // An event can put something else in front of you. It stands in for
         // the rung rather than adding one, so the road stays the same length
         // whichever way you answered.
@@ -998,6 +1015,25 @@ impl Run {
             return m;
         }
         &LADDER[self.rung.min(LADDER.len() - 1)]
+    }
+
+    /// How many times the thing in front of you has been doubled.
+    ///
+    /// Only the man at the top doubles, and only for a run that has already
+    /// put him down. `Run::monster` clamps to the last rung, so past the
+    /// ladder every rung is Francis again - this is what stops that being a
+    /// treadmill and makes it a wall that moves.
+    ///
+    /// Counted in Francises beaten rather than in rungs past fifty. The two
+    /// agree on every run except one that took the road past him, where rung
+    /// 51 is not a Francis at all, and a run that walked down there should
+    /// not find him twice as hard for having done it.
+    pub fn doublings(&self) -> u32 {
+        if self.written_monster().name == "Francis" {
+            self.francis_beaten
+        } else {
+            0
+        }
     }
 
     // ------------------------------------------------------------ events
@@ -2643,6 +2679,13 @@ impl Run {
                         settlement.dropped = Some(name);
                     }
                 }
+                // The man at the top, counted rather than the rung, so the
+                // road past him does not accidentally make him harder for a
+                // run that walked down it. Counted before the rung moves,
+                // because `spec` is what was actually fought.
+                if spec.name == "Francis" {
+                    self.francis_beaten = self.francis_beaten.saturating_add(1);
+                }
                 self.rung += 1;
                 self.best_rung = self.best_rung.max(self.rung);
                 // Whatever stood in for that rung is done standing in.
@@ -2899,7 +2942,7 @@ impl Run {
     /// settlement - which floor you move to, what drops - rather than whether
     /// a particular build could take the fight.
     pub fn force_win(&mut self) {
-        self.log = Some(crate::combat::CombatLog::won_by_default(self.monster()));
+        self.log = Some(crate::combat::CombatLog::won_by_default(&self.monster()));
         self.settled = false;
         self.settle();
     }
@@ -3918,7 +3961,7 @@ impl Run {
 
     /// Fight whatever is next on the ladder.
     pub fn fight_next(&mut self) -> &CombatLog {
-        let spec = *self.monster();
+        let spec = self.monster();
         self.fight(&spec)
     }
 
