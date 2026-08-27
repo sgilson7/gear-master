@@ -2184,7 +2184,16 @@ fn button(rect: Rect, label: &str, enabled: bool, mx: f32, my: f32) -> bool {
         2.0,
         if hovered { col_gold() } else { Color::from_rgba(80, 80, 105, 255) },
     );
-    centered_text(label, rect.x + rect.w / 2.0, rect.y + rect.h / 2.0 + 6.0, 18.0, fg);
+    // Sized to the box rather than to 18 and hoped.
+    //
+    // A label wider than its button does not clip - it is drawn centred, so it
+    // spills out of *both* ends and into whatever is beside it. "WHAT THE
+    // WORDS MEAN" sits next to TOOLS on a shared row and the two have read as
+    // "WHAT THE WORDS MEANTOOLS" for as long as they have shared it. A theme
+    // is free to write a longer word than the plain game's, so this is not a
+    // matter of picking a better string.
+    let size = fitting_size(label, rect.w - 16.0, &[18.0, 16.0, 15.0, 14.0, 13.0, 12.0]);
+    centered_text(label, rect.x + rect.w / 2.0, rect.y + rect.h / 2.0 + 6.0, size, fg);
     hovered
 }
 
@@ -6993,7 +7002,11 @@ fn points_cells(r: Rect, n: usize) -> Vec<Rect> {
     let gap = 18.0;
     let cols = n.max(1);
     let cw = (r.w - 56.0 - (cols - 1) as f32 * gap) / cols as f32;
-    let top = r.y + r.h - 150.0;
+    // 186 and not the event screen's 150: this panel has a strip under the
+    // roads that the event screen has no equivalent of, and at 150 the way out
+    // hung eight pixels past the bottom border. Roads end at `r.h - 66`, the
+    // strip runs to `r.h - 28`, and the border is at `r.h`.
+    let top = r.y + r.h - 186.0;
     let mut out: Vec<Rect> = (0..cols)
         .map(|i| Rect::new(r.x + 28.0 + i as f32 * (cw + gap), top, cw, 120.0))
         .collect();
@@ -7030,7 +7043,7 @@ fn render_points(
     let lines: usize =
         scene.iter().map(|p| wrap_px(&words::retell_naming(p), w - 56.0, 15.0).len()).sum();
     let prose_h = lines as f32 * 20.0 + scene.len() as f32 * 10.0;
-    let h = (78.0 + prose_h + 24.0 + 158.0 + 30.0).clamp(300.0, LOGICAL_H - 40.0);
+    let h = (78.0 + prose_h + 24.0 + 194.0 + 30.0).clamp(320.0, LOGICAL_H - 40.0);
     let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, w, h);
     draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
     draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
@@ -8729,6 +8742,40 @@ fn chip_rects(titles: &[String], x: f32, y: f32, w: f32, measure: impl Fn(&str) 
 
 const CHIP_TEXT: f32 = 12.0;
 
+/// The classes a run is wearing, collapsed to one entry each.
+///
+/// `Run::classes` holds a stacking class once per stack - Piety, Unionized and
+/// Gear Salvager all stack - so a panel that drew the list drew the same name
+/// three times and called it three classes. What a player has is one title
+/// they hold three times over, and the number belongs on the chip.
+///
+/// Order is the order they were earned, which is the order the list is in: a
+/// shelf that re-sorted itself every time a fountain poured would move the
+/// chip somebody was about to point at.
+fn class_stacks(run: &Run) -> Vec<(&'static gearmaster_engine::class::ClassDef, usize)> {
+    let mut out: Vec<(&'static gearmaster_engine::class::ClassDef, usize)> = Vec::new();
+    for c in &run.classes {
+        match out.iter_mut().find(|(d, _)| d.name == c.name) {
+            Some((_, n)) => *n += 1,
+            None => out.push((c, 1)),
+        }
+    }
+    out
+}
+
+/// What a class chip says: its title, and how many of it you hold.
+///
+/// The count is only ever drawn where there is one to draw. A `x1` on every
+/// chip would be noise on the twenty-odd classes that cannot stack at all.
+fn class_chip_label(c: &gearmaster_engine::class::ClassDef, n: usize) -> String {
+    let name = words::class(c.name);
+    if n > 1 {
+        format!("{name}  x{n}")
+    } else {
+        name.to_string()
+    }
+}
+
 /// The glossary: every term on one screen, and one of them open.
 ///
 /// It was four columns of term-and-paragraph, paginated, and a shelf of forty
@@ -9637,40 +9684,60 @@ fn render_panel(
             col_dim(),
         );
         y += 22.0;
-        // The band below this is pinned, so a long list has to stop somewhere.
-        // Two lines each, and one line held back for the "+ N more" that says
-        // where the rest went. Classes stack now - Piety and Tired both do -
-        // so "however many there are" is no longer a small number.
-        let room = ((opp_top - 26.0 - y) / 36.0).floor().max(1.0) as usize;
-        let show = if run.classes.len() > room { room.saturating_sub(1).max(1) } else { run.classes.len() };
-        for c in run.classes.iter().take(show) {
-            ui_text(words::class(c.name), x + 20.0, y, 19.0, col_gold());
-            y += 18.0;
-            // The band is pinned, so the text shrinks to fit rather than being
-            // cut off - a power whose description is a word longer than the
-            // last one must not silently lose its ending.
-            let text = words::retell(&c.power.short());
-            let size = fitting_size(&text, PANEL_W - 48.0, &[13.0, 12.0, 11.0, 10.0]);
-            draw_capped(&text, x + 24.0, y, PANEL_W - 48.0, size, LIGHTGRAY, 1);
-            y += 18.0;
-        }
-        if show < run.classes.len() {
-            let rest = &run.classes[show..];
-            let row = Rect::new(x + 16.0, y - 4.0, PANEL_W - 32.0, 20.0);
-            let hot = row.contains(Vec2::new(mx, my));
-            ui_text(&format!("+{} more", rest.len()), x + 20.0, y + 10.0, 13.0, if hot { col_gold() } else { col_dim() });
+        // A shelf of chips, the way the glossary lays its words out.
+        //
+        // It was a list of names with a paragraph under each and a "+ N more"
+        // holding the overflow, which answered "how many" and not "what": the
+        // band below is pinned, so a run wearing six titles saw two of them
+        // and a number. A chip is a title at its own width, so the whole shelf
+        // fits above the fold and finding one is reading rather than hovering.
+        //
+        // And a stacking class is one chip with a number on it. Piety,
+        // Unionized and Gear Salvager are held several times over, and the
+        // list drew each stack as a separate title - three chips saying the
+        // same word, which reads as three classes.
+        let stacks = class_stacks(run);
+        let titles: Vec<String> =
+            stacks.iter().map(|(c, n)| class_chip_label(c, *n)).collect();
+        let strip_w = PANEL_W - 40.0;
+        let chips = chip_rects(&titles, x + 20.0, y, strip_w, |t| text_width(t, CHIP_TEXT));
+        for ((c, n), rect) in stacks.iter().zip(&chips) {
+            let hot = rect.contains(Vec2::new(mx, my));
+            draw_rectangle(
+                rect.x,
+                rect.y,
+                rect.w,
+                rect.h,
+                if hot { Color::from_rgba(52, 46, 30, 255) } else { Color::from_rgba(28, 28, 40, 255) },
+            );
+            draw_rectangle_lines(
+                rect.x,
+                rect.y,
+                rect.w,
+                rect.h,
+                if hot { 2.0 } else { 1.0 },
+                if hot { col_gold() } else { Color::from_rgba(70, 70, 95, 255) },
+            );
+            centered_text(
+                &class_chip_label(c, *n),
+                rect.x + rect.w / 2.0,
+                rect.y + 17.0,
+                CHIP_TEXT,
+                if hot { col_gold() } else { Color::from_rgba(196, 178, 128, 255) },
+            );
+            // What it does, on the chip the cursor is over. The paragraph used
+            // to be under every name at once, which is what made the shelf too
+            // tall to show; asking for one at a time is what buys the room.
             if hot {
-                // Wins over the class chart: a cursor on this line is asking
-                // about these, not about the fountain schedule behind them.
                 hover.class_card = false;
                 hover.overflow = Some(Pinned {
-                    title: format!("{} MORE", rest.len()),
-                    at: Vec2::new(x - 312.0, y),
-                    entries: rest.iter().map(|c| PinnedEntry::Class(*c)).collect(),
+                    title: words::class(c.name).to_string(),
+                    at: Vec2::new(x - 312.0, rect.y),
+                    entries: vec![PinnedEntry::Class(*c)],
                 });
             }
-            y += 24.0;
         }
+        y = chips.last().map(|c| c.y + c.h).unwrap_or(y) + 8.0;
     }
     // Everything below is pinned, so this block has a hard ceiling: it must
     // never grow into the opponent. Each line is asked for room first.
@@ -10288,6 +10355,47 @@ async fn main() {
     if std::env::var("GEARMASTER_PRESET").is_ok() {
         run.apply_preset();
         message = "Auto-built a complete loadout - every bonus is lit.".to_string();
+    }
+    // Wear a set of titles, for looking at the shelf without earning them.
+    //
+    // `GEARMASTER_CLASSES=Piety,Piety,Piety,Berserker` - repeats are what a
+    // stacking class looks like in `Run::classes`, so this is also how the
+    // count on a chip is looked at.
+    if let Ok(v) = std::env::var("GEARMASTER_CLASSES") {
+        for want in v.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            if let Some(c) =
+                gearmaster_engine::class::CLASSES.iter().find(|c| c.name == want)
+            {
+                run.classes.push(c);
+            }
+        }
+        run.refresh_class_effects();
+    }
+    // Drop into a dungeon, for looking at one without playing to it.
+    //
+    // `GEARMASTER_DUNGEON=the-switchyard` walks in at the mouth;
+    // `=the-switchyard:points` walks in and clears the first floor, which is
+    // how you get a screenshot of a set of points without fighting twenty
+    // rungs first. A debug hook beside `GEARMASTER_TOOLS`, `_PRESET` and
+    // `_STUN`, and like them it does nothing unless somebody asks.
+    if let Ok(v) = std::env::var("GEARMASTER_DUNGEON") {
+        let (id, at_points) = match v.split_once(':') {
+            Some((id, "points")) => (id.to_string(), true),
+            _ => (v.clone(), false),
+        };
+        if let Some(d) = gearmaster_engine::dungeon::by_id(&id) {
+            run.rung = 26;
+            run.enter_dungeon_at(d, 0);
+            if at_points {
+                run.pending_scene = None;
+                run.force_win();
+                run.settle();
+                run.take_receipt();
+                run.pending_scene = None;
+                run.back_to_loadout();
+            }
+            message = format!("Dropped into {}.", d.name);
+        }
     }
     if let Ok(r) = std::env::var("GEARMASTER_RUNG") {
         if let Ok(n) = r.parse::<usize>() {
@@ -12328,6 +12436,101 @@ mod tests {
         let banner = dungeon_banner(&run).expect("still in one");
         assert!(banner.ends_with("floor 2 of 3"), "{banner}");
         assert!(ticked_pips(&run).is_empty(), "nothing here was a decision");
+    }
+
+    /// A class held three times is one chip with a three on it.
+    ///
+    /// The panel drew `run.classes` straight, and a stacking class sits in
+    /// that list once per stack - so Piety held three times drew three chips
+    /// saying "Piety", which reads as three classes rather than one title held
+    /// three times over.
+    #[test]
+    fn a_stacking_class_is_one_chip_with_a_number_on_it() {
+        use gearmaster_engine::class::{stacks, CLASSES};
+        use gearmaster_engine::run::Run;
+
+        let stacker = CLASSES
+            .iter()
+            .find(|c| stacks(c.name))
+            .expect("some class stacks; Piety and Gear Salvager both do");
+        let plain = CLASSES
+            .iter()
+            .find(|c| !stacks(c.name))
+            .expect("most classes do not");
+
+        let mut run = Run::seeded(0xC1A55);
+        run.classes = vec![stacker, plain, stacker, stacker];
+
+        let shelf = class_stacks(&run);
+        assert_eq!(shelf.len(), 2, "four entries, two titles: {shelf:?}");
+        assert_eq!(shelf[0].0.name, stacker.name, "order is the order they were earned");
+        assert_eq!(shelf[0].1, 3, "three of them");
+        assert_eq!(shelf[1].1, 1);
+
+        // The number is only ever drawn where there is one to draw.
+        assert!(class_chip_label(shelf[0].0, 3).contains("x3"));
+        assert!(!class_chip_label(shelf[1].0, 1).contains('x'), "a lone class says no number");
+    }
+
+    /// Every class a run can hold fits the shelf it is drawn on.
+    ///
+    /// The band under the classes is pinned - it must never grow into the
+    /// opponent panel - which is what the old "+ N more" was for. A chip is a
+    /// title at its own width and wraps, so the question is whether the whole
+    /// shelf still fits when a run is wearing everything a run can wear.
+    #[test]
+    fn a_run_wearing_everything_still_fits_the_shelf() {
+        use gearmaster_engine::class::CLASSES;
+        use gearmaster_engine::run::Run;
+
+        let mut run = Run::seeded(0xC1A55);
+        // Three fountains, and the stacking ones can be doubled - so the most
+        // a run holds is a handful, not the whole table. Taking the whole
+        // table anyway is the harder question and the one worth asking.
+        run.classes = CLASSES.iter().collect();
+
+        let stacks = class_stacks(&run);
+        let titles: Vec<String> =
+            stacks.iter().map(|(c, n)| class_chip_label(c, *n)).collect();
+        let m = |t: &str| t.chars().count() as f32 * 7.0;
+        let chips = chip_rects(&titles, 0.0, 0.0, PANEL_W - 40.0, m);
+
+        assert_eq!(chips.len(), titles.len(), "a chip went missing");
+        for (t, c) in titles.iter().zip(&chips) {
+            assert!(c.w <= PANEL_W - 40.0, "{t:?} is wider than the panel");
+            assert!(c.x >= 0.0);
+        }
+        // Rows, not one long line: the shelf has to wrap or it runs off the
+        // side of the panel.
+        let rows = chips.iter().map(|c| c.y as i32).collect::<std::collections::BTreeSet<_>>();
+        assert!(rows.len() > 1, "thirty-one classes laid out on one row");
+    }
+
+    /// No two buttons share a pixel, and every one is inside the panel.
+    ///
+    /// The geometry half of the row. The *text* half - a label wider than its
+    /// box spilling out of both ends into whatever shares the row, which is
+    /// how "WHAT THE WORDS MEAN" and TOOLS read as "WHAT THE WORDS MEANTOOLS"
+    /// for as long as they shared it - cannot be asserted here: measuring a
+    /// string wants macroquad's font context, which is the same reason
+    /// `chip_rects` takes a `measure` and this does not. `button` sizes the
+    /// label to the box now, and the fix was confirmed by looking at it.
+    #[test]
+    fn no_two_buttons_share_a_pixel() {
+        let panel_x = LOGICAL_W - PANEL_W;
+        let r = button_rects(panel_x);
+        for (i, a) in r.iter().enumerate() {
+            assert!(a.x >= panel_x, "button {i} is off the panel");
+            assert!(a.x + a.w <= LOGICAL_W, "button {i} runs off the screen");
+            assert!(a.y + a.h <= LOGICAL_H, "button {i} runs off the bottom");
+            for (j, b) in r.iter().enumerate().skip(i + 1) {
+                let apart = a.x + a.w <= b.x + 0.01
+                    || b.x + b.w <= a.x + 0.01
+                    || a.y + a.h <= b.y + 0.01
+                    || b.y + b.h <= a.y + 0.01;
+                assert!(apart, "buttons {i} and {j} overlap");
+            }
+        }
     }
 
     /// The worn path is still on the words shelf, and still not signposted.

@@ -1625,3 +1625,72 @@ door's outcomes through `every_outcome` and asserts each dungeon is drawn, once.
 
 **878 engine, 65 GUI, 5 CLI. No warnings.** The M0 ascii fixture still passes:
 the lines that were on the map before are still on it, in order.
+
+---
+
+## The four caveats, closed (2026-08-27)
+
+### 1. Classes are chips, and a stack is a number
+
+The panel drew a list of names with a paragraph under each and a `+ N more`
+holding the overflow - which answers "how many" and not "what". The band under
+it is pinned, so a run wearing six titles saw two and a number.
+
+They are chips now, laid out by `chip_rects`, the same shelf the glossary uses.
+The whole set fits above the fold and the power description arrives on hover,
+one at a time, which is what buys the room.
+
+**A stacking class is one chip with a count.** `Run::classes` holds a stacking
+class once per stack - Piety, Tired, Recycler and Unionized all stack - so the
+list drew the same word three times and read as three classes. `class_stacks`
+collapses them in earned order and `class_chip_label` puts `x3` on the chip.
+The number is drawn only where there is one to draw, so the twenty-seven
+classes that cannot stack say nothing.
+
+Verified by rendering: nine class entries came out as six chips reading
+`Piety x3 · Berserker · Chronomancer · Unionized x2 · Prospector · Geomancer`,
+wrapped over three rows inside the panel.
+
+### 2. The GUI was rendered, and it found two defects
+
+`GEARMASTER_SKIP_INTRO=1 GEARMASTER_DUNGEON=the-switchyard:points
+GEARMASTER_SHOT=<path>`. Two debug hooks were added to do it, in the style of
+the four already there (`_TOOLS`, `_PRESET`, `_STUN`, `_PASTE`):
+`GEARMASTER_DUNGEON=<id>[:points]` drops a run into a dungeon, and
+`GEARMASTER_CLASSES=<names>` wears a set of titles. Both do nothing unless
+asked.
+
+The points screen renders correctly - title, the fork's two paragraphs, a card
+a road, and the way out. Two things were wrong and are fixed:
+
+- **The way out hung eight pixels below the panel.** `points_cells` put the
+  roads at `r.h - 150`, copied from the event screen, which has no strip under
+  its choices. The roads sit at `r.h - 186` and the panel is 36 taller.
+- **The stack strip said THE SWITCHYARD twice.** `Interrupt::Points` took its
+  name from the dungeon, and the points sit directly on top of the dungeon
+  they are in, so the strip read as two buildings. It is `"THE POINTS"` now,
+  which is the shape `Fountain` and `Brawl` already have: an interrupt that is
+  a *moment* says what the moment is.
+
+And one that was neither the yard's nor this mission's: **`WHAT THE WORDS
+MEAN` and `TOOLS` have read as `WHAT THE WORDS MEANTOOLS`** for as long as
+they have shared a row. The boxes never overlapped - the label did. `button`
+draws centred and does not clip, so a label wider than its box spills out of
+both ends. It is sized to the box now, which is also what a theme needs: a
+themed word is free to be longer than the plain one.
+
+### 3. The shop change ships
+
+Both of them, and they pull the same way. M5 stopped the shelf tilt counting
+pieces no shelf can reach; the seventh shelf gives the round-robin one more
+turn. Together the weapon's share of every shelf falls from **54.8% before the
+tilt existed, to 53.2%, to 48.7%**. Recorded in full under "The shop, after
+the merge review", including that no test pins a seed's shelves - so the
+change is real and was not being watched.
+
+### 4. `docs/` rebuilt at publish
+
+`make publish` rebuilds the wasm into `docs/` and pushes it. It was built at
+`edcd9fc`, before any of this.
+
+**878 engine, 68 GUI, 5 CLI - 951 in the workspace. No warnings.**

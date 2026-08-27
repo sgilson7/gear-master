@@ -430,7 +430,12 @@ impl Interrupt {
     pub fn name(self) -> &'static str {
         match self {
             Interrupt::Dungeon { at, .. } => at.name,
-            Interrupt::Points(d, _) => d.name,
+            // Not the dungeon's name. The stack shows a row per interrupt and
+            // the points sit directly on top of the dungeon they are in, so
+            // naming both after the building printed it twice and read as two
+            // buildings. The same shape `Fountain` and `Brawl` already have:
+            // an interrupt that is a *moment* says what the moment is.
+            Interrupt::Points(..) => "THE POINTS",
             Interrupt::TownGate(t) => t.name,
             Interrupt::Fountain(_) => "A FOUNTAIN",
             Interrupt::Event(e) => e.title,
