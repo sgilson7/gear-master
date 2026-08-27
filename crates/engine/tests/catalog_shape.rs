@@ -786,3 +786,102 @@ fn report_shape() {
         println!("  {:<32}{}", name, what);
     }
 }
+
+// ------------------------------------------------- what every creature wears
+
+/// Every creature's gear at every difficulty, as one line per placement.
+///
+/// This exists because "landed inert" is a claim about the ladder and needs a
+/// measurement rather than an argument. `stepped_component` sorts a footprint
+/// family by `monster_value` and steps along it (`combat.rs:292`), so a single
+/// appended sibling can re-dress every creature in that family on Easy, Hard
+/// and Insane without touching a line of any monster's own table
+/// (`the-unwinding.md` #19). Medium is gear-as-written and is dumped too, so
+/// the fixture is the whole of what a creature fights in.
+///
+/// Written by `report_gear_at`, which is the only way to re-baseline it.
+fn gear_at_every_difficulty() -> String {
+    use gearmaster_engine::combat::{Difficulty, ALTERNATES, CREVICE, LADDER};
+
+    let mut out = String::new();
+    for (table, whence) in
+        [(LADDER, "LADDER"), (ALTERNATES, "ALTERNATES"), (CREVICE, "CREVICE")]
+    {
+        for (i, m) in table.iter().enumerate() {
+            for d in Difficulty::ALL {
+                for (name, slot, x, y, rot) in m.gear_at(*d) {
+                    out.push_str(&format!(
+                        "{whence}[{i}] {} {} {:?} {},{} r{}\n",
+                        m.name,
+                        d.name(),
+                        slot,
+                        x,
+                        y,
+                        rot
+                    ));
+                    out.push_str(&format!("    {name}\n"));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The ladder is dressed exactly as it was when this fixture was taken.
+///
+/// Re-baseline only by running `report_gear_at` and saying in the commit which
+/// creature moved and why. A diff here is never noise: it means a creature is
+/// fighting in different equipment than it was, on some setting, and nothing
+/// in a creature's own table said so.
+#[test]
+fn no_creature_changed_what_it_wears() {
+    let want = include_str!("fixtures/gear_at.txt");
+    let got = gear_at_every_difficulty();
+    if want != got {
+        let (mut first, mut n) = (String::new(), 0usize);
+        for (a, b) in want.lines().zip(got.lines()) {
+            if a != b {
+                n += 1;
+                if first.is_empty() {
+                    first = format!("fixture: {a}\n     now: {b}");
+                }
+            }
+        }
+        panic!(
+            "{n} placements moved (fixture {} lines, now {}). First:\n{first}\n\
+             Re-baseline with:\n  cargo test -p gearmaster-engine --test catalog_shape \
+             -- --ignored --nocapture report_gear_at",
+            want.lines().count(),
+            got.lines().count()
+        );
+    }
+}
+
+/// Re-baseline the fixture above - and only when asked twice.
+///
+/// `--ignored` on this binary is the ratchet's own printer command
+/// (`CLAUDE.md` §5), so a printer that wrote a fixture as a side effect would
+/// erase the evidence every time somebody measured the catalogue. It writes
+/// only under `REBASELINE_GEAR_AT=1`, and says what it would have written
+/// otherwise:
+///
+///     REBASELINE_GEAR_AT=1 cargo test -p gearmaster-engine --test catalog_shape \
+///       -- --ignored --nocapture report_gear_at
+#[test]
+#[ignore]
+fn report_gear_at() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/gear_at.txt");
+    let body = gear_at_every_difficulty();
+    let placements = body.lines().count() / 2;
+    if std::env::var("REBASELINE_GEAR_AT").as_deref() != Ok("1") {
+        println!(
+            "{placements} placements; fixture holds {}. \
+             Set REBASELINE_GEAR_AT=1 to overwrite {path}",
+            include_str!("fixtures/gear_at.txt").lines().count() / 2
+        );
+        return;
+    }
+    std::fs::create_dir_all(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures")).unwrap();
+    std::fs::write(path, &body).unwrap();
+    println!("wrote {placements} placements to {path}");
+}
