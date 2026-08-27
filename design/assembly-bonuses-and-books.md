@@ -4,8 +4,11 @@ Written against commit `e38d968` (2026-08-27). Every figure below was read off
 that tip. Code follows this document; where it records what the code *does
 today*, it was read and cited, and there the code is the news.
 
-Two pieces of work that share a milestone chain because both move balance and
-neither should move it twice.
+Four pieces of work in one milestone chain. Two of them move balance - the
+bonuses and the book - and neither should move it twice, which is what decides
+the order. The other two are about the game explaining itself: the pools want
+their symbols wherever a number is printed, and the glossary wants to show a
+mechanic rather than describe it.
 
 ---
 
@@ -90,7 +93,35 @@ This is the same shape as `cursed_for_good` before the Unwinding found it, and
 as the three counters `completable.rs` now records: machinery that works,
 costs nothing to reach, and is reached by nothing.
 
-### 1.4 The book is the worse ball
+### 1.4 The pools have symbols and the numbers do not use them
+
+`draw_keyword` (`main.rs:1746`) already draws eleven glyphs, five of them
+pools: **mana, rage, faith, nature, armor**, plus curse, speed, mind, magic,
+physical and quest. They are used in exactly one place - the keyword rail down
+the left edge of a card, which says *that* a piece touches nature and never how
+much.
+
+Every actual figure is text. `Stats::summary` (`stats.rs:324`) builds
+`"+1 nature"`, `"+3 str"`, `"+0.20x its own power"`, and every card, tooltip
+and log line prints that string. So a card shows a nature glyph in the rail
+**and** the words "+1 nature" in the body, and the two never meet.
+
+Four pools have no glyph at all: **Insight**, and the three fusions. If §1.3's
+fusions become reachable they will arrive with nothing to draw them with.
+
+### 1.5 The glossary describes what it could show
+
+`render_glossary` (`main.rs:8874`) is three tabs of prose - WORDS, CLASSES,
+WHAT DECIDES - and `GLOSSARY` is 40-odd `(term, definition)` pairs of text.
+FAITH's entry reads *"Banked slowly. Every point adds resistance of both types
+while held, up to 40%."* That is a sentence about an arrow.
+
+The precedent for doing better is already in the file: `draw_tile_legend`
+(`main.rs:8112`) draws the five slot motifs, in colour, at their real sizes,
+under the heading READING A TILE. It is the one part of the glossary that shows
+instead of telling, and it is the model.
+
+### 1.6 The book is the worse ball
 
 ```
 Book:  Book 1 + Ink 1 + Spell 1 + Accessory 0-1     (piece.rs:1044)
@@ -257,12 +288,64 @@ the Unwinding shipped with the ladder byte-identical.
 - **Gate:** each primitive has a test that fails without it; the ladder's
   movement is measured and written down rather than discovered later.
 
-### M6 - Zealotry, DruidicMight, and the record. **▲**
+### M6 - The pools get their symbols. **▲**
 
-- Breaker -> Zealotry, Heartwood -> DruidicMight. All three fusions reachable.
+Interface only; no rule moves.
+
+- **Glyphs for the four pools that have none:** Insight, and DruidicMight,
+  Communion and Zealotry. A fusion's glyph is built from its parents' - it is
+  the one thing that makes `parents()` legible at a glance - so the shape says
+  what the pool is made of before any text does.
+- **`Stats::summary` gains a symbolic sibling.** The engine keeps returning
+  text, because the CLI has no glyphs and the log is a string; the GUI gains a
+  renderer that walks the same fields and draws `1` + the nature glyph where
+  the string says `+1 nature`. One traversal, two outputs, so a stat cannot
+  appear in one and not the other.
+- **Everywhere a figure is printed**: the piece card, the item card, the
+  tooltip, the shop shelf, and the assembly-bonus line M1 added.
+- **Gate:** a test that every field `Stats::summary` can emit has a glyph or a
+  deliberate fallback, so a new stat cannot ship invisible. The fallback is the
+  word, never nothing.
+
+### M7 - The visual battle glossary. **▲**
+
+A fourth tab, **HOW A FIGHT WORKS**, built the way `draw_tile_legend` is built:
+drawn, not written.
+
+Each entry is a small diagram in one row - a subject, a relation, an outcome -
+using the glyphs M6 finished:
+
+- **devotion** -> arrow -> **physical resist** + **magic resist**
+- **fury** -> arrow -> **physical damage**
+- **harvest** -> arrow -> **regen**
+- **jokes** -> spent -> **a cast**, with the weak branch drawn beside the paid one
+- **nature + rage** -> **druidic might**, and its two siblings: the fusion
+  triangle, which is the diagram `parents()` has always implied
+- **cork** absorbs before **health**, and empties at the bell
+- the **three lanes** and their three answers, side by side, since that is the
+  one thing a player has to hold in their head to build anything
+- **sudden death**: the clock at 30 s and the share both sides lose after it
+
+**Why a tab and not a rewrite.** The existing WORDS tab is right for words - a
+player looking up MISFIRE wants the sentence. This is for the half a sentence
+cannot carry, which is *what turns into what*.
+
+**Deliverable:** every relation in `Combatant::held_bonus` drawn, because that
+function is the actual rulebook for what a banked pool is worth and it has
+never been shown to anybody.
+
+**Gate:** a layout test in the house style - every diagram lands inside its
+row and none overlaps, at every width the panel can take, the same shape as
+`the_log_keeps_its_column_at_every_width`.
+
+### M8 - Zealotry, DruidicMight, and the record. **▲**
+
+- Breaker -> Zealotry, Heartwood -> DruidicMight. All three fusions reachable,
+  and M6's glyphs stop being art nothing produces.
 - The printers, `analysis/`, the ledger, and `CLAUDE.md`'s counts and traps.
 - **Gate:** a test asserting every `Resource` variant can be created by some
-  board - the lint that would have caught this in the first place.
+  board - the lint that would have caught this in the first place - and that
+  every one of them can be drawn.
 
 ---
 
@@ -277,7 +360,16 @@ the Unwinding shipped with the ladder byte-identical.
    and the three share codes specifically.
 3. **The book overshoots.** Two inks on one spell is a large multiplier and the
    dial is the ink bound, not the spell count.
-4. **M5's primitives are stronger than the ratings know.** `rating.rs` prices
+4. **M6's fusion glyphs land before M8 makes fusions reachable.** That is
+   deliberate - a pool arriving on screen with nothing to draw it is how the
+   first one would be found - but it means M6 ships four glyphs that nothing
+   yet produces. They are drawn in the glossary from the first day so they are
+   not dead art.
+5. **M7 becomes a second rulebook.** A diagram that disagrees with
+   `held_bonus` is worse than no diagram. Every relation drawn is read off that
+   function, and the gate is that the numbers in it come from the engine rather
+   than from the drawing code.
+6. **M5's primitives are stronger than the ratings know.** `rating.rs` prices
    stats, and none of cadence drift, priming or enemy-reaction is a stat. If
    the ratings cannot see them, the shop misprices them and
    `stepped_component` puts them on creatures at the wrong rung. This is the
