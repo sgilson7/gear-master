@@ -1757,7 +1757,8 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
 fn draw_keyword(x: f32, y: f32, s: f32, keyword: &str) {
     let c = keyword_color(keyword);
     match keyword {
-        "mana" | "rage" | "faith" | "nature" | "armor" => draw_pool_glyph(x, y, s, keyword, c),
+        "mana" | "rage" | "faith" | "nature" | "armor" | "insight" | "druidic might"
+        | "communion" | "zealotry" => draw_pool_glyph(x, y, s, keyword, c),
         // A curse: a crooked horn.
         "curse" => {
             draw_line(x + s * 0.20, y + s * 0.85, x + s * 0.5, y + s * 0.15, s * 0.14, c);
@@ -1830,6 +1831,17 @@ fn keyword_color(k: &str) -> Color {
 /// apart at a glance instead of being four numbers in a row.
 fn draw_pool_glyph(x: f32, y: f32, s: f32, which: &str, c: Color) {
     let t = (s * 0.14).max(1.5);
+    // A fusion is drawn as its two parents, small and overlapping, each in its
+    // own colour - which is the same idea `pool_color` already had when it
+    // painted each fusion between the two it comes from. The shape says what
+    // the pool is made of before any text does, and `Resource::parents` is the
+    // authority on which two.
+    if let Some((a, b)) = fusion_parents(which) {
+        let half = s * 0.62;
+        draw_pool_glyph(x, y + s * 0.20, half, a, pool_color(a));
+        draw_pool_glyph(x + s * 0.38, y, half, b, pool_color(b));
+        return;
+    }
     match which {
         // Mana: a droplet.
         "mana" => {
@@ -1877,6 +1889,16 @@ fn draw_pool_glyph(x: f32, y: f32, s: f32, which: &str, c: Color) {
                 c,
             );
         }
+        // Insight: an eye, because what the antechamber gives you is a sense
+        // rather than a substance. Nobody's child, so it is drawn from
+        // nothing.
+        "insight" => {
+            draw_line(x + s * 0.08, y + s * 0.5, x + s * 0.5, y + s * 0.14, t * 0.8, c);
+            draw_line(x + s * 0.5, y + s * 0.14, x + s * 0.92, y + s * 0.5, t * 0.8, c);
+            draw_line(x + s * 0.08, y + s * 0.5, x + s * 0.5, y + s * 0.86, t * 0.8, c);
+            draw_line(x + s * 0.5, y + s * 0.86, x + s * 0.92, y + s * 0.5, t * 0.8, c);
+            draw_circle(x + s * 0.5, y + s * 0.5, s * 0.17, c);
+        }
         // Armour: a shield.
         _ => {
             draw_triangle(
@@ -1888,6 +1910,18 @@ fn draw_pool_glyph(x: f32, y: f32, s: f32, which: &str, c: Color) {
             draw_rectangle(x + s * 0.12, y + s * 0.10, s * 0.76, s * 0.22, c);
         }
     }
+}
+
+/// The two pools a fusion is made of, by the engine's own table.
+///
+/// Read off `Resource::parents` rather than written out here, so a fusion
+/// whose parents change draws itself differently without anybody remembering
+/// to come and edit a picture.
+fn fusion_parents(which: &str) -> Option<(&'static str, &'static str)> {
+    use gearmaster_engine::piece::Resource;
+    let r = Resource::ALL.iter().find(|r| r.name() == which)?;
+    let (a, b) = r.parents()?;
+    Some((a.name(), b.name()))
 }
 
 fn pool_color(which: &str) -> Color {
@@ -2322,11 +2356,28 @@ struct Tip {
     lines: Vec<(String, Color)>,
     /// Half-open `[start, end)` line ranges, each drawn inside its own frame.
     boxes: Vec<(usize, usize)>,
+    /// The symbol to draw after a line, by line index.
+    ///
+    /// A stat block is one line per figure now and each carries the glyph that
+    /// stands for it, so "+1 nature" is followed by the leaf rather than only
+    /// appearing as a leaf in the rail with no quantity beside it. Sparse: most
+    /// lines are prose and have none.
+    glyphs: Vec<(usize, &'static str)>,
 }
 
 impl Tip {
     fn plain(lines: Vec<(String, Color)>) -> Tip {
-        Tip { lines, boxes: Vec::new() }
+        Tip { lines, boxes: Vec::new(), glyphs: Vec::new() }
+    }
+
+    /// Append a stat block, a figure to a line, each with its symbol.
+    fn stats(&mut self, stats: &gearmaster_engine::stats::Stats, tint: Color) {
+        for (text, key) in stats.parts() {
+            if !key.is_empty() {
+                self.glyphs.push((self.lines.len(), key));
+            }
+            self.lines.push((words::retell(&text), tint));
+        }
     }
 }
 
@@ -4161,10 +4212,10 @@ fn render_def_tooltip_inner(
         .join(" or ");
     lines.push((format!("{} · {}", where_it_goes, def.kind.name_in(def.slot)), col_dim()));
 
-    let base = def.base.summary();
-    if !base.is_empty() {
-        lines.push((base, Color::from_rgba(190, 210, 245, 255)));
-    }
+    // Held back and added to the `Tip` below, one figure a line with the
+    // symbol that stands for it. A glyph in the keyword rail says *that* a
+    // piece touches nature; this says how much.
+    let base_stats = def.base;
 
     // Timing: a core sets the item's cooldown, anything else can lend speed.
     if def.kind.is_core() {
@@ -4209,9 +4260,6 @@ fn render_def_tooltip_inner(
         let head = format!("when assembled: {}", words::retell(adj.label));
         for l in wrap(&head, 46) {
             lines.push((l, col_gold()));
-        }
-        for l in wrap(&adj.stats.summary(), 44) {
-            lines.push((format!("  {}", l), col_gold()));
         }
     }
     if let Some(eff) = def.effect {
@@ -4273,9 +4321,24 @@ fn render_def_tooltip_inner(
     let lines: Vec<(String, Color)> =
         lines.into_iter().map(|(s, c)| (words::retell(&s), c)).collect();
 
+    // The stat blocks last, as a `Tip`, so each figure is drawn with the
+    // symbol that stands for it. What the piece is, then what it becomes when
+    // its item comes together.
+    let mut tip = Tip::plain(lines);
+    tip.stats(&base_stats, Color::from_rgba(190, 210, 245, 255));
+    if let Some(adj) = def.assembly_bonus {
+        tip.stats(&adj.stats, col_gold());
+    }
+    let lines = &tip.lines;
+    let glyph = 13.0;
+
     let w = lines
         .iter()
-        .map(|(s, _)| text_width(s, 14.0))
+        .enumerate()
+        .map(|(i, (s, _))| {
+            text_width(s, 14.0)
+                + if tip.glyphs.iter().any(|&(g, _)| g == i) { glyph + 5.0 } else { 0.0 }
+        })
         .fold(0.0_f32, f32::max)
         + 20.0;
     let h = lines.len() as f32 * 18.0 + 14.0;
@@ -4285,7 +4348,11 @@ fn render_def_tooltip_inner(
     draw_rectangle(x, y, w, h, Color::from_rgba(12, 12, 20, 244));
     draw_rectangle_lines(x, y, w, h, 1.5, Color::from_rgba(110, 110, 145, 255));
     for (i, (s, c)) in lines.iter().enumerate() {
-        ui_text(s, x + 10.0, y + 20.0 + i as f32 * 18.0, 14.0, *c);
+        let base = y + 20.0 + i as f32 * 18.0;
+        ui_text(s, x + 10.0, base, 14.0, *c);
+        if let Some(&(_, key)) = tip.glyphs.iter().find(|&&(g, _)| g == i) {
+            draw_keyword(x + 10.0 + text_width(s, 14.0) + 4.0, base - glyph * 0.82, glyph, key);
+        }
     }
 }
 
@@ -5678,8 +5745,12 @@ fn render_pinned(pin: &Pinned, run: &Run, pinned: bool, mx: f32, my: f32) -> Rec
 /// Everything one assembled item is worth: what it adds to you all the time,
 /// and what it does each time its cooldown comes round.
 fn render_item_summary(p: &ItemProfile, run: &Run, mx: f32, my: f32) {
-    let lines = item_summary_lines(p, run);
-    draw_tooltip_with_sigil(&lines, Some((Some(p.slot), p.sigil_seed)), mx, my);
+    // The card's prose, then the item's own figures with the symbols that
+    // stand for them - the whole point of `Tip::stats`, and the reason a
+    // player can now read "+1 nature" and the leaf in the same place.
+    let mut tip = Tip::plain(item_summary_lines(p, run));
+    tip.stats(&p.stats, Color::from_rgba(190, 210, 245, 255));
+    draw_tip_with_sigil(&tip, Some((Some(p.slot), p.sigil_seed)), mx, my);
 }
 
 /// The body of that card, so the loadout screen can show the same thing in a
@@ -5953,11 +6024,27 @@ fn draw_tooltip_with_sigil(
     mx: f32,
     my: f32,
 ) {
+    draw_tip_with_sigil(&Tip::plain(lines.to_vec()), sigil, mx, my)
+}
+
+/// The same card, with the symbols a `Tip` carries.
+fn draw_tip_with_sigil(
+    tip: &Tip,
+    sigil: Option<(Option<SlotKind>, u64)>,
+    mx: f32,
+    my: f32,
+) {
+    let lines = &tip.lines;
     let art = if sigil.is_some() { 62.0 } else { 0.0 };
+    let glyph = 13.0;
     let lh = line_h(14.0);
     let w = lines
         .iter()
-        .map(|(s, _)| text_width(s, 14.0))
+        .enumerate()
+        .map(|(i, (s, _))| {
+            text_width(s, 14.0)
+                + if tip.glyphs.iter().any(|&(g, _)| g == i) { glyph + 5.0 } else { 0.0 }
+        })
         .fold(0.0_f32, f32::max)
         + 26.0
         + art;
@@ -5970,7 +6057,12 @@ fn draw_tooltip_with_sigil(
         draw_item_sigil(x + 10.0, y + 10.0, 54.0, slot, seed, Color::from_rgba(228, 214, 170, 255));
     }
     for (i, (s, c)) in lines.iter().enumerate() {
-        ui_text(s, x + 13.0 + art, y + lh + i as f32 * lh, 14.0, *c);
+        let at = x + 13.0 + art;
+        let base = y + lh + i as f32 * lh;
+        ui_text(s, at, base, 14.0, *c);
+        if let Some(&(_, key)) = tip.glyphs.iter().find(|&&(g, _)| g == i) {
+            draw_keyword(at + text_width(s, 14.0) + 4.0, base - glyph * 0.82, glyph, key);
+        }
     }
 }
 
@@ -6011,7 +6103,7 @@ fn recipe_tip(slot: SlotKind) -> Tip {
             boxes.push((start, lines.len()));
         }
     }
-    Tip { lines, boxes }
+    Tip { lines, boxes, glyphs: Vec::new() }
 }
 
 fn draw_tip(tip: &Tip, mx: f32, my: f32) {
@@ -6019,7 +6111,18 @@ fn draw_tip(tip: &Tip, mx: f32, my: f32) {
     // Boxed lines are inset, so they need the extra room reserved up front or
     // the frame would run through the text.
     let pad = if tip.boxes.is_empty() { 0.0 } else { 16.0 };
-    let w = lines.iter().map(|(s, _)| text_width(s, 14.0)).fold(0.0_f32, f32::max) + 26.0 + pad;
+    // A glyphed line needs room for its symbol as well as its words.
+    let glyph = 13.0;
+    let w = lines
+        .iter()
+        .enumerate()
+        .map(|(i, (s, _))| {
+            text_width(s, 14.0)
+                + if tip.glyphs.iter().any(|&(g, _)| g == i) { glyph + 5.0 } else { 0.0 }
+        })
+        .fold(0.0_f32, f32::max)
+        + 26.0
+        + pad;
     let lh = line_h(14.0);
     // A gap above each frame, so consecutive boxes do not share an edge and
     // read as one banded list instead of as separate cards.
@@ -6056,7 +6159,14 @@ fn draw_tip(tip: &Tip, mx: f32, my: f32) {
     }
     for (i, (s, c)) in lines.iter().enumerate() {
         let inset = if tip.boxes.iter().any(|&(a, b)| i >= a && i < b) { 8.0 } else { 0.0 };
-        ui_text(s, x + 13.0 + inset, top_of(i), 14.0, *c);
+        let at = x + 13.0 + inset;
+        let base = top_of(i);
+        ui_text(s, at, base, 14.0, *c);
+        // The symbol the figure stands for, after the words. Baseline-aligned,
+        // or it reads as a bullet belonging to the line below.
+        if let Some(&(_, key)) = tip.glyphs.iter().find(|&&(g, _)| g == i) {
+            draw_keyword(at + text_width(s, 14.0) + 4.0, base - glyph * 0.82, glyph, key);
+        }
     }
 }
 
@@ -12240,6 +12350,89 @@ mod glossary_tests {
                 meaning.len() > 20,
                 "{term} is defined in {:?}, which is not a definition",
                 meaning
+            );
+        }
+    }
+
+    /// Every figure a stat block can print has a symbol, or is deliberately
+    /// without one.
+    ///
+    /// The glyphs existed and were used in one place - the keyword rail, which
+    /// says *that* a piece touches nature and never how much - while every
+    /// actual number was text. So a card drew the leaf in the rail and the
+    /// words "+1 nature" in the body and the two never met.
+    ///
+    /// This is the guard on the join. A new `Stats` field arrives in
+    /// `Stats::parts` with a glyph key beside it; if that key is not one
+    /// `draw_keyword` can draw, it would silently render nothing at all and
+    /// the number would lose its symbol without anybody noticing. The
+    /// deliberate blanks are listed rather than allowed by a wildcard, so
+    /// adding a field is a decision and not an omission.
+    #[test]
+    fn every_stat_symbol_is_one_the_interface_can_draw() {
+        // A block with every field set, so `parts` emits all of them.
+        let mut all = gearmaster_engine::stats::Stats::ZERO;
+        all.health = 1;
+        all.strength = 1;
+        all.regen = 1;
+        all.power = 1;
+        all.armor = 1;
+        all.mana = 1;
+        all.mind = 1;
+        all.mind_resist = 1;
+        all.curse_resist = 1;
+        all.physical_damage = 1;
+        all.magic_damage = 1;
+        all.rage = 1;
+        all.faith = 1;
+        all.nature = 1;
+        all.physical_resist = 1;
+        all.physical_pierce = 1;
+        all.physical_harden = 1;
+        all.magic_resist = 1;
+        all.magic_pierce = 1;
+        all.magic_harden = 1;
+
+        // Health and strength are the two the game has never drawn a symbol
+        // for, and both read plainly enough as words that one would be noise.
+        const NO_SYMBOL: &[&str] = &["+1 hp", "+1 str"];
+
+        let parts = all.parts();
+        assert!(parts.len() >= 20, "parts() stopped emitting fields: {parts:?}");
+        for (text, key) in parts {
+            if key.is_empty() {
+                assert!(
+                    NO_SYMBOL.contains(&text.as_str()),
+                    "{text:?} has no symbol and is not one of the two that go without. \
+                     Give it a glyph key in `Stats::parts` or add it here on purpose."
+                );
+                continue;
+            }
+            assert!(
+                DRAWABLE.contains(&key),
+                "{text:?} asks for the symbol {key:?}, which `draw_keyword` does not \
+                 draw - so it would render as nothing and the figure would lose it"
+            );
+        }
+    }
+
+    /// Every key `draw_keyword` actually has a shape for.
+    const DRAWABLE: &[&str] = &[
+        "mana", "rage", "faith", "nature", "armor", "insight", "druidic might", "communion",
+        "zealotry", "curse", "speed", "mind", "magic", "physical", "quest",
+    ];
+
+    /// And every pool the engine defines can be drawn, including the ones no
+    /// board could make until this milestone's predecessor.
+    #[test]
+    fn every_pool_the_engine_has_can_be_drawn() {
+        for r in gearmaster_engine::piece::Resource::ALL {
+            assert!(
+                DRAWABLE.contains(&r.name()),
+                "{} is a pool with no symbol. Insight and the three fusions were \
+                 exactly this until M6, and the fusions were about to become \
+                 reachable with nothing to draw them.",
+                r.name()
             );
         }
     }

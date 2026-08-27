@@ -321,65 +321,80 @@ impl Stats {
     }
 
     /// Short "+5 str, +12 hp" style summary. Empty string when nothing is set.
-    pub fn summary(&self) -> String {
-        let mut parts = Vec::new();
+    /// Every non-zero field, as the words for it and the symbol that stands
+    /// for it.
+    ///
+    /// `summary` is this joined with commas and has been the only reading of a
+    /// `Stats` for as long as there has been one - which is why a card could
+    /// draw a nature glyph in its keyword rail and the words "+1 nature" in
+    /// its body and never put the two together. The second element is the key
+    /// `draw_keyword` draws, empty where nothing draws it.
+    ///
+    /// One traversal, two outputs. The alternative is a second walk over these
+    /// twenty fields in the interface, and this repository has just finished
+    /// deleting four copies of a walker for exactly that reason.
+    pub fn parts(&self) -> Vec<(String, &'static str)> {
+        let mut parts: Vec<(String, &'static str)> = Vec::new();
         if self.health != 0 {
-            parts.push(format!("{:+} hp", self.health));
+            parts.push((format!("{:+} hp", self.health), ""));
         }
         if self.strength != 0 {
-            parts.push(format!("{:+} str", self.strength));
+            parts.push((format!("{:+} str", self.strength), ""));
         }
         if self.regen != 0 {
-            parts.push(format!("{:+} regen", self.regen));
+            parts.push((format!("{:+} regen", self.regen), "nature"));
         }
         if self.power != 0 {
             // Power reaches the item carrying it and nothing else, so the
             // summary says whose it is.
-            parts.push(format!(
-                "{:+}.{:02}x its own power",
-                self.power / 100,
-                (self.power % 100).abs()
+            parts.push((
+                format!("{:+}.{:02}x its own power", self.power / 100, (self.power % 100).abs()),
+                "speed",
             ));
         }
         if self.armor != 0 {
-            parts.push(format!("{:+} armor", self.armor));
+            parts.push((format!("{:+} armor", self.armor), "armor"));
         }
         if self.mana != 0 {
-            parts.push(format!("{:+} mana", self.mana));
+            parts.push((format!("{:+} mana", self.mana), "mana"));
         }
         if self.mind != 0 {
-            parts.push(format!("{:+} mind", self.mind));
+            parts.push((format!("{:+} mind", self.mind), "mind"));
         }
         if self.mind_resist != 0 {
-            parts.push(format!("{:+}% mind res", self.mind_resist));
+            parts.push((format!("{:+}% mind res", self.mind_resist), "mind"));
         }
         if self.curse_resist != 0 {
-            parts.push(format!("{:+}% curse res", self.curse_resist));
+            parts.push((format!("{:+}% curse res", self.curse_resist), "curse"));
         }
-        for (v, label) in [
-            (self.physical_damage, "phys dmg"),
-            (self.magic_damage, "magic dmg"),
-            (self.rage, "rage"),
-            (self.faith, "faith"),
-            (self.nature, "nature"),
+        for (v, label, glyph) in [
+            (self.physical_damage, "phys dmg", "physical"),
+            (self.magic_damage, "magic dmg", "magic"),
+            (self.rage, "rage", "rage"),
+            (self.faith, "faith", "faith"),
+            (self.nature, "nature", "nature"),
         ] {
             if v != 0 {
-                parts.push(format!("{:+} {}", v, label));
+                parts.push((format!("{:+} {}", v, label), glyph));
             }
         }
-        for (v, label) in [
-            (self.physical_resist, "phys res"),
-            (self.physical_pierce, "phys pierce"),
-            (self.physical_harden, "phys harden"),
-            (self.magic_resist, "magic res"),
-            (self.magic_pierce, "magic pierce"),
-            (self.magic_harden, "magic harden"),
+        for (v, label, glyph) in [
+            (self.physical_resist, "phys res", "physical"),
+            (self.physical_pierce, "phys pierce", "physical"),
+            (self.physical_harden, "phys harden", "physical"),
+            (self.magic_resist, "magic res", "magic"),
+            (self.magic_pierce, "magic pierce", "magic"),
+            (self.magic_harden, "magic harden", "magic"),
         ] {
             if v != 0 {
-                parts.push(format!("{:+}% {}", v, label));
+                parts.push((format!("{:+}% {}", v, label), glyph));
             }
         }
-        parts.join(", ")
+        parts
+    }
+
+    pub fn summary(&self) -> String {
+        self.parts().into_iter().map(|(t, _)| t).collect::<Vec<_>>().join(", ")
     }
 }
 
