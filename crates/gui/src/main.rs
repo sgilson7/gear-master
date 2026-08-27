@@ -8240,69 +8240,89 @@ const SKIP_TERM: &str = "THE WORN PATH";
 /// rulebook - the drawing code does not know the rates.
 ///
 /// Returns the height it drew, so the panel can size itself.
-/// How many rows each section of the drawn shelf has, and how tall that is.
-///
-/// Split from the drawing so a test can ask - `text_width` and every `draw_*`
-/// need a graphics context, so measuring by drawing off-screen works at
-/// runtime and not in a test. The counts come from the engine, so a pool added
-/// there lengthens the page here and the height says so.
-fn fight_diagram_height() -> f32 {
-    use gearmaster_engine::combat::Combatant;
-    use gearmaster_engine::piece::Resource;
-    let pools = Resource::ALL.iter().filter(|r| !Combatant::pool_pays(**r).parts().is_empty()).count();
-    let fusions = Resource::ALL.iter().filter(|r| r.parents().is_some()).count();
-    let (lanes, clock) = (3usize, 2usize);
-    let (row, header, gap) = (44.0, 24.0, 10.0);
-    4.0 * header + (pools + fusions + lanes + clock) as f32 * row + 3.0 * gap
+/// One thing put down on the drawn shelf, and where it goes.
+enum Mark {
+    /// A section heading.
+    Head(String),
+    /// A keyword glyph, drawn in a box of the given size.
+    Sym(String, f32),
+    /// A line of text at the given size and colour.
+    Text(String, f32, Color),
+    /// The relation itself: a line and a head, 34px wide.
+    Arrow,
 }
 
-fn draw_fight_diagrams(x: f32, y: f32, w: f32, mx: f32, my: f32) -> f32 {
+struct Placed {
+    x: f32,
+    y: f32,
+    w: f32,
+    mark: Mark,
+}
+
+/// Where every mark on the drawn shelf goes, and how tall the page is.
+///
+/// Split from the painting for one reason: `measure_text` needs a graphics
+/// context, so a page laid out inside `draw_*` can only be checked by looking
+/// at it, and nobody looks at a page after the week they wrote it. Handed a
+/// measure, this is a pure function, and a test can ask whether the widest row
+/// still ends inside the panel - the same trick `wrap_measured` plays.
+///
+/// Positions are relative to the page's top-left corner.
+fn fight_diagram_layout(w: f32, measure: &dyn Fn(&str, f32) -> f32) -> (Vec<Placed>, f32) {
     use gearmaster_engine::combat::Combatant;
     use gearmaster_engine::piece::Resource;
-    let _ = (mx, my);
+    let _ = w;
     let g = 22.0;
     let row = 44.0;
-    let mut ty = y;
+    let body = Color::from_rgba(206, 214, 232, 255);
+    let mut out: Vec<Placed> = Vec::new();
+    let mut ty = 0.0f32;
 
-    let arrow = |from: f32, at: f32, to: f32| {
-        let c = Color::from_rgba(120, 120, 150, 255);
-        draw_line(from, at, to - 7.0, at, 2.0, c);
-        draw_triangle(
-            Vec2::new(to, at),
-            Vec2::new(to - 8.0, at - 5.0),
-            Vec2::new(to - 8.0, at + 5.0),
-            c,
-        );
-    };
+    fn head(
+        out: &mut Vec<Placed>,
+        ty: &mut f32,
+        measure: &dyn Fn(&str, f32) -> f32,
+        key: &str,
+        plain: &'static str,
+    ) {
+        let t = words::word(key, plain).to_string();
+        let tw = measure(&t, 14.0);
+        out.push(Placed { x: 0.0, y: *ty, w: tw, mark: Mark::Head(t) });
+        *ty += 24.0;
+    }
 
-    ui_text(
-        words::word("what-a-pool-pays", "WHAT A BANKED POOL PAYS, PER POINT"),
-        x,
-        ty,
-        14.0,
-        col_gold(),
-    );
-    ty += 24.0;
+    // A pool, an arrow, and what the point becomes.
+    head(&mut out, &mut ty, measure, "what-a-pool-pays", "WHAT A BANKED POOL PAYS, PER POINT");
     for r in Resource::ALL {
-        let paid = Combatant::pool_pays(r);
-        let parts = paid.parts();
+        let parts = Combatant::pool_pays(r).parts();
         if parts.is_empty() {
             continue;
         }
         let mid = ty + g * 0.35;
-        draw_keyword(x, ty, g, r.name());
+        out.push(Placed { x: 0.0, y: ty, w: g, mark: Mark::Sym(r.name().into(), g) });
         let label = words::retell(r.name());
-        ui_text(&label, x + g + 6.0, mid + 5.0, 13.0, pool_color(r.name()));
-        let from = x + g + 10.0 + text_width(&label, 13.0);
-        arrow(from, mid + 1.0, from + 34.0);
-        // What it turns into, in the same symbols the cards use.
+        let lw = measure(&label, 13.0);
+        out.push(Placed {
+            x: g + 6.0,
+            y: mid + 5.0,
+            w: lw,
+            mark: Mark::Text(label.clone(), 13.0, pool_color(r.name())),
+        });
+        let from = g + 10.0 + lw;
+        out.push(Placed { x: from, y: mid + 1.0, w: 34.0, mark: Mark::Arrow });
         let mut cx = from + 42.0;
         for (text, key) in &parts {
             let shown = words::retell(text);
-            ui_text(&shown, cx, mid + 5.0, 13.0, Color::from_rgba(206, 214, 232, 255));
-            cx += text_width(&shown, 13.0) + 3.0;
+            let sw = measure(&shown, 13.0);
+            out.push(Placed { x: cx, y: mid + 5.0, w: sw, mark: Mark::Text(shown, 13.0, body) });
+            cx += sw + 3.0;
             if !key.is_empty() {
-                draw_keyword(cx, ty + 1.0, g * 0.8, key);
+                out.push(Placed {
+                    x: cx,
+                    y: ty + 1.0,
+                    w: g * 0.8,
+                    mark: Mark::Sym((*key).into(), g * 0.8),
+                });
                 cx += g * 0.8;
             }
             cx += 10.0;
@@ -8310,98 +8330,127 @@ fn draw_fight_diagrams(x: f32, y: f32, w: f32, mx: f32, my: f32) -> f32 {
         ty += row;
     }
 
+    // Two parents and the pool they make, which is the diagram `parents()` has
+    // always implied and nothing has ever drawn.
     ty += 10.0;
-    ui_text(
-        words::word("what-fuses", "AND WHAT TWO OF THEM MAKE TOGETHER"),
-        x,
-        ty,
-        14.0,
-        col_gold(),
-    );
-    ty += 24.0;
+    head(&mut out, &mut ty, measure, "what-fuses", "AND WHAT TWO OF THEM MAKE TOGETHER");
     for r in Resource::ALL {
         let Some((a, b)) = fusion_parents(r.name()) else { continue };
         let mid = ty + g * 0.35;
-        draw_keyword(x, ty, g, a);
-        ui_text("+", x + g + 5.0, mid + 5.0, 15.0, col_dim());
-        draw_keyword(x + g + 18.0, ty, g, b);
-        arrow(x + g * 2.0 + 26.0, mid + 1.0, x + g * 2.0 + 60.0);
-        draw_keyword(x + g * 2.0 + 66.0, ty, g, r.name());
+        out.push(Placed { x: 0.0, y: ty, w: g, mark: Mark::Sym(a.into(), g) });
+        out.push(Placed {
+            x: g + 5.0,
+            y: mid + 5.0,
+            w: measure("+", 15.0),
+            mark: Mark::Text("+".into(), 15.0, col_dim()),
+        });
+        out.push(Placed { x: g + 18.0, y: ty, w: g, mark: Mark::Sym(b.into(), g) });
+        out.push(Placed { x: g * 2.0 + 26.0, y: mid + 1.0, w: 34.0, mark: Mark::Arrow });
+        out.push(Placed { x: g * 2.0 + 66.0, y: ty, w: g, mark: Mark::Sym(r.name().into(), g) });
         let label = words::retell(r.name());
-        ui_text(&label, x + g * 3.0 + 72.0, mid + 5.0, 13.0, pool_color(r.name()));
+        let lw = measure(&label, 13.0);
+        out.push(Placed {
+            x: g * 3.0 + 72.0,
+            y: mid + 5.0,
+            w: lw,
+            mark: Mark::Text(label, 13.0, pool_color(r.name())),
+        });
         // Both parents at double their own rate, which is the reason to want
         // one - and it is `held_bonus` saying so, not this function.
-        ui_text(
-            &words::retell(&Combatant::pool_pays(r).summary()),
-            x + g * 3.0 + 78.0 + text_width(&label, 13.0),
-            mid + 5.0,
-            13.0,
-            Color::from_rgba(206, 214, 232, 255),
-        );
+        let paid = words::retell(&Combatant::pool_pays(r).summary());
+        out.push(Placed {
+            x: g * 3.0 + 78.0 + lw,
+            y: mid + 5.0,
+            w: measure(&paid, 13.0),
+            mark: Mark::Text(paid, 13.0, body),
+        });
         ty += row;
     }
 
+    // The one thing a player has to hold in their head to build anything.
     ty += 10.0;
-    ui_text(words::word("three-lanes", "THREE LANES, THREE ANSWERS"), x, ty, 14.0, col_gold());
-    ty += 24.0;
+    head(&mut out, &mut ty, measure, "three-lanes", "THREE LANES, THREE ANSWERS");
     for (lane, answer) in [
         ("physical", words::word("phys-answer", "resistance, and Deflection takes a flat cut first")),
         ("magic", words::word("magic-answer", "resistance, and the mana shield blunts it")),
         ("mind", words::word("mind-answer", "mind resistance alone - nothing else touches it")),
     ] {
         let mid = ty + g * 0.35;
-        draw_keyword(x, ty, g, lane);
+        out.push(Placed { x: 0.0, y: ty, w: g, mark: Mark::Sym(lane.into(), g) });
         let label = words::retell(lane);
-        ui_text(&label, x + g + 6.0, mid + 5.0, 13.0, keyword_color(lane));
-        let from = x + g + 10.0 + text_width(&label, 13.0);
-        arrow(from, mid + 1.0, from + 34.0);
-        ui_text(answer, from + 42.0, mid + 5.0, 13.0, Color::from_rgba(206, 214, 232, 255));
+        let lw = measure(&label, 13.0);
+        out.push(Placed {
+            x: g + 6.0,
+            y: mid + 5.0,
+            w: lw,
+            mark: Mark::Text(label, 13.0, keyword_color(lane)),
+        });
+        let from = g + 10.0 + lw;
+        out.push(Placed { x: from, y: mid + 1.0, w: 34.0, mark: Mark::Arrow });
+        out.push(Placed {
+            x: from + 42.0,
+            y: mid + 5.0,
+            w: measure(answer, 13.0),
+            mark: Mark::Text(answer.to_string(), 13.0, body),
+        });
         ty += row;
     }
 
     ty += 10.0;
-    ui_text(words::word("the-clock", "AND THE CLOCK"), x, ty, 14.0, col_gold());
-    ty += 24.0;
+    head(&mut out, &mut ty, measure, "the-clock", "AND THE CLOCK");
     let mid = ty + g * 0.35;
-    draw_keyword(x, ty, g, "armor");
-    ui_text(
-        &format!(
-            "{}",
-            words::word(
-                "armour-note",
-                "soaks before health does, and every fight starts it at zero",
-            )
-        ),
-        x + g + 8.0,
-        mid + 5.0,
-        13.0,
-        Color::from_rgba(206, 214, 232, 255),
-    );
+    out.push(Placed { x: 0.0, y: ty, w: g, mark: Mark::Sym("armor".into(), g) });
+    let armour = words::word("armour-note", "soaks before health does, and every fight starts it at zero")
+        .to_string();
+    out.push(Placed {
+        x: g + 8.0,
+        y: mid + 5.0,
+        w: measure(&armour, 13.0),
+        mark: Mark::Text(armour, 13.0, body),
+    });
     ty += row;
-    ui_text(
-        &format!(
-            "{}s  {}",
-            gearmaster_engine::combat::SUDDEN_DEATH_MS / 1000,
-            words::word(
-                "sudden-death-note",
-                "both sides start losing a growing share of maximum health each second",
-            )
-        ),
-        x,
-        ty + g * 0.35 + 5.0,
-        13.0,
-        col_bad(),
+    let clock = format!(
+        "{}s  {}",
+        gearmaster_engine::combat::SUDDEN_DEATH_MS / 1000,
+        words::word(
+            "sudden-death-note",
+            "both sides start losing a growing share of maximum health each second",
+        )
     );
+    out.push(Placed {
+        x: 0.0,
+        y: ty + g * 0.35 + 5.0,
+        w: measure(&clock, 13.0),
+        mark: Mark::Text(clock, 13.0, col_bad()),
+    });
     ty += row;
-    let _ = w;
-    let used = ty - y;
-    // The measure and the drawing have to agree, or the test that checks this
-    // page fits its panel is checking a number nothing draws.
-    debug_assert!(
-        (used - fight_diagram_height()).abs() < 0.5,
-        "drew {used:.0}px, measured {:.0}: a row was added to one and not the other",
-        fight_diagram_height()
-    );
+
+    (out, ty)
+}
+
+/// Paint what the layout decided. Nothing here chooses a position.
+fn draw_fight_diagrams(x: f32, y: f32, w: f32, mx: f32, my: f32) -> f32 {
+    let _ = (mx, my);
+    let (marks, used) = fight_diagram_layout(w, &text_width);
+    for p in &marks {
+        let (px, py) = (x + p.x, y + p.y);
+        match &p.mark {
+            Mark::Head(t) => ui_text(t, px, py, 14.0, col_gold()),
+            Mark::Sym(key, size) => draw_keyword(px, py, *size, key),
+            Mark::Text(t, size, col) => ui_text(t, px, py, *size, *col),
+            Mark::Arrow => {
+                let c = Color::from_rgba(120, 120, 150, 255);
+                let to = px + p.w;
+                draw_line(px, py, to - 7.0, py, 2.0, c);
+                draw_triangle(
+                    Vec2::new(to, py),
+                    Vec2::new(to - 8.0, py - 5.0),
+                    Vec2::new(to - 8.0, py + 5.0),
+                    c,
+                );
+            }
+        }
+    }
     used
 }
 
@@ -12547,29 +12596,74 @@ mod glossary_tests {
         }
     }
 
+    /// An upper bound on what the real font charges for a string.
+    ///
+    /// Measuring needs a graphics context. A stand-in that is *wider* than the
+    /// truth is still worth something, though: if a row fits under this, it
+    /// fits in the font, and the test is a one-sided guarantee rather than a
+    /// guess. The bundled face averages a little over half its size per glyph;
+    /// a full size per glyph is comfortably above that.
+    fn widest_the_font_could_be(s: &str, size: f32) -> f32 {
+        s.chars().count() as f32 * size
+    }
+
     /// The drawn shelf fits on the page it is drawn on.
     ///
-    /// `draw_fight_diagrams` returns the height it used, and the panel it sits
-    /// in is a fixed size - so the failure worth guarding is the one that only
-    /// shows up when a row is added: the last diagram drawn below the bottom
-    /// edge, where nobody sees it and nothing says so.
+    /// Two ways it can stop fitting, and the layout is a pure function so both
+    /// can be asked rather than looked at. Down: a section added below the
+    /// bottom edge, where nobody sees it and nothing says so. Across: a row
+    /// whose last symbol runs off the right, which is what happens when a pool
+    /// gains a term and the row it sits in was already nearly full.
     ///
-    /// Measured rather than eyeballed, and measured off-screen so it costs no
-    /// frame: the same trick `draw_tile_legend_maybe` uses to reserve its own
-    /// height on the pages it is not drawn on.
+    /// The panel is one fixed size - `LOGICAL_W` and `LOGICAL_H` are constants
+    /// and the padding is a literal - so "every width" is that width and the
+    /// wider ones. It is still written as a sweep, because the day the panel
+    /// stops being fixed is the day this needs to have been.
     #[test]
     fn the_drawn_glossary_fits_the_panel_it_is_drawn_in() {
         let pad = 56.0;
         let panel = Rect::new(pad, pad, LOGICAL_W - 2.0 * pad, LOGICAL_H - 2.0 * pad);
         let top = panel.y + 104.0;
-        let used = fight_diagram_height();
-        assert!(used > 0.0, "the shelf has no rows at all");
-        assert!(
-            top + used <= panel.bottom(),
-            "the diagrams need {used:.0}px from y={top:.0} and the panel ends at \
-             {:.0}. A row was added and the last one is off the bottom.",
-            panel.bottom()
-        );
+
+        for w in [panel.w - 48.0, 1500.0, 1900.0] {
+            let (marks, used) = fight_diagram_layout(w, &|s, size| widest_the_font_could_be(s, size));
+            assert!(used > 0.0, "w={w}: the shelf has no rows at all");
+            assert!(
+                top + used <= panel.bottom(),
+                "w={w}: the diagrams need {used:.0}px from y={top:.0} and the panel ends at \
+                 {:.0}. A section was added and the last one is off the bottom.",
+                panel.bottom()
+            );
+
+            for m in &marks {
+                assert!(
+                    m.x + m.w <= w + 0.5,
+                    "w={w}: a mark at x={:.0} is {:.0} wide and ends {:.0}px past the edge",
+                    m.x,
+                    m.w,
+                    m.x + m.w - w
+                );
+            }
+
+            // And within a row, nothing is drawn on top of anything else.
+            let mut rows: std::collections::BTreeMap<i64, Vec<(f32, f32)>> = Default::default();
+            for m in &marks {
+                rows.entry((m.y * 4.0) as i64).or_default().push((m.x, m.w));
+            }
+            for (key, mut spans) in rows {
+                spans.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+                for pair in spans.windows(2) {
+                    let (ax, aw) = pair[0];
+                    let (bx, _) = pair[1];
+                    assert!(
+                        ax + aw <= bx + 0.5,
+                        "w={w}: on the row at y={:.0}, a mark ending {:.0} overlaps the next at {bx:.0}",
+                        key as f32 / 4.0,
+                        ax + aw
+                    );
+                }
+            }
+        }
     }
 
     /// And every symbol it reaches for is one that can be drawn.
