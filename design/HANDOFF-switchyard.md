@@ -37,14 +37,18 @@ argue against.
 | **M4** Four actions, four weights, four rows - inert | **done** | "M4 four actions, four weights, four rows" |
 | **M5** The catalogue lands once | **done** | "M5 the catalogue lands once" |
 | **M6** The chain, the yard, the frames, the destinations | **done** | "M6 the chain, the yard, the frames, the destinations" |
+| **M7** The turtle telling | **done** | "M7 the turtle telling" |
 
 ## 3. Open questions for the user
 
 - **E-6, the turtle names.** Part C was written without the book PDF or the
   titles CSV, and six rows are marked *proposed*: the chain name, the dungeon
   name, Hesketh's themed role, the two orbs' names, and the effect words
-  `skoogle` and `fnorp-interest`. Nothing before M7 depends on any of them.
-  If the book is available before then, those six are the rows to replace.
+  `skoogle` and `fnorp-interest`. **M7 shipped them as written**, because the
+  overnight brief said not to stop for input. Nothing is blocked: every one is
+  display-only, `theme.rs` is a lookup with a fall-through, and replacing any
+  of them is one line and no test. The order to replace them in is the order
+  Part C names.
 
 ## 4. What each milestone did
 
@@ -348,3 +352,30 @@ and wrong about a graph.
 a creature rather than by editing a test. `bestiary::UNDRESSED` went 0 to 9,
 which is the only budget in the repository allowed to rise, and its doc comment
 says so.
+
+### M7 - The turtle telling
+
+Part C into `theme.rs` and nowhere else: five creature names, four event
+titles, the dungeon's title, blurb and entry, and four effect words. **861
+engine, 65 GUI, 5 CLI. No warnings.** `two_voices` green with the budget still
+at 5 - this mission spends none of it, because every canonical string was
+checked against `BOOK` before it was written.
+
+Four of the yard's nine floors keep their names, and that is a rule rather than
+an omission: a coal stage is a coal stage on any plane, and all caps is a
+universal language. `the_turtle_theme_retells_the_yard` pins the split in both
+directions.
+
+**E-6 was never answered and M7 shipped the proposed names.** Nothing is
+blocked by it - every row is display-only and replacing one is a line - and
+`analysis/switchyard.md` finding 37 says which six and in what order.
+
+**E-3 taken as recommended**: the two per-floor siding entries stay canonical
+and `Retold` gained no `sidings` field. Both name no proper noun, so there is
+nothing for `two_voices` to catch and a missing entry falls through by design.
+
+The three design documents this milestone owes are updated:
+`branching-events.md` gains the four doors at status **built** (and why two of
+them are not where the spec drew them), `towns.md` gains a §8 on the pedestal's
+third kind of destination, and `monster-themes.md` gains a §8 with the nine
+frames and what a dungeon floor's band means.

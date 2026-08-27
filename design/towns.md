@@ -220,3 +220,31 @@ destination fires once per run whichever stone you fed.
 **Enchantments are town stock**, still, and now so are two of the three
 run-relics: Aisle 9 is where a store the size of a weather system keeps the
 things nobody else stocks. Nothing in this paragraph is on the road.
+
+---
+
+## 8. A pedestal has a third kind of destination (2026-08-27)
+
+`Where` was `Event(id)` or `Dungeon(id)`. It has a third arm:
+
+```rust
+Siding { dungeon: &'static str, floor: usize },
+```
+
+A siding puts a run down *inside* a dungeon rather than at its mouth. Cleared
+floors from there are walked through and the first one with a fight left in it
+is fought, so an orb is the only way back into a dungeon whose door has been
+answered - which is what makes it worth more than the door was.
+
+Two exist, both THE SWITCHYARD's, and they are the only destinations that can
+point into one dungeon twice. That is the design rather than a mistake - each
+line's buffer stops pay the ticket to the *other* line - so
+`pedestal::no_two_sidings_land_on_the_same_floor` is a new lint: the older "no
+two destinations share an id or an orb" cannot see two sidings written onto one
+floor, and the second would be refused by the visited-set while looking like a
+fresh ticket.
+
+The Switchyard's two orbs are **event-only**, unlike the four the Unwinding
+shipped. An orb is still a piece first - both do something real to the spells
+slotted into them - but these are won at a buffer stop four fights down a yard,
+and a shelf is a purchase.

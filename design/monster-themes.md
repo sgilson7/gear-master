@@ -285,3 +285,45 @@ mind damage fed by its own Dread, Drain on every glove, curse resists near the
 cap. The target is **16-29 seconds at Medium**, which is the band with its top
 edge clipped: sudden death owns everything past 30s, and a boss decided by the
 clock is not a boss decided by the board.
+
+---
+
+## 8. The Switchyard's nine, and what a dungeon floor's band means (2026-08-27)
+
+`design/the-switchyard.md`. Nine frames, and the first dungeon whose floors are
+a graph rather than a list.
+
+| Frame | Floor | Band | Theme |
+|---|---:|---:|---|
+| THE SHUNTER | 0, the mouth | 27 | Warden |
+| THE PLATELAYERS | 1, Down | 28 | Swarm |
+| THE BALLAST | 2, Down | 29 | Wall |
+| THE COAL STAGE | 3, buffer stop | 30 | Burner |
+| THE WATER TOWER | 4, buffer stop | 30 | Slower |
+| THE GANTRY | 5, Up | 28 | Caster |
+| THE LAMP ROOM | 6, Up | 29 | Burner |
+| THE GOODS SHED | 7, buffer stop | 30 | Drainer |
+| THE ROUNDHOUSE | 8, buffer stop | 30 | Beast |
+
+**A dungeon floor's band is its entry band plus its depth**, not the rung whose
+door opened it. §4 already exempts anything standing beside the road from the
+curve; this is what the exemption cashes out as. The yard's mouth is met at
+displayed rung 26-28 by a build that has had twenty-five rungs to form, and a
+dungeon packed for the rung that unlocked it is a dungeon nobody notices. The
+bands step with depth, so the fourth fight down either line is the hardest
+thing in it.
+
+**Two rules this table breaks, both on purpose.**
+
+Bands no longer rise along the *list*. Floor 5 is band 28 after floor 4's 30,
+because floors 5 to 8 are the other line and a run walks one or the other. What
+holds is that nothing gets easier along a road somebody actually takes, which
+is what `dungeons::a_dungeon_reads_as_one_creature_all_the_way_down` asks now.
+
+And the yard does not hold one theme. It is the second exception after WUMPUS
+WORLD and for a different reason: it is not a creature at all but a *place*,
+and the nine things in it are a shunter, a gang of platelayers, what came up
+with the ballast, a coal stage, a water tower, a gantry, a lamp room, a goods
+shed and an engine in steam. The two lines are meant to read differently in the
+first three seconds - the Down line is weight and the Up line is light - which
+is how a run that has walked one of them knows the other is worth an orb.

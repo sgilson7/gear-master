@@ -954,3 +954,82 @@ M9 clears them by packing rather than by editing:
 - `phase_two`'s copy asserts nothing of *the Unwinding's* is undressed.
 - `gui::pack`'s toothless lint skips what has not been packed - a creature with
   no board lands nothing because it has nothing to land it with.
+
+---
+
+## M7 the turtle telling, at `37a176f`+
+
+Part C into `theme.rs` and nowhere else. Five creature names, four event
+titles, the dungeon's title, blurb and entry, and four effect words. The eight
+component names went in at M5, because the gear skill says a piece gets its
+themed name in the same change that writes the piece.
+
+### The suite
+
+| | M6 | M7 |
+|---|---:|---:|
+| Engine passed | 860 | **861** |
+| GUI | 65 | 65 |
+| CLI | 5 | 5 |
+| Warnings | 0 | 0 |
+
+`two_voices` green with **the budget still 5** - this mission spends none of
+it, because every canonical string it wrote was checked against
+`two_voices::BOOK` before it was written. `no_road_id_is_told_twice` green.
+
+### What the theme says, and what it deliberately does not
+
+| Canonical | Turtle |
+|---|---|
+| THE SWITCHYARD | THE CORK TRAIN YARDS |
+| THE TIMETABLE | THE CORK TIMETABLE |
+| THE SIGNAL BOX | THE SPROCKETMAN IN THE BOX |
+| THE TURNTABLE | THE TURNTABLE ON THE YONK STANDARD |
+| THE LAST TRAIN | THE LAST CORK TRAIN |
+| THE SHUNTER | THE CORK SHUNTER |
+| THE PLATELAYERS | THE SPROCKETMEN WHO KEPT THE LINE |
+| THE BALLAST | WHAT THE EMPIRE LEFT IN THE PIT |
+| THE GANTRY | THE ELEVEN CORK SIGNALS |
+| THE LAMP ROOM | THE ROOM WITH EVERY LAMP LIT |
+| Ballast, Derail, Accrue *(effect words)* | cork-ballast, skoogle, fnorp-interest |
+| Shunt *(effect word)* | **kept** - a railway word is a railway word on any plane |
+| THE COAL STAGE, THE WATER TOWER, THE GOODS SHED, THE ROUNDHOUSE | **kept** |
+
+`the_turtle_theme_retells_the_yard` pins the split both ways: the five that are
+renamed must be, and the four that are kept must stay kept. A half-finished
+table is a failure there rather than a run in two voices.
+
+The road was read aloud (`prose::read_the_road_aloud`) and the yard reads
+correctly: blurb, entry, nine landings, three fork scenes and six exit blurbs
+in the order a player meets them.
+
+---
+
+### Findings
+
+**37. E-6 was never answered, and M7 shipped the proposed names.** Part C was
+written without the book PDF or the titles CSV, and six of its rows are marked
+*proposed*: the chain name, the dungeon name, Hesketh's themed role, the two
+orbs' names and the effect words `skoogle` and `fnorp-interest`. The kickoff
+said not to stop for input, so they are in as written.
+
+**Nothing is blocked by this and nothing downstream depends on it.** Every one
+is display-only, `theme.rs` is a lookup with a fall-through, and replacing any
+of them is one line and no test. The rows to replace first, in order, are the
+ones Part C names: the chain name, the dungeon name, the two orbs, then the two
+effect words.
+
+**38. Hesketh and Ambrose stay roles in the canonical column, so the theme
+spends no paragraphs on the four doors.** `Retold.prose` is empty for all four
+and only the titles are themed. That is the rule `retell` exists for - a common
+noun is fixed in place and the vocabulary puts the themed word back; a theme
+spends paragraphs only where a *proper noun* is carrying a scene - and the
+prose pass already moved this game's proper nouns out of the canonical column.
+The dungeon gets prose because the Empire is carrying it.
+
+**39. Per-floor siding entries are left canonical**, which is Part E's E-3
+taken as recommended. `Retold` carries one `entry` per dungeon and the two
+siding lines are per floor; both name no proper noun, so `two_voices` has
+nothing to catch and a missing entry falls through by design. `Retold.sidings`
+was not added. If the book ever supplies a line worth the code, that is the
+field to add.
