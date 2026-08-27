@@ -584,6 +584,34 @@ single fight anybody currently plays - plus a test that `n = 0` is exactly the
 Francis in `LADDER`, one that the multiplier is a pure function of the counter,
 and one that the ceiling holds rather than wrapping.
 
+### M13 - The second-order sweep. **▲**
+
+Every milestone from M9 to M12 changes something a player meets, and three of
+them change engine behaviour. This milestone is the pass that asks what *else*
+moved, run after the rest have landed rather than during them, because the
+useful detail is what was happening when a thing surfaced.
+
+`analysis/second-order.md` is where it goes - it already exists, it is already
+this exact document for the catalogue sweep, and its numbering continues from
+12. Each entry recorded as it appears, with the evidence.
+
+**Three outcomes and each gets a different answer:**
+
+- **A bug** - fix it in this milestone and say so in the entry.
+- **A design outcome** - record it and surface it to the owner. Not fixed
+  silently: a consequence somebody chose to accept is worth more written down
+  than quietly patched.
+- **Something that needs its own milestone** - file it as one, numbered after
+  this, with the same shape as every other entry here.
+
+**Deliverable:** nothing in M9-M12 has a consequence that only shows up in a
+later mission.
+
+**Gate:** the suite, both printers diffed against the tip, and a walk of the
+road far enough to meet what changed - the pedestal in High Wick, the mode
+screen, the door past Francis. `prose`'s ignored printer reads the road aloud
+and is the cheapest way to meet all three.
+
 ---
 
 ## 5. What shipped
@@ -605,7 +633,8 @@ in play, and two decisions about what the game offers and where it ends.
 | M9 | The pedestal gets a screen | - | **open** - a bug report, filed 2026-08-27 |
 | M10 | The second voice stops advertising itself | - | **open** - filed 2026-08-27 |
 | M11 | The road past Francis, for a run that earned it | - | **open** - a bug report, filed 2026-08-27 |
-| M12 | Francis doubles | - | **open** - filed 2026-08-27, one question open |
+| M12 | Francis doubles | - | **open** - filed 2026-08-27; n counts Francises beaten |
+| M13 | The second-order sweep | - | **open** - filed 2026-08-27 |
 
 Suite at the tip: **907 engine green**, 48 ignored; **75 GUI green**; 0
 warnings across the workspace. The ladder's movement from M8 is measured in
