@@ -248,7 +248,10 @@ fn e6_the_road_holds_everything_the_mission_promised() {
     // The Switchyard adds four doors, one dungeon, two words and two
     // destinations. Every one of these is an equality rather than a bound, so
     // the census fails on a deletion *and* on an arrival nobody wrote down.
-    assert_eq!(EVENTS.len(), 37, "the road lost a door");
+    // Thirty-eight: the Switchyard's four, and the road past Francis - which
+    // was a creature, a route-map label and a `past_the_top()` nothing called,
+    // and had no door for four missions.
+    assert_eq!(EVENTS.len(), 38, "the road lost a door");
     assert_eq!(gearmaster_engine::town::TOWNS.len(), 6, "the road lost a town");
     assert_eq!(gearmaster_engine::dungeon::DUNGEONS.len(), 7, "the road lost a dungeon");
     assert_eq!(gearmaster_engine::rumour::RUMOURS.len(), 10, "the road lost a word");

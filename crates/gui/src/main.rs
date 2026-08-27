@@ -10035,6 +10035,48 @@ fn render_panel(
             if opp_hot { Color::from_rgba(190, 190, 210, 255) } else { col_dim() },
         );
     }
+    // Somebody is riding on you, and it has to be somewhere on a board.
+    //
+    // Nothing anywhere said so. THE PASSENGER hands over a parcel, `settle`
+    // delivers it five rungs later **and only if it is seated** - and a run
+    // that left it in the tray got no fare, no warning and no explanation,
+    // which is exactly what it looks like when a mechanic is broken. The
+    // blurb says "five rungs of dead cells" and never that the cells are
+    // yours to find.
+    if let Some((id, until)) = run.passenger {
+        y += 18.0;
+        let seated = run.passenger_is_seated();
+        let left = (until + 1).saturating_sub(run.rung + 1);
+        ui_text(
+            &format!(
+                "{} {}",
+                words::word("carrying", "CARRYING"),
+                words::piece(run.registry.def(id).name).to_uppercase()
+            ),
+            x + 20.0,
+            y,
+            12.0,
+            if seated { col_dim() } else { col_bad() },
+        );
+        y += 15.0;
+        let note = if !seated {
+            words::word("passenger-loose", "put it on a board or it pays you nothing").to_string()
+        } else if left == 0 {
+            words::word("passenger-there", "delivered when this fight settles").to_string()
+        } else if left == 1 {
+            words::word("passenger-one", "one more rung").to_string()
+        } else {
+            format!("{} {}", left, words::word("passenger-rungs", "more rungs"))
+        };
+        ui_text(
+            &note,
+            x + 24.0,
+            y,
+            11.0,
+            if seated { Color::from_rgba(132, 118, 152, 255) } else { col_bad() },
+        );
+    }
+
     // The map's own key, on the row that is already about the road.
     //
     // A key nobody is told about is a feature nobody has. This sits where

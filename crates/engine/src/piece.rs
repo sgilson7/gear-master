@@ -8779,11 +8779,15 @@ pub static CATALOG: &[PieceDef] = &[
     PieceDef {
         name: "Platinum Chip",
         slot: SlotKind::Weapon,
-        kind: PieceKind::Accessory,
+        // A key, and typed as one. Its own note has always said so.
+        kind: PieceKind::Quest,
         cells: &[(0, 0)],
         // Barely a component. It is a key, and it costs you a cell to keep -
         // which is the whole cost of holding on to it until rung thirty.
-        base: Stats { magic_damage: 2, mana: 2, ..Stats::ZERO },
+        //
+        // It said `magic_damage: 2, mana: 2`, which is the opposite of a cost:
+        // the note above was describing a piece that did not exist.
+        base: Stats::ZERO,
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -9775,9 +9779,16 @@ pub static CATALOG: &[PieceDef] = &[
     PieceDef {
         name: "The Stranger's Parcel",
         slot: SlotKind::Weapon,
-        kind: PieceKind::Accessory,
+        // A `Quest` piece and not an `Accessory`. It is a thing you are
+        // *carrying*, not a thing you built - the rent is dead cells and the
+        // fare is paid on delivery, which is a task and not a stat line.
+        kind: PieceKind::Quest,
         cells: &[(0, 0)],
-        base: Stats { strength: 5, ..Stats::ZERO },
+        // Nothing. It said `strength: 5`, which paid you five strength for
+        // carrying a parcel its own blurb calls "five rungs of dead cells" -
+        // so the rent was negative and the courier was the one being done a
+        // favour.
+        base: Stats::ZERO,
         adjacency: None,
         effect: None,
         cooldown_ms: 0,
@@ -9790,7 +9801,8 @@ pub static CATALOG: &[PieceDef] = &[
     PieceDef {
         name: "An Unwound Mainspring",
         slot: SlotKind::Weapon,
-        kind: PieceKind::Accessory,
+        // A key rather than a component, and typed as one.
+        kind: PieceKind::Quest,
         cells: &[(0, 0)],
         // Nothing at all, and it is the most valuable thing in the game: the
         // road past the top opens for whoever is carrying it.

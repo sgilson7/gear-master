@@ -61,11 +61,21 @@ fn every_door_in_the_game_can_be_arrived_at() {
             // pedestal and waits on no rung at all.
             Trigger::WhenFlagged { flag, .. } => {
                 if flag == "never" {
+                    // Two things push a door onto the stack rather than
+                    // standing it on a rung: a pedestal, and the end of the
+                    // ladder. The second is one door and can only ever be one
+                    // - there is exactly one road past Francis - and `settle`
+                    // pushes it when he goes down for a run that looked
+                    // through the lens. `validity::the_road_past_francis_
+                    // opens_for_a_run_that_looked_and_is_carrying_the_key`
+                    // proves it by walking rather than by asserting a name.
+                    const PUSHED_BY_THE_END_OF_THE_ROAD: &[&str] = &["the-unwound"];
                     assert!(
-                        gearmaster_engine::pedestal::DESTINATIONS
-                            .iter()
-                            .any(|d| matches!(d.kind, gearmaster_engine::pedestal::Where::Event(id) if id == e.id)),
-                        "{} waits on a flag nothing sets and no pedestal pushes it",
+                        PUSHED_BY_THE_END_OF_THE_ROAD.contains(&e.id)
+                            || gearmaster_engine::pedestal::DESTINATIONS
+                                .iter()
+                                .any(|d| matches!(d.kind, gearmaster_engine::pedestal::Where::Event(id) if id == e.id)),
+                        "{} waits on a flag nothing sets and nothing pushes it",
                         e.id
                     );
                     continue;

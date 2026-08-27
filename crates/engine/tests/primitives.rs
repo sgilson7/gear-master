@@ -596,7 +596,13 @@ fn every_rumour_and_the_trophy_trade_is_a_quest_item() {
     // all six are spoken for - the pub is full (Part E, E-2). The bar's six is
     // `SHELVES`, not `SHOP_SIZE`: a pub stocks itself with `stock_exactly` and
     // never saw the seventh shelf the road shop grew.
-    assert_eq!(quest_items().len(), 11, "ten words and the trophy trade");
+    // And three tokens, retyped from `Accessory`: The Stranger's Parcel, An
+    // Unwound Mainspring and the Platinum Chip. None of them is gear - two are
+    // keys a door reads out of your hands and the third is cargo - and two of
+    // the three carried stats that contradicted their own doc comments. A chip
+    // whose note says it "costs you a cell to keep" was paying two magic
+    // damage and two mana for the privilege.
+    assert_eq!(quest_items().len(), 14, "ten words, the trophy trade, and three tokens");
 }
 
 #[test]

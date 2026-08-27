@@ -1233,6 +1233,21 @@ impl Run {
         }
         self.inventory()
             .into_iter()
+            // Never a key, and never the cargo.
+            //
+            // This filtered on *shape* alone, and every quest item in the game
+            // is one cell - so "hand her a loose one-by-one" would take a
+            // rumour word, the Platinum Chip, or An Unwound Mainspring, which
+            // is the key to the only rung past Francis. A door that asks for
+            // something small could end a chain, shut a door forty rungs away,
+            // or quietly sell the ending, and say nothing about it either way.
+            //
+            // The same reasoning `melt` already applies: "quest pieces and
+            // rumours refuse the pot - one is the far side of a task and the
+            // other is a key, and neither is gear in the sense a crucible
+            // understands". A courier is not a crucible, but it is not owed
+            // your keys either.
+            .filter(|&id| self.registry.def(id).kind != crate::piece::PieceKind::Quest)
             .filter(|&id| {
                 let cells: Vec<(u8, u8)> = self
                     .registry
@@ -2170,7 +2185,11 @@ impl Run {
     /// underneath it - share codes, scoring, the road stack - is being asked
     /// to accept a rung that does not arrive.
     pub fn past_the_top(&self) -> bool {
-        self.holds(MAINSPRING) && self.rung >= LADDER.len()
+        // Exactly at the end of the ladder, not past it. Beating THE UNWOUND
+        // moves the rung on again, and a run that has done that is not still
+        // standing in front of it - it is finished, which is what
+        // `ladder_complete` is for.
+        self.holds(MAINSPRING) && self.rung == LADDER.len()
     }
 
     /// Does this run own a named component, worn or loose?
@@ -2628,6 +2647,21 @@ impl Run {
                 self.best_rung = self.best_rung.max(self.rung);
                 // Whatever stood in for that rung is done standing in.
                 self.substitute = None;
+                // The road past the top, for a run that knows it is there.
+                //
+                // Rung 51 is not on the ladder and cannot be: the door is
+                // pushed on rather than stood on, the way a pedestal's is.
+                // It asks for two things and they are different questions -
+                // having *looked* is what makes the door appear, and holding
+                // the mainspring is what opens it. A run that never looked
+                // through the lens finishes at Francis and is told nothing,
+                // which is the point: you cannot miss what you never saw.
+                if self.rung == LADDER.len()
+                    && self.flags.contains(&"looked-through-the-lens")
+                    && !self.answered.contains(&"the-unwound")
+                {
+                    self.forced_event = Some("the-unwound");
+                }
                 // And there may be somewhere between here and the next one.
                 // Once only: a Grinder knocked back through a town does not
                 // get to work the same shift twice.
@@ -3553,7 +3587,16 @@ impl Run {
         // being worth seating - one cell, no stats, no triggers - which is a
         // rule nothing enforces and everything has to remember. This is the
         // one place that has to know.
-        if self.registry.def(id).kind == crate::piece::PieceKind::Quest {
+        //
+        // **Except the one riding on you.** A passenger is the one quest item
+        // whose whole cost is the cells it sits in: `passenger_is_seated`
+        // refuses to deliver a parcel that spent the trip in the tray, so a
+        // parcel that cannot be seated is a parcel that can never be
+        // delivered. Written as "the piece that is currently the passenger"
+        // rather than as a name, because a rule with a name in it is a rule
+        // with a list in it.
+        let riding = self.passenger.map(|(p, _)| p) == Some(id);
+        if self.registry.def(id).kind == crate::piece::PieceKind::Quest && !riding {
             return Err(RuleError::NotWearable);
         }
         // A piece being moved within its own slot shouldn't collide with

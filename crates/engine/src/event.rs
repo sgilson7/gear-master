@@ -1702,7 +1702,7 @@ pub const EVENTS: &[LadderEvent] = &[
         choices: &[
             Choice {
                 label: "Take it aboard",
-                blurb: "Five rungs of dead cells. Lose one fight and it is lost.",
+                blurb: "Five rungs of dead cells - put it on a board, because a parcel in the tray is riding for free and pays nothing. Lose one fight and it is lost.",
                 requires: Requirement::None,
                 outcome: Outcome::Passenger { rungs: 5, pays: "An Unwound Mainspring" },
                 unmet: "",
@@ -1856,7 +1856,14 @@ pub const EVENTS: &[LadderEvent] = &[
                 label: "Look through it",
                 blurb: "Every board ahead of you, from the loadout screen, for the rest of it.",
                 requires: Requirement::Holding("The Cracked Lens"),
-                outcome: Outcome::Scout,
+                // Scouting, and a note that you looked.
+                //
+                // What you see through it is the thing past the top. A run
+                // that never looked has no idea there is anything past
+                // Francis, and the door at the end does not stand for it -
+                // which is the difference between an ending you earned and one
+                // that simply happened to you.
+                outcome: Outcome::All(&[Outcome::Scout, Outcome::Flag("looked-through-the-lens")]),
                 unmet: "You would need the lens. Halloway offered it to you once, at a price.",
             },
             Choice {
@@ -2192,6 +2199,51 @@ pub const EVENTS: &[LadderEvent] = &[
             Choice {
                 label: "Tell him you never found it",
                 blurb: "He has heard that before and does not believe it, and writes it down anyway. There is no bounty for this and it costs you nothing.",
+                requires: Requirement::None,
+                outcome: Outcome::FightAsWritten,
+                unmet: "",
+            },
+        ],
+    },
+    // ---- past the top ---------------------------------------------------
+    //
+    // The one door that stands after the ladder ends. Off the road entirely:
+    // `flag: "never"` is the sentinel for a door nothing on a rung can reach,
+    // and `settle` pushes this one through `forced_event` the moment Francis
+    // goes down for a run that looked through the lens.
+    //
+    // `at` and `expects` name Francis because that is the last rung there is
+    // and `every_event_stands_where_it_thinks_it_does` has to be able to check
+    // something. Where it actually stands is after him.
+    LadderEvent {
+        id: "the-unwound",
+        at: 49,
+        trigger: Trigger::WhenFlagged { flag: "never", from: 49 },
+        blocked_by: &[],
+        expects: "Francis",
+        title: "THE ROAD PAST FRANCIS",
+        prose: &[
+            "Francis is down and the road does not stop. It goes on past him \
+             for about forty yards and then it goes down, and the going down \
+             is the part the lens showed you.",
+            "You have seen this before, through a cracked lens, from thirty \
+             rungs back, and Merrik was right that it would still be here. \
+             Whatever is at the bottom has been unwinding the whole time you \
+             were climbing.",
+            "The mainspring in your hand is the wrong shape for any lock on \
+             this road. It is the right shape for that.",
+        ],
+        choices: &[
+            Choice {
+                label: "Go down",
+                blurb: "The thing at the bottom is harder than the man you just put down, and it does not stop when you do.",
+                requires: Requirement::Holding("An Unwound Mainspring"),
+                outcome: Outcome::FightInstead("THE UNWOUND"),
+                unmet: "The way down wants a mainspring, and yours went somewhere else.",
+            },
+            Choice {
+                label: "Turn round",
+                blurb: "The road behind you is the whole game and you have just finished it.",
                 requires: Requirement::None,
                 outcome: Outcome::FightAsWritten,
                 unmet: "",

@@ -349,7 +349,22 @@ impl Walk {
                 self.run.skip_town();
                 continue;
             }
-            if self.run.at_fountain() || self.run.at_doubling_fountain() {
+            // The third fountain doubles a class you already hold rather than
+            // pouring a new one, so `fountain_offer` is empty there and
+            // `drink_choosing` has nothing to choose. A walker that only knew
+            // how to drink stood in front of it until its guard ran out.
+            if self.run.at_doubling_fountain() {
+                let held: Vec<_> = self.run.classes.clone();
+                let took = held.iter().any(|c| self.run.double_class(c));
+                self.run.take_receipt();
+                if !took {
+                    self.seen.why =
+                        Some(format!("the doubling fountain at rung {} would not pour", self.run.rung + 1));
+                    return false;
+                }
+                continue;
+            }
+            if self.run.at_fountain() {
                 if !self.step(&Step::Drink) {
                     return false;
                 }
@@ -1227,4 +1242,176 @@ fn a_wipe_forgets_every_dungeon_underneath() {
     run.wipe();
     assert!(run.dungeon.is_none());
     assert!(run.outer_dungeons.is_empty(), "a new run is standing in a dungeon");
+}
+
+/// A door that asks for something small cannot be paid in keys.
+///
+/// `offerings` filtered on shape alone, and every quest item in the game is
+/// one cell - so "hand her a loose one-by-one" would happily take a rumour
+/// word, the Platinum Chip, or An Unwound Mainspring, which is the key to the
+/// only rung past Francis. Losing the ending to pay for a timetable.
+#[test]
+fn a_loose_item_door_will_not_take_a_key() {
+    use gearmaster_engine::event::Requirement;
+
+    let mut run = Walk::new().run;
+    for name in [
+        "An Unwound Mainspring",
+        "Platinum Chip",
+        "A Word About the Sidings",
+        "The Stranger's Parcel",
+    ] {
+        run.give(name);
+    }
+    let small = Requirement::LooseItemOfSize { w: 1, h: 1 };
+    let offered: Vec<&str> =
+        run.offerings(small).iter().map(|&id| run.registry.def(id).name).collect();
+
+    for name in ["An Unwound Mainspring", "Platinum Chip", "A Word About the Sidings"] {
+        assert!(run.holds(name), "{name} is not in the tray to begin with");
+        assert!(!offered.contains(&name), "{name} was offered up as a loose one-by-one");
+    }
+    assert!(
+        !offered.contains(&"The Stranger's Parcel"),
+        "somebody's parcel was offered as payment"
+    );
+}
+
+/// The road past Francis opens for a run that looked, and is carrying the key.
+///
+/// Rung 51 was a creature in `ALTERNATES`, a label on the route map, a theme
+/// entry and a `past_the_top()` that **nothing called**. There was no door and
+/// no way to fight it: a run that finished the chain, beat Francis and was
+/// holding An Unwound Mainspring was simply told the game was over.
+///
+/// Two different questions, and they are asked separately on purpose. Having
+/// *looked* through the cracked lens is what makes the door appear - a run
+/// that never looked finishes at Francis and is told nothing, because you
+/// cannot miss what you never saw. Holding the mainspring is what opens it.
+#[test]
+fn the_road_past_francis_opens_for_a_run_that_looked_and_is_carrying_the_key() {
+    use gearmaster_engine::combat::LADDER;
+
+    let door = || EVENTS.iter().find(|e| e.id == "the-unwound").expect("the ending");
+
+    // A run that never looked is told nothing.
+    let mut blind = Walk::new().run;
+    blind.rung = LADDER.len() - 1;
+    blind.give("An Unwound Mainspring");
+    blind.force_win();
+    blind.settle();
+    blind.back_to_loadout();
+    assert_eq!(blind.rung, LADDER.len(), "Francis is down");
+    assert!(
+        blind.pending_event().is_none(),
+        "a run that never looked through the lens was shown the way down anyway"
+    );
+
+    // A run that looked, and is carrying it.
+    let mut seer = Walk::new().run;
+    seer.rung = LADDER.len() - 1;
+    seer.flags.push("looked-through-the-lens");
+    seer.give("An Unwound Mainspring");
+    seer.force_win();
+    seer.settle();
+    seer.back_to_loadout();
+
+    let e = seer.pending_event().expect("the road past Francis");
+    assert_eq!(e.id, "the-unwound");
+    assert!(seer.past_the_top(), "the road past the top is not open");
+
+    let down = door().choices.iter().find(|c| c.label == "Go down").expect("a way down");
+    assert!(seer.choice_open(down), "the key is in hand and the way down is shut");
+    seer.take_choice(down);
+    seer.take_receipt();
+    assert_eq!(seer.monster().name, "THE UNWOUND", "it did not put the thing in front of you");
+
+    // And beating it finishes the run rather than leaving it standing there.
+    seer.force_win();
+    seer.settle();
+    assert!(seer.rung > LADDER.len(), "the ladder did not move past the top");
+    assert!(!seer.past_the_top(), "still standing in front of a thing it beat");
+    assert!(seer.ladder_complete(), "beating the last thing did not finish the run");
+}
+
+/// A run that looked but spent the key is shown the door and cannot take it.
+///
+/// The point of the door standing for a run that cannot open it: being told
+/// what you missed is the thing that makes you go looking next run. It is the
+/// VIP area's shape - the rope does not move - at the end of the road.
+#[test]
+fn the_way_down_is_shut_for_a_run_that_let_the_mainspring_go() {
+    use gearmaster_engine::combat::LADDER;
+
+    let mut run = Walk::new().run;
+    run.rung = LADDER.len() - 1;
+    run.flags.push("looked-through-the-lens");
+    run.force_win();
+    run.settle();
+    run.back_to_loadout();
+
+    let e = run.pending_event().expect("the door stands anyway");
+    assert_eq!(e.id, "the-unwound");
+    let down = e.choices.iter().find(|c| c.label == "Go down").expect("a way down");
+    assert!(!run.choice_open(down), "it opened for a run holding nothing");
+    assert!(!down.unmet.is_empty(), "a shut door that says nothing about why");
+    assert!(!run.past_the_top(), "past the top without the key");
+}
+
+/// The passenger pays, and only if it was carried rather than pocketed.
+///
+/// Reported from play: took the parcel, and nothing ever happened. The
+/// mechanic works - `settle` delivers five rungs on and hands over An Unwound
+/// Mainspring - but **only if the parcel is seated on a board**, and neither
+/// interface said so, nor that a parcel was being carried at all. A run that
+/// left it in the tray got no fare, no warning and no explanation, which is
+/// indistinguishable from a mechanic that does nothing.
+#[test]
+fn a_seated_passenger_pays_and_a_pocketed_one_does_not() {
+    use gearmaster_engine::piece::SlotKind;
+
+    let fare = "An Unwound Mainspring";
+    let door = EVENTS.iter().find(|e| e.id == "the-passenger").expect("the door");
+    let take = door.choices.iter().find(|c| c.label == "Take it aboard").expect("a choice");
+
+    // Seated: it pays.
+    let mut w = Walk::new();
+    // The door waits on the staircase having been walked.
+    w.run.flags.push("threshold-cleared");
+    w.run.rung = door.at;
+    w.run.take_choice(take);
+    w.run.take_receipt();
+    let (id, until) = w.run.passenger.expect("somebody is riding");
+    let slot = w.run.registry.def(id).slot;
+    let seated = (0..8u8)
+        .flat_map(|y| (0..6u8).map(move |x| (x, y)))
+        .any(|(x, y)| w.run.equip(id, slot, x, y).is_ok());
+    assert!(seated, "nowhere on the board for a parcel");
+    assert!(w.run.passenger_is_seated());
+    let _ = SlotKind::ALL;
+
+    while w.run.rung < until {
+        assert!(w.follow(&[Step::Fight]), "{:?}", w.seen.why);
+    }
+    assert!(w.run.holds(fare), "carried it the whole way and the courier paid nothing");
+    assert!(w.run.passenger.is_none(), "still riding after it was delivered");
+
+    // Pocketed: it does not, and that is the rule rather than a bug.
+    let mut p = Walk::new();
+    p.run.flags.push("threshold-cleared");
+    p.run.rung = door.at;
+    p.run.take_choice(take);
+    p.run.take_receipt();
+    let (_, until) = p.run.passenger.expect("riding");
+    assert!(!p.run.passenger_is_seated(), "it seated itself");
+    while p.run.rung < until {
+        assert!(p.follow(&[Step::Fight]), "{:?}", p.seen.why);
+    }
+    // Checked by whether it was *delivered*, not by whether the run is
+    // holding the fare: THE HERALD's brawl pays An Unwound Mainspring too, and
+    // a greedy walk down these rungs can win one on the way past. Two roads to
+    // one piece, which is the road being generous rather than the courier.
+    assert!(p.run.passenger.is_some(), "a parcel that rode in the tray was delivered");
+    assert!(!p.run.passenger_is_seated(), "it seated itself somewhere along the way");
+    let _ = fare;
 }

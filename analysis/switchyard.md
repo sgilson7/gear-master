@@ -1866,3 +1866,88 @@ THRESHOLD / THE BIRD PROBLEM / THE SHUNTER**.
 how it was looked at.
 
 **887 engine, 71 GUI, 5 CLI. No warnings.**
+
+---
+
+## Four things from play (2026-08-27)
+
+### 1. There was no road past Francis
+
+Reported: got the Mainspring, beat Francis, and never faced THE UNWOUND.
+
+**There was no way to.** `Run::past_the_top()` was defined and **nothing
+called it** except `ladder_complete`. `monster()` clamps to
+`LADDER[rung.min(len - 1)]`, so a run standing past the ladder was looking at
+Francis again. THE UNWOUND was a `MonsterSpec` in `ALTERNATES`, a label on the
+route map, a theme entry and a frame at band 51 - and no door anywhere put it
+in front of anybody. Four missions of that.
+
+`the-unwound` is a door now, pushed rather than stood on: `flag: "never"` is
+the sentinel for a door no rung can reach, and `settle` pushes it through
+`forced_event` the moment Francis goes down.
+
+**Two conditions, and they are different questions on purpose.** Having
+*looked* through the cracked lens is what makes the door appear - the "Look
+through it" choice now sets `looked-through-the-lens` beside its `Scout` - and
+holding the Mainspring is what opens the way down. A run that never looked
+finishes at Francis and is told nothing, because you cannot miss what you never
+saw. A run that looked and spent the key is shown the way and cannot take it,
+which is the VIP area's shape at the end of the road.
+
+`past_the_top` is `rung == LADDER.len()` rather than `>=`, so beating the thing
+finishes the run instead of leaving it standing in front of what it beat.
+
+Two walking tests, headed by
+`the_road_past_francis_opens_for_a_run_that_looked_and_is_carrying_the_key`.
+
+### 2. Three tokens are Quest items
+
+The Stranger's Parcel, An Unwound Mainspring and the Platinum Chip were
+`Accessory`. None of them is gear: two are keys a door reads out of your hands
+and the third is cargo.
+
+**Two of the three carried stats that contradicted their own doc comments.**
+The Chip's note reads *"Barely a component. It is a key, and it costs you a
+cell to keep"* - and it paid **2 magic damage and 2 mana** for the privilege.
+The Parcel's blurb calls it *"five rungs of dead cells"* and it paid **5
+strength**, so the rent was negative and the courier was the one doing you a
+favour. Both are `Stats::ZERO` now.
+
+Two things fell out of it:
+
+- **`equip` refuses quest items** - "carried, never worn" - which would have
+  made the Parcel undeliverable, because `passenger_is_seated` is what pays the
+  fare. The exception is written as *the piece currently riding on you* rather
+  than as a name, because a rule with a name in it is a rule with a list in it.
+- **`offerings` filtered on shape alone**, and every quest item in the game is
+  one cell. So "hand her a loose one-by-one" would take a rumour word, the
+  Platinum Chip, or **An Unwound Mainspring** - selling the ending to pay for a
+  timetable, silently. It skips quest items now, on exactly the reasoning
+  `melt` already gives for refusing them.
+
+### 3. The passenger paid nothing because nothing said to seat it
+
+Reported: took the passenger, nothing ever happened.
+
+**The mechanic works.** `settle` delivers five rungs on and hands over the
+Mainspring - **but only if the parcel is on a board**, because the rent is dead
+cells and a parcel in the tray is riding free. A run that left it in the tray
+got no fare, no warning and no explanation, which is indistinguishable from a
+mechanic that does nothing.
+
+Neither interface mentioned a passenger at *all* - not the GUI, not the CLI -
+and the blurb said "five rungs of dead cells" without ever saying the cells
+were yours to find. The panel now carries a `CARRYING …` line under the
+opponent: red and *"put it on a board or it pays you nothing"* while it is
+loose, dim and counting rungs once it is seated. The blurb says it too.
+
+`a_seated_passenger_pays_and_a_pocketed_one_does_not` walks both.
+
+### 4. And one the solver could not do
+
+`clear_the_road` drank at every fountain with `drink_choosing`, and the third
+fountain **doubles** a class rather than pouring one - so `fountain_offer` is
+empty there and the walker stood in front of it until its guard ran out. It
+doubles now.
+
+**891 engine, 71 GUI, 5 CLI. No warnings.** The four-board table is unmoved.
