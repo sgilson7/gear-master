@@ -6,7 +6,11 @@ the spec, `design/the-switchyard.md`. The measurements live in
 `analysis/switchyard.md`, one block per milestone headed by a commit hash;
 this file is the decisions and the surprises.
 
-**Branch:** `switchyard`, off `e38d968`, to be merged once at the end.
+**Branch:** `switchyard`, off `e38d968`. Eleven commits, M0 to M11.
+**Not merged and not published** - see §5.
+
+**Suite:** 866 engine, 65 GUI, 5 CLI - 936 in the workspace. 44 ignored, 0
+failed, no warnings. All twelve acceptance criteria met.
 
 ## 1. The decisions taken from Part E
 
@@ -41,6 +45,7 @@ argue against.
 | **M8** Rating pins | **done** | "M8 rating pins" |
 | **M9** Boards, by hand | **done** | "M9 boards, by hand" |
 | **M10** Balance, measured | **done** | "M10 balance, measured" |
+| **M11** The record | **done** | this file, and `CLAUDE.md` |
 
 ## 3. Open questions for the user
 
@@ -475,3 +480,87 @@ fixed:
   cannot tell them apart. That is the first thing worth looking at next.
 
 **866 engine, 65 GUI, 5 CLI - 936 in the workspace. No warnings.**
+
+
+---
+
+## 5. Where the code is, and what is left to do
+
+`main` is untouched and still serves `docs/` through GitHub Pages. Branch
+`switchyard` holds eleven commits and is ready to merge; **nothing has been
+merged and nothing has been published**, deliberately. The mission ran
+overnight and unattended, and pushing a night's unsupervised work to a live
+site is a decision to make awake.
+
+To finish it: read `analysis/switchyard.md` (every number, one block a
+milestone), merge `switchyard` to `main`, and publish `docs/` the way the
+Unwinding and the prose pass were published.
+
+## 6. What shipped
+
+| Part | What |
+|---|---|
+| **A1** | A dungeon's floors are a **graph**. `Floor` carries its own landing, its exits, its fork scene, its siding entry and its own payout; `Dungeon::landings` is gone. Seven graph lints |
+| **A1.3** | Five transitions: clearing, throwing the points, **leaving**, losing, re-entering. The flee this game did not have, legal at a landing and never mid-fight |
+| **A1.4** | `Interrupt::Points`; a banner that counts **fights** rather than rooms; a pip row that is the banner read as circles; a map that says `(4 fights, 3 points)` |
+| **A2** | Four verbs - `Shunt` moves time without making any, `Ballast` spends the wall on the one number the clock respects, `Derail` is denial with no answer, `Accrue` is the only income that reads the balance |
+| **A3** | Ground is bought in a town **or dug up**, and never sold on the road |
+| **A4** | `Where::Siding` - an orb that puts you down inside a dungeon, past what you already walked |
+| **B** | Four doors, two words, nine floors, three sets of points, four buffer stops, nine creatures |
+| **C** | The Cork Train's yards, in `theme.rs` and nowhere else |
+| **D** | Eleven milestones, every one measured against the one before it |
+
+## 7. The five things that cost the most
+
+**A1.3's walk-through rule is wrong, and only a test found it.** "Follow a
+cleared floor by taking the single uncleared exit" asks about the exit's *next
+room*, which is not whether the road is finished. A run that walked one road as
+far as its first room and left would be sent down the other one, past every
+room nobody had fought. The two readings agree on every walk the yard's own
+shape can produce - including the spec's worked eight-floor example - which is
+why the rule looked right for six milestones of reading. `fights_ahead(to) > 0`
+is the question that means what the sentence meant.
+
+**Half the suite assumed a dungeon was a list.** Five lints, one afternoon:
+bands rising along `floors` rather than along a road; `floors.last()` read as
+"the ending" when a graph has one per buffer stop; a pays rule that could not
+see a floor paying; a map fixture comparing lengths; a banner walk assuming
+room count equals fight count. None was wrong when it was written. All five are
+in `CLAUDE.md` §6 trap 22 now.
+
+**Two doors could not stand where the spec drew them.** Its list of free rungs
+counts events and takes no account of towns, and a town gate has refused to
+share a rung with an event since long before this mission. Found by a lint on
+the first compile, which is the cheapest possible place to find it.
+
+**A bug in the shop that was nobody's.** Appending eight unsellable components
+moved every shelf in the game, because the shelf tilt dealt slots in proportion
+to how much of a slot *exists* rather than how much is *for sale*. It had been
+wrong since the Unwinding appended thirty-one event-only rewards. The blast
+radius was measured before the fix was kept: zero other tests moved.
+
+**`Combatant::player` starts everything at zero.** A player built from
+`Stats::ZERO` has no maximum health and dies on the first tick, and every
+count read off that fight is zero - which reads exactly like "the mechanic does
+nothing". Three of M4's effect tests failed that way before anybody looked at
+the fight rather than the assertion.
+
+## 8. What is not done
+
+- **Nobody has played it.** Still true, and still the biggest gap. Every claim
+  in this file is from the suite and from two transcripts that diff clean.
+- **E-6 was never answered.** Six turtle names are Part C's guesses without the
+  book. Display-only; replacing one is a line and no test
+  (`analysis/switchyard.md` finding 37).
+- **The owner's board kills eight of the nine floors in exactly 12.0 s.** The
+  Down line is meant to be weight and the Up line light, and at Medium the
+  owner cannot tell them apart. The first thing a balance pass should look at.
+- **Five floors run past sudden death on Insane.** The clock's, not the
+  boards'. The curve is defined at Medium and every floor is 12.0 s or better
+  there; recorded rather than fixed (finding 43).
+- **The yard's nine wear the generator's boards.** The same thing
+  `post-unwinding.md` §4 says of the Unwinding's fifteen: they are samples,
+  sized correctly and shaped by theme, and packing one by hand is a different
+  job from packing one with `pack_francis`.
+- **`Retold.sidings` was not added** (E-3, taken as recommended). If the book
+  ever supplies a line worth the code, that is the field.

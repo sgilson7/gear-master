@@ -1247,6 +1247,25 @@ built around.
 
 ## M10 balance, measured, at `1cb611a`+
 
+> **The mission, in one block.** Eleven milestones, M0 to M11, on branch
+> `switchyard` off `e38d968`. **866 engine tests, 65 GUI, 5 CLI - 936 in the
+> workspace, 44 ignored, 0 failed, no warnings.** All twelve acceptance
+> criteria met.
+>
+> The four-board table at Medium is **byte-identical to M0** - owner 48/50 at
+> 75.5% and 9.00 s median, friend 48/50 at 97.4% and 8.15 s, preset 9/50,
+> starter 2/50 - and `gear_at` moved exactly once, at M9, when nine creatures
+> went from no board to a packed one, and every changed line named one of the
+> nine.
+>
+> Nothing is blocked. Four things are recorded as open rather than done: nobody
+> has played it; E-6's six turtle names are guesses without the book; the
+> owner's board cannot tell the yard's two lines apart at Medium; and five
+> floors run past sudden death on Insane. All four are in
+> `design/HANDOFF-switchyard.md` §8.
+>
+> **`main` is untouched and `docs/` is unpublished.** Merging is the owner's.
+
 ### The yard, floor by floor, at Medium
 
 | # | Floor | Band | perfect | owner | friend |
