@@ -1694,3 +1694,45 @@ change is real and was not being watched.
 `edcd9fc`, before any of this.
 
 **878 engine, 68 GUI, 5 CLI - 951 in the workspace. No warnings.**
+
+---
+
+## The map's fraying edges (2026-08-27)
+
+Reported after the deploy: three yellow diagonals on the road map, coming out
+of certain bubbles and connecting to nothing.
+
+**They were merge-ahead edges - a door that buys a rung off, drawn to the rung
+it lands on - and they started in the wrong place.** The edge was drawn from
+`(place(at).x, place(at).y - 26.0)`: the *spine* dot of the source rung, with a
+constant guess at how far above it the bubble sits. An off-spine node does not
+sit on the spine at all. It hangs **half a step to the left** and stacks
+**upward by however many others share its rung**, so `-26` was right for
+nothing and the line began in mid-air beside the bubble it was supposed to
+leave.
+
+Three doors buy a rung off, so three lines frayed.
+
+The fix is not a nudge. `MapGrid` now works out where every node lands
+*before* anything is drawn, and the renderer and the edges read the same list -
+which is the only way an edge can know where its own node ended up. Pulled out
+of the renderer for the reason `chip_rects` is: geometry computed inline is
+geometry nobody can check.
+
+Two lints, neither of which needs a window:
+
+- `every_map_edge_touches_both_of_its_nodes` - a merge-ahead leaves a node that
+  is genuinely off-spine, at a height above the spine, and lands exactly on the
+  rung it names. A spine edge runs dot to dot.
+- `nothing_on_the_map_is_drawn_over_something_else` - two things hanging off one
+  rung stack rather than overlap.
+
+Merge-ahead edges are also skipped across a row break now, the way spine edges
+already were: fifty rungs wrap onto two rows, and a line from the right-hand
+end of one to the left-hand end of the next crosses the whole map and means
+nothing.
+
+`GEARMASTER_MAP=1` opens the road on the first frame, which is how this was
+looked at. A third debug hook beside `_DUNGEON` and `_CLASSES`.
+
+**878 engine, 70 GUI, 5 CLI. No warnings.**

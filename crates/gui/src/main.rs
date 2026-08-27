@@ -6817,49 +6817,35 @@ fn render_route(run: &Run, mx: f32, my: f32) {
         col_dim(),
     );
 
-    // The spine runs left to right across two rows, because fifty rungs down
-    // one column is a scrollbar and this is meant to be read at a glance.
-    let per_row = 26usize;
-    let x0 = 48.0;
-    let step = (LOGICAL_W - 2.0 * x0) / (per_row - 1) as f32;
-    let place = |at: usize| -> Vec2 {
-        let row = at / per_row;
-        let col = at % per_row;
-        Vec2::new(x0 + col as f32 * step, 210.0 + row as f32 * 230.0)
-    };
-    // Everything that is not a rung stands *between* two of them: a town gate
-    // after one rung and before the next, an event in front of the fight it
-    // interrupts, a fountain owed on arrival. They were drawn hanging off the
-    // rung ahead of them, which reads as "this happens at rung ten" when what
-    // happens at rung ten is the creature.
-    //
-    // Half a step to the left, which is the middle of the edge the player is
-    // walking down when the thing actually happens. At the start of a wrapped
-    // row there is no edge to sit on, so it sits just inside the margin.
-    let gap_before = |at: usize| -> Vec2 {
-        let p = place(at);
-        if at == 0 || at % per_row == 0 {
-            Vec2::new(p.x - step * 0.42, p.y)
-        } else {
-            Vec2::new(p.x - step * 0.5, p.y)
-        }
-    };
+    let grid = MapGrid::new();
+    let place = |at: usize| grid.place(at);
+    let gap_before = |at: usize| grid.gap_before(at);
+    let spot = grid.spots(&map.nodes);
 
     // Edges first, so nothing is drawn over a node.
     for e in &map.edges {
-        let (a, b) = (&map.nodes[e.from], &map.nodes[e.to]);
-        let (pa, pb) = (place(a.at), place(b.at));
+        let (pa, pb) = (spot[e.from], spot[e.to]);
         match e.kind {
-            EdgeKind::Spine if pa.y == pb.y => {
+            EdgeKind::Spine
+                if grid.same_row(map.nodes[e.from].at, map.nodes[e.to].at) =>
+            {
                 draw_line(pa.x, pa.y, pb.x, pb.y, 2.0, Color::from_rgba(70, 70, 96, 255));
             }
             // Wrapping to the next row: nothing sensible to draw, and the
             // numbers say it.
             EdgeKind::Spine => {}
             EdgeKind::Branch => {}
-            EdgeKind::MergeAhead => {
-                draw_line(pa.x, pa.y - 26.0, pb.x, pb.y, 1.5, Color::from_rgba(120, 96, 60, 255));
+            // A branch that does not come home, drawn from the door to the
+            // rung it lands on. Skipped across a row break for the same reason
+            // the spine is: a line from the right-hand edge of one row to the
+            // left-hand edge of the next crosses the whole map and means
+            // nothing.
+            EdgeKind::MergeAhead
+                if grid.same_row(map.nodes[e.from].at, map.nodes[e.to].at) =>
+            {
+                draw_line(pa.x, pa.y, pb.x, pb.y, 1.5, Color::from_rgba(120, 96, 60, 255));
             }
+            EdgeKind::MergeAhead => {}
         }
     }
 
@@ -8742,6 +8728,82 @@ fn chip_rects(titles: &[String], x: f32, y: f32, w: f32, measure: impl Fn(&str) 
 
 const CHIP_TEXT: f32 = 12.0;
 
+/// The road map's geometry: fifty rungs laid over two rows.
+///
+/// Pulled out of the renderer so a test can ask where a node lands without a
+/// window. `chip_rects` is out here for the same reason and it is the same
+/// kind of bug it guards against: geometry computed inline is geometry nobody
+/// can check.
+struct MapGrid {
+    per_row: usize,
+    x0: f32,
+    step: f32,
+}
+
+impl MapGrid {
+    fn new() -> Self {
+        // Fifty rungs down one column is a scrollbar, and this is meant to be
+        // read at a glance.
+        let per_row = 26usize;
+        let x0 = 48.0;
+        MapGrid { per_row, x0, step: (LOGICAL_W - 2.0 * x0) / (per_row - 1) as f32 }
+    }
+
+    fn place(&self, at: usize) -> Vec2 {
+        let row = at / self.per_row;
+        let col = at % self.per_row;
+        Vec2::new(self.x0 + col as f32 * self.step, 210.0 + row as f32 * 230.0)
+    }
+
+    /// Everything that is not a rung stands *between* two of them: a town gate
+    /// after one rung and before the next, an event in front of the fight it
+    /// interrupts, a fountain owed on arrival. They were drawn hanging off the
+    /// rung ahead of them, which reads as "this happens at rung ten" when what
+    /// happens at rung ten is the creature.
+    ///
+    /// Half a step to the left, which is the middle of the edge the player is
+    /// walking down when the thing actually happens. At the start of a wrapped
+    /// row there is no edge to sit on, so it sits just inside the margin.
+    fn gap_before(&self, at: usize) -> Vec2 {
+        let p = self.place(at);
+        if at == 0 || at % self.per_row == 0 {
+            Vec2::new(p.x - self.step * 0.42, p.y)
+        } else {
+            Vec2::new(p.x - self.step * 0.5, p.y)
+        }
+    }
+
+    /// Where every node lands, in node order.
+    ///
+    /// An edge has to start where its node actually ended up, and an off-spine
+    /// node does not sit on the spine: it hangs half a step left and stacks
+    /// upward by however many are already hanging off that rung. The
+    /// merge-ahead edge used to be drawn from `(place(at).x, place(at).y - 26)`
+    /// - the spine dot of the source rung, guessed - which is the wrong column
+    /// *and* the wrong height, so three lines on the map began in mid-air near
+    /// the bubble they were supposed to leave and looked like fraying.
+    fn spots(&self, nodes: &[gearmaster_engine::route::Node]) -> Vec<Vec2> {
+        let mut out = Vec::with_capacity(nodes.len());
+        let mut stack: std::collections::HashMap<usize, i32> = Default::default();
+        for n in nodes {
+            if n.off_spine {
+                let g = self.gap_before(n.at);
+                let k = stack.entry(n.at).or_insert(0);
+                *k += 1;
+                out.push(Vec2::new(g.x, g.y - 18.0 - *k as f32 * 15.0));
+            } else {
+                out.push(self.place(n.at));
+            }
+        }
+        out
+    }
+
+    /// Two rungs are on one row when their `place` shares a `y`.
+    fn same_row(&self, a: usize, b: usize) -> bool {
+        a / self.per_row == b / self.per_row
+    }
+}
+
 /// The classes a run is wearing, collapsed to one entry each.
 ///
 /// `Run::classes` holds a stacking class once per stack - Piety, Unionized and
@@ -10090,7 +10152,9 @@ async fn main() {
     // Kept between fights, and settable before one starts.
     let mut playback_speed = DEFAULT_SPEED;
     let mut glossary_open = std::env::var("GEARMASTER_GLOSSARY").is_ok();
-    let mut map_open = false;
+    // `GEARMASTER_MAP=1` opens the road on the first frame, for looking at it
+    // without pressing M. A debug hook beside the others.
+    let mut map_open = std::env::var("GEARMASTER_MAP").is_ok();
     let mut fountain_open = std::env::var("GEARMASTER_FOUNTAIN").is_ok();
     let mut picker_open = std::env::var("GEARMASTER_PICKER").is_ok();
     let mut picker_page: usize = 0;
@@ -12529,6 +12593,80 @@ mod tests {
                     || a.y + a.h <= b.y + 0.01
                     || b.y + b.h <= a.y + 0.01;
                 assert!(apart, "buttons {i} and {j} overlap");
+            }
+        }
+    }
+
+    /// Every edge on the road map starts and ends on the node it names.
+    ///
+    /// The merge-ahead edge - a door that buys a rung off, drawn to the rung it
+    /// lands on - was drawn from `place(at).y - 26`, the spine dot of the
+    /// source rung with a guess at how high the bubble sits. An off-spine node
+    /// hangs half a step left and stacks upward by however many share its
+    /// rung, so the line started in mid-air beside the bubble it was meant to
+    /// leave: three yellow diagonals on the map, connected to nothing.
+    #[test]
+    fn every_map_edge_touches_both_of_its_nodes() {
+        use gearmaster_engine::route::{route, EdgeKind};
+        use gearmaster_engine::run::Run;
+
+        let mut run = Run::seeded(0x80AD);
+        run.rung = 20;
+        let map = route(&run);
+        let grid = MapGrid::new();
+        let spots = grid.spots(&map.nodes);
+        assert_eq!(spots.len(), map.nodes.len());
+
+        let mut merges = 0;
+        for e in &map.edges {
+            let (a, b) = (&map.nodes[e.from], &map.nodes[e.to]);
+            if !grid.same_row(a.at, b.at) {
+                continue; // not drawn: a line across a row break means nothing
+            }
+            match e.kind {
+                EdgeKind::MergeAhead => {
+                    merges += 1;
+                    // The source is a door, so its end of the line is where a
+                    // door is drawn - off the spine, not on it.
+                    assert!(a.off_spine, "a merge-ahead leaves something on the spine");
+                    assert_eq!(spots[e.from], grid.spots(&map.nodes)[e.from]);
+                    assert!(
+                        spots[e.from].y < grid.place(a.at).y,
+                        "the door's end of the line is on the spine rather than on the door"
+                    );
+                    // And it lands exactly on the rung it merges into.
+                    assert_eq!(spots[e.to], grid.place(b.at), "it lands beside the rung");
+                }
+                EdgeKind::Spine => {
+                    assert_eq!(spots[e.from], grid.place(a.at));
+                    assert_eq!(spots[e.to], grid.place(b.at));
+                }
+                EdgeKind::Branch => {}
+            }
+        }
+        assert!(merges > 0, "no merge-ahead edge on the map to check");
+    }
+
+    /// Two things hanging off one rung do not land on top of each other.
+    #[test]
+    fn nothing_on_the_map_is_drawn_over_something_else() {
+        use gearmaster_engine::route::route;
+        use gearmaster_engine::run::Run;
+
+        let mut run = Run::seeded(0x80AD);
+        run.rung = 45;
+        let map = route(&run);
+        let spots = MapGrid::new().spots(&map.nodes);
+        for (i, a) in spots.iter().enumerate() {
+            for (j, b) in spots.iter().enumerate().skip(i + 1) {
+                if map.nodes[i].off_spine || map.nodes[j].off_spine {
+                    assert!(
+                        (a.x - b.x).abs() > 0.01 || (a.y - b.y).abs() > 0.01,
+                        "{} and {} are drawn in the same place",
+                        map.nodes[i].label,
+                        map.nodes[j].label
+                    );
+                }
             }
         }
     }
