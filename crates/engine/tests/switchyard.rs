@@ -656,18 +656,23 @@ fn leaving_before_a_buffer_stop_forfeits_the_yard() {
     assert!(run.has_cleared("the-switchyard", 0));
 }
 
-/// The frame lint is red by nine, and says which nine.
+/// Every floor of the yard has a board, and the frame lint agrees.
+///
+/// This asserted **nine undressed** from M6 to M9 - the phase discipline made
+/// visible - and inverted when the ninth board landed, which is the shape
+/// `bestiary`'s own budget has and the reason the budget is an equality rather
+/// than a bound.
 #[test]
-fn the_frame_lint_is_red_by_nine() {
-    let naked: Vec<&str> =
-        gearmaster_engine::bestiary::unpacked().iter().map(|f| f.name).collect();
-    assert_eq!(naked.len(), 9, "{naked:?}");
-    let d = yard();
-    for n in &naked {
-        assert!(
-            d.floors.iter().any(|f| f.creature == *n),
-            "{n} is undressed and is not one of the yard's"
-        );
+fn every_floor_of_the_yard_is_dressed() {
+    assert!(
+        gearmaster_engine::bestiary::unpacked().is_empty(),
+        "{:?} still has no board",
+        gearmaster_engine::bestiary::unpacked().iter().map(|f| f.name).collect::<Vec<_>>()
+    );
+    for f in yard().floors {
+        let spec = gearmaster_engine::combat::alternate(f.creature).expect("a real creature");
+        assert!(!spec.gear.is_empty(), "{} fights in nothing", f.creature);
+        assert!(!spec.items.is_empty(), "{} has a board nobody partitioned", f.creature);
     }
 }
 

@@ -686,7 +686,7 @@ mod tests {
     /// asserts zero. Lower the budget in the commit that dresses a creature;
     /// never raise it.
     ///
-    /// **Nine, since the Switchyard's M6.** Zero from M17 until then.
+    /// **Zero again, since the Switchyard's M9.** Nine between its M6 and M9.
     ///
     /// The number went 14 -> 15 in M15, when THE UNWOUND turned out to be a
     /// label on the route map with no creature under it, and 15 -> 13 when the
@@ -701,10 +701,11 @@ mod tests {
     /// and only because the mechanism exists to make "nobody has dressed these
     /// yet" a number somebody has to look at rather than a thing to forget.
     ///
-    /// `design/the-switchyard.md` Part D M9 is what takes it back to zero. It
-    /// is an equality, not a bound, so packing a creature without lowering it
-    /// fails just as loudly as adding one without raising it.
-    const UNDRESSED: usize = 9;
+    /// `design/the-switchyard.md` Part D M9 took it back to zero, one creature
+    /// at a time. It is an equality, not a bound, so packing a creature
+    /// without lowering it fails just as loudly as adding one without raising
+    /// it - which is how this went red the moment the ninth board landed.
+    const UNDRESSED: usize = 0;
 
     #[test]
     fn the_frames_are_no_more_undressed_than_they_were() {

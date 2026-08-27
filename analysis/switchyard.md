@@ -1135,3 +1135,110 @@ next person does not have to re-derive which one the spec meant.
 Nothing downstream cares: `RARE_AT` is 90, so 26 and 59 are both Common like
 499 of the other 511, and rarity is the only thing a rating feeds that a
 player sees.
+
+---
+
+## M9 boards, by hand, at `a2f87ed`+
+
+All nine floors of THE SWITCHYARD are dressed. The frame lint is back to zero
+for the first time since M6.
+
+### What the packer wanted and what it got
+
+`PACK_MONSTER=<name> PACK_RUNG=<band+1> cargo test --release --test pack_francis pack`,
+one creature at a time, ~103 s each on this machine. The gate is the owner's
+board at Medium against the curve for the floor's band.
+
+| Floor | Band | Owner @ Medium | Curve target (+/-30%) | Cells | Pieces |
+|---|---:|---:|---|---:|---:|
+| THE SHUNTER | 27 | **10.5 s** | 14.0 s (9.8-18.2) | 68/240 | 24 |
+| THE PLATELAYERS | 28 | **12.0 s** | 14.4 s (10.1-18.7) | 67/240 | 16 |
+| THE BALLAST | 29 | **12.0 s** | 14.8 s (10.4-19.2) | 65/240 | 16 |
+| THE COAL STAGE | 30 | **12.0 s** | 15.2 s (10.6-19.8) | 66/240 | 15 |
+| THE WATER TOWER | 30 | **12.0 s** | 15.2 s (10.6-19.8) | 64/240 | 16 |
+| THE GANTRY | 28 | **12.0 s** | 14.4 s (10.1-18.7) | 65/240 | 16 |
+| THE LAMP ROOM | 29 | **12.0 s** | 14.8 s (10.4-19.2) | 66/240 | 17 |
+| THE GOODS SHED | 30 | **12.0 s** | 15.2 s (10.6-19.8) | 67/240 | 17 |
+| THE ROUNDHOUSE | 30 | **12.0 s** | 15.2 s (10.6-19.8) | 66/240 | 16 |
+
+Every one inside its band, and the packer's own guards passed on all nine at
+the default 300 trials - no creature needed a second run or a scaled dial.
+
+### The diff, read
+
+`CLAUDE.md` §6 trap 15: `make pack`'s save rewrites `combat.rs` in place and
+once rewrote a creature nobody was editing. This milestone did not use it. A
+targeted splice found each spec by its `name:` line, walked to that spec's own
+closing brace, and replaced only the two fields inside it. The whole
+milestone's deletions from `combat.rs`, in full:
+
+```
+   9 -        gear: &[],
+   9 -        items: &[],
+```
+
+Eighteen lines, nine creatures, nothing else touched.
+
+### The one re-baseline
+
+`gear_at` was re-baselined - the first time since M0, and the only legitimate
+occasion for it: nine creatures went from no board to a packed one. **Every
+changed line in the diff names one of those nine.** No `LADDER` creature moved
+and no other alternate moved, which is what the fixture exists to prove: the
+catalogue grew by eight components between M0 and M9 and had eight chances to
+re-sort a footprint family underneath somebody nobody was editing.
+
+**The four-board table at Medium is still byte-identical to M0**, nine
+milestones in.
+
+### The four budgets, closed
+
+| | M6 | M9 |
+|---|---:|---:|
+| `bestiary::UNDRESSED` | 9 | **0** |
+| `acceptance::UNDRESSED_UNTIL_THE_YARD_IS_PACKED` | 9 names | **empty** |
+| `phase_two`'s dressed check | yard-shaped hole | **whole again** |
+| `gui::pack`'s toothless lint | skipped the naked | **skips nothing** |
+
+None of the four needed editing to *close* except by lowering a number: all
+four read `bestiary::unpacked()` rather than a copied list, which is why
+packing the ninth creature closed three of them and made the fourth go red
+until its number came down.
+
+### The suite
+
+**863 engine, 65 GUI, 5 CLI, 43 ignored, 0 warnings.**
+
+---
+
+### Findings
+
+**41. `floors.last()` is an index, not an ending.**
+`progression::every_alternate_is_a_finished_creature` exempts dungeon floors
+from the "a named creature leaves a trophy" rule, except the *last* floor,
+which is where a linear dungeon's reward fires. A graph has as many endings as
+it has buffer stops - the yard has four - and `floors.last()` is simply floor
+8, which THE ROUNDHOUSE happens to hold. It failed with "THE ROUNDHOUSE leaves
+nothing behind" while THE COAL STAGE, THE WATER TOWER and THE GOODS SHED, its
+three equals, went unasked.
+
+Re-pinned on what the rule is actually about: a floor that pays on its own
+through `Floor::also` has already left something behind, whatever `drops`
+says. The yard's four buffer stops each pay ground and a ticket, which is more
+than a trophy and is the whole of what a graph asks.
+
+**42. The packer's diagnostics read alarming and are not.** Every one of the
+nine prints two lines of `board want W42.0s ... got L4.3s`: the starter and
+preset reference boards *lose* to these creatures in four to nineteen seconds.
+That is correct and shipped behaviour - starter clears 2 of 50 rungs and preset
+9 of 50, and the yard stands at displayed rung 26-28 - and the packer says so
+itself on its first line, `FRAME: no board to regress, so the preset guards do
+not apply`. The gate is the owner's board, and the owner wins all nine inside
+the band.
+
+Three of the nine run past sudden death on **Insane** (THE COAL STAGE 32.0 s,
+THE ROUNDHOUSE 35.0 s, THE GANTRY 35.0 s against the owner). Those are the
+clock's, not the board's, and Insane is not what the curve is measured at.
+Recorded rather than tuned: the gate is Medium, and pulling Insane back inside
+30 s would mean weakening a board that is correct at the setting the game is
+built around.

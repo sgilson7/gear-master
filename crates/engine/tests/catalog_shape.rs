@@ -924,6 +924,13 @@ fn gear_at_every_difficulty() -> String {
 /// creature moved and why. A diff here is never noise: it means a creature is
 /// fighting in different equipment than it was, on some setting, and nothing
 /// in a creature's own table said so.
+///
+/// **Re-baselined once, at the Switchyard's M9**, when nine creatures went
+/// from no board to a packed one. Every changed line in that diff named one of
+/// those nine and no `LADDER` creature moved at all - which is the thing the
+/// fixture is for, because a catalogue that grew by eight components between
+/// M0 and M9 had eight chances to re-sort a footprint family underneath
+/// somebody nobody was editing.
 #[test]
 fn no_creature_changed_what_it_wears() {
     let want = include_str!("fixtures/gear_at.txt");

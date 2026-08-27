@@ -39,6 +39,7 @@ argue against.
 | **M6** The chain, the yard, the frames, the destinations | **done** | "M6 the chain, the yard, the frames, the destinations" |
 | **M7** The turtle telling | **done** | "M7 the turtle telling" |
 | **M8** Rating pins | **done** | "M8 rating pins" |
+| **M9** Boards, by hand | **done** | "M9 boards, by hand" |
 
 ## 3. Open questions for the user
 
@@ -414,5 +415,38 @@ price; its rating is 32. Read as prices the band is 34-60 and all four are
 inside. Read as ratings it is 30-50 and two are outside - Ballast Bed at 59,
 Signal Wire at 26 - and they are left there, because a measured weight bent to
 hit a band is not a measurement. Nothing downstream cares: `RARE_AT` is 90.
+
+**863 engine, 65 GUI, 5 CLI. No warnings.**
+
+### M9 - Boards, by hand
+
+All nine floors dressed, one creature at a time, ~103 s each in release. Every
+one lands inside its band on the owner's board at Medium - 10.5 s for THE
+SHUNTER and 12.0 s for the other eight, against curve targets of 14.0 to 15.2
+with a 30% window - and **the packer's guards passed on all nine at the default
+300 trials**. Nothing needed a second run or a scaled dial.
+
+**`make pack`'s save was not used.** Trap 15 says it rewrites `combat.rs` in
+place and once rewrote a creature nobody was editing. A targeted splice found
+each spec by name, walked to its own closing brace and replaced only `gear:`
+and `items:`. The whole milestone's deletions are nine `gear: &[],` and nine
+`items: &[],` and nothing else.
+
+**One re-baseline, and it is the only legitimate one.** `gear_at` moved for the
+first time since M0, and every changed line names one of the nine: no `LADDER`
+creature and no other alternate. That is what the fixture is for - the
+catalogue grew by eight components across M5 to M9 and had eight chances to
+re-sort a footprint family under somebody nobody was editing. **The four-board
+table at Medium is still byte-identical to M0.**
+
+**All four phase budgets closed**, and three of them closed themselves: they
+read `bestiary::unpacked()` rather than a copied list of names, so packing the
+ninth creature emptied them and the fourth went red until its number came down.
+
+**One lint was wrong about a graph.** `floors.last()` is an index, not an
+ending: a linear dungeon's reward fires on its last floor, and a graph has as
+many endings as it has buffer stops. THE ROUNDHOUSE was asked for a trophy and
+its three equals were not. Re-pinned on what the rule is about - a floor that
+pays through `Floor::also` has already left something behind.
 
 **863 engine, 65 GUI, 5 CLI. No warnings.**

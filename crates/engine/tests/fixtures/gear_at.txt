@@ -11134,3 +11134,1227 @@ ALTERNATES[18] THE UNWOUND INSANE Helmet 4,5 r0
     Lonely Plating
 ALTERNATES[18] THE UNWOUND INSANE Helmet 0,6 r0
     Coven Crest
+ALTERNATES[19] THE SHUNTER EASY Greaves 0,0 r0
+    Scaled Material
+ALTERNATES[19] THE SHUNTER EASY Greaves 2,0 r1
+    Sapling Mold
+ALTERNATES[19] THE SHUNTER EASY Greaves 4,0 r0
+    Overflow Plate
+ALTERNATES[19] THE SHUNTER EASY Greaves 0,2 r0
+    Ashwoven Material
+ALTERNATES[19] THE SHUNTER EASY Greaves 2,1 r1
+    Sapling Mold
+ALTERNATES[19] THE SHUNTER EASY Greaves 3,2 r0
+    Overflow Plate
+ALTERNATES[19] THE SHUNTER EASY Greaves 0,3 r0
+    Scaled Material
+ALTERNATES[19] THE SHUNTER EASY Greaves 2,3 r0
+    Sapling Mold
+ALTERNATES[19] THE SHUNTER EASY Greaves 3,4 r0
+    Bulwark Plating
+ALTERNATES[19] THE SHUNTER EASY Greaves 0,5 r1
+    Witch's Stilts
+ALTERNATES[19] THE SHUNTER EASY Greaves 1,6 r1
+    Pilgrim's Sole
+ALTERNATES[19] THE SHUNTER EASY Greaves 3,6 r0
+    Overflow Plate
+ALTERNATES[19] THE SHUNTER EASY Gloves 0,0 r0
+    Scaled Material
+ALTERNATES[19] THE SHUNTER EASY Gloves 2,0 r0
+    Bramble Mold
+ALTERNATES[19] THE SHUNTER EASY Gloves 4,0 r0
+    Hermit's Band
+ALTERNATES[19] THE SHUNTER EASY Gloves 5,0 r0
+    Ring of Roots
+ALTERNATES[19] THE SHUNTER EASY Gloves 3,1 r0
+    Scaled Material
+ALTERNATES[19] THE SHUNTER EASY Gloves 5,1 r1
+    Braced Mold
+ALTERNATES[19] THE SHUNTER EASY Gloves 0,2 r0
+    Warplate Greave
+ALTERNATES[19] THE SHUNTER EASY Gloves 2,2 r1
+    Braced Mold
+ALTERNATES[19] THE SHUNTER EASY Gloves 3,3 r0
+    Hermit's Band
+ALTERNATES[19] THE SHUNTER EASY Gloves 4,3 r0
+    Ring of Roots
+ALTERNATES[19] THE SHUNTER EASY Gloves 0,4 r1
+    Witch's Claw
+ALTERNATES[19] THE SHUNTER EASY Gloves 3,4 r0
+    Featherweight Mold
+ALTERNATES[19] THE SHUNTER MEDIUM Greaves 0,0 r0
+    Tallykeeper's Weave
+ALTERNATES[19] THE SHUNTER MEDIUM Greaves 2,0 r1
+    Widow's Sole
+ALTERNATES[19] THE SHUNTER MEDIUM Greaves 4,0 r0
+    Overflow Plate
+ALTERNATES[19] THE SHUNTER MEDIUM Greaves 0,2 r0
+    Rootwoven Material
+ALTERNATES[19] THE SHUNTER MEDIUM Greaves 2,1 r1
+    Widow's Sole
+ALTERNATES[19] THE SHUNTER MEDIUM Greaves 3,2 r0
+    Overflow Plate
+ALTERNATES[19] THE SHUNTER MEDIUM Greaves 0,3 r0
+    Tallykeeper's Weave
+ALTERNATES[19] THE SHUNTER MEDIUM Greaves 2,3 r0
+    Widow's Sole
+ALTERNATES[19] THE SHUNTER MEDIUM Greaves 3,4 r0
+    Consecrated Plating
+ALTERNATES[19] THE SHUNTER MEDIUM Greaves 0,5 r1
+    Witch's Stilts
+ALTERNATES[19] THE SHUNTER MEDIUM Greaves 1,6 r1
+    Sapling Mold
+ALTERNATES[19] THE SHUNTER MEDIUM Greaves 3,6 r0
+    Overflow Plate
+ALTERNATES[19] THE SHUNTER MEDIUM Gloves 0,0 r0
+    Tallykeeper's Weave
+ALTERNATES[19] THE SHUNTER MEDIUM Gloves 2,0 r0
+    Gripping Mold
+ALTERNATES[19] THE SHUNTER MEDIUM Gloves 4,0 r0
+    Unshod Signet
+ALTERNATES[19] THE SHUNTER MEDIUM Gloves 5,0 r0
+    Warding Ring
+ALTERNATES[19] THE SHUNTER MEDIUM Gloves 3,1 r0
+    Tallykeeper's Weave
+ALTERNATES[19] THE SHUNTER MEDIUM Gloves 5,1 r1
+    Deft Mold
+ALTERNATES[19] THE SHUNTER MEDIUM Gloves 0,2 r0
+    Reliquary Sole
+ALTERNATES[19] THE SHUNTER MEDIUM Gloves 2,2 r1
+    Deft Mold
+ALTERNATES[19] THE SHUNTER MEDIUM Gloves 3,3 r0
+    Unshod Signet
+ALTERNATES[19] THE SHUNTER MEDIUM Gloves 4,3 r0
+    Warding Ring
+ALTERNATES[19] THE SHUNTER MEDIUM Gloves 0,4 r1
+    Witch's Claw
+ALTERNATES[19] THE SHUNTER MEDIUM Gloves 3,4 r0
+    Featherweight Mold
+ALTERNATES[19] THE SHUNTER HARD Greaves 0,0 r0
+    Tallykeeper's Weave
+ALTERNATES[19] THE SHUNTER HARD Greaves 2,0 r1
+    Widow's Sole
+ALTERNATES[19] THE SHUNTER HARD Greaves 4,0 r0
+    Overflow Plate
+ALTERNATES[19] THE SHUNTER HARD Greaves 0,2 r0
+    Rootwoven Material
+ALTERNATES[19] THE SHUNTER HARD Greaves 2,1 r1
+    Widow's Sole
+ALTERNATES[19] THE SHUNTER HARD Greaves 3,2 r0
+    Overflow Plate
+ALTERNATES[19] THE SHUNTER HARD Greaves 0,3 r0
+    Tallykeeper's Weave
+ALTERNATES[19] THE SHUNTER HARD Greaves 2,3 r0
+    Widow's Sole
+ALTERNATES[19] THE SHUNTER HARD Greaves 3,4 r0
+    Consecrated Plating
+ALTERNATES[19] THE SHUNTER HARD Greaves 0,5 r1
+    Witch's Stilts
+ALTERNATES[19] THE SHUNTER HARD Greaves 1,6 r1
+    Widow's Sole
+ALTERNATES[19] THE SHUNTER HARD Greaves 3,6 r0
+    Overflow Plate
+ALTERNATES[19] THE SHUNTER HARD Gloves 0,0 r0
+    Tallykeeper's Weave
+ALTERNATES[19] THE SHUNTER HARD Gloves 2,0 r0
+    Ravener's Mold
+ALTERNATES[19] THE SHUNTER HARD Gloves 4,0 r0
+    Unshod Signet
+ALTERNATES[19] THE SHUNTER HARD Gloves 5,0 r0
+    Signet of Vigour
+ALTERNATES[19] THE SHUNTER HARD Gloves 3,1 r0
+    Tallykeeper's Weave
+ALTERNATES[19] THE SHUNTER HARD Gloves 5,1 r1
+    Vicegrip Mold
+ALTERNATES[19] THE SHUNTER HARD Gloves 0,2 r0
+    Reliquary Sole
+ALTERNATES[19] THE SHUNTER HARD Gloves 2,2 r1
+    Vicegrip Mold
+ALTERNATES[19] THE SHUNTER HARD Gloves 3,3 r0
+    Unshod Signet
+ALTERNATES[19] THE SHUNTER HARD Gloves 4,3 r0
+    Signet of Vigour
+ALTERNATES[19] THE SHUNTER HARD Gloves 0,4 r1
+    Witch's Claw
+ALTERNATES[19] THE SHUNTER HARD Gloves 3,4 r0
+    Padded Mold
+ALTERNATES[19] THE SHUNTER INSANE Greaves 0,0 r0
+    Tallykeeper's Weave
+ALTERNATES[19] THE SHUNTER INSANE Greaves 2,0 r1
+    Widow's Sole
+ALTERNATES[19] THE SHUNTER INSANE Greaves 4,0 r0
+    Overflow Plate
+ALTERNATES[19] THE SHUNTER INSANE Greaves 0,2 r0
+    Rootwoven Material
+ALTERNATES[19] THE SHUNTER INSANE Greaves 2,1 r1
+    Widow's Sole
+ALTERNATES[19] THE SHUNTER INSANE Greaves 3,2 r0
+    Overflow Plate
+ALTERNATES[19] THE SHUNTER INSANE Greaves 0,3 r0
+    Tallykeeper's Weave
+ALTERNATES[19] THE SHUNTER INSANE Greaves 2,3 r0
+    Widow's Sole
+ALTERNATES[19] THE SHUNTER INSANE Greaves 3,4 r0
+    Consecrated Plating
+ALTERNATES[19] THE SHUNTER INSANE Greaves 0,5 r1
+    Witch's Stilts
+ALTERNATES[19] THE SHUNTER INSANE Greaves 1,6 r1
+    Widow's Sole
+ALTERNATES[19] THE SHUNTER INSANE Greaves 3,6 r0
+    Overflow Plate
+ALTERNATES[19] THE SHUNTER INSANE Gloves 0,0 r0
+    Tallykeeper's Weave
+ALTERNATES[19] THE SHUNTER INSANE Gloves 2,0 r0
+    Flaying Mold
+ALTERNATES[19] THE SHUNTER INSANE Gloves 4,0 r0
+    Unshod Signet
+ALTERNATES[19] THE SHUNTER INSANE Gloves 5,0 r0
+    Bloodring
+ALTERNATES[19] THE SHUNTER INSANE Gloves 3,1 r0
+    Tallykeeper's Weave
+ALTERNATES[19] THE SHUNTER INSANE Gloves 5,1 r1
+    Vicegrip Mold
+ALTERNATES[19] THE SHUNTER INSANE Gloves 0,2 r0
+    Reliquary Sole
+ALTERNATES[19] THE SHUNTER INSANE Gloves 2,2 r1
+    Vicegrip Mold
+ALTERNATES[19] THE SHUNTER INSANE Gloves 3,3 r0
+    Unshod Signet
+ALTERNATES[19] THE SHUNTER INSANE Gloves 4,3 r0
+    Bloodring
+ALTERNATES[19] THE SHUNTER INSANE Gloves 0,4 r1
+    Witch's Claw
+ALTERNATES[19] THE SHUNTER INSANE Gloves 3,4 r0
+    Braced Mold
+ALTERNATES[20] THE PLATELAYERS EASY Weapon 0,0 r0
+    Worldeye Orb
+ALTERNATES[20] THE PLATELAYERS EASY Weapon 3,0 r0
+    Sunder
+ALTERNATES[20] THE PLATELAYERS EASY Weapon 3,1 r0
+    Kingsbane
+ALTERNATES[20] THE PLATELAYERS EASY Weapon 0,2 r0
+    Kingsbane
+ALTERNATES[20] THE PLATELAYERS EASY Weapon 2,3 r0
+    Rootwork Alignment
+ALTERNATES[20] THE PLATELAYERS EASY Helmet 0,0 r0
+    Anvil Frame
+ALTERNATES[20] THE PLATELAYERS EASY Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[20] THE PLATELAYERS EASY Helmet 5,0 r1
+    Zealot's Crest
+ALTERNATES[20] THE PLATELAYERS EASY Helmet 0,2 r0
+    Anvil Frame
+ALTERNATES[20] THE PLATELAYERS EASY Helmet 3,2 r0
+    Bulwark Plating
+ALTERNATES[20] THE PLATELAYERS EASY Helmet 5,2 r1
+    Tithe Collector
+ALTERNATES[20] THE PLATELAYERS EASY Helmet 0,4 r0
+    Anvil Frame
+ALTERNATES[20] THE PLATELAYERS EASY Helmet 3,4 r0
+    Overflow Plate
+ALTERNATES[20] THE PLATELAYERS EASY Helmet 5,4 r1
+    Martyr's Crest
+ALTERNATES[20] THE PLATELAYERS EASY Helmet 0,6 r0
+    Anvil Frame
+ALTERNATES[20] THE PLATELAYERS EASY Helmet 3,6 r0
+    Overflow Plate
+ALTERNATES[20] THE PLATELAYERS MEDIUM Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[20] THE PLATELAYERS MEDIUM Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[20] THE PLATELAYERS MEDIUM Weapon 3,1 r0
+    Kingsbane
+ALTERNATES[20] THE PLATELAYERS MEDIUM Weapon 0,2 r0
+    Cometfall
+ALTERNATES[20] THE PLATELAYERS MEDIUM Weapon 2,3 r0
+    Rootwork Alignment
+ALTERNATES[20] THE PLATELAYERS MEDIUM Helmet 0,0 r0
+    Stonewall Frame
+ALTERNATES[20] THE PLATELAYERS MEDIUM Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[20] THE PLATELAYERS MEDIUM Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[20] THE PLATELAYERS MEDIUM Helmet 0,2 r0
+    Stonewall Frame
+ALTERNATES[20] THE PLATELAYERS MEDIUM Helmet 3,2 r0
+    Consecrated Plating
+ALTERNATES[20] THE PLATELAYERS MEDIUM Helmet 5,2 r1
+    Tithe Collector
+ALTERNATES[20] THE PLATELAYERS MEDIUM Helmet 0,4 r0
+    Stonewall Frame
+ALTERNATES[20] THE PLATELAYERS MEDIUM Helmet 3,4 r0
+    Overflow Plate
+ALTERNATES[20] THE PLATELAYERS MEDIUM Helmet 5,4 r1
+    Martyr's Crest
+ALTERNATES[20] THE PLATELAYERS MEDIUM Helmet 0,6 r0
+    Stonewall Frame
+ALTERNATES[20] THE PLATELAYERS MEDIUM Helmet 3,6 r0
+    Overflow Plate
+ALTERNATES[20] THE PLATELAYERS HARD Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[20] THE PLATELAYERS HARD Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[20] THE PLATELAYERS HARD Weapon 3,1 r0
+    Cometfall
+ALTERNATES[20] THE PLATELAYERS HARD Weapon 0,2 r0
+    Starfall
+ALTERNATES[20] THE PLATELAYERS HARD Weapon 2,3 r0
+    Rootwork Alignment
+ALTERNATES[20] THE PLATELAYERS HARD Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[20] THE PLATELAYERS HARD Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[20] THE PLATELAYERS HARD Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[20] THE PLATELAYERS HARD Helmet 0,2 r0
+    Overseer's Circlet
+ALTERNATES[20] THE PLATELAYERS HARD Helmet 3,2 r0
+    Consecrated Plating
+ALTERNATES[20] THE PLATELAYERS HARD Helmet 5,2 r1
+    Doubter's Crest
+ALTERNATES[20] THE PLATELAYERS HARD Helmet 0,4 r0
+    Overseer's Circlet
+ALTERNATES[20] THE PLATELAYERS HARD Helmet 3,4 r0
+    Overflow Plate
+ALTERNATES[20] THE PLATELAYERS HARD Helmet 5,4 r1
+    Martyr's Crest
+ALTERNATES[20] THE PLATELAYERS HARD Helmet 0,6 r0
+    Overseer's Circlet
+ALTERNATES[20] THE PLATELAYERS HARD Helmet 3,6 r0
+    Overflow Plate
+ALTERNATES[20] THE PLATELAYERS INSANE Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[20] THE PLATELAYERS INSANE Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[20] THE PLATELAYERS INSANE Weapon 3,1 r0
+    Starfall
+ALTERNATES[20] THE PLATELAYERS INSANE Weapon 0,2 r0
+    Starfall
+ALTERNATES[20] THE PLATELAYERS INSANE Weapon 2,3 r0
+    Rootwork Alignment
+ALTERNATES[20] THE PLATELAYERS INSANE Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[20] THE PLATELAYERS INSANE Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[20] THE PLATELAYERS INSANE Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[20] THE PLATELAYERS INSANE Helmet 0,2 r0
+    Overseer's Circlet
+ALTERNATES[20] THE PLATELAYERS INSANE Helmet 3,2 r0
+    Consecrated Plating
+ALTERNATES[20] THE PLATELAYERS INSANE Helmet 5,2 r1
+    Heartwood Crest
+ALTERNATES[20] THE PLATELAYERS INSANE Helmet 0,4 r0
+    Overseer's Circlet
+ALTERNATES[20] THE PLATELAYERS INSANE Helmet 3,4 r0
+    Overflow Plate
+ALTERNATES[20] THE PLATELAYERS INSANE Helmet 5,4 r1
+    Martyr's Crest
+ALTERNATES[20] THE PLATELAYERS INSANE Helmet 0,6 r0
+    Overseer's Circlet
+ALTERNATES[20] THE PLATELAYERS INSANE Helmet 3,6 r0
+    Overflow Plate
+ALTERNATES[21] THE BALLAST EASY Weapon 0,0 r0
+    Worldeye Orb
+ALTERNATES[21] THE BALLAST EASY Weapon 3,0 r0
+    Sunder
+ALTERNATES[21] THE BALLAST EASY Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[21] THE BALLAST EASY Weapon 3,1 r0
+    Kingsbane
+ALTERNATES[21] THE BALLAST EASY Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[21] THE BALLAST EASY Helmet 0,0 r0
+    Stormcaught Frame
+ALTERNATES[21] THE BALLAST EASY Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[21] THE BALLAST EASY Helmet 0,2 r0
+    Bulwark Plating
+ALTERNATES[21] THE BALLAST EASY Helmet 5,0 r1
+    Zealot's Crest
+ALTERNATES[21] THE BALLAST EASY Helmet 2,2 r0
+    Anvil Frame
+ALTERNATES[21] THE BALLAST EASY Helmet 0,4 r0
+    Mana Ward
+ALTERNATES[21] THE BALLAST EASY Helmet 3,4 r0
+    Bulwark Plating
+ALTERNATES[21] THE BALLAST EASY Helmet 5,2 r1
+    Zealot's Crest
+ALTERNATES[21] THE BALLAST EASY Helmet 0,6 r0
+    Anvil Frame
+ALTERNATES[21] THE BALLAST EASY Helmet 3,6 r0
+    Overflow Plate
+ALTERNATES[21] THE BALLAST EASY Helmet 5,4 r1
+    Martyr's Crest
+ALTERNATES[21] THE BALLAST MEDIUM Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[21] THE BALLAST MEDIUM Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[21] THE BALLAST MEDIUM Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[21] THE BALLAST MEDIUM Weapon 3,1 r0
+    Cometfall
+ALTERNATES[21] THE BALLAST MEDIUM Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[21] THE BALLAST MEDIUM Helmet 0,0 r0
+    Anvil Frame
+ALTERNATES[21] THE BALLAST MEDIUM Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[21] THE BALLAST MEDIUM Helmet 0,2 r0
+    Consecrated Plating
+ALTERNATES[21] THE BALLAST MEDIUM Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[21] THE BALLAST MEDIUM Helmet 2,2 r0
+    Stonewall Frame
+ALTERNATES[21] THE BALLAST MEDIUM Helmet 0,4 r0
+    Mana Ward
+ALTERNATES[21] THE BALLAST MEDIUM Helmet 3,4 r0
+    Consecrated Plating
+ALTERNATES[21] THE BALLAST MEDIUM Helmet 5,2 r1
+    The Empty Crown
+ALTERNATES[21] THE BALLAST MEDIUM Helmet 0,6 r0
+    Stonewall Frame
+ALTERNATES[21] THE BALLAST MEDIUM Helmet 3,6 r0
+    Overflow Plate
+ALTERNATES[21] THE BALLAST MEDIUM Helmet 5,4 r1
+    Martyr's Crest
+ALTERNATES[21] THE BALLAST HARD Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[21] THE BALLAST HARD Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[21] THE BALLAST HARD Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[21] THE BALLAST HARD Weapon 3,1 r0
+    Starfall
+ALTERNATES[21] THE BALLAST HARD Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[21] THE BALLAST HARD Helmet 0,0 r0
+    Stonewall Frame
+ALTERNATES[21] THE BALLAST HARD Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[21] THE BALLAST HARD Helmet 0,2 r0
+    Consecrated Plating
+ALTERNATES[21] THE BALLAST HARD Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[21] THE BALLAST HARD Helmet 2,2 r0
+    Overseer's Circlet
+ALTERNATES[21] THE BALLAST HARD Helmet 0,4 r0
+    Mirrored Visor
+ALTERNATES[21] THE BALLAST HARD Helmet 3,4 r0
+    Consecrated Plating
+ALTERNATES[21] THE BALLAST HARD Helmet 5,2 r1
+    The Empty Crown
+ALTERNATES[21] THE BALLAST HARD Helmet 0,6 r0
+    Overseer's Circlet
+ALTERNATES[21] THE BALLAST HARD Helmet 3,6 r0
+    Overflow Plate
+ALTERNATES[21] THE BALLAST HARD Helmet 5,4 r1
+    Martyr's Crest
+ALTERNATES[21] THE BALLAST INSANE Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[21] THE BALLAST INSANE Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[21] THE BALLAST INSANE Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[21] THE BALLAST INSANE Weapon 3,1 r0
+    Starfall
+ALTERNATES[21] THE BALLAST INSANE Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[21] THE BALLAST INSANE Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[21] THE BALLAST INSANE Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[21] THE BALLAST INSANE Helmet 0,2 r0
+    Consecrated Plating
+ALTERNATES[21] THE BALLAST INSANE Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[21] THE BALLAST INSANE Helmet 2,2 r0
+    Overseer's Circlet
+ALTERNATES[21] THE BALLAST INSANE Helmet 0,4 r0
+    Godsteel Plating
+ALTERNATES[21] THE BALLAST INSANE Helmet 3,4 r0
+    Consecrated Plating
+ALTERNATES[21] THE BALLAST INSANE Helmet 5,2 r1
+    The Empty Crown
+ALTERNATES[21] THE BALLAST INSANE Helmet 0,6 r0
+    Overseer's Circlet
+ALTERNATES[21] THE BALLAST INSANE Helmet 3,6 r0
+    Overflow Plate
+ALTERNATES[21] THE BALLAST INSANE Helmet 5,4 r1
+    Martyr's Crest
+ALTERNATES[22] THE COAL STAGE EASY Weapon 0,0 r0
+    Worldeye Orb
+ALTERNATES[22] THE COAL STAGE EASY Weapon 3,0 r0
+    Kingsbane
+ALTERNATES[22] THE COAL STAGE EASY Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[22] THE COAL STAGE EASY Weapon 4,1 r1
+    Attendant Flame
+ALTERNATES[22] THE COAL STAGE EASY Weapon 0,3 r0
+    Prism Alignment
+ALTERNATES[22] THE COAL STAGE EASY Helmet 0,0 r0
+    Anvil Frame
+ALTERNATES[22] THE COAL STAGE EASY Helmet 3,0 r0
+    Mana Ward
+ALTERNATES[22] THE COAL STAGE EASY Helmet 0,2 r0
+    Warding Plate
+ALTERNATES[22] THE COAL STAGE EASY Helmet 3,1 r1
+    Martyr's Crest
+ALTERNATES[22] THE COAL STAGE EASY Helmet 4,2 r1
+    Stormcaught Frame
+ALTERNATES[22] THE COAL STAGE EASY Helmet 2,4 r0
+    Overflow Plate
+ALTERNATES[22] THE COAL STAGE EASY Helmet 0,4 r0
+    Bulwark Plating
+ALTERNATES[22] THE COAL STAGE EASY Helmet 4,5 r1
+    Anvil Frame
+ALTERNATES[22] THE COAL STAGE EASY Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[22] THE COAL STAGE EASY Helmet 0,6 r0
+    Bulwark Plating
+ALTERNATES[22] THE COAL STAGE MEDIUM Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[22] THE COAL STAGE MEDIUM Weapon 3,0 r0
+    Kingsbane
+ALTERNATES[22] THE COAL STAGE MEDIUM Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[22] THE COAL STAGE MEDIUM Weapon 4,1 r1
+    Last Rite
+ALTERNATES[22] THE COAL STAGE MEDIUM Weapon 0,3 r0
+    Prism Alignment
+ALTERNATES[22] THE COAL STAGE MEDIUM Helmet 0,0 r0
+    Stonewall Frame
+ALTERNATES[22] THE COAL STAGE MEDIUM Helmet 3,0 r0
+    Mana Ward
+ALTERNATES[22] THE COAL STAGE MEDIUM Helmet 0,2 r0
+    Warding Plate
+ALTERNATES[22] THE COAL STAGE MEDIUM Helmet 3,1 r1
+    Martyr's Crest
+ALTERNATES[22] THE COAL STAGE MEDIUM Helmet 4,2 r1
+    Anvil Frame
+ALTERNATES[22] THE COAL STAGE MEDIUM Helmet 2,4 r0
+    Overflow Plate
+ALTERNATES[22] THE COAL STAGE MEDIUM Helmet 0,4 r0
+    Consecrated Plating
+ALTERNATES[22] THE COAL STAGE MEDIUM Helmet 4,5 r1
+    Stonewall Frame
+ALTERNATES[22] THE COAL STAGE MEDIUM Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[22] THE COAL STAGE MEDIUM Helmet 0,6 r0
+    Consecrated Plating
+ALTERNATES[22] THE COAL STAGE HARD Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[22] THE COAL STAGE HARD Weapon 3,0 r0
+    Cometfall
+ALTERNATES[22] THE COAL STAGE HARD Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[22] THE COAL STAGE HARD Weapon 4,1 r1
+    Last Rite
+ALTERNATES[22] THE COAL STAGE HARD Weapon 0,3 r0
+    Prism Alignment
+ALTERNATES[22] THE COAL STAGE HARD Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[22] THE COAL STAGE HARD Helmet 3,0 r0
+    Mirrored Visor
+ALTERNATES[22] THE COAL STAGE HARD Helmet 0,2 r0
+    Warded Plating
+ALTERNATES[22] THE COAL STAGE HARD Helmet 3,1 r1
+    Martyr's Crest
+ALTERNATES[22] THE COAL STAGE HARD Helmet 4,2 r1
+    Stonewall Frame
+ALTERNATES[22] THE COAL STAGE HARD Helmet 2,4 r0
+    Overflow Plate
+ALTERNATES[22] THE COAL STAGE HARD Helmet 0,4 r0
+    Consecrated Plating
+ALTERNATES[22] THE COAL STAGE HARD Helmet 4,5 r1
+    Overseer's Circlet
+ALTERNATES[22] THE COAL STAGE HARD Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[22] THE COAL STAGE HARD Helmet 0,6 r0
+    Consecrated Plating
+ALTERNATES[22] THE COAL STAGE INSANE Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[22] THE COAL STAGE INSANE Weapon 3,0 r0
+    Starfall
+ALTERNATES[22] THE COAL STAGE INSANE Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[22] THE COAL STAGE INSANE Weapon 4,1 r1
+    Last Rite
+ALTERNATES[22] THE COAL STAGE INSANE Weapon 0,3 r0
+    Prism Alignment
+ALTERNATES[22] THE COAL STAGE INSANE Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[22] THE COAL STAGE INSANE Helmet 3,0 r0
+    Godsteel Plating
+ALTERNATES[22] THE COAL STAGE INSANE Helmet 0,2 r0
+    Braced Plating
+ALTERNATES[22] THE COAL STAGE INSANE Helmet 3,1 r1
+    Martyr's Crest
+ALTERNATES[22] THE COAL STAGE INSANE Helmet 4,2 r1
+    Overseer's Circlet
+ALTERNATES[22] THE COAL STAGE INSANE Helmet 2,4 r0
+    Overflow Plate
+ALTERNATES[22] THE COAL STAGE INSANE Helmet 0,4 r0
+    Consecrated Plating
+ALTERNATES[22] THE COAL STAGE INSANE Helmet 4,5 r1
+    Overseer's Circlet
+ALTERNATES[22] THE COAL STAGE INSANE Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[22] THE COAL STAGE INSANE Helmet 0,6 r0
+    Consecrated Plating
+ALTERNATES[23] THE WATER TOWER EASY Weapon 0,0 r0
+    Worldeye Orb
+ALTERNATES[23] THE WATER TOWER EASY Weapon 3,0 r0
+    Sunder
+ALTERNATES[23] THE WATER TOWER EASY Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[23] THE WATER TOWER EASY Weapon 3,1 r0
+    Kingsbane
+ALTERNATES[23] THE WATER TOWER EASY Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[23] THE WATER TOWER EASY Helmet 0,0 r0
+    Anvil Frame
+ALTERNATES[23] THE WATER TOWER EASY Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[23] THE WATER TOWER EASY Helmet 5,0 r1
+    Zealot's Crest
+ALTERNATES[23] THE WATER TOWER EASY Helmet 0,2 r0
+    Anvil Frame
+ALTERNATES[23] THE WATER TOWER EASY Helmet 3,2 r0
+    Overflow Plate
+ALTERNATES[23] THE WATER TOWER EASY Helmet 0,4 r0
+    Bulwark Plating
+ALTERNATES[23] THE WATER TOWER EASY Helmet 5,2 r1
+    Zealot's Crest
+ALTERNATES[23] THE WATER TOWER EASY Helmet 2,4 r0
+    Anvil Frame
+ALTERNATES[23] THE WATER TOWER EASY Helmet 1,6 r0
+    Overflow Plate
+ALTERNATES[23] THE WATER TOWER EASY Helmet 3,6 r0
+    Bulwark Plating
+ALTERNATES[23] THE WATER TOWER EASY Helmet 5,4 r1
+    Zealot's Crest
+ALTERNATES[23] THE WATER TOWER MEDIUM Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[23] THE WATER TOWER MEDIUM Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[23] THE WATER TOWER MEDIUM Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[23] THE WATER TOWER MEDIUM Weapon 3,1 r0
+    Cometfall
+ALTERNATES[23] THE WATER TOWER MEDIUM Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[23] THE WATER TOWER MEDIUM Helmet 0,0 r0
+    Stonewall Frame
+ALTERNATES[23] THE WATER TOWER MEDIUM Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[23] THE WATER TOWER MEDIUM Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[23] THE WATER TOWER MEDIUM Helmet 0,2 r0
+    Stonewall Frame
+ALTERNATES[23] THE WATER TOWER MEDIUM Helmet 3,2 r0
+    Overflow Plate
+ALTERNATES[23] THE WATER TOWER MEDIUM Helmet 0,4 r0
+    Consecrated Plating
+ALTERNATES[23] THE WATER TOWER MEDIUM Helmet 5,2 r1
+    The Empty Crown
+ALTERNATES[23] THE WATER TOWER MEDIUM Helmet 2,4 r0
+    Stonewall Frame
+ALTERNATES[23] THE WATER TOWER MEDIUM Helmet 1,6 r0
+    Overflow Plate
+ALTERNATES[23] THE WATER TOWER MEDIUM Helmet 3,6 r0
+    Consecrated Plating
+ALTERNATES[23] THE WATER TOWER MEDIUM Helmet 5,4 r1
+    The Empty Crown
+ALTERNATES[23] THE WATER TOWER HARD Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[23] THE WATER TOWER HARD Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[23] THE WATER TOWER HARD Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[23] THE WATER TOWER HARD Weapon 3,1 r0
+    Starfall
+ALTERNATES[23] THE WATER TOWER HARD Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[23] THE WATER TOWER HARD Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[23] THE WATER TOWER HARD Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[23] THE WATER TOWER HARD Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[23] THE WATER TOWER HARD Helmet 0,2 r0
+    Overseer's Circlet
+ALTERNATES[23] THE WATER TOWER HARD Helmet 3,2 r0
+    Overflow Plate
+ALTERNATES[23] THE WATER TOWER HARD Helmet 0,4 r0
+    Consecrated Plating
+ALTERNATES[23] THE WATER TOWER HARD Helmet 5,2 r1
+    The Empty Crown
+ALTERNATES[23] THE WATER TOWER HARD Helmet 2,4 r0
+    Overseer's Circlet
+ALTERNATES[23] THE WATER TOWER HARD Helmet 1,6 r0
+    Overflow Plate
+ALTERNATES[23] THE WATER TOWER HARD Helmet 3,6 r0
+    Consecrated Plating
+ALTERNATES[23] THE WATER TOWER HARD Helmet 5,4 r1
+    The Empty Crown
+ALTERNATES[23] THE WATER TOWER INSANE Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[23] THE WATER TOWER INSANE Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[23] THE WATER TOWER INSANE Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[23] THE WATER TOWER INSANE Weapon 3,1 r0
+    Starfall
+ALTERNATES[23] THE WATER TOWER INSANE Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[23] THE WATER TOWER INSANE Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[23] THE WATER TOWER INSANE Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[23] THE WATER TOWER INSANE Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[23] THE WATER TOWER INSANE Helmet 0,2 r0
+    Overseer's Circlet
+ALTERNATES[23] THE WATER TOWER INSANE Helmet 3,2 r0
+    Overflow Plate
+ALTERNATES[23] THE WATER TOWER INSANE Helmet 0,4 r0
+    Consecrated Plating
+ALTERNATES[23] THE WATER TOWER INSANE Helmet 5,2 r1
+    The Empty Crown
+ALTERNATES[23] THE WATER TOWER INSANE Helmet 2,4 r0
+    Overseer's Circlet
+ALTERNATES[23] THE WATER TOWER INSANE Helmet 1,6 r0
+    Overflow Plate
+ALTERNATES[23] THE WATER TOWER INSANE Helmet 3,6 r0
+    Consecrated Plating
+ALTERNATES[23] THE WATER TOWER INSANE Helmet 5,4 r1
+    The Empty Crown
+ALTERNATES[24] THE GANTRY EASY Weapon 0,0 r0
+    Worldeye Orb
+ALTERNATES[24] THE GANTRY EASY Weapon 3,0 r0
+    Sunder
+ALTERNATES[24] THE GANTRY EASY Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[24] THE GANTRY EASY Weapon 3,1 r0
+    Kingsbane
+ALTERNATES[24] THE GANTRY EASY Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[24] THE GANTRY EASY Helmet 0,0 r0
+    Anvil Frame
+ALTERNATES[24] THE GANTRY EASY Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[24] THE GANTRY EASY Helmet 0,2 r0
+    Bulwark Plating
+ALTERNATES[24] THE GANTRY EASY Helmet 5,0 r1
+    Zealot's Crest
+ALTERNATES[24] THE GANTRY EASY Helmet 2,2 r0
+    Anvil Frame
+ALTERNATES[24] THE GANTRY EASY Helmet 1,4 r0
+    Bulwark Plating
+ALTERNATES[24] THE GANTRY EASY Helmet 3,4 r0
+    Bulwark Plating
+ALTERNATES[24] THE GANTRY EASY Helmet 5,2 r1
+    Martyr's Crest
+ALTERNATES[24] THE GANTRY EASY Helmet 0,5 r3
+    Covenant Frame
+ALTERNATES[24] THE GANTRY EASY Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[24] THE GANTRY EASY Helmet 4,6 r0
+    Bulwark Plating
+ALTERNATES[24] THE GANTRY MEDIUM Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[24] THE GANTRY MEDIUM Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[24] THE GANTRY MEDIUM Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[24] THE GANTRY MEDIUM Weapon 3,1 r0
+    Cometfall
+ALTERNATES[24] THE GANTRY MEDIUM Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[24] THE GANTRY MEDIUM Helmet 0,0 r0
+    Stonewall Frame
+ALTERNATES[24] THE GANTRY MEDIUM Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[24] THE GANTRY MEDIUM Helmet 0,2 r0
+    Consecrated Plating
+ALTERNATES[24] THE GANTRY MEDIUM Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[24] THE GANTRY MEDIUM Helmet 2,2 r0
+    Stonewall Frame
+ALTERNATES[24] THE GANTRY MEDIUM Helmet 1,4 r0
+    Consecrated Plating
+ALTERNATES[24] THE GANTRY MEDIUM Helmet 3,4 r0
+    Consecrated Plating
+ALTERNATES[24] THE GANTRY MEDIUM Helmet 5,2 r1
+    Martyr's Crest
+ALTERNATES[24] THE GANTRY MEDIUM Helmet 0,5 r3
+    Buttressed Frame
+ALTERNATES[24] THE GANTRY MEDIUM Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[24] THE GANTRY MEDIUM Helmet 4,6 r0
+    Consecrated Plating
+ALTERNATES[24] THE GANTRY HARD Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[24] THE GANTRY HARD Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[24] THE GANTRY HARD Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[24] THE GANTRY HARD Weapon 3,1 r0
+    Starfall
+ALTERNATES[24] THE GANTRY HARD Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[24] THE GANTRY HARD Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[24] THE GANTRY HARD Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[24] THE GANTRY HARD Helmet 0,2 r0
+    Consecrated Plating
+ALTERNATES[24] THE GANTRY HARD Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[24] THE GANTRY HARD Helmet 2,2 r0
+    Overseer's Circlet
+ALTERNATES[24] THE GANTRY HARD Helmet 1,4 r0
+    Consecrated Plating
+ALTERNATES[24] THE GANTRY HARD Helmet 3,4 r0
+    Consecrated Plating
+ALTERNATES[24] THE GANTRY HARD Helmet 5,2 r1
+    Martyr's Crest
+ALTERNATES[24] THE GANTRY HARD Helmet 0,5 r3
+    Green Crown
+ALTERNATES[24] THE GANTRY HARD Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[24] THE GANTRY HARD Helmet 4,6 r0
+    Consecrated Plating
+ALTERNATES[24] THE GANTRY INSANE Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[24] THE GANTRY INSANE Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[24] THE GANTRY INSANE Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[24] THE GANTRY INSANE Weapon 3,1 r0
+    Starfall
+ALTERNATES[24] THE GANTRY INSANE Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[24] THE GANTRY INSANE Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[24] THE GANTRY INSANE Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[24] THE GANTRY INSANE Helmet 0,2 r0
+    Consecrated Plating
+ALTERNATES[24] THE GANTRY INSANE Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[24] THE GANTRY INSANE Helmet 2,2 r0
+    Overseer's Circlet
+ALTERNATES[24] THE GANTRY INSANE Helmet 1,4 r0
+    Consecrated Plating
+ALTERNATES[24] THE GANTRY INSANE Helmet 3,4 r0
+    Consecrated Plating
+ALTERNATES[24] THE GANTRY INSANE Helmet 5,2 r1
+    Martyr's Crest
+ALTERNATES[24] THE GANTRY INSANE Helmet 0,5 r3
+    Green Crown
+ALTERNATES[24] THE GANTRY INSANE Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[24] THE GANTRY INSANE Helmet 4,6 r0
+    Consecrated Plating
+ALTERNATES[25] THE LAMP ROOM EASY Weapon 0,0 r0
+    Worldeye Orb
+ALTERNATES[25] THE LAMP ROOM EASY Weapon 3,0 r0
+    Sunder
+ALTERNATES[25] THE LAMP ROOM EASY Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[25] THE LAMP ROOM EASY Weapon 3,1 r0
+    Kingsbane
+ALTERNATES[25] THE LAMP ROOM EASY Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[25] THE LAMP ROOM EASY Helmet 0,0 r0
+    Anvil Frame
+ALTERNATES[25] THE LAMP ROOM EASY Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[25] THE LAMP ROOM EASY Helmet 0,2 r0
+    Bulwark Plating
+ALTERNATES[25] THE LAMP ROOM EASY Helmet 5,0 r1
+    Zealot's Crest
+ALTERNATES[25] THE LAMP ROOM EASY Helmet 2,2 r0
+    Anvil Frame
+ALTERNATES[25] THE LAMP ROOM EASY Helmet 1,4 r0
+    Overflow Plate
+ALTERNATES[25] THE LAMP ROOM EASY Helmet 3,4 r0
+    Warding Plate
+ALTERNATES[25] THE LAMP ROOM EASY Helmet 5,2 r1
+    Zealot's Crest
+ALTERNATES[25] THE LAMP ROOM EASY Helmet 0,5 r3
+    Covenant Frame
+ALTERNATES[25] THE LAMP ROOM EASY Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[25] THE LAMP ROOM EASY Helmet 4,6 r0
+    Bulwark Plating
+ALTERNATES[25] THE LAMP ROOM EASY Helmet 5,4 r1
+    Zealot's Crest
+ALTERNATES[25] THE LAMP ROOM MEDIUM Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[25] THE LAMP ROOM MEDIUM Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[25] THE LAMP ROOM MEDIUM Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[25] THE LAMP ROOM MEDIUM Weapon 3,1 r0
+    Cometfall
+ALTERNATES[25] THE LAMP ROOM MEDIUM Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[25] THE LAMP ROOM MEDIUM Helmet 0,0 r0
+    Stonewall Frame
+ALTERNATES[25] THE LAMP ROOM MEDIUM Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[25] THE LAMP ROOM MEDIUM Helmet 0,2 r0
+    Consecrated Plating
+ALTERNATES[25] THE LAMP ROOM MEDIUM Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[25] THE LAMP ROOM MEDIUM Helmet 2,2 r0
+    Stonewall Frame
+ALTERNATES[25] THE LAMP ROOM MEDIUM Helmet 1,4 r0
+    Overflow Plate
+ALTERNATES[25] THE LAMP ROOM MEDIUM Helmet 3,4 r0
+    Warding Plate
+ALTERNATES[25] THE LAMP ROOM MEDIUM Helmet 5,2 r1
+    The Empty Crown
+ALTERNATES[25] THE LAMP ROOM MEDIUM Helmet 0,5 r3
+    Buttressed Frame
+ALTERNATES[25] THE LAMP ROOM MEDIUM Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[25] THE LAMP ROOM MEDIUM Helmet 4,6 r0
+    Consecrated Plating
+ALTERNATES[25] THE LAMP ROOM MEDIUM Helmet 5,4 r1
+    The Empty Crown
+ALTERNATES[25] THE LAMP ROOM HARD Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[25] THE LAMP ROOM HARD Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[25] THE LAMP ROOM HARD Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[25] THE LAMP ROOM HARD Weapon 3,1 r0
+    Starfall
+ALTERNATES[25] THE LAMP ROOM HARD Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[25] THE LAMP ROOM HARD Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[25] THE LAMP ROOM HARD Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[25] THE LAMP ROOM HARD Helmet 0,2 r0
+    Consecrated Plating
+ALTERNATES[25] THE LAMP ROOM HARD Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[25] THE LAMP ROOM HARD Helmet 2,2 r0
+    Overseer's Circlet
+ALTERNATES[25] THE LAMP ROOM HARD Helmet 1,4 r0
+    Overflow Plate
+ALTERNATES[25] THE LAMP ROOM HARD Helmet 3,4 r0
+    Warded Plating
+ALTERNATES[25] THE LAMP ROOM HARD Helmet 5,2 r1
+    The Empty Crown
+ALTERNATES[25] THE LAMP ROOM HARD Helmet 0,5 r3
+    Green Crown
+ALTERNATES[25] THE LAMP ROOM HARD Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[25] THE LAMP ROOM HARD Helmet 4,6 r0
+    Consecrated Plating
+ALTERNATES[25] THE LAMP ROOM HARD Helmet 5,4 r1
+    The Empty Crown
+ALTERNATES[25] THE LAMP ROOM INSANE Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[25] THE LAMP ROOM INSANE Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[25] THE LAMP ROOM INSANE Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[25] THE LAMP ROOM INSANE Weapon 3,1 r0
+    Starfall
+ALTERNATES[25] THE LAMP ROOM INSANE Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[25] THE LAMP ROOM INSANE Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[25] THE LAMP ROOM INSANE Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[25] THE LAMP ROOM INSANE Helmet 0,2 r0
+    Consecrated Plating
+ALTERNATES[25] THE LAMP ROOM INSANE Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[25] THE LAMP ROOM INSANE Helmet 2,2 r0
+    Overseer's Circlet
+ALTERNATES[25] THE LAMP ROOM INSANE Helmet 1,4 r0
+    Overflow Plate
+ALTERNATES[25] THE LAMP ROOM INSANE Helmet 3,4 r0
+    Braced Plating
+ALTERNATES[25] THE LAMP ROOM INSANE Helmet 5,2 r1
+    The Empty Crown
+ALTERNATES[25] THE LAMP ROOM INSANE Helmet 0,5 r3
+    Green Crown
+ALTERNATES[25] THE LAMP ROOM INSANE Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[25] THE LAMP ROOM INSANE Helmet 4,6 r0
+    Consecrated Plating
+ALTERNATES[25] THE LAMP ROOM INSANE Helmet 5,4 r1
+    The Empty Crown
+ALTERNATES[26] THE GOODS SHED EASY Weapon 0,0 r0
+    Tidecaller Orb
+ALTERNATES[26] THE GOODS SHED EASY Weapon 3,0 r0
+    Kingsbane
+ALTERNATES[26] THE GOODS SHED EASY Weapon 2,1 r0
+    Emberburst
+ALTERNATES[26] THE GOODS SHED EASY Weapon 0,2 r2
+    Kingsbane
+ALTERNATES[26] THE GOODS SHED EASY Weapon 5,1 r1
+    Rootwork Alignment
+ALTERNATES[26] THE GOODS SHED EASY Helmet 0,0 r0
+    Stormcaught Frame
+ALTERNATES[26] THE GOODS SHED EASY Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[26] THE GOODS SHED EASY Helmet 0,2 r0
+    Bulwark Plating
+ALTERNATES[26] THE GOODS SHED EASY Helmet 5,0 r1
+    Zealot's Crest
+ALTERNATES[26] THE GOODS SHED EASY Helmet 2,2 r0
+    Covenant Frame
+ALTERNATES[26] THE GOODS SHED EASY Helmet 4,3 r0
+    Overflow Plate
+ALTERNATES[26] THE GOODS SHED EASY Helmet 2,4 r0
+    Bulwark Plating
+ALTERNATES[26] THE GOODS SHED EASY Helmet 0,4 r0
+    Zealot's Crest
+ALTERNATES[26] THE GOODS SHED EASY Helmet 0,5 r1
+    Anvil Frame
+ALTERNATES[26] THE GOODS SHED EASY Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[26] THE GOODS SHED EASY Helmet 4,5 r0
+    Bulwark Plating
+ALTERNATES[26] THE GOODS SHED EASY Helmet 4,7 r0
+    Zealot's Crest
+ALTERNATES[26] THE GOODS SHED MEDIUM Weapon 0,0 r0
+    Emberheart Orb
+ALTERNATES[26] THE GOODS SHED MEDIUM Weapon 3,0 r0
+    Cometfall
+ALTERNATES[26] THE GOODS SHED MEDIUM Weapon 2,1 r0
+    Emberburst
+ALTERNATES[26] THE GOODS SHED MEDIUM Weapon 0,2 r2
+    Cometfall
+ALTERNATES[26] THE GOODS SHED MEDIUM Weapon 5,1 r1
+    Rootwork Alignment
+ALTERNATES[26] THE GOODS SHED MEDIUM Helmet 0,0 r0
+    Stormcaught Frame
+ALTERNATES[26] THE GOODS SHED MEDIUM Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[26] THE GOODS SHED MEDIUM Helmet 0,2 r0
+    Consecrated Plating
+ALTERNATES[26] THE GOODS SHED MEDIUM Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[26] THE GOODS SHED MEDIUM Helmet 2,2 r0
+    Buttressed Frame
+ALTERNATES[26] THE GOODS SHED MEDIUM Helmet 4,3 r0
+    Overflow Plate
+ALTERNATES[26] THE GOODS SHED MEDIUM Helmet 2,4 r0
+    Consecrated Plating
+ALTERNATES[26] THE GOODS SHED MEDIUM Helmet 0,4 r0
+    The Empty Crown
+ALTERNATES[26] THE GOODS SHED MEDIUM Helmet 0,5 r1
+    Stonewall Frame
+ALTERNATES[26] THE GOODS SHED MEDIUM Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[26] THE GOODS SHED MEDIUM Helmet 4,5 r0
+    Consecrated Plating
+ALTERNATES[26] THE GOODS SHED MEDIUM Helmet 4,7 r0
+    The Empty Crown
+ALTERNATES[26] THE GOODS SHED HARD Weapon 0,0 r0
+    Orb of the Nine
+ALTERNATES[26] THE GOODS SHED HARD Weapon 3,0 r0
+    Starfall
+ALTERNATES[26] THE GOODS SHED HARD Weapon 2,1 r0
+    Emberburst
+ALTERNATES[26] THE GOODS SHED HARD Weapon 0,2 r2
+    Starfall
+ALTERNATES[26] THE GOODS SHED HARD Weapon 5,1 r1
+    Rootwork Alignment
+ALTERNATES[26] THE GOODS SHED HARD Helmet 0,0 r0
+    Anvil Frame
+ALTERNATES[26] THE GOODS SHED HARD Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[26] THE GOODS SHED HARD Helmet 0,2 r0
+    Consecrated Plating
+ALTERNATES[26] THE GOODS SHED HARD Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[26] THE GOODS SHED HARD Helmet 2,2 r0
+    Green Crown
+ALTERNATES[26] THE GOODS SHED HARD Helmet 4,3 r0
+    Overflow Plate
+ALTERNATES[26] THE GOODS SHED HARD Helmet 2,4 r0
+    Consecrated Plating
+ALTERNATES[26] THE GOODS SHED HARD Helmet 0,4 r0
+    The Empty Crown
+ALTERNATES[26] THE GOODS SHED HARD Helmet 0,5 r1
+    Overseer's Circlet
+ALTERNATES[26] THE GOODS SHED HARD Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[26] THE GOODS SHED HARD Helmet 4,5 r0
+    Consecrated Plating
+ALTERNATES[26] THE GOODS SHED HARD Helmet 4,7 r0
+    The Empty Crown
+ALTERNATES[26] THE GOODS SHED INSANE Weapon 0,0 r0
+    Reliquary Orb
+ALTERNATES[26] THE GOODS SHED INSANE Weapon 3,0 r0
+    Starfall
+ALTERNATES[26] THE GOODS SHED INSANE Weapon 2,1 r0
+    Emberburst
+ALTERNATES[26] THE GOODS SHED INSANE Weapon 0,2 r2
+    Starfall
+ALTERNATES[26] THE GOODS SHED INSANE Weapon 5,1 r1
+    Rootwork Alignment
+ALTERNATES[26] THE GOODS SHED INSANE Helmet 0,0 r0
+    Stonewall Frame
+ALTERNATES[26] THE GOODS SHED INSANE Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[26] THE GOODS SHED INSANE Helmet 0,2 r0
+    Consecrated Plating
+ALTERNATES[26] THE GOODS SHED INSANE Helmet 5,0 r1
+    The Empty Crown
+ALTERNATES[26] THE GOODS SHED INSANE Helmet 2,2 r0
+    Green Crown
+ALTERNATES[26] THE GOODS SHED INSANE Helmet 4,3 r0
+    Overflow Plate
+ALTERNATES[26] THE GOODS SHED INSANE Helmet 2,4 r0
+    Consecrated Plating
+ALTERNATES[26] THE GOODS SHED INSANE Helmet 0,4 r0
+    The Empty Crown
+ALTERNATES[26] THE GOODS SHED INSANE Helmet 0,5 r1
+    Overseer's Circlet
+ALTERNATES[26] THE GOODS SHED INSANE Helmet 2,6 r0
+    Overflow Plate
+ALTERNATES[26] THE GOODS SHED INSANE Helmet 4,5 r0
+    Consecrated Plating
+ALTERNATES[26] THE GOODS SHED INSANE Helmet 4,7 r0
+    The Empty Crown
+ALTERNATES[27] THE ROUNDHOUSE EASY Weapon 0,0 r0
+    Worldeye Orb
+ALTERNATES[27] THE ROUNDHOUSE EASY Weapon 3,0 r0
+    Sunder
+ALTERNATES[27] THE ROUNDHOUSE EASY Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[27] THE ROUNDHOUSE EASY Weapon 3,1 r0
+    Kingsbane
+ALTERNATES[27] THE ROUNDHOUSE EASY Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[27] THE ROUNDHOUSE EASY Helmet 0,0 r0
+    Stormcaught Frame
+ALTERNATES[27] THE ROUNDHOUSE EASY Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE EASY Helmet 5,0 r0
+    Vigil Crest
+ALTERNATES[27] THE ROUNDHOUSE EASY Helmet 0,2 r0
+    Anvil Frame
+ALTERNATES[27] THE ROUNDHOUSE EASY Helmet 3,2 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE EASY Helmet 5,2 r1
+    Zealot's Crest
+ALTERNATES[27] THE ROUNDHOUSE EASY Helmet 0,4 r0
+    Anvil Frame
+ALTERNATES[27] THE ROUNDHOUSE EASY Helmet 3,4 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE EASY Helmet 0,6 r0
+    Anvil Frame
+ALTERNATES[27] THE ROUNDHOUSE EASY Helmet 3,6 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE EASY Helmet 5,5 r1
+    Zealot's Crest
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Weapon 3,1 r0
+    Cometfall
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Helmet 0,0 r0
+    Anvil Frame
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Helmet 5,0 r0
+    Watchful Crest
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Helmet 0,2 r0
+    Stonewall Frame
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Helmet 3,2 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Helmet 5,2 r1
+    The Empty Crown
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Helmet 0,4 r0
+    Stonewall Frame
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Helmet 3,4 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Helmet 0,6 r0
+    Stonewall Frame
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Helmet 3,6 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE MEDIUM Helmet 5,5 r1
+    The Empty Crown
+ALTERNATES[27] THE ROUNDHOUSE HARD Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[27] THE ROUNDHOUSE HARD Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[27] THE ROUNDHOUSE HARD Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[27] THE ROUNDHOUSE HARD Weapon 3,1 r0
+    Starfall
+ALTERNATES[27] THE ROUNDHOUSE HARD Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[27] THE ROUNDHOUSE HARD Helmet 0,0 r0
+    Stonewall Frame
+ALTERNATES[27] THE ROUNDHOUSE HARD Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE HARD Helmet 5,0 r0
+    Watchful Crest
+ALTERNATES[27] THE ROUNDHOUSE HARD Helmet 0,2 r0
+    Overseer's Circlet
+ALTERNATES[27] THE ROUNDHOUSE HARD Helmet 3,2 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE HARD Helmet 5,2 r1
+    The Empty Crown
+ALTERNATES[27] THE ROUNDHOUSE HARD Helmet 0,4 r0
+    Overseer's Circlet
+ALTERNATES[27] THE ROUNDHOUSE HARD Helmet 3,4 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE HARD Helmet 0,6 r0
+    Overseer's Circlet
+ALTERNATES[27] THE ROUNDHOUSE HARD Helmet 3,6 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE HARD Helmet 5,5 r1
+    The Empty Crown
+ALTERNATES[27] THE ROUNDHOUSE INSANE Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[27] THE ROUNDHOUSE INSANE Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[27] THE ROUNDHOUSE INSANE Weapon 0,2 r1
+    Hollow Lance
+ALTERNATES[27] THE ROUNDHOUSE INSANE Weapon 3,1 r0
+    Starfall
+ALTERNATES[27] THE ROUNDHOUSE INSANE Weapon 0,3 r0
+    Rootwork Alignment
+ALTERNATES[27] THE ROUNDHOUSE INSANE Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[27] THE ROUNDHOUSE INSANE Helmet 3,0 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE INSANE Helmet 5,0 r0
+    Watchful Crest
+ALTERNATES[27] THE ROUNDHOUSE INSANE Helmet 0,2 r0
+    Overseer's Circlet
+ALTERNATES[27] THE ROUNDHOUSE INSANE Helmet 3,2 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE INSANE Helmet 5,2 r1
+    The Empty Crown
+ALTERNATES[27] THE ROUNDHOUSE INSANE Helmet 0,4 r0
+    Overseer's Circlet
+ALTERNATES[27] THE ROUNDHOUSE INSANE Helmet 3,4 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE INSANE Helmet 0,6 r0
+    Overseer's Circlet
+ALTERNATES[27] THE ROUNDHOUSE INSANE Helmet 3,6 r0
+    Overflow Plate
+ALTERNATES[27] THE ROUNDHOUSE INSANE Helmet 5,5 r1
+    The Empty Crown

@@ -1618,9 +1618,23 @@ fn every_alternate_is_a_finished_creature() {
         let is_last = gearmaster_engine::dungeon::DUNGEONS
             .iter()
             .any(|d| d.floors.last().is_some_and(|f| f.creature == m.name));
+        // A floor that pays on its own has already left something behind.
+        //
+        // `is_last` meant "the ending" while every dungeon was a straight line
+        // and `floors.last()` was where the reward fired. A graph has as many
+        // endings as it has buffer stops - THE SWITCHYARD has four - and each
+        // pays its own ground and its own ticket through `Floor::also`, which
+        // is the whole of what a graph asks. `floors.last()` is an index
+        // there, not an ending, and THE ROUNDHOUSE happens to hold it.
+        let pays_itself = gearmaster_engine::dungeon::DUNGEONS
+            .iter()
+            .flat_map(|d| d.floors)
+            .any(|f| f.creature == m.name && !f.also.is_empty());
         // And a frame leaves nothing behind because a frame has nothing yet.
         // See `bestiary::FRAMES`.
-        if (!is_floor || is_last) && !gearmaster_engine::bestiary::is_unpacked(m.name) {
+        if (!is_floor || (is_last && !pays_itself))
+            && !gearmaster_engine::bestiary::is_unpacked(m.name)
+        {
             assert!(!m.drops.is_empty(), "{} leaves nothing behind", m.name);
         }
         assert!(

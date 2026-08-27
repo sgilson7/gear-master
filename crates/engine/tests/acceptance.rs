@@ -165,17 +165,8 @@ fn e6_7_every_figure_in_the_mission_is_a_multiple_of_a_bounty() {
 /// The Unwinding left this at zero and the phase discipline is what put nine
 /// back: Phase 2 ships a creature as a name, a band, a theme and the stats of
 /// the ladder creature standing at that band, and Phase 4 packs the boards.
-const UNDRESSED_UNTIL_THE_YARD_IS_PACKED: &[&str] = &[
-    "THE SHUNTER",
-    "THE PLATELAYERS",
-    "THE BALLAST",
-    "THE COAL STAGE",
-    "THE WATER TOWER",
-    "THE GANTRY",
-    "THE LAMP ROOM",
-    "THE GOODS SHED",
-    "THE ROUNDHOUSE",
-];
+/// **Empty since M9.** It held the yard's nine for three milestones.
+const UNDRESSED_UNTIL_THE_YARD_IS_PACKED: &[&str] = &[];
 
 #[test]
 fn e6_8_every_creature_in_the_game_is_dressed() {
