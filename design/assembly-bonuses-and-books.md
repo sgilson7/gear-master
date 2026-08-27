@@ -490,13 +490,107 @@ reading the screen, and a player who does can turn it on in one click.
 `two_voices`'s budget of 5, which this cannot move - the engine's themes are
 unchanged and only the picker's iteration is.
 
+### M11 - The road past Francis, for a run that earned it. **▲**
+
+**The bug.** Reported from play: held the item for the unwinding, beat Francis,
+and the road past him never appeared.
+
+`run.rs:2658` is the door, and it asks for **two** things:
+
+```rust
+if self.rung == LADDER.len()
+    && self.flags.contains(&"looked-through-the-lens")
+    && !self.answered.contains(&"the-unwound")
+```
+
+The mainspring is not in that condition at all. The only thing that sets
+`looked-through-the-lens` is one choice in **THROUGH THE CRACKED LENS**
+(`event.rs:1866`), which stands on `at: 47` - displayed rung 48 - and whose
+choice `requires: Requirement::Holding("The Cracked Lens")`. Miss the lens,
+or reach rung 48 without it, and the flag can never be set: the event is a
+`Trigger::Rung` door standing on exactly one rung, so the window shuts and
+does not reopen.
+
+So a run can do the entire chain, hold `An Unwound Mainspring`, put Francis
+down, and be told nothing. That is trap 8 - a key that arrives after its
+door's window shuts - and `completable.rs` did not catch it because the flag
+*is* set by something, and the shape it knows is a flag set by nothing.
+
+The design comment says this was deliberate: *"having looked is what makes the
+door appear, and holding the mainspring is what opens it... you cannot miss
+what you never saw."* It is a good line and it is wrong in practice, because
+the thing being missed is not a hint - it is the entire ending, gated behind
+a second collectible on a one-rung window. **The owner's call is that the item
+is the key.**
+
+**What it becomes.** `holds(MAINSPRING)` opens the road on its own. The lens
+keeps what it is actually good at - `Outcome::Scout`, seeing the boards ahead
+- and the flag stops being load-bearing.
+
+The prose has to move with it: THE UNWOUND's opening should read for a player
+who never looked through anything, and `past_the_top` already asks only for
+the mainspring, so the two agree afterwards where today they do not.
+
+**Gate:** a test that a run holding the mainspring and no flag at all is
+offered the road past the top, and a row added to `completable.rs` for the
+shape that got past it - **a flag whose only setter sits behind a second
+requirement in a one-rung window**. That row is the deliverable that stops
+the next one, and it is the fifth shape that file knows.
+
+### M12 - Francis doubles. **▲**
+
+`Run::monster` ends with `&LADDER[self.rung.min(LADDER.len() - 1)]`. Past the
+ladder that clamp refights **plain, unscaled Francis, for ever**. The road
+does not end; it just stops meaning anything. This milestone gives the clamp
+a purpose: rung `50 + n` is `2^n` Francis.
+
+**The finding that has to shape it.** "Twice as difficult" cannot be twice the
+health. `SUDDEN_DEATH_MS` is 30,000 and nothing runs past ~44 s (CLAUDE.md
+trap 5): at 9,400 health Francis is already a long fight, and at 18,800 he is
+mostly a clock fight, at 37,600 he is *entirely* one - both sides bleed a
+growing share of max health each second and the winner is whoever was ahead at
+thirty seconds. Doubling health past `n = 1` does not make the fight harder,
+it makes it shorter to describe and impossible to lose *or* win on the boards.
+
+So the dial is his **output and his defences**: strength (215), the three
+resists (78/76/96) and `curse_resist`, with health scaled far more gently or
+not at all. What exactly doubles is the one thing in this milestone worth
+measuring before choosing, and the oracle is right there - the printer already
+fights the reference boards against anything.
+
+**The other four things that will bite:**
+
+- **Overflow.** `2^n` on an `i32` leaves the rails around `n = 18`. Saturating
+  arithmetic and a stated ceiling, and the ceiling should be a named constant
+  with the reason on it rather than a clamp somebody finds later.
+- **Which `n`.** "Every time you beat him" and "rung minus 50" are the same
+  number on every run except one that took the THE UNWOUND detour, where rung
+  51 is not a Francis at all. **This needs your answer** - the milestone
+  assumes a counter of Francises beaten, because that is what the first
+  sentence of the request says and it survives the detour.
+- **Determinism.** The multiplier must be a pure function of that counter and
+  live on `Run`, not come from the RNG - `simulate_party` consults no RNG
+  anywhere and this must not be the thing that changes that.
+- **`stepped_component` is not the tool.** It steps gear along the catalogue
+  and the catalogue runs out; doubling is a scalar on the spec. A scaled
+  **copy** of the `MonsterSpec` at fight time is the shape - it is already
+  `Copy`, and `fight_next` already dereferences it into one.
+
+Bounty should double with him, or the fight is worth less every time it gets
+harder.
+
+**Gate:** the ladder is byte-identical up to rung 50 - this may not touch a
+single fight anybody currently plays - plus a test that `n = 0` is exactly the
+Francis in `LADDER`, one that the multiplier is a pure function of the counter,
+and one that the ceiling holds rather than wrapping.
+
 ---
 
 ## 5. What shipped
 
-Written at `b40e793`. Seven of ten milestones are in; M3 is blocked and §6
-says on what. M9 and M10 were filed after the rest had shipped - one a bug
-found in play, one a decision about what the front door offers.
+Written at `b40e793`. Seven of twelve milestones are in; M3 is blocked and §6
+says on what. M9 to M12 were filed after the rest had shipped - two bugs found
+in play, and two decisions about what the game offers and where it ends.
 
 | | Milestone | Commits | State |
 |---|---|---|---|
@@ -510,6 +604,8 @@ found in play, one a decision about what the front door offers.
 | M8 | Zealotry, DruidicMight, the record | `120db15`, `b40e793` | **in** |
 | M9 | The pedestal gets a screen | - | **open** - a bug report, filed 2026-08-27 |
 | M10 | The second voice stops advertising itself | - | **open** - filed 2026-08-27 |
+| M11 | The road past Francis, for a run that earned it | - | **open** - a bug report, filed 2026-08-27 |
+| M12 | Francis doubles | - | **open** - filed 2026-08-27, one question open |
 
 Suite at the tip: **907 engine green**, 48 ignored; **75 GUI green**; 0
 warnings across the workspace. The ladder's movement from M8 is measured in
