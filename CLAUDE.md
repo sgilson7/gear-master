@@ -277,6 +277,13 @@ a Drover walks a sixteen-tile ring by. Sixteen milestones, F0 to F15.
 `design/HANDOFF-hundred.md` is the decisions and what is not done;
 `analysis/the-hundred.md` is every measurement.
 
+**THE ENCLOSURE finishes on 5% of simulated censuses**, and THE PARISH on
+none. Not a bug: its checklist comes ready on trip nine of ten and the chain
+then wants two more journeys. `design/HANDOFF-hundred.md` §3 has the
+measurement and the three dials. A validity pass over the county found and
+fixed the one real bug there was - the pale was consumed on first contact, and
+the gate now opens on 61% of censuses rather than 19%.
+
 **The five county creatures wear borrowed boards.** F12 gave each of them a
 ladder creature's whole board rather than packing one, deliberately and with
 the owner's instruction: packing by hand wants somebody reading the diff and
@@ -523,6 +530,19 @@ fights its way to any given door. That is the gap.
     Twenty-three pieces are Orb-kind (trap 26) and four of them are tickets. A
     gate that asks for "an orb" has to say which it means, and asking for the
     tickets refuses every orb a mission adds that is held rather than spent.
+
+40. **The gaol is load-bearing, and V7 does not say so.** V7 promises every
+    tile is within *eight* moves of a mouth; a trip is *five*. What covers the
+    middle of the county is C1 putting a run down on the gaol, so "a punishment
+    a clever player farms" is also the only way into a fifth of the county.
+    `hundred::every_tile_is_inside_one_trip_of_some_way_in` includes the gaol
+    in its starting set on purpose.
+
+41. **A county event whose tile is a *gate* must not clear itself for being
+    read.** Every other one is finished with you once you answer it. The pale
+    has a choice open to anybody - "read the list again" - and answering it
+    cleared the tile, so nothing that walks toward uncleared tiles ever came
+    back and the chain behind it finished twice in a hundred and twenty runs.
 
 One blind spot in `prose.rs` worth knowing before it finds you: a name that
 only ever **opens** a sentence is invisible to `names_something`, because at a

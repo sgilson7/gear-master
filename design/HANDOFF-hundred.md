@@ -49,6 +49,42 @@ headed by the commit they were read off.
 
 ## 3. Open questions for the user
 
+### THE ENCLOSURE finishes on 5% of simulated censuses, and that wants a decision
+
+A validity pass over the county (`analysis/the-hundred.md`, "F16") walked a
+hundred and twenty full censuses with each finished board. It found and fixed
+one real bug - the pale was consumed on first contact - which took the gate
+from opening on 19% of runs to 61%. What is left is not a bug:
+
+- **THE ENCLOSURE finishes on 5%**, and THE PARISH on **none**, which follows
+  since the perambulation wants all three chains.
+- The cause is sequencing, and it is measured: **the checklist becomes ready on
+  trip nine of ten in 81 of 120 runs.** After that the chain wants two more
+  journeys - one to stand on the pale, one to reach the far corner where THE
+  COMMISSIONER is - and it has one trip.
+- The checklist itself is fine. The three region lines pass almost always; two
+  stones fails 14 of 120 and the orb 5 of 120. It is **eighteen tiles across
+  three regions** that necessarily completes late, which is B3.1's own design:
+  "the chain you finish by having been everywhere."
+- And the simulation is **generous** - it takes all ten trips without earning
+  the Constable or the Waste bet, carries a finished board from rung one and
+  never loses. Five percent is the optimistic figure.
+
+Three dials, all of them yours:
+
+1. **Fewer tiles per region.** Six to four is fifty-four tiles' worth of walking
+   down to thirty-six, and it is one number in `Run::pale_checklist`.
+2. **Opening the pale grants a trip.** A `TripSource` exists for exactly this
+   shape - `Perambulation` is granted rather than taken - and it would make the
+   gate pay for the journey it creates.
+3. **THE COMMISSIONER stands where the pale can reach.** The far corner is
+   B3.1's image and the distance is what costs; a sealed region adjacent to the
+   pale would keep the image and lose the second journey.
+
+Nothing is blocked. The chain is finishable - five percent is not zero - and
+every tile of it is reachable.
+
+
 - **The two road placements that do not fit** (`analysis/the-hundred.md` F0,
   last section). THE STOCKMAN at index 25 and THE CONSTABLE at index 18 each
   land on a town gate, which the suite refuses. F8 owns the moves; the
