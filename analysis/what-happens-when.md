@@ -11,7 +11,7 @@ Written by `what_happens_when::audit`. Do not hand-edit.
 | carrying a damage figure | 103 |
 | **carrying damage the fight cannot land** | **23** |
 | granting a pool as a trigger, not a stat | 0 |
-| spelling one pool grant both ways | 2 |
+| spelling one pool grant both ways | 0 |
 
 ## Damage the fight cannot land
 
@@ -51,8 +51,6 @@ thing to the fight. These say it as a trigger:
 
 And these say it both ways at once, so their card adds the two together:
 
-- Crownwright's Measure
-- The Green Ledger
 
 ## Every piece
 
@@ -1775,13 +1773,11 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Crownwright's Measure — Helmet crest
   PASSIVE: +120 hp, +14% mind res
-  EVERY TIME IT FIRES: +4 faith
-  EVERY TIME IT FIRES (triggered): gain 5 faith
+  EVERY TIME IT FIRES: +9 faith
 
 ### The Green Ledger — Chestpiece layer
   PASSIVE: +240 hp, +10% curse res
-  EVERY TIME IT FIRES: +8 nature
-  EVERY TIME IT FIRES (triggered): gain 9 nature
+  EVERY TIME IT FIRES: +17 nature
 
 ### A Word About the Crownwright — Helmet quest
 

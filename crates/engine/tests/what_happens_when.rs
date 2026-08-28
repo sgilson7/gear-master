@@ -291,3 +291,41 @@ fn audit() {
         }
     }
 }
+
+/// One effect, one spelling. Budget zero, and it may not rise.
+///
+/// `Stats { nature: 2 }` and `OnActivate(Gain { Nature, 2 })` hand over the
+/// same amount, so the catalogue says it one way. Not because the alternative
+/// was wrong, but because two spellings meant every reader had to know both -
+/// and three of them did not. `Figures::of` reads `stats.mana` and nothing
+/// else, so eighteen pieces' worth of mana a second was invisible to every
+/// toll in the county until this was folded.
+///
+/// `Action::Gain` stays in the language. It is still how a *conditional*
+/// trigger grants a pool - `Consume`, `Watch`, `SpendMana`, `PerAdjacentEmpty`
+/// - and those are a different claim: they happen sometimes.
+#[test]
+fn a_pool_grant_has_one_spelling() {
+    use gearmaster_engine::piece::{Action, Resource, Trigger};
+    let mut both = Vec::new();
+    for d in CATALOG {
+        let top_level_gain = d.triggers.iter().any(|t| {
+            matches!(
+                t,
+                Trigger::OnActivate(Action::Gain {
+                    what: Resource::Mana | Resource::Rage | Resource::Faith | Resource::Nature,
+                    ..
+                }) | Trigger::OnActivate(Action::GainMana(_))
+            )
+        });
+        if top_level_gain {
+            both.push(d.name);
+        }
+    }
+    assert!(
+        both.is_empty(),
+        "these grant a pool as an unconditional trigger rather than as a stat: {both:?}. \
+         The two are identical in amount and not in reading - see \
+         `analysis/second-order.md` 29 for the two places they were not identical at all."
+    );
+}

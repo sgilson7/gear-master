@@ -1397,8 +1397,18 @@ mod tests {
                 // Everything off the scale, not just boss gear: a VIP piece
                 // is meant to out-rate the shop too, and comparing a trophy
                 // against one would be comparing two exemptions.
+                //
+                // **Event-only pieces are a third exemption**, and this said
+                // "anything a player can buy" while comparing against things
+                // no shop stocks. The Green Ledger is handed over by a door
+                // and is priced like it; it out-rated a boss trophy the moment
+                // T2 spelled its faith the way the other 158 pieces spell it,
+                // and it had been out of scope for this question all along.
                 .filter(|c| {
-                    c.slot == d.slot && c.kind == d.kind && !crate::piece::is_off_the_scale(c.name)
+                    c.slot == d.slot
+                        && c.kind == d.kind
+                        && !crate::piece::is_off_the_scale(c.name)
+                        && !crate::piece::is_event_only(c.name)
                 })
                 .map(piece_rating)
                 .max()
