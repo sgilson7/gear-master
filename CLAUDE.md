@@ -37,7 +37,7 @@ Five missions are finished and all five are deployed:
 ## 1. Orientation in five minutes
 
 ```
-cargo test -p gearmaster-engine          # the safety net: 1035 tests, 57 binaries + lib, ~40s
+cargo test -p gearmaster-engine          # the safety net: 1050 tests, 58 binaries + lib, ~40s
 cargo test -p gearmaster-gui             # 81 more; cargo build does NOT compile them
 cargo test -p gearmaster-cli             # 9 more: scripted runs, piped in twice
 cargo run  -p gearmaster-cli             # headless REPL: play the real game in a terminal
@@ -545,6 +545,33 @@ fights its way to any given door. That is the gap.
     has a choice open to anybody - "read the list again" - and answering it
     cleared the tile, so nothing that walks toward uncleared tiles ever came
     back and the chain behind it finished twice in a hundred and twenty runs.
+
+40. **A `Stats` is not a block of passive numbers.** Eight of its twenty
+    fields - `armor`, `mana`, `mind`, both damages, `rage`, `faith`, `nature`
+    - are handed over on **every activation**, by the same code path an
+    `OnActivate` trigger uses. For two missions every card printed them beside
+    `+175 hp` as though they were the same kind of thing, and on a 2.8-second
+    item over a thirty-second fight they are not close. `Stats::parts_when`
+    is the classification and it is checked against the fight rather than
+    hand-written; ask it rather than sorting these by eye. `regen` is the one
+    that looks per-activation and is not - it wears the leaf glyph and is paid
+    per second.
+
+41. **A predicate of the form "has no triggers" measures spelling, not
+    behaviour.** Three of them did - `baseline`'s census, `bestiary::plain`,
+    `catalog_shape::inert` - and all three were wrong before anybody noticed,
+    because 158 pieces banked a pool as a `Stats` field and were counted as
+    plain filler. The census printed 124 inert pieces for two missions; the
+    true figure is **54**. Ask `parts_when` what a piece does on activation.
+
+42. **"The engine treats these identically" is a claim about one code path.**
+    Folding `OnActivate(Gain{Nature,2})` into `Stats{nature:2}` was gated on a
+    byte-identical ladder precisely because it might not be, and it was not:
+    the two are banked sixty lines apart inside an activation, and
+    `Figures::of` reads `stats.mana` without ever walking a trigger - so
+    eighteen pieces' worth of mana a second was invisible to every county
+    toll. Neither shows up in a fight's outcome. Gate a normalisation on a
+    measurement, not on the argument for it.
 
 One blind spot in `prose.rs` worth knowing before it finds you: a name that
 only ever **opens** a sentence is invisible to `names_something`, because at a
