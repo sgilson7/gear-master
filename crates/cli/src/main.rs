@@ -35,24 +35,7 @@ fn main() {
                 None => println!("error: unknown slot '{}'", slot),
             },
             ["stats"] => show_stats(&run),
-            ["shop"] => {
-                println!("\nGold: {}   |   next: {}", run.gold, run.monster().name);
-                for (i, &def) in run.shop.stock.iter().enumerate() {
-                    let d = &gearmaster_engine::piece::CATALOG[def];
-                    let afford = if run.gold >= d.price { " " } else { "!" };
-                    println!(
-                        "{} {}. {:<18} {:<8} {:<10} {:>3}g   {}",
-                        afford, i, d.name, d.kind.slot_label(d.slot).to_lowercase(), d.kind.name_in(d.slot), d.price,
-                        d.base.summary()
-                    );
-                    for t in d.triggers {
-                        println!("       {}", t.describe());
-                    }
-                    if let Some(e) = d.effect {
-                        println!("       {}", e.describe());
-                    }
-                }
-            }
+            ["shop"] => show_shop(&run),
             ["buy", n] => match n.parse::<usize>() {
                 Ok(i) => match run.buy(i) {
                     Ok(id) => println!(
@@ -375,6 +358,170 @@ fn main() {
                     }
                 }
             }
+            // --- the twelve the window had and this driver did not ------
+            //
+            // A transcript is only a proof of playability if a person can type
+            // it, so every verb `gearmaster-console` offers has a spelling
+            // here. Twelve of these were reachable in the window and not here
+            // (`console/tests/parity.rs`), and four - `clear <slot>`, `crush`,
+            // `grow` and `perambulate` - were reachable in neither, which is
+            // how a chain shipped with no way to walk it.
+            ["reroll"] => match run.reroll() {
+                Ok(()) => {
+                    println!("New shelves. {} gold left.", run.gold);
+                    show_shop(&run);
+                }
+                Err(e) => println!("error: {}", e),
+            },
+            ["pin", n] => match n.parse::<usize>() {
+                Ok(i) if i < run.shop.stock.len() => {
+                    let held = run.shop.toggle_lock(i);
+                    println!("{} shelf {}.", if held { "Holding" } else { "Let go of" }, i);
+                }
+                _ => println!("usage: pin <shelf>"),
+            },
+            ["barter", n, rest @ ..] if !rest.is_empty() => {
+                match (n.parse::<usize>(), find(&run, &rest.join(" "))) {
+                    (Ok(i), Some(id)) => match run.barter(i, id) {
+                        Ok(got) => println!("Traded for {}.", run.registry.def(got).name),
+                        Err(e) => println!("error: {}", e),
+                    },
+                    (_, None) => println!("error: no piece matching '{}'", rest.join(" ")),
+                    _ => println!("usage: barter <shelf> <name>"),
+                }
+            }
+            ["undo"] => match run.undo() {
+                Some(what) => println!("Took back {}.", what),
+                None => println!("Nothing to take back."),
+            },
+            ["lock", rest @ ..] if !rest.is_empty() => match find(&run, &rest.join(" ")) {
+                Some(id) => {
+                    let now = run.toggle_lock_item(id);
+                    println!("{}.", if now { "Locked" } else { "Unlocked" });
+                }
+                None => println!("error: no piece matching '{}'", rest.join(" ")),
+            },
+            // A locked item moves as one shape, which is three more verbs and
+            // not one: lift it, turn it, put it down.
+            ["lift", rest @ ..] if !rest.is_empty() => match find(&run, &rest.join(" ")) {
+                Some(id) => match run.unequip_locked(id) {
+                    Ok(()) => println!("Lifted the item."),
+                    Err(e) => println!("error: {}", e),
+                },
+                None => println!("error: no piece matching '{}'", rest.join(" ")),
+            },
+            ["turn", rest @ ..] if !rest.is_empty() => match find(&run, &rest.join(" ")) {
+                Some(id) => match run.rotate_locked(id) {
+                    Ok(()) => println!("Turned the item."),
+                    Err(e) => println!("error: {}", e),
+                },
+                None => println!("error: no piece matching '{}'", rest.join(" ")),
+            },
+            // Same peeling as `equip`: a component name has spaces in it.
+            ["drop", rest @ ..] if rest.len() >= 4 => {
+                let (name_parts, tail) = rest.split_at(rest.len() - 3);
+                let name = name_parts.join(" ");
+                let (Some(k), Ok(ax), Ok(ay)) =
+                    (parse_slot(tail[0]), tail[1].parse::<u8>(), tail[2].parse::<u8>())
+                else {
+                    println!("usage: drop <name> <slot> <x> <y>");
+                    continue;
+                };
+                match find(&run, &name) {
+                    Some(id) => match run.equip_locked_at(id, k, ax, ay) {
+                        Ok(()) => show_slot(&run, k),
+                        Err(e) => println!("error: {}", e),
+                    },
+                    None => println!("error: no piece matching '{}'", name),
+                }
+            }
+            ["clear", slot] => match parse_slot(slot) {
+                Some(k) => match run.clear_slot(k) {
+                    Ok(()) => println!("Emptied the {}.", k.name().to_lowercase()),
+                    Err(e) => println!("error: {}", e),
+                },
+                None => println!("error: unknown slot '{}'", slot),
+            },
+            ["grow", slot] => match parse_slot(slot) {
+                Some(k) => {
+                    if run.grow_slot(k) {
+                        print_receipt(&mut run);
+                        show_slot(&run, k);
+                    } else {
+                        println!("No row owed.");
+                    }
+                }
+                None => println!("error: unknown slot '{}'", slot),
+            },
+            ["crush", rest @ ..] if !rest.is_empty() => match find(&run, &rest.join(" ")) {
+                Some(id) => {
+                    let name = run.registry.def(id).name;
+                    match run.crush(id) {
+                        Some(_) => {
+                            println!("Crushed {}.", name);
+                            print_receipt(&mut run);
+                            show_road(&run);
+                        }
+                        None => println!("{} does not crush, or not here.", name),
+                    }
+                }
+                None => println!("error: no piece matching '{}'", rest.join(" ")),
+            },
+            // The tenth trip: a route rather than a destination. Nothing in
+            // either driver could walk one before this, which is why THE
+            // PARISH had never been reached outside a test.
+            ["perambulate", x, y] => match (x.parse::<u8>(), y.parse::<u8>()) {
+                (Ok(mx), Ok(my)) => {
+                    if run.walk_the_perambulation((mx, my)) {
+                        print_receipt(&mut run);
+                        show_county(&run);
+                    } else {
+                        println!("Not granted, or not from a mouth.");
+                    }
+                }
+                _ => println!("usage: perambulate <x> <y>"),
+            },
+            ["mouths"] => {
+                for (town, at) in gearmaster_engine::county::MOUTHS {
+                    println!("  {:<14} {}  ({}, {})", town, gearmaster_engine::county::reference(at), at.0, at.1);
+                }
+            }
+            ["drink", n] => match n.parse::<usize>() {
+                Ok(i) => {
+                    let offer = run.fountain_offer();
+                    match offer.get(i).copied() {
+                        Some(c) => match run.drink_choosing(c) {
+                            Some(got) => println!("The fountain names you {}: {}", got.name, got.blurb),
+                            None => println!("It will not."),
+                        },
+                        None => {
+                            let dbl = run.doubling_offer();
+                            match dbl.get(i).copied() {
+                                Some(c) if run.double_class(c) => println!("Doubled: {}", c.name),
+                                _ => println!("It is not offering that."),
+                            }
+                        }
+                    }
+                }
+                Err(_) => println!("usage: drink [n]"),
+            },
+            ["brawl"] => match run.pending_brawl() {
+                None => println!("No brawl stands here."),
+                Some(specs) => {
+                    let log = run.fight_party(&specs).clone();
+                    println!(
+                        "{} after {:.1}s",
+                        log.outcome.label(),
+                        log.duration_ms as f32 / 1000.0
+                    );
+                    match run.settle() {
+                        Some(g) => println!("+{} gold (now {}).", g, run.gold),
+                        None => println!("No reward."),
+                    }
+                    run.back_to_loadout();
+                    show_road(&run);
+                }
+            },
             _ => println!("unknown command; try `help`"),
         }
     }
@@ -405,6 +552,16 @@ fn help() {
     println!("  go                       from a town, down into THE HUNDRED");
     println!("  walk n|s|e|w             one tile of the county");
     println!("  out                      back up out of the county");
+    println!("  reroll | pin <n> | barter <n> <name>   the rest of the shop");
+    println!("  undo                     take back the last board change");
+    println!("  lock <name>              lock an assembled item, or unlock it");
+    println!("  lift | turn | drop <name> [slot x y]    move a locked item as one shape");
+    println!("  clear <slot> | grow <slot>              one grid");
+    println!("  crush <name>             break a relic for what is inside it");
+    println!("  drink <n>                take the nth thing a fountain offers");
+    println!("  brawl                    walk into a fight an event arranged");
+    println!("  mouths                   where the six ways into the county are");
+    println!("  perambulate <x> <y>      the tenth trip: a route, from a mouth");
     println!("  slots: helmet chest gloves greaves weapon");
 }
 
@@ -609,6 +766,46 @@ fn find(run: &Run, needle: &str) -> Option<PieceId> {
         .iter()
         .copied()
         .find(|&id| run.registry.def(id).name.to_lowercase().contains(&needle))
+}
+
+fn show_shop(run: &Run) {
+    println!("\nGold: {}   |   reroll {}g   |   next: {}", run.gold, run.reroll_cost(), run.monster().name);
+    for (i, &def) in run.shop.stock.iter().enumerate() {
+        let d = &gearmaster_engine::piece::CATALOG[def];
+        // `run.price` and not `d.price`: the second is the catalogue's number
+        // and the first is what `buy` will take, and they differ by the markup
+        // from the moment THE TOLLBOOTH is answered. This driver used to print
+        // the catalogue's.
+        let charged = run.price(i).unwrap_or(d.price);
+        let afford = if run.gold >= charged { " " } else { "!" };
+        let held = if run.shop.is_locked(i) { "*" } else { " " };
+        println!(
+            "{}{}{}. {:<18} {:<8} {:<10} {:>3}g",
+            afford, held, i, d.name, d.kind.slot_label(d.slot).to_lowercase(), d.kind.name_in(d.slot), charged
+        );
+        // Grouped by when, the same four groups the cards draw. A flat
+        // summary prints a rate beside a quantity and says nothing about
+        // which is which - "+2 nature, +8 curse res" is two different kinds
+        // of promise on one line.
+        for (when, text) in d.base.summary_by_when() {
+            println!("       {:<20} {}", when.heading(), text);
+        }
+        let mut conditional = Vec::new();
+        for t in d.triggers {
+            match t {
+                gearmaster_engine::piece::Trigger::OnActivate(a) => {
+                    println!("       {:<20} {}", "", a.describe())
+                }
+                other => conditional.push(other),
+            }
+        }
+        for t in conditional {
+            println!("       {:<20} {}", "TRIGGERS", t.describe());
+        }
+        if let Some(e) = d.effect {
+            println!("       {}", e.describe());
+        }
+    }
 }
 
 fn show_all_slots(run: &Run) {

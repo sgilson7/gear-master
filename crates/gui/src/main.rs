@@ -6047,6 +6047,17 @@ fn item_summary_lines_plain(p: &ItemProfile, run: &Run) -> Vec<(String, Color)> 
     for a in &acts {
         lines.push((format!("  {}", a), Color::from_rgba(240, 210, 190, 255)));
     }
+    // The conditionals get a group of their own rather than sitting under IN
+    // COMBAT, because they are not what one activation hands over - they are
+    // what makes the item do something else. The piece card and this one now
+    // file every figure under the same heading, which is the disagreement T5
+    // is for: a piece and the item it becomes described themselves two ways.
+    if !conditional.is_empty() {
+        lines.push((
+            words::word("card-triggers", "TRIGGERS").to_string(),
+            col_trigger(),
+        ));
+    }
     for t in conditional {
         for l in wrap(&t.describe(), 52) {
             lines.push((format!("  {}", l), col_trigger()));

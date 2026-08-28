@@ -329,3 +329,54 @@ fn a_pool_grant_has_one_spelling() {
          `analysis/second-order.md` 29 for the two places they were not identical at all."
     );
 }
+
+/// Every surface files a figure under the same group.
+///
+/// The disagreement this whole mission is about: the piece card put an
+/// unconditional pool gain in the stat block, the item card folded it into an
+/// IN COMBAT figure, and the CLI printed one flat line for both. Three
+/// readings of one number.
+///
+/// The engine settles it, so the test is that the engine's own two readings
+/// cannot come apart - `summary_by_when` groups exactly what `parts_when`
+/// classifies, and `summary` is still every figure with nothing left out.
+#[test]
+fn the_groups_and_the_flat_summary_describe_the_same_block() {
+    for d in CATALOG {
+        let grouped = d.base.summary_by_when();
+        let flat = d.base.summary();
+        // Nothing invented: every group's text appears in the flat reading.
+        for (_, text) in &grouped {
+            for figure in text.split(", ") {
+                assert!(
+                    flat.contains(figure),
+                    "{}: grouped says {figure:?} and the flat summary does not",
+                    d.name
+                );
+            }
+        }
+        // Nothing lost: as many figures grouped as the block prints.
+        let grouped_count: usize =
+            grouped.iter().map(|(_, t)| t.split(", ").count()).sum();
+        assert_eq!(
+            grouped_count,
+            d.base.parts().len(),
+            "{}: {} figures grouped against {} printed",
+            d.name,
+            grouped_count,
+            d.base.parts().len()
+        );
+    }
+}
+
+/// A piece with nothing to say has no groups at all.
+///
+/// 29 pieces are shape and a price. A card that headed four empty groups for
+/// them would be the rewrite making the common case worse.
+#[test]
+fn a_piece_with_nothing_to_say_heads_nothing() {
+    let empty = Stats::ZERO;
+    assert!(empty.summary_by_when().is_empty(), "an empty block grew a group");
+    let quiet = CATALOG.iter().filter(|d| d.base == Stats::ZERO && d.triggers.is_empty()).count();
+    assert!(quiet > 0, "no piece is quiet any more, so this test guards nothing");
+}

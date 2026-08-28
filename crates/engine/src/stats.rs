@@ -337,6 +337,31 @@ impl Stats {
         self.parts_when().into_iter().map(|(t, g, _)| (t, g)).collect()
     }
 
+    /// The block as text, grouped by when each figure happens.
+    ///
+    /// `summary` is the same figures run together with commas, which is right
+    /// for a one-line total and wrong for a card: it prints a rate beside a
+    /// quantity and says nothing about which is which. This is what a driver
+    /// with no colours to work with prints instead.
+    ///
+    /// Empty groups are left out, so a piece that is only passive reads the
+    /// way it always did.
+    pub fn summary_by_when(&self) -> Vec<(When, String)> {
+        let mut out = Vec::new();
+        for group in [When::Damage, When::Passive, When::OnActivation] {
+            let joined: Vec<String> = self
+                .parts_when()
+                .into_iter()
+                .filter(|(_, _, w)| *w == group)
+                .map(|(t, ..)| t)
+                .collect();
+            if !joined.is_empty() {
+                out.push((group, joined.join(", ")));
+            }
+        }
+        out
+    }
+
     /// The same figures, each saying when it happens.
     ///
     /// `parts` is this with the third element dropped, so the two cannot
