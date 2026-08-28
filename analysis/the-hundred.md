@@ -606,3 +606,73 @@ a player that the county is arbitrary.
 `step_label` takes the county rather than deriving one: at 77 us a derive, four
 directions a frame would have cost a third of a millisecond a frame to rebuild
 the same forty-nine tiles.
+
+---
+
+## F5 Bearing, Overtake, Commons - inert
+
+Three effects, three weights, three rows at budget 0, three glossary entries
+and three more for the county itself. **Engine 981, GUI 80, CLI 8. No
+warnings.** `baseline` byte-identical to F0, `gear_at` unmoved on 6,216
+placements, `acceptance::e6_2` green.
+
+### Overtake had to repeat the activation, not the blow, and a test found it
+
+The first version put Overtake into `reps` alongside `Echo` and `Fork`, which
+is the cheap place and the wrong one for **exactly the slot the effect is
+for**: `reps` repeats the swing, only weapons swing, and Overtake is
+gloves-only. A gloves item's whole output is its triggers. The effect did
+nothing at all, and the test that found it was the negative one -
+`an_ordinary_item_does_not_overtake` reported *zero* opening blows for the
+control, because a glove has none.
+
+`activate` returns whether to run again and the caller re-runs it, so
+`check_down` sits between the two and an opening that kills does not get a
+second one. `has_fired` is set at the top of the first run, so the repeat
+cannot qualify for the effect that produced it - one repeat, not a loop.
+`overtake_runs_the_triggers_again_and_not_a_blow` is the assertion that would
+have caught the first version: an armour-banking glove that overtakes has
+banked **14** at the bell where an ordinary one banks 7.
+
+### Bearing is not a solitude, and the difference is why it exists
+
+`SoleIf { Solitude::StackedWith(Greaves) }` asks about **overlap** with the
+grids laid on top of one another. Bearing **counts**. Two greaves items that
+never touch and never overlap are both alone under the first and neither is
+alone under the second, and `bearing_is_not_a_solitude` is the case that
+separates them - with a note saying that if the two ever mean the same thing,
+one of them should be deleted.
+
+### Commons is a relation, and a relation runs both ways
+
+`join_the_commons` folds it in with `commons[i] || commons[j]`, not `&&` and
+not `commons[i]` alone: an item that read its neighbours but was invisible to
+theirs would be a different mechanic wearing this one's name. Two things go
+wrong there and both have a test: a real neighbour counted twice for also
+being a commons neighbour, and an item left in `diagonal_items` after Commons
+turned its corner into an edge - `diagonal_items` is documented as "never also
+adjacent" and this is what keeps the promise.
+
+### Two of the three cannot be proved on a board until F6, and that is named
+
+A board's effects come off its pieces, and no piece carries these until F6. So
+Bearing and Commons are tested through the pure functions the recompute calls -
+`bearing_doubles` and `join_the_commons`, split out for the reason `chip_rects`
+takes a measure - and Overtake is tested in full, because combat reads it off
+an `ItemProfile` field a test can hand it.
+
+`RULES_AWAITING_THEIR_PIECES` holds all three, and
+`no_rule_waits_for_a_piece_that_has_arrived` goes red the day any of them finds
+a carrier. F6 cannot land the components without putting the rows back under
+the lint. `the_three_new_effects_have_no_carrier_at_f5` is the milestone's own
+exit criterion asserted from outside it.
+
+### The weights, and the one name that was already taken
+
+`BEARING 26.0`, `OVERTAKE 14.0`, `COMMONS 24.0` - starting points, settled at
+F13. Rated against `SoleIf`'s 22 a multiple and `DoubleAdjacentItemStat`'s 20.
+
+`naming.rs` already had a word "Bearing", for `PerOverlappingItem`, and has had
+since the gear-slot rewrite. The greaves effect that shares its name does not
+share its word: it names items **Sole**. A name is a word a player reads and
+two mechanics answering to one is a name that says nothing.

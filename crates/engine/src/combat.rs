@@ -2943,6 +2943,13 @@ pub struct RunningItem {
     pub attracts_curses: bool,
     /// A misfire does not eat this one's activation.
     pub steady: bool,
+    /// **Overtake**: the first firing of the fight runs twice.
+    pub overtakes: bool,
+    /// Whether this item has fired yet, which is the whole of Overtake's
+    /// condition. Per item rather than per fighter, because a board with two
+    /// overtaking gloves gets two opening double-swings and that is what
+    /// building two of them is for.
+    pub has_fired: bool,
     /// Neither stunned nor misfiring, for the rest of the fight.
     ///
     /// `steady` is the first half and predates this. The second is the answer
@@ -2993,6 +3000,8 @@ impl RunningItem {
             slot: Some(p.slot),
             attracts_curses: p.attracts_curses,
             steady: p.steady,
+            overtakes: p.overtakes,
+            has_fired: false,
             unshakable: false,
             cooldown_ms: p.cooldown_ms,
             progress_ms: 0,
@@ -3033,6 +3042,9 @@ impl RunningItem {
             // A monster's own teeth stand on nothing.
             attracts_curses: false,
             steady: false,
+            // Overtake is a glove's, and a creature wears no gloves.
+            overtakes: false,
+            has_fired: false,
             unshakable: false,
             cooldown_ms: a.cooldown_ms.max(TICK_MS),
             progress_ms: 0,
@@ -4528,9 +4540,15 @@ pub fn simulate_party(
                             continue;
                         }
                     }
-                    activate(&mut p, &mut foes, me, idx, t, &mut log);
+                    let again = activate(&mut p, &mut foes, me, idx, t, &mut log);
                     if check_down(&p, &foes, t, &mut log, &mut outcome, &mut fallen) {
                         break 'fight;
+                    }
+                    if again {
+                        activate(&mut p, &mut foes, me, idx, t, &mut log);
+                        if check_down(&p, &foes, t, &mut log, &mut outcome, &mut fallen) {
+                            break 'fight;
+                        }
                     }
                 }
             }
@@ -4795,6 +4813,12 @@ fn land_stun(victim: &mut Combatant, aim: StunAim, at_ms: u32) -> Option<(usize,
     Some((idx, item.stun_ms))
 }
 
+/// Run one item.
+///
+/// Returns whether it should be run once more straight away - Overtake, and
+/// only on an item's first firing of the fight. The caller re-runs it rather
+/// than this function recursing, so that `check_down` sits between the two:
+/// an opening blow that kills does not get a second one.
 fn activate(
     p: &mut Combatant,
     foes: &mut Vec<Combatant>,
@@ -4802,7 +4826,7 @@ fn activate(
     idx: usize,
     t: u32,
     log: &mut Vec<LogEntry>,
-) {
+) -> bool {
     let front = aim_of(foes, p.aim);
     let side = me.side;
     // Taken before the local rebindings below shadow `me` with a combatant.
@@ -4818,6 +4842,23 @@ fn activate(
         let me = pick(p, foes, me);
         me.activations += 1;
         me.echo_every > 0 && me.activations % me.echo_every == 0
+    };
+    // Overtake: the first firing of the fight runs a second time.
+    //
+    // Returned to the caller rather than repeated here, because what runs
+    // again is the **whole activation** - triggers, pools, spells and all -
+    // and not the blow. `reps` would have been the cheap place to put it and
+    // would have been wrong for exactly the slot the effect is for: only
+    // weapons swing, gloves act entirely through triggers, and a gloves
+    // effect that doubled a swing would do nothing at all.
+    //
+    // `has_fired` is set here, at the top, so the second run cannot qualify
+    // on its own - one repeat, not a loop.
+    let overtakes = {
+        let it = &mut pick(p, foes, me).items[idx];
+        let first = it.overtakes && !it.has_fired;
+        it.has_fired = true;
+        first
     };
     let mut cast_name = None;
     if !item.casts.is_empty() {
@@ -5324,6 +5365,8 @@ fn activate(
     notify_reactors(p, foes, me, idx, t, log);
     // And the other side, which nothing answered until the feet learned to.
     notify_opponents(p, foes, me, t, log);
+
+    overtakes
 }
 
 /// Run every reaction the **other side** owes to an activation.

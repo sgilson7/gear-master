@@ -6710,6 +6710,11 @@ const GLOSSARY: &[(&str, &str)] = &[
     ("BANKED AT THE BELL", "Every pool starts a fight at zero and earns its way up, which is why the opening of every fight looks much the same whatever you are wearing. One thing changes that: a stack of Piety hands you a point of faith before the first tick."),
     ("A MISS", "An attack that comes to nothing at all - no damage, no curse, no drain. Ticket to Ride is the only thing that causes them, and it counts rather than rolls: every second attack made against you, per attacker. Exactly half, and it never streaks."),
     ("DRAIN", "Some gear takes a pool off the other side rather than adding to its own, and hurts them for what it took. It is the answer to a build that has banked more than it can spend."),
+    ("BEARING", "A greaves effect. While the greaves grid holds exactly one finished item, that item counts double - every number on it. Not \"nothing overlaps it\": nothing else is assembled there at all. A whole grid spent on one thing, and the pieces that would have filled it left loose."),
+    ("OVERTAKE", "A gloves effect. The first time the item fires in a fight, it fires again straight away. Once, at the start, which is worth more than the same activation later - a fight decided early was decided by the first ten seconds. The second firing is the same activation repeated, so it cannot overtake itself."),
+    ("COMMONS", "A chest effect. The item counts as touching every finished item on the board, in both directions: it reads all of them as neighbours and all of them read it as one. Everything that pays per adjacent item pays as though the board were one continuous thing."),
+    ("THE HUNDRED", "A county under the road, seven tiles by seven. Every town has steps down into it and each town's steps are walked once a run; a trip is five moves, and what you clear stays cleared for the rest of the run - a death does not take it back. Tiles ask things of the board rather than fighting it: what it does a second, how fast its quickest item is, what it can pay."),
+    ("A TOLL", "A tile of THE HUNDRED that reads a figure off your finished items and will not let you past below it. Six of them, and all six are rates - mana a second, damage a second, armour a second - so two boards carrying the same numbers cross different rivers, because one of them spends four times as often. Failing costs the move and leaves you where you were. Crossing is permanent."),
     ("EXTRA ROWS", "One reward in the game makes your grids taller rather than giving you something to put in them. Rows only ever go up - nothing that grants them can be sold - so a piece can never end up sitting in a row that is about to stop existing."),
     // Last, so it lands on the last page. It is a control as well as a
     // definition; see SKIP_TERM.
@@ -13515,6 +13520,7 @@ mod tests {
             sigil_seed: 0,
             attracts_curses: false,
             steady: false,
+            overtakes: false,
         }
     }
 

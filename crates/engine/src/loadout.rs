@@ -48,6 +48,10 @@ pub struct ItemProfile {
     pub adjacent_assembled_same_slot: usize,
     /// Empty cells touching this item - what `PerAdjacentEmpty` repeats over.
     pub open_cells: usize,
+    /// **Overtake**: the first time this item fires in a fight, it fires
+    /// again immediately. Read off the pieces here so combat does not have to
+    /// walk a registry it does not have.
+    pub overtakes: bool,
     /// Whether a misfire eats this item's activation.
     ///
     /// One piece in the game says no - a Stray Orb, whose spells go off
@@ -114,6 +118,51 @@ impl ItemProfile {
         }
         self.hit_for(strength) as i64 * 1000 * 1000 / self.cooldown_ms as i64
     }
+}
+
+/// Fold **Commons** into one item's neighbour lists.
+///
+/// A commons item is adjacent to every assembled item on the board and every
+/// assembled item is adjacent to it, so either end of the relation puts the
+/// pair in each other's lists - `commons[i] || commons[j]`, not `&&`, and not
+/// `commons[i]` alone, which would be a one-way adjacency and a different
+/// mechanic wearing this one's name.
+///
+/// Split out because F5 lands the effect and F6 lands the pieces that carry
+/// it, so this is the only part of the rule a test can reach until then - and
+/// because the two things that go wrong here are counting a real neighbour
+/// twice and leaving an item in `diagonal_items` that is now adjacent, both of
+/// which are invisible in a board test and obvious in this one.
+pub fn join_the_commons(
+    i: usize,
+    commons: &[bool],
+    adjacent: &mut Vec<usize>,
+    diagonal: &mut Vec<usize>,
+) {
+    if commons.is_empty() {
+        return;
+    }
+    for j in 0..commons.len() {
+        if j != i && (commons[i] || commons[j]) {
+            adjacent.push(j);
+        }
+    }
+    adjacent.sort_unstable();
+    // A neighbour cannot be a neighbour twice, and a commons item that also
+    // genuinely touches something must not be counted once for each reason.
+    adjacent.dedup();
+    // `diagonal_items` is documented as "never also adjacent". Commons makes
+    // corners into edges, and this is what keeps the promise.
+    diagonal.retain(|j| !adjacent.contains(j));
+}
+
+/// Whether **Bearing** pays: the item carries it, and its slot holds no other
+/// assembled item.
+///
+/// Counted, not overlapped. Two greaves items that never touch are both alone
+/// under `Solitude::StackedWith` and neither is alone under this.
+pub fn bearing_doubles(carries_bearing: bool, others_assembled_in_slot: usize) -> bool {
+    carries_bearing && others_assembled_in_slot == 0
 }
 
 /// What THE HUNDRED's six tolls read off a board.
@@ -790,6 +839,24 @@ impl Loadout {
                         times = times.max(n);
                     }
                 }
+                // Bearing: double while this is the only assembled item in its
+                // slot. Folded in here because "this item's stats count n
+                // times" is what this pass computes, and a second pass that
+                // multiplied stats somewhere else would be a second answer to
+                // one question.
+                //
+                // Counted, not overlapped. Two greaves items that never touch
+                // are both alone under `Solitude::StackedWith` and neither is
+                // alone under this.
+                let bears = item
+                    .pieces
+                    .iter()
+                    .any(|&p| matches!(reg.def(p).effect.map(|e| e.kind), Some(EffectKind::Bearing)));
+                let others_here =
+                    gathered.iter().enumerate().filter(|(j, (k, _))| *j != i && k == kind).count();
+                if bearing_doubles(bears, others_here) {
+                    times = times.max(2);
+                }
                 times
             })
             .collect();
@@ -800,6 +867,20 @@ impl Loadout {
         let spans: Vec<Option<(u8, u8)>> = gathered
             .iter()
             .map(|(kind, item)| self.slot(*kind).row_span(&item.pieces))
+            .collect();
+
+        // Commons: an item that counts as adjacent to every assembled item on
+        // the board, and they to it. Computed before the pass below rather
+        // than inside it, because the relation is symmetric and a pass that
+        // only ever looks at `i` can only make it one-way - which would be a
+        // different mechanic wearing this one's name.
+        let commons: Vec<bool> = gathered
+            .iter()
+            .map(|(_, item)| {
+                item.pieces
+                    .iter()
+                    .any(|&p| matches!(reg.def(p).effect.map(|e| e.kind), Some(EffectKind::Commons)))
+            })
             .collect();
 
         let mut out = Vec::with_capacity(gathered.len());
@@ -825,6 +906,7 @@ impl Loadout {
                     }
                 }
             }
+            join_the_commons(i, &commons, &mut adjacent, &mut diagonal);
 
             let core = item.pieces.iter().copied().find(|&p| reg.def(p).kind.is_core());
             let cooldown_ms = item_cooldown_ms(reg, &item.pieces, *kind);
@@ -960,6 +1042,9 @@ impl Loadout {
                     .pieces
                     .iter()
                     .any(|&p| reg.def(p).name == crate::piece::STRAY_ORB),
+                overtakes: item.pieces.iter().any(|&p| {
+                    matches!(reg.def(p).effect.map(|e| e.kind), Some(EffectKind::Overtake))
+                }),
                 adjacent_items: adjacent,
                 aligned_items: aligned,
                 diagonal_items: diagonal,

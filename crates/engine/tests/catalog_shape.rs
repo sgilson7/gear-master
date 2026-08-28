@@ -348,6 +348,18 @@ const RULES: &[Rule] = &[
     // body has two mechanics here when it has one with two fundings.
     Rule { what: "Ballast", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::Ballast(_))) },
+    // THE HUNDRED's three, each in the slot its chain taxes. A greaves grid
+    // spent on one item, a glove that opens twice, and a chest that makes the
+    // board one continuous thing.
+    Rule { what: "Bearing", home: SlotKind::Greaves, level: Level::Only, shared_with: &[],
+        budget: 0, target: 0,
+        carries: |d| matches!(d.effect.map(|e| e.kind), Some(EffectKind::Bearing)) },
+    Rule { what: "Overtake", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
+        budget: 0, target: 0,
+        carries: |d| matches!(d.effect.map(|e| e.kind), Some(EffectKind::Overtake)) },
+    Rule { what: "Commons", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
+        budget: 0, target: 0,
+        carries: |d| matches!(d.effect.map(|e| e.kind), Some(EffectKind::Commons)) },
     // Deflection is the body's, beside reflection and for the same reason:
     // both are what a slot with no swing does about being hit. The feet keep a
     // minority share, because footwork is also a way of not being hit.
@@ -778,7 +790,12 @@ fn no_budget_is_slack() {
 /// is kept rather than deleted because the next mission that wants to settle
 /// a weight before its carriers exist should find the mechanism already here
 /// and already ratcheted, rather than reinventing it or loosening the lint.
-const RULES_AWAITING_THEIR_PIECES: &[&str] = &[];
+/// **Three, until F6.** THE HUNDRED lands its effects at F5 and the five
+/// components that speak them at F6, for the reason the Switchyard landed four
+/// verbs before their six: a weight settled after a creature is geared against
+/// it re-gears every creature on three settings. The mirror below goes red the
+/// day any of them finds a carrier, which puts the rows back under the lint.
+const RULES_AWAITING_THEIR_PIECES: &[&str] = &["Bearing", "Overtake", "Commons"];
 
 #[test]
 fn every_rule_names_a_mechanic_that_exists() {

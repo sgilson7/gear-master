@@ -318,6 +318,14 @@ pub fn qualifiers(reg: &PieceRegistry, pieces: &[PieceId]) -> Vec<&'static str> 
                 // underlay is for.
                 EffectKind::PerOverlappingItem { .. } => "Bearing",
                 EffectKind::PerOverlappingCore { .. } => "Foundational",
+                // The county's three. "Bearing" is taken by
+                // `PerOverlappingItem` above and has been since the gear-slot
+                // rewrite, so the greaves effect that shares its name does not
+                // share its word - a name is a word a player reads and two
+                // mechanics answering to one is a name that says nothing.
+                EffectKind::Bearing => "Sole",
+                EffectKind::Overtake => "Overtaking",
+                EffectKind::Commons => "Common",
             }));
         }
         if def.speed_bonus > 0 {

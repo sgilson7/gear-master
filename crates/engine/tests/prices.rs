@@ -101,6 +101,7 @@ fn report_what_the_two_conditionals_actually_manage() {
         open_cells: 0,
         attracts_curses: false,
         steady: false,
+        overtakes: false,
         power: 100,
         rating: 0,
         power_bonus: 0,

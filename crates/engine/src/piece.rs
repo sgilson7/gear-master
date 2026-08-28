@@ -385,6 +385,38 @@ pub enum EffectKind {
     /// what it is. The multipliers are enormous and the conditions are very
     /// easy to break by accident, which is the trade.
     SoleIf { what: Solitude, times: i32 },
+    /// **Bearing.** This item's stats count double while it is the only
+    /// assembled item in its slot.
+    ///
+    /// Greaves only. Not `SoleIf { Solitude::StackedWith }`, which is about
+    /// *overlap* with the grids laid on top of one another: two greaves items
+    /// that never touch and never overlap are both alone by that rule and
+    /// neither is alone by this one. Bearing counts, and what it counts is the
+    /// grid the piece is standing in.
+    ///
+    /// Checked at loadout recompute rather than per tick, because whether an
+    /// item is alone in its slot is a fact about the board and not about the
+    /// fight.
+    Bearing,
+    /// **Overtake.** The first time this item fires in a fight, it fires again
+    /// immediately.
+    ///
+    /// Gloves only. The echo cannot itself Overtake - it is the same
+    /// activation repeated, the way `Echo` repeats one, rather than a second
+    /// activation that could qualify on its own.
+    Overtake,
+    /// **Commons.** This item counts as adjacent to every assembled item on
+    /// its board, and they to it.
+    ///
+    /// Chest only. Both directions, because "adjacent" is a relation and a
+    /// one-way one is not one: an item that read its neighbours but was
+    /// invisible to theirs would be a different mechanic wearing this one's
+    /// name.
+    ///
+    /// Loadout recompute, not per tick. The rating prices it as the adjacency
+    /// it claims, which is the test of whether `rating.rs` can price adjacency
+    /// honestly.
+    Commons,
     /// This piece gains `per` of `stat` for every orthogonally adjacent piece
     /// of `kind` in the same grid. Where `DoubleNeighbor` reaches out and
     /// changes what its neighbours are worth, this reads them and changes

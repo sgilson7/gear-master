@@ -810,10 +810,39 @@ fn effect_points(e: &Effect, rate: f32) -> f32 {
         EffectKind::DoubleAdjacentItemStat { .. } => 20.0,
         // A piece out in the open touches four or five empty cells.
         EffectKind::SelfPerEmptyCell { per, .. } => 4.5 * per as f32 * weight::STRENGTH,
+        // Bearing doubles everything this item is - but only while the slot
+        // holds one item, which is a whole grid spent on one thing. Rated
+        // against `SoleIf`'s 22 a multiple, discounted because the condition
+        // is easier to hold than a solitude (you have to *not build* rather
+        // than build carefully) and paid for in the grid it costs.
+        EffectKind::Bearing => BEARING,
+        // One extra activation in a fight. A fight is thirty to forty seconds
+        // and a glove is a three-second item, so this is roughly a twelfth of
+        // what the item does all fight - and it lands at the start, which is
+        // worth more than a twelfth because a fight decided early was decided
+        // by the first ten seconds.
+        EffectKind::Overtake => OVERTAKE,
+        // The adjacency it claims, priced as the adjacency it claims:
+        // `DoubleAdjacentItemStat` is 20 for the neighbours an item actually
+        // has, and this one has all of them. Not 20 times anything - a board
+        // has five or six assembled items and the effects that read adjacency
+        // are per-neighbour, so what Commons buys is the difference between
+        // one or two neighbours and all of them.
+        EffectKind::Commons => COMMONS,
         EffectKind::Flat { stats } => standing_points(&stats) + activated_points(&stats, rate),
     };
     raw * scale
 }
+
+/// THE HUNDRED's three effects, priced.
+///
+/// **Starting points, settled at F13.** They price nothing until F6 lands the
+/// five components that speak them, which is the whole of the phase
+/// discipline: a weight moved after a creature is geared against it re-gears
+/// every creature on three settings (`the-unwinding.md` #19).
+pub const BEARING: f32 = 26.0;
+pub const OVERTAKE: f32 = 14.0;
+pub const COMMONS: f32 = 24.0;
 
 /// How many covering pieces an underlay can expect to end up under.
 ///

@@ -41,6 +41,7 @@ fn item(cooldown_ms: u32, stats: Stats) -> ItemProfile {
         adjacent_assembled_same_slot: 0,
         open_cells: 0,
         steady: false,
+        overtakes: false,
         attracts_curses: false,
         power_bonus: 0,
         power: 100,
