@@ -552,32 +552,33 @@ fn a_martial_weapon_still_assembles_alongside_the_new_recipes() {
     assert_eq!(run.report(SlotKind::Weapon).assembled_count(), 1);
 }
 
-/// A book takes a second spell, and an orb still wants two.
+/// A book binds **one** spell and an orb wants two, and that is the line
+/// between them.
 ///
-/// **Its name was the old rule** - `a_book_will_not_take_a_second_spell` -
-/// which is the shape §2.2 of `design/assembly-bonuses-and-books.md` was
-/// written to change: the book took exactly one spell and required an ink, so
-/// "a book build" meant one arrangement. It takes one or two spells now, with
-/// the ink optional and up to two of them, and ink stacking is what makes a
-/// single big spell worth building around.
+/// Its name was `a_book_will_not_take_a_second_spell_but_an_orb_wants_one`,
+/// which was the old rule and is the new one - what changed underneath it is
+/// everything *else* the book takes. §2.2 of
+/// `design/assembly-bonuses-and-books.md` relaxed the ink from required to
+/// optional, allowed two of them, and added an alignment; it also drew the
+/// book at one or two spells, and **the owner amended that**: breadth is the
+/// ball's whole identity, and a book that could take a second spell was a ball
+/// with worse breadth rather than a different thing.
 ///
-/// The orb is unchanged and is here for the contrast: two or three spells and
-/// **no ink at all**, which an orb has not wanted since alignments took over
-/// that job. They overlap at two spells, where the book is paying cells for
-/// multipliers and the orb for a third payload.
+/// So the book is depth - one payload, up to two inks multiplying it - and the
+/// orb is breadth - two or three payloads, no ink, one alignment across all of
+/// them. They do not overlap anywhere.
 #[test]
-fn a_book_takes_a_second_spell_now_and_an_orb_still_wants_two() {
+fn a_book_binds_one_spell_and_an_orb_wants_two() {
     let mut run = Run::with_all_pieces();
     equip(&mut run, "Pocket Grimoire", SlotKind::Weapon, 0, 0);
     equip(&mut run, "Soot Ink", SlotKind::Weapon, 1, 0);
     equip(&mut run, "Emberburst", SlotKind::Weapon, 2, 0);
     equip(&mut run, "Rime Nova", SlotKind::Weapon, 2, 2);
-    let report = run.report(SlotKind::Weapon);
     assert_eq!(
-        report.assembled_count(),
-        1,
-        "a book binds one spell or two: {}",
-        report.summary()
+        run.report(SlotKind::Weapon).assembled_count(),
+        0,
+        "a book bound two spells, which is the ball's breadth and the only thing that \
+         separates the two"
     );
 
     // And a book with **no ink at all**, which is the half of the relaxation
@@ -1055,8 +1056,9 @@ fn a_slot_with_several_recipes_describes_each_one() {
     assert_eq!(ways[1].required, vec!["1 book", "1 spell"]);
     assert_eq!(
         ways[1].optional,
-        vec!["1 more spell", "2 inks", "1 alignment", "1 accessory"],
-        "the book's optional half is what a player reads off the ? beside the weapon"
+        vec!["2 inks", "1 alignment", "1 accessory"],
+        "the book's optional half is what a player reads off the ? beside the weapon - and \
+         a second spell is not in it, because breadth is the ball's"
     );
 
     // And the orb is untouched beside it, which is what makes the two

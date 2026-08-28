@@ -172,9 +172,26 @@ One field added. It reuses the entire `Trigger`/`Action` vocabulary, so most of
 ### 2.2 The book
 
 ```
-Book:  Book 1 + Spell 1-2 + Ink 0-2 + Alignment 0-1
-Orb:   Orb 1  + Spell 2-3 + Alignment 0-1            (unchanged)
+Book:  Book 1 + Spell 1 + Ink 0-2 + Alignment 0-1 + Accessory 0-1
+Orb:   Orb 1  + Spell 2-3 + Alignment 0-1                        (unchanged)
 ```
+
+**Amended by the owner on 2026-08-28, as landed.** This section drew the book
+at `Spell 1-2` and the accessory it already took went unlisted. Both are
+corrected above, and the spell bound is the one that matters:
+
+> the book should only have 1 spell, not two available, that's the main
+> difference between the book and the ball
+
+A book that could take a second spell is a ball with worse breadth rather than
+a different thing, and the paragraph below about them "overlapping at two
+spells" was the argument for a line that should not exist. **They do not
+overlap.** The book is depth - one payload and up to two inks multiplying it -
+and the ball is breadth.
+
+It cost nothing to hold: against the two-spell version the whole `baseline`
+printer moves by **one figure**, the preset's cadence, 2.07 back to the 2.06 it
+had before the recipe was touched at all.
 
 Every bound is **relaxed**, never tightened, which is why this cannot break an
 existing board: anything that assembled before still assembles. Four creature
@@ -189,8 +206,10 @@ The identities separate properly:
 - **The orb is the broad one.** Two or three spells, no ink, one alignment
   colouring all of them. Breadth, not depth.
 
-They overlap at two spells and that is fine - at two spells the book is paying
-cells for multipliers and the orb is paying them for a third payload.
+~~They overlap at two spells and that is fine - at two spells the book is
+paying cells for multipliers and the orb is paying them for a third payload.~~
+**Struck by the amendment above.** They do not overlap: one spell is the
+book's and two is the ball's, and that is the whole line between them.
 
 ### 2.3 The eight greaves bonuses
 
@@ -871,6 +890,7 @@ What it cost, all of it measured and re-pinned with the reason:
 |---|---|
 | friend's board | 17 items to **18**; still clears 48/50 |
 | friend's median TTK | 8.15s to **8.65s** |
+| the second spell | **none of the above** - holding the book to one spell moves one figure of the printer, the preset's cadence, back to where it was |
 | friend's weapon share | 97.4% to **96.7%** |
 | friend's mind damage | 698 to **1009** |
 | `decode_build::MEMBERSHIP` | the friend's weapon grid, two items to three |

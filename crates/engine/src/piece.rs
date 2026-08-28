@@ -1254,18 +1254,21 @@ pub fn recipes(kind: SlotKind) -> &'static [&'static [(PieceKind, usize, usize)]
             // cores - Chained Codex, Leaden Tome, Apprentice's Primer, Grand
             // Grimoire - all keep working, and `gear_at` says so.
             //
-            // The two identities separate properly once it is written this
-            // way. **The book is the focused caster**: one or two spells and
-            // up to two inks multiplying them, and ink stacking is its whole
-            // argument. **The orb is the broad one**: two or three spells, no
-            // ink at all, one alignment colouring every one of them - a choice
-            // about *which* pool the whole ball leans on rather than a flat
-            // multiplier. They overlap at two spells, and that is fine: there
-            // the book is paying cells for multipliers and the orb is paying
-            // them for a third payload.
+            // The two identities separate on **breadth**, and that is the
+            // whole of it. **A book binds one spell** and stacks up to two
+            // inks multiplying it: depth, and one big payload worth building
+            // around. **An orb takes two or three** and no ink at all, with
+            // one alignment colouring every one of them - a choice about
+            // *which* pool the whole ball leans on rather than a flat
+            // multiplier.
+            //
+            // They do not overlap. `design/assembly-bonuses-and-books.md`
+            // §2.2 drew the book at one or two spells and the owner amended
+            // it: a second spell is the ball's, and a book that could take one
+            // was a ball with worse breadth rather than a different thing.
             &[
                 (PieceKind::Book, 1, 1),
-                (PieceKind::Spell, 1, 2),
+                (PieceKind::Spell, 1, 1),
                 (PieceKind::Ink, 0, 2),
                 (PieceKind::Alignment, 0, 1),
                 (PieceKind::Accessory, 0, 1),

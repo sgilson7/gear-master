@@ -161,7 +161,7 @@ recipe become an *item* that acts. Recipes (`piece.rs:1039`):
 
 | Slot | Recipes |
 |---|---|
-| Weapon | Handle + 1-2 Damaging + 0-2 Accessory · **Book + 1-2 Spell + 0-2 Ink + 0-1 Alignment + 0-1 Accessory** · Orb + 2-3 Spell + 0-1 Alignment |
+| Weapon | Handle + 1-2 Damaging + 0-2 Accessory · **Book + 1 Spell + 0-2 Ink + 0-1 Alignment + 0-1 Accessory** · Orb + 2-3 Spell + 0-1 Alignment |
 | Helmet | Frame + 1-2 Plating + 0-1 Crest |
 | Chest | Base + 1-3 Layer |
 | Gloves | Material + Mold + 0-2 Ring |
@@ -311,15 +311,20 @@ each one pays instead of describing it.
 
 **M3, the book recipe, is done.** It was blocked for two missions on a
 measurement that stopped being true: relaxing it to
-`Book 1 + Spell 1-2 + Ink 0-2 + Alignment 0-1 + Accessory 0-1` was said to
+`Book 1 + Spell 1 + Ink 0-2 + Alignment 0-1 + Accessory 0-1` was said to
 beat THE UNWOUND in 10.0s, and it does not - all three reference boards still
 lose to it, before and after. The friend's grid re-partitions exactly as
 predicted, 17 items to 18, because Chained Codex, Gravebloom Ink, Pilgrim
 Alignment and Forking Bead were **loose pieces** the strict recipe could not
 bind. `design/assembly-bonuses-and-books.md` §6 has what it cost, measured.
 
-**The `?` beside a slot needed no change for it**, and that is worth knowing
-before you go looking: `recipe_tip` reads `recipe_parts`, which reads
+The document drew the book at one or two spells and **the owner amended it to
+one**: breadth is the ball's whole identity, so a book that could take a second
+spell was a ball with worse breadth rather than a different thing. The book is
+depth - one payload, up to two inks multiplying it - and they do not overlap.
+
+**The `?` beside a slot needed no change for any of it**, and that is worth
+knowing before you go looking: `recipe_tip` reads `recipe_parts`, which reads
 `recipes`. The recipe is the only place a recipe is written down.
 
 **The mission after that is `design/rl-agent-plan.md`**: make the game playable
