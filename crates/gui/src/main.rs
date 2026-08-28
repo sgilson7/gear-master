@@ -2398,6 +2398,7 @@ impl Tip {
         tint: Color,
         cooldown_ms: u32,
         slot: SlotKind,
+        on_activation: &[String],
     ) {
         use gearmaster_engine::stats::When;
         for group in [When::Damage, When::Passive, When::OnActivation] {
@@ -2407,7 +2408,16 @@ impl Tip {
                 .filter(|(_, _, w)| *w == group)
                 .map(|(t, g, _)| (t, g))
                 .collect();
-            if rows.is_empty() {
+            // An `OnActivate` trigger is the *same group* as a per-activation
+            // stat figure - both are what one activation hands over - so the
+            // heading has to appear when either is present. It did not, and
+            // Sunderer showed why: its stats are damage, its curse is a
+            // trigger, so nothing put an activation heading on the card and
+            // "apply curse of searing to the enemy" sat indented under
+            // nothing at all.
+            let extra: &[String] =
+                if group == When::OnActivation { on_activation } else { &[] };
+            if rows.is_empty() && extra.is_empty() {
                 continue;
             }
             let head = match (group, cooldown_ms) {
@@ -2422,6 +2432,11 @@ impl Tip {
                     self.glyphs.push((self.lines.len(), key));
                 }
                 self.lines.push((format!("  {}", words::retell(&text)), tint));
+            }
+            for line in extra {
+                for l in wrap(&words::retell(line), 44) {
+                    self.lines.push((format!("  {l}"), Color::from_rgba(240, 210, 190, 255)));
+                }
             }
             // **Only a weapon swings.** `hit_for` returns 0 for every other
             // slot, so a glove's `+8 phys dmg` is a figure the fight never
@@ -4358,52 +4373,54 @@ fn render_def_tooltip_inner(
             other => conditional.push(other),
         }
     }
-    for line in &on_activation {
-        for l in wrap(line, 46) {
-            lines.push((format!("  {l}"), Color::from_rgba(240, 210, 190, 255)));
-        }
+    // The stat groups go in **here**, not after the price. They used to be
+    // appended to the finished card, so a Sunderer read its speed, then an
+    // unheaded curse line, then its gold, and only then DAMAGE - with the two
+    // halves of one group at opposite ends of the card.
+    let lines: Vec<(String, Color)> =
+        lines.into_iter().map(|(s, c)| (words::retell(&s), c)).collect();
+    let mut tip = Tip::plain(lines);
+    tip.stats_grouped(
+        &base_stats,
+        Color::from_rgba(190, 210, 245, 255),
+        card_cooldown,
+        def.slot,
+        &on_activation,
+    );
+    if let Some(adj) = def.assembly_bonus {
+        tip.stats(&adj.stats, col_gold());
     }
     if !conditional.is_empty() {
-        lines.push((
+        tip.lines.push((
             words::word("card-triggers", "TRIGGERS").to_string(),
             col_trigger(),
         ));
     }
     for t in conditional {
-        for l in wrap(&t.describe(), 46) {
-            lines.push((format!("  {l}"), col_trigger()));
+        for l in wrap(&words::retell(&t.describe()), 46) {
+            tip.lines.push((format!("  {l}"), col_trigger()));
         }
     }
+    let lines = &mut tip.lines;
     if let Some(q) = def.quest {
         let done = quest_progress.unwrap_or(0).min(q.goal);
         lines.push((
             format!("QUEST  {} / {}", done, q.goal),
             Color::from_rgba(150, 220, 190, 255),
         ));
-        for l in wrap(&q.track.describe(q.goal), 46) {
+        for l in wrap(&words::retell(&q.track.describe(q.goal)), 46) {
             lines.push((format!("  {}", l), Color::from_rgba(150, 220, 190, 255)));
         }
         lines.push((format!("  then it becomes {}", words::piece(q.becomes)), col_gold()));
-        lines.push(("  only counts while assembled".to_string(), col_dim()));
+        lines.push((
+            words::word("only-assembled", "  only counts while assembled").to_string(),
+            col_dim(),
+        ));
     }
     lines.push((
         format!("{} {}", shop_price(def), words::word("gold-lower", "gold")),
         col_gold(),
     ));
-    // Re-told once, now the whole card is collected. The piece's own name went
-    // through the theme when it was pushed; this catches everything the engine
-    // wrote about it.
-    let lines: Vec<(String, Color)> =
-        lines.into_iter().map(|(s, c)| (words::retell(&s), c)).collect();
-
-    // The stat blocks last, as a `Tip`, so each figure is drawn with the
-    // symbol that stands for it. What the piece is, then what it becomes when
-    // its item comes together.
-    let mut tip = Tip::plain(lines);
-    tip.stats_grouped(&base_stats, Color::from_rgba(190, 210, 245, 255), card_cooldown, def.slot);
-    if let Some(adj) = def.assembly_bonus {
-        tip.stats(&adj.stats, col_gold());
-    }
     let lines = &tip.lines;
     let glyph = 13.0;
 
@@ -13721,7 +13738,7 @@ mod glossary_tests {
         use gearmaster_engine::stats::{Stats, When};
         let heads = |s: &Stats, cd: u32, slot: SlotKind| -> Vec<String> {
             let mut t = Tip::plain(Vec::new());
-            t.stats_grouped(s, WHITE, cd, slot);
+            t.stats_grouped(s, WHITE, cd, slot, &[]);
             t.lines
                 .iter()
                 .map(|(l, _)| l.clone())
@@ -13754,6 +13771,56 @@ mod glossary_tests {
         assert_eq!(h[0], When::Damage.heading(), "damage is not at the top");
     }
 
+    /// A trigger that fires on activation is under the activation heading.
+    ///
+    /// Sunderer is the piece that found this. Its stats are damage and its
+    /// curse is an `OnActivate` trigger, so nothing in the stat block put an
+    /// activation heading on the card and "apply curse of searing to the
+    /// enemy" sat indented under nothing at all - the two halves of one group
+    /// built by two different passes, and only one of them emitting a label.
+    ///
+    /// The heading has to appear when *either* half is present, which is what
+    /// this asks: a block with no per-activation figure, and one trigger.
+    #[test]
+    fn a_trigger_that_fires_on_activation_gets_the_activation_heading() {
+        use gearmaster_engine::stats::{Stats, When};
+        let lines = |s: &Stats, on: &[String], cd: u32| -> Vec<String> {
+            let mut t = Tip::plain(Vec::new());
+            t.stats_grouped(s, WHITE, cd, SlotKind::Weapon, on);
+            t.lines.iter().map(|(l, _)| l.clone()).collect()
+        };
+        let curse = vec!["apply curse of searing to the enemy".to_string()];
+
+        // Sunderer's shape: damage in the stats, the deed in a trigger.
+        let sunderer = Stats { physical_damage: 34, ..Stats::ZERO };
+        let out = lines(&sunderer, &curse, 0);
+        let head = out
+            .iter()
+            .position(|l| l == When::OnActivation.heading())
+            .unwrap_or_else(|| panic!("no activation heading: {out:?}"));
+        assert!(
+            out[head + 1..].iter().any(|l| l.contains("searing")),
+            "the heading is there and the trigger is not under it: {out:?}"
+        );
+        assert!(out.iter().any(|l| l == When::Damage.heading()), "damage lost its heading");
+
+        // A core says when by the clock, and the trigger still lands under it.
+        let out = lines(&sunderer, &curse, 1500);
+        let head = out
+            .iter()
+            .position(|l| l.contains("1.50"))
+            .unwrap_or_else(|| panic!("no clock heading: {out:?}"));
+        assert!(out[head + 1..].iter().any(|l| l.contains("searing")));
+
+        // And with neither half, no heading - which is the rule that keeps
+        // the common card short.
+        let out = lines(&sunderer, &[], 0);
+        assert!(
+            !out.iter().any(|l| l == When::OnActivation.heading()),
+            "an activation heading with nothing under it: {out:?}"
+        );
+    }
+
     /// A glove's damage says it lands nothing, and a helmet's mind does not.
     ///
     /// `hit_for` returns 0 for every slot but the weapon, so twenty-three
@@ -13764,7 +13831,7 @@ mod glossary_tests {
         use gearmaster_engine::stats::Stats;
         let body = |s: &Stats, slot: SlotKind| -> String {
             let mut t = Tip::plain(Vec::new());
-            t.stats_grouped(s, WHITE, 3000, slot);
+            t.stats_grouped(s, WHITE, 3000, slot, &[]);
             t.lines.iter().map(|(l, _)| l.clone()).collect::<Vec<_>>().join("\n")
         };
         let note = "only a weapon swings";

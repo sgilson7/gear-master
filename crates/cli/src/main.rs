@@ -787,16 +787,37 @@ fn show_shop(run: &Run) {
         // summary prints a rate beside a quantity and says nothing about
         // which is which - "+2 nature, +8 curse res" is two different kinds
         // of promise on one line.
-        for (when, text) in d.base.summary_by_when() {
-            println!("       {:<20} {}", when.heading(), text);
-        }
+        // An `OnActivate` trigger is the same group as a per-activation stat
+        // figure - both are what one activation hands over - so it goes under
+        // the same heading, and the heading appears when either is there.
+        // Sunderer is the piece that found this: its stats are damage and its
+        // curse is a trigger, so the curse printed under a blank label.
+        use gearmaster_engine::piece::Trigger;
+        use gearmaster_engine::stats::When;
+        let mut on_activation: Vec<String> = Vec::new();
         let mut conditional = Vec::new();
         for t in d.triggers {
             match t {
-                gearmaster_engine::piece::Trigger::OnActivate(a) => {
-                    println!("       {:<20} {}", "", a.describe())
-                }
+                Trigger::OnActivate(a) => on_activation.push(a.describe()),
                 other => conditional.push(other),
+            }
+        }
+        let mut groups = d.base.summary_by_when();
+        if !on_activation.is_empty()
+            && !groups.iter().any(|(w, _)| *w == When::OnActivation)
+        {
+            groups.push((When::OnActivation, String::new()));
+        }
+        for (when, text) in groups {
+            if !text.is_empty() {
+                println!("       {:<20} {}", when.heading(), text);
+            }
+            if when == When::OnActivation {
+                let mut label = if text.is_empty() { when.heading() } else { "" };
+                for line in &on_activation {
+                    println!("       {:<20} {}", label, line);
+                    label = "";
+                }
             }
         }
         for t in conditional {
