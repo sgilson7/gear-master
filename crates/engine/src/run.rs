@@ -817,6 +817,14 @@ pub struct Run {
     /// matters only if something brings you back, and then it matters
     /// completely.
     pub cleared_floors: Vec<(&'static str, usize)>,
+    /// Dungeons this run has set foot in, whether or not it won anything.
+    ///
+    /// `cleared_floors` records wins, and a run that walks into a dungeon and
+    /// loses on the first floor has still *been there* - which is the question
+    /// the map asks before it draws a place. Kept separate rather than derived
+    /// for that reason: the two are different questions and they were the same
+    /// answer only by luck.
+    pub dungeons_entered: Vec<&'static str>,
     /// Standing at the points: the floor just cleared has more than one way on
     /// and the player has not said which.
     ///
@@ -1043,6 +1051,7 @@ impl Run {
             towns_revealed: Vec::new(),
             outer_dungeons: Vec::new(),
             cleared_floors: Vec::new(),
+            dungeons_entered: Vec::new(),
             at_points: false,
             took_exits: Vec::new(),
             entry_started_at: 0,
@@ -2234,6 +2243,9 @@ impl Run {
             }
         }
         self.dungeon = Some((d, floor));
+        if !self.dungeons_entered.contains(&d.id) {
+            self.dungeons_entered.push(d.id);
+        }
         self.at_points = false;
         self.entry_started_at = self.cleared_floors.len();
         let own = d.floors[floor].entry;

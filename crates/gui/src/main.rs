@@ -7064,10 +7064,278 @@ fn render_dungeon_tint(run: &Run) {
 /// Pure, so the geometry is testable without a font context - the reason
 /// `chip_rects` takes a measure and this returns rectangles
 /// (`CLAUDE.md` §6 trap 32).
-fn map_tabs() -> [Rect; 2] {
-    let tw = 170.0;
-    [Rect::new(LOGICAL_W - 40.0 - tw * 2.0 - 10.0, 34.0, tw, 30.0),
-     Rect::new(LOGICAL_W - 40.0 - tw, 34.0, tw, 30.0)]
+/// Where every floor of a dungeon sits on the map, and how tall the drawing is.
+///
+/// **Laid out from the graph, not from a table of coordinates per dungeon.**
+/// A hand-placed layout would be a second copy of `DUNGEONS` and would go
+/// stale the first time a floor gained an exit - which A4 does to THE
+/// THRESHOLD on purpose.
+///
+/// Depth is distance from floor 0 along the exits, so a floor is always drawn
+/// below everything that leads to it; floors at the same depth share a row and
+/// are spread across it. A floor nothing leads to - an island, which A7 makes
+/// several of - is given its own depth after the reachable ones, so the map
+/// shows it apart rather than not at all.
+///
+/// Pure, for trap 32's reason.
+fn dungeon_node_cells(d: &gearmaster_engine::dungeon::Dungeon, r: Rect) -> Vec<Rect> {
+    let n = d.floors.len();
+    let mut depth = vec![usize::MAX; n];
+    if n == 0 {
+        return Vec::new();
+    }
+    // Breadth-first from floor 0 along the exits.
+    depth[0] = 0;
+    let mut frontier = vec![0usize];
+    while let Some(at) = frontier.pop() {
+        let here = depth[at];
+        for e in d.floors[at].exits {
+            let to = e.to;
+            if to < n && depth[to] == usize::MAX {
+                depth[to] = here + 1;
+                frontier.push(to);
+            }
+        }
+    }
+    // Anything the walk never reached is an island. It goes below the rest,
+    // one row each, so two islands do not land on top of one another.
+    let deepest = depth.iter().filter(|&&x| x != usize::MAX).max().copied().unwrap_or(0);
+    let mut spare = deepest + 2;
+    for x in depth.iter_mut() {
+        if *x == usize::MAX {
+            *x = spare;
+            spare += 1;
+        }
+    }
+    let rows = depth.iter().max().copied().unwrap_or(0) + 1;
+    let (bw, bh) = (150.0, 46.0);
+    let step_y = ((r.h - bh) / rows.max(1) as f32).min(74.0);
+    let mut out = vec![Rect::new(0.0, 0.0, bw, bh); n];
+    for row in 0..rows {
+        let here: Vec<usize> = (0..n).filter(|&i| depth[i] == row).collect();
+        let wide = here.len() as f32 * bw + (here.len() as f32 - 1.0) * 26.0;
+        for (k, &i) in here.iter().enumerate() {
+            out[i] = Rect::new(
+                r.x + (r.w - wide) / 2.0 + k as f32 * (bw + 26.0),
+                r.y + row as f32 * step_y,
+                bw,
+                bh,
+            );
+        }
+    }
+    out
+}
+
+/// A dungeon, drawn as the graph it is.
+fn render_dungeon_map(run: &Run, id: &str, mx: f32, my: f32) {
+    let Some(d) = gearmaster_engine::dungeon::by_id(id) else { return };
+    let title = words::place(d.id, d.name);
+    ui_text(title, 40.0, 44.0, 24.0, col_gold());
+    let here = run.dungeon.filter(|(dd, _)| dd.id == d.id).map(|(_, f)| f);
+    ui_text(
+        &format!(
+            "{} floors  ·  {} cleared",
+            d.floors.len(),
+            (0..d.floors.len()).filter(|&f| run.has_cleared(d.id, f)).count()
+        ),
+        40.0,
+        68.0,
+        14.0,
+        col_dim(),
+    );
+
+    let panel = Rect::new(60.0, 110.0, LOGICAL_W - 120.0, LOGICAL_H - 190.0);
+    let cells = dungeon_node_cells(d, panel);
+    // Edges first, so a node sits on top of the line that reaches it.
+    for (i, f) in d.floors.iter().enumerate() {
+        for e in f.exits {
+            let (Some(a), Some(b)) = (cells.get(i), cells.get(e.to)) else { continue };
+            draw_line(
+                a.x + a.w / 2.0,
+                a.y + a.h,
+                b.x + b.w / 2.0,
+                b.y,
+                2.0,
+                Color::from_rgba(96, 96, 124, 255),
+            );
+        }
+    }
+    for (i, f) in d.floors.iter().enumerate() {
+        let Some(c) = cells.get(i) else { continue };
+        let cleared = run.has_cleared(d.id, i);
+        let standing = here == Some(i);
+        draw_rectangle(
+            c.x,
+            c.y,
+            c.w,
+            c.h,
+            if standing {
+                Color::from_rgba(52, 46, 30, 255)
+            } else if cleared {
+                Color::from_rgba(24, 34, 28, 255)
+            } else {
+                Color::from_rgba(24, 24, 36, 255)
+            },
+        );
+        draw_rectangle_lines(
+            c.x,
+            c.y,
+            c.w,
+            c.h,
+            if standing { 3.0 } else { 1.5 },
+            if standing {
+                col_gold()
+            } else if cleared {
+                col_ok()
+            } else {
+                Color::from_rgba(74, 74, 98, 255)
+            },
+        );
+        // A floor you have not reached does not name what is on it.
+        let known = cleared || standing || run.dungeons_entered.contains(&d.id);
+        let label = if known { words::monster(f.creature).to_string() } else { "?".to_string() };
+        let size = fitting_size(&label, c.w - 14.0, &[13.0, 12.0, 11.0, 10.0]);
+        centered_text(&label, c.x + c.w / 2.0, c.y + 20.0, size, LIGHTGRAY);
+        let tail = if f.exits.is_empty() { "the end of it" } else { "" };
+        if !tail.is_empty() {
+            centered_text(tail, c.x + c.w / 2.0, c.y + 36.0, 11.0, col_dim());
+        }
+        if c.contains(Vec2::new(mx, my)) && known {
+            draw_rectangle(c.x, c.y, c.w, c.h, Color::from_rgba(255, 255, 255, 14));
+        }
+    }
+}
+
+/// An orb's destination: the event chain it opens, or the siding it lands on.
+fn render_destination_map(run: &Run, id: &str, mx: f32, my: f32) {
+    let Some(dest) = gearmaster_engine::pedestal::by_id(id) else { return };
+    ui_text(words::place(dest.id, dest.name), 40.0, 44.0, 24.0, col_gold());
+    ui_text(
+        &format!("opened by {}", words::piece(dest.via_orb)),
+        40.0,
+        68.0,
+        14.0,
+        col_dim(),
+    );
+    match dest.kind {
+        gearmaster_engine::pedestal::Where::Dungeon(d)
+        | gearmaster_engine::pedestal::Where::Siding { dungeon: d, .. } => {
+            render_dungeon_map(run, d, mx, my)
+        }
+        gearmaster_engine::pedestal::Where::County => render_county_map(run, mx, my),
+        gearmaster_engine::pedestal::Where::Event(e) => {
+            let panel = Rect::new(60.0, 110.0, LOGICAL_W - 120.0, LOGICAL_H - 190.0);
+            let mut y = panel.y + 10.0;
+            if let Some(ev) = gearmaster_engine::event::EVENTS.iter().find(|x| x.id == e) {
+                ui_text(&words::retell(ev.title), panel.x, y, 18.0, col_gold());
+                y += 30.0;
+                for para in words::scene(ev.id, ev.prose) {
+                    for l in wrap_px(&words::retell_naming(para), panel.w - 40.0, 14.0) {
+                        ui_text(&l, panel.x, y, 14.0, LIGHTGRAY);
+                        y += 19.0;
+                    }
+                    y += 8.0;
+                }
+                for c in ev.choices {
+                    ui_text(
+                        &format!("- {}", words::retell(c.label)),
+                        panel.x + 12.0,
+                        y,
+                        14.0,
+                        col_ok(),
+                    );
+                    y += 20.0;
+                }
+            }
+        }
+    }
+}
+
+/// One place the map can draw.
+///
+/// The road and the county are always there; a dungeon, a siding or an orb's
+/// destination appears only once a run has been to it. A greyed tab for
+/// somewhere you have never heard of is a spoiler with a border round it.
+struct MapPlace {
+    /// The dungeon id, the destination id, or `""` for the road and county.
+    key: &'static str,
+    name: String,
+    known: bool,
+    what: MapKind,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+enum MapKind {
+    Road,
+    County,
+    Dungeon,
+    Destination,
+}
+
+/// Every tab the map screen offers, in order, known ones and all.
+fn map_places(run: &Run) -> Vec<MapPlace> {
+    let mut out = vec![
+        MapPlace {
+            key: "",
+            name: words::word("the-road", "THE ROAD").to_string(),
+            known: true,
+            what: MapKind::Road,
+        },
+        MapPlace {
+            key: "",
+            name: words::word("the-hundred", "THE HUNDRED").to_string(),
+            known: !run.county_trips.is_empty(),
+            what: MapKind::County,
+        },
+    ];
+    for d in gearmaster_engine::dungeon::DUNGEONS {
+        out.push(MapPlace {
+            key: d.id,
+            name: words::place(d.id, d.name).to_string(),
+            known: run.dungeons_entered.contains(&d.id),
+            what: MapKind::Dungeon,
+        });
+    }
+    // A destination that is a dungeon already has a tab as that dungeon; the
+    // ones worth their own are the events and the sidings, which are places
+    // the dungeon list does not name.
+    for dest in gearmaster_engine::pedestal::DESTINATIONS {
+        if matches!(dest.kind, gearmaster_engine::pedestal::Where::Dungeon(_)) {
+            continue;
+        }
+        out.push(MapPlace {
+            key: dest.id,
+            name: words::place(dest.id, dest.name).to_string(),
+            known: run.destinations_visited.contains(&dest.id),
+            what: MapKind::Destination,
+        });
+    }
+    out
+}
+
+/// Where `n` tabs go, in rows, right-aligned under the map's heading.
+///
+/// It was `[Rect; 2]` and two fitted on one row. Thirteen do not, so they
+/// wrap - which is the fourth thing in this interface to grow past its row,
+/// after the glossary shelf, the mode screen and the pedestal tray. Pure, so
+/// the test can ask whether they overlap without a graphics context.
+fn map_tab_rects(n: usize) -> Vec<Rect> {
+    let (tw, th, gap) = (168.0, 28.0, 8.0);
+    let right = LOGICAL_W - 40.0;
+    let per_row = (((right - 40.0) + gap) / (tw + gap)).floor().max(1.0) as usize;
+    (0..n)
+        .map(|i| {
+            let (col, row) = (i % per_row, i / per_row);
+            let in_row = per_row.min(n - row * per_row);
+            let row_w = in_row as f32 * tw + (in_row as f32 - 1.0) * gap;
+            Rect::new(
+                right - row_w + col as f32 * (tw + gap),
+                34.0 + row as f32 * (th + 6.0),
+                tw,
+                th,
+            )
+        })
+        .collect()
 }
 
 /// One cell of the county grid on the map screen.
@@ -13047,23 +13315,23 @@ async fn main() {
         // headless driver prints the same one in ASCII.
         if map_open {
             draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 246));
-            if map_tab == 0 {
-                render_route(&run, mx, my);
-            } else {
-                render_county_map(&run, mx, my);
+            let places = map_places(&run);
+            let shown = map_tab.min(places.len() - 1);
+            match places[shown].what {
+                MapKind::Road => render_route(&run, mx, my),
+                MapKind::County => render_county_map(&run, mx, my),
+                MapKind::Dungeon => render_dungeon_map(&run, places[shown].key, mx, my),
+                MapKind::Destination => render_destination_map(&run, places[shown].key, mx, my),
             }
-            // The tabs, over both. A8's, and the glossary's pattern: the road
-            // tab is what M has always opened and the county is beside it,
-            // greyed with a line until a run has been down there.
-            let tabs = map_tabs();
-            let names = [
-                words::word("the-road", "THE ROAD"),
-                words::word("the-hundred", "THE HUNDRED"),
-            ];
+            // The tabs, over all of them. The road tab is what M has always
+            // opened; everything else is greyed and inert until a run has been
+            // there, because a labelled tab for somewhere you have never heard
+            // of is a spoiler with a border round it.
+            let tabs = map_tab_rects(places.len());
             let mut picked = None;
-            for (i, (rect, name)) in tabs.iter().zip(names).enumerate() {
-                let on = i == map_tab;
-                let hot = rect.contains(Vec2::new(mx, my));
+            for (i, (rect, place)) in tabs.iter().zip(&places).enumerate() {
+                let on = i == shown;
+                let hot = rect.contains(Vec2::new(mx, my)) && place.known;
                 draw_rectangle(
                     rect.x,
                     rect.y,
@@ -13083,18 +13351,23 @@ async fn main() {
                     if on || hot { 2.0 } else { 1.0 },
                     if on || hot { col_gold() } else { Color::from_rgba(64, 64, 88, 255) },
                 );
-                let known = i == 0 || !run.county_trips.is_empty();
+                let label = if place.known {
+                    place.name.clone()
+                } else {
+                    "- - -".to_string()
+                };
+                let size = fitting_size(&label, rect.w - 18.0, &[13.0, 12.0, 11.0, 10.0]);
                 ui_text(
-                    name,
-                    rect.x + 12.0,
-                    rect.y + 20.0,
-                    13.0,
+                    &label,
+                    rect.x + 9.0,
+                    rect.y + 19.0,
+                    size,
                     if on {
                         col_gold()
-                    } else if known {
+                    } else if place.known {
                         col_ok()
                     } else {
-                        col_dim()
+                        Color::from_rgba(70, 70, 92, 255)
                     },
                 );
                 if hot && is_mouse_button_pressed(MouseButton::Left) {
@@ -14644,20 +14917,136 @@ mod tests {
         );
     }
 
-    /// The map's two tabs fit, and the county grid fits under them.
+    /// However many tabs the map has, they fit and none overlaps.
     ///
-    /// A8's second tab, checked the way `compass_cells` and `points_cells`
-    /// are: `map_tabs` and `county_cells` return rectangles rather than
-    /// drawing them, so this needs no graphics context.
+    /// It was two and they sat on one row. It is fifteen now - the road, the
+    /// county, seven dungeons and the destinations that are not dungeons - so
+    /// they wrap, and the sweep goes past what the game can currently ask for
+    /// because the day it asks for more is the day this should fail rather
+    /// than the day somebody notices.
+    #[test]
+    fn the_tabs_fit_however_many_there_are() {
+        for n in 1..=20usize {
+            let tabs = map_tab_rects(n);
+            assert_eq!(tabs.len(), n, "asked for {n} tabs and got {}", tabs.len());
+            for (i, t) in tabs.iter().enumerate() {
+                assert!(t.x >= 0.0, "n={n}: tab {i} is off the left");
+                assert!(t.x + t.w <= LOGICAL_W + 0.01, "n={n}: tab {i} runs off the right");
+                assert!(t.y >= 0.0 && t.y + t.h <= LOGICAL_H, "n={n}: tab {i} is off the screen");
+                for (j, o) in tabs.iter().enumerate().skip(i + 1) {
+                    let apart = t.x + t.w <= o.x + 0.01
+                        || o.x + o.w <= t.x + 0.01
+                        || t.y + t.h <= o.y + 0.01
+                        || o.y + o.h <= t.y + 0.01;
+                    assert!(apart, "n={n}: tabs {i} and {j} overlap");
+                }
+            }
+        }
+    }
+
+    /// Every dungeon lays out without a node on top of another.
+    ///
+    /// From the graph rather than from a table of coordinates per dungeon,
+    /// which would be a second copy of `DUNGEONS` and would go stale the first
+    /// time a floor gained an exit. So the test is over the real table: the
+    /// nine-floor yard, the two-floor lines, and whatever A4 and A7 make of
+    /// them.
+    #[test]
+    fn every_dungeon_draws_without_overlapping_itself() {
+        let panel = Rect::new(60.0, 110.0, LOGICAL_W - 120.0, LOGICAL_H - 190.0);
+        for d in gearmaster_engine::dungeon::DUNGEONS {
+            let cells = dungeon_node_cells(d, panel);
+            assert_eq!(cells.len(), d.floors.len(), "{}: a floor was not placed", d.id);
+            for (i, a) in cells.iter().enumerate() {
+                assert!(
+                    a.x >= panel.x - 0.01 && a.right() <= panel.right() + 0.01,
+                    "{}: floor {i} is outside the panel sideways",
+                    d.id
+                );
+                assert!(
+                    a.y >= panel.y - 0.01 && a.bottom() <= panel.bottom() + 0.01,
+                    "{}: floor {i} is outside the panel vertically",
+                    d.id
+                );
+                for (j, b) in cells.iter().enumerate().skip(i + 1) {
+                    let apart = a.right() <= b.x + 0.01
+                        || b.right() <= a.x + 0.01
+                        || a.bottom() <= b.y + 0.01
+                        || b.bottom() <= a.y + 0.01;
+                    assert!(apart, "{}: floors {i} and {j} are on top of each other", d.id);
+                }
+            }
+        }
+    }
+
+    /// Every edge starts and ends on the floor it names.
+    ///
+    /// The road map has this test and it is the one that catches a layout
+    /// drawn from a stale copy of the table - an edge to a floor that is not
+    /// where the drawing thinks it is.
+    #[test]
+    fn every_dungeon_edge_lands_on_the_floor_it_names() {
+        let panel = Rect::new(60.0, 110.0, LOGICAL_W - 120.0, LOGICAL_H - 190.0);
+        for d in gearmaster_engine::dungeon::DUNGEONS {
+            let cells = dungeon_node_cells(d, panel);
+            for (i, f) in d.floors.iter().enumerate() {
+                for e in f.exits {
+                    assert!(
+                        e.to < d.floors.len(),
+                        "{}: floor {i} exits to {}, which does not exist",
+                        d.id,
+                        e.to
+                    );
+                    assert!(cells.get(e.to).is_some(), "{}: floor {} has no cell", d.id, e.to);
+                }
+            }
+        }
+    }
+
+    /// A floor nothing leads to is drawn apart rather than not at all.
+    ///
+    /// A7 makes islands on purpose, and a breadth-first layout gives an
+    /// unreachable node no depth at all - so it would land on row zero, on top
+    /// of the entrance. This is the guard for that, checked against a graph
+    /// built here rather than waiting for the yard to be rebuilt.
+    #[test]
+    fn an_island_floor_is_placed_somewhere_of_its_own() {
+        use gearmaster_engine::dungeon::{Dungeon, Exit, Floor};
+        static ISLANDS: &[Floor] = &[
+            Floor::along("Cave Rat", "on", &[Exit::on(1)]),
+            Floor::last("Bog Toad", "a stop"),
+            // Nothing leads here.
+            Floor::last("Frost Wisp", "an island"),
+        ];
+        static D: Dungeon = Dungeon {
+            id: "test-islands",
+            name: "ISLANDS",
+            blurb: &[],
+            entry: &[],
+            floors: ISLANDS,
+            reward: "",
+            also: &[],
+        };
+        let panel = Rect::new(60.0, 110.0, LOGICAL_W - 120.0, LOGICAL_H - 190.0);
+        let cells = dungeon_node_cells(&D, panel);
+        assert_eq!(cells.len(), 3);
+        for (i, a) in cells.iter().enumerate() {
+            for (j, b) in cells.iter().enumerate().skip(i + 1) {
+                let apart = a.right() <= b.x + 0.01
+                    || b.right() <= a.x + 0.01
+                    || a.bottom() <= b.y + 0.01
+                    || b.bottom() <= a.y + 0.01;
+                assert!(apart, "the island landed on top of floor {i}, drawn as {j}");
+            }
+        }
+    }
+
+    /// The county grid fits under them.
     #[test]
     fn the_second_tab_and_the_grid_it_opens_both_fit() {
-        let tabs = map_tabs();
-        for (n, t) in ["the road", "the hundred"].iter().zip(&tabs) {
-            assert!(t.x >= 0.0, "{n} is off the left");
-            assert!(t.x + t.w <= LOGICAL_W, "{n} runs off the right");
-            assert!(t.y >= 0.0 && t.y + t.h <= LOGICAL_H, "{n} is off the screen");
-        }
-        assert!(tabs[0].x + tabs[0].w <= tabs[1].x, "the two tabs overlap");
+        // The strip is as many rows as it needs now, so the grid clears the
+        // deepest tab rather than the only row there used to be.
+        let tabs = map_tab_rects(20);
 
         let cells = county_cells();
         assert_eq!(cells.len(), 49, "the county is seven by seven");
