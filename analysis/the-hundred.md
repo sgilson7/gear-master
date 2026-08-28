@@ -1150,3 +1150,73 @@ board is a **share code**: it does not grow, so five of the six figures are
 identical at every rung and only the toll gate reads the rung at all. The
 target was reaching for a spread and a spread is what is pinned - four boards
 at 2, 5, 10 and 8 of twelve, and nothing that takes all of them.
+
+---
+
+## F12 boards, borrowed
+
+The five wear a ladder creature's whole board, spliced in. **Engine 1022, GUI
+81, CLI 9. No warnings.** The four-board table is unchanged.
+
+**This is a deliberate half-measure and the mission says so.** Packing a board
+by hand is a job with somebody reading the diff, and it is deferred past the
+deploy at the owner's instruction. What borrowing buys is that the county's
+five fights are real fights at roughly the right weight on the day it ships,
+rather than five creatures standing there in nothing.
+
+| creature | band | wears | why that one |
+|---|---:|---|---|
+| THE SURVEYOR | 35 | The Tallow Saint | the ladder's own at that band |
+| THE DROVER | 42 | Verdigris | the ladder's own at that band |
+| THE DRIVEN | 42 | Gallowglass (38) | four bands under: a herd is the lighter half of a pursuit |
+| THE COMMISSIONER | 48 | The Drowned Court (43) | the deepest **clean** board on the ladder |
+| THE PARISH | 50 | THE THING ON THE HOOK | thirty-one pieces into ten items, and a partition that round-trips |
+
+The splice was targeted, `make pack`'s save was not used (trap 15), and **the
+whole milestone's deletions are five `gear: &[],` and five `items: &[],` and
+nothing else.**
+
+### Borrowing copies a board's faults as well as its pieces
+
+Three lints refused the obvious donors, and each one is worth writing down.
+
+**`progression::boss_gear_belongs_to_exactly_one_monster`.** THE PARISH first
+borrowed Francis's board and took The Money Jacket with it - the one piece in
+the game that is his coat.
+
+**`progression::no_creature_wears_what_only_a_door_hands_over`**, 13 to 17. The
+ladder past band 43 wears Warlord's Pauldron or Sevenleague Sole; Gilt wears
+three Pauldrons. So the deep end of the ladder cannot be borrowed from at all,
+and THE COMMISSIONER at band 48 wears the band-43 board instead.
+
+**`pack::REORDERED_ON_FIRST_SAVE`**, whose comment says "it should never rise".
+THE PARISH's second donor was The Dreaming Idiot - the densest clean board
+anywhere, thirty-five pieces into thirteen items - and it is **also** one of the
+six whose `items:` partition does not describe the board it is attached to.
+Borrowing it copied that. THE THING ON THE HOOK's board round-trips.
+
+### What the five actually take, at Medium
+
+```text
+                    owner    friend        the ladder, for comparison
+  THE SURVEYOR      12.0s      7.6s
+  THE DROVER+DRIVEN 41.0s     15.2s
+  THE COMMISSIONER  33.0s     12.0s        The Drowned Court  28.5s / 12.0s
+  THE PARISH        36.0s     11.4s        Gilt               38.0s / 13.3s
+                                           Francis            LOSS   / LOSS
+```
+
+Both finished boards win all five. **Three of them run past a sudden death
+that begins at 30 s on the owner's board** - and that is the board rather than
+the county: the same board needs 38 s for the ladder's own band-48 creature
+and **loses to Francis outright**. F14's criterion 6 asks for 29 s on the
+owner's board and is calibrated against a board that cannot do it for anything
+at these bands. What is asserted instead is that both finished boards beat all
+five and that THE PARISH does not fall in three seconds.
+
+### The `gear_at` fixture, re-baselined a second time
+
+6,216 placements to **6,744**. **Nothing was removed** and every one of the 528
+new lines belongs to one of the five, who had no board before this milestone.
+No creature that had a board changed what it wears, on any of the four
+settings.

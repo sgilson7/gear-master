@@ -263,11 +263,7 @@ fn every_creature_the_mission_added_is_a_frame_with_a_brief() {
     // that this mission's dressing milestone is deliberately after the deploy:
     // packing a creature is the one job that wants somebody reading the diff.
     let naked: Vec<&str> = bestiary::unpacked().iter().map(|f| f.name).collect();
-    assert_eq!(
-        naked,
-        ["THE SURVEYOR", "THE DROVER", "THE DRIVEN", "THE COMMISSIONER", "THE PARISH"],
-        "the undressed creatures are not the ones this test is waiting for"
-    );
+    assert!(naked.is_empty(), "{naked:?} still has no board");
 }
 
 // ------------------------------------------------------ 4. a run reaches them

@@ -950,6 +950,13 @@ fn gear_at_every_difficulty() -> String {
 /// fixture is for, because a catalogue that grew by eight components between
 /// M0 and M9 had eight chances to re-sort a footprint family underneath
 /// somebody nobody was editing.
+/// **Re-baselined at THE HUNDRED's F12**, and it is the second legitimate one.
+/// The fixture grew from 6,216 placements to **6,744** and **nothing was
+/// removed**: all 528 new lines belong to THE SURVEYOR, THE DROVER, THE
+/// DRIVEN, THE COMMISSIONER and THE PARISH, who had no board until that
+/// milestone borrowed one for each of them. No creature that had a board
+/// changed what it wears, on any of the four settings.
+///
 #[test]
 fn no_creature_changed_what_it_wears() {
     let want = include_str!("fixtures/gear_at.txt");

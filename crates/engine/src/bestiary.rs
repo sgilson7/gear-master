@@ -791,12 +791,18 @@ mod tests {
     /// at a time. It is an equality, not a bound, so packing a creature
     /// without lowering it fails just as loudly as adding one without raising
     /// it - which is how this went red the moment the ninth board landed.
-    /// **Five since THE HUNDRED's F8**, and it is the same mechanism doing
-    /// the same job a third time: THE SURVEYOR, THE DROVER, THE DRIVEN, THE
-    /// COMMISSIONER and THE PARISH stand at their bands with nothing on until
-    /// the milestone that dresses them. F8's own gate is "frame lint red by
-    /// five, budget re-pinned with the reason" - this is the reason.
-    const UNDRESSED: usize = 5;
+    /// **Back to zero at THE HUNDRED's F12.** It held five for four
+    /// milestones - THE SURVEYOR, THE DROVER, THE DRIVEN, THE COMMISSIONER
+    /// and THE PARISH - which is the phase discipline working a third time.
+    ///
+    /// The boards those five wear are **borrowed** rather than packed: each
+    /// one is a ladder creature's board at or near its own band, spliced in
+    /// whole. That is a deliberate half-measure and the mission says so - the
+    /// hand-packing is a job with the owner in the loop and it comes after the
+    /// deploy, not before it. What borrowing buys is that the county's five
+    /// fights are real fights at roughly the right weight on the day it ships,
+    /// rather than five creatures standing there in nothing.
+    const UNDRESSED: usize = 0;
 
     #[test]
     fn the_frames_are_no_more_undressed_than_they_were() {

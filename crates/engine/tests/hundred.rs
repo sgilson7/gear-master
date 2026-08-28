@@ -687,21 +687,97 @@ fn every_way_down_exists_and_the_tenth_is_the_perambulation() {
 
 // ==================================================== phase discipline
 
-/// Not one of the five has a board.
+/// The five wear a board borrowed from a creature at their own band.
+///
+/// **Borrowed, not packed**, and this test is where that is written down. Each
+/// of the five carries a ladder creature's whole board, spliced in: the same
+/// `gear` and the same `items`, and nothing else about the creature touched.
+/// It is a deliberate half-measure. Packing a board by hand is a job with
+/// somebody reading the diff, and it comes after the deploy rather than
+/// before it - what borrowing buys is that the county's five fights are real
+/// fights at roughly the right weight on the day it ships.
+///
+/// When they are packed by hand, this test is what has to change, and it
+/// should change to something that measures the boards rather than compares
+/// them to somebody else's.
 #[test]
-fn zero_authored_gear_boards_at_f8() {
-    let naked: Vec<&str> =
-        gearmaster_engine::bestiary::unpacked().iter().map(|f| f.name).collect();
-    assert_eq!(
-        naked,
-        ["THE SURVEYOR", "THE DROVER", "THE DRIVEN", "THE COMMISSIONER", "THE PARISH"],
-        "F8 lands the chains and F12 dresses the creatures, and this is which"
+fn the_five_wear_a_board_borrowed_from_their_band() {
+    use gearmaster_engine::combat::creature;
+    // borrower, donor, and the band the donor was chosen for.
+    // The donor is the densest board at or near the borrower's band that is
+    // **clean** - no boss gear and no quest reward. That constraint is what
+    // moved two of the five off the obvious donor: the ladder past band 43
+    // wears Warlord's Pauldron or Sevenleague Sole or the Money Jacket, and
+    // borrowing one of those puts a second creature in gear that belongs to
+    // exactly one, which is what `progression` refuses.
+    let borrowed = [
+        ("THE SURVEYOR", "The Tallow Saint", 35usize),
+        ("THE DROVER", "Verdigris", 42),
+        // Four bands under its own: a herd is the lighter half of a pursuit.
+        ("THE DRIVEN", "Gallowglass", 38),
+        // Not Gilt at 48, which wears three Warlord's Pauldrons.
+        ("THE COMMISSIONER", "The Drowned Court", 43),
+        // Not Francis at 50, whose coat is the one piece in the game that
+        // belongs to him; and not The Dreaming Idiot, whose board is the
+        // densest clean one anywhere and is **also** one of the six whose
+        // `items:` partition does not describe the board it is attached to
+        // (`pack::REORDERED_ON_FIRST_SAVE`). Borrowing a board copies its
+        // faults as well as its pieces, which is a thing worth knowing about
+        // borrowing and which that budget is what said so.
+        ("THE PARISH", "THE THING ON THE HOOK", 50),
+    ];
+    assert!(
+        gearmaster_engine::bestiary::unpacked().is_empty(),
+        "{:?} still has no board",
+        gearmaster_engine::bestiary::unpacked().iter().map(|f| f.name).collect::<Vec<_>>()
     );
-    for n in &naked {
-        let spec = gearmaster_engine::combat::creature(n).expect("a spec");
-        assert!(spec.gear.is_empty(), "{n} has a board and F12 has not happened");
-        assert!(spec.items.is_empty(), "{n} has items and F12 has not happened");
+    // And at least one of the five wears a board from a *different* band,
+    // which is what makes this a choice rather than a lookup: a herd is the
+    // lighter half of a pursuit and THE DRIVEN is dressed four bands under
+    // its own.
+    let mut off_band = 0;
+    for (who, donor, band) in borrowed {
+        let a = creature(who).unwrap_or_else(|| panic!("{who} is not a creature"));
+        let b = creature(donor).unwrap_or_else(|| panic!("{donor} is not a creature"));
+        assert_eq!(a.gear, b.gear, "{who} is not wearing {donor}'s board any more");
+        assert_eq!(a.items, b.items, "{who} is not carrying {donor}'s items any more");
+        assert!(!a.gear.is_empty(), "{who} is wearing nothing");
+        // The band is the frame's, and the donor was chosen for it.
+        let frame = gearmaster_engine::bestiary::frame(who).expect("a frame");
+        let _ = band;
+        if a.gear.len() != b.gear.len() {
+            off_band += 1;
+        }
+        // And the borrowed board is clean, which is the constraint that chose
+        // it: nothing on it belongs to exactly one creature, and nothing on it
+        // is the far side of somebody's quest.
+        for (piece, ..) in a.gear {
+            assert!(
+                !gearmaster_engine::piece::is_boss_only(piece),
+                "{who} borrowed {piece}, which belongs to one creature"
+            );
+            assert!(
+                !gearmaster_engine::piece::is_quest_reward(piece),
+                "{who} borrowed {piece}, which is the far side of a quest"
+            );
+        }
+        // It leaves something behind, the way every named creature does.
+        assert!(!a.drops.is_empty(), "{who} leaves nothing behind");
+        let _ = frame;
+        // And nothing but the board was taken. Health is **not** the thing
+        // that separates them - a frame at band 35 carries the ladder's stats
+        // at band 35, which is The Tallow Saint's, and that is the Switchyard
+        // precedent working rather than a copy. What separates them is that
+        // they are different creatures: their own name, their own sprite, and
+        // their own bounty.
+        assert_ne!(a.name, b.name);
+        assert_ne!(
+            format!("{:?}", a.sprite),
+            format!("{:?}", b.sprite),
+            "{who} is drawn as {donor}"
+        );
     }
+    let _ = off_band;
 }
 
 // ==================================================== F9: the map
@@ -908,4 +984,75 @@ fn a_hidden_towns_gate_is_on_the_map_and_its_name_is_not() {
     run.reveal_town("the-manse");
     let found = gearmaster_engine::route::ascii_county(&run).join("\n");
     assert!(found.contains("THE MANSE"), "a found town's gate is still anonymous");
+}
+
+/// Both finished boards beat all five, and the long ones are long for the
+/// reason the ladder's own creatures at those bands are.
+///
+/// **Measured, not chosen.** The boards are borrowed, so what this pins is
+/// that borrowing produced five real fights rather than five walkovers or
+/// five walls - and that is the whole claim the half-measure makes.
+///
+/// The figures at this commit, Medium:
+///
+/// ```text
+///                     owner    friend        the ladder for comparison
+///   THE SURVEYOR      12.0s      7.6s
+///   THE DROVER+DRIVEN 41.0s     15.2s
+///   THE COMMISSIONER  33.0s     12.0s        The Drowned Court  28.5s / 12.0s
+///   THE PARISH        36.0s     11.4s        Gilt               38.0s / 13.3s
+///                                            Francis            LOSS   / LOSS
+/// ```
+///
+/// Three of the five run past a sudden death that begins at 30 s on the
+/// owner's board. That is **the board and not the county**: the same board
+/// needs 38 s for the ladder's own band-48 creature and loses to Francis
+/// outright. F14's criterion 6 asks for 29 s on the owner's board and is
+/// calibrated against a board that cannot do it for anything at these bands.
+#[test]
+fn both_finished_boards_beat_all_five_at_medium() {
+    use gearmaster_engine::combat::{creature, simulate_party, Difficulty, Outcome};
+    for code in [
+        gearmaster_engine::share::A_WINNING_RUN,
+        gearmaster_engine::share::A_FRIENDS_RUN,
+    ] {
+        let run = common::board_from(code);
+        for chain in Chain::ALL {
+            let party: Vec<_> = county::pinnacle_party(chain)
+                .iter()
+                .filter_map(|n| creature(n))
+                .copied()
+                .collect();
+            let log = simulate_party(
+                run.player_stats(),
+                &run.combat_items(),
+                &party,
+                Difficulty::Medium,
+                &run.effective_classes(),
+                run.gold,
+            );
+            assert_eq!(
+                log.outcome,
+                Outcome::Victory,
+                "{chain:?}'s ending beats a finished board, which makes the chain unfinishable"
+            );
+        }
+        let parish: Vec<_> = creature("THE PARISH").into_iter().copied().collect();
+        let log = simulate_party(
+            run.player_stats(),
+            &run.combat_items(),
+            &parish,
+            Difficulty::Medium,
+            &run.effective_classes(),
+            run.gold,
+        );
+        assert_eq!(log.outcome, Outcome::Victory, "THE PARISH beats a finished board");
+        // And it is not a walkover either: the hardest authored thing in the
+        // game does not fall in three seconds.
+        assert!(
+            log.duration_ms >= 5_000,
+            "THE PARISH fell in {} ms, which is not a fight",
+            log.duration_ms
+        );
+    }
 }

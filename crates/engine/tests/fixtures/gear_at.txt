@@ -12430,3 +12430,1059 @@ ALTERNATES[27] THE ROUNDHOUSE INSANE Helmet 3,6 r0
     Overflow Plate
 ALTERNATES[27] THE ROUNDHOUSE INSANE Helmet 5,5 r1
     The Empty Crown
+ALTERNATES[28] THE SURVEYOR EASY Weapon 0,0 r0
+    Worldeye Orb
+ALTERNATES[28] THE SURVEYOR EASY Weapon 3,0 r0
+    Sunder
+ALTERNATES[28] THE SURVEYOR EASY Weapon 3,1 r0
+    Shatterbolt
+ALTERNATES[28] THE SURVEYOR EASY Weapon 0,2 r0
+    Cometfall
+ALTERNATES[28] THE SURVEYOR EASY Weapon 3,2 r0
+    Rootwork Alignment
+ALTERNATES[28] THE SURVEYOR EASY Helmet 0,0 r0
+    Stormcaught Frame
+ALTERNATES[28] THE SURVEYOR EASY Helmet 3,0 r0
+    Bulwark Plating
+ALTERNATES[28] THE SURVEYOR EASY Helmet 0,2 r0
+    Tin Frame
+ALTERNATES[28] THE SURVEYOR EASY Helmet 2,2 r0
+    Reckoning Plate
+ALTERNATES[28] THE SURVEYOR EASY Helmet 4,2 r1
+    Scrying Lens
+ALTERNATES[28] THE SURVEYOR EASY Helmet 5,0 r1
+    Martyr's Crest
+ALTERNATES[28] THE SURVEYOR EASY Helmet 0,4 r0
+    Stormcaught Frame
+ALTERNATES[28] THE SURVEYOR EASY Helmet 3,5 r0
+    Bulwark Plating
+ALTERNATES[28] THE SURVEYOR EASY Helmet 5,3 r1
+    Scrying Lens
+ALTERNATES[28] THE SURVEYOR EASY Helmet 0,6 r0
+    Bone Frame
+ALTERNATES[28] THE SURVEYOR EASY Helmet 1,7 r0
+    Scrying Lens
+ALTERNATES[28] THE SURVEYOR MEDIUM Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[28] THE SURVEYOR MEDIUM Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[28] THE SURVEYOR MEDIUM Weapon 3,1 r0
+    Sunder
+ALTERNATES[28] THE SURVEYOR MEDIUM Weapon 0,2 r0
+    Starfall
+ALTERNATES[28] THE SURVEYOR MEDIUM Weapon 3,2 r0
+    Rootwork Alignment
+ALTERNATES[28] THE SURVEYOR MEDIUM Helmet 0,0 r0
+    Stormcaught Frame
+ALTERNATES[28] THE SURVEYOR MEDIUM Helmet 3,0 r0
+    Consecrated Plating
+ALTERNATES[28] THE SURVEYOR MEDIUM Helmet 0,2 r0
+    Bronze Frame
+ALTERNATES[28] THE SURVEYOR MEDIUM Helmet 2,2 r0
+    Reckoning Plate
+ALTERNATES[28] THE SURVEYOR MEDIUM Helmet 4,2 r1
+    Scrying Lens
+ALTERNATES[28] THE SURVEYOR MEDIUM Helmet 5,0 r1
+    Martyr's Crest
+ALTERNATES[28] THE SURVEYOR MEDIUM Helmet 0,4 r0
+    Stormcaught Frame
+ALTERNATES[28] THE SURVEYOR MEDIUM Helmet 3,5 r0
+    Consecrated Plating
+ALTERNATES[28] THE SURVEYOR MEDIUM Helmet 5,3 r1
+    Scrying Lens
+ALTERNATES[28] THE SURVEYOR MEDIUM Helmet 0,6 r0
+    Bone Frame
+ALTERNATES[28] THE SURVEYOR MEDIUM Helmet 1,7 r0
+    Scrying Lens
+ALTERNATES[28] THE SURVEYOR HARD Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[28] THE SURVEYOR HARD Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[28] THE SURVEYOR HARD Weapon 3,1 r0
+    Slash and Burn
+ALTERNATES[28] THE SURVEYOR HARD Weapon 0,2 r0
+    Starfall
+ALTERNATES[28] THE SURVEYOR HARD Weapon 3,2 r0
+    Rootwork Alignment
+ALTERNATES[28] THE SURVEYOR HARD Helmet 0,0 r0
+    Anvil Frame
+ALTERNATES[28] THE SURVEYOR HARD Helmet 3,0 r0
+    Consecrated Plating
+ALTERNATES[28] THE SURVEYOR HARD Helmet 0,2 r0
+    Warded Frame
+ALTERNATES[28] THE SURVEYOR HARD Helmet 2,2 r0
+    Reckoning Plate
+ALTERNATES[28] THE SURVEYOR HARD Helmet 4,2 r1
+    Visor of Focus
+ALTERNATES[28] THE SURVEYOR HARD Helmet 5,0 r1
+    Martyr's Crest
+ALTERNATES[28] THE SURVEYOR HARD Helmet 0,4 r0
+    Anvil Frame
+ALTERNATES[28] THE SURVEYOR HARD Helmet 3,5 r0
+    Consecrated Plating
+ALTERNATES[28] THE SURVEYOR HARD Helmet 5,3 r1
+    Visor of Focus
+ALTERNATES[28] THE SURVEYOR HARD Helmet 0,6 r0
+    Bone Frame
+ALTERNATES[28] THE SURVEYOR HARD Helmet 1,7 r0
+    Visor of Focus
+ALTERNATES[28] THE SURVEYOR INSANE Weapon 0,0 r0
+    Grovemind Orb
+ALTERNATES[28] THE SURVEYOR INSANE Weapon 3,0 r0
+    Slash and Burn
+ALTERNATES[28] THE SURVEYOR INSANE Weapon 3,1 r0
+    Slash and Burn
+ALTERNATES[28] THE SURVEYOR INSANE Weapon 0,2 r0
+    Starfall
+ALTERNATES[28] THE SURVEYOR INSANE Weapon 3,2 r0
+    Rootwork Alignment
+ALTERNATES[28] THE SURVEYOR INSANE Helmet 0,0 r0
+    Stonewall Frame
+ALTERNATES[28] THE SURVEYOR INSANE Helmet 3,0 r0
+    Consecrated Plating
+ALTERNATES[28] THE SURVEYOR INSANE Helmet 0,2 r0
+    Warded Frame
+ALTERNATES[28] THE SURVEYOR INSANE Helmet 2,2 r0
+    Reckoning Plate
+ALTERNATES[28] THE SURVEYOR INSANE Helmet 4,2 r1
+    Visor of Focus
+ALTERNATES[28] THE SURVEYOR INSANE Helmet 5,0 r1
+    Martyr's Crest
+ALTERNATES[28] THE SURVEYOR INSANE Helmet 0,4 r0
+    Stonewall Frame
+ALTERNATES[28] THE SURVEYOR INSANE Helmet 3,5 r0
+    Consecrated Plating
+ALTERNATES[28] THE SURVEYOR INSANE Helmet 5,3 r1
+    Visor of Focus
+ALTERNATES[28] THE SURVEYOR INSANE Helmet 0,6 r0
+    Bone Frame
+ALTERNATES[28] THE SURVEYOR INSANE Helmet 1,7 r0
+    Visor of Focus
+ALTERNATES[29] THE DROVER EASY Gloves 0,0 r0
+    Ashwoven Material
+ALTERNATES[29] THE DROVER EASY Gloves 3,0 r0
+    Ravener's Mold
+ALTERNATES[29] THE DROVER EASY Gloves 0,1 r0
+    Seal of the Deep
+ALTERNATES[29] THE DROVER EASY Gloves 5,0 r0
+    Siphon Ring
+ALTERNATES[29] THE DROVER EASY Gloves 0,2 r0
+    Ashwoven Material
+ALTERNATES[29] THE DROVER EASY Gloves 3,2 r0
+    Throttling Mold
+ALTERNATES[29] THE DROVER EASY Gloves 2,1 r0
+    Siphon Ring
+ALTERNATES[29] THE DROVER EASY Gloves 4,1 r0
+    Siphon Ring
+ALTERNATES[29] THE DROVER EASY Gloves 5,1 r1
+    Ashwoven Material
+ALTERNATES[29] THE DROVER EASY Gloves 4,4 r0
+    Throttling Mold
+ALTERNATES[29] THE DROVER EASY Gloves 2,4 r0
+    Storm Signet
+ALTERNATES[29] THE DROVER EASY Gloves 2,3 r0
+    Siphon Ring
+ALTERNATES[29] THE DROVER EASY Gloves 0,3 r1
+    Ashwoven Material
+ALTERNATES[29] THE DROVER EASY Gloves 1,4 r3
+    Ravener's Mold
+ALTERNATES[29] THE DROVER EASY Gloves 3,5 r1
+    Storm Signet
+ALTERNATES[29] THE DROVER EASY Gloves 1,3 r0
+    Siphon Ring
+ALTERNATES[29] THE DROVER EASY Gloves 0,6 r0
+    Ashwoven Material
+ALTERNATES[29] THE DROVER EASY Gloves 2,6 r3
+    Gauntlet Mold
+ALTERNATES[29] THE DROVER EASY Gloves 0,7 r0
+    Storm Signet
+ALTERNATES[29] THE DROVER EASY Gloves 5,6 r0
+    Siphon Ring
+ALTERNATES[29] THE DROVER EASY Helmet 0,0 r0
+    Stonewall Frame
+ALTERNATES[29] THE DROVER EASY Helmet 3,0 r0
+    Bulwark Plating
+ALTERNATES[29] THE DROVER EASY Helmet 0,2 r0
+    Mana Ward
+ALTERNATES[29] THE DROVER EASY Helmet 3,2 r0
+    Stonewall Frame
+ALTERNATES[29] THE DROVER EASY Helmet 2,4 r0
+    Bulwark Plating
+ALTERNATES[29] THE DROVER EASY Helmet 0,3 r3
+    Mana Ward
+ALTERNATES[29] THE DROVER EASY Helmet 4,4 r1
+    Stonewall Frame
+ALTERNATES[29] THE DROVER EASY Helmet 2,6 r0
+    Bulwark Plating
+ALTERNATES[29] THE DROVER EASY Helmet 0,5 r1
+    Mana Ward
+ALTERNATES[29] THE DROVER MEDIUM Gloves 0,0 r0
+    Rootwoven Material
+ALTERNATES[29] THE DROVER MEDIUM Gloves 3,0 r0
+    Flaying Mold
+ALTERNATES[29] THE DROVER MEDIUM Gloves 0,1 r0
+    Seal of Power
+ALTERNATES[29] THE DROVER MEDIUM Gloves 5,0 r0
+    Grasping Ring
+ALTERNATES[29] THE DROVER MEDIUM Gloves 0,2 r0
+    Rootwoven Material
+ALTERNATES[29] THE DROVER MEDIUM Gloves 3,2 r0
+    Throttling Mold
+ALTERNATES[29] THE DROVER MEDIUM Gloves 2,1 r0
+    Grasping Ring
+ALTERNATES[29] THE DROVER MEDIUM Gloves 4,1 r0
+    Grasping Ring
+ALTERNATES[29] THE DROVER MEDIUM Gloves 5,1 r1
+    Rootwoven Material
+ALTERNATES[29] THE DROVER MEDIUM Gloves 4,4 r0
+    Throttling Mold
+ALTERNATES[29] THE DROVER MEDIUM Gloves 2,4 r0
+    Seal of the Deep
+ALTERNATES[29] THE DROVER MEDIUM Gloves 2,3 r0
+    Grasping Ring
+ALTERNATES[29] THE DROVER MEDIUM Gloves 0,3 r1
+    Rootwoven Material
+ALTERNATES[29] THE DROVER MEDIUM Gloves 1,4 r3
+    Flaying Mold
+ALTERNATES[29] THE DROVER MEDIUM Gloves 3,5 r1
+    Seal of the Deep
+ALTERNATES[29] THE DROVER MEDIUM Gloves 1,3 r0
+    Grasping Ring
+ALTERNATES[29] THE DROVER MEDIUM Gloves 0,6 r0
+    Rootwoven Material
+ALTERNATES[29] THE DROVER MEDIUM Gloves 2,6 r3
+    Gauntlet Mold
+ALTERNATES[29] THE DROVER MEDIUM Gloves 0,7 r0
+    Seal of the Deep
+ALTERNATES[29] THE DROVER MEDIUM Gloves 5,6 r0
+    Grasping Ring
+ALTERNATES[29] THE DROVER MEDIUM Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[29] THE DROVER MEDIUM Helmet 3,0 r0
+    Consecrated Plating
+ALTERNATES[29] THE DROVER MEDIUM Helmet 0,2 r0
+    Mirrored Visor
+ALTERNATES[29] THE DROVER MEDIUM Helmet 3,2 r0
+    Overseer's Circlet
+ALTERNATES[29] THE DROVER MEDIUM Helmet 2,4 r0
+    Consecrated Plating
+ALTERNATES[29] THE DROVER MEDIUM Helmet 0,3 r3
+    Mirrored Visor
+ALTERNATES[29] THE DROVER MEDIUM Helmet 4,4 r1
+    Overseer's Circlet
+ALTERNATES[29] THE DROVER MEDIUM Helmet 2,6 r0
+    Consecrated Plating
+ALTERNATES[29] THE DROVER MEDIUM Helmet 0,5 r1
+    Mirrored Visor
+ALTERNATES[29] THE DROVER HARD Gloves 0,0 r0
+    Rootwoven Material
+ALTERNATES[29] THE DROVER HARD Gloves 3,0 r0
+    Spiked Vambrace
+ALTERNATES[29] THE DROVER HARD Gloves 0,1 r0
+    Mirrorplate Ring
+ALTERNATES[29] THE DROVER HARD Gloves 5,0 r0
+    Ring of Tides
+ALTERNATES[29] THE DROVER HARD Gloves 0,2 r0
+    Rootwoven Material
+ALTERNATES[29] THE DROVER HARD Gloves 3,2 r0
+    Warding Mold
+ALTERNATES[29] THE DROVER HARD Gloves 2,1 r0
+    Ring of Tides
+ALTERNATES[29] THE DROVER HARD Gloves 4,1 r0
+    Ring of Tides
+ALTERNATES[29] THE DROVER HARD Gloves 5,1 r1
+    Rootwoven Material
+ALTERNATES[29] THE DROVER HARD Gloves 4,4 r0
+    Warding Mold
+ALTERNATES[29] THE DROVER HARD Gloves 2,4 r0
+    Seal of Power
+ALTERNATES[29] THE DROVER HARD Gloves 2,3 r0
+    Ring of Tides
+ALTERNATES[29] THE DROVER HARD Gloves 0,3 r1
+    Rootwoven Material
+ALTERNATES[29] THE DROVER HARD Gloves 1,4 r3
+    Spiked Vambrace
+ALTERNATES[29] THE DROVER HARD Gloves 3,5 r1
+    Seal of Power
+ALTERNATES[29] THE DROVER HARD Gloves 1,3 r0
+    Ring of Tides
+ALTERNATES[29] THE DROVER HARD Gloves 0,6 r0
+    Rootwoven Material
+ALTERNATES[29] THE DROVER HARD Gloves 2,6 r3
+    Gauntlet Mold
+ALTERNATES[29] THE DROVER HARD Gloves 0,7 r0
+    Seal of Power
+ALTERNATES[29] THE DROVER HARD Gloves 5,6 r0
+    Ring of Tides
+ALTERNATES[29] THE DROVER HARD Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[29] THE DROVER HARD Helmet 3,0 r0
+    Consecrated Plating
+ALTERNATES[29] THE DROVER HARD Helmet 0,2 r0
+    Godsteel Plating
+ALTERNATES[29] THE DROVER HARD Helmet 3,2 r0
+    Overseer's Circlet
+ALTERNATES[29] THE DROVER HARD Helmet 2,4 r0
+    Consecrated Plating
+ALTERNATES[29] THE DROVER HARD Helmet 0,3 r3
+    Godsteel Plating
+ALTERNATES[29] THE DROVER HARD Helmet 4,4 r1
+    Overseer's Circlet
+ALTERNATES[29] THE DROVER HARD Helmet 2,6 r0
+    Consecrated Plating
+ALTERNATES[29] THE DROVER HARD Helmet 0,5 r1
+    Godsteel Plating
+ALTERNATES[29] THE DROVER INSANE Gloves 0,0 r0
+    Rootwoven Material
+ALTERNATES[29] THE DROVER INSANE Gloves 3,0 r0
+    Spiked Vambrace
+ALTERNATES[29] THE DROVER INSANE Gloves 0,1 r0
+    Mirrorplate Ring
+ALTERNATES[29] THE DROVER INSANE Gloves 5,0 r0
+    Tin Band
+ALTERNATES[29] THE DROVER INSANE Gloves 0,2 r0
+    Rootwoven Material
+ALTERNATES[29] THE DROVER INSANE Gloves 3,2 r0
+    Rending Mold
+ALTERNATES[29] THE DROVER INSANE Gloves 2,1 r0
+    Tin Band
+ALTERNATES[29] THE DROVER INSANE Gloves 4,1 r0
+    Tin Band
+ALTERNATES[29] THE DROVER INSANE Gloves 5,1 r1
+    Rootwoven Material
+ALTERNATES[29] THE DROVER INSANE Gloves 4,4 r0
+    Rending Mold
+ALTERNATES[29] THE DROVER INSANE Gloves 2,4 r0
+    Mirrorplate Ring
+ALTERNATES[29] THE DROVER INSANE Gloves 2,3 r0
+    Tin Band
+ALTERNATES[29] THE DROVER INSANE Gloves 0,3 r1
+    Rootwoven Material
+ALTERNATES[29] THE DROVER INSANE Gloves 1,4 r3
+    Spiked Vambrace
+ALTERNATES[29] THE DROVER INSANE Gloves 3,5 r1
+    Mirrorplate Ring
+ALTERNATES[29] THE DROVER INSANE Gloves 1,3 r0
+    Tin Band
+ALTERNATES[29] THE DROVER INSANE Gloves 0,6 r0
+    Rootwoven Material
+ALTERNATES[29] THE DROVER INSANE Gloves 2,6 r3
+    Gauntlet Mold
+ALTERNATES[29] THE DROVER INSANE Gloves 0,7 r0
+    Mirrorplate Ring
+ALTERNATES[29] THE DROVER INSANE Gloves 5,6 r0
+    Tin Band
+ALTERNATES[29] THE DROVER INSANE Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[29] THE DROVER INSANE Helmet 3,0 r0
+    Consecrated Plating
+ALTERNATES[29] THE DROVER INSANE Helmet 0,2 r0
+    Godsteel Plating
+ALTERNATES[29] THE DROVER INSANE Helmet 3,2 r0
+    Overseer's Circlet
+ALTERNATES[29] THE DROVER INSANE Helmet 2,4 r0
+    Consecrated Plating
+ALTERNATES[29] THE DROVER INSANE Helmet 0,3 r3
+    Godsteel Plating
+ALTERNATES[29] THE DROVER INSANE Helmet 4,4 r1
+    Overseer's Circlet
+ALTERNATES[29] THE DROVER INSANE Helmet 2,6 r0
+    Consecrated Plating
+ALTERNATES[29] THE DROVER INSANE Helmet 0,5 r1
+    Godsteel Plating
+ALTERNATES[30] THE DRIVEN EASY Gloves 0,0 r0
+    Ashwoven Material
+ALTERNATES[30] THE DRIVEN EASY Gloves 3,0 r0
+    Twinning Mold
+ALTERNATES[30] THE DRIVEN EASY Gloves 0,1 r0
+    Seal of the Deep
+ALTERNATES[30] THE DRIVEN EASY Gloves 5,0 r0
+    Siphon Ring
+ALTERNATES[30] THE DRIVEN EASY Gloves 0,2 r0
+    Ashwoven Material
+ALTERNATES[30] THE DRIVEN EASY Gloves 3,1 r2
+    Ravener's Mold
+ALTERNATES[30] THE DRIVEN EASY Gloves 5,1 r1
+    Ashwoven Material
+ALTERNATES[30] THE DRIVEN EASY Gloves 3,3 r0
+    Ravener's Mold
+ALTERNATES[30] THE DRIVEN EASY Gloves 1,3 r0
+    Storm Signet
+ALTERNATES[30] THE DRIVEN EASY Gloves 0,3 r0
+    Siphon Ring
+ALTERNATES[30] THE DRIVEN EASY Gloves 0,4 r0
+    Ashwoven Material
+ALTERNATES[30] THE DRIVEN EASY Gloves 0,5 r0
+    Ravener's Mold
+ALTERNATES[30] THE DRIVEN EASY Gloves 2,5 r0
+    Siphon Ring
+ALTERNATES[30] THE DRIVEN EASY Gloves 3,5 r0
+    Siphon Ring
+ALTERNATES[30] THE DRIVEN EASY Gloves 4,4 r1
+    Ashwoven Material
+ALTERNATES[30] THE DRIVEN EASY Gloves 2,6 r0
+    Ravener's Mold
+ALTERNATES[30] THE DRIVEN EASY Gloves 5,4 r0
+    Siphon Ring
+ALTERNATES[30] THE DRIVEN EASY Gloves 5,5 r0
+    Siphon Ring
+ALTERNATES[30] THE DRIVEN EASY Helmet 0,0 r0
+    Stonewall Frame
+ALTERNATES[30] THE DRIVEN EASY Helmet 3,0 r0
+    Bulwark Plating
+ALTERNATES[30] THE DRIVEN EASY Helmet 0,2 r0
+    Mana Ward
+ALTERNATES[30] THE DRIVEN EASY Helmet 5,0 r1
+    Tithe Collector
+ALTERNATES[30] THE DRIVEN EASY Helmet 3,2 r0
+    Stonewall Frame
+ALTERNATES[30] THE DRIVEN EASY Helmet 2,4 r0
+    Bulwark Plating
+ALTERNATES[30] THE DRIVEN EASY Helmet 0,4 r1
+    Stonewall Frame
+ALTERNATES[30] THE DRIVEN EASY Helmet 2,6 r0
+    Mana Ward
+ALTERNATES[30] THE DRIVEN EASY Helmet 4,4 r1
+    Mana Ward
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 0,0 r0
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 3,0 r0
+    Hexer's Tally
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 0,1 r0
+    Seal of Power
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 5,0 r0
+    Grasping Ring
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 0,2 r0
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 3,1 r2
+    Flaying Mold
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 5,1 r1
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 3,3 r0
+    Flaying Mold
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 1,3 r0
+    Seal of the Deep
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 0,3 r0
+    Grasping Ring
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 0,4 r0
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 0,5 r0
+    Flaying Mold
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 2,5 r0
+    Grasping Ring
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 3,5 r0
+    Grasping Ring
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 4,4 r1
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 2,6 r0
+    Flaying Mold
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 5,4 r0
+    Grasping Ring
+ALTERNATES[30] THE DRIVEN MEDIUM Gloves 5,5 r0
+    Grasping Ring
+ALTERNATES[30] THE DRIVEN MEDIUM Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[30] THE DRIVEN MEDIUM Helmet 3,0 r0
+    Consecrated Plating
+ALTERNATES[30] THE DRIVEN MEDIUM Helmet 0,2 r0
+    Mirrored Visor
+ALTERNATES[30] THE DRIVEN MEDIUM Helmet 5,0 r1
+    Tithe Collector
+ALTERNATES[30] THE DRIVEN MEDIUM Helmet 3,2 r0
+    Overseer's Circlet
+ALTERNATES[30] THE DRIVEN MEDIUM Helmet 2,4 r0
+    Consecrated Plating
+ALTERNATES[30] THE DRIVEN MEDIUM Helmet 0,4 r1
+    Overseer's Circlet
+ALTERNATES[30] THE DRIVEN MEDIUM Helmet 2,6 r0
+    Mirrored Visor
+ALTERNATES[30] THE DRIVEN MEDIUM Helmet 4,4 r1
+    Mirrored Visor
+ALTERNATES[30] THE DRIVEN HARD Gloves 0,0 r0
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN HARD Gloves 3,0 r0
+    Channeling Mold
+ALTERNATES[30] THE DRIVEN HARD Gloves 0,1 r0
+    Mirrorplate Ring
+ALTERNATES[30] THE DRIVEN HARD Gloves 5,0 r0
+    Ring of Tides
+ALTERNATES[30] THE DRIVEN HARD Gloves 0,2 r0
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN HARD Gloves 3,1 r2
+    Spiked Vambrace
+ALTERNATES[30] THE DRIVEN HARD Gloves 5,1 r1
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN HARD Gloves 3,3 r0
+    Spiked Vambrace
+ALTERNATES[30] THE DRIVEN HARD Gloves 1,3 r0
+    Seal of Power
+ALTERNATES[30] THE DRIVEN HARD Gloves 0,3 r0
+    Ring of Tides
+ALTERNATES[30] THE DRIVEN HARD Gloves 0,4 r0
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN HARD Gloves 0,5 r0
+    Spiked Vambrace
+ALTERNATES[30] THE DRIVEN HARD Gloves 2,5 r0
+    Ring of Tides
+ALTERNATES[30] THE DRIVEN HARD Gloves 3,5 r0
+    Ring of Tides
+ALTERNATES[30] THE DRIVEN HARD Gloves 4,4 r1
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN HARD Gloves 2,6 r0
+    Spiked Vambrace
+ALTERNATES[30] THE DRIVEN HARD Gloves 5,4 r0
+    Ring of Tides
+ALTERNATES[30] THE DRIVEN HARD Gloves 5,5 r0
+    Ring of Tides
+ALTERNATES[30] THE DRIVEN HARD Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[30] THE DRIVEN HARD Helmet 3,0 r0
+    Consecrated Plating
+ALTERNATES[30] THE DRIVEN HARD Helmet 0,2 r0
+    Godsteel Plating
+ALTERNATES[30] THE DRIVEN HARD Helmet 5,0 r1
+    Doubter's Crest
+ALTERNATES[30] THE DRIVEN HARD Helmet 3,2 r0
+    Overseer's Circlet
+ALTERNATES[30] THE DRIVEN HARD Helmet 2,4 r0
+    Consecrated Plating
+ALTERNATES[30] THE DRIVEN HARD Helmet 0,4 r1
+    Overseer's Circlet
+ALTERNATES[30] THE DRIVEN HARD Helmet 2,6 r0
+    Godsteel Plating
+ALTERNATES[30] THE DRIVEN HARD Helmet 4,4 r1
+    Godsteel Plating
+ALTERNATES[30] THE DRIVEN INSANE Gloves 0,0 r0
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN INSANE Gloves 3,0 r0
+    Knuckleduster
+ALTERNATES[30] THE DRIVEN INSANE Gloves 0,1 r0
+    Mirrorplate Ring
+ALTERNATES[30] THE DRIVEN INSANE Gloves 5,0 r0
+    Tin Band
+ALTERNATES[30] THE DRIVEN INSANE Gloves 0,2 r0
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN INSANE Gloves 3,1 r2
+    Spiked Vambrace
+ALTERNATES[30] THE DRIVEN INSANE Gloves 5,1 r1
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN INSANE Gloves 3,3 r0
+    Spiked Vambrace
+ALTERNATES[30] THE DRIVEN INSANE Gloves 1,3 r0
+    Mirrorplate Ring
+ALTERNATES[30] THE DRIVEN INSANE Gloves 0,3 r0
+    Tin Band
+ALTERNATES[30] THE DRIVEN INSANE Gloves 0,4 r0
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN INSANE Gloves 0,5 r0
+    Spiked Vambrace
+ALTERNATES[30] THE DRIVEN INSANE Gloves 2,5 r0
+    Tin Band
+ALTERNATES[30] THE DRIVEN INSANE Gloves 3,5 r0
+    Tin Band
+ALTERNATES[30] THE DRIVEN INSANE Gloves 4,4 r1
+    Rootwoven Material
+ALTERNATES[30] THE DRIVEN INSANE Gloves 2,6 r0
+    Spiked Vambrace
+ALTERNATES[30] THE DRIVEN INSANE Gloves 5,4 r0
+    Tin Band
+ALTERNATES[30] THE DRIVEN INSANE Gloves 5,5 r0
+    Tin Band
+ALTERNATES[30] THE DRIVEN INSANE Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[30] THE DRIVEN INSANE Helmet 3,0 r0
+    Consecrated Plating
+ALTERNATES[30] THE DRIVEN INSANE Helmet 0,2 r0
+    Godsteel Plating
+ALTERNATES[30] THE DRIVEN INSANE Helmet 5,0 r1
+    Heartwood Crest
+ALTERNATES[30] THE DRIVEN INSANE Helmet 3,2 r0
+    Overseer's Circlet
+ALTERNATES[30] THE DRIVEN INSANE Helmet 2,4 r0
+    Consecrated Plating
+ALTERNATES[30] THE DRIVEN INSANE Helmet 0,4 r1
+    Overseer's Circlet
+ALTERNATES[30] THE DRIVEN INSANE Helmet 2,6 r0
+    Godsteel Plating
+ALTERNATES[30] THE DRIVEN INSANE Helmet 4,4 r1
+    Godsteel Plating
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 0,0 r0
+    Ashwoven Material
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 3,0 r0
+    Ravener's Mold
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 0,1 r0
+    Seal of the Deep
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 5,0 r0
+    Siphon Ring
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 4,1 r0
+    Mage's Wrapping
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 2,1 r3
+    Ravener's Mold
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 1,2 r0
+    Deepdraught Ring
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 0,2 r0
+    Grasping Ring
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 0,3 r0
+    Ashwoven Material
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 3,3 r0
+    Ravener's Mold
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 0,4 r0
+    Storm Signet
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 5,3 r1
+    Storm Signet
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 0,5 r0
+    Ashwoven Material
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 3,4 r2
+    Ravener's Mold
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 0,6 r0
+    Storm Signet
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 2,4 r0
+    Siphon Ring
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 2,6 r0
+    Ashwoven Material
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 3,6 r3
+    Gauntlet Mold
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 5,5 r0
+    Siphon Ring
+ALTERNATES[31] THE COMMISSIONER EASY Gloves 2,7 r0
+    Deepdraught Ring
+ALTERNATES[31] THE COMMISSIONER EASY Helmet 0,0 r0
+    Stonewall Frame
+ALTERNATES[31] THE COMMISSIONER EASY Helmet 3,0 r0
+    Bulwark Plating
+ALTERNATES[31] THE COMMISSIONER EASY Helmet 0,2 r0
+    Crown of the Deep
+ALTERNATES[31] THE COMMISSIONER EASY Helmet 3,2 r0
+    Stonewall Frame
+ALTERNATES[31] THE COMMISSIONER EASY Helmet 2,4 r0
+    Bulwark Plating
+ALTERNATES[31] THE COMMISSIONER EASY Helmet 0,3 r3
+    Mana Ward
+ALTERNATES[31] THE COMMISSIONER EASY Helmet 4,4 r1
+    Stonewall Frame
+ALTERNATES[31] THE COMMISSIONER EASY Helmet 2,6 r0
+    Bulwark Plating
+ALTERNATES[31] THE COMMISSIONER EASY Helmet 0,5 r1
+    Mana Ward
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 0,0 r0
+    Rootwoven Material
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 3,0 r0
+    Flaying Mold
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 0,1 r0
+    Seal of Power
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 5,0 r0
+    Grasping Ring
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 4,1 r0
+    Mage's Wrapping
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 2,1 r3
+    Flaying Mold
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 1,2 r0
+    Siphon Ring
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 0,2 r0
+    Ring of Tides
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 0,3 r0
+    Rootwoven Material
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 3,3 r0
+    Flaying Mold
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 0,4 r0
+    Seal of the Deep
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 5,3 r1
+    Seal of the Deep
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 0,5 r0
+    Rootwoven Material
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 3,4 r2
+    Flaying Mold
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 0,6 r0
+    Seal of the Deep
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 2,4 r0
+    Grasping Ring
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 2,6 r0
+    Rootwoven Material
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 3,6 r3
+    Gauntlet Mold
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 5,5 r0
+    Grasping Ring
+ALTERNATES[31] THE COMMISSIONER MEDIUM Gloves 2,7 r0
+    Siphon Ring
+ALTERNATES[31] THE COMMISSIONER MEDIUM Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[31] THE COMMISSIONER MEDIUM Helmet 3,0 r0
+    Consecrated Plating
+ALTERNATES[31] THE COMMISSIONER MEDIUM Helmet 0,2 r0
+    Crown of the Deep
+ALTERNATES[31] THE COMMISSIONER MEDIUM Helmet 3,2 r0
+    Overseer's Circlet
+ALTERNATES[31] THE COMMISSIONER MEDIUM Helmet 2,4 r0
+    Consecrated Plating
+ALTERNATES[31] THE COMMISSIONER MEDIUM Helmet 0,3 r3
+    Mirrored Visor
+ALTERNATES[31] THE COMMISSIONER MEDIUM Helmet 4,4 r1
+    Overseer's Circlet
+ALTERNATES[31] THE COMMISSIONER MEDIUM Helmet 2,6 r0
+    Consecrated Plating
+ALTERNATES[31] THE COMMISSIONER MEDIUM Helmet 0,5 r1
+    Mirrored Visor
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 0,0 r0
+    Rootwoven Material
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 3,0 r0
+    Spiked Vambrace
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 0,1 r0
+    Mirrorplate Ring
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 5,0 r0
+    Ring of Tides
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 4,1 r0
+    Leather Material
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 2,1 r3
+    Spiked Vambrace
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 1,2 r0
+    Grasping Ring
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 0,2 r0
+    Tin Band
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 0,3 r0
+    Rootwoven Material
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 3,3 r0
+    Spiked Vambrace
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 0,4 r0
+    Seal of Power
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 5,3 r1
+    Seal of Power
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 0,5 r0
+    Rootwoven Material
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 3,4 r2
+    Spiked Vambrace
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 0,6 r0
+    Seal of Power
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 2,4 r0
+    Ring of Tides
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 2,6 r0
+    Rootwoven Material
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 3,6 r3
+    Gauntlet Mold
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 5,5 r0
+    Ring of Tides
+ALTERNATES[31] THE COMMISSIONER HARD Gloves 2,7 r0
+    Grasping Ring
+ALTERNATES[31] THE COMMISSIONER HARD Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[31] THE COMMISSIONER HARD Helmet 3,0 r0
+    Consecrated Plating
+ALTERNATES[31] THE COMMISSIONER HARD Helmet 0,2 r0
+    Crown of the Deep
+ALTERNATES[31] THE COMMISSIONER HARD Helmet 3,2 r0
+    Overseer's Circlet
+ALTERNATES[31] THE COMMISSIONER HARD Helmet 2,4 r0
+    Consecrated Plating
+ALTERNATES[31] THE COMMISSIONER HARD Helmet 0,3 r3
+    Godsteel Plating
+ALTERNATES[31] THE COMMISSIONER HARD Helmet 4,4 r1
+    Overseer's Circlet
+ALTERNATES[31] THE COMMISSIONER HARD Helmet 2,6 r0
+    Consecrated Plating
+ALTERNATES[31] THE COMMISSIONER HARD Helmet 0,5 r1
+    Godsteel Plating
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 0,0 r0
+    Rootwoven Material
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 3,0 r0
+    Spiked Vambrace
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 0,1 r0
+    Mirrorplate Ring
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 5,0 r0
+    Tin Band
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 4,1 r0
+    Anchor Material
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 2,1 r3
+    Spiked Vambrace
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 1,2 r0
+    Ring of Tides
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 0,2 r0
+    Signet of Iron
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 0,3 r0
+    Rootwoven Material
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 3,3 r0
+    Spiked Vambrace
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 0,4 r0
+    Mirrorplate Ring
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 5,3 r1
+    Mirrorplate Ring
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 0,5 r0
+    Rootwoven Material
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 3,4 r2
+    Spiked Vambrace
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 0,6 r0
+    Mirrorplate Ring
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 2,4 r0
+    Tin Band
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 2,6 r0
+    Rootwoven Material
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 3,6 r3
+    Gauntlet Mold
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 5,5 r0
+    Tin Band
+ALTERNATES[31] THE COMMISSIONER INSANE Gloves 2,7 r0
+    Ring of Tides
+ALTERNATES[31] THE COMMISSIONER INSANE Helmet 0,0 r0
+    Overseer's Circlet
+ALTERNATES[31] THE COMMISSIONER INSANE Helmet 3,0 r0
+    Consecrated Plating
+ALTERNATES[31] THE COMMISSIONER INSANE Helmet 0,2 r0
+    Crown of the Deep
+ALTERNATES[31] THE COMMISSIONER INSANE Helmet 3,2 r0
+    Overseer's Circlet
+ALTERNATES[31] THE COMMISSIONER INSANE Helmet 2,4 r0
+    Consecrated Plating
+ALTERNATES[31] THE COMMISSIONER INSANE Helmet 0,3 r3
+    Godsteel Plating
+ALTERNATES[31] THE COMMISSIONER INSANE Helmet 4,4 r1
+    Overseer's Circlet
+ALTERNATES[31] THE COMMISSIONER INSANE Helmet 2,6 r0
+    Consecrated Plating
+ALTERNATES[31] THE COMMISSIONER INSANE Helmet 0,5 r1
+    Godsteel Plating
+ALTERNATES[32] THE PARISH EASY Weapon 0,0 r0
+    Obsidian Orb
+ALTERNATES[32] THE PARISH EASY Weapon 2,0 r0
+    Kingsbane
+ALTERNATES[32] THE PARISH EASY Weapon 5,0 r1
+    Choir of Ash
+ALTERNATES[32] THE PARISH EASY Weapon 1,1 r0
+    Emberburst
+ALTERNATES[32] THE PARISH EASY Weapon 0,2 r0
+    Pilgrim Alignment
+ALTERNATES[32] THE PARISH EASY Helmet 0,0 r0
+    Covenant Frame
+ALTERNATES[32] THE PARISH EASY Helmet 3,0 r1
+    Deadweight Plating
+ALTERNATES[32] THE PARISH EASY Helmet 2,1 r3
+    Bloomcap
+ALTERNATES[32] THE PARISH EASY Helmet 0,1 r3
+    Crown of the Deep
+ALTERNATES[32] THE PARISH EASY Helmet 3,1 r2
+    Ridged Frame
+ALTERNATES[32] THE PARISH EASY Helmet 1,3 r0
+    Scrying Lens
+ALTERNATES[32] THE PARISH EASY Helmet 4,3 r3
+    Bloomcap
+ALTERNATES[32] THE PARISH EASY Helmet 0,4 r0
+    Crown of the Deep
+ALTERNATES[32] THE PARISH EASY Helmet 2,4 r2
+    Covenant Frame
+ALTERNATES[32] THE PARISH EASY Helmet 5,4 r1
+    Scrying Lens
+ALTERNATES[32] THE PARISH EASY Helmet 0,6 r1
+    Deadweight Plating
+ALTERNATES[32] THE PARISH EASY Helmet 2,6 r2
+    Crown of the Deep
+ALTERNATES[32] THE PARISH EASY Gloves 0,0 r1
+    Witch's Stilts
+ALTERNATES[32] THE PARISH EASY Gloves 3,0 r3
+    Wrathful Talons
+ALTERNATES[32] THE PARISH EASY Gloves 5,0 r0
+    Blightfinger
+ALTERNATES[32] THE PARISH EASY Gloves 1,1 r0
+    Blightfinger
+ALTERNATES[32] THE PARISH EASY Gloves 4,1 r1
+    Spun Material
+ALTERNATES[32] THE PARISH EASY Gloves 2,1 r3
+    Hexer's Tally
+ALTERNATES[32] THE PARISH EASY Gloves 0,2 r2
+    Witch's Stilts
+ALTERNATES[32] THE PARISH EASY Gloves 2,3 r0
+    Hexer's Tally
+ALTERNATES[32] THE PARISH EASY Gloves 0,3 r0
+    Witch's Stilts
+ALTERNATES[32] THE PARISH EASY Gloves 2,4 r2
+    Hexer's Tally
+ALTERNATES[32] THE PARISH EASY Gloves 4,3 r2
+    Witch's Stilts
+ALTERNATES[32] THE PARISH EASY Gloves 3,5 r2
+    Hexer's Tally
+ALTERNATES[32] THE PARISH EASY Gloves 0,6 r0
+    Mage's Sandals
+ALTERNATES[32] THE PARISH EASY Gloves 1,6 r2
+    Hexer's Tally
+ALTERNATES[32] THE PARISH MEDIUM Weapon 0,0 r0
+    Fateglass Orb
+ALTERNATES[32] THE PARISH MEDIUM Weapon 2,0 r0
+    Kingsbane
+ALTERNATES[32] THE PARISH MEDIUM Weapon 5,0 r1
+    Shatterbolt
+ALTERNATES[32] THE PARISH MEDIUM Weapon 1,1 r0
+    Emberburst
+ALTERNATES[32] THE PARISH MEDIUM Weapon 0,2 r0
+    Pilgrim Alignment
+ALTERNATES[32] THE PARISH MEDIUM Helmet 0,0 r0
+    Buttressed Frame
+ALTERNATES[32] THE PARISH MEDIUM Helmet 3,0 r1
+    Deadweight Plating
+ALTERNATES[32] THE PARISH MEDIUM Helmet 2,1 r3
+    Bloomcap
+ALTERNATES[32] THE PARISH MEDIUM Helmet 0,1 r3
+    Crown of the Deep
+ALTERNATES[32] THE PARISH MEDIUM Helmet 3,1 r2
+    Reliquary Frame of Nine
+ALTERNATES[32] THE PARISH MEDIUM Helmet 1,3 r0
+    Visor of Focus
+ALTERNATES[32] THE PARISH MEDIUM Helmet 4,3 r3
+    Bloomcap
+ALTERNATES[32] THE PARISH MEDIUM Helmet 0,4 r0
+    Crown of the Deep
+ALTERNATES[32] THE PARISH MEDIUM Helmet 2,4 r2
+    Buttressed Frame
+ALTERNATES[32] THE PARISH MEDIUM Helmet 5,4 r1
+    Visor of Focus
+ALTERNATES[32] THE PARISH MEDIUM Helmet 0,6 r1
+    Deadweight Plating
+ALTERNATES[32] THE PARISH MEDIUM Helmet 2,6 r2
+    Crown of the Deep
+ALTERNATES[32] THE PARISH MEDIUM Gloves 0,0 r1
+    Witch's Stilts
+ALTERNATES[32] THE PARISH MEDIUM Gloves 3,0 r3
+    Hexer's Mold
+ALTERNATES[32] THE PARISH MEDIUM Gloves 5,0 r0
+    Blightfinger
+ALTERNATES[32] THE PARISH MEDIUM Gloves 1,1 r0
+    Blightfinger
+ALTERNATES[32] THE PARISH MEDIUM Gloves 4,1 r1
+    Spun Material
+ALTERNATES[32] THE PARISH MEDIUM Gloves 2,1 r3
+    Channeling Mold
+ALTERNATES[32] THE PARISH MEDIUM Gloves 0,2 r2
+    Witch's Stilts
+ALTERNATES[32] THE PARISH MEDIUM Gloves 2,3 r0
+    Channeling Mold
+ALTERNATES[32] THE PARISH MEDIUM Gloves 0,3 r0
+    Witch's Stilts
+ALTERNATES[32] THE PARISH MEDIUM Gloves 2,4 r2
+    Channeling Mold
+ALTERNATES[32] THE PARISH MEDIUM Gloves 4,3 r2
+    Witch's Stilts
+ALTERNATES[32] THE PARISH MEDIUM Gloves 3,5 r2
+    Channeling Mold
+ALTERNATES[32] THE PARISH MEDIUM Gloves 0,6 r0
+    Mage's Sandals
+ALTERNATES[32] THE PARISH MEDIUM Gloves 1,6 r2
+    Channeling Mold
+ALTERNATES[32] THE PARISH HARD Weapon 0,0 r0
+    Fateglass Orb
+ALTERNATES[32] THE PARISH HARD Weapon 2,0 r0
+    Cometfall
+ALTERNATES[32] THE PARISH HARD Weapon 5,0 r1
+    Sunder
+ALTERNATES[32] THE PARISH HARD Weapon 1,1 r0
+    Emberburst
+ALTERNATES[32] THE PARISH HARD Weapon 0,2 r0
+    Pilgrim Alignment
+ALTERNATES[32] THE PARISH HARD Helmet 0,0 r0
+    Green Crown
+ALTERNATES[32] THE PARISH HARD Helmet 3,0 r1
+    Mirrorbright Plating
+ALTERNATES[32] THE PARISH HARD Helmet 2,1 r3
+    Bloomcap
+ALTERNATES[32] THE PARISH HARD Helmet 0,1 r3
+    Crown of the Deep
+ALTERNATES[32] THE PARISH HARD Helmet 3,1 r2
+    Covenant Frame
+ALTERNATES[32] THE PARISH HARD Helmet 1,3 r0
+    Visor of Focus
+ALTERNATES[32] THE PARISH HARD Helmet 4,3 r3
+    Bloomcap
+ALTERNATES[32] THE PARISH HARD Helmet 0,4 r0
+    Crown of the Deep
+ALTERNATES[32] THE PARISH HARD Helmet 2,4 r2
+    Green Crown
+ALTERNATES[32] THE PARISH HARD Helmet 5,4 r1
+    Visor of Focus
+ALTERNATES[32] THE PARISH HARD Helmet 0,6 r1
+    Mirrorbright Plating
+ALTERNATES[32] THE PARISH HARD Helmet 2,6 r2
+    Crown of the Deep
+ALTERNATES[32] THE PARISH HARD Gloves 0,0 r1
+    Witch's Stilts
+ALTERNATES[32] THE PARISH HARD Gloves 3,0 r3
+    Hexer's Mold
+ALTERNATES[32] THE PARISH HARD Gloves 5,0 r0
+    Deepdraught Ring
+ALTERNATES[32] THE PARISH HARD Gloves 1,1 r0
+    Deepdraught Ring
+ALTERNATES[32] THE PARISH HARD Gloves 4,1 r1
+    Sanctified Material
+ALTERNATES[32] THE PARISH HARD Gloves 2,1 r3
+    Knuckleduster
+ALTERNATES[32] THE PARISH HARD Gloves 0,2 r2
+    Witch's Stilts
+ALTERNATES[32] THE PARISH HARD Gloves 2,3 r0
+    Knuckleduster
+ALTERNATES[32] THE PARISH HARD Gloves 0,3 r0
+    Witch's Stilts
+ALTERNATES[32] THE PARISH HARD Gloves 2,4 r2
+    Knuckleduster
+ALTERNATES[32] THE PARISH HARD Gloves 4,3 r2
+    Witch's Stilts
+ALTERNATES[32] THE PARISH HARD Gloves 3,5 r2
+    Knuckleduster
+ALTERNATES[32] THE PARISH HARD Gloves 0,6 r0
+    Mage's Sandals
+ALTERNATES[32] THE PARISH HARD Gloves 1,6 r2
+    Knuckleduster
+ALTERNATES[32] THE PARISH INSANE Weapon 0,0 r0
+    Fateglass Orb
+ALTERNATES[32] THE PARISH INSANE Weapon 2,0 r0
+    Starfall
+ALTERNATES[32] THE PARISH INSANE Weapon 5,0 r1
+    Slash and Burn
+ALTERNATES[32] THE PARISH INSANE Weapon 1,1 r0
+    Emberburst
+ALTERNATES[32] THE PARISH INSANE Weapon 0,2 r0
+    Pilgrim Alignment
+ALTERNATES[32] THE PARISH INSANE Helmet 0,0 r0
+    Green Crown
+ALTERNATES[32] THE PARISH INSANE Helmet 3,0 r1
+    Mirrorbright Plating
+ALTERNATES[32] THE PARISH INSANE Helmet 2,1 r3
+    Bloomcap
+ALTERNATES[32] THE PARISH INSANE Helmet 0,1 r3
+    Crown of the Deep
+ALTERNATES[32] THE PARISH INSANE Helmet 3,1 r2
+    Buttressed Frame
+ALTERNATES[32] THE PARISH INSANE Helmet 1,3 r0
+    Visor of Focus
+ALTERNATES[32] THE PARISH INSANE Helmet 4,3 r3
+    Bloomcap
+ALTERNATES[32] THE PARISH INSANE Helmet 0,4 r0
+    Crown of the Deep
+ALTERNATES[32] THE PARISH INSANE Helmet 2,4 r2
+    Green Crown
+ALTERNATES[32] THE PARISH INSANE Helmet 5,4 r1
+    Visor of Focus
+ALTERNATES[32] THE PARISH INSANE Helmet 0,6 r1
+    Mirrorbright Plating
+ALTERNATES[32] THE PARISH INSANE Helmet 2,6 r2
+    Crown of the Deep
+ALTERNATES[32] THE PARISH INSANE Gloves 0,0 r1
+    Witch's Stilts
+ALTERNATES[32] THE PARISH INSANE Gloves 3,0 r3
+    Hexer's Mold
+ALTERNATES[32] THE PARISH INSANE Gloves 5,0 r0
+    Siphon Ring
+ALTERNATES[32] THE PARISH INSANE Gloves 1,1 r0
+    Siphon Ring
+ALTERNATES[32] THE PARISH INSANE Gloves 4,1 r1
+    Sanctified Material
+ALTERNATES[32] THE PARISH INSANE Gloves 2,1 r3
+    Coven Mold
+ALTERNATES[32] THE PARISH INSANE Gloves 0,2 r2
+    Witch's Stilts
+ALTERNATES[32] THE PARISH INSANE Gloves 2,3 r0
+    Coven Mold
+ALTERNATES[32] THE PARISH INSANE Gloves 0,3 r0
+    Witch's Stilts
+ALTERNATES[32] THE PARISH INSANE Gloves 2,4 r2
+    Coven Mold
+ALTERNATES[32] THE PARISH INSANE Gloves 4,3 r2
+    Witch's Stilts
+ALTERNATES[32] THE PARISH INSANE Gloves 3,5 r2
+    Coven Mold
+ALTERNATES[32] THE PARISH INSANE Gloves 0,6 r0
+    Mage's Sandals
+ALTERNATES[32] THE PARISH INSANE Gloves 1,6 r2
+    Coven Mold

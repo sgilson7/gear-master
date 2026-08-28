@@ -169,8 +169,10 @@ fn e6_7_every_figure_in_the_mission_is_a_multiple_of_a_bounty() {
 /// reason - and this time the milestone that empties it is deliberately after
 /// the deploy, because dressing a creature is the one job in the mission that
 /// wants somebody looking at the diff.
-const UNDRESSED_UNTIL_THE_YARD_IS_PACKED: &[&str] =
-    &["THE SURVEYOR", "THE DROVER", "THE DRIVEN", "THE COMMISSIONER", "THE PARISH"];
+/// **Empty again since THE HUNDRED's F12.** It held the county's five for
+/// four milestones. Their boards are borrowed rather than packed and
+/// `hundred::the_five_wear_a_board_borrowed_from_their_band` says whose.
+const UNDRESSED_UNTIL_THE_YARD_IS_PACKED: &[&str] = &[];
 
 #[test]
 fn e6_8_every_creature_in_the_game_is_dressed() {
