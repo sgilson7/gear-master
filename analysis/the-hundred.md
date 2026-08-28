@@ -304,3 +304,110 @@ another check catching it does not count.
 `generate` is ~0.9 ms in debug including `refusals`, which is fine for a test
 and **not** fine on a frame. F2 derives the county on demand per A2.2 and
 wants a memo, not a call per draw.
+
+---
+
+## F2 standing in it
+
+A2.1's movement, A2.2's state, `TripSource`, `Interrupt::County`,
+`Action::County` on all six towns, the CLI's `go`/`walk`/`out`, and a wipe
+that takes it all. **Engine 953, GUI 78, CLI 8. No warnings.** The `baseline`
+printer is byte-identical to F0, `gear_at` unmoved, the three road fixtures
+unmoved.
+
+### The census, which is the enum
+
+`trip_cap()` is `TripSource::ALL.iter().map(seats).sum()` - `Town` is worth
+`TOWNS.len()` and the other four are worth one each - so **ten** is counted off
+the enum rather than written beside it. `the_census_is_the_enum_and_not_a_number`
+asserts the arithmetic three ways: the variant count, `TOWNS.len() + 4`, and
+the literal 10 with the reason in the message, because every figure in A4 (four
+or five trips finishes two chains, seven finishes three) was costed against ten.
+
+### One bug introduced and caught in the same hour
+
+Sump Bottom and Kettleworks are the two pinned towns **without** a pedestal.
+Replacing their `actions: &Action::ALL` with a shared constant that included
+`Action::Pedestal` handed both of them a socket.
+`pedestal::the_pedestal_costs_no_visit_and_is_the_only_thing_that_does_not`
+refused it on the first run, and its own doc comment names the two towns that
+have one - which is why it took a minute rather than a milestone. `PINNED_DOORS`
+is the four doors and the way down, and its comment says which test caught it.
+
+### Two pins moved, both re-pinned with the reason
+
+`acceptance::e6_9` and `pedestal::the_pedestal_costs_no_visit_...` both held
+"the pedestal is the only thing outside the one-action rule". There are two
+now. Both assertions say why in the message: the way down is the pedestal's
+exception rather than a new one - it is not a door, the county is *under* the
+town rather than in it, and it is one trip per town for the whole run.
+Charging a visit for it would make six towns six decisions the county always
+loses.
+
+### Five decisions
+
+**F2-1. `run_seed` is a field.** `Loadout::name_seed` already held the run's
+seed and is not it: a name generator's seed and a run's seed being the same
+value is a coincidence, not a fact to build on.
+
+**F2-2. The county is derived per call, not cached.** `Run::county()` is
+`generate(county_seed())` every time: **77 us in release, 538 us in debug**.
+A cache would be a second copy of a fact one line of arithmetic away, and
+`Run::seeded` is called some thousands of times across the suite. A caller
+drawing it every frame should hold its own; nothing in the engine does, and F9
+is the milestone that will want one.
+`the_run_derives_its_county_and_never_stores_one` pins the equality.
+
+**F2-3. Three ways a move ends without moving you, and two of them cost the
+move.** A fence you have not opened and (at F4) a toll you cannot pay both
+cost it, because a move is a thing you spend *trying* rather than a thing you
+spend arriving. The edge of the county is free, because walking into the edge
+of a map is not an attempt at anything.
+
+**F2-4. The sealed corner is shut from F2, not from F8.** `Run::pale_is_open`
+reads a flag F8 authors the choice for. Landing the fence now means F8 opens
+something rather than taking something away, and the method exists so F8
+changes one place rather than a `flags.contains` at a call site.
+
+**F2-5. Every tile clears on arrival, and the kind-specific arms are named
+rather than stubbed.** `resolve_county_tile` is one arm and a comment: an
+Event tile sets a pending county event at **F7**, an Objective pays its chain
+and a Pinnacle asks whether its gate is met at **F8**. Written as one arm
+rather than six identical ones, so the milestone that arms them finds a place
+to put code rather than a shape to imitate.
+
+### The exit criterion, and where it could not be met
+
+F2 asks for "a CLI script that enters from all three pinned towns, walks
+fifteen moves, twice, byte-identical". **The driver reaches one town.** The
+wall is the Switchyard's M3 wall and it has not moved: `sandbox` grants every
+component, `preset` is still the auto-builder, and the best board the driver
+can build from its own verbs wins eight fights and then oscillates on the
+Whisperling at rung 9. Kettleworks' gate is after rung 17.
+
+Split, and both halves are in the suite:
+
+- `cli/tests/replay.rs::a_county_trip_replays_identically` - seven fights to
+  Sump Bottom's gate, down the steps, and **every way a move can end** in one
+  transcript: an edge, fresh ground, a tile walked over twice, the last move
+  and one asked after the trip is spent. Piped in twice, byte-compared. This
+  is the half only a driver can prove.
+- `county::three_towns_and_fifteen_moves` - the walk itself, three pinned
+  towns and five moves each, asserting the census, that the gate survives each
+  trip, that no tile cleared twice, and that three gates on three edges reach
+  more than one region.
+
+And `every_town_lets_you_down_at_its_own_mouth` does all **six** towns, which
+is more than the criterion asked for and is the assertion that actually says
+the door works everywhere.
+
+### What F2 leaves for F3
+
+`events_resolved` is a field on `Run`, initialised to zero and incremented
+nowhere. `drover_tile()` reads it and is correct about a clock that has not
+started. F3 is the three increment points.
+
+`waste_bet` and `county_business` are **not** landed. A9's table puts them at
+F2/F3 with the rest; they are C1's and C2's and nothing reads them until F8,
+and a field with no reader is `CLAUDE.md` §6 traps 19 and 30 in a struct
+instead of a table.

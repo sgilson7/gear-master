@@ -23,6 +23,75 @@ pub enum Phase {
     Fighting,
 }
 
+/// Where a trip into THE HUNDRED came from.
+///
+/// **The census.** Ten trips exist in a run that does everything, and the cap
+/// is this enum rather than a number written down beside it: `Town` is worth
+/// `TOWNS.len()` and the other four are worth one each, so a mission that adds
+/// a way down cannot land without the suite making it raise the cap.
+/// `county::trip_cap` is the arithmetic and
+/// `the_census_is_the_enum_and_not_a_number` is the test.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum TripSource {
+    /// One per town, once each. Three pinned and three found.
+    Town(&'static str),
+    /// B1.2 - the Ordnance's ticket, spent at a pedestal, and the only way in
+    /// that offers a choice of mouth.
+    SurveyorsOrb,
+    /// C2 - the bet on an empty grid, paid at the deadline.
+    WasteBet,
+    /// C1 - unasked, and the fastest ride into the middle there is.
+    Constable,
+    /// B5 - all three chains done. Granted rather than taken.
+    Perambulation,
+}
+
+impl TripSource {
+    /// Every variant, so a count of them is a count of the enum.
+    pub const ALL: [TripSource; 5] = [
+        TripSource::Town(""),
+        TripSource::SurveyorsOrb,
+        TripSource::WasteBet,
+        TripSource::Constable,
+        TripSource::Perambulation,
+    ];
+
+    /// How many trips this variant is worth to the cap. A town is worth as
+    /// many as there are towns; everything else is worth one.
+    pub fn seats(self) -> usize {
+        match self {
+            TripSource::Town(_) => crate::town::TOWNS.len(),
+            _ => 1,
+        }
+    }
+
+    /// A stable key. Never shown raw.
+    pub fn key(self) -> &'static str {
+        match self {
+            TripSource::Town(id) => id,
+            TripSource::SurveyorsOrb => "surveyors-orb",
+            TripSource::WasteBet => "waste-bet",
+            TripSource::Constable => "constable",
+            TripSource::Perambulation => "perambulation",
+        }
+    }
+}
+
+/// How many moves are left, said the way a person would say it.
+fn moves_left(n: u8) -> String {
+    match n {
+        0 => "no moves left".into(),
+        1 => "1 move".into(),
+        n => format!("{n} moves"),
+    }
+}
+
+/// Ten: three pinned towns, three hidden, an orb, a bet, an arrest and a
+/// perambulation. Counted off `TripSource`, so it cannot drift from it.
+pub fn trip_cap() -> usize {
+    TripSource::ALL.iter().map(|t| t.seats()).sum()
+}
+
 /// What losing costs you. Either way a loss still pays the bounty - you need
 /// income to buy your way past whatever just beat you - and never advances the
 /// ladder, because you did not actually kill the thing.
@@ -369,6 +438,9 @@ impl From<PlaceError> for RuleError {
 /// pop where it left off because the rest of the stack never went anywhere.
 #[derive(Copy, Clone, Debug)]
 pub enum Interrupt {
+    /// THE HUNDRED, being walked. Outermost of the outermost: a dungeon hangs
+    /// off a rung and the county hangs off a town, and you cannot be in both.
+    County { at: (u8, u8), moves_left: u8 },
     /// A mini dungeon being walked. Innermost: you are standing inside it, so
     /// everything else is underneath you.
     ///
@@ -405,6 +477,7 @@ impl Interrupt {
     /// theme layer looks the word up.
     pub fn kind(self) -> &'static str {
         match self {
+            Interrupt::County { .. } => "county",
             Interrupt::Dungeon { .. } => "dungeon",
             Interrupt::Points(..) => "points",
             Interrupt::TownGate(_) => "town",
@@ -422,6 +495,7 @@ impl Interrupt {
             Interrupt::Points(d, _) => d.id,
             Interrupt::TownGate(t) => t.id,
             Interrupt::Event(e) => e.id,
+            Interrupt::County { .. } => "the-hundred",
             Interrupt::Fountain(_) | Interrupt::Brawl(_) => "",
         }
     }
@@ -436,6 +510,7 @@ impl Interrupt {
             // buildings. The same shape `Fountain` and `Brawl` already have:
             // an interrupt that is a *moment* says what the moment is.
             Interrupt::Points(..) => "THE POINTS",
+            Interrupt::County { .. } => "THE HUNDRED",
             Interrupt::TownGate(t) => t.name,
             Interrupt::Fountain(_) => "A FOUNTAIN",
             Interrupt::Event(e) => e.title,
@@ -469,6 +544,14 @@ impl Interrupt {
                     .map(|f| f.exits.iter().map(|e| e.label).collect::<Vec<_>>().join(" / "))
                     .unwrap_or_default()
             ),
+            // The banner A2.1 asks for. The tile says what it is in canonical
+            // words; the theme layer swaps them, the way it swaps a door's.
+            Interrupt::County { at, moves_left } => format!(
+                "THE HUNDRED - {} - {} move{} left",
+                crate::county::reference(at),
+                moves_left,
+                if moves_left == 1 { "" } else { "s" }
+            ),
             Interrupt::TownGate(t) => format!("{} - a town, and one thing to do in it", t.name),
             Interrupt::Fountain(_) => {
                 "A fountain, which reads your build and names you something".into()
@@ -495,6 +578,7 @@ impl Interrupt {
             Interrupt::TownGate(_) => "a town",
             Interrupt::Fountain(_) => "a fountain",
             Interrupt::Points(..) => "the points",
+            Interrupt::County { .. } => "the county",
             _ => "something on the road",
         }
     }
@@ -509,6 +593,10 @@ impl PartialEq for Interrupt {
             Interrupt::Dungeon { floor, .. } => *floor,
             Interrupt::Points(_, f) => *f,
             Interrupt::Fountain(r) => *r,
+            // Where you are standing, so two reads of one county at two tiles
+            // do not compare equal. `moves_left` is deliberately not in it:
+            // a trip with four left and one with three are the same place.
+            Interrupt::County { at, .. } => at.0 as usize * 7 + at.1 as usize,
             _ => 0,
         };
         self.kind() == other.kind() && self.id() == other.id() && floor(self) == floor(other)
@@ -746,6 +834,34 @@ pub struct Run {
     /// enough to tell the two apart, and it is one index rather than a second
     /// counter because a second copy of a fact is a second thing to keep true.
     pub entry_started_at: usize,
+    /// The seed this run was made from.
+    ///
+    /// Kept because THE HUNDRED derives its own from it and must be able to do
+    /// so without drawing from `rng` - that stream stocks shops, rolls drops
+    /// and melts pieces, and one draw from it here would move every one of
+    /// them. `Loadout::name_seed` already held this number and is not it: a
+    /// name generator's seed and a run's seed being the same value is a
+    /// coincidence, not a fact to build on.
+    pub run_seed: u64,
+    /// Which tile of THE HUNDRED you are standing on, when you are down there.
+    ///
+    /// `None` on the road. The county itself is **derived** from the seed
+    /// every time it is asked for and never stored - see `Run::county`.
+    pub county_at: Option<(u8, u8)>,
+    /// Moves left in this trip. Five, and arriving on the mouth is free.
+    pub county_moves_left: u8,
+    /// Tiles cleared, for the whole run.
+    ///
+    /// The county is a **place, not an attempt**: a Rogue keeps this when a
+    /// life is spent and a Grinder keeps it through a knock-back, because it
+    /// is where the endgame lives and re-walking it would be the same five
+    /// moves again rather than a second chance at them.
+    pub county_cleared: Vec<(u8, u8)>,
+    /// One entry a trip. The census: ten, and no more, ever.
+    pub county_trips: Vec<TripSource>,
+    /// Road and county events answered, which is the clock the Drover walks
+    /// by. Wired to its increment points at F3; nothing moves it yet.
+    pub events_resolved: u32,
     /// Destinations a pedestal has already sent this run to, by id.
     ///
     /// One set for both pedestals. Each destination fires once a run.
@@ -877,6 +993,12 @@ impl Run {
             at_points: false,
             took_exits: Vec::new(),
             entry_started_at: 0,
+            run_seed: seed,
+            county_at: None,
+            county_moves_left: 0,
+            county_cleared: Vec::new(),
+            county_trips: Vec::new(),
+            events_resolved: 0,
             destinations_visited: Vec::new(),
             cursed_for_good: Vec::new(),
             deferred: Vec::new(),
@@ -1070,6 +1192,14 @@ impl Run {
     /// match a document would have been changing the game to match a document.
     pub fn road_stack(&self) -> Vec<Interrupt> {
         let mut out = Vec::new();
+        // Being in the county is not something waiting for you, it is where
+        // you are - the same reason a dungeon is on top of the rung. It is on
+        // top of the *dungeon* too, and that is a statement about the two
+        // never overlapping rather than about their order: a town gate and a
+        // dungeon mouth are not the same door.
+        if let Some(at) = self.county_at {
+            out.push(Interrupt::County { at, moves_left: self.county_moves_left });
+        }
         if let Some((d, floor)) = self.dungeon {
             // The lever is in the dungeon and you are standing at the lever.
             if self.at_points {
@@ -2025,6 +2155,194 @@ impl Run {
             lines.push(format!("You are still in {}.", outer.name));
         }
         self.last_receipt = Some(lines);
+        true
+    }
+
+    // --------------------------------------------------------- THE HUNDRED
+
+    /// The seed the county is derived from.
+    ///
+    /// A1's formula, and the whole of the reason `run_seed` is kept: the
+    /// county must be re-derivable without a draw from `rng`, which stocks
+    /// shops, rolls drops and melts pieces. One draw from that stream here
+    /// would move every one of them and break every replay in the suite.
+    pub fn county_seed(&self) -> u64 {
+        crate::county::seed_for(self.run_seed, self.mode, self.difficulty)
+    }
+
+    /// The county, derived. Never stored, and the same one every time.
+    ///
+    /// Roughly 80 microseconds in release and half a millisecond in debug, so
+    /// this is a call and not a field: a cache would be a second copy of a
+    /// fact and the fact is one line of arithmetic away. A caller drawing it
+    /// every frame should hold its own; nothing in the engine does.
+    pub fn county(&self) -> crate::county::County {
+        crate::county::generate(self.county_seed())
+    }
+
+    /// Whether the pale has been answered and the far corner is open.
+    ///
+    /// Shut for the whole of F2 through F7, which is what makes the three
+    /// sealed tiles unenterable. A method rather than a flag test at its one
+    /// call site, so that F8 - which authors the choice that sets it - has one
+    /// place to change and not two.
+    pub fn pale_is_open(&self) -> bool {
+        self.flags.contains(&crate::county::PALE_OPEN)
+    }
+
+    /// Whether a tile has been cleared this run.
+    pub fn county_is_cleared(&self, at: (u8, u8)) -> bool {
+        self.county_cleared.contains(&at)
+    }
+
+    /// How many tiles of a region have been cleared. The pale's checklist.
+    pub fn county_cleared_in(&self, region: crate::county::Region) -> usize {
+        self.county_cleared
+            .iter()
+            .filter(|p| crate::county::Region::of_row(p.1) == region)
+            .count()
+    }
+
+    /// Which tile the Drover is standing on.
+    ///
+    /// It was always walking; a sign tile is what teaches a player to look.
+    /// The clock is `events_resolved`, so a run one tile short of an
+    /// interception can go up to the road, answer a door and come back.
+    pub fn drover_tile(&self) -> (u8, u8) {
+        crate::county::CIRCUIT[self.events_resolved as usize % crate::county::CIRCUIT.len()]
+    }
+
+    /// Whether this source has already been spent.
+    pub fn county_trip_taken(&self, from: TripSource) -> bool {
+        self.county_trips.contains(&from)
+    }
+
+    /// Down into THE HUNDRED, five moves, from a mouth.
+    ///
+    /// Refused when the source is already spent, when the census is full, when
+    /// a trip is already running, or when the fight screen is up. Arriving on
+    /// the mouth's own tile is **free** and resolves it, which is what makes
+    /// five moves five tiles of county rather than four.
+    pub fn enter_county(&mut self, from: TripSource, mouth: (u8, u8)) -> bool {
+        if self.phase != Phase::Loadout || self.county_at.is_some() {
+            return false;
+        }
+        if self.county_trips.contains(&from) || self.county_trips.len() >= trip_cap() {
+            return false;
+        }
+        if !crate::county::is_mouth(mouth) {
+            return false;
+        }
+        self.county_trips.push(from);
+        self.county_at = Some(mouth);
+        self.county_moves_left = crate::county::MOVES_A_TRIP;
+        let mut lines = vec![format!("Down into THE HUNDRED at {}", crate::county::reference(mouth))];
+        if let Some(said) = self.resolve_county_tile(mouth) {
+            lines.push(said);
+        }
+        lines.push(moves_left(self.county_moves_left));
+        self.last_receipt = Some(lines);
+        true
+    }
+
+    /// One move: north, south, east or west.
+    ///
+    /// A2.1 in order. The three ways a move ends without moving you - the edge
+    /// of the county, a fence you have not opened, a toll you cannot pay -
+    /// **still cost the move**, because a move is a thing you spend trying
+    /// rather than a thing you spend arriving. Only the edge is free, and that
+    /// is because walking into the edge of a map is not an attempt at
+    /// anything.
+    pub fn county_walk(&mut self, dir: crate::county::Step) -> bool {
+        if self.phase != Phase::Loadout || self.pending_event().is_some() {
+            return false;
+        }
+        let Some(here) = self.county_at else { return false };
+        if self.county_moves_left == 0 {
+            return false;
+        }
+        let Some(to) = dir.from(here) else {
+            self.last_receipt = Some(vec!["That is the edge of the county".into()]);
+            return false;
+        };
+        let county = self.county();
+        // The far corner is behind a pale nobody has opened. It costs the move
+        // for the reason a failed toll does: you went and looked.
+        if county.is_sealed(to) && !self.pale_is_open() {
+            self.county_moves_left -= 1;
+            self.last_receipt = Some(vec![
+                format!("{} is behind the pale", crate::county::reference(to)),
+                moves_left(self.county_moves_left),
+            ]);
+            self.end_county_trip_if_spent();
+            return false;
+        }
+        // F4 puts the toll here: a Feature whose figure you do not meet costs
+        // the move and leaves you where you were. Until the six figures exist
+        // there is nothing to fail, and a tile nobody can be refused by is a
+        // tile you walk onto.
+        self.county_moves_left -= 1;
+        self.county_at = Some(to);
+        let mut lines = vec![format!(
+            "{} - {}",
+            crate::county::reference(to),
+            county.at(to).kind.what()
+        )];
+        if let Some(said) = self.resolve_county_tile(to) {
+            lines.push(said);
+        }
+        lines.push(moves_left(self.county_moves_left));
+        self.last_receipt = Some(lines);
+        self.end_county_trip_if_spent();
+        true
+    }
+
+    /// Resolve the tile you have just arrived on, and say what happened.
+    ///
+    /// A cleared tile resolves nothing and says so - crossing one is a walk
+    /// and not a second visit. Everything else is marked cleared.
+    ///
+    /// **Every kind clears at F2.** The kind-specific arms are the milestones
+    /// that own them: an Event tile sets a pending county event (F7), an
+    /// Objective pays its chain and a Pinnacle asks whether its gate is met
+    /// before it will start a fight (F8). Written as one arm rather than six
+    /// identical ones so that the milestone which arms them finds a place to
+    /// put the code rather than a shape to imitate.
+    fn resolve_county_tile(&mut self, at: (u8, u8)) -> Option<String> {
+        if self.county_cleared.contains(&at) {
+            return Some("walked over, and already yours".into());
+        }
+        self.county_cleared.push(at);
+        None
+    }
+
+    /// Out of the county when the moves run out.
+    ///
+    /// Moves never bank. You are put back at the town entryway you came in by,
+    /// which is where `self.town` still is, because the county door does not
+    /// cost the visit.
+    fn end_county_trip_if_spent(&mut self) {
+        if self.county_moves_left == 0 && self.pending_event().is_none() {
+            self.county_at = None;
+        }
+    }
+
+    /// Walk out early. Free, and it forfeits the moves.
+    ///
+    /// Leaving is a decision with a price on one side only: what you cleared
+    /// stays cleared and the trip is spent either way, so the price is the
+    /// moves you did not take.
+    pub fn leave_county(&mut self) -> bool {
+        if self.phase != Phase::Loadout || self.county_at.is_none() {
+            return false;
+        }
+        let left = self.county_moves_left;
+        self.county_at = None;
+        self.county_moves_left = 0;
+        self.last_receipt = Some(vec![
+            "Back up out of THE HUNDRED. What you cleared stays cleared.".into(),
+            format!("{left} move{} forfeited", if left == 1 { "" } else { "s" }),
+        ]);
         true
     }
 
@@ -4219,6 +4537,27 @@ impl Run {
             // The pedestal is answered by `feed_pedestal` with an orb in hand;
             // walking up to it without one is looking at furniture.
             Action::Pedestal => {}
+            // The way down is answered by `enter_county` at this town's mouth,
+            // which the interface picks the moment it knows which town it is
+            // standing in. Refused once this town has been used, and the
+            // refusal costs nothing - the door is not a door.
+            Action::County => {
+                let mouth = crate::county::MOUTHS.iter().find(|(id, _)| *id == t.id).map(|(_, m)| *m);
+                match mouth {
+                    Some(m) if self.enter_county(TripSource::Town(t.id), m) => {
+                        // `enter_county` wrote the receipt, which says where
+                        // you came down and what was standing there.
+                        return TownVisit { at: Some(t.name), did: Some(what), ..out };
+                    }
+                    _ => {
+                        self.last_receipt = Some(vec![
+                            format!("The steps under {} have been walked once already", t.name),
+                            "A town is one trip down, and this one is spent".into(),
+                        ]);
+                        return TownVisit { at: Some(t.name), did: Some(what), ..out };
+                    }
+                }
+            }
             Action::Library => {
                 if let Some(id) = self.inventory().first().copied() {
                     let def = self.registry.def_index(id);

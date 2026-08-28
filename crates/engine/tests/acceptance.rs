@@ -189,8 +189,12 @@ fn e6_9_only_the_second_key_breaks_the_one_action_rule() {
         Action::EVERY.iter().copied().filter(|a| !a.costs_the_visit()).collect();
     assert_eq!(
         free,
-        vec![Action::Pedestal],
-        "something other than the pedestal stopped costing the visit"
+        vec![Action::Pedestal, Action::County],
+        "something other than the two things that are not doors stopped costing the visit. \
+         THE HUNDRED's way down is the second, and it is the pedestal's exception rather \
+         than a new one: the county is under the town, one trip per town for the whole run, \
+         and charging a visit for it would make six towns six decisions the county always \
+         loses. Anything else in this list is a bug"
     );
     // And the key itself, which is a thing rather than a door.
     let key = gearmaster_engine::relic::CRUSHABLES

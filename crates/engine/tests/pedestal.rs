@@ -116,8 +116,12 @@ fn the_pedestal_costs_no_visit_and_is_the_only_thing_that_does_not() {
     for a in Action::EVERY {
         assert_eq!(
             a.costs_the_visit(),
-            a != Action::Pedestal,
-            "{:?} is the wrong side of the one-action rule",
+            !matches!(a, Action::Pedestal | Action::County),
+            "{:?} is the wrong side of the one-action rule. Two things are outside it and \
+             both of them are outside it for the same reason - they are not doors. The \
+             pedestal stands in the entryway and takes its own key; the way down into THE \
+             HUNDRED is under the town rather than in it, and is one trip per town for the \
+             whole run",
             a
         );
     }

@@ -70,13 +70,24 @@ pub enum Action {
     Manager,
     /// Feed it an orb and go where the orb goes.
     ///
-    /// **The one thing in the game outside the one-action rule.** It is not a
+    /// **One of the two things outside the one-action rule.** It is not a
     /// door: it stands in the entryway and takes its own key, and a run that
     /// walks in without an orb sees furniture. Two of them exist and they
     /// share one visited-set, because the second is there so a run whose orbs
     /// arrived late can still spend them and not so a patient one spends them
     /// twice.
     Pedestal,
+    /// The way down into THE HUNDRED, and every town has one.
+    ///
+    /// **The other thing outside the one-action rule**, and for the pedestal's
+    /// reason rather than a new one: it is not a door either. The county is
+    /// *under* the town, five moves of it a trip, one trip per town for the
+    /// whole run - so charging a visit for it would make the county something
+    /// a run does instead of a town rather than as well as one, and six towns
+    /// would become six decisions the county always loses.
+    ///
+    /// A second use is refused with a line and costs nothing.
+    County,
 }
 
 impl Action {
@@ -85,7 +96,7 @@ impl Action {
 
     /// Every door in the game, so a lint over "does this explain itself" does
     /// not quietly stop covering the ones a hidden town brought.
-    pub const EVERY: [Action; 17] = [
+    pub const EVERY: [Action; 18] = [
         Action::Chapel,
         Action::Pub,
         Action::Factory,
@@ -103,15 +114,17 @@ impl Action {
         Action::SampleCounter,
         Action::Manager,
         Action::Pedestal,
+        Action::County,
     ];
 
     /// Does using this cost you the town's one action?
     ///
-    /// Everything does, except the pedestal, which is not a door - and the
+    /// Everything does, except the two things that are not doors - the
+    /// pedestal in the entryway and the way down into the county - and the
     /// Second Key, which is not a door either and is the only *thing* that
     /// ever breaks the rule.
     pub fn costs_the_visit(self) -> bool {
-        !matches!(self, Action::Pedestal)
+        !matches!(self, Action::Pedestal | Action::County)
     }
 
     /// The key a theme looks the name up under. Never shown raw.
@@ -134,6 +147,7 @@ impl Action {
             Action::SampleCounter => "town-samples",
             Action::Manager => "town-manager",
             Action::Pedestal => "town-pedestal",
+            Action::County => "town-county",
         }
     }
 
@@ -156,6 +170,7 @@ impl Action {
             Action::SampleCounter => "THE SAMPLE COUNTER",
             Action::Manager => "THE MANAGER",
             Action::Pedestal => "THE PEDESTAL",
+            Action::County => "THE WAY DOWN",
         }
     }
 
@@ -283,6 +298,12 @@ impl Action {
                  one and you go where the orb goes and come back here. It is \
                  not a door and it does not cost you your one."
             }
+            Action::County => {
+                "Steps, and under them a county. Five moves of it, once from \
+                 this town, and what you clear down there stays cleared for \
+                 the rest of the run. Not a door either, and it costs you \
+                 nothing to look."
+            }
         }
     }
 }
@@ -324,11 +345,24 @@ pub struct Town {
 /// Sump Bottom is early enough that a Piety stack has somewhere to go.
 /// Kettleworks sits where a doubled bounty is worth something. High Wick is
 /// past the VIP area, so a run is never asked to choose between them.
+/// The four doors, and the way down under them.
+///
+/// `Action::ALL` is still the four, because that is what it means and a dozen
+/// tests read it that way. This is what a pinned town without a pedestal
+/// actually has: the county stands outside the one-action rule rather than
+/// competing inside it, so adding it takes nothing away.
+///
+/// **Not the pedestal.** Two towns have one - High Wick and Extra Large - and
+/// `pedestal::the_pedestal_costs_no_visit_and_is_the_only_thing_that_does_not`
+/// is the test that caught this constant handing two more towns a socket.
+const PINNED_DOORS: [Action; 5] =
+    [Action::Chapel, Action::Pub, Action::Factory, Action::Shop, Action::County];
+
 pub const TOWNS: &[Town] = &[
     Town {
         id: "sump-bottom",
         unlock: Unlock::Pinned,
-        actions: &Action::ALL,
+        actions: &PINNED_DOORS,
         after: 6,
         name: "SUMP BOTTOM",
         blurb: &[
@@ -347,7 +381,7 @@ pub const TOWNS: &[Town] = &[
     Town {
         id: "kettleworks",
         unlock: Unlock::Pinned,
-        actions: &Action::ALL,
+        actions: &PINNED_DOORS,
         after: 17,
         name: "KETTLEWORKS",
         blurb: &[
@@ -370,7 +404,14 @@ pub const TOWNS: &[Town] = &[
         // because the orbs are shop finds: a run whose orbs arrived late still
         // gets to spend them, and one passing here at rung 32 meets the
         // destinations at the band they were packed for.
-        actions: &[Action::Chapel, Action::Pub, Action::Factory, Action::Shop, Action::Pedestal],
+        actions: &[
+            Action::Chapel,
+            Action::Pub,
+            Action::Factory,
+            Action::Shop,
+            Action::Pedestal,
+            Action::County,
+        ],
         after: 31,
         name: "HIGH WICK",
         blurb: &[
@@ -406,6 +447,7 @@ pub const TOWNS: &[Town] = &[
             Action::SampleCounter,
             Action::Manager,
             Action::Pedestal,
+            Action::County,
         ],
         after: 13,
         name: "EXTRA LARGE",
@@ -430,6 +472,7 @@ pub const TOWNS: &[Town] = &[
             Action::Gallery,
             Action::LongTable,
             Action::Library,
+            Action::County,
         ],
         after: 24,
         name: "THE MANSE",
@@ -454,6 +497,7 @@ pub const TOWNS: &[Town] = &[
             Action::MoldLine,
             Action::Tempering,
             Action::Foreman,
+            Action::County,
         ],
         // Thirty-three, not thirty-two.
         //

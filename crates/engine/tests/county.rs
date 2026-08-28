@@ -592,3 +592,446 @@ fn county_events_never_fight() {
         }
     }
 }
+
+// ============================================================ F2: standing in it
+//
+// The run knows the place exists. Five moves a trip, ten trips a run, and a
+// county that remembers what it lost a life over.
+
+use gearmaster_engine::county::Step;
+use gearmaster_engine::run::{trip_cap, Interrupt, Run, TripSource};
+use gearmaster_engine::town::{self, Action, TOWNS};
+
+fn a_run() -> Run {
+    let mut run = Run::seeded(0x1_00D);
+    run.mode = Mode::Grinder;
+    run.difficulty = Difficulty::Medium;
+    run
+}
+
+/// Stand at a town's gate, the way the road puts you there.
+fn at_the_gate_of(run: &mut Run, id: &str) {
+    let t = town::by_id(id).expect("a town");
+    if t.unlock != town::Unlock::Pinned {
+        run.reveal_town(t.id);
+    }
+    run.rung = t.after;
+    run.force_win();
+    run.settle();
+    run.back_to_loadout();
+    assert_eq!(run.pending_town().map(|t| t.id), Some(t.id), "{id}'s gate is not up");
+}
+
+// ------------------------------------------------------------- the census
+
+/// The cap is the enum, and adding a way down without raising it fails here.
+///
+/// A2.2's rule, and the reason it is a rule: a number written beside an enum
+/// drifts from it silently, and the drift is a run that gets an eleventh trip
+/// nobody costed. `TripSource::seats` is the weighting - a town is worth as
+/// many trips as there are towns - so the arithmetic is `TOWNS.len() + 4`.
+#[test]
+fn the_census_is_the_enum_and_not_a_number() {
+    assert_eq!(TripSource::ALL.len(), 5, "a way down was added or taken away");
+    assert_eq!(trip_cap(), TOWNS.len() + 4);
+    assert_eq!(
+        trip_cap(),
+        10,
+        "ten is the census: three pinned towns, three hidden, an orb, a bet, an arrest and \
+         a perambulation. If this moved, the enum moved, and every piece of arithmetic in \
+         Part A4 - four or five trips finishes two chains, seven finishes three - was \
+         costed against ten"
+    );
+    // Each variant's own weight, so the total cannot come out right by two
+    // errors cancelling.
+    assert_eq!(TripSource::Town("").seats(), TOWNS.len());
+    for t in TripSource::ALL.iter().filter(|t| !matches!(t, TripSource::Town(_))) {
+        assert_eq!(t.seats(), 1, "{t:?} is worth more than one trip");
+    }
+}
+
+/// The eleventh door is refused, and every one of the ten is taken.
+#[test]
+fn ten_trips_and_no_eleventh() {
+    let mut run = a_run();
+    for (i, (id, mouth)) in MOUTHS.iter().enumerate() {
+        assert!(run.enter_county(TripSource::Town(id), *mouth), "town trip {i} refused");
+        assert!(run.leave_county());
+    }
+    for from in [
+        TripSource::SurveyorsOrb,
+        TripSource::WasteBet,
+        TripSource::Constable,
+        TripSource::Perambulation,
+    ] {
+        assert!(run.enter_county(from, MOUTHS[0].1), "{from:?} refused");
+        assert!(run.leave_county());
+    }
+    assert_eq!(run.county_trips.len(), trip_cap());
+    // And there is nothing left to spend. A repeat is refused because it is a
+    // repeat; a fresh one because the census is full.
+    assert!(!run.enter_county(TripSource::Constable, MOUTHS[0].1), "an eleventh trip was sold");
+    assert!(
+        !run.enter_county(TripSource::Town("sump-bottom"), MOUTHS[0].1),
+        "a town let a run down twice"
+    );
+}
+
+// ------------------------------------------------------------- a trip
+
+/// Five moves, and arriving on the mouth is free.
+#[test]
+fn five_moves_and_a_free_arrival() {
+    let mut run = a_run();
+    let mouth = MOUTHS[0].1;
+    assert!(run.enter_county(TripSource::Town("sump-bottom"), mouth));
+    assert_eq!(run.county_at, Some(mouth));
+    assert_eq!(run.county_moves_left, 5, "arriving is not one of the five");
+    assert!(run.county_is_cleared(mouth), "the mouth's own tile did not resolve");
+
+    // Five moves, and the fifth ends the trip.
+    let c = run.county();
+    let mut taken = 0;
+    for _ in 0..5 {
+        let here = run.county_at.expect("still down there");
+        let step = Step::ALL
+            .into_iter()
+            .find(|s| {
+                s.from(here).is_some_and(|to| !c.is_sealed(to))
+            })
+            .expect("somewhere to go");
+        assert!(run.county_walk(step), "move {taken} refused");
+        taken += 1;
+        if taken < 5 {
+            assert_eq!(run.county_moves_left, 5 - taken as u8);
+            assert!(run.county_at.is_some(), "the trip ended after {taken} moves");
+        }
+    }
+    assert_eq!(run.county_moves_left, 0);
+    assert_eq!(run.county_at, None, "the trip did not end when the moves ran out");
+    // And moves never bank.
+    assert!(!run.county_walk(Step::North), "a sixth move was taken");
+}
+
+/// Walking onto a tile you already cleared says so and resolves nothing.
+#[test]
+fn a_cleared_tile_is_walked_over_and_not_visited_again() {
+    let mut run = a_run();
+    let mouth = MOUTHS[1].1;
+    assert!(run.enter_county(TripSource::Town("kettleworks"), mouth));
+    let c = run.county();
+    let out = Step::ALL.into_iter().find(|s| s.from(mouth).is_some_and(|t| !c.is_sealed(t))).unwrap();
+    let there = out.from(mouth).unwrap();
+    assert!(run.county_walk(out));
+    let back = Step::ALL.into_iter().find(|s| s.from(there) == Some(mouth)).unwrap();
+    assert!(run.county_walk(back));
+
+    assert_eq!(run.county_cleared.iter().filter(|p| **p == mouth).count(), 1, "cleared twice");
+    let receipt = run.last_receipt.clone().expect("a receipt");
+    assert!(
+        receipt.iter().any(|l| l.contains("already yours")),
+        "walking back over a cleared tile said nothing about it: {receipt:?}"
+    );
+    // Two tiles cleared, three moves left, and it cost two of them.
+    assert_eq!(run.county_moves_left, 3);
+    assert_eq!(run.county_cleared.len(), 2);
+}
+
+/// The far corner is shut, and looking costs the move.
+///
+/// The same shape a failed toll has at F4: you went and looked. Only the edge
+/// of the county is free, because walking into the edge of a map is not an
+/// attempt at anything.
+#[test]
+fn the_pale_is_shut_and_bouncing_off_it_costs_a_move() {
+    let mut run = a_run();
+    let c = run.county();
+    let sealed = c.sealed()[0];
+    // Stand next to it. `enter_county` wants a mouth, so this is placed by
+    // hand - the run has no way to walk there in five from any gate and that
+    // is the point of a far corner.
+    run.county_at = Some(county::neighbours(sealed)[0]);
+    run.county_moves_left = 5;
+    let here = run.county_at.unwrap();
+    let into = Step::ALL.into_iter().find(|s| s.from(here) == Some(sealed)).unwrap();
+
+    assert!(!run.pale_is_open());
+    assert!(!run.county_walk(into), "the fence let somebody through");
+    assert_eq!(run.county_at, Some(here), "the fence moved somebody");
+    assert_eq!(run.county_moves_left, 4, "looking at the fence was free");
+    assert!(!run.county_is_cleared(sealed));
+    let receipt = run.last_receipt.clone().expect("a receipt");
+    assert!(
+        receipt.iter().any(|l| l.contains("behind the pale")),
+        "the fence did not say what it was: {receipt:?}"
+    );
+}
+
+/// The edge of the county is free, and it is the only thing that is.
+#[test]
+fn walking_into_the_edge_costs_nothing() {
+    let mut run = a_run();
+    assert!(run.enter_county(TripSource::Town("kettleworks"), (2, 0)));
+    assert!(!run.county_walk(Step::North), "there is no row zero");
+    assert_eq!(run.county_moves_left, 5, "the edge of a map charged for itself");
+    assert_eq!(run.county_at, Some((2, 0)));
+}
+
+/// Leaving is free, forfeits the moves, and keeps what was cleared.
+#[test]
+fn leaving_forfeits_the_moves_and_nothing_else() {
+    let mut run = a_run();
+    assert!(run.enter_county(TripSource::Town("high-wick"), (6, 2)));
+    let c = run.county();
+    let out = Step::ALL.into_iter().find(|s| s.from((6, 2)).is_some_and(|t| !c.is_sealed(t))).unwrap();
+    assert!(run.county_walk(out));
+    let cleared = run.county_cleared.clone();
+    assert_eq!(cleared.len(), 2);
+
+    assert!(run.leave_county());
+    assert_eq!(run.county_at, None);
+    assert_eq!(run.county_cleared, cleared, "leaving forgot what the trip cleared");
+    assert_eq!(run.county_trips.len(), 1, "leaving handed the trip back");
+    assert!(!run.leave_county(), "left twice");
+}
+
+// ------------------------------------------------------ the town's own door
+
+/// The way down is not a door, and using it twice is refused with a line.
+#[test]
+fn a_towns_steps_are_walked_once_and_the_second_time_says_so() {
+    let mut run = a_run();
+    at_the_gate_of(&mut run, "sump-bottom");
+    assert!(town::by_id("sump-bottom").unwrap().actions.contains(&Action::County));
+
+    run.visit_town(Action::County);
+    assert!(run.county_at.is_some(), "the steps did not go anywhere");
+    assert!(run.pending_town().is_some(), "the way down cost the visit");
+    assert!(run.leave_county());
+
+    run.visit_town(Action::County);
+    assert!(run.county_at.is_none(), "the same town let a run down twice");
+    let receipt = run.last_receipt.clone().expect("a receipt");
+    assert!(
+        receipt.iter().any(|l| l.contains("walked once already")),
+        "the second use said nothing: {receipt:?}"
+    );
+    // And it still did not cost the visit, so the town is intact.
+    assert!(run.pending_town().is_some(), "a refusal cost the visit");
+    let before = run.stacks_of("Piety");
+    run.visit_town(Action::Chapel);
+    assert_eq!(run.stacks_of("Piety"), before + 1, "the chapel was gone");
+}
+
+/// Every town has one, and it comes down at that town's own mouth.
+#[test]
+fn every_town_lets_you_down_at_its_own_mouth() {
+    for t in TOWNS {
+        assert!(t.actions.contains(&Action::County), "{} has no way down", t.id);
+        let mouth = MOUTHS.iter().find(|(id, _)| *id == t.id).map(|(_, m)| *m);
+        assert!(mouth.is_some(), "{} has no mouth", t.id);
+
+        let mut run = a_run();
+        at_the_gate_of(&mut run, t.id);
+        run.visit_town(Action::County);
+        assert_eq!(run.county_at, mouth, "{} came down somewhere else", t.id);
+        assert_eq!(run.county_trips, vec![TripSource::Town(t.id)]);
+    }
+}
+
+// ---------------------------------------------------------- the road stack
+
+/// In the county, the county is on top and the road is blocked.
+#[test]
+fn the_county_is_on_top_of_the_stack_and_blocks_a_rematch() {
+    let mut run = a_run();
+    at_the_gate_of(&mut run, "kettleworks");
+    run.visit_town(Action::County);
+
+    let stack = run.road_stack();
+    assert!(matches!(stack[0], Interrupt::County { .. }), "the county is not on top: {stack:?}");
+    assert_eq!(stack[0].kind(), "county");
+    assert_eq!(stack[0].name(), "THE HUNDRED");
+    assert_eq!(stack[0].id(), "the-hundred");
+    assert_eq!(run.road_is_blocked(), Some("the county"));
+
+    // The banner A2.1 asks for.
+    let said = stack[0].describe();
+    assert!(said.starts_with("THE HUNDRED - C1 - 5 moves left"), "the banner reads {said:?}");
+    run.county_walk(Step::South);
+    let said = run.road_stack()[0].describe();
+    assert!(said.contains("4 moves left"), "the banner did not count down: {said:?}");
+
+    // And the town gate is still underneath it, because the way down did not
+    // cost the visit.
+    assert!(
+        run.road_stack().iter().any(|i| matches!(i, Interrupt::TownGate(_))),
+        "the gate went away"
+    );
+}
+
+/// Two reads of one county at one tile are equal, and at two tiles are not.
+#[test]
+fn the_stack_can_tell_two_tiles_apart() {
+    let mut run = a_run();
+    assert!(run.enter_county(TripSource::Town("kettleworks"), (2, 0)));
+    let a = run.road_stack()[0];
+    assert_eq!(a, run.road_stack()[0]);
+    run.county_walk(Step::South);
+    assert_ne!(a, run.road_stack()[0], "the stack thinks two tiles are one place");
+}
+
+// ------------------------------------------------- a place, not an attempt
+
+/// A Rogue life spent keeps the county, and so does a Grinder knock-back.
+///
+/// A7: the county is a place, not an attempt. Re-walking it would be the same
+/// five moves again rather than a second chance at them - and it is where the
+/// endgame lives, so a run that lost a fight on the road has not lost the
+/// Ordnance.
+#[test]
+fn a_death_does_not_take_the_county_away() {
+    for mode in [Mode::Grinder, Mode::Rogue] {
+        let mut run = a_run();
+        run.mode = mode;
+        if mode == Mode::Rogue {
+            run.lives = gearmaster_engine::run::ROGUE_LIVES;
+        }
+        assert!(run.enter_county(TripSource::Town("sump-bottom"), MOUTHS[0].1));
+        assert!(run.county_walk(Step::North));
+        assert!(run.leave_county());
+        let kept = run.county_cleared.clone();
+        let trips = run.county_trips.clone();
+        assert_eq!(kept.len(), 2);
+
+        // Lose a fight on the road.
+        run.rung = 20;
+        run.begin_fight();
+        run.settle();
+        run.back_to_loadout();
+
+        assert_eq!(run.county_cleared, kept, "{mode:?} lost the county to a defeat");
+        assert_eq!(run.county_trips, trips, "{mode:?} lost the census to a defeat");
+    }
+}
+
+/// A wipe is a different run, and a different county.
+#[test]
+fn a_wipe_takes_it_all() {
+    let mut run = a_run();
+    assert!(run.enter_county(TripSource::Town("sump-bottom"), MOUTHS[0].1));
+    assert!(run.county_walk(Step::North));
+    let seed = run.county_seed();
+    run.wipe();
+    assert!(run.county_cleared.is_empty(), "a wipe kept the county");
+    assert!(run.county_trips.is_empty(), "a wipe kept the census");
+    assert_eq!(run.county_at, None);
+    assert_eq!(run.events_resolved, 0);
+    assert_ne!(run.county_seed(), seed, "a new run walks the same county");
+}
+
+/// The county a run has is the county its seed makes, always.
+#[test]
+fn the_run_derives_its_county_and_never_stores_one() {
+    let mut run = a_run();
+    assert_eq!(run.county(), county::generate(run.county_seed()));
+    // Nothing a run does to itself changes which county is under it, except
+    // the two things the seed is made of.
+    assert!(run.enter_county(TripSource::Town("sump-bottom"), MOUTHS[0].1));
+    run.county_walk(Step::North);
+    run.gold += 100;
+    run.rung = 30;
+    assert_eq!(run.county(), county::generate(run.county_seed()));
+
+    let mut other = a_run();
+    other.difficulty = Difficulty::Insane;
+    assert_ne!(other.county_seed(), run.county_seed());
+    assert_ne!(other.county(), run.county(), "two settings share a county");
+}
+
+/// Neither the fight nor a pending event lets you walk.
+#[test]
+fn a_move_is_refused_when_something_else_is_up() {
+    let mut run = a_run();
+    assert!(run.enter_county(TripSource::Town("sump-bottom"), MOUTHS[0].1));
+    run.begin_fight();
+    assert!(!run.county_walk(Step::North), "walked mid-fight");
+    assert!(!run.leave_county(), "left mid-fight");
+    run.settle();
+    run.back_to_loadout();
+    assert!(run.county_walk(Step::North), "the fight kept the county shut");
+}
+
+/// Three pinned towns, fifteen moves, and the county remembers all of it.
+///
+/// F2's exit criterion, done where it can be done honestly. The driver's half
+/// is `cli/tests/replay.rs::a_county_trip_replays_identically`, which does one
+/// town because no board the driver can build from its own verbs clears rung
+/// 9 and Kettleworks' gate is after rung 17 - the Switchyard's M3 wall, which
+/// has not moved.
+///
+/// The walk is greedy and deterministic: at each tile take the first legal
+/// step, preferring somewhere not yet cleared, so the three trips cover
+/// ground rather than pacing between two tiles.
+#[test]
+fn three_towns_and_fifteen_moves() {
+    let mut run = a_run();
+    let c = run.county();
+    let mut trips = 0;
+    for id in ["sump-bottom", "kettleworks", "high-wick"] {
+        at_the_gate_of(&mut run, id);
+        run.visit_town(Action::County);
+        assert!(run.county_at.is_some(), "{id} did not go down");
+        trips += 1;
+
+        for m in 0..5 {
+            let here = run.county_at.expect("still down there");
+            let legal = |s: &Step| {
+                s.from(here).is_some_and(|to| !c.is_sealed(to) || run.pale_is_open())
+            };
+            let step = Step::ALL
+                .into_iter()
+                .find(|s| legal(s) && s.from(here).is_some_and(|to| !run.county_is_cleared(to)))
+                .or_else(|| Step::ALL.into_iter().find(legal))
+                .expect("somewhere to go");
+            assert!(run.county_walk(step), "{id}, move {m}: refused");
+        }
+        assert_eq!(run.county_at, None, "{id}'s trip did not end");
+        // The gate is still up, because the way down is not a door.
+        assert_eq!(run.pending_town().map(|t| t.id), Some(id), "{id} spent its visit");
+        run.skip_town();
+    }
+
+    assert_eq!(trips, 3);
+    assert_eq!(run.county_trips.len(), 3);
+    assert_eq!(
+        run.county_trips,
+        vec![
+            TripSource::Town("sump-bottom"),
+            TripSource::Town("kettleworks"),
+            TripSource::Town("high-wick"),
+        ]
+    );
+    // Fifteen moves and three free arrivals is at most eighteen tiles, and
+    // fewer when a walk crosses itself - which is the point of walking three
+    // mouths rather than one three times.
+    let cleared = run.county_cleared.len();
+    assert!(
+        (10..=18).contains(&cleared),
+        "fifteen moves and three arrivals cleared {cleared} tiles, which is either a walk \
+         that never left the mouth or a move that cleared more than one tile"
+    );
+    let unique: std::collections::BTreeSet<_> = run.county_cleared.iter().collect();
+    assert_eq!(unique.len(), cleared, "a tile was cleared twice");
+    // Three trips from three different edges reach more than one region.
+    let regions: std::collections::BTreeSet<&str> = run
+        .county_cleared
+        .iter()
+        .map(|p| match Region::of_row(p.1) {
+            Region::North => "north",
+            Region::Middle => "middle",
+            Region::South => "south",
+        })
+        .collect();
+    assert!(regions.len() >= 2, "three gates on three edges reached one region: {regions:?}");
+}

@@ -203,8 +203,47 @@ fn main() {
                     run.visit_town(a);
                     print_receipt(&mut run);
                 }
-                None => println!("error: chapel, pub, factory or shop"),
+                None => println!("error: chapel, pub, factory, shop, county"),
             },
+            // --- THE HUNDRED ---------------------------------------------
+            //
+            // `go` is the way down from a town, `walk` is a move and `out`
+            // walks back up. Deliberately not `leave`: that verb already means
+            // "out of a dungeon" and a run can be standing in a county and
+            // have a dungeon underneath it, so one word for two doors would
+            // pick the wrong one exactly when it mattered.
+            ["go"] => {
+                let door = gearmaster_engine::town::Action::County;
+                if run.county_at.is_some() {
+                    println!("You are already down there. `walk n|s|e|w`, or `out`.");
+                } else if run.pending_town().is_none() {
+                    println!("The way down is in a town, and you are not at one.");
+                } else {
+                    run.visit_town(door);
+                    print_receipt(&mut run);
+                    show_county(&run);
+                }
+            }
+            ["walk", dir] => match gearmaster_engine::county::Step::parse(dir) {
+                None => println!("error: walk n|s|e|w"),
+                Some(step) => {
+                    if run.county_at.is_none() {
+                        println!("You are not in THE HUNDRED.");
+                    } else {
+                        run.county_walk(step);
+                        print_receipt(&mut run);
+                        show_county(&run);
+                    }
+                }
+            },
+            ["out"] => {
+                if run.leave_county() {
+                    print_receipt(&mut run);
+                    show_road(&run);
+                } else {
+                    println!("You are not in THE HUNDRED.");
+                }
+            }
             ["throw", n] => match n.parse::<usize>() {
                 Ok(i) if run.throw_points(i) => {
                     print_receipt(&mut run);
@@ -363,6 +402,9 @@ fn help() {
     println!("  throw <n>                at a set of points, take road n");
     println!("  pedestal <n>             feed inventory item n to the pedestal");
     println!("  leave                    walk out of a dungeon, keeping what you cleared");
+    println!("  go                       from a town, down into THE HUNDRED");
+    println!("  walk n|s|e|w             one tile of the county");
+    println!("  out                      back up out of the county");
     println!("  slots: helmet chest gloves greaves weapon");
 }
 
@@ -383,6 +425,47 @@ fn print_receipt(run: &mut Run) {
 /// The road stack, drawn the way the interface draws it: what you are in,
 /// what is under it, and the rung's own fight as the floor so the queue
 /// visibly ends somewhere.
+/// Where you are standing in THE HUNDRED, and what is around you.
+///
+/// The five tiles a move can reach, named. The map itself is F9's; this is
+/// the driver being able to say where it is at all, which is what makes a
+/// scripted trip a thing that can be diffed.
+fn show_county(run: &Run) {
+    use gearmaster_engine::county;
+    let Some(at) = run.county_at else { return };
+    let c = run.county();
+    // Read off `describe()` rather than formatted here, for `show_road`'s
+    // reason: the banner is a reading of the run now, and two interfaces
+    // working one out separately are two interfaces that will disagree about
+    // it one day.
+    if let Some(i) = run.road_stack().iter().find(|i| i.kind() == "county") {
+        println!("\n{}", run.theme.retell(&i.describe()).to_uppercase());
+    }
+    println!("  {}", run.theme.retell(c.at(at).kind.what()));
+    for step in county::Step::ALL {
+        match step.from(at) {
+            None => println!("  {}  the edge of the county", step.key()),
+            Some(to) => {
+                let t = c.at(to);
+                let mark = if run.county_is_cleared(to) {
+                    "#"
+                } else if c.is_sealed(to) && !run.pale_is_open() {
+                    "|"
+                } else {
+                    "."
+                };
+                println!(
+                    "  {}  {} {} {}",
+                    step.key(),
+                    mark,
+                    county::reference(to),
+                    run.theme.retell(t.kind.what())
+                );
+            }
+        }
+    }
+}
+
 fn show_road(run: &Run) {
     let stack = run.road_stack();
     // You always know you are inside one. Read off `describe()` rather than
@@ -481,6 +564,8 @@ fn parse_door(s: &str) -> Option<gearmaster_engine::town::Action> {
         "pub" => Some(Action::Pub),
         "factory" | "works" => Some(Action::Factory),
         "shop" | "cart" => Some(Action::Shop),
+        "pedestal" | "socket" => Some(Action::Pedestal),
+        "county" | "steps" | "down" => Some(Action::County),
         _ => None,
     }
 }

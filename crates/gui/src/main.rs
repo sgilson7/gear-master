@@ -7714,6 +7714,20 @@ fn town_note(run: &Run, a: gearmaster_engine::town::Action) -> String {
                 n => format!("{} orb{} in the bag.", n, if n == 1 { "" } else { "s" }),
             }
         }
+        // The way down says whether this town's trip is still there, which is
+        // the only thing about it that changes: the county itself is the same
+        // county whichever gate you come in by.
+        Action::County => {
+            use gearmaster_engine::run::{trip_cap, TripSource};
+            let spent = run.county_trips.len();
+            if run.pending_town().is_some_and(|t| {
+                run.county_trip_taken(TripSource::Town(t.id))
+            }) {
+                "These steps have been walked.".to_string()
+            } else {
+                format!("Five moves. {} of {} trips spent.", spent, trip_cap())
+            }
+        }
         Action::MoldLine | Action::Library | Action::Aisle9 | Action::ReturnsDesk
         | Action::SampleCounter | Action::Manager => String::new(),
     }

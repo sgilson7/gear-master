@@ -150,6 +150,13 @@ pub const UNARRANGED: &str = "county-event-unarranged";
 /// promised.
 pub const PALE: &str = "the-pale";
 
+/// The flag the pale's own choice sets, and the far corner reads.
+///
+/// Authored at F8. Named here because the county is what the flag is *about*,
+/// and because a fence has to be shut by something before anything can open
+/// it - `Run::pale_is_open` is the one place that asks.
+pub const PALE_OPEN: &str = "the-pale-is-open";
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum TileKind {
     /// An id into `COUNTY_EVENTS` (F7), which is the road's own `LadderEvent`
@@ -348,6 +355,75 @@ impl County {
             i += 1;
         }
         County { tiles, hill, bearings, pale, sealed, attempts }
+    }
+}
+
+/// A grid reference: `A1` to `G7`, the way the map's own edges are labelled.
+pub fn reference(p: (u8, u8)) -> String {
+    format!("{}{}", (b'A' + p.0) as char, p.1 + 1)
+}
+
+impl TileKind {
+    /// What the tile is, in canonical words.
+    ///
+    /// Terse on purpose: a banner has to name where you are standing and the
+    /// prose is F7's and F10's. The theme layer swaps these the way it swaps a
+    /// door's name, and nothing the engine decides reads one.
+    pub const fn what(&self) -> &'static str {
+        match self {
+            TileKind::Event(_) => "a question",
+            TileKind::Feature(Toll::River { .. }) => "a river",
+            TileKind::Feature(Toll::Ford { .. }) => "a ford",
+            TileKind::Feature(Toll::Scarp { .. }) => "a scarp",
+            TileKind::Feature(Toll::Drift { .. }) => "a drift",
+            TileKind::Feature(Toll::Hedge { .. }) => "a hedge",
+            TileKind::Feature(Toll::Gate { .. }) => "a toll gate",
+            TileKind::Empty => "open ground",
+            TileKind::Objective { chain: Chain::Ordnance, .. } => "a trig point",
+            TileKind::Objective { chain: Chain::Drove, .. } => "a sign",
+            TileKind::Objective { chain: Chain::Enclosure, .. } => "a boundary stone",
+            TileKind::Pinnacle { .. } => "the end of a chain",
+            TileKind::Gaol => "the gaol",
+        }
+    }
+}
+
+/// Which way a step goes. Orthogonal only: the bearings are lines drawn on a
+/// map, not roads.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Step {
+    North,
+    South,
+    East,
+    West,
+}
+
+impl Step {
+    pub const ALL: [Step; 4] = [Step::North, Step::South, Step::East, Step::West];
+
+    pub const fn key(self) -> &'static str {
+        match self {
+            Step::North => "n",
+            Step::South => "s",
+            Step::East => "e",
+            Step::West => "w",
+        }
+    }
+
+    pub fn parse(word: &str) -> Option<Step> {
+        Step::ALL.into_iter().find(|s| s.key() == word.trim().to_lowercase())
+    }
+
+    /// The tile this step lands on, or `None` at the county's edge.
+    pub fn from(self, p: (u8, u8)) -> Option<(u8, u8)> {
+        let d = match self {
+            Step::North => (0i8, -1i8),
+            Step::South => (0, 1),
+            Step::East => (1, 0),
+            Step::West => (-1, 0),
+        };
+        let q = (p.0 as i8 + d.0, p.1 as i8 + d.1);
+        in_bounds(q).then(|| (q.0 as u8, q.1 as u8))
     }
 }
 

@@ -29,7 +29,7 @@ milestone that wants to reopen one has something to argue against.
 |---|---|
 | **F0** Baseline | **done** - `analysis/the-hundred.md` "F0 baseline" |
 | **F1** The county, generated | **done** - `analysis/the-hundred.md` "F1 the county, generated" |
-| **F2** Standing in it | not started |
+| **F2** Standing in it | **done** - `analysis/the-hundred.md` "F2 standing in it" |
 | **F3** The clock | not started |
 | **F4** Tolls, and the two Requirement variants | not started |
 | **F5** Bearing, Overtake, Commons - inert | not started |
@@ -68,6 +68,32 @@ new `TileKind`, which is what keeps A1.2's composition exact.
 C1's argument true - a gaol one tile from a mouth is not a shortcut - and it
 has a second half now. And V2 read as a union is satisfied by the county it
 exists to refuse; it is a matching.
+
+### F2 - Standing in it
+
+A2.1's movement, A2.2's state, `TripSource` and its census, `Interrupt::County`
+on top of the stack, `Action::County` on all six towns, the CLI's `go`, `walk`
+and `out`. **953 engine, 78 GUI, 8 CLI. No warnings.** The `baseline` printer
+is still byte-identical to F0.
+
+**The cap is the enum.** `trip_cap()` sums `TripSource::seats()`, where a town
+is worth `TOWNS.len()`, so a mission that adds a way down cannot land without
+the suite making it raise the cap. Ten, and every figure in A4 was costed
+against ten.
+
+**One bug introduced and caught in the same hour**, by a test whose doc comment
+named the two towns that have a pedestal. Sump Bottom and Kettleworks do not,
+and a shared door constant handed them one.
+
+**Two pins moved.** The pedestal is no longer the only thing outside the
+one-action rule. Both assertions say why in the message rather than in a commit.
+
+**The exit criterion could not be met through the driver**, and it is the
+Switchyard's M3 wall unmoved: no board the CLI can build from its own verbs
+clears rung 9, and Kettleworks' gate is after rung 17. Split in two, both in
+the suite - the driver proves a trip replays byte-identically, and the engine
+walks three towns and fifteen moves. `every_town_lets_you_down_at_its_own_mouth`
+does all six.
 
 ## 3. Open questions for the user
 
