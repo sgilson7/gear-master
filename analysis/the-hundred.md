@@ -167,3 +167,140 @@ Not decided here: F8 owns the two moves, and a `Whispered` window (THE
 STOCKMAN's) has a deadline to move with it. Recorded now because the spec
 argues *from* the collision - both notes say "gate pops first" as though
 sharing were the design - and the argument does not survive the rule.
+
+---
+
+## F1 the county, generated
+
+`county.rs`, 1 module, 1 test binary, **18 tests**. Wired to nothing: the run
+does not know the place exists until F2.
+
+**Inert, and inert was measured three ways.** The whole `baseline` printer is
+byte-identical to F0 - the four-board table, the cadence, the mind figures,
+rungs 1-14, no-weapon viability and the census. `gear_at` is unmoved on all
+6,216 placements. The three `route::ascii` fixtures are unmoved.
+
+**Engine 937 passed, 49 ignored, 0 failed.** GUI 78, CLI 5. No warnings.
+
+### The retry histogram, which is F1's deliverable
+
+Ten thousand seeds, spread by the golden-ratio multiplier so they are not
+consecutive:
+
+```
+first try 10000   retried 0   fell back 0
+```
+
+The spec's bar is "over 1% retries means a check is too tight". It is 0%, and
+the reason is that the generator satisfies the geometric checks **by
+construction** rather than by rolling until it gets away with it. That was not
+true of the first version, which retried **54%** of the time:
+
+```
+first try 4580  retried 5420  fell back 0
+histogram [4580, 2470, 1362, 738, 372, 211, 121, 77, 31, 19, 11, 3, 3, 1, 0, 1, ...]
+```
+
+A smooth geometric decay, which is a check failing about half the time rather
+than a check refusing a *shape* - and the diagnosis was one tally: **V6, and
+nothing else, on 2,202 of 4,000 attempts.** V6 spaces the three pinnacles and
+keeps them off a gate, and the generator was enforcing it on the Drove's
+pinnacle only. The hill *is* the Ordnance's pinnacle and the Commissioner is
+one of the three sealed tiles, and neither was being asked. Both are knowable
+at the moment they are placed - the pale fixes the sealed corner before the
+hill is picked - so both are filtered rather than refused.
+
+**Nothing exercises the retry or the fallback.** Zero of ten thousand seeds
+reach either. The retry bound is held by the histogram's own assertion and the
+fallback by `the_fallback_passes_every_check`, and that is the whole of the
+coverage those two paths have. Named here rather than left to be discovered.
+
+### Nine decisions, and what each one cost
+
+**F1-1. The hill is the Ordnance's pinnacle, stored as one.** A1.2's skeleton
+is "nine objectives, three pinnacles, the gaol" and V6 spaces three pinnacles;
+B1.1 says the hill is `Empty` and becomes `Pinnacle { Ordnance }` in the
+derived view when the third sighting is taken. Both cannot hold. The store
+carries `Pinnacle { Ordnance }` at the hill, which is what makes A1.2's
+arithmetic exact and V6 meaningful; **presentation is inverted** and F8 draws
+it as Empty until three sightings. B1.1's stated behaviour survives unchanged -
+stepping on it early resolves it as the empty tile it looks like, and the
+clear is dropped when it becomes a pinnacle - because A2.1 resolves against
+the derived view.
+
+**F1-2. The pale is an Event tile, and one of the twelve.** `TileKind` has no
+`Pale` variant in A2 and B3.1 wants a checklist read from one tile away and a
+single gated choice answered by standing on it, which is an event. Eleven are
+arranged from the pool and the pale is the twelfth, so A1.2's composition is
+exact rather than one over.
+
+**F1-3. The sealed region is an L of three tiles, not a 2x2 block.** B3.1's
+"the county's far corner". Every 2x2 corner block of a 7x7 contains exactly
+one circuit tile - `the_sealed_corner_is_an_l_and_never_touches_the_ring`
+asserts that, so the reason cannot quietly stop being true - and a Drover
+walking into a region nobody can enter is a pursuit that ends by arithmetic.
+The L is the corner and its two edge neighbours: three tiles, for the third
+boundary stone, THE COMMISSIONER, and one more.
+
+**F1-4. The pale is in the inner 3x3, and V5 forces it there.** Not on an edge
+and not on the circuit leaves nine tiles on a 7x7. So the pale is a *shrine*
+rather than a door: you stand on it with the checklist ticked and the far
+corner opens somewhere else, which is what B3.1 describes anyway.
+
+**F1-5. The far corner is the one furthest from the pale that holds no mouth.**
+`CORNERS` is written so that the last entry wins a tie, because `max_by_key`
+keeps the last maximum. Where the pale stands therefore decides which corner
+opens.
+
+**F1-6. Mouths are fixed, one per town, not generated.** A1.1's list of what
+the generator places does not include them, and every check measures distance
+*from* a mouth - a generated mouth would be tuning the ruler. Fixed also makes
+"Sump Bottom comes in at A6" something a player can learn.
+
+**F1-7. V1, V2 and V8 are evaluated with the pale open.** The Enclosure's
+third stone and its pinnacle stand behind it by design; a reachability check
+that refused them would refuse every county the spec describes. The pale is a
+door and not a wall.
+
+**F1-8. V2 is a matching, not a union.** "Reachable from three different
+mouths between them" read weakly - the union of the three sets has three
+mouths in it - is satisfied by three objectives huddled in one corner, which
+is the shape the check exists to refuse. Read as a system of distinct
+representatives it refuses that county. It is also the reading that means what
+the sentence means: three objectives are three gates' work.
+
+**F1-9. V9 grew a second half.** C1's argument is that being arrested is the
+fastest ride into the middle there is, and "within three of D4" does not get
+there on its own - a gaol at (2,1) is one tile from Kettleworks' mouth, which
+`the_gaol_is_deeper_in_than_any_mouth` found on the first run. The gaol is now
+also at least two from every mouth, and the assertion says out loud that the
+shortcut is intended: a punishment a clever player farms beats one a careful
+player avoids.
+
+### One check cannot refuse anything, and the figure is in the assertion
+
+**V7** - every tile within eight moves of some mouth, ignoring tolls. The
+furthest any tile ever gets is **D4 at four moves**. It is kept rather than
+deleted because it is the invariant the five-move budget is chosen against,
+and `the_check_that_can_only_pass_is_v7_and_here_is_the_figure` asserts the
+*measured figure* rather than the check, so the day the grid grows or the
+mouth table shrinks it fails loudly.
+
+**V2 was in that test until the measurement threw it out.** The claim was that
+six mouths on the edge of a 7x7 cover the board several times over, so every
+tile is inside a trip of at least three of them. The measurement said the
+least-reachable tile is inside a trip of **one**: the southern edge of a
+county is approached from one side, and three objectives stranded along it
+cannot be given three gates between them. `CLAUDE.md` §6 trap 29 the other way
+round - not "what is the cheapest way to satisfy this lint" but "is there any
+way at all to fail it" - and the answer was not the one the argument gave.
+
+Eleven of the twelve checks are handed a county broken in exactly their own
+way and have to say so, and the assertion looks for that check's own prefix so
+another check catching it does not count.
+
+### What F1 leaves for F2
+
+`generate` is ~0.9 ms in debug including `refusals`, which is fine for a test
+and **not** fine on a frame. F2 derives the county on demand per A2.2 and
+wants a memo, not a call per draw.
