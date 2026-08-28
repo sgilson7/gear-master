@@ -444,7 +444,11 @@ fn show_county(run: &Run) {
     println!("  {}", run.theme.retell(c.at(at).kind.what()));
     for step in county::Step::ALL {
         match step.from(at) {
-            None => println!("  {}  the edge of the county", step.key()),
+            None => println!(
+                "  {}  {}",
+                step.key(),
+                run.theme.retell("the edge of the county")
+            ),
             Some(to) => {
                 let t = c.at(to);
                 let mark = if run.county_is_cleared(to) {

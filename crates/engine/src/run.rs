@@ -2473,6 +2473,16 @@ impl Run {
         self.county_at.is_some_and(|here| crate::county::manhattan(here, at) <= 1)
     }
 
+    /// Whether the road has told this run what a chain is looking for.
+    ///
+    /// The on-ramps' whole payload. A run that has not met THE THEODOLITE can
+    /// walk over a trig point and clear it - the chain is not gated on
+    /// knowing - but the map draws it as a stone in a field, because that is
+    /// what it is to somebody nobody has explained it to.
+    pub fn knows_the_chain(&self, chain: crate::county::Chain) -> bool {
+        self.flags.contains(&crate::county::chain_known(chain))
+    }
+
     /// Whether a chain of THE HUNDRED has been finished: its pinnacle beaten.
     ///
     /// False for all three until F8, which is the milestone that can beat one.
@@ -2884,12 +2894,17 @@ impl Run {
         // like any other rather than standing there refusing.
         if let crate::county::TileKind::Event(id) = self.county().at(at).kind {
             if let Some(ev) = crate::event::county_event(id) {
+                // Through the theme, at the source. A receipt is prose the
+                // run hands to whatever is drawing, and two interfaces would
+                // otherwise have to remember to translate it twice - which is
+                // the reason `Settlement::landing` is themed here too.
+                let title = self.theme.place(ev.id, ev.title);
                 if ev.choices.iter().any(|c| self.choice_open(c)) {
                     self.county_event = Some(id);
-                    return Some(ev.title.to_string());
+                    return Some(title.to_string());
                 }
                 self.county_cleared.push(at);
-                return Some(format!("{} - and nothing you have to say to it", ev.title));
+                return Some(format!("{title} - and nothing you have to say to it"));
             }
         }
         self.county_cleared.push(at);

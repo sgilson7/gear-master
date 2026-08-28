@@ -7038,7 +7038,9 @@ fn render_county_map(run: &Run, mx: f32, my: f32) {
             TileKind::Feature(toll) if run.county_threshold_known(p) => toll.threshold(),
             TileKind::Feature(toll) => format!("{}{}", toll.glyph(), toll.letter()),
             _ if !known => String::new(),
-            TileKind::Objective { chain, nth } => format!(
+            // A chain nobody has explained to you is stones in fields. The
+            // three on-ramps are what turn them into numbered things.
+            TileKind::Objective { chain, nth } if run.knows_the_chain(chain) => format!(
                 "{}{nth}",
                 match chain {
                     Chain::Ordnance => "T",
@@ -7046,6 +7048,7 @@ fn render_county_map(run: &Run, mx: f32, my: f32) {
                     Chain::Enclosure => "B",
                 }
             ),
+            TileKind::Objective { .. } => "stone".into(),
             TileKind::Pinnacle { .. } => "***".into(),
             TileKind::Gaol => "GAOL".into(),
             TileKind::Event(id) if id == county::PALE => "PALE".into(),

@@ -998,9 +998,12 @@ pub const EVENTS: &[LadderEvent] = &[
             },
             Choice {
                 label: "Take the theodolite apart",
-                blurb: "Brass is brass, and the legs are worth something on their own.",
+                blurb: "Brass is brass, and you read the card on the way past.",
                 requires: Requirement::None,
-                outcome: Outcome::Pay { times: 1 },
+                outcome: Outcome::All(&[
+                    Outcome::Flag("knows-the-ordnance"),
+                    Outcome::Pay { times: 1 },
+                ]),
                 unmet: "",
             },
         ],

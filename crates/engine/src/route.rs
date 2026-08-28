@@ -499,7 +499,10 @@ pub fn ascii_county(run: &Run) -> Vec<String> {
                 TileKind::Feature(toll) if run.county_threshold_known(p) => toll.threshold(),
                 TileKind::Feature(toll) => format!("{}{}?", toll.glyph(), toll.letter()),
                 _ if !seen(p) && !drawn.contains(&p) => String::new(),
-                TileKind::Objective { chain, nth } => format!(
+                // A chain nobody has explained to you is stones in fields.
+                // The on-ramps are what turn them into a numbered thing, and
+                // this is what those three doors actually buy.
+                TileKind::Objective { chain, nth } if run.knows_the_chain(chain) => format!(
                     "{}{nth}",
                     match chain {
                         Chain::Ordnance => 'T',
@@ -507,6 +510,7 @@ pub fn ascii_county(run: &Run) -> Vec<String> {
                         Chain::Enclosure => 'B',
                     }
                 ),
+                TileKind::Objective { .. } => "stone".into(),
                 TileKind::Pinnacle { .. } => "***".into(),
                 TileKind::Gaol => "gaol".into(),
                 TileKind::Event(id) if id == county::PALE => "PALE".into(),

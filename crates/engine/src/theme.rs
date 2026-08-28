@@ -1027,6 +1027,15 @@ pub static TURTLE_DICK: Theme = Theme {
         // took things from. Four of the nine keep their names, because a coal
         // stage is a coal stage on any plane and all caps is a universal
         // language.
+        // THE HUNDRED's five. A county is land and its people are the people
+        // who work it, which is a register the book keeps for its Sprocketmen
+        // - mined out of the Great Gear Cave and set to work by somebody who
+        // owns the cave.
+        ("THE SURVEYOR", "THE ONE WHO MEASURED IT"),
+        ("THE DROVER", "THE ONE WHO WALKS IT"),
+        ("THE DRIVEN", "WHAT IS BEING WALKED"),
+        ("THE COMMISSIONER", "HENPECK'S COMMISSIONER"),
+        ("THE PARISH", "THE WHOLE PETONKLE HUNDRED"),
         ("THE SHUNTER", "THE CORK SHUNTER"),
         ("THE PLATELAYERS", "THE SPROCKETMEN WHO KEPT THE LINE"),
         ("THE BALLAST", "WHAT THE EMPIRE LEFT IN THE PIT"),
@@ -1067,6 +1076,21 @@ pub static TURTLE_DICK: Theme = Theme {
         ("character", "YOUR SPROCKETMAN"),
         ("opponent", "NEXT ON THE ROAD"),
         ("glossary", "WHAT THE WORDS MEAN"),
+        // THE HUNDRED's six tolls and the county itself. Common nouns, so
+        // they are swapped in place wherever the engine says them - which is
+        // what `vocabulary` is for and why none of these moved into `told`.
+        ("county", "hundred"),
+        ("river", "sap-run"),
+        ("ford", "sap-crossing"),
+        ("scarp", "cork-face"),
+        ("drift", "slow-lane"),
+        ("hedge", "thornwall"),
+        ("toll gate", "fnorp gate"),
+        ("trig point", "measuring stone"),
+        ("sign", "drove-mark"),
+        ("boundary stone", "Henpeck stone"),
+        ("gaol", "lock-up"),
+        ("pale", "the long fence"),
         ("mana", "Jokes"),
         ("mana-lower", "jokes"),
         ("armor", "Cork"),
@@ -1082,6 +1106,21 @@ pub static TURTLE_DICK: Theme = Theme {
         // Jokes are what you spend; Funny is the kind of harm they do. Keeping
         // the two words apart is what makes "spend 3 jokes to deal 12 funny
         // damage" a sentence rather than a tautology.
+        // THE HUNDRED's six tolls and the county itself. Common nouns, so
+        // they are swapped in place wherever the engine says them - which is
+        // what `vocabulary` is for and why none of these moved into `told`.
+        ("county", "hundred"),
+        ("river", "sap-run"),
+        ("ford", "sap-crossing"),
+        ("scarp", "cork-face"),
+        ("drift", "slow-lane"),
+        ("hedge", "thornwall"),
+        ("toll gate", "fnorp gate"),
+        ("trig point", "measuring stone"),
+        ("sign", "drove-mark"),
+        ("boundary stone", "Henpeck stone"),
+        ("gaol", "lock-up"),
+        ("pale", "the long fence"),
         ("mana", "Jokes"),
         ("magic", "Funny"),
         ("arcana", "funny"),
@@ -1343,6 +1382,31 @@ pub static TURTLE_DICK: Theme = Theme {
         // those.
         //
         // ---- the chain, which is the Ascension told sideways ----------------
+        // ---- THE HUNDRED ---------------------------------------------------
+        //
+        // Titles only. Every one of these scenes is written in common nouns -
+        // a ditch, a barn, a milestone, a fence - which `vocabulary` swaps in
+        // place, so there is nothing here for a paragraph to rescue. The four
+        // people who *are* named - Ordish, Rell, Sowerby, Yaxley, Ketton,
+        // Wragby, Vessey, Tasker - are the county's own and stay theirs: the
+        // book supplies no surveyor and inventing one to overwrite a name the
+        // canonical column already carries would be spending the theme on
+        // nothing.
+        Retold { id: "the-theodolite", title: "THE MEASURING ENGINE", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-stockman", title: "THE ONE WHO COUNTS", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-commons", title: "THE UNFENCED", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-county-surveyed", title: "THE PETONKLE SURVEY", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-constable", title: "HENPECK'S MAN", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-waste", title: "THE IMPROVER", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-boundary-ditch", title: "THE OLD SAP-DITCH", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-field-barn", title: "THE BARN IN THE MIDDLE", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-milestone", title: "THE CUT STONE", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-gleaners", title: "THOSE WITH THE RIGHT", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-pound", title: "THE HOLDING WALL", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-charcoal-burner", title: "THE ONE WHO WATCHES THE HEAP", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-drowned-lane", title: "THE LANE UNDER THE WATER", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-parish-chest", title: "THE THREE-LOCK BOX", prose: &[], entry: &[], landings: &[] },
+        Retold { id: "the-pale", title: "THE LONG FENCE", prose: &[], entry: &[], landings: &[] },
         Retold {
             id: "the-astronomer",
             title: "THE TETRAHEDRON WATCHER",

@@ -729,9 +729,13 @@ fn the_county_is_drawn_the_way_a8_says() {
 }
 
 /// One seed, one walk, drawn: a trip taken, a sighting or two, some tolls met
-/// and some not.
+/// and some not - and a run that has met the on-ramps, so the objectives are
+/// numbered rather than stones in fields.
 fn a_walked_run_for_the_map() -> Run {
     let mut run = a_run(0x1_00D);
+    for chain in Chain::ALL {
+        run.flags.push(county::chain_known(chain));
+    }
     let written = run.county_written();
     // Two trig points, so one line is drawn and the hill is still hidden.
     for t in written.objectives(Chain::Ordnance).into_iter().take(2) {
@@ -825,6 +829,69 @@ fn the_drover_is_drawn_only_between_the_first_sign_and_the_last_fight() {
     run.flags.push(county::chain_done(Chain::Drove));
     let after = gearmaster_engine::route::ascii_county(&run).join("\n");
     assert!(!after.contains("the drover"), "the pursuit is drawn after it ended");
+}
+
+/// A chain nobody has explained to you is stones in fields.
+///
+/// The three on-ramps' whole payload, and the thing that makes them worth
+/// standing on a rung. Without a reader the flags they set would be `CLAUDE.md`
+/// §6 trap 19 in flag form - set by a choice and read by nothing.
+#[test]
+fn an_objective_is_a_stone_until_a_door_on_the_road_names_it() {
+    let mut run = a_run(0x1_00D);
+    run.county_trips.push(TripSource::Town("sump-bottom"));
+    let written = run.county_written();
+    let trig = written.objectives(Chain::Ordnance)[0];
+    run.county_at = Some(trig);
+    run.county_cleared.push(trig);
+
+    let before = gearmaster_engine::route::ascii_county(&run).join("\n");
+    assert!(before.contains("stone"), "an unexplained objective is not a stone: {before}");
+    assert!(!before.contains("T1"), "an unexplained objective is numbered");
+
+    run.flags.push(county::chain_known(Chain::Ordnance));
+    assert!(run.knows_the_chain(Chain::Ordnance));
+    let after = gearmaster_engine::route::ascii_county(&run).join("\n");
+    assert!(after.contains("T1"), "the theodolite did not number the trig points");
+
+    // And it is per chain: knowing the Ordnance says nothing about signs.
+    assert!(!run.knows_the_chain(Chain::Drove));
+    let sign = written.objectives(Chain::Drove)[0];
+    run.county_cleared.push(sign);
+    let mixed = gearmaster_engine::route::ascii_county(&run).join("\n");
+    assert!(mixed.contains("stone"), "one on-ramp explained all three chains");
+}
+
+/// Every on-ramp sets a flag, and every one of those flags is read.
+#[test]
+fn the_three_on_ramps_pay_something_that_is_read() {
+    use gearmaster_engine::event::{every_outcome, Outcome, EVENTS};
+    for (id, chain) in [
+        ("the-theodolite", Chain::Ordnance),
+        ("the-stockman", Chain::Drove),
+        ("the-commons", Chain::Enclosure),
+    ] {
+        let e = EVENTS.iter().find(|e| e.id == id).unwrap_or_else(|| panic!("{id} is not a door"));
+        let sets = e.choices.iter().any(|c| {
+            every_outcome(&c.outcome)
+                .iter()
+                .any(|o| matches!(o, Outcome::Flag(f) if *f == county::chain_known(chain)))
+        });
+        assert!(sets, "{id} hands over nothing about {chain:?}");
+        // And every choice on it does, so the door pays whichever way it is
+        // answered - a door that teaches you only if you pick the right
+        // answer is a door that punishes reading it.
+        for c in e.choices {
+            assert!(
+                every_outcome(&c.outcome).iter().any(|o| matches!(
+                    o,
+                    Outcome::Flag(f) if *f == county::chain_known(chain)
+                )),
+                "{id}/{} does not teach the chain",
+                c.label
+            );
+        }
+    }
 }
 
 /// A gate you have not found is a gate, and not a town's name.

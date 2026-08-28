@@ -1046,3 +1046,59 @@ The two drawings read the same rules off the same run - `county_threshold_known`
 `sightings`, `signs_read`, `pale_checklist` - which is what "the CLI and the GUI
 draw the same county" has to mean when one is characters and the other is
 rectangles.
+
+---
+
+## F10 theme
+
+Five creatures, fifteen scene titles, and thirteen words of vocabulary into
+`theme.rs` and nowhere else. **Engine 1018, GUI 81, CLI 9. No warnings.**
+`two_voices` green with the budget **unspent** - this mission adds nothing to
+it, because every canonical string was checked against `BOOK` before it was
+written.
+
+### Titles only, and the reason is the same reason as last time
+
+`Retold` carries prose as well as a title and the county spends none of it.
+Every county scene is written in **common nouns** - a ditch, a barn, a
+milestone, a fence, a heap of earth - and `vocabulary` swaps those in place, so
+there is nothing for a paragraph to rescue. A theme spends its own paragraphs
+only where a proper noun is doing the work that no word-swap can reach, and the
+county has none: **the eight people it names are its own.** Ordish, Rell,
+Sowerby, Yaxley, Ketton, Wragby, Vessey and Tasker are canonical, and inventing
+a turtle surveyor to overwrite a name the canonical column already carries
+would be spending the theme on nothing.
+
+### One lint learned that a theme can retell a tile
+
+`two_voices::every_road_id_the_theme_retells_is_a_real_one` knew three tables -
+events, towns, dungeons. A county tile is a fourth, it is not *on* the road but
+under it, and its scenes are the same struct. One arm, not a loosened
+assertion.
+
+### Two canonical strings were reaching a screen
+
+`resolve_county_tile` returned `ev.title` raw, so a county event's name arrived
+on a receipt untranslated. It goes through `theme.place(ev.id, ev.title)` now -
+at the source, for the reason `Settlement::landing` is themed at the source:
+two interfaces translating the same string separately are two interfaces that
+will one day disagree about it. And the CLI's "the edge of the county" was a
+literal; it is retold.
+
+### The on-ramps were paying a flag nobody read
+
+Reading the road aloud is what found it. THE THEODOLITE, THE STOCKMAN and THE
+COMMONS each set a `knows-the-*` flag and **nothing anywhere read one** -
+`CLAUDE.md` §6 trap 19 in flag form, and the three doors' whole payload.
+
+They have a reader now, and it is the right one: **a chain nobody has explained
+to you is stones in fields.** The map draws an objective as `T1` or `S2` for a
+run that has met its on-ramp and as `stone` for one that has not. The chain is
+not gated on knowing - you can walk over a trig point and clear it either way -
+which is the difference between a door that teaches and a door that unlocks.
+
+`the_three_on_ramps_pay_something_that_is_read` also refused the first version
+of THE THEODOLITE, because only one of its two answers taught the geometry:
+**a door that teaches you only if you pick the right answer is a door that
+punishes reading it.** Both answers teach now, and the second one says so -
+"Brass is brass, and you read the card on the way past."

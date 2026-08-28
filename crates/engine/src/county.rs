@@ -299,6 +299,19 @@ pub const UNARRANGED: &str = "county-event-unarranged";
 /// promised.
 pub const PALE: &str = "the-pale";
 
+/// The flag a chain's on-ramp sets: you have been told what to look for.
+///
+/// THE THEODOLITE, THE STOCKMAN and THE COMMONS each hand over one word and
+/// teach one geometry, and this is what a run carries away from them. Read by
+/// the map: a trig point you have not been told about is a stone in a field.
+pub const fn chain_known(chain: Chain) -> &'static str {
+    match chain {
+        Chain::Ordnance => "knows-the-ordnance",
+        Chain::Drove => "knows-the-drove-roads",
+        Chain::Enclosure => "knows-the-enclosure",
+    }
+}
+
 /// The flag a chain sets when its pinnacle goes down.
 ///
 /// Authored at F8. Named here for the reason the other two are: the county is
