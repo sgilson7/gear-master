@@ -578,3 +578,31 @@ milestone made a direction a question about the board. They share
 `somewhere_to_go(&run)` now - not sealed, not the edge, and either not a toll
 or one this board pays - and it prefers somewhere uncleared so a walk covers
 ground rather than pacing between two tiles.
+
+### The GUI would have stranded a player, and Deploy Point 1 is why it matters
+
+Taking the way down set `county_at` and left `pending_town()` still `Some`, so
+the town screen re-rendered with no verb on it - **the pedestal's old bug**,
+which `render_town`'s own comment describes ("the town re-rendered unchanged
+and the player clicked again. For ever."), except that this one has spent a
+trip on the way in.
+
+Deploy Point 1 says "walkable" and asks a person to find out whether five moves
+feels wrong, so a minimal county screen landed with F4 rather than with F9:
+`render_county` - where you are standing, a compass of four ways off it, and
+the way out. It is **not** the map; A8's second tab on the M overlay is still
+F9's. It sits above the town in the driver for the reason the points sit above
+the dungeon: you are standing in it, and the gate is what you come back to.
+
+The two pure halves are testable and are tested. `compass_cells` returns
+rectangles rather than drawing them, and `the_compass_fits_and_nothing_sits_on_anything`
+caught the way out hanging **eighteen pixels** past the bottom border on its
+first run - which is the same number, found the same way, that `points_cells`
+records in its own comment. `step_label` says *which* of the two noes a
+direction is, because "behind the pale" and "your board is 4 short of this
+river" are different refusals and a screen that says only "no" to both teaches
+a player that the county is arbitrary.
+
+`step_label` takes the county rather than deriving one: at 77 us a derive, four
+directions a frame would have cost a third of a millisecond a frame to rebuild
+the same forty-nine tiles.

@@ -7148,6 +7148,174 @@ fn points_cells(r: Rect, n: usize) -> Vec<Rect> {
 /// What the leave button says, everywhere it is offered.
 const LEAVE_BLURB: &str = "What you cleared stays cleared. The door does not reopen.";
 
+/// The four ways out of a tile, and the way out of the county.
+///
+/// A compass rather than a row: north above, south below, east and west
+/// either side, because a player reading a grid reference off a banner and
+/// then looking for "west" wants it on the left. The way out is a strip under
+/// it, the shape `points_cells` already gives leaving.
+///
+/// Pure, and returns rectangles rather than drawing them, so a test can ask
+/// whether anything overlaps anything without a graphics context
+/// (`CLAUDE.md` §6 trap 32).
+fn compass_cells(r: Rect) -> [Rect; 5] {
+    let cw = 150.0;
+    let ch = 52.0;
+    let gap = 12.0;
+    let cx = r.x + r.w / 2.0;
+    // 236 and not 210. Three rows of the compass and the strip under it come
+    // to `3 * (ch + gap) + 6 + 30` = 228, and at 210 the way out hung eighteen
+    // pixels past the bottom border - which is `points_cells`'s own comment
+    // about its own number, found here by the same kind of test rather than by
+    // looking at it.
+    let top = r.y + r.h - 236.0;
+    [
+        // n, s, e, w - the order of `county::Step::ALL`, so the caller can zip
+        // the two and cannot get them the wrong way round.
+        Rect::new(cx - cw / 2.0, top, cw, ch),
+        Rect::new(cx - cw / 2.0, top + 2.0 * (ch + gap), cw, ch),
+        Rect::new(cx + cw / 2.0 + gap, top + ch + gap, cw, ch),
+        Rect::new(cx - cw * 1.5 - gap, top + ch + gap, cw, ch),
+        Rect::new(r.x + 28.0, top + 3.0 * (ch + gap) + 6.0, r.w - 56.0, 30.0),
+    ]
+}
+
+/// What one step says on its face: where it goes and whether it will let you.
+///
+/// Pure for `compass_cells`'s reason, and separately because "the tile is
+/// sealed" and "the toll refuses this board" are two different noes and the
+/// screen has to say which. `None` is the edge of the county.
+///
+/// Takes the county rather than deriving one: `Run::county` is 77 microseconds
+/// in release, and a screen that called it once per direction per frame would
+/// spend a third of a millisecond a frame re-deriving the same forty-nine
+/// tiles. The caller derives once.
+fn step_label(
+    run: &Run,
+    c: &gearmaster_engine::county::County,
+    step: gearmaster_engine::county::Step,
+) -> Option<(String, String, bool)> {
+    use gearmaster_engine::county::TileKind;
+    let here = run.county_at?;
+    let to = step.from(here)?;
+    let t = c.at(to);
+    let name = format!("{} {}", gearmaster_engine::county::reference(to), words::retell(t.kind.what()));
+    if c.is_sealed(to) && !run.pale_is_open() {
+        return Some((name, words::word("county-sealed", "behind the pale").to_string(), false));
+    }
+    if run.county_is_cleared(to) {
+        return Some((name, words::word("county-walked", "yours already").to_string(), true));
+    }
+    if let TileKind::Feature(toll) = t.kind {
+        let f = run.county_figures();
+        let bounty = run.rung_bounty();
+        let met = toll.met(&f, run.gold, bounty);
+        // The threshold is readable from one tile away, and standing here is
+        // one tile away - which is the whole of A3's visibility rule seen from
+        // the only place it ever matters.
+        let note = if run.county_threshold_known(to) {
+            if met {
+                toll.threshold()
+            } else {
+                format!("{} - {}", toll.threshold(), toll.shortfall(&f, run.gold, bounty))
+            }
+        } else {
+            words::word("county-unread", "you cannot read it from here").to_string()
+        };
+        return Some((name, note, met));
+    }
+    Some((name, String::new(), true))
+}
+
+/// THE HUNDRED: where you are standing, and the four ways off it.
+///
+/// **The plainest screen that makes the county playable**, and deliberately
+/// not the map: A8's second tab on the M overlay is F9's, and this is what
+/// Deploy Point 1 needs in order to be the thing the spec says it is - a
+/// county somebody can walk far enough into to find out whether five moves
+/// feels wrong. Without it a player who takes the way down spends a trip and
+/// lands back on the town screen with no verb, which is the pedestal's old bug
+/// with a price on it.
+///
+/// `Some(Some(step))` is a move, `Some(None)` is walking out, `None` is
+/// nothing clicked.
+#[allow(clippy::type_complexity)]
+fn render_county(
+    run: &Run,
+    mx: f32,
+    my: f32,
+) -> Option<Option<gearmaster_engine::county::Step>> {
+    use gearmaster_engine::county::Step;
+    let Some(at) = run.county_at else { return None };
+    let pad = 70.0;
+    let w = LOGICAL_W - 2.0 * pad;
+    let h = 460.0f32.clamp(320.0, LOGICAL_H - 40.0);
+    let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, w, h);
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
+    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
+    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
+
+    let c = run.county();
+    let title = words::retell("THE HUNDRED");
+    ui_text(&title, r.x + 28.0, r.y + 42.0, 24.0, col_gold());
+    let where_ = format!("{} - {}", gearmaster_engine::county::reference(at), words::retell(c.at(at).kind.what()));
+    ui_text(&where_, r.x + 28.0, r.y + 68.0, 15.0, Color::from_rgba(198, 200, 218, 255));
+    let left = format!(
+        "{} of {} moves",
+        run.county_moves_left,
+        gearmaster_engine::county::MOVES_A_TRIP
+    );
+    ui_text(&left, r.x + r.w - 28.0 - text_width(&left, 13.0), r.y + 42.0, 13.0, col_dim());
+
+    let cells = compass_cells(r);
+    let mut picked = None;
+    for (i, step) in Step::ALL.into_iter().enumerate() {
+        let cell = cells[i];
+        let said = step_label(run, &c, step);
+        let hot = cell.contains(Vec2::new(mx, my)) && said.is_some();
+        draw_rectangle(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { Color::from_rgba(46, 42, 30, 255) } else { Color::from_rgba(26, 26, 38, 255) },
+        );
+        draw_rectangle_lines(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if hot { 2.5 } else { 1.5 },
+            if hot { col_gold() } else { Color::from_rgba(64, 64, 88, 255) },
+        );
+        match said {
+            // The edge of the county, which is the one refusal that is free.
+            None => ui_text(
+                words::word("county-edge", "the edge"),
+                cell.x + 12.0,
+                cell.y + 24.0,
+                13.0,
+                col_dim(),
+            ),
+            Some((name, note, met)) => {
+                ui_text(&name, cell.x + 12.0, cell.y + 22.0, 14.0, if met { col_gold() } else { col_dim() });
+                if !note.is_empty() {
+                    for (n, l) in wrap_px(&note, cell.w - 24.0, 11.0).into_iter().take(2).enumerate() {
+                        ui_text(&l, cell.x + 12.0, cell.y + 38.0 + n as f32 * 13.0, 11.0, if met { col_ok() } else { col_dim() });
+                    }
+                }
+                if hot && is_mouse_button_pressed(MouseButton::Left) {
+                    picked = Some(Some(step));
+                }
+            }
+        }
+    }
+    if leave_strip(cells[4], mx, my) {
+        picked = Some(None);
+    }
+    picked
+}
+
 /// The points: the roads out of the floor you just cleared, and the way home.
 ///
 /// Built on the event screen's layout on purpose. A set of points is a
@@ -11912,6 +12080,35 @@ async fn main() {
             continue;
         }
 
+        // THE HUNDRED sits over the town it was reached from, for the reason
+        // the points sit over the dungeon: you are standing in it, and the
+        // town gate is what you come back to rather than what is in front of
+        // you. `road_stack` puts it on top for the same reason.
+        if run.county_at.is_some() {
+            match render_county(&run, mx, my) {
+                Some(Some(step)) => {
+                    run.county_walk(step);
+                    message = run
+                        .last_receipt
+                        .clone()
+                        .map(|l| l.join(" "))
+                        .unwrap_or_default();
+                }
+                Some(None) => {
+                    run.leave_county();
+                    message = String::new();
+                }
+                None => {}
+            }
+            render_stack_strip(&run, mx, my);
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+            }
+            next_frame().await;
+            continue;
+        }
+
         // The town gate, ahead of the events: a town is a rung of its own and
         // the event on the next rung has not been arrived at yet.
         if let Some(t) = run.pending_town() {
@@ -13704,6 +13901,85 @@ mod tests {
             gearmaster_engine::theme::THEMES.len(),
             "unlocking did not offer every voice the engine has"
         );
+    }
+
+    /// The compass fits, and no two ways off a tile share a pixel.
+    ///
+    /// The county screen's whole geometry, checked the way `pedestal_rects`
+    /// and `points_cells` are checked: `compass_cells` returns rectangles
+    /// rather than drawing them, so this needs no graphics context
+    /// (`CLAUDE.md` §6 trap 32).
+    #[test]
+    fn the_compass_fits_and_nothing_sits_on_anything() {
+        let pad = 70.0;
+        let h = 460.0f32.clamp(320.0, LOGICAL_H - 40.0);
+        let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, LOGICAL_W - 2.0 * pad, h);
+        let cells = compass_cells(r);
+
+        let named = ["north", "south", "east", "west", "the way out"];
+        for (n, c) in named.iter().zip(&cells) {
+            assert!(c.x >= r.x, "{n} is off the left of the panel");
+            assert!(c.x + c.w <= r.x + r.w, "{n} runs off the right of the panel");
+            assert!(c.y >= r.y, "{n} is above the panel");
+            assert!(c.y + c.h <= r.y + r.h, "{n} runs off the bottom of the panel");
+        }
+        for (i, a) in cells.iter().enumerate() {
+            for (j, b) in cells.iter().enumerate().skip(i + 1) {
+                let over = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+                assert!(!over, "{} sits on {}", named[i], named[j]);
+            }
+        }
+        // And it is a compass rather than a row: north above south, west left
+        // of east, because a player who has just read a grid reference off the
+        // banner looks for west on the left.
+        let [n, s, e, w, _] = cells;
+        assert!(n.y < s.y, "north is below south");
+        assert!(w.x < e.x, "west is to the right of east");
+        assert!(n.x > w.x && n.x < e.x, "north is not between them");
+    }
+
+    /// A step says which of the two noes it is.
+    ///
+    /// "The tile is sealed" and "the toll refuses this board" are different
+    /// refusals and a screen that says only "no" to both teaches a player that
+    /// the county is arbitrary.
+    #[test]
+    fn a_step_says_which_kind_of_no_it_is() {
+        use gearmaster_engine::county::{self, Step, TileKind};
+        use gearmaster_engine::run::TripSource;
+        let mut run = Run::seeded(0x1_00D);
+        let c = run.county();
+        run.enter_county(TripSource::Town("sump-bottom"), county::MOUTHS[0].1);
+
+        // The edge is `None`, and it is the only `None`.
+        let at = run.county_at.expect("down there");
+        for step in Step::ALL {
+            match (step.from(at), step_label(&run, &c, step)) {
+                (None, said) => assert!(said.is_none(), "the edge said something: {said:?}"),
+                (Some(to), said) => {
+                    let (name, note, met) = said.expect("a tile in the county said nothing");
+                    assert!(
+                        name.starts_with(&county::reference(to)),
+                        "{name:?} does not name {to:?}"
+                    );
+                    if let TileKind::Feature(toll) = c.at(to).kind {
+                        assert_eq!(met, toll.met(&run.county_figures(), run.gold, run.rung_bounty()));
+                        // One tile away is readable, so the threshold is on
+                        // the face of the button rather than a shrug.
+                        assert!(!note.is_empty(), "a toll one tile away said nothing");
+                    }
+                }
+            }
+        }
+
+        // A sealed tile says so, and says something different from a toll.
+        let sealed = c.sealed()[0];
+        let beside = county::neighbours(sealed)[0];
+        let into = Step::ALL.into_iter().find(|s| s.from(beside) == Some(sealed)).unwrap();
+        run.county_at = Some(beside);
+        let (_, note, met) = step_label(&run, &c, into).expect("the fence is a tile");
+        assert!(!met, "the fence let somebody through");
+        assert!(note.contains("pale"), "the fence said {note:?} rather than what it is");
     }
 
     /// No two buttons share a pixel, and every one is inside the panel.

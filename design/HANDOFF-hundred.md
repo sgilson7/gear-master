@@ -128,6 +128,14 @@ against a hedge asking 3 to 8. D-5 said this would happen; F11 is where it is
 fixed, and F4 deliberately does not move a number - a threshold bent before the
 measurement is a threshold bent to a guess.
 
+**A minimal county screen landed with F4 rather than with F9**, and it is
+scope taken on purpose. Taking the way down set `county_at` and left the town
+gate up, so the town screen re-rendered with no verb on it - the pedestal's old
+bug, with a trip spent on the way in. Deploy Point 1 asks a person to find out
+whether five moves feels wrong, which needs a screen. It is not the map; A8's
+second tab is still F9's. Its layout is pure and tested, and the test caught
+the way out hanging eighteen pixels past the border on its first run.
+
 **The rung column in F4's own deliverable says the same thing four times.** A
 share code is one board and it does not grow, so five of the six figures do not
 move with the rung; only the toll gate reads it, through the bounty. The table
