@@ -3,6 +3,9 @@
 Written against `020bc7c` (2026-08-28), suite at **1043 green, 51 ignored**.
 Every count below was measured off that tip.
 
+**T0 is a hard lock found in play and is not part of this rewrite.** It is
+first in §4 because a run that walks a chain to its end cannot get out of it.
+
 A card tells you what a piece is worth. It does not tell you **when**, and for
 most of the catalogue that is the whole of the information.
 
@@ -211,7 +214,78 @@ trick `Combatant::pool_pays` plays for the glossary diagrams.
 
 ## 4. Milestones
 
-Each ends green on both suites with no warnings. ▲ marks a deploy.
+Each ends green on both suites with no warnings. ▲ marks a deploy. T0 is a
+bug found in play and is not part of the card rewrite; it is first because it
+is a hard lock.
+
+### T0 — The county freeze, which comes first ▲
+
+Reported from play: *found The Drover, then the game froze on the hundred map,
+and I couldn't move or click on anything.* It is a hard lock with no keyboard
+or mouse escape, and it is reachable by any run that walks a chain to its end,
+so it goes before everything else in this document.
+
+**The mechanism, end to end.**
+
+1. `county_walk` onto a `TileKind::Pinnacle` calls `begin_county_fight()`
+   (`run.rs:2883`), which calls `fight_party` and sets `phase =
+   Phase::Fighting` with a log waiting to be settled.
+2. The GUI's `run.county_at.is_some()` branch (`main.rs:12406`) draws
+   `render_county` and **`continue`s**. The battle screen is two hundred lines
+   below it and is never reached.
+3. `county_walk` opens with `if self.phase != Phase::Loadout { return false }`
+   (`run.rs:2734`), so every further step is refused.
+4. `leave_county` opens with **the same guard** (`run.rs:3063`), so the way out
+   is refused too.
+
+The map redraws for ever, every control is dead, and nothing on screen says
+why. Three of the four facts are individually correct: the phase guard is right,
+the branch order is right, and `begin_county_fight` is right.
+
+**The comment directly above that branch describes this exact bug**, for
+events:
+
+> The event screen is two hundred lines below this branch and this branch
+> `continue`s, so a county event set by walking onto a tile was drawn by
+> nothing at all - and then appeared the moment the trip ended and `county_at`
+> went to `None`.
+
+That was found in play, fixed for events, and the same question was never
+asked about fights. **A branch that `continue`s owns every screen the thing
+inside it can ask for**, and this one asks for two.
+
+**What it becomes.** The county yields to the fight and takes you back
+afterwards, which is what the owner asked for in as many words: break off the
+map to fight, then return to it.
+
+- The county branch checks for a pending fight before it draws the map, and
+  falls through to the battle screen rather than `continue`ing past it. The
+  event check already there is the shape to copy - it is the same fix, one
+  screen along.
+- **After the fight, you come back.** `settle` currently clears `county_at` and
+  `county_moves_left` on a pinnacle **either way** (`run.rs:3535`), so the trip
+  ends win or lose. Winning should put you back on the map with the moves you
+  had left; the tile is marked cleared and the chain is done, so there is
+  nothing to walk into twice.
+- **Losing keeps ending the trip.** That is A7 and it is deliberate - a loss
+  costs what a road loss costs - so only the victory path changes. Said out
+  loud because it is the half a reader will assume was an oversight.
+
+**This is a design change as well as a fix**, and worth naming: the pinnacle
+currently ejects you from the county, and after this it does not. A run that
+banked ten moves and spent one on a chain keeps nine of them.
+
+**Gate.**
+- A test that walks a run onto a pinnacle tile and asserts the run is in a
+  state some screen will draw - the general form of the fault, not the
+  specific one. `phase == Fighting` with `county_at` set is exactly the state
+  nothing drew, and it is checkable without a graphics context.
+- A test that a won pinnacle leaves `county_at` set and `county_moves_left`
+  unchanged, and that a lost one still ends the trip.
+- A walker in the house style that bounds its steps - trap 24, because a
+  county walk that runs until it runs out is a hang the day a tile refuses.
+
+**Deliverable:** no state a county trip can reach is a state without a screen.
 
 ### T1 — The audit, and the printer that finds the next one
 
