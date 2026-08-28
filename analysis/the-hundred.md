@@ -1220,3 +1220,69 @@ five and that THE PARISH does not fall in three seconds.
 new lines belongs to one of the five, who had no board before this milestone.
 No creature that had a board changed what it wears, on any of the four
 settings.
+
+---
+
+## F13 rating pins
+
+Two of the three weights moved and the third did not, and each is a figure off
+a measurement rather than an argument. **Engine 1024, GUI 81, CLI 9. No
+warnings.** `gear_at` unmoved on all 6,744 placements, which is what event-only
+carriers buy: a weight can move and re-gear nobody.
+
+### `BEARING` 26.0, unmoved
+
+It contributes **+22** to Trig Pillar's rating - 42 without it, 64 with - which
+puts the piece level with Ridge Runner and under Worldweave Material at 68.
+That is the family a greaves enchantment belongs in. A doubling conditional on
+a whole grid is the biggest of the three effects and the dearest to earn, and
+the rating says so.
+
+### `OVERTAKE` 14.0 → **10.5**, and it went down
+
+One extra activation of the item, at the bell. Measured two ways:
+
+- over a whole fight on a gloves-default 3,000 ms item: **+7.1%**
+- at the four-board table's median time-to-kill of **nine seconds**: **33%**,
+  because nine seconds is three activations and this is a fourth
+
+Weighted toward where fights are decided rather than where they end up, that is
+about a fifth of what an unconditional doubling would be worth - and 10.5 is
+that fifth. **A weight that was a guess moved down**, which is the direction a
+measurement is allowed to take one.
+
+### `COMMONS` 24.0 → **30.0**
+
+Measured structurally on the two finished reference boards: an item has **2.2
+neighbours** on average and a commons item would have **eighteen** - eight
+times the reach. `DoubleAdjacentItemStat` is 20 for the neighbours an item
+actually has. The discount from eight times to 30 is heavy and deliberate,
+because Commons pays nothing on its own: it makes a relation exist, and only
+what reads adjacency collects on it.
+
+### And the piece was made strong rather than the weight inflated
+
+Lowering `OVERTAKE` left Drove Way at 26, which is thin for a whole chain's
+reward. The answer is the gear skill's own: **to make a piece dear, make it
+strong.** Drove Way's base went from `strength 3, curse_resist 4` to
+`strength 6, curse_resist 9` and it rates 29. Inflating a weight to price a
+thing it is not worth would have priced every future carrier of that effect
+wrong as well.
+
+### The three chains pay the same in three currencies
+
+```text
+  THE ORDNANCE     Trig Pillar 64  + Surveyor's Orb 10  + the sheet
+  THE DROVE ROADS  Drove Way   29  + Drover's Orb    8  + a free move a trip
+  THE ENCLOSURE    The Common Ground 47
+```
+
+Part B says "equal in cost and magnitude, different in currency" and the
+ratings are **not** three equal numbers - correctly. The rating can see a
+component and cannot see a run-long passive. The sheet is every threshold in
+the county from anywhere; the free move is up to nine moves across a full
+census, which is nearly two trips. Reading the three combat pieces side by side
+and calling one chain thin would be reading half the payout, and
+`each_chain_pays_the_top_of_the_slot_it_taxed` asserts the half that can be
+asserted: each is at or above the median enchantment of the slot its chain
+taxed.

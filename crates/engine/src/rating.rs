@@ -836,13 +836,33 @@ fn effect_points(e: &Effect, rate: f32) -> f32 {
 
 /// THE HUNDRED's three effects, priced.
 ///
-/// **Starting points, settled at F13.** They price nothing until F6 lands the
-/// five components that speak them, which is the whole of the phase
-/// discipline: a weight moved after a creature is geared against it re-gears
-/// every creature on three settings (`the-unwinding.md` #19).
+/// **Measured at F13.** Two of the three moved and the third did not, and each
+/// is a figure off a measurement rather than an argument.
+///
+/// **`BEARING` 26.0, unmoved.** It contributes +22 to Trig Pillar's rating,
+/// which puts it at 64 - level with Ridge Runner and under Worldweave
+/// Material at 68, which is the family a greaves enchantment belongs in. A
+/// doubling conditional on a whole grid is the biggest of the three and the
+/// dearest to earn, and the rating says so.
+///
+/// **`OVERTAKE` 14.0 to 10.5.** One extra activation of the item, at the bell.
+/// Measured over a whole fight on a gloves-default 3,000 ms item it is
+/// **+7.1%**; at the four-board table's median time-to-kill of nine seconds it
+/// is **33%**, because a nine-second fight is three activations and this is a
+/// fourth. Weighted toward where fights are decided rather than where they end
+/// up, call it a fifth of what Bearing's unconditional doubling would be worth
+/// - and 10.5 is that fifth. It went **down**, which is the right direction
+/// for a weight that was a guess.
+///
+/// **`COMMONS` 24.0 to 30.0.** Measured structurally: on the two finished
+/// reference boards an item has **2.2 neighbours** on average, and a commons
+/// item would have **eighteen** - eight times the reach.
+/// `DoubleAdjacentItemStat` is 20 for the neighbours an item actually has. The
+/// discount is heavy and deliberate, because Commons pays nothing on its own:
+/// it makes a relation exist and only what reads adjacency collects on it.
 pub const BEARING: f32 = 26.0;
-pub const OVERTAKE: f32 = 14.0;
-pub const COMMONS: f32 = 24.0;
+pub const OVERTAKE: f32 = 10.5;
+pub const COMMONS: f32 = 30.0;
 
 /// How many covering pieces an underlay can expect to end up under.
 ///

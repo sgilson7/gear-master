@@ -10742,7 +10742,13 @@ pub static CATALOG: &[PieceDef] = &[
         slot: SlotKind::Gloves,
         kind: PieceKind::Enchantment,
         cells: &[(0, 0), (1, 0), (2, 0), (3, 0)],
-        base: Stats { strength: 3, curse_resist: 4, ..Stats::ZERO },
+        // Strong in the base rather than in the effect. F13 measured Overtake
+        // at a fifth of Bearing and moved the weight **down** to say so, and a
+        // chain's whole reward has to be worth finishing a chain for - so the
+        // piece is made strong, which is what the gear skill says to do and
+        // what inflating a weight to price a thing it is not worth would have
+        // been instead of.
+        base: Stats { strength: 6, curse_resist: 9, ..Stats::ZERO },
         assembly_bonus: None,
         effect: Some(Effect {
             label: "its first firing of a fight runs twice",

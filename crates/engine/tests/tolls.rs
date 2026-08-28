@@ -518,3 +518,84 @@ fn each_kind_has_an_easy_tier_and_a_hard_one() {
         "only {has_a_hard_tier} of the six kinds refuses the owner's board at either tier"
     );
 }
+
+// ------------------------------------------------------- F13: the weights
+
+/// The three chains pay the same, in three currencies.
+///
+/// Part B's claim - "equal in cost and magnitude, different in currency" -
+/// checked against what the ratings actually say. They are **not** three equal
+/// numbers and should not be: the rating can see a component and cannot see a
+/// run-long passive, so reading the three combat pieces side by side and
+/// calling one chain thin would be reading half the payout.
+///
+/// ```text
+///   THE ORDNANCE    Trig Pillar 64  + Surveyor's Orb 10  + the sheet
+///   THE DROVE ROADS Drove Way   29  + Drover's Orb    8  + a free move a trip
+///   THE ENCLOSURE   The Common Ground 47
+/// ```
+///
+/// The sheet is every threshold in the county from anywhere; the free move is
+/// up to nine moves across a full census, which is nearly two trips. Neither
+/// is a stat and neither is priced.
+#[test]
+fn each_chain_pays_the_top_of_the_slot_it_taxed() {
+    use gearmaster_engine::piece::{PieceKind, CATALOG};
+    use gearmaster_engine::rating::piece_rating;
+    let rating = |n: &str| {
+        piece_rating(CATALOG.iter().find(|d| d.name == n).unwrap_or_else(|| panic!("{n}")))
+    };
+    // Each is dear for its slot: at or above the median of the enchantments
+    // that slot has, which is the family it is meant to sit in.
+    for (piece, slot) in [
+        ("Trig Pillar", gearmaster_engine::piece::SlotKind::Greaves),
+        ("Drove Way", gearmaster_engine::piece::SlotKind::Gloves),
+        ("The Common Ground", gearmaster_engine::piece::SlotKind::Chest),
+    ] {
+        let mut family: Vec<i32> = CATALOG
+            .iter()
+            .filter(|d| d.slot == slot && d.kind == PieceKind::Enchantment)
+            .map(piece_rating)
+            .collect();
+        family.sort_unstable();
+        let median = family[family.len() / 2];
+        assert!(
+            rating(piece) >= median,
+            "{piece} rates {} and the median {slot:?} enchantment is {median} - a chain's \
+             whole reward should not be the cheap half of its own family",
+            rating(piece)
+        );
+    }
+    // And the ordering is the ordering of the effects, which is what F13
+    // measured: a conditional doubling, then an adjacency, then one extra
+    // activation.
+    assert!(
+        rating("Trig Pillar") > rating("The Common Ground"),
+        "a doubling is worth less than an adjacency"
+    );
+    assert!(
+        rating("The Common Ground") > rating("Drove Way"),
+        "an adjacency is worth less than one extra activation"
+    );
+}
+
+/// The three weights are the measured ones.
+///
+/// A ratchet on the figures F13 chose, so that moving one is a decision
+/// somebody makes rather than a thing that drifts. The reasons are in
+/// `rating.rs` beside the constants.
+#[test]
+fn the_three_weights_are_what_f13_measured() {
+    use gearmaster_engine::rating::{BEARING, COMMONS, OVERTAKE};
+    assert_eq!(BEARING, 26.0, "unmoved at F13: +22 on Trig Pillar, which lands it at 64");
+    assert_eq!(
+        OVERTAKE, 10.5,
+        "measured at F13 and moved DOWN from 14: one extra activation is +7.1% over a whole \
+         fight and 33% at the four-board table's nine-second median"
+    );
+    assert_eq!(
+        COMMONS, 30.0,
+        "measured at F13 and moved up from 24: an item has 2.2 neighbours on a finished board \
+         and a commons item would have eighteen"
+    );
+}
