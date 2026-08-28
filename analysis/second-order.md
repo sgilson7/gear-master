@@ -790,3 +790,90 @@ catalogue rather than the single piece the plan predicted.
 
 Nothing in `analysis/baseline.md` moved: the printer measures fights and this
 is all display, except T2's two ordering effects which are recorded at 29.
+
+---
+
+## 33. A shop in a dungeon needed no new machinery, and two lints said where it could go
+
+THE THRESHOLD's shelf took a constant and one `also`: `Outcome::ShopAfter`
+already existed, already carried a named shelf, and was already drained after
+a fight. The whole of A5's plumbing was written for an event two missions ago.
+
+What the milestone actually cost was two arguments with the catalogue's own
+rules, and both improved it.
+
+**`Plating` floats between the helmet and the greaves**, and a floating kind
+may not carry an identity mechanic - which the mind lane is. The first draft
+put mind damage and insight income on two platings and `catalog_shape` refused
+them. The lane moved onto crests and the plating became plain filler, which is
+a better shelf: the identity is in the crests, where a player reads it.
+
+**`OnBattleStart` is the greaves' identity mechanic** and a helmet may not
+borrow it. So THE WRONG SENSE's trade is an `EffectKind` read off the board at
+the bell rather than a trigger - and that is more correct than the trigger
+would have been. It is a standing state, and a trigger firing on the item's
+first activation would have let the opening blows land: a free multiplier for
+the start of the fight and a trade for the rest of it.
+
+Both are the same shape. A quota written to keep slots distinct turned out to
+be a design review, and in both cases the rule was right and the draft was
+wrong.
+
+## 34. `is_town_stock` had two readers asking different questions
+
+Adding a second place that sells things broke a predicate that had been
+correct for as long as there was one.
+
+The shop asks `is_town_stock` as *may the road deal this?* and `avail.rs` asks
+it as *is this town gear, and does a town stock it?* Those were the same
+question while towns were the only exception. Folding the threshold shelf into
+it made the road refuse them correctly and made `avail` insist a town must
+stock them, which no town does.
+
+So `is_off_the_road` is the union and the road filters on that; `is_town_stock`
+means what its name says again. The general form: **a predicate with two
+readers is two predicates that happen to agree**, and the day they stop
+agreeing is the day a second case arrives.
+
+`stepped_component` was the third reader and was silent about it - it stepped
+a creature straight into a threshold helmet, which is `second-order.md`'s
+event-gear leak arriving in a new room by the same route.
+
+## 35. Reuse is blocked by the lints that keep a dungeon coherent
+
+A8 was to make the orb destinations 2x2 zones, reusing `ALTERNATES` rather
+than authoring eighteen creature boards. The reuse does not work, and the
+reason is a rule rather than an accident.
+
+`a_dungeon_reads_as_one_creature_all_the_way_down` holds two things at once:
+bands may not fall along any road out, and a dungeon's creatures share one
+theme. Between them, everything borrowable at the right band is a **switchyard
+creature**:
+
+| Zone | Needs | Borrowable |
+|---|---|---|
+| `den-rivals` | Beast, band 30-32 | `THE ROUNDHOUSE`, `THE WUMPUS` |
+| `wumpus-world` | band 30-32 | `THE ROUNDHOUSE`, `THE COAL STAGE` |
+
+A bear den with a roundhouse in it passes both lints and is exactly what the
+theme lint's own message calls *"two dungeons stapled together"*. That is trap
+29 - a lint satisfied by the wrong thing - and the honest answer was to build
+the shape, measure it, and revert.
+
+**A8's real cost is four authored creatures, two per zone.** Widening `FRAMES`
+with den-and-cave creatures at bands 30 to 32 is the same authoring under a
+different name. Recorded rather than worked around.
+
+## 36. Cutting a graph in half makes every walker an opinion
+
+A7 removed one edge - the yard's throat - and eleven tests had something to
+say. Four were walkers that fight a fixed number of times and stall at points
+they did not expect, which is trap 23 for the third and fourth time. Two were
+replay fixtures. Three were counts of forks. One was the ASCII road map, in
+three fixtures. One was the CLI's own copy of the same number.
+
+The one that mattered was `every_floor_is_reachable_from_the_mouth`, and it
+was right to fire: after the cut, four floors are unreachable *on foot*. The
+rule it enforces did not change - no room may be unreachable by any route -
+but the set of routes now includes the ones you buy, so a `Where::Siding` is a
+mouth. That is the whole of what the Up Line orb is for, expressed as a lint.

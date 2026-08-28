@@ -6,9 +6,9 @@ Written by `what_happens_when::audit`. Do not hand-edit.
 
 | | Pieces |
 |---|---:|
-| catalogue | 518 |
-| carrying a per-activation figure in `Stats` | 265 |
-| carrying a damage figure | 103 |
+| catalogue | 523 |
+| carrying a per-activation figure in `Stats` | 266 |
+| carrying a damage figure | 106 |
 | **carrying damage the fight cannot land** | **23** |
 | granting a pool as a trigger, not a stat | 0 |
 | spelling one pool grant both ways | 0 |
@@ -2036,3 +2036,24 @@ And these say it both ways at once, so their card adds the two together:
   TRIGGERS: when another spell in this item is cast, hand 0.4s of this item's next cooldown to its slowest neighbour
 
 ### A Word About the Hundred — Helmet quest
+
+### Listener's Frame — Helmet frame
+  DAMAGE: +9 mind
+  PASSIVE: +60 hp
+  EVERY TIME IT FIRES (triggered): gain 2 insight
+
+### Countingstair Plating — Helmet plating
+  PASSIVE: +6% curse res
+  EVERY TIME IT FIRES: +18 armor
+
+### Four Hundred and Second Step — Helmet crest
+  PASSIVE: +12% mind res
+  EVERY TIME IT FIRES (triggered): gain 3 insight
+
+### Watcher's Crest — Helmet crest
+  DAMAGE: +7 mind
+  EVERY TIME IT FIRES (triggered): gain 2 dread
+
+### The Wrong Sense — Helmet crest
+  DAMAGE: +12 mind
+  EVERY TIME IT FIRES (triggered): gain 3 insight

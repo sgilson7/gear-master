@@ -347,3 +347,64 @@ push; `index.html` carries the wasm's hash so a deploy busts its own cache.
 
 **And look at the screens.** Every map in this document is a thing a person
 has to read, and the suite cannot tell you whether it reads.
+
+
+---
+
+## 8. What shipped
+
+Written at the end of the run. Seven of nine landed; A8 did not, and the
+reason is worth more than the milestone was.
+
+| | Milestone | State |
+|---|---|---|
+| A1 | The tab strip grows | **in** — 15 tabs, wrapping, greyed until known |
+| A2 | A dungeon draws its own graph | **in** — laid out from the exits |
+| A3 | The orb destinations get their tab | **in** |
+| A4 | The Threshold grows its crossbar | **in** — a T, with points at floor 1 |
+| A5 | The threshold shelf | **in** — five helmets and crests, sold nowhere else |
+| A6 | The conversion crest | **in** — THE WRONG SENSE |
+| A7 | The yard becomes islands | **in** — the throat's fork is gone |
+| A8 | The orb destinations become zones | **not done** — see below |
+| A9 | The record | **in** |
+
+### A8 is blocked by two lints that are right
+
+The plan said to reuse existing `ALTERNATES` rather than author eighteen
+creature boards, and the owner confirmed it. Reuse does not work, and the
+reason is a rule rather than an accident.
+
+`dungeons.rs::a_dungeon_reads_as_one_creature_all_the_way_down` holds two
+things at once: **bands may not fall along any road out**, and **a dungeon's
+creatures share one theme** (with two named exceptions). Between them they
+leave almost nothing to borrow:
+
+| Dungeon | Needs | Available in `ALTERNATES` |
+|---|---|---|
+| `den-rivals` | Beast, band 30-32 | `THE ROUNDHOUSE` (30), `THE WUMPUS` (32) |
+| `wumpus-world` | band 30-32, theme exempt | `THE ROUNDHOUSE`, `THE COAL STAGE` (both 30) |
+
+Every candidate is a **switchyard** creature. A bear den with a roundhouse in
+it and a wumpus cave with a coal stage in it would pass both lints and be
+exactly what the theme lint's own message calls *"two dungeons stapled
+together"* - the lint would be satisfied by the wrong thing, which is trap 29.
+
+So the shape was built, measured against the lints, and reverted. **A8 wants
+four authored creatures - two per zone - and that is its real cost.** The
+alternative is to widen `FRAMES` with cave-and-den creatures at bands 30 to
+32, which is the same authoring under a different name.
+
+### And two things that came out differently
+
+**The threshold shelf could not be a `Plating`.** `Plating` floats between the
+helmet and the greaves and a floating kind may not carry an identity mechanic,
+which the mind lane is. The lane moved onto crests and the plating became
+plain filler - which is the catalogue's own rule correcting the design, and it
+made the shelf better: the identity is in the crests, where a player reads it.
+
+**The trade could not be a trigger.** `OnBattleStart` is the greaves'
+identity mechanic and a helmet may not borrow it, so THE WRONG SENSE is an
+`EffectKind` read off the board at the bell. That is more correct than the
+trigger would have been: it is a standing state, and a trigger firing on the
+item's first activation would have let the opening blows land - a free
+multiplier for the start of the fight and a trade for the rest of it.
