@@ -771,15 +771,22 @@ Measured over the 518 pieces, headings drawn:
 
 | Groups on a card | Pieces |
 |---|---:|
-| none | 29 |
-| one | 296 |
-| two | 192 |
-| three | 1 |
+| none | 46 |
+| one | 176 |
+| two | 242 |
+| three | 52 |
+| all four | 2 |
 
-So 325 of 518 cards - nearly two in three - gained at most one line, and the
-one piece with all three is the only card that gained three. The chip collapse
-the plan called "not a nicety" turned out to be needed for a single piece; the
-heading-only-where-non-empty rule did the work.
+**Two groups is the common case, not one.** The plan's shape table counted
+only the three non-damage groups and read 296 pieces as passive-alone; with
+damage counted as its own group and the trigger split applied, 242 cards carry
+two headings and 54 carry three or more.
+
+So the heading-only-where-non-empty rule is carrying more weight than the
+plan expected, not less: 222 of 518 cards draw at most one label, and without
+that rule every one of them would draw four. The 54 that draw three or more
+are where a chip collapse would still pay, and they are a tenth of the
+catalogue rather than the single piece the plan predicted.
 
 Nothing in `analysis/baseline.md` moved: the printer measures fights and this
 is all display, except T2's two ordering effects which are recorded at 29.

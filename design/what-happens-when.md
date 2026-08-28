@@ -445,3 +445,12 @@ printing for two missions.
 **T6 did not fit.** M7's layout gate fired on the first build, exactly as its
 own commit predicted it would, and then its horizontal half fired too. The
 section is in the shelf's second column now, which was empty the whole time.
+
+**And §2's shape table undercounted.** It counted the three non-damage groups
+and read 296 pieces as passive-alone. Measured against the rule that shipped -
+damage as its own group, and the trigger split - the distribution is 46 cards
+with no heading, 176 with one, 242 with two, 52 with three and 2 with all
+four. Two headings is the common case. The conclusion holds and its reason
+changes: heading-only-where-non-empty spares 222 cards three labels each,
+which is more work than the plan gave it, and the 54 cards with three or more
+are where a chip collapse would still pay.
