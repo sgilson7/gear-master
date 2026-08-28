@@ -13587,16 +13587,6 @@ mod tests {
         assert!(rows.len() > 1, "thirty-one classes laid out on one row");
     }
 
-    /// No two buttons share a pixel, and every one is inside the panel.
-    ///
-    /// The geometry half of the row. The *text* half - a label wider than its
-    /// box spilling out of both ends into whatever shares the row, which is
-    /// how "WHAT THE WORDS MEAN" and TOOLS read as "WHAT THE WORDS MEANTOOLS"
-    /// for as long as they shared it - cannot be asserted here: measuring a
-    /// string wants macroquad's font context, which is the same reason
-    /// `chip_rects` takes a `measure` and this does not. `button` sizes the
-    /// label to the box now, and the fix was confirmed by looking at it.
-    #[test]
     /// The pedestal screen fits, and nothing on it sits on anything else.
     ///
     /// The plinth is what a player drags onto and the two buttons are how they
@@ -13702,6 +13692,16 @@ mod tests {
         );
     }
 
+    /// No two buttons share a pixel, and every one is inside the panel.
+    ///
+    /// The geometry half of the row. The *text* half - a label wider than its
+    /// box spilling out of both ends into whatever shares the row, which is
+    /// how "WHAT THE WORDS MEAN" and TOOLS read as "WHAT THE WORDS MEANTOOLS"
+    /// for as long as they shared it - cannot be asserted here: measuring a
+    /// string wants macroquad's font context, which is the same reason
+    /// `chip_rects` takes a `measure` and this does not. `button` sizes the
+    /// label to the box now, and the fix was confirmed by looking at it.
+    #[test]
     fn no_two_buttons_share_a_pixel() {
         let panel_x = LOGICAL_W - PANEL_W;
         let r = button_rects(panel_x);

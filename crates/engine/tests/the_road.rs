@@ -217,3 +217,80 @@ fn a_door_nobody_has_earned_is_drawn_where_it_could_first_appear() {
     // A scheduled door has one rung and it is `at`.
     assert_eq!(node(&map, "the-toads-offer").at, 2);
 }
+
+// ------------------------------------------------- the road, drawn and kept
+//
+// THE HUNDRED's F0 baseline. Three whole maps, byte for byte, at a rung in
+// each third of the ladder. `dungeons.rs` already pins one map as a
+// *subsequence*, which is the right shape for the question it asks - did M1's
+// graph move any line the pre-graph road had - and the wrong shape for this
+// one, which is "did the road change at all".
+//
+// A8 has `route::ascii` growing a county half at F9. When it does, this
+// fixture is the road half and this test must say so in its own assertion -
+// `&got[..want.len()]`, with the reason named - rather than be re-baselined
+// to include a county nobody could read at F0.
+
+/// A run with no history, standing on `rung`: the road as the tables write it.
+///
+/// No flags, no dungeons entered, no towns found - so the map is the road
+/// every run meets rather than one run's road. A fixture of a *played* run
+/// would pin the play as much as the road, and the play is what every other
+/// binary in this suite is for.
+fn a_bare_run_at(rung: usize) -> Run {
+    let mut run = Run::seeded(0x1_00D);
+    run.mode = Mode::Grinder;
+    run.difficulty = Difficulty::Medium;
+    run.rung = rung;
+    run
+}
+
+const ROAD_AT: &[(usize, &str)] = &[
+    (5, include_str!("fixtures/road-at-5.txt")),
+    (20, include_str!("fixtures/road-at-20.txt")),
+    (40, include_str!("fixtures/road-at-40.txt")),
+];
+
+#[test]
+fn the_road_is_drawn_the_way_it_was_drawn_at_f0() {
+    for (rung, want) in ROAD_AT {
+        let got = gearmaster_engine::route::ascii(&a_bare_run_at(*rung));
+        let want: Vec<&str> = want.lines().collect();
+        for (i, (g, w)) in got.iter().zip(&want).enumerate() {
+            assert_eq!(
+                g, w,
+                "rung {rung}, line {i}: the road moved. Re-baseline with \
+                 REBASELINE_ROAD_AT=1 only after naming here what started \
+                 saying something different"
+            );
+        }
+        assert_eq!(
+            got.len(),
+            want.len(),
+            "rung {rung}: the map is {} lines and the fixture is {}",
+            got.len(),
+            want.len()
+        );
+    }
+}
+
+/// Re-baselines the three, and only under `REBASELINE_ROAD_AT=1`.
+///
+/// The guard is `catalog_shape::report_gear_at`'s, for its reason: this
+/// binary's `--ignored` set would otherwise let a printer silently overwrite
+/// the evidence that nothing had moved.
+#[test]
+#[ignore]
+fn report_road_at() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    for (rung, _) in ROAD_AT {
+        let text = gearmaster_engine::route::ascii(&a_bare_run_at(*rung)).join("\n") + "\n";
+        let path = dir.join(format!("road-at-{rung}.txt"));
+        if std::env::var("REBASELINE_ROAD_AT").as_deref() == Ok("1") {
+            std::fs::write(&path, &text).expect("writes");
+            println!("wrote {}", path.display());
+        } else {
+            print!("{text}");
+        }
+    }
+}
