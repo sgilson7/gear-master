@@ -2379,6 +2379,76 @@ impl Tip {
             self.lines.push((words::retell(&text), tint));
         }
     }
+
+    /// The same block, in groups, each under a heading that says **when**.
+    ///
+    /// A `Stats` is not a list of passive numbers: eight of its fields are
+    /// handed over on every activation, so a card printing `+2 nature` beside
+    /// `+175 hp` prints a rate beside a quantity and calls them one thing.
+    ///
+    /// Headings are drawn only where a group has something in it. One piece
+    /// in five hundred has all three and two hundred and ninety-six are
+    /// passive alone, so drawing four labels every time would make the common
+    /// card taller to fix the rare one - which is the whole reason `cooldown`
+    /// is passed in rather than a heading being hard-coded: `EVERY 2.8s` says
+    /// when, so the figures under it do not have to.
+    fn stats_grouped(
+        &mut self,
+        stats: &gearmaster_engine::stats::Stats,
+        tint: Color,
+        cooldown_ms: u32,
+        slot: SlotKind,
+    ) {
+        use gearmaster_engine::stats::When;
+        for group in [When::Damage, When::Passive, When::OnActivation] {
+            let rows: Vec<(String, &'static str)> = stats
+                .parts_when()
+                .into_iter()
+                .filter(|(_, _, w)| *w == group)
+                .map(|(t, g, _)| (t, g))
+                .collect();
+            if rows.is_empty() {
+                continue;
+            }
+            let head = match (group, cooldown_ms) {
+                (When::OnActivation, ms) if ms > 0 => {
+                    format!("EVERY {:.2}s", ms as f32 / 1000.0)
+                }
+                (g, _) => g.heading().to_string(),
+            };
+            self.lines.push((words::retell(&head), col_gold()));
+            for (text, key) in rows {
+                if !key.is_empty() {
+                    self.glyphs.push((self.lines.len(), key));
+                }
+                self.lines.push((format!("  {}", words::retell(&text)), tint));
+            }
+            // **Only a weapon swings.** `hit_for` returns 0 for every other
+            // slot, so a glove's `+8 phys dmg` is a figure the fight never
+            // reads - twenty-three components carry one, and `rating.rs`
+            // prices every point. The card has shown them as though they
+            // landed since there were cards. It says so now, once, under the
+            // group rather than beside each line.
+            //
+            // Mind is the exception and it is not an exception to the rule so
+            // much as a different lane: `item.mind` is handled outside the
+            // weapon branch precisely so a helmet can reach you.
+            if group == When::Damage && slot != SlotKind::Weapon {
+                let physical_or_magic =
+                    stats.physical_damage != 0 || stats.magic_damage != 0;
+                if physical_or_magic {
+                    self.lines.push((
+                        words::word(
+                            "only-a-weapon-swings",
+                            "  only a weapon swings - this lands nothing",
+                        )
+                        .to_string(),
+                        col_bad(),
+                    ));
+                }
+            }
+        }
+    }
 }
 
 /// One line of a pinned overflow list, and enough to describe it in full.
@@ -4218,12 +4288,18 @@ fn render_def_tooltip_inner(
     let base_stats = def.base;
 
     // Timing: a core sets the item's cooldown, anything else can lend speed.
+    //
+    // Only a core's figure is a rate. A plating in a helmet fires when the
+    // frame does, so printing "every 2.8s" on its card would be quoting a
+    // number that belongs to a piece it has not met yet - the activation
+    // heading falls back to naming the moment instead.
+    let card_cooldown = if def.kind.is_core() {
+        if def.cooldown_ms == 0 { default_cooldown_ms(def.slot) } else { def.cooldown_ms }
+    } else {
+        0
+    };
     if def.kind.is_core() {
-        let cd = if def.cooldown_ms == 0 {
-            default_cooldown_ms(def.slot)
-        } else {
-            def.cooldown_ms
-        };
+        let cd = card_cooldown;
         lines.push((
             format!("fires every {:.2}s as an item's core", cd as f32 / 1000.0),
             Color::from_rgba(200, 190, 150, 255),
@@ -4267,36 +4343,35 @@ fn render_def_tooltip_inner(
             lines.push((l, col_effect()));
         }
     }
-    // Same rule as the item card: an unconditional pool gain reads as a stat,
-    // because that is what it is. Only the conditional triggers - spending a
-    // pool, answering a neighbour - earn a line of their own.
-    let mut banked: Vec<(Resource, i32)> = Vec::new();
+    // The triggers split in two, and the split is the whole of T4: an
+    // `OnActivate` is *what one activation hands over*, and everything else is
+    // a condition. They used to be told apart by whether the action was a pool
+    // gain, which put `gain 22 armour on activation` in trigger colours and
+    // `gain 2 nature on activation` in the stat block - the same shape of
+    // thing, filed under two headings, and the pool grants are stats now
+    // anyway.
+    let mut on_activation: Vec<String> = Vec::new();
     let mut conditional: Vec<&Trigger> = Vec::new();
     for t in def.triggers {
-        let plain = match t {
-            Trigger::OnActivate(Action::GainMana(n)) => Some((Resource::Mana, *n)),
-            Trigger::OnActivate(Action::Gain { what, amount }) => Some((*what, *amount)),
-            _ => None,
-        };
-        match plain {
-            Some((what, amount)) => match banked.iter_mut().find(|(w, _)| *w == what) {
-                Some(entry) => entry.1 += amount,
-                None => banked.push((what, amount)),
-            },
-            None => conditional.push(t),
+        match t {
+            Trigger::OnActivate(a) => on_activation.push(a.describe()),
+            other => conditional.push(other),
         }
     }
-    if !banked.is_empty() {
-        let each: Vec<String> =
-            banked.iter().map(|(w, n)| format!("{:+} {}", n, w.name())).collect();
+    for line in &on_activation {
+        for l in wrap(line, 46) {
+            lines.push((format!("  {l}"), Color::from_rgba(240, 210, 190, 255)));
+        }
+    }
+    if !conditional.is_empty() {
         lines.push((
-            format!("{} each time its item fires", each.join(", ")),
-            Color::from_rgba(190, 210, 245, 255),
+            words::word("card-triggers", "TRIGGERS").to_string(),
+            col_trigger(),
         ));
     }
     for t in conditional {
         for l in wrap(&t.describe(), 46) {
-            lines.push((l, col_trigger()));
+            lines.push((format!("  {l}"), col_trigger()));
         }
     }
     if let Some(q) = def.quest {
@@ -4325,7 +4400,7 @@ fn render_def_tooltip_inner(
     // symbol that stands for it. What the piece is, then what it becomes when
     // its item comes together.
     let mut tip = Tip::plain(lines);
-    tip.stats(&base_stats, Color::from_rgba(190, 210, 245, 255));
+    tip.stats_grouped(&base_stats, Color::from_rgba(190, 210, 245, 255), card_cooldown, def.slot);
     if let Some(adj) = def.assembly_bonus {
         tip.stats(&adj.stats, col_gold());
     }
@@ -13564,6 +13639,81 @@ mod glossary_tests {
                 meaning
             );
         }
+    }
+
+    /// A card's groups are in order, headed, and never empty.
+    ///
+    /// The four groups are `DAMAGE`, `PASSIVE`, the activation heading and
+    /// `TRIGGERS`, and the rule that makes them worth having is that a heading
+    /// is drawn only where there is something under it. One piece in five
+    /// hundred has all three stat groups and two hundred and ninety-six are
+    /// passive alone, so a card that always drew four labels would be taller
+    /// for almost every piece in the game.
+    ///
+    /// Checked off `Tip::stats_grouped`, which is pure - it takes a `Stats`
+    /// and gives back lines, and needs no graphics context to answer.
+    #[test]
+    fn a_card_heads_every_group_it_has_and_none_it_does_not() {
+        use gearmaster_engine::stats::{Stats, When};
+        let heads = |s: &Stats, cd: u32, slot: SlotKind| -> Vec<String> {
+            let mut t = Tip::plain(Vec::new());
+            t.stats_grouped(s, WHITE, cd, slot);
+            t.lines
+                .iter()
+                .map(|(l, _)| l.clone())
+                .filter(|l| !l.starts_with("  "))
+                .collect()
+        };
+
+        // Passive alone: one heading, and it is the right one.
+        let passive = Stats { health: 175, ..Stats::ZERO };
+        assert_eq!(heads(&passive, 0, SlotKind::Chest), vec![When::Passive.heading().to_string()]);
+
+        // Nothing at all: no headings, because there is nothing to head.
+        assert!(heads(&Stats::ZERO, 2800, SlotKind::Chest).is_empty(), "an empty block grew a label");
+
+        // A core with a per-activation figure says when, by the clock.
+        let nature = Stats { nature: 2, curse_resist: 8, ..Stats::ZERO };
+        let h = heads(&nature, 2800, SlotKind::Greaves);
+        assert_eq!(h.len(), 2, "wanted a passive group and an activation group: {h:?}");
+        assert_eq!(h[0], When::Passive.heading());
+        assert!(h[1].contains("2.80"), "the activation heading does not say when: {:?}", h[1]);
+
+        // A non-core has no clock of its own, so it names the moment instead.
+        let h = heads(&nature, 0, SlotKind::Greaves);
+        assert_eq!(h[1], When::OnActivation.heading(), "a non-core quoted a rate it does not have");
+
+        // Damage comes first, because it is what a reader came for.
+        let all = Stats { health: 1, nature: 1, physical_damage: 1, ..Stats::ZERO };
+        let h = heads(&all, 1500, SlotKind::Weapon);
+        assert_eq!(h.len(), 3, "wanted all three: {h:?}");
+        assert_eq!(h[0], When::Damage.heading(), "damage is not at the top");
+    }
+
+    /// A glove's damage says it lands nothing, and a helmet's mind does not.
+    ///
+    /// `hit_for` returns 0 for every slot but the weapon, so twenty-three
+    /// components carry damage the fight never reads. Mind is not one of them:
+    /// it is handled outside the weapon branch so a helmet can reach you.
+    #[test]
+    fn damage_that_cannot_land_says_so_and_mind_never_does() {
+        use gearmaster_engine::stats::Stats;
+        let body = |s: &Stats, slot: SlotKind| -> String {
+            let mut t = Tip::plain(Vec::new());
+            t.stats_grouped(s, WHITE, 3000, slot);
+            t.lines.iter().map(|(l, _)| l.clone()).collect::<Vec<_>>().join("\n")
+        };
+        let note = "only a weapon swings";
+
+        let glove = Stats { physical_damage: 8, ..Stats::ZERO };
+        assert!(body(&glove, SlotKind::Gloves).contains(note), "a glove's damage claimed to land");
+        assert!(!body(&glove, SlotKind::Weapon).contains(note), "a weapon was told it cannot swing");
+
+        let helmet = Stats { mind: 11, ..Stats::ZERO };
+        assert!(
+            !body(&helmet, SlotKind::Helmet).contains(note),
+            "mind damage was called inert, and it lands from any slot"
+        );
     }
 
     /// An upper bound on what the real font charges for a string.
