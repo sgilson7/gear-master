@@ -456,11 +456,72 @@ fn asks(r: &Requirement) -> String {
     }
 }
 
-/// Every door in the game, with the conditions to reach it and to get through.
+/// Every door in the game, with the conditions to reach it, the conditions to
+/// get through, **and what each answer actually does**.
+///
+/// The outcomes are `Outcome::describe` - what a choice *is*, statically,
+/// which is what a tooltip shows before it is taken. What it *did*, with the
+/// run's own numbers in it, is `Run::receipt`, and a bounty depends on the
+/// rung and a gamble on the roll, so neither is knowable from here.
+///
+/// Two sections: the road's forty-four doors, and THE HUNDRED's nine tiles.
+/// Kept apart because a tile is not a rung - a county event stands on ground
+/// rather than in front of a fight, and the columns a road door needs
+/// (`stands`, `expects`, `its key`) are all dead for one.
 #[test]
 #[ignore]
 fn report_every_door_and_what_it_wants() {
+    let choices = |e: &'static gearmaster_engine::event::LadderEvent| {
+        for c in e.choices {
+            println!("    - {:<38} {}", c.label, asks(&c.requires));
+            for line in c.outcome.describe() {
+                println!("        -> {line}");
+            }
+            // And the mechanical truth, where the player-facing line hides it
+            // on purpose. A silent counter says "nothing you could point to",
+            // which is the whole of that mechanic and exactly wrong for a
+            // reference: this file exists to spell out what a decision does.
+            use gearmaster_engine::event::Outcome as Out;
+            for o in gearmaster_engine::event::every_outcome(&c.outcome) {
+                match o {
+                    Out::Count(what) => println!("           [counter {what} +1]"),
+                    Out::Flag(what) => println!("           [flag {what}]"),
+                    Out::Give(n) => println!("           [hands over {n}]"),
+                    Out::Claim(n) => println!("           [class {n}]"),
+                    Out::RevealTown(n) => println!("           [reveals town {n}]"),
+                    Out::Enter(n) | Out::StartDungeon(n) => {
+                        println!("           [enters {n}]")
+                    }
+                    Out::FightInstead(n) => println!("           [fights {n}]"),
+                    Out::Step(b) => println!("           [brawl {:?}]", b.with),
+                    Out::SurrenderOrb => {
+                        println!("           [takes an Orb-kind piece, worn or loose]")
+                    }
+                    _ => {}
+                }
+            }
+            if !c.unmet.is_empty() {
+                println!("        (shut) {}", c.unmet);
+            }
+        }
+    };
+
     println!("\n## Every door, and how a run reaches it\n");
+    println!(
+        "Regenerate with:\n\
+         \x20 cargo test -p gearmaster-engine --test validity -- --ignored --nocapture \\\n\
+         \x20     report_every_door_and_what_it_wants\n\
+         \n\
+         Under each answer: `->` is what the player is told it does, which is\n\
+         `Outcome::describe` and is what a tooltip shows before it is taken.\n\
+         `[...]` is the mechanical truth where the player-facing line hides it -\n\
+         a silent counter says \"nothing you could point to\", which is the whole\n\
+         of that mechanic and exactly wrong for a reference.\n\
+         \n\
+         What an answer *did*, with the run's own numbers in it, is\n\
+         `Run::receipt`: a bounty depends on the rung and a gamble on the roll,\n\
+         and neither is knowable from here.\n"
+    );
     for e in EVENTS {
         println!("\n{}  [{}]", e.title, e.id);
         println!("  stands: {}", access(e));
@@ -468,10 +529,71 @@ fn report_every_door_and_what_it_wants() {
         if let Some(w) = opens_it(e) {
             println!("  its key: {w}");
         }
+        choices(e);
+    }
+
+    println!("\n\n## THE HUNDRED, tile by tile\n");
+    println!(
+        "A county event stands on a tile rather than in front of a fight. Eight of\n\
+         the nine are dealt onto eleven of the county's tiles - every one of them\n\
+         once before any of them twice - and the ninth is the pale, which the\n\
+         generator places. A tile is walked onto during a trip: five moves, ten\n\
+         trips a run, and what you clear stays cleared for the rest of it.\n\
+         \n\
+         None of them fights. The county's only fights are its three pinnacles\n\
+         and THE PARISH, and `county::county_events_never_fight` is what keeps\n\
+         that true.\n"
+    );
+    for e in gearmaster_engine::event::COUNTY_EVENTS {
+        println!("\n{}  [{}]", e.title, e.id);
+        println!("  stands: {}", where_it_sits(e.id));
+        choices(e);
+    }
+}
+
+/// How a county tile gets onto a county, and what decides it.
+fn where_it_sits(id: &str) -> String {
+    use gearmaster_engine::county;
+    if id == county::PALE {
+        return "placed, not dealt: off the edge and off the circuit (V5), at least two tiles from every gate, one a county"
+            .into();
+    }
+    format!(
+        "dealt from the pool onto one or two of the county's {} arranged tiles",
+        county::ARRANGED
+    )
+}
+
+/// `analysis/every-door.txt` names every door in the game and every county
+/// tile, and every answer on each of them.
+///
+/// The file is written by hand from `report_every_door_and_what_it_wants`, so
+/// nothing regenerates it when a door is added - which is exactly how a
+/// reference document goes quietly stale. This is what refuses that: the file
+/// has to mention every event id in both tables, and every choice label under
+/// them.
+#[test]
+fn the_every_door_reference_names_every_door() {
+    let doc = include_str!("../../../analysis/every-door.txt");
+    let mut missing: Vec<String> = Vec::new();
+    for e in EVENTS.iter().chain(gearmaster_engine::event::COUNTY_EVENTS.iter()) {
+        if !doc.contains(&format!("[{}]", e.id)) {
+            missing.push(e.id.to_string());
+            continue;
+        }
         for c in e.choices {
-            println!("    - {:<38} {}", c.label, asks(&c.requires));
+            if !doc.contains(c.label) {
+                missing.push(format!("{}/{}", e.id, c.label));
+            }
         }
     }
+    assert!(
+        missing.is_empty(),
+        "analysis/every-door.txt has gone stale - it does not mention {missing:?}.\n\
+         Regenerate it with:\n  \
+         cargo test -p gearmaster-engine --test validity -- --ignored --nocapture \
+         report_every_door_and_what_it_wants"
+    );
 }
 
 /// What hands over the key a whispered or flagged door waits on.

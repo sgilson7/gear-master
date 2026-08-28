@@ -1,257 +1,678 @@
 ## Every door, and how a run reaches it
 
+Regenerate with:
+  cargo test -p gearmaster-engine --test validity -- --ignored --nocapture \
+      report_every_door_and_what_it_wants
+
+Under each answer: `->` is what the player is told it does, which is
+`Outcome::describe` and is what a tooltip shows before it is taken.
+`[...]` is the mechanical truth where the player-facing line hides it -
+a silent counter says "nothing you could point to", which is the whole
+of that mechanic and exactly wrong for a reference.
+
+What an answer *did*, with the run's own numbers in it, is
+`Run::receipt`: a bounty depends on the rung and a gamble on the roll,
+and neither is knowable from here.
+
+
+THE THEODOLITE  [the-theodolite]
+  stands: rung 12
+  expects: Rust Colossus (rung 12)
+    - Take the card                          -
+        -> Noted: knows the ordnance
+           [flag knows-the-ordnance]
+    - Take the theodolite apart              -
+        -> Noted: knows the ordnance
+        -> 1 times this rung's bounty, into your purse
+           [flag knows-the-ordnance]
+
+THE STOCKMAN  [the-stockman]
+  stands: rung 14
+  expects: Grave Chorus (rung 14)
+    - Count with him                         -
+        -> Noted: knows the drove roads
+           [flag knows-the-drove-roads]
+    - Ask what he lost                       -
+        -> Noted: knows the drove roads
+        -> +15 maximum health, for the rest of the run
+           [flag knows-the-drove-roads]
+
+THE COMMONS  [the-commons]
+  stands: rung 18
+  expects: Pale Twin (rung 18)
+    - Help her with the post                 -
+        -> Noted: knows the enclosure
+        -> Nothing you could point to
+           [flag knows-the-enclosure]
+           [counter county-work +1]
+    - Ask what is inside the proper one      -
+        -> Noted: knows the enclosure
+           [flag knows-the-enclosure]
+
+THE CONSTABLE  [the-constable]
+  stands: rungs 9 to 40, having done "county-business"
+  expects: The Rust Parliament (rung 40)
+  its key: "county-business" from []
+    - Go quietly                             -
+        -> Noted: arrested
+        -> Noted: county business settled
+           [flag arrested]
+           [flag county-business-settled]
+    - Explain yourself                       -
+        -> Noted: county business settled
+        -> 1 times this rung's bounty, into your purse
+           [flag county-business-settled]
+
+THE WASTE  [the-waste]
+  stands: rungs 17 to 43, having done "never"
+  expects: Verdigris (rung 43)
+  its key: "never" from []
+    - Let him improve it                     -
+        -> Gained: Tin Band
+        -> 1 times this rung's bounty, into your purse
+        -> Noted: waste improved
+           [hands over Tin Band]
+           [flag waste-improved]
+    - Take the bet                           -
+        -> Noted: waste bet taken
+           [flag waste-bet-taken]
+    - Spoken for                             -
+        -> Noted: waste declined
+           [flag waste-declined]
+
+THE COUNTY SURVEYED  [the-county-surveyed]
+  stands: rungs 13 to 38, carrying "A Word About the Hundred"
+  expects: The Iron Choir (rung 38)
+  its key: "A Word About the Hundred" from []
+    - Ask about the box                      -
+        -> Noted: knows the third key
+        -> Noted: the county is surveyed
+           [flag knows-the-third-key]
+           [flag the-county-is-surveyed]
+    - Ask what she is being paid             -
+        -> 2 times this rung's bounty, into your purse
+        -> Noted: the county is surveyed
+           [flag the-county-is-surveyed]
+    - Tell her what you have been doing down there Requires: county work at least 2 times
+        -> 3 times this rung's bounty, into your purse
+        -> Noted: knows the third key
+        -> Noted: the county is surveyed
+           [flag knows-the-third-key]
+           [flag the-county-is-surveyed]
+        (shut) You have done nothing down there worth writing down
 
 THE CROWNWRIGHT  [the-crownwright]
   stands: rungs 20 to 20, carrying "A Word About the Crownwright"
   expects: Bone Cantor (rung 20)
   its key: "A Word About the Crownwright" from ["the pub's bar"]
     - Stand still for it                     -
+        -> Gained: Crownwright's Measure
+           [hands over Crownwright's Measure]
     - Ask what he made last                  -
+        -> Class: Piety
+           [class Piety]
 
 THE GREEN LEDGER  [the-green-ledger]
   stands: rungs 23 to 23, carrying "A Word About the Green Ledger"
   expects: The Gearwright (rung 23)
   its key: "A Word About the Green Ledger" from ["the pub's bar"]
     - Close the column                       -
+        -> Gained: The Green Ledger
+           [hands over The Green Ledger]
     - Add your own line                      -
+        -> Class: Longhauler
+           [class Longhauler]
 
 AHEAD OF SCHEDULE  [where-it-was-going]
   stands: rung 22
   expects: Slag Warden (rung 22)
     - Ask him again                          Requires: having chosen "Ask how he does it" earlier
+        -> Class: Longhauler
+           [class Longhauler]
+        (shut) You never asked Rowe anything on the road, so he has nothing for you at Kettleworks.
     - Let them eat                           -
+        -> Fight the creature standing here
 
 MEMBERS AND GUESTS  [the-vip-area]
   stands: rung 30
   expects: Silence (rung 30)
     - Keep your face still                   Requires: Platinum Chip
+        -> The shop is emptied and stocked with 5
+        ->   Overseer's Circlet
+        ->   Foreman's Harness
+        ->   Tallykeeper's Weave
+        ->   Treadmill Sole
+        ->   Quota Edge
+        -> Class: Immense Guilt
+        (shut) Merrik does not move the rope. Merrik has not moved the rope in eleven years
     - Get them out                           Requires: Platinum Chip
+        -> Fight: Obsidian Colossus and Vermin Sovereign
+        -> If you win: Sprocketman's Gratitude
+        -> If you win: +1 row on every board
+        -> Losing costs what losing costs
+           [brawl ["Obsidian Colossus", "Vermin Sovereign"]]
+        (shut) Merrik does not move the rope. Merrik has not moved the rope in eleven years
     - Walk on                                -
+        -> Fight the creature standing here
 
 THE CASINO  [the-casino]
   stands: rungs 2 to 9, after a win under 3.5s
   expects: Whisperling (rung 9)
     - Step in                                -
+        -> Fight: Bone Archer and Frost Wisp
+        -> If you win: Platinum Chip
+        -> Losing costs no life
+           [brawl ["Bone Archer", "Frost Wisp"]]
     - Keep out of it                         -
+        -> Gained: Gold Chip
+           [hands over Gold Chip]
 
 GERALD  [the-long-way]
   stands: rungs 2 to 9, after a win over 15.0s; shut by ["the-casino"]
   expects: Whisperling (rung 9)
     - Ask how he does it                     -
+        -> Fight the creature standing here
     - Walk with them a while                 -
+        -> Class: Trundle
+           [class Trundle]
 
 HE IS STILL TALKING  [what-to-do-with-henpeck]
   stands: rung 16
   expects: The Curator (rung 16)
     - LET HIM TALK                           -
+        -> One more loss before the run ends
     - FINISH IT                              -
+        -> Class: Avenged
+           [class Avenged]
 
 TWO BY TWO  [the-toads-offer]
   stands: rung 3
   expects: Bone Archer (rung 3)
     - TAKE THE DEAL                          Requires: a loose component 2 by 2
+        -> Hand over what was asked
+        -> The rung is bought off, and pays its bounty 2 times over
+        (shut) Nothing two by two in the bag. It checks. It counts the bag.
     - FIGHT IT ANYWAY                        -
+        -> Fight the creature standing here
 
 THREE THINGS IN THE SHRINE  [the-shrine-fork]
   stands: rung 10
   expects: Warded Idol (rung 10)
     - FIGHT THE IDOL                         -
+        -> Fight the creature standing here
     - FOLLOW THE THING YOU SOLD              Requires: having chosen "TAKE THE DEAL" earlier
+        -> Enter: THE CREVICE IN THE ROCK
+           [enters the-crevice]
+        (shut) You never sold it, so it never came this way, so there is no hole in the wall.
     - GO ROUND THE BACK                      -
+        -> Fight The Dreaming Idiot instead
+           [fights The Dreaming Idiot]
 
 THE ASTRONOMER  [the-astronomer]
   stands: rungs 18 to 29, carrying "A Word About the Wrong Stars"
   expects: Null Sentinel (rung 29)
   its key: "A Word About the Wrong Stars" from ["the pub's bar"]
     - Hear him out                           -
+        -> Gained: A Word About the Cellar
+           [hands over A Word About the Cellar]
     - Buy the lens                           -
+        -> Gained: The Cracked Lens
+           [hands over The Cracked Lens]
     - Turn him in                            -
+        -> Hand over what was asked
+        -> The rung is bought off, and pays its bounty 0 times over
 
 THE LOCKED GATE  [the-locked-gate]
   stands: rungs 23 to 41, carrying "A Word About the Cellar"
   expects: Sootmother (rung 41)
   its key: "A Word About the Cellar" from ["the-astronomer rung 29", "the-slagworks (Foreman)"]
     - Use the word                           -
+        -> Revealed: THE MANSE (after rung 25)
+           [reveals town the-manse]
     - Walk on                                -
+        -> It finds you again 3 rungs further on
 
 THE GLOW OVER THE RIDGE  [the-glow-over-the-ridge]
   stands: rungs 31 to 46, carrying "A Word About the Glow"
   expects: The Salt Wedding (rung 46)
   its key: "A Word About the Glow" from ["the-manse (Gallery)"]
     - Follow it                              -
+        -> Revealed: THE SLAGWORKS (after rung 34)
+        -> Noted: slagworks known
+           [reveals town the-slagworks]
+           [flag slagworks-known]
     - Ignore it                              -
+        -> Hand over what was asked
+        -> The rung is bought off, and pays its bounty 0 times over
 
 THE SECOND SHADOW  [the-second-shadow]
   stands: rungs 43 to 49, having done "threshold-cleared"
   expects: Gilt (rung 49)
   its key: "threshold-cleared" from ["the-threshold (on any way out)"]
     - Face it                                -
+        -> Fight: THE SHADOW and THE LANTERN
+        -> If you win: An Unwound Mainspring
+        -> Losing costs what losing costs
+           [brawl ["THE SHADOW", "THE LANTERN"]]
     - Refuse                                 -
+        -> It finds you again 3 rungs further on
 
 BACK IN A MINUTE  [back-in-a-minute]
   stands: rung 4
   expects: Rust Golem (rung 4)
     - Keep it                                -
+        -> Gained: The Stranger's Parcel
+           [hands over The Stranger's Parcel]
     - Leave it on the milestone              -
+        -> 3 times this rung's bounty, into your purse
 
 THE TELLER  [the-teller]
   stands: rung 11
   expects: Mirror Fiend (rung 11)
     - Hear it all                            -
+        -> -100 maximum health, for the rest of the run
+        -> Gained: The Cracked Lens
+           [hands over The Cracked Lens]
     - Hear the short version                 -
+        -> -50 maximum health, for the rest of the run
+        -> 10 times this rung's bounty, into your purse
     - Plug your ears                         -
+        -> Fight the creature standing here
 
 THE DISPENSER  [the-dispenser]
   stands: rung 17
   expects: Salt Idol (rung 17)
     - One coin                               Costs 1 times this rung's bounty
+        -> A gamble. Either:
+        ->   Gained: The Stranger's Parcel
+        -> or:
+        ->   Fight the creature standing here
+           [hands over The Stranger's Parcel]
+        (shut) The slot wants a coin and you are counting lint.
     - The red one behind the glass           Costs 10 times this rung's bounty
+        -> Gained: The Cracked Lens
+           [hands over The Cracked Lens]
+        (shut) The red one is behind the glass and the glass has a price on it.
     - Shake it                               -
+        -> A gamble. Either:
+        ->   2 times this rung's bounty, into your purse
+        -> or:
+        ->   Nothing you could point to
+           [counter shook-the-machine +1]
 
 WHAT THE TABLE SAID  [what-the-table-said]
   stands: rung 24
   expects: Crowned Hollow (rung 24)
     - Set a piece on it                      -
+        -> A task: the table said what it is for
     - Keep your gear to yourself             -
+        -> Fight the creature standing here
 
 THE BIRD PROBLEM  [the-bird-problem]
   stands: rung 27
   expects: Vermin Sovereign (rung 27)
     - Arm up                                 -
+        -> Gained: Vicegrip Mold
+           [hands over Vicegrip Mold]
     - Pay the toll                           Costs 1 times this rung's bounty
+        -> Fight the creature standing here
+        (shut) The birds do not take promises and Pether has stopped listening.
     - Ignore the memo                        -
+        -> Fight: THE FLOCK
+        -> Losing costs no life
+           [brawl ["THE FLOCK"]]
 
 THE BIGGER SIGN  [the-bigger-sign]
   stands: rung 13
   expects: Ashen Marshal (rung 13)
     - Follow the sign                        Requires: having chosen "Plug your ears" earlier
+        -> Revealed: EXTRA LARGE (after rung 14)
+           [reveals town extra-large]
+        (shut) You heard Ollam out. Whatever part of you looks up is not looking up.
     - Forget you saw it                      -
+        -> 3 times this rung's bounty, into your purse
 
 THE BOLTER RACE  [the-thrumbus-race]
   stands: rungs 41 to 41, having done "never"
   expects: Sootmother (rung 41)
   its key: "never" from []
     - Back a runner                          Costs 3 times this rung's bounty
+        -> A gamble. Either:
+        ->   A claim on one named creature's whole board
+        -> or:
+        ->   Fight the creature standing here
+        (shut) The book has seen your purse and has gone back to the book.
     - Ride                                   -
+        -> Gained: Sevenleague Sole
+           [hands over Sevenleague Sole]
 
 MOLE TOWN  [mole-town]
   stands: rungs 41 to 41, having done "never"
   expects: Sootmother (rung 41)
   its key: "never" from []
     - The little shop                        -
+        -> A shelf of 5, this once
+        ->   Ring of Hours
+        ->   Signet of Iron
+        ->   Tin Band
+        ->   Iron Band
+        ->   Oathring
     - The mole with the tools                Costs 4 times this rung's bounty
+        -> One piece stops being cursed
+        -> Nothing you could point to
+           [counter moles-paid +1]
+        (shut) Tibb looks at your purse, and then at you, and says nothing at all.
 
 THE INSPECTION  [the-inspection]
   stands: rung 20
   expects: Bone Cantor (rung 20)
     - Show her everything                    Requires: 3 assembled items sharing an alignment
+        -> Gained: The Tally
+           [hands over The Tally]
+        (shut) She looks along the row twice and writes one word down and it is short.
     - Show her the good half                 Requires: 2 assembled items sharing an alignment
+        -> 2 times this rung's bounty, into your purse
+        (shut) Nothing you own agrees with anything else you own. She notes it.
     - Decline the inspection                 -
+        -> Gained: A Word About the Picket
+           [hands over A Word About the Picket]
 
 THE SEALED BID  [the-sealed-bid]
   stands: rungs 34 to 36, having done "slagworks-known"
   expects: The Tallow Saint (rung 36)
   its key: "slagworks-known" from ["the-glow-over-the-ridge/\"Follow it\""]
     - Name a figure                          Name a figure between 0 and 5000
+        -> One lot, against a reserve nobody has seen
+        ->   the Skip Stone
+        ->   the Second Key
+        ->   the Appeal
+        ->   The Odometer
+        (shut) A bid is a number and you have not got one.
     - Watch                                  -
+        -> Fight the creature standing here
 
 THE CONTRACT  [the-contract]
   stands: rung 25
   expects: Cog Priest (rung 25)
     - Sign it                                -
+        -> Frost on all your gear for 3 rungs
     - Walk past the milestone                -
+        -> Fight the creature standing here
 
 THE PAYOUT  [the-payout]
   stands: rung 29
   expects: Null Sentinel (rung 29)
     - Collect                                Requires: having chosen "Sign it" earlier
+        -> Your next loss within five rungs does not count
+        -> 4 times this rung's bounty, into your purse
+        (shut) Your column is empty. He turns the ledger round so you can see that.
     - Walk on                                -
+        -> Fight the creature standing here
 
 THE PASSENGER  [the-passenger]
   stands: rungs 40 to 42, having done "threshold-cleared"
   expects: The Quiet Hour (rung 42)
   its key: "threshold-cleared" from ["the-threshold (on any way out)"]
     - Take it aboard                         -
+        -> Something fragile rides your board for 5 rungs
+        -> Deliver it and the courier hands over: An Unwound Mainspring
     - Wish him luck                          -
+        -> Fight the creature standing here
 
 THE BUYER  [the-buyer]
   stands: rung 32
   expects: The Long Mirror (rung 32)
     - Sell him a word                        Requires: a word you have not spent
+        -> A word, sold. That door stays shut
+        -> 6 times this rung's bounty, into your purse
+        (shut) You are carrying nothing anybody has told you. He is sorry to hear it.
     - Sell him a title                       Requires: 1 title(s)
+        -> A title, sold. You stop being it
+        -> 8 times this rung's bounty, into your purse
+        (shut) You are nobody in particular yet, which he says without unkindness.
     - Sell him a hundred of your maximum     -
+        -> -100 maximum health, for the rest of the run
+        -> 10 times this rung's bounty, into your purse
 
 THE FORK  [the-fork]
   stands: rungs 34 to 37, having done "slagworks-known"
   expects: Hollowmarch (rung 37)
   its key: "slagworks-known" from ["the-glow-over-the-ridge/\"Follow it\""]
     - The shelf, then the seam               -
+        -> A shelf of 5, this once
+        ->   Ironbound Haft
+        ->   Bonesaw
+        ->   Adamant Fang
+        ->   Serrated Edge
+        ->   Kingmaker Hilt
+        -> Enter: THE UNDER-MINE
+           [enters the-under-mine]
     - The seam, then the shelf               -
+        -> Enter: THE UNDER-MINE
+        -> A shelf of 5, once this is over
+           [enters the-under-mine]
 
 THE FOUNDRY REMEMBERS  [the-foundry-remembers]
   stands: rungs 45 to 47, having done "slagworks-known"
   expects: Nine of Ashes (rung 47)
   its key: "slagworks-known" from ["the-glow-over-the-ridge/\"Follow it\""]
     - "We kept your best"                    Requires: crucible melts at least 1 times
+        -> Gained: The Cracked Lens
+           [hands over The Cracked Lens]
+        (shut) He checks the page twice. Your column has nothing in it.
     - Say nothing                            -
+        -> Every shelf costs 10% more
 
 THROUGH THE CRACKED LENS  [through-the-cracked-lens]
   stands: rung 48
   expects: The Last Light (rung 48)
     - Look through it                        Requires: The Cracked Lens
+        -> You can read a boss's board before you fight it
+        -> Noted: looked through the lens
+           [flag looked-through-the-lens]
+        (shut) You would need the lens. Halloway offered it to you once, at a price.
     - Keep your eyes on the road             -
+        -> Fight the creature standing here
 
 THE WIZARD'S THIRST  [the-wizards-thirst]
   stands: rungs 8 to 31, carrying "A Word About the Thirsty Wizard"
   expects: Weeping Idol (rung 31)
   its key: "A Word About the Thirsty Wizard" from ["the pub's bar"]
     - Trade him one                          Requires: a loose component 1 by 2
+        -> 3 times this rung's bounty, into your purse
+        -> Gained: the Appeal
+           [hands over the Appeal]
+        (shut) Nothing the right shape. He looks at your bag until you move it.
     - Refuse him                             -
+        -> Something of yours runs cold
 
 THE PICKET LINE  [the-picket-line]
   stands: rungs 20 to 39, carrying "A Word About the Picket"
   expects: Gallowglass (rung 39)
   its key: "A Word About the Picket" from ["the-inspection rung 20"]
     - Honor the line                         -
+        -> Class: Unionized
+           [class Unionized]
     - Cross it                               -
+        -> 2 times this rung's bounty, into your purse
+        -> Nothing you could point to
+           [counter crossed +1]
 
 THE EXHIBITION  [the-exhibition]
   stands: rungs 19 to 34, carrying "A Word About the Exhibition"
   expects: The Last Gearwright (rung 34)
   its key: "A Word About the Exhibition" from ["the pub's bar"]
     - Give them a bout                       Requires: an assembled rare
+        -> Class: Showstopper
+        -> Fight: Bone Archer and Frost Wisp
+        -> Losing costs no life
+           [class Showstopper]
+           [brawl ["Bone Archer", "Frost Wisp"]]
+        (shut) Ilder looks at what you have built and is far too polite about it.
     - Decline politely                       -
+        -> Fight the creature standing here
 
 THE TIMETABLE  [the-timetable]
   stands: rung 21
   expects: Ember Wisp (rung 21)
     - Buy a timetable                        Costs 1 times this rung's bounty
+        -> Gained: A Word About the Sidings
+           [hands over A Word About the Sidings]
+        (shut) Hesketh does not do credit, and says so kindly.
     - Trade her something small              Requires: a loose component 1 by 1
+        -> Gained: A Word About the Sidings
+           [hands over A Word About the Sidings]
+        (shut) You have nothing small enough to be worth her while.
     - Leave the table alone                  -
+        -> Fight the creature standing here
 
 THE SIGNAL BOX  [the-signal-box]
   stands: rungs 22 to 25, carrying "A Word About the Sidings"
   expects: Cog Priest (rung 25)
   its key: "A Word About the Sidings" from ["the-timetable rung 21", "the-timetable rung 21"]
     - Ask him to throw the points            -
+        -> Gained: A Word About the Points
+           [hands over A Word About the Points]
     - Ask what runs on the 21:14             -
+        -> 1 times this rung's bounty, into your purse
     - Leave him to it                        -
+        -> Fight the creature standing here
 
 THE TURNTABLE  [the-turntable]
   stands: rungs 26 to 28, carrying "A Word About the Points"
   expects: Obsidian Colossus (rung 28)
   its key: "A Word About the Points" from ["the-signal-box rung 25"]
     - Step onto the turntable                -
+        -> Enter: THE SWITCHYARD
+           [enters the-switchyard]
     - Sell the timetable to the man in the pit -
+        -> 3 times this rung's bounty, into your purse
     - Come back up                           -
+        -> Fight the creature standing here
 
 THE LAST TRAIN  [the-last-train]
   stands: rung 34
   expects: The Last Gearwright (rung 34)
     - Tell him both lines                    Requires: sidings cleared at least 2 times
+        -> 3 times this rung's bounty, into your purse
+        -> Your next loss within five rungs does not count
+        (shut) You walked one line. Ambrose knows, because he threw the points.
     - Tell him one line                      Requires: sidings cleared at least 1 times
+        -> 1 times this rung's bounty, into your purse
+        (shut) You did not go down. He knows that too.
     - Tell him you never found it            -
-test report_every_door_and_what_it_wants ... ok
+        -> Fight the creature standing here
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+THE ROAD PAST FRANCIS  [the-unwound]
+  stands: rungs 50 to 50, having done "never"
+  expects: Francis (rung 50)
+  its key: "never" from []
+    - Go down                                Requires: An Unwound Mainspring
+        -> Fight THE UNWOUND instead
+           [fights THE UNWOUND]
+        (shut) The way down wants a mainspring, and yours went somewhere else.
+    - Turn round                             -
+        -> Fight the creature standing here
 
+
+## THE HUNDRED, tile by tile
+
+A county event stands on a tile rather than in front of a fight. Eight of
+the nine are dealt onto eleven of the county's tiles - every one of them
+once before any of them twice - and the ninth is the pale, which the
+generator places. A tile is walked onto during a trip: five moves, ten
+trips a run, and what you clear stays cleared for the rest of it.
+
+None of them fights. The county's only fights are its three pinnacles
+and THE PARISH, and `county::county_events_never_fight` is what keeps
+that true.
+
+
+THE PALE  [the-pale]
+  stands: placed, not dealt: off the edge and off the circuit (V5), at least two tiles from every gate, one a county
+    - Hand over an orb and open it           Requires: six tiles in each third of the county, two boundary stones, and an Orb of Travel
+        -> The gatepost takes the orb
+        -> Noted: the pale is open
+           [takes an Orb-kind piece, worn or loose]
+           [flag the-pale-is-open]
+        (shut) The list is not finished, or you have no orb to give
+    - Read the list again                    -
+        -> Noted: read the pale
+           [flag read-the-pale]
+
+THE BOUNDARY DITCH  [the-boundary-ditch]
+  stands: dealt from the pool onto one or two of the county's 11 arranged tiles
+    - Take the other spade                   -
+        -> 1 times this rung's bounty, into your purse
+        -> Nothing you could point to
+           [counter county-work +1]
+    - Ask what she has turned up             -
+        -> Gained: Whetstone
+           [hands over Whetstone]
+
+THE FIELD BARN  [the-field-barn]
+  stands: dealt from the pool onto one or two of the county's 11 arranged tiles
+    - Take something off the shelf           -
+        -> Gained: Iron Band
+           [hands over Iron Band]
+    - Sleep in the hay                       -
+        -> +20 maximum health, for the rest of the run
+
+THE MILESTONE  [the-milestone]
+  stands: dealt from the pool onto one or two of the county's 11 arranged tiles
+    - Write the number down                  -
+        -> Nothing you could point to
+           [counter county-work +1]
+    - Clear the grass back yourself          -
+        -> Noted: kept the milestone
+        -> 1 times this rung's bounty, into your purse
+           [flag kept-the-milestone]
+
+THE GLEANERS  [the-gleaners]
+  stands: dealt from the pool onto one or two of the county's 11 arranged tiles
+    - Glean with them                        -
+        -> 1 times this rung's bounty, into your purse
+    - Ask who cut the field                  -
+        -> Noted: asked who cuts it
+           [flag asked-who-cuts-it]
+
+THE POUND  [the-pound]
+  stands: dealt from the pool onto one or two of the county's 11 arranged tiles
+    - Pay the fee anyway                     Costs 1 times this rung's bounty
+        -> Noted: paid the pound
+        -> Gained: Tin Band
+           [flag paid-the-pound]
+           [hands over Tin Band]
+        (shut) You have not got a bounty spare
+    - Step over the wall                     -
+        -> -10 maximum health, for the rest of the run
+
+THE CHARCOAL BURNER  [the-charcoal-burner]
+  stands: dealt from the pool onto one or two of the county's 11 arranged tiles
+    - Listen                                 -
+        -> Gained: A Word About the Hundred
+           [hands over A Word About the Hundred]
+    - Watch the heap while he sleeps         -
+        -> 2 times this rung's bounty, into your purse
+        -> Noted: watched the heap
+           [flag watched-the-heap]
+
+THE DROWNED LANE  [the-drowned-lane]
+  stands: dealt from the pool onto one or two of the county's 11 arranged tiles
+    - Take the plank                         -
+        -> Noted: crossed the lane
+           [flag crossed-the-lane]
+    - Wade, and mend the plank after         -
+        -> Nothing you could point to
+        -> 1 times this rung's bounty, into your purse
+           [counter county-work +1]
+
+THE PARISH CHEST  [the-parish-chest]
+  stands: dealt from the pool onto one or two of the county's 11 arranged tiles
+    - Say what the third key was for         Requires: knows the third key
+        -> Noted: opened the chest
+        -> +1 row on a board of your choice, for the rest of the run
+           [flag opened-the-chest]
+        (shut) You do not know what the third key was for
+    - Look at what the rain left             -
+        -> 1 times this rung's bounty, into your purse
