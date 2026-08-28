@@ -136,7 +136,7 @@ impl Shop {
             // reason to walk into a settlement rather than past it, and an
             // underlay is ground rather than kit - neither belongs on a stall
             // by the side of the road.
-            .filter(|&i| !crate::piece::is_town_stock(&CATALOG[i]))
+            .filter(|&i| !crate::piece::is_off_the_road(&CATALOG[i]))
             // A pool nobody has been given yet is a piece that does nothing.
             .filter(|&i| self.insight_open || !crate::piece::touches_insight(&CATALOG[i]))
             .collect();
@@ -285,7 +285,7 @@ impl Shop {
                         && !crate::piece::is_boss_only(CATALOG[*i].name)
                         && !crate::piece::is_quest_reward(CATALOG[*i].name)
                         && !crate::piece::is_event_only(CATALOG[*i].name)
-                        && !crate::piece::is_town_stock(&CATALOG[*i])
+                        && !crate::piece::is_off_the_road(&CATALOG[*i])
                         && (insight_open || !crate::piece::touches_insight(&CATALOG[*i]))
                 };
                 let mut candidates: Vec<usize> = (0..CATALOG.len())
@@ -323,7 +323,7 @@ impl Shop {
                 .filter(|&i| !crate::piece::is_boss_only(CATALOG[i].name))
                 .filter(|&i| !crate::piece::is_quest_reward(CATALOG[i].name))
                 .filter(|&i| !crate::piece::is_event_only(CATALOG[i].name))
-                .filter(|&i| !crate::piece::is_town_stock(&CATALOG[i]))
+                .filter(|&i| !crate::piece::is_off_the_road(&CATALOG[i]))
                 .filter(|&i| self.insight_open || !crate::piece::touches_insight(&CATALOG[i]))
                 .collect();
             rng.shuffle(&mut candidates);

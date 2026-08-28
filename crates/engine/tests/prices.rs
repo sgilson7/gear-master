@@ -102,6 +102,7 @@ fn report_what_the_two_conditionals_actually_manage() {
         attracts_curses: false,
         steady: false,
         overtakes: false,
+        wrong_sense: false,
         power: 100,
         rating: 0,
         power_bonus: 0,

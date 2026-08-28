@@ -39,6 +39,19 @@ pub const MAX_DURATION_MS: u32 = 60_000;
 /// being fixed.
 pub const SUDDEN_DEATH_MS: u32 = 30_000;
 
+/// How much surrendered damage buys one step of the wrong sense.
+pub const WRONG_SENSE_PER: i32 = 60;
+/// What one step is worth, as a percentage added to mind damage.
+pub const WRONG_SENSE_STEP: i32 = 10;
+/// How many steps it may reach.
+///
+/// Capped, because an uncapped conversion is a board that gets stronger for
+/// every second it fails to kill anything - and `SUDDEN_DEATH_MS` already owns
+/// everything past thirty seconds, so an uncapped one would make the clock the
+/// only opponent. Twenty steps is triple mind damage and it is reached in a
+/// fight a board was winning anyway.
+pub const WRONG_SENSE_CAP: i32 = 20;
+
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Side {
     Player,
@@ -328,6 +341,12 @@ pub fn stepped_component(name: &str, step: i32) -> &'static str {
         // the piece until THE THRESHOLD is cleared. A creature wearing gear
         // nobody can buy is a creature wearing a stat line.
         .filter(|d| !crate::piece::touches_insight(d))
+        // And the threshold's shelf, for the same reason one line up and the
+        // same reason as event gear two lines above it: a footprint family
+        // sorted by worth does not know that some of its members are things
+        // you have to go and *buy at the bottom of a stair*. A5 appended five
+        // helmet pieces and a creature stepped straight into one.
+        .filter(|d| !crate::piece::is_threshold_stock(d.name))
         .collect();
     // Ordered by what a piece is worth to a *creature*, not to a shop.
     //
@@ -3180,6 +3199,16 @@ pub struct Combatant {
     /// pool to keep full - so the twins have neither, and are worth the same
     /// to every board that manages to gain one.
     pub spellblade: u32,
+    /// **The wrong sense.** Set by `Action::SeeWithTheWrongSense`, and after it
+    /// every point of physical and magic this fighter would deal is not dealt -
+    /// the mind lane is paid instead, multiplied by what was given up.
+    pub wrong_sense: bool,
+    /// Damage surrendered to the wrong sense so far, in points.
+    ///
+    /// Held as the surrendered swing rather than as a factor, because the
+    /// factor *is* the board's own damage and a number here would be a second
+    /// copy of it. `wrong_sense_multiplied` turns it into one.
+    pub surrendered: i64,
     pub deflection: u32,
     /// Stacks of spell forking: every cast lands once more per stack.
     pub forking: u32,
@@ -3325,6 +3354,13 @@ impl Combatant {
             first_blood: false,
             mind_pierce: 0,
             spellblade: 0,
+            // Read off the board, once, at the bell. A standing state and not
+            // a trigger: "you do not deal damage any more" is true from the
+            // first tick, and anything that set it later would let the opening
+            // blows land - a free multiplier for the start of the fight and a
+            // trade for the rest of it.
+            wrong_sense: profiles.iter().any(|p| p.wrong_sense),
+            surrendered: 0,
             deflection: 0,
             forking: 0,
             items: profiles.iter().map(RunningItem::from_profile).collect(),
@@ -3435,6 +3471,8 @@ impl Combatant {
             first_blood: false,
             mind_pierce: 0,
             spellblade: 0,
+            wrong_sense: false,
+            surrendered: 0,
             deflection: 0,
             forking: 0,
             items,
@@ -3599,6 +3637,23 @@ impl Combatant {
     ///
     /// Zero without the pool and zero without the stacks, which is the whole
     /// of the third lane's bargain and the same one the first lane has.
+    /// What the wrong sense makes of one point of mind damage.
+    ///
+    /// The multiplier is the damage this board has already given up, over
+    /// `WRONG_SENSE_PER`, and it is capped: an uncapped conversion is a board
+    /// that gets stronger for every second it fails to kill anything, which is
+    /// a fight decided by the clock rather than by either board.
+    ///
+    /// Without the crest it is the identity, so nothing that does not wear one
+    /// pays a tick for it.
+    pub fn wrong_sense_multiplied(&self, mind: i32) -> i32 {
+        if !self.wrong_sense || mind <= 0 {
+            return mind;
+        }
+        let steps = (self.surrendered / WRONG_SENSE_PER as i64).min(WRONG_SENSE_CAP as i64);
+        ((mind as i64) * (100 + steps * WRONG_SENSE_STEP as i64) / 100).max(0) as i32
+    }
+
     pub fn mind_bonus(&self) -> i32 {
         self.dread as i32 * self.insight.max(0) / DREAD_DIVISOR
     }
@@ -5005,6 +5060,19 @@ fn activate(
         let forks = if item.casts.is_empty() { 0 } else { pick(p, foes, me).forking };
         let reps: u32 = if echoes { 2 } else { 1 } * (1 + forks);
 
+        // **The wrong sense.** Everything the blow was about to be is
+        // surrendered here, before a single point of it crosses - which is
+        // what makes it a trade rather than a bonus. A version that let the
+        // damage land and added mind on top would be a free multiplier, and
+        // every board in the game would wear this crest.
+        let wrong = pick(p, foes, me).wrong_sense;
+        let (physical, magic) = if wrong {
+            let given = (physical + magic) as i64 * reps as i64;
+            pick(p, foes, me).surrendered += given;
+            (0, 0)
+        } else {
+            (physical, magic)
+        };
         // The log reports the swing, not what survived the defences: a hit
         // that is turned aside completely still has to show up, or a player
         // stacking resistance sees nothing happening at all.
@@ -5097,7 +5165,7 @@ fn activate(
         // the way out rather than applied on arrival.
         let (raw, pierce) = {
             let me = pick(p, foes, me);
-            (item.mind + me.mind_bonus(), me.mind_pierce)
+            (me.wrong_sense_multiplied(item.mind + me.mind_bonus()), me.mind_pierce)
         };
         let target = pick(p, foes, me.other(front));
         let dealt = target.take_mind_pierced(raw, pierce);
@@ -5872,6 +5940,12 @@ fn apply(
             c.shield += n;
             let (total, reduction) = (c.shield, c.damage_reduction());
             log.push(LogEntry { who: me.logged_as(front), at_ms: t, event: Event::Shielded { side, total, reduction } });
+        }
+        Action::SeeWithTheWrongSense => {
+            // Kept as an arm so the enum stays exhaustive, and it does nothing:
+            // the trade is `EffectKind::WrongSense`, read off the board at the
+            // bell, because it is a standing state rather than something that
+            // happens when an item comes round. No piece carries this action.
         }
         Action::GainDread(n) => {
             let c = pick(p, foes, me);

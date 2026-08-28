@@ -232,19 +232,64 @@ pub const DUNGEONS: &[Dungeon] = &[
                  sure you went down rather than in.",
                 &[Exit::on(1)],
             ),
-            Floor::along(
-                "THE STAIR THAT LISTENS",
-                "The stair has been counting. Not the steps - there are 402 steps \
-                 and it has known that since before there were steps - it has been \
-                 counting *you*, and the number it has reached is one.",
-                &[Exit::on(2)],
-            ),
+            Floor {
+                creature: "THE STAIR THAT LISTENS",
+                landing: "The stair has been counting. Not the steps - there are 402 \
+                          steps and it has known that since before there were steps - \
+                          it has been counting *you*, and the number it has reached \
+                          is one.",
+                exits: &[
+                    Exit {
+                        to: 2,
+                        label: "Keep going down",
+                        blurb: "The bottom is the bottom, and the thing at the bottom \
+                                is pleased to see you.",
+                    },
+                    Exit {
+                        to: 3,
+                        label: "The landing with the light in it",
+                        blurb: "A door in the side of the rock, at the count of two \
+                                hundred and one, and somebody behind it keeping stock.",
+                    },
+                ],
+                fork: &[
+                    "The stair goes on down and it does not go on down alone. At the \
+                     count of two hundred and one there is a landing off it, and a \
+                     door in the side of the rock, and a light behind the door that \
+                     does not flicker when the air moves.",
+                    "The bottom is what Corvin told you about, and he did not \
+                     mention this. Down is the bottom, and whatever is pleased to \
+                     see you is down there waiting. Sideways is the room with the \
+                     light in it, and whoever keeps that room has been keeping it a \
+                     long time, for a sense nobody upstairs has yet.",
+                ],
+                entry: &[],
+                also: &[],
+            },
             Floor::last(
                 "THE LAST LANDING",
                 "There is light at the bottom and the light is a person, or was, \
                  and it is pleased to see you, which is the worst of it. You come \
                  back up seeing with the wrong sense, and it does not stop.",
             ),
+            // The crossbar of the T. A room off the stair rather than under
+            // it, and the only place in the game that sells to the mind lane -
+            // which is the lane this dungeon unlocks, so the gear and the
+            // sense that reads it are behind the same three fights.
+            Floor {
+                creature: "THE SHADOW",
+                landing: "They were not guarding the door. They were keeping the \
+                          stock, and they have been keeping it a long time - \
+                          everything on these shelves is for a sense nobody \
+                          upstairs has yet, priced by somebody who knew you \
+                          would come down eventually.",
+                exits: &[],
+                fork: &[],
+                entry: &[],
+                also: &[crate::event::Outcome::ShopAfter {
+                    shelves: crate::piece::THRESHOLD_SHELF,
+                }],
+            },
         ],
         reward: "Threshold-Sighted",
         also: &[
@@ -438,29 +483,22 @@ pub const DUNGEONS: &[Dungeon] = &[
                 landing: "The shunter goes back to the turntable pit when it \
                           is done with you and lies down on it, which is what \
                           it does between trains, and the turntable turns a \
-                          quarter of the way round under it and stops.",
-                exits: &[
-                    Exit {
-                        to: 1,
-                        label: "Down line",
-                        blurb: "Two fights and a set of points, and the ballast is soft underfoot.",
-                    },
-                    Exit {
-                        to: 5,
-                        label: "Up line",
-                        blurb: "Two fights and a set of points, and the lamps on the gantry are lit.",
-                    },
-                ],
-                fork: &[
-                    "The two lines leave the turntable pit together and part at \
-                     a set of points a hundred yards out, and the lever for \
-                     them is in a box you cannot reach, and it has been pulled. \
-                     The man who pulled it was Ambrose, and he did not say \
-                     which way.",
-                    "Whichever way you walk, the other line is there the whole \
-                     time, a few yards off in the dark, going somewhere you are \
-                     not.",
-                ],
+                          quarter of the way round under it and stops. Only \
+                          the down line leaves this pit. Ambrose pulled the \
+                          lever for the up line a long time ago and the up \
+                          line has been a mile of nothing ever since.",
+                // **One way on, and the other line is not walkable.** The yard
+                // was one graph with a fork at the mouth; A7 cuts it into two
+                // islands with no track between them, and the Up Line is the
+                // only crossing. That is what the orbs are for - a ticket to
+                // somewhere you cannot otherwise get to, rather than a
+                // shortcut to somewhere you could have walked.
+                //
+                // Ambrose pulled the lever and it is still pulled. What
+                // changed is that the other line is no longer a few yards off
+                // in the dark; it is a mile off, and you need a ticket.
+                exits: &[Exit::on(1)],
+                fork: &[],
                 entry: &[],
                 also: &[],
             },
@@ -856,16 +894,33 @@ mod tests {
         }
     }
 
-    /// Every room can be got to from the mouth.
+    /// Every room can be got to - by walking, or by a ticket.
     ///
     /// A floor nothing leads to is a fight, a landing and a reward that no run
     /// can ever meet - the dead content `completable.rs` exists to catch one
     /// rung over.
+    ///
+    /// **Walking is no longer the only way in.** A7 cut THE SWITCHYARD into
+    /// islands with no track between them, and the Up Line orb is the crossing.
+    /// So a siding counts as a mouth: a floor a `Where::Siding` lands on is
+    /// reachable, and everything it leads to is reachable through it.
+    ///
+    /// The rule that matters is unchanged and is the reason this test exists -
+    /// no room may be unreachable by *any* route. What changed is that the set
+    /// of routes now includes the ones you buy.
     #[test]
     fn every_floor_is_reachable_from_the_mouth() {
         for d in DUNGEONS {
             let mut seen = vec![false; d.floors.len()];
             let mut stack = vec![0usize];
+            // Every siding into this dungeon is another way in.
+            for dest in crate::pedestal::DESTINATIONS {
+                if let crate::pedestal::Where::Siding { dungeon, floor } = dest.kind {
+                    if dungeon == d.id && floor < d.floors.len() {
+                        stack.push(floor);
+                    }
+                }
+            }
             while let Some(at) = stack.pop() {
                 if std::mem::replace(&mut seen[at], true) {
                     continue;
@@ -873,7 +928,11 @@ mod tests {
                 stack.extend(d.floors[at].exits.iter().map(|e| e.to));
             }
             for (i, ok) in seen.iter().enumerate() {
-                assert!(ok, "{}: nothing leads to floor {i} ({})", d.id, d.floors[i].creature);
+                assert!(
+                    ok,
+                    "{}: nothing leads to floor {i} ({}), and no orb lands on it either",
+                    d.id, d.floors[i].creature
+                );
             }
         }
     }
@@ -943,14 +1002,19 @@ mod tests {
     /// change, and it should have to say so here first.
     #[test]
     fn every_shipped_dungeon_is_a_straight_line() {
-        // Re-pinned at M6, not loosened. The claim is about the six that
-        // predate the floor graph: the primitive landed inert and they are
-        // the measurement of that. THE SWITCHYARD is the dungeon the graph was
-        // built for and it is named here rather than skipped by a shape test,
-        // so a *seventh* growing points would still fail this.
-        const STRAIGHT: usize = 6;
-        let lines: Vec<&Dungeon> =
-            DUNGEONS.iter().filter(|d| d.id != "the-switchyard").collect();
+        // Re-pinned twice, never loosened. At M6 the claim was about the six
+        // that predate the floor graph, and THE SWITCHYARD was named rather
+        // than skipped so a *seventh* growing points would still fail.
+        //
+        // At A4 a seventh grew points, deliberately: THE THRESHOLD is a T now,
+        // with the shop on its crossbar. So it is named too, and the five that
+        // are still lines are still checked line by line - an eighth would
+        // fail this exactly as the seventh did.
+        const STRAIGHT: usize = 5;
+        let lines: Vec<&Dungeon> = DUNGEONS
+            .iter()
+            .filter(|d| d.id != "the-switchyard" && d.id != "the-threshold")
+            .collect();
         assert_eq!(lines.len(), STRAIGHT, "a dungeon appeared that nothing here knows about");
         for d in lines {
             assert_eq!(d.forks(), 0, "{} has points in it", d.id);

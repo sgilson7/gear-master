@@ -178,6 +178,8 @@ fn action_word(a: &Action) -> Option<&'static str> {
     use crate::piece::Target::*;
     Some(match a {
         Action::Gain { .. } => "Brimming",
+        // The only piece that gives something up, so it gets the word for it.
+        Action::SeeWithTheWrongSense => "Blind",
         // The cadence three. A name is the only place a player meets these
         // before the card, so each gets its own rather than falling into a
         // shared word.
@@ -307,6 +309,8 @@ pub fn qualifiers(reg: &PieceRegistry, pieces: &[PieceId]) -> Vec<&'static str> 
         if let Some(eff) = def.effect {
             note(Some(match eff.kind {
                 EffectKind::SelfPerNeighborKind { .. } => "Clustered",
+                // What it gives up, which is the only thing about it.
+                EffectKind::WrongSense => "Blind",
                 EffectKind::SoleIf { .. } => "Solitary",
                 EffectKind::Flat { .. } => {
                     if eff.when == crate::piece::When::NotAssembled { "Unbound" } else { "Blessed" }

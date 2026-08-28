@@ -63,6 +63,7 @@ fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfi
         attracts_curses: false,
         steady: false,
         overtakes: false,
+        wrong_sense: false,
         power: 100,
         rating: 0,
         power_bonus: 0,
@@ -362,4 +363,127 @@ fn accrue_on_insight_is_gated_like_income() {
         accruers.is_empty(),
         "nothing in the catalogue accrues Insight, and these do: {accruers:?}"
     );
+}
+
+// ----------------------------------------------- A6: the wrong sense
+//
+// THE THRESHOLD's shelf sells one crest that is a trade rather than a bonus:
+// every point of physical and magic the board would deal is not dealt, and the
+// mind lane is multiplied by what was given up.
+//
+// The trade is the whole design. A version that let the damage land and added
+// mind on top would be a free multiplier, and every board in the game would
+// wear it.
+
+/// A board wearing it deals no physical and no magic at all.
+///
+/// Asserted off the **log** rather than off the stat block: the stat block
+/// still says what the pieces are worth, and the claim is about what crosses.
+#[test]
+fn the_wrong_sense_stops_the_damage_it_trades_away() {
+    use gearmaster_engine::combat::{simulate_at, Difficulty, Event, Side};
+    use gearmaster_engine::piece::CATALOG;
+
+    let crest = CATALOG.iter().find(|d| d.name == "The Wrong Sense").expect("the crest");
+    // An effect and not a trigger: the trade is standing, true from the bell,
+    // and `OnBattleStart` is the greaves' identity mechanic which a helmet may
+    // not borrow. Read off the board the way Overtake is.
+    assert!(
+        matches!(
+            crest.effect.map(|e| e.kind),
+            Some(gearmaster_engine::piece::EffectKind::WrongSense)
+        ),
+        "the crest stopped carrying the trade"
+    );
+
+    // Two runs off one board: the same gear, and the crest seated on one.
+    let hits = |with_crest: bool| -> (usize, usize) {
+        let mut run = Run::with_all_pieces();
+        run.apply_preset();
+        #[allow(unused_assignments)]
+        if with_crest {
+            // A whole helmet, because a loose piece is inert - the trade is
+            // the item's trigger and an unassembled crest never fires. Frame,
+            // plating, crest, which is the recipe.
+            let mut run2 = Run::with_all_pieces();
+            let id = |r: &Run, n: &str| {
+                r.owned.iter().copied().find(|&p| r.registry.def(p).name == n).expect(n)
+            };
+            let (f, pl, cr) = (
+                id(&run2, "Listener's Frame"),
+                id(&run2, "Countingstair Plating"),
+                id(&run2, "The Wrong Sense"),
+            );
+            let helmet = gearmaster_engine::piece::SlotKind::Helmet;
+            run2.equip(f, helmet, 0, 0).expect("frame seats");
+            'seat: for piece in [pl, cr] {
+                for y in 0..8u8 {
+                    for x in 0..6u8 {
+                        if run2.equip(piece, helmet, x, y).is_ok() {
+                            continue 'seat;
+                        }
+                    }
+                }
+                panic!("could not seat a piece of the probe helmet");
+            }
+            assert!(
+                run2.report(helmet).assembled_count() > 0,
+                "the probe helmet never assembled, so the crest never fired"
+            );
+            run = run2;
+        }
+        let spec = gearmaster_engine::combat::creature("Cog Priest").expect("exists");
+        let log = simulate_at(run.player_stats(), &run.combat_items(), spec, Difficulty::Medium);
+        let swings = log
+            .entries
+            .iter()
+            .filter(|e| matches!(&e.event, Event::Hit { by: Side::Player, .. }))
+            .count();
+        let minds = log
+            .entries
+            .iter()
+            .filter(|e| matches!(&e.event, Event::MindHit { by: Side::Player, .. }))
+            .count();
+        (swings, minds)
+    };
+
+    let (swings_without, _) = hits(false);
+    assert!(swings_without > 0, "the control board never swung, so this proves nothing");
+    let (swings_with, _) = hits(true);
+    assert_eq!(
+        swings_with, 0,
+        "the crest is worn and the board still landed {swings_with} blows. It is a \
+         free multiplier until the damage actually stops."
+    );
+}
+
+/// And the multiplier is capped, so a long fight is not a free win.
+///
+/// An uncapped conversion is a board that gets stronger for every second it
+/// fails to kill anything, and `SUDDEN_DEATH_MS` already owns everything past
+/// thirty seconds - so an uncapped one would make the clock the only opponent.
+#[test]
+fn the_wrong_sense_is_capped() {
+    use gearmaster_engine::combat::{Combatant, WRONG_SENSE_CAP, WRONG_SENSE_PER, WRONG_SENSE_STEP};
+    use gearmaster_engine::stats::Stats;
+
+    let mut c = Combatant::player(Stats { health: 500, ..Stats::ZERO }, &[]);
+    assert_eq!(c.wrong_sense_multiplied(10), 10, "it multiplies without the crest");
+
+    c.wrong_sense = true;
+    assert_eq!(c.wrong_sense_multiplied(10), 10, "nothing given up, nothing gained");
+
+    c.surrendered = WRONG_SENSE_PER as i64;
+    assert_eq!(
+        c.wrong_sense_multiplied(100),
+        100 + WRONG_SENSE_STEP,
+        "one step is not one step"
+    );
+
+    // Far past the ceiling, and it stops rather than running away.
+    c.surrendered = WRONG_SENSE_PER as i64 * 10_000;
+    let at_cap = 100 + WRONG_SENSE_CAP * WRONG_SENSE_STEP;
+    assert_eq!(c.wrong_sense_multiplied(100), at_cap, "the cap did not hold");
+    c.surrendered = i64::MAX / 2;
+    assert_eq!(c.wrong_sense_multiplied(100), at_cap, "it ran away at the top");
 }

@@ -1,0 +1,18 @@
+[package]
+name = "gearmaster-lab"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+# Where the privileged and the blind meet, and the only place they may.
+#
+# A benchmark stands a run in front of the pilot and afterwards walks the
+# ladder to say how the board did. The first half needs the engine, the second
+# needs the oracle, and the pilot in the middle needs neither - which is the
+# whole point, and why this crate exists rather than the agent growing a
+# dependency.
+[dependencies]
+gearmaster-engine = { path = "../engine" }
+gearmaster-console = { path = "../console" }
+gearmaster-oracle = { path = "../oracle" }
+gearmaster-agent = { path = "../agent" }

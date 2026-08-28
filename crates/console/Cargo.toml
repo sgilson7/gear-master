@@ -1,0 +1,18 @@
+[package]
+name = "gearmaster-console"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+# The player's surface, and nothing else.
+#
+# This crate exists to be the only door between an agent and the game. It
+# depends on the engine; the agent depends on this and may not name the engine
+# at all, so "the agent has no access to the code base" is a fact about the
+# dependency graph rather than a promise in a doc comment.
+#
+# Nothing privileged belongs here: no arbitrary-board simulation, no catalogue
+# walk, no monster table. That lives in `gearmaster-oracle`, which this crate
+# must never depend on and never re-export a path to.
+[dependencies]
+gearmaster-engine = { path = "../engine" }

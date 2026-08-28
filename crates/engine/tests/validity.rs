@@ -1074,7 +1074,9 @@ fn the_switchyard_chain_is_walkable_by_a_build_that_fights_for_it() {
     // Down the yard. Every floor is a real fight against a packed board.
     let before = w.seen.fights;
     assert!(
-        w.follow(&[Step::Fight, Step::Throw("Down line"), Step::Fight, Step::Fight]),
+        // No throw at the mouth since A7 - it is a corridor onto the down
+        // line, and the up line is a mile of nothing you need a ticket for.
+        w.follow(&[Step::Fight, Step::Fight, Step::Fight]),
         "the yard beat the board: {:?}",
         w.seen.why
     );
@@ -1138,7 +1140,10 @@ fn the_switchyard_chain_is_walkable_by_a_build_that_fights_for_it() {
 #[test]
 fn every_floor_of_the_yard_is_won_on_the_way_through() {
     let d = gearmaster_engine::dungeon::by_id("the-switchyard").expect("the yard");
-    for line in [("Down line", "The coal road"), ("Up line", "The roundhouse road")] {
+    // Only the down line is walkable from the mouth since A7. The up line's
+    // floors are reached by the Up Line orb, which is what
+    // `every_floor_is_reachable_from_the_mouth` now counts as a way in.
+    for line in [("The coal road", "The coal road")] {
         let mut w = Walk::new();
         assert!(
             w.follow(&[
@@ -1149,7 +1154,6 @@ fn every_floor_of_the_yard_is_won_on_the_way_through() {
                 Step::FightTo(25),
                 Step::Answer("the-turntable", "Step onto the turntable"),
                 Step::Fight,
-                Step::Throw(line.0),
                 Step::Fight,
                 Step::Fight,
                 Step::Throw(line.1),
@@ -1250,13 +1254,17 @@ fn the_yards_content_is_on_the_map() {
         .iter()
         .find(|n| n.id == "the-switchyard")
         .expect("the yard is not on the map");
-    assert_eq!(yard.kind, NodeKind::Dungeon { fights: 4, forks: 3 });
+    assert_eq!(yard.kind, NodeKind::// Two since A7: the yard is two islands with no track
+            // between them and the Up Line orb is the only crossing, so the
+            // throat's fork is gone and what is left is one set of points
+            // down each line.
+            Dungeon { fights: 4, forks: 2 });
 
     // And the label says both numbers, which is the one thing the ascii map
     // gained: a straight line still says only its fights.
     let lines = ascii(&run).join("\n");
     assert!(
-        lines.contains("THE SWITCHYARD (4 fights, 3 points)"),
+        lines.contains("THE SWITCHYARD (4 fights, 2 points)"),
         "the map does not say how deep the yard goes"
     );
     assert!(

@@ -34,6 +34,11 @@ fn sellable() -> Vec<&'static str> {
                 // Town gear is reachable, but not here. What a town sells is
                 // covered by `town_gear_is_reachable_and_only_in_a_town`.
                 && !gearmaster_engine::piece::is_town_stock(d)
+                // And the threshold's shelf is reachable at the bottom of one
+                // stair and nowhere else - the same shape as town gear, one
+                // dungeon along. `the_threshold_sells_the_mind_lane_and_only
+                // _the_threshold_does` is what covers it.
+                && !gearmaster_engine::piece::is_threshold_stock(d.name)
                 // And the mind lane's gear is reachable once the pool is. A
                 // piece that banks something you have not been given yet is a
                 // piece that does nothing, and the promise moves rather than
@@ -112,8 +117,58 @@ fn the_mind_lane_is_reachable_once_the_pool_is_open() {
             shop.restock(&mut rng, false);
         }
     }
-    let missing: Vec<&&str> = gated.iter().filter(|n| !counts.contains_key(*n)).collect();
+    // The threshold's shelf touches insight too, and it is reachable at the
+    // bottom of a stair rather than on a shelf - which is the whole of what
+    // makes it exclusive. Excluded here and covered by its own test below.
+    let missing: Vec<&&str> = gated
+        .iter()
+        .filter(|n| !counts.contains_key(*n))
+        .filter(|n| !gearmaster_engine::piece::is_threshold_stock(n))
+        .collect();
     assert!(missing.is_empty(), "unreachable even once earned: {:?}", missing);
+}
+
+/// THE THRESHOLD sells the mind lane, and nothing else sells it.
+///
+/// The dungeon that unlocks insight is the one place that sells the lane
+/// insight is for, so the gear and the sense that reads it are behind the same
+/// three fights. Exclusive the way town gear is exclusive, one dungeon along.
+#[test]
+fn the_threshold_sells_the_mind_lane_and_only_the_threshold_does() {
+    use gearmaster_engine::dungeon::by_id;
+    use gearmaster_engine::event::Outcome;
+    use gearmaster_engine::piece::{is_threshold_stock, THRESHOLD_SHELF, CATALOG};
+
+    // Every name on the shelf is a piece, and a helmet - the mind lane is the
+    // helmet's, and a glove carrying mind would be a figure in the wrong grid.
+    for n in THRESHOLD_SHELF {
+        let d = CATALOG.iter().find(|d| d.name == *n).unwrap_or_else(|| panic!("no {n}"));
+        assert_eq!(
+            d.slot,
+            gearmaster_engine::piece::SlotKind::Helmet,
+            "{n} is on the mind lane's shelf and is not a helmet"
+        );
+    }
+
+    // And something actually stocks it: the crossbar of the T.
+    let d = by_id("the-threshold").expect("the stair");
+    let stocked = d.floors.iter().flat_map(|f| f.also).any(|o| {
+        matches!(o, Outcome::ShopAfter { shelves } if shelves.iter().any(|n| is_threshold_stock(n)))
+    });
+    assert!(stocked, "the threshold's shelf is written and no floor sells it");
+
+    // Nothing else does, in either direction.
+    for other in gearmaster_engine::dungeon::DUNGEONS.iter().filter(|x| x.id != "the-threshold") {
+        for f in other.floors {
+            for o in f.also {
+                if let Outcome::ShopAfter { shelves } = o {
+                    for n in *shelves {
+                        assert!(!is_threshold_stock(n), "{} also sells {n}", other.id);
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[test]

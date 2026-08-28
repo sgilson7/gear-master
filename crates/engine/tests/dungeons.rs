@@ -33,8 +33,19 @@ fn walk(run: &mut Run, id: &'static str) {
     // Fights on the road out, not rooms in the building. The two are the same
     // number for every dungeon shipped before the floor graph, and the graph
     // lints are what keep them so.
-    let fights = run.dungeon.expect("in it").0.fights_ahead(0, &[]);
-    for _ in 0..fights {
+    // Bounded, and it throws a lever - traps 23 and 24. `fights_ahead` counts
+    // one road out and THE THRESHOLD has two since A4, so a walk sized by it
+    // stalls at the points, which reads as "the building did not end" and is
+    // really "nobody could decide". Lever 0 every time, which is the way down
+    // and the way every dungeon here has always gone.
+    for _ in 0..16 {
+        if run.dungeon.is_none() {
+            break;
+        }
+        if run.at_points {
+            assert!(run.throw_points(0), "{}: the lever would not go over", id);
+            continue;
+        }
         run.pending_scene = None;
         run.force_win();
         run.settle();
@@ -445,9 +456,17 @@ fn the_map_counts_points_only_where_there_are_some() {
         let d = by_id(id).expect("a node names a dungeon");
         assert_eq!(fights, d.fights_ahead(0, &[]));
         assert_eq!(forks, d.forks());
-        // One dungeon in the game asks which way, and the map says so by
-        // naming it rather than by tolerating any number of points anywhere.
-        let want = if id == "the-switchyard" { 3 } else { 0 };
+        // Two dungeons ask which way now, and the map says so by naming them
+        // rather than by tolerating any number of points anywhere.
+        //
+        // The yard is two since A7 - one set down each line, and the throat's
+        // fork is gone because the two lines are islands with no track between
+        // them. THE THRESHOLD is one since A4, where the T's crossbar goes.
+        let want = match id {
+            "the-switchyard" => 2,
+            "the-threshold" => 1,
+            _ => 0,
+        };
         assert_eq!(forks, want, "{id} has {forks} sets of points and should have {want}");
     }
 }
@@ -494,6 +513,15 @@ fn transcript() -> String {
                 run.monster().name,
                 d.fights_ahead(floor, &[])
             ));
+            // A set of points is a decision, and a replay has to make it the
+            // same way every time or the fixture is a coin toss. Lever 0, the
+            // way down, which is the road every dungeon here took before one
+            // of them grew a second.
+            if run.at_points {
+                out.push_str("  points: taking the first road\n");
+                assert!(run.throw_points(0), "{}: the lever would not go over", d.id);
+                continue;
+            }
             run.pending_scene = None;
             run.force_win();
             run.settle();

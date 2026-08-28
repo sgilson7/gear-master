@@ -28,12 +28,7 @@
   stack: THE SWITCHYARD - THE SHUNTER - floor 1 of 4
 
 > fight THE SHUNTER
-  landing: The shunter goes back to the turntable pit when it is done with you and lies down on it, which is what it does between trains, and the turntable turns a quarter of the way round under it and stops.
-  points: The two lines leave the turntable pit together and part at a set of points a hundred yards out, and the lever for them is in a box you cannot reach, and it has been pulled. The man who pulled it was Ambrose, and he did not say which way.
-  points: Whichever way you walk, the other line is there the whole time, a few yards off in the dark, going somewhere you are not.
-
-> throw Down line
-  receipt: The points are thrown: Down line
+  landing: The shunter goes back to the turntable pit when it is done with you and lies down on it, which is what it does between trains, and the turntable turns a quarter of the way round under it and stops. Only the down line leaves this pit. Ambrose pulled the lever for the up line a long time ago and the up line has been a mile of nothing ever since.
 
 > fight THE PLATELAYERS
   landing: The platelayers put the rail back where it was. They were only ever going to put it back where it was. Ahead the ballast dips, and the sleepers stop being level.
@@ -96,7 +91,7 @@
 
 > the yard, closed
   cleared 8 floors: [0, 1, 2, 3, 5, 6, 8, 4]
-  levers thrown: [(0, 0), (2, 0), (6, 1)]
+  levers thrown: [(2, 0), (6, 1)]
   sidings-cleared: 3
   ground: ["Ballast Bed", "Points Rodding", "Signal Wire"]
 

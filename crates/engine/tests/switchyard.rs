@@ -374,17 +374,30 @@ fn the_shipped_banner_did_not_change_except_to_say_who_is_in_front_of_you() {
     let d = by_id("the-threshold").expect("shipped");
     let mut run = a_run();
     run.enter_dungeon("the-threshold");
+    // Still three fights on the way down: the T's crossbar is a second road
+    // out rather than a longer one, so `fights_ahead` along either arm is
+    // unchanged and only the room count moved.
     assert_eq!(d.fights_ahead(0, &[]), 3);
     assert_eq!(run.road_stack()[0].describe(), "THE THRESHOLD - DOORKEEP - floor 1 of 3");
     // The six that predate the graph. For a straight line the room count and
     // the road out are the same number, which is the whole of why their
     // banners did not move; THE SWITCHYARD is nine rooms and four fights and
     // is the reason the two stopped being interchangeable.
+    //
+    // Written against `fights_ahead` rather than `floors.len()` since A4,
+    // because THE THRESHOLD is the second dungeon where they differ: four
+    // rooms and three fights along either arm of the T. The banner counts
+    // what a run will fight, which is what it always counted - the two were
+    // interchangeable and one of them was a coincidence.
     for d in gearmaster_engine::dungeon::DUNGEONS.iter().filter(|d| d.id != "the-switchyard") {
         let mut run = a_run();
         run.enter_dungeon(d.id);
-        let want =
-            format!("{} - {} - floor 1 of {}", d.name, d.floors[0].creature, d.floors.len());
+        let want = format!(
+            "{} - {} - floor 1 of {}",
+            d.name,
+            d.floors[0].creature,
+            d.fights_ahead(0, &[])
+        );
         assert_eq!(run.road_stack()[0].describe(), want, "{}", d.id);
     }
     let mut run = a_run();
@@ -552,8 +565,13 @@ fn the_chain_stands_where_it_says() {
 fn nine_floors_and_the_most_a_run_can_see_is_eight() {
     let d = yard();
     assert_eq!(d.floors.len(), 9);
-    assert_eq!(d.forks(), 3, "the throat and one set of points down each line");
-    assert_eq!(d.fights_ahead(0, &[]), 4, "four fights whichever way you walk");
+    // Two since A7, not three. The throat's fork is gone: the yard is two
+    // islands with no track between them now, and the Up Line orb is the only
+    // crossing. What is left is one set of points down each line, which is
+    // the decision the yard was always about - the throat was a choice
+    // between two places you could walk to, and now one of them you cannot.
+    assert_eq!(d.forks(), 2, "one set of points down each line");
+    assert_eq!(d.fights_ahead(0, &[]), 4, "the mouth and the down line");
 
     // Walk it the greedy way: in at the mouth, and back in by every siding an
     // orb can pay for, taking the road with something left in it each time.
@@ -676,7 +694,17 @@ fn leaving_before_a_buffer_stop_forfeits_the_yard() {
     run.force_win();
     run.settle();
     run.back_to_loadout();
-    assert!(run.at_points, "at the throat");
+    // No throat any more - A7 made the mouth a corridor onto the down line -
+    // so the walk goes two rooms further before it reaches a decision. The
+    // points are at the end of the down line rather than at the mouth.
+    assert!(!run.at_points, "the mouth grew a fork back");
+    for _ in 0..2 {
+        run.pending_scene = None;
+        run.force_win();
+        run.settle();
+        run.back_to_loadout();
+    }
+    assert!(run.at_points, "at the down line's points");
     assert!(run.leave_dungeon());
 
     assert!(run.destinations_visited.is_empty(), "nothing was spent");
@@ -1054,8 +1082,10 @@ fn full_walk() -> String {
     answer(&mut out, &mut run, "the-turntable", "Step onto the turntable");
     say(&mut out, &mut run, "into the yard");
 
-    fight(&mut out, &mut run); // [0] the throat
-    throw(&mut out, &mut run, "Down line");
+    // The mouth is a corridor onto the down line since A7 - the throat's fork
+    // is gone and the up line is a mile of nothing you need a ticket for - so
+    // the walk goes straight through rather than choosing here.
+    fight(&mut out, &mut run); // [0] the mouth
     fight(&mut out, &mut run); // [1]
     fight(&mut out, &mut run); // [2]
     throw(&mut out, &mut run, "The coal road");

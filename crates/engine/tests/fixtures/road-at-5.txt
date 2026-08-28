@@ -57,7 +57,7 @@ O  6 Plague Hound
 . -- THE CONTRACT (event, between 24 and 25)
 . 25 Cog Priest
 . -- THE TURNTABLE (event, between 25 and 26)
-     \_ THE SWITCHYARD (4 fights, 3 points)
+     \_ THE SWITCHYARD (4 fights, 2 points)
 . 26 Mire Behemoth
 . -- THE BIRD PROBLEM (event, between 26 and 27)
 . 27 Vermin Sovereign

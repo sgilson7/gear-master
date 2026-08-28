@@ -1660,6 +1660,14 @@ fn keywords_of(def: &PieceDef) -> Vec<&'static str> {
     fn from_action(a: &Action, out: &mut Vec<&'static str>) { match a {
         Action::Curse { .. } => note("curse", out),
         Action::StunStrongest { .. } => note("stun", out),
+        // Both lanes it gives up and the one it pays into, because the rail is
+        // where a player reads what a piece touches and this one touches all
+        // three - two by taking them away.
+        Action::SeeWithTheWrongSense => {
+            note("mind", out);
+            note("physical", out);
+            note("magic", out);
+        }
         // The cadence three read as speed on the rail, because that is the
         // thing they are all about - even the one that gives it away.
         Action::Prime { .. } | Action::PrimeBoard { .. } | Action::Drift { .. } => {
@@ -14529,6 +14537,7 @@ mod tests {
             attracts_curses: false,
             steady: false,
             overtakes: false,
+        wrong_sense: false,
         }
     }
 

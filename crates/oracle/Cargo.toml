@@ -1,0 +1,14 @@
+[package]
+name = "gearmaster-oracle"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+# Privileged, developer-side. Everything the console must not offer.
+#
+# This crate fights arbitrary boards against arbitrary creatures, walks the
+# catalogue, prices pieces and reads the monster tables. All of that is fair
+# for a tool and none of it is fair for a pilot, so `gearmaster-agent` does
+# not depend on this and `agent/tests/boundary.rs` says so.
+[dependencies]
+gearmaster-engine = { path = "../engine" }

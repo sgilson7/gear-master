@@ -52,6 +52,11 @@ pub struct ItemProfile {
     /// again immediately. Read off the pieces here so combat does not have to
     /// walk a registry it does not have.
     pub overtakes: bool,
+    /// **The wrong sense.** This item's board deals no physical and no magic,
+    /// and its mind damage is multiplied by what it gave up. One crest carries
+    /// it, and it is the board's rather than the item's - which is why combat
+    /// reads it off every profile and sets it once.
+    pub wrong_sense: bool,
     /// Whether a misfire eats this item's activation.
     ///
     /// One piece in the game says no - a Stray Orb, whose spells go off
@@ -1044,6 +1049,11 @@ impl Loadout {
                     .any(|&p| reg.def(p).name == crate::piece::STRAY_ORB),
                 overtakes: item.pieces.iter().any(|&p| {
                     matches!(reg.def(p).effect.map(|e| e.kind), Some(EffectKind::Overtake))
+                }),
+                // The trade, read off the board the same way. A standing state
+                // rather than a trigger, so it is true from the bell.
+                wrong_sense: item.pieces.iter().any(|&p| {
+                    matches!(reg.def(p).effect.map(|e| e.kind), Some(EffectKind::WrongSense))
                 }),
                 adjacent_items: adjacent,
                 aligned_items: aligned,

@@ -405,6 +405,20 @@ pub enum EffectKind {
     /// activation repeated, the way `Echo` repeats one, rather than a second
     /// activation that could qualify on its own.
     Overtake,
+    /// **The wrong sense.** Every point of physical and magic this board would
+    /// deal is not dealt, and the mind lane is multiplied by what was given up.
+    ///
+    /// An effect and not a trigger, and both reasons are the same reason. It
+    /// is a **standing** state - "you do not deal damage any more" is true
+    /// from the bell, and a trigger setting it on the item's first activation
+    /// would let every blow before that land, which is a free multiplier for
+    /// the opening and a trade for the rest. And `OnBattleStart` is the
+    /// greaves' identity mechanic, which `catalog_shape` enforces and a helmet
+    /// may not borrow.
+    ///
+    /// Read off the pieces into `ItemProfile` the way `Overtake` is, so combat
+    /// never walks a registry it does not have.
+    WrongSense,
     /// **Commons.** This item counts as adjacent to every assembled item on
     /// its board, and they to it.
     ///
@@ -637,6 +651,18 @@ pub enum Action {
     /// a stack. Helmet-exclusive, like the pair it copies. Locked with the
     /// pool - see `Resource::Insight`.
     GainDread(u32),
+    /// **Stop dealing damage, and pay what you gave up into the mind lane.**
+    ///
+    /// Every point of physical and magic this fighter would deal is not dealt.
+    /// In exchange the mind lane is multiplied by what was surrendered, which
+    /// `Combatant::wrong_sense_multiplier` works out from the board rather
+    /// than from a number written here - a figure on this line would be a
+    /// second copy of the board's own damage.
+    ///
+    /// It is a trade and not a bonus, and that is the whole design. If the
+    /// damage kept flowing this would be a free multiplier and every board in
+    /// the game would be a mind board.
+    SeeWithTheWrongSense,
     /// Gain stacks of Deflection: each stack turns a flat 10 points off every
     /// incoming **physical** hit, ahead of armour.
     ///
@@ -790,6 +816,11 @@ impl Action {
             Action::GainShield(n) => format!("gain {} mana shield", n),
             Action::GainSpellblade(n) => format!("gain {} spellblade", n),
             Action::GainDread(n) => format!("gain {} dread", n),
+            Action::SeeWithTheWrongSense => {
+                "stop dealing physical and magic entirely, and multiply mind damage \
+                 by what you gave up"
+                    .to_string()
+            }
             Action::GainDeflection(n) => format!("gain {} deflection", n),
             Action::GainForking(n) => format!("gain {} spell forking", n),
             Action::Grow(n) => format!("gain {} maximum health for the rest of the fight", n),
@@ -10897,6 +10928,109 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 0,
         price: 1,
     },
+
+    // ---- THE THRESHOLD's shelf --------------------------------------------
+    //
+    // Sold at the bottom of the stair and nowhere else. The dungeon that
+    // unlocks insight is the one place that sells the lane insight is for, so
+    // the gear and the sense that reads it are behind the same three fights.
+    //
+    // Helmets and crests, because that is where the mind lane already lives:
+    // `item.mind` is handled outside the weapon branch precisely so a helmet
+    // can reach you, and a glove carrying mind would be a figure in the wrong
+    // grid.
+    PieceDef {
+        name: "Listener's Frame",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Frame,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats { mind: 9, health: 60, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: None,
+        cooldown_ms: 3600,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Gain { what: Resource::Insight, amount: 2 })],
+        quest: None,
+        power_bonus: 0,
+        price: 62,
+    },
+    // A plating so the recipe can be finished, and a plain one on purpose:
+    // `Plating` floats between the helmet and the greaves, and a floating kind
+    // may not carry an identity mechanic - which the mind lane is. The lane
+    // lives in the frame and the crests, which are the helmet's own.
+    PieceDef {
+        name: "Countingstair Plating",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Plating,
+        cells: &[(0, 0), (0, 1), (0, 2)],
+        base: Stats { armor: 18, curse_resist: 6, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 46,
+    },
+    PieceDef {
+        name: "Four Hundred and Second Step",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats { mind_resist: 12, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::Gain { what: Resource::Insight, amount: 3 })],
+        quest: None,
+        power_bonus: 0,
+        price: 48,
+    },
+    PieceDef {
+        name: "Watcher's Crest",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0, 0), (1, 0)],
+        base: Stats { mind: 7, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[Trigger::OnActivate(Action::GainDread(2))],
+        quest: None,
+        power_bonus: 0,
+        price: 74,
+    },
+    PieceDef {
+        name: "The Wrong Sense",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Crest,
+        cells: &[(0, 0), (1, 0), (0, 1)],
+        // The trade is the whole of it: everything that was a hit becomes
+        // nothing, and what is left is multiplied by what it gave up. The
+        // figures are `Conversion`'s, not this block's - a stat line cannot
+        // say "instead of" and this piece is nothing but an instead-of.
+        base: Stats { mind: 12, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: Some(Effect {
+            label: "the wrong sense",
+            when: When::Assembled,
+            kind: EffectKind::WrongSense,
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // **At the bell, not on activation.** The trade is a standing state -
+        // "you do not deal damage any more" - and setting it when the helmet
+        // first comes round would let every blow before that land, which is a
+        // free multiplier for the opening of the fight and a trade for the
+        // rest of it.
+        triggers: &[Trigger::OnActivate(Action::Gain { what: Resource::Insight, amount: 3 })],
+        quest: None,
+        power_bonus: 0,
+        price: 240,
+    },
 ];
 
 /// Gear that exists only on a boss.
@@ -11005,6 +11139,20 @@ pub fn is_vip_only(name: &str) -> bool {
 /// place with shapes and effects the ordinary shop does not stock - a frame
 /// with a hole in it, a single cell, a four-long sole - which is worth more to
 /// a full board than another large number would be.
+/// What THE THRESHOLD sells at the bottom of the stair, and nowhere else.
+///
+/// Exclusive the way `TOWN_ONLY` is exclusive: `is_town_stock` keeps these off
+/// the road's shelves, and the dungeon's own floor is the only thing that
+/// stocks them. A piece sold in one place and found in another is not
+/// exclusive, and the lint that says so is in `towns.rs`.
+pub const THRESHOLD_SHELF: &[&str] = &[
+    "Listener's Frame",
+    "Countingstair Plating",
+    "Four Hundred and Second Step",
+    "Watcher's Crest",
+    "The Wrong Sense",
+];
+
 pub const TOWN_ONLY: &[&str] = &[
     "Lamplighter's Cage",
     "Wickstub",
@@ -11181,6 +11329,25 @@ pub fn touches_insight(def: &PieceDef) -> bool {
 
 pub fn is_town_stock(def: &PieceDef) -> bool {
     is_town_only(def.name) || def.kind.is_enchantment()
+}
+
+/// Sold at the bottom of THE THRESHOLD's stair and nowhere else.
+///
+/// **Not** folded into `is_town_stock`, which was the first thing tried and
+/// was wrong: that predicate has two kinds of reader. The shop asks it as
+/// "may the road deal this?" and `avail.rs` asks it as "is this town gear,
+/// and does a town stock it?" - and the threshold shelf answers yes to the
+/// first and no to the second. Two questions that had one answer until there
+/// was somewhere else to buy things.
+pub fn is_threshold_stock(name: &str) -> bool {
+    THRESHOLD_SHELF.contains(&name)
+}
+
+/// May the road's own shop deal this piece?
+///
+/// The union, and the thing every road-side filter actually wants.
+pub fn is_off_the_road(def: &PieceDef) -> bool {
+    is_town_stock(def) || is_threshold_stock(def.name)
 }
 
 /// Is this piece kept out of the reckoning that prices everything else?

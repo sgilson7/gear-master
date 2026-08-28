@@ -800,6 +800,7 @@ fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfi
         attracts_curses: false,
         steady: false,
         overtakes: false,
+        wrong_sense: false,
         power: 100,
         rating: 0,
         power_bonus: 0,

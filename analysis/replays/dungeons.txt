@@ -23,13 +23,16 @@
   banner: THE THRESHOLD - THE STAIR THAT LISTENS - floor 2 of 3
   at floor 1, fighting THE STAIR THAT LISTENS, 2 fights ahead
   landing: The stair has been counting. Not the steps - there are 402 steps and it has known that since before there were steps - it has been counting *you*, and the number it has reached is one.
+  banner: THE THRESHOLD - the points after THE STAIR THAT LISTENS: Keep going down / The landing with the light in it
+  at floor 1, fighting THE STAIR THAT LISTENS, 2 fights ahead
+  points: taking the first road
   banner: THE THRESHOLD - THE LAST LANDING - floor 3 of 3
   at floor 2, fighting THE LAST LANDING, 1 fights ahead
   landing: There is light at the bottom and the light is a person, or was, and it is pleased to see you, which is the worst of it. You come back up seeing with the wrong sense, and it does not stop.
   receipt: Insight unlocked
   receipt: Noted: threshold cleared
   out the other side at rung 20, in front of Ember Wisp
-  map: 3 fights, 0 points
+  map: 3 fights, 1 points
 
 === THE UNDER-MINE [the-under-mine] ===
   entry: The seam was sealed from the outside. Whatever the boards are for, they are not for keeping people out.

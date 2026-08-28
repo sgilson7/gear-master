@@ -128,13 +128,14 @@ fn the_road_the_driver_prints_knows_about_the_yard() {
 
     let d = by_id("the-switchyard").expect("M6 landed it");
     assert_eq!(d.floors.len(), 9);
-    assert_eq!(d.forks(), 3);
+    // Two since A7: the yard is islands and the throat's fork is gone.
+    assert_eq!(d.forks(), 2);
     // The map's label for it, which `road`/`map` print through `route::ascii`.
     let mut run = gearmaster_engine::run::Run::new();
     run.rung = 27;
     let ascii = gearmaster_engine::route::ascii(&run).join("\n");
     assert!(
-        ascii.contains("THE SWITCHYARD (4 fights, 3 points)"),
+        ascii.contains("THE SWITCHYARD (4 fights, 2 points)"),
         "the map does not say how deep the yard goes:\n{ascii}"
     );
 }
@@ -300,4 +301,56 @@ quit
         asked < banner,
         "the walking screen was drawn before the question on the tile under it"
     );
+}
+
+/// The twelve verbs A1 gave this driver, walked in one script.
+///
+/// Written because a verb nobody scripts is a verb nobody replays, and this
+/// milestone's whole claim is that a transcript is something a person can
+/// type. Four of these - `clear <slot>`, `grow`, `crush` and `perambulate` -
+/// had no spelling in **either** interface before now
+/// (`console/tests/parity.rs`), so this is the first time a script has been
+/// able to ask for them at all.
+const THE_NEW_VERBS: &str = "\
+preset
+shop
+reroll
+pin 0
+shop
+barter 0 Oak Handle
+lock Iron Blade
+lift Iron Blade
+turn Iron Blade
+drop Iron Blade weapon 0 0
+undo
+clear weapon
+show weapon
+grow weapon
+crush Oak Handle
+mouths
+perambulate 0 5
+drink 0
+brawl
+quit
+";
+
+#[test]
+fn the_new_verbs_replay_identically_too() {
+    let once = play(THE_NEW_VERBS);
+    let twice = play(THE_NEW_VERBS);
+    assert_eq!(once, twice, "the same script made a different run");
+    assert!(!once.contains("unknown command"), "a verb went missing:\n{once}");
+}
+
+/// The four that had no interface answer, rather than being unknown words.
+///
+/// A refusal in the transcript is the point: it says the verb exists and the
+/// run is not in a place to use it, which is what a player would be told.
+#[test]
+fn the_four_that_had_no_interface_answer_from_the_road() {
+    let out = play("clear weapon\ngrow weapon\ncrush Oak Handle\nperambulate 0 5\nquit\n");
+    assert!(!out.contains("unknown command"), "{out}");
+    assert!(out.contains("No row owed."), "{out}");
+    assert!(out.contains("does not crush"), "{out}");
+    assert!(out.contains("Not granted, or not from a mouth."), "{out}");
 }

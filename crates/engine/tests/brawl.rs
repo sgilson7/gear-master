@@ -272,6 +272,7 @@ fn derail_reads_the_front_foe_and_not_the_others() {
         attracts_curses: false,
         steady: false,
         overtakes: false,
+        wrong_sense: false,
         power: 100,
         rating: 0,
         power_bonus: 0,

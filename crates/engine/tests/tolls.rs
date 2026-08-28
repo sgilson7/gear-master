@@ -42,6 +42,7 @@ fn item(cooldown_ms: u32, stats: Stats) -> ItemProfile {
         open_cells: 0,
         steady: false,
         overtakes: false,
+        wrong_sense: false,
         attracts_curses: false,
         power_bonus: 0,
         power: 100,

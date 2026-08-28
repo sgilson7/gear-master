@@ -442,6 +442,15 @@ const ACCRUED_ASSUMED: i32 = 30;
 /// What one action is worth each time it happens.
 fn action_points(a: &Action) -> f32 {
     match a {
+        // **Zero, and on purpose.** The wrong sense is a trade, and what it is
+        // worth depends entirely on the board around it - a board with no mind
+        // damage that wears this crest deals nothing at all. Pricing it as a
+        // benefit would put it at the top of its slot for every board, which
+        // is the one thing `boss_gear_does_not_move_the_scale` exists to stop.
+        //
+        // It is priced by hand instead, in the piece's own `price`, which is
+        // what `is_off_the_scale` is for elsewhere.
+        Action::SeeWithTheWrongSense => 0.0,
         Action::Curse { kind, target } => {
             let v = curse_points(*kind);
             // A curse on yourself is a cost, not a benefit.
@@ -782,6 +791,13 @@ fn effect_points(e: &Effect, rate: f32) -> f32 {
         When::NotAssembled => 0.35,
     };
     let raw = match e.kind {
+        // **Zero, and on purpose.** The wrong sense is a trade, and what it is
+        // worth depends entirely on the board around it - a board with no mind
+        // damage that wears this crest deals nothing at all. Pricing it as a
+        // benefit would put it at the top of its slot for every board, which
+        // is what `boss_gear_does_not_move_the_scale` exists to stop. It is
+        // priced by hand, in the piece's own `price`.
+        EffectKind::WrongSense => 0.0,
         // A multiplier on everything, if you can keep the board clear enough
         // to earn it. Rated as though it pays about a third of the time: it is
         // enormous when it lands and very easy to break by accident, and the

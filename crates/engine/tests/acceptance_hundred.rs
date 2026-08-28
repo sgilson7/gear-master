@@ -400,7 +400,15 @@ fn c11_the_census_matches_the_record() {
     assert_eq!(gearmaster_engine::rumour::RUMOURS.len(), 11, "one word, and it crosses twice");
     assert_eq!(gearmaster_engine::pedestal::DESTINATIONS.len(), 7, "the Surveyor's Orb");
     assert_eq!(gearmaster_engine::bestiary::FRAMES.len(), 29, "five creatures");
-    assert_eq!(gearmaster_engine::piece::CATALOG.len(), 518, "five components and one word");
+    // 523 since A5: THE HUNDRED's five components and one word, plus the five
+    // THE THRESHOLD sells at the bottom of its stair. A census is a record of
+    // what shipped, so it moves when something ships rather than being a
+    // ceiling - and naming what moved it is the whole of why it is here.
+    assert_eq!(
+        gearmaster_engine::piece::CATALOG.len(),
+        523,
+        "the county's six, and the threshold's shelf"
+    );
     assert!(
         gearmaster_engine::bestiary::unpacked().is_empty(),
         "the five are dressed, in borrowed boards"

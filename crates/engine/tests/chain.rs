@@ -230,7 +230,19 @@ fn the_cellar_door_opens_the_lane_and_nothing_else_does() {
     // Three floors, and the pool at the bottom. `fights_ahead` rather than a
     // room count, because a room count stopped being what a run walks when
     // floors became a graph - the two agree for every straight line.
-    for _ in 0..d.fights_ahead(0, &[]) {
+    // Bounded, and it knows how to throw a lever - trap 23 and trap 24
+    // together. THE THRESHOLD is a T since A4, so a walk that only fights
+    // stalls at the points and reads as "the board stopped", which is really
+    // "nobody could decide". Down at the fork, because down is the ending the
+    // rest of this test is about; the crossbar is the shop and has its own.
+    for _ in 0..12 {
+        if run.dungeon.is_none() {
+            break;
+        }
+        if run.at_points {
+            assert!(run.throw_points(0), "the lever would not go over");
+            continue;
+        }
         run.pending_scene = None;
         run.force_win();
         run.settle();
@@ -299,8 +311,14 @@ fn the_chain_can_be_finished_in_one_run_in_either_mode() {
         run.settle();
         run.visit_town(Action::CellarDoor);
         run.take_receipt();
-        let fights = run.dungeon.expect("in it").0.fights_ahead(0, &[]);
-        for _ in 0..fights {
+        for _ in 0..12 {
+            if run.dungeon.is_none() {
+                break;
+            }
+            if run.at_points {
+                assert!(run.throw_points(0), "{:?}: the lever would not go over", mode);
+                continue;
+            }
             run.pending_scene = None;
             run.force_win();
             run.settle();

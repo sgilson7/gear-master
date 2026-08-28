@@ -1,0 +1,17 @@
+[package]
+name = "gearmaster-agent"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+# The pilot. It plays the game and it cannot read it.
+#
+# **This list is the mission's central claim.** `gearmaster-console` is the only
+# dependency, so Rust's name resolution refuses `gearmaster_engine::...` and
+# `gearmaster_oracle::...` anywhere in this crate: the pilot cannot simulate a
+# fight it is not standing in front of, cannot walk the catalogue, cannot ask
+# what creature is coming two rungs from now, and cannot `skip_to` anything.
+# `cargo tree -p gearmaster-agent` is the proof and `tests/boundary.rs` is the
+# ratchet. Anything privileged belongs in `gearmaster-lab`.
+[dependencies]
+gearmaster-console = { path = "../console" }

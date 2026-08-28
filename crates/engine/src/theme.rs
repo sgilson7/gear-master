@@ -548,6 +548,13 @@ pub static TURTLE_DICK: Theme = Theme {
         ("First Word", "Opening Remark"),
         ("Flaying Mold", "Skin-Peeler Mold"),
         ("Foreboding Crest", "Crest of Anticipation"),
+        // THE THRESHOLD's shelf. The book's telling for a stair that counts
+        // and the people keeping stock at the bottom of it.
+        ("Listener's Frame", "Earhole Frame"),
+        ("Countingstair Plating", "Tallystep Plate"),
+        ("Four Hundred and Second Step", "The Last Riser"),
+        ("Watcher's Crest", "Crest of the Kept Watch"),
+        ("The Wrong Sense", "The Turned Eye"),
         ("Forked Crest", "Two-Roads Crest"),
         ("Foreman's Harness", "Gear Cave Harness"),
         ("Forking Bead", "Fork-in-the-Road Bead"),
