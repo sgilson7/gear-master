@@ -24,7 +24,7 @@
 use gearmaster_engine::class::CLASSES;
 use gearmaster_engine::combat::Difficulty;
 use gearmaster_engine::dungeon::DUNGEONS;
-use gearmaster_engine::event::EVENTS;
+use gearmaster_engine::event::{COUNTY_EVENTS, EVENTS};
 use gearmaster_engine::run::Mode;
 use gearmaster_engine::town::{Action, TOWNS};
 
@@ -33,7 +33,11 @@ use gearmaster_engine::town::{Action, TOWNS};
 /// has to be about something, a button is allowed to be plain.
 fn scenes() -> Vec<(String, &'static str, bool)> {
     let mut out: Vec<(String, &'static str, bool)> = Vec::new();
-    for e in EVENTS {
+    // The road's doors and THE HUNDRED's tiles, held to one standard. They are
+    // the same struct and a player reads them on the same screen, so a county
+    // scene that could not pass the road's lints would be a second standard
+    // nobody agreed to.
+    for e in EVENTS.iter().chain(COUNTY_EVENTS.iter()) {
         for p in e.prose {
             out.push((format!("{} prose", e.id), p, true));
         }

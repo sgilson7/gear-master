@@ -572,6 +572,11 @@ fn half_a_cover_is_no_bond_at_all() {
 // ------------------------------------------- the yard's ground, and only it
 
 /// The four the Switchyard pays out, in the order their buffer stops pay them.
+///
+/// THE HUNDRED's three are the same law and are held by
+/// `the_countys_ground_is_dug_up_and_never_sold` below rather than added here,
+/// because "the yard's ground" is what this constant means and a list that
+/// grows every mission is a list that stops naming anything.
 const THE_YARDS_GROUND: [&str; 4] =
     ["Ballast Bed", "Points Rodding", "Booking Hall", "Signal Wire"];
 
@@ -616,9 +621,38 @@ fn the_yards_ground_is_dug_up_and_never_sold() {
     }
     assert_eq!(
         CATALOG.iter().filter(|d| d.kind.is_enchantment()).count(),
-        10,
-        "six sold and four dug up"
+        13,
+        "six sold, four dug out of a switchyard and three dug out of a county"
     );
+}
+
+/// THE HUNDRED's three, dug up and never sold.
+///
+/// One law, applied twice. The Switchyard settled it (E-4) and this is what it
+/// looks like the second time somebody uses it: an enchantment that is
+/// `EVENT_ONLY` is still ground - `shop.rs`'s three filters still refuse it on
+/// the road - and it is not on the cart a town puts out, because the county's
+/// ground is dug up rather than bought.
+const THE_COUNTYS_GROUND: [&str; 3] = ["Trig Pillar", "Drove Way", "The Common Ground"];
+
+#[test]
+fn the_countys_ground_is_dug_up_and_never_sold() {
+    use gearmaster_engine::piece::{is_event_only, is_town_stock, town_shelf, CATALOG};
+    let cart = town_shelf();
+    for name in THE_COUNTYS_GROUND {
+        let d = CATALOG.iter().find(|d| d.name == name).unwrap_or_else(|| panic!("{name}"));
+        assert!(d.kind.is_enchantment(), "{name} is not ground at all");
+        assert!(is_event_only(name), "{name} could be dealt somewhere");
+        assert!(is_town_stock(d), "{name} stopped being ground, which is not the change");
+        assert!(!cart.contains(&name), "{name} is on a town cart");
+    }
+    // One per chain, in the slot that chain taxes.
+    use gearmaster_engine::piece::SlotKind;
+    let slots: Vec<SlotKind> = THE_COUNTYS_GROUND
+        .iter()
+        .map(|n| CATALOG.iter().find(|d| d.name == *n).unwrap().slot)
+        .collect();
+    assert_eq!(slots, vec![SlotKind::Greaves, SlotKind::Gloves, SlotKind::Chest]);
 }
 
 /// The crucible cannot make one and cannot eat one.

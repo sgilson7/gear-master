@@ -217,3 +217,110 @@ fn a_door_nobody_has_earned_is_drawn_where_it_could_first_appear() {
     // A scheduled door has one rung and it is `at`.
     assert_eq!(node(&map, "the-toads-offer").at, 2);
 }
+
+// ------------------------------------------------- the road, drawn and kept
+//
+// THE HUNDRED's F0 baseline. Three whole maps, byte for byte, at a rung in
+// each third of the ladder. `dungeons.rs` already pins one map as a
+// *subsequence*, which is the right shape for the question it asks - did M1's
+// graph move any line the pre-graph road had - and the wrong shape for this
+// one, which is "did the road change at all".
+//
+// A8 has `route::ascii` growing a county half at F9. When it does, this
+// fixture is the road half and this test must say so in its own assertion -
+// `&got[..want.len()]`, with the reason named - rather than be re-baselined
+// to include a county nobody could read at F0.
+
+/// A run with no history, standing on `rung`: the road as the tables write it.
+///
+/// No flags, no dungeons entered, no towns found - so the map is the road
+/// every run meets rather than one run's road. A fixture of a *played* run
+/// would pin the play as much as the road, and the play is what every other
+/// binary in this suite is for.
+fn a_bare_run_at(rung: usize) -> Run {
+    let mut run = Run::seeded(0x1_00D);
+    run.mode = Mode::Grinder;
+    run.difficulty = Difficulty::Medium;
+    run.rung = rung;
+    run
+}
+
+/// Re-baselined twice, at THE HUNDRED's F7 and F8.
+///
+/// **F7 added one line to each of the three**, and it is the same line:
+/// `. -- THE COUNTY SURVEYED (event, between 12 and 13)`. That is the one road
+/// door the county opens - `Whispered` on a word a charcoal burner hands over,
+/// with a window from rung 12 - and a door nobody has earned is drawn where it
+/// could first appear.
+///
+/// **F8 added five more**, and every one is a door the mission wrote:
+///
+/// ```text
+/// . -- THE CONSTABLE (event, between 8 and 9)
+/// . -- THE THEODOLITE (event, between 11 and 12)
+/// . -- THE STOCKMAN (event, between 13 and 14)
+/// . -- THE WASTE (event, between 16 and 17)
+/// . -- THE COMMONS (event, between 17 and 18)
+/// ```
+///
+/// Three on-ramps on rungs 11, 13 and 17; the constable, drawn at rung 8
+/// because that is the earliest his window opens; and Vessey, drawn at 16
+/// because that is the first rung past `WASTE_FROM`. Nothing that was on the
+/// road before has moved on any of the three fixtures - the additions are
+/// insertions into a list that is otherwise line for line what F0 recorded.
+const ROAD_AT: &[(usize, &str)] = &[
+    (5, include_str!("fixtures/road-at-5.txt")),
+    (20, include_str!("fixtures/road-at-20.txt")),
+    (40, include_str!("fixtures/road-at-40.txt")),
+];
+
+#[test]
+fn the_road_is_drawn_the_way_it_was_drawn_at_f0() {
+    for (rung, want) in ROAD_AT {
+        let got = gearmaster_engine::route::ascii_road(&a_bare_run_at(*rung));
+        let want: Vec<&str> = want.lines().collect();
+        for (i, (g, w)) in got.iter().zip(&want).enumerate() {
+            assert_eq!(
+                g, w,
+                "rung {rung}, line {i}: the road moved. Re-baseline with \
+                 REBASELINE_ROAD_AT=1 only after naming here what started \
+                 saying something different"
+            );
+        }
+        assert_eq!(
+            got.len(),
+            want.len(),
+            "rung {rung}: the road is {} lines and the fixture is {}",
+            got.len(),
+            want.len()
+        );
+
+        // And the whole map opens with it, line for line. This is the prefix
+        // assertion F0 wrote down: `ascii` is the road and then the county,
+        // and the road half does not move because a county was added under it.
+        let whole = gearmaster_engine::route::ascii(&a_bare_run_at(*rung));
+        assert!(whole.len() > got.len(), "rung {rung}: the map lost its county half");
+        assert_eq!(&whole[..got.len()], &got[..], "rung {rung}: the county moved the road");
+    }
+}
+
+/// Re-baselines the three, and only under `REBASELINE_ROAD_AT=1`.
+///
+/// The guard is `catalog_shape::report_gear_at`'s, for its reason: this
+/// binary's `--ignored` set would otherwise let a printer silently overwrite
+/// the evidence that nothing had moved.
+#[test]
+#[ignore]
+fn report_road_at() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    for (rung, _) in ROAD_AT {
+        let text = gearmaster_engine::route::ascii(&a_bare_run_at(*rung)).join("\n") + "\n";
+        let path = dir.join(format!("road-at-{rung}.txt"));
+        if std::env::var("REBASELINE_ROAD_AT").as_deref() == Ok("1") {
+            std::fs::write(&path, &text).expect("writes");
+            println!("wrote {}", path.display());
+        } else {
+            print!("{text}");
+        }
+    }
+}

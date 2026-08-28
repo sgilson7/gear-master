@@ -30,6 +30,7 @@ fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfi
         open_cells: 0,
         attracts_curses: false,
         steady: false,
+        overtakes: false,
         power: 100,
         rating: 0,
         power_bonus: 0,
@@ -610,4 +611,119 @@ fn power_on_the_weapon_still_multiplies_it() {
     assert_eq!(p.power, own(&plain, &p), "martial weapon carries its handle and blade");
     assert_eq!(k.power, own(&inked, &k), "the book carries its ink");
     assert!(k.power > p.power, "an inked book beats a plain blade: {} vs {}", k.power, p.power);
+}
+
+// -------------------------------------------------------- Overtake, at F5
+//
+// THE HUNDRED's gloves effect, landed inert: no component carries it until F6.
+// Unlike Bearing and Commons it is testable in full at F5, because combat
+// reads it off an `ItemProfile` field rather than off a piece - so a test can
+// hand it one.
+//
+// Counted in **activations** and not in blows. Only weapons swing; a glove
+// acts entirely through its triggers, so an Overtake that repeated the swing
+// would do nothing whatsoever in the one slot it is allowed in - which is how
+// the first version of it was written and what these tests found.
+
+/// A glove that banks armour when it comes round, which is what a glove does.
+fn a_glove(name: &str, cooldown_ms: u32) -> ItemProfile {
+    ItemProfile {
+        triggers: vec![Trigger::OnActivate(Action::GainArmor(7))],
+        ..item(name, SlotKind::Gloves, cooldown_ms, Stats::ZERO)
+    }
+}
+
+fn overtaking(name: &str, cooldown_ms: u32) -> ItemProfile {
+    ItemProfile { overtakes: true, ..a_glove(name, cooldown_ms) }
+}
+
+/// When each activation happened, for one side.
+fn activations(profiles: &[ItemProfile]) -> Vec<u32> {
+    let log = simulate(Stats::new(1000, 0, 0, 100), profiles, &DUMMY);
+    log.entries
+        .iter()
+        .filter(|e| matches!(e.event, Event::Activate { side: Side::Player, .. }))
+        .map(|e| e.at_ms)
+        .collect()
+}
+
+/// The first firing of the fight runs twice, and every one after it runs once.
+#[test]
+fn overtake_doubles_the_opening_activation_and_nothing_after_it() {
+    let plain = activations(&[a_glove("Plain", 2000)]);
+    let over = activations(&[overtaking("Overtaking", 2000)]);
+
+    assert!(!plain.is_empty(), "the control glove never came round");
+    assert_eq!(
+        over.len(),
+        plain.len() + 1,
+        "overtake added {} activations over a whole fight, not one",
+        over.len() as i64 - plain.len() as i64
+    );
+    assert_eq!(over[0], plain[0], "the first activation moved");
+    assert_eq!(over[1], plain[0], "the second is not immediate - it is at {}", over[1]);
+    assert_eq!(&over[2..], &plain[1..], "the fight after the opening is not the same fight");
+}
+
+/// It repeats the whole activation, not the swing.
+///
+/// The effect is gloves-only and gloves do not swing, so what has to run again
+/// is the trigger. An armour-banking glove that overtakes has banked twice by
+/// the time an ordinary one has banked once.
+#[test]
+fn overtake_runs_the_triggers_again_and_not_a_blow() {
+    let banked = |p: ItemProfile| -> i32 {
+        let log = simulate(Stats::new(1000, 0, 0, 100), &[p], &DUMMY);
+        log.entries
+            .iter()
+            .filter(|e| e.at_ms == 5000)
+            .filter_map(|e| match e.event {
+                Event::GainArmor { side: Side::Player, amount, .. } => Some(amount),
+                _ => None,
+            })
+            .sum()
+    };
+    assert_eq!(banked(a_glove("Plain", 5000)), 7, "the control banked something else");
+    assert_eq!(
+        banked(overtaking("Overtaking", 5000)),
+        14,
+        "an overtaking glove did not bank twice at the bell, which means the repeat ran the \
+         swing a glove has not got instead of the trigger it has"
+    );
+}
+
+/// The second run cannot itself overtake.
+///
+/// One repeat, not a loop: `has_fired` is set at the top of the first run, so
+/// the second sees an item that has already fired. If it could qualify, an
+/// overtaking item would open by activating for ever.
+#[test]
+fn the_second_firing_is_the_same_activation_and_cannot_overtake() {
+    let at = activations(&[overtaking("Overtaking", 5000)]);
+    let opening = at[0];
+    let together = at.iter().filter(|ms| **ms == opening).count();
+    assert_eq!(
+        together, 2,
+        "the opening ran {together} activations. Two is the effect; three or more would mean \
+         the repeat qualified for the effect that produced it"
+    );
+}
+
+/// Two overtaking items are two opening double-activations.
+///
+/// Per item rather than per fighter, which is what building two of them is
+/// for.
+#[test]
+fn two_overtaking_items_each_get_their_own_opening() {
+    let at = activations(&[overtaking("One", 5000), overtaking("Two", 5000)]);
+    let opening = at.iter().filter(|ms| **ms == 5000).count();
+    assert_eq!(opening, 4, "two overtaking gloves opened with {opening} activations");
+}
+
+/// An item that does not carry it fires once, which is the negative half.
+#[test]
+fn an_ordinary_item_does_not_overtake() {
+    let at = activations(&[a_glove("Plain", 5000)]);
+    let opening = at.iter().filter(|ms| **ms == 5000).count();
+    assert_eq!(opening, 1, "an ordinary glove opened with {opening} activations");
 }

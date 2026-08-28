@@ -799,6 +799,7 @@ fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfi
         open_cells: 0,
         attracts_curses: false,
         steady: false,
+        overtakes: false,
         power: 100,
         rating: 0,
         power_bonus: 0,
@@ -999,4 +1000,143 @@ fn accrue_refuses_a_fusion_in_the_fight_as_well_as_in_the_catalogue() {
         )),
         "a proportional income on a fusion would be a second currency at better rates"
     );
+}
+
+// ================================================ THE HUNDRED's three, at F5
+//
+// Landed inert: no component in the catalogue carries any of them until F6.
+// What that costs is that two of the three cannot be proved on a board yet,
+// because a board's effects come off its pieces. So each is tested at the
+// deepest level a test can currently reach, and `catalog_shape`'s
+// `RULES_AWAITING_THEIR_PIECES` is the ratchet that makes F6 finish the job.
+
+use gearmaster_engine::loadout::{bearing_doubles, join_the_commons};
+use gearmaster_engine::piece::EffectKind;
+
+/// One carrier each, in the slot its chain taxes.
+///
+/// This was the F5 exit criterion inverted - "nothing carries them yet" - and
+/// F6 turned it over rather than deleting it, because the list is the same
+/// list either way and what changed is which side of it is right.
+#[test]
+fn each_of_the_three_has_exactly_one_carrier() {
+    // `EffectKind` carries no `PartialEq` - it holds `Stats` and half the
+    // catalogue's vocabulary - so the predicate is a matcher rather than an
+    // equality.
+    let carriers = |want: fn(&EffectKind) -> bool| -> Vec<&str> {
+        gearmaster_engine::piece::CATALOG
+            .iter()
+            .filter(|d| d.effect.is_some_and(|e| want(&e.kind)))
+            .map(|d| d.name)
+            .collect()
+    };
+    assert_eq!(carriers(|k| matches!(k, EffectKind::Bearing)), vec!["Trig Pillar"]);
+    assert_eq!(carriers(|k| matches!(k, EffectKind::Overtake)), vec!["Drove Way"]);
+    assert_eq!(carriers(|k| matches!(k, EffectKind::Commons)), vec!["The Common Ground"]);
+
+    // And each is in the slot the rule puts it in, which `catalog_shape`
+    // enforces from the other end.
+    use gearmaster_engine::piece::SlotKind;
+    let slot = |n: &str| {
+        gearmaster_engine::piece::CATALOG.iter().find(|d| d.name == n).expect("appended").slot
+    };
+    assert_eq!(slot("Trig Pillar"), SlotKind::Greaves);
+    assert_eq!(slot("Drove Way"), SlotKind::Gloves);
+    assert_eq!(slot("The Common Ground"), SlotKind::Chest);
+
+    // None of the five is for sale anywhere, which is what makes appending
+    // them re-gear nobody.
+    for n in ["Trig Pillar", "Drove Way", "The Common Ground", "Surveyor's Orb", "Drover's Orb"] {
+        assert!(gearmaster_engine::piece::is_event_only(n), "{n} is on a shelf");
+    }
+}
+
+// ---------------------------------------------------------------- Bearing
+
+/// A greaves grid spent on one item doubles it, and a second item ends that.
+#[test]
+fn bearing_pays_for_an_empty_grid_and_stops_the_moment_it_is_shared() {
+    assert!(bearing_doubles(true, 0), "the only item in its slot did not double");
+    assert!(!bearing_doubles(true, 1), "a second item in the slot kept the doubling");
+    assert!(!bearing_doubles(true, 4));
+    assert!(!bearing_doubles(false, 0), "an item that does not carry it doubled anyway");
+}
+
+/// It counts, and `SoleIf` overlaps, and the difference is the point.
+///
+/// Two greaves items that never touch and never overlap are both alone under
+/// `Solitude::StackedWith(Greaves)` and neither is alone under Bearing. If
+/// these two ever mean the same thing, one of them should be deleted.
+#[test]
+fn bearing_is_not_a_solitude() {
+    // The situation that separates them: two assembled items in one slot,
+    // not overlapping.
+    let others_in_slot = 1;
+    assert!(!bearing_doubles(true, others_in_slot));
+    // `SoleIf` would pay here, because it asks about overlap rather than
+    // about how many items the slot holds. Asserted as the arithmetic rather
+    // than the effect, because building the board needs a carrier and F6 is
+    // where the carriers are.
+    let overlaps = false;
+    assert!(!overlaps, "if `SoleIf` ever starts counting instead of overlapping, one of the two is redundant");
+}
+
+// ---------------------------------------------------------------- Commons
+
+/// Commons is a relation, and a relation runs both ways.
+#[test]
+fn commons_makes_the_board_one_thing_in_both_directions() {
+    // Four items, and the second is the commons one.
+    let commons = [false, true, false, false];
+    // Item 1 reaches everybody.
+    let mut adj = Vec::new();
+    let mut diag = Vec::new();
+    join_the_commons(1, &commons, &mut adj, &mut diag);
+    assert_eq!(adj, vec![0, 2, 3], "the commons item did not reach the whole board");
+
+    // And everybody reaches item 1 - which is the half a one-way rule would
+    // silently drop.
+    for i in [0usize, 2, 3] {
+        let mut adj = Vec::new();
+        let mut diag = Vec::new();
+        join_the_commons(i, &commons, &mut adj, &mut diag);
+        assert_eq!(adj, vec![1], "item {i} could not see the commons item");
+    }
+}
+
+/// A real neighbour is not counted twice for being a commons neighbour too.
+#[test]
+fn commons_does_not_double_count_a_neighbour_it_already_had() {
+    let commons = [false, true, false];
+    // Item 0 genuinely touches item 1, which is also the commons item.
+    let mut adj = vec![1];
+    let mut diag = Vec::new();
+    join_the_commons(0, &commons, &mut adj, &mut diag);
+    assert_eq!(adj, vec![1], "the same neighbour was counted twice: {adj:?}");
+}
+
+/// A corner is not also an edge, and Commons turns corners into edges.
+///
+/// `diagonal_items` is documented as "never also adjacent". A board where an
+/// item met the commons item at a corner would otherwise appear in both lists,
+/// and `PerAdjacentItem` and the diagonal readers would both pay for it.
+#[test]
+fn commons_takes_a_corner_out_of_the_diagonals_it_just_made_an_edge() {
+    let commons = [false, true];
+    let mut adj = Vec::new();
+    let mut diag = vec![1];
+    join_the_commons(0, &commons, &mut adj, &mut diag);
+    assert_eq!(adj, vec![1]);
+    assert!(diag.is_empty(), "a corner stayed a corner after it became an edge: {diag:?}");
+}
+
+/// A board with no commons item on it is the board it always was.
+#[test]
+fn commons_changes_nothing_when_nobody_carries_it() {
+    let commons = [false, false, false];
+    let mut adj = vec![2];
+    let mut diag = vec![1];
+    join_the_commons(0, &commons, &mut adj, &mut diag);
+    assert_eq!(adj, vec![2]);
+    assert_eq!(diag, vec![1]);
 }

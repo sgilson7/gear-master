@@ -165,7 +165,13 @@ fn e6_7_every_figure_in_the_mission_is_a_multiple_of_a_bounty() {
 /// The Unwinding left this at zero and the phase discipline is what put nine
 /// back: Phase 2 ships a creature as a name, a band, a theme and the stats of
 /// the ladder creature standing at that band, and Phase 4 packs the boards.
-/// **Empty since M9.** It held the yard's nine for three milestones.
+/// **Empty from M9 to THE HUNDRED's F8**, which is five again for the same
+/// reason - and this time the milestone that empties it is deliberately after
+/// the deploy, because dressing a creature is the one job in the mission that
+/// wants somebody looking at the diff.
+/// **Empty again since THE HUNDRED's F12.** It held the county's five for
+/// four milestones. Their boards are borrowed rather than packed and
+/// `hundred::the_five_wear_a_board_borrowed_from_their_band` says whose.
 const UNDRESSED_UNTIL_THE_YARD_IS_PACKED: &[&str] = &[];
 
 #[test]
@@ -189,8 +195,12 @@ fn e6_9_only_the_second_key_breaks_the_one_action_rule() {
         Action::EVERY.iter().copied().filter(|a| !a.costs_the_visit()).collect();
     assert_eq!(
         free,
-        vec![Action::Pedestal],
-        "something other than the pedestal stopped costing the visit"
+        vec![Action::Pedestal, Action::County],
+        "something other than the two things that are not doors stopped costing the visit. \
+         THE HUNDRED's way down is the second, and it is the pedestal's exception rather \
+         than a new one: the county is under the town, one trip per town for the whole run, \
+         and charging a visit for it would make six towns six decisions the county always \
+         loses. Anything else in this list is a bug"
     );
     // And the key itself, which is a thing rather than a door.
     let key = gearmaster_engine::relic::CRUSHABLES
@@ -251,10 +261,29 @@ fn e6_the_road_holds_everything_the_mission_promised() {
     // Thirty-eight: the Switchyard's four, and the road past Francis - which
     // was a creature, a route-map label and a `past_the_top()` nothing called,
     // and had no door for four missions.
-    assert_eq!(EVENTS.len(), 38, "the road lost a door");
+    //
+    // **Forty-four since THE HUNDRED's F8.** Six doors: the word the county
+    // opens (F7), three on-ramps at rungs 11, 13 and 17 that hand the chains
+    // their words and teach the geometry, the constable who takes you down
+    // when a trip came back with nothing, and the waste, which is pushed off
+    // `settle` rather than found on a rung. The county's own nine are
+    // `COUNTY_EVENTS` and are counted separately, because a tile is not a rung
+    // and a census that added them together would say the road had grown by
+    // fifteen.
+    assert_eq!(EVENTS.len(), 44, "the road lost a door");
+    // Nine: eight arranged from the pool, and the pale, which is an event
+    // rather than a `TileKind` of its own and is one of the twelve on the
+    // grid rather than one of the eleven dealt.
+    assert_eq!(gearmaster_engine::event::COUNTY_EVENTS.len(), 9, "the county lost a tile");
     assert_eq!(gearmaster_engine::town::TOWNS.len(), 6, "the road lost a town");
     assert_eq!(gearmaster_engine::dungeon::DUNGEONS.len(), 7, "the road lost a dungeon");
-    assert_eq!(gearmaster_engine::rumour::RUMOURS.len(), 10, "the road lost a word");
-    assert_eq!(gearmaster_engine::pedestal::DESTINATIONS.len(), 6, "an orb lost its place");
-    assert_eq!(gearmaster_engine::bestiary::FRAMES.len(), 24, "a creature went missing");
+    assert_eq!(gearmaster_engine::rumour::RUMOURS.len(), 11, "the road lost a word");
+    // Seven: THE HUNDRED's Surveyor's Orb is the first destination that is
+    // not a place in a table - the county is derived from a seed - and the
+    // only one that offers a choice of where it puts you down.
+    assert_eq!(gearmaster_engine::pedestal::DESTINATIONS.len(), 7, "an orb lost its place");
+    // Twenty-nine: the Unwinding's fifteen, the Switchyard's nine, and THE
+    // HUNDRED's five - three chain endings, the herd one of them drives, and
+    // the thing at the end of the perambulation.
+    assert_eq!(gearmaster_engine::bestiary::FRAMES.len(), 29, "a creature went missing");
 }

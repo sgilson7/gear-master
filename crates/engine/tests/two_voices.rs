@@ -189,7 +189,12 @@ fn the_base_game_speaks_no_turtle_at_all() {
 fn every_road_id_the_theme_retells_is_a_real_one() {
     for t in THEMES {
         for r in t.told {
+            // A county tile is a fourth thing a theme can retell. It is not
+            // on the road - it is under it - and its scenes are the same
+            // struct the road's are, so a theme that could not name one would
+            // be a theme with a hole in it shaped like a county.
             let real = EVENTS.iter().any(|e| e.id == r.id)
+                || gearmaster_engine::event::COUNTY_EVENTS.iter().any(|e| e.id == r.id)
                 || TOWNS.iter().any(|x| x.id == r.id)
                 || DUNGEONS.iter().any(|d| d.id == r.id);
             assert!(real, "{} retells {}, which is nothing on the road", t.id, r.id);

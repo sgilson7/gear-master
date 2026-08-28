@@ -43,6 +43,19 @@ pub enum Requirement {
     /// arming leaves a receipt line and no explanation, which is the closest
     /// this game gets to being haunted.
     Counter { what: &'static str, at_least: u32 },
+    /// Tiles of THE HUNDRED cleared in one region, at least this many.
+    ///
+    /// The pale's checklist reads three of these (B3.1). A region rather than
+    /// a total because eighteen tiles spread across the county is two trips'
+    /// work in three directions, and eighteen in one corner is one trip walked
+    /// four times - and the Enclosure is the chain you finish by having been
+    /// everywhere.
+    CountyTiles { region: crate::county::Region, at_least: usize },
+    /// A chain of THE HUNDRED finished: its pinnacle beaten.
+    ///
+    /// The perambulation waits on all three (B5), and the two words that cross
+    /// back up onto the road wait on one.
+    CountyCleared(crate::county::Chain),
     /// An assembled item of at least this rarity, anywhere on the board.
     ///
     /// Rarity is an *item's*, not a component's - `RARE_AT` is 90 on a scale
@@ -55,6 +68,21 @@ pub enum Requirement {
     /// The inspector's question, and the reason building *for* an event is a
     /// strategy: it reads the live board rather than the tray.
     AlignedItems(usize),
+    /// An Orb of Travel, worn or loose - and surrendering it is the price.
+    ///
+    /// Unlike `Holding`, which names one component, this asks for a *kind* of
+    /// key, because the county has two orbs of its own and the road has four
+    /// and any of the six will do.
+    HoldingOrb,
+    /// The pale's whole checklist: six tiles cleared in each of the three
+    /// regions, two boundary stones read, and an orb in hand.
+    ///
+    /// **One requirement for five lines**, because a choice carries one and
+    /// the gate is one decision. What a player *reads* is
+    /// `Run::pale_checklist`, which is the same five questions asked
+    /// separately so that each can be ticked - and asked through the same
+    /// machinery, so the list and the gate cannot drift.
+    ThePaleIsReady,
     /// A word in the tray - any of them.
     ///
     /// The Buyer's menu is meant to be generated from what you hold, and
@@ -165,6 +193,12 @@ pub enum Outcome {
     StandingOrder(Standing),
     /// Your next loss within five rungs does not count. One fight, once.
     Underwrite,
+    /// Take an Orb of Travel, whichever one comes first.
+    ///
+    /// The pale's price, and the only thing in the game that eats an orb
+    /// without going anywhere. Worn or loose: an orb built into a weapon is
+    /// still an orb, and the gatepost takes it out of the weapon.
+    SurrenderOrb,
     /// Open the mind lane, for good.
     ///
     /// There is exactly one of these in the game and there should be: a pool
@@ -314,6 +348,7 @@ impl Outcome {
                 out
             }
             Outcome::Flag(what) => vec![format!("Noted: {}", what.replace('-', " "))],
+            Outcome::SurrenderOrb => vec!["The gatepost takes the orb".into()],
             // A silent counter says nothing. That is the whole mechanic: the
             // receipt is where a player would look for an explanation, and
             // there is not one until the thing that was counting speaks.
@@ -587,7 +622,638 @@ pub static THE_HERALD: Brawl = Brawl {
     forgiving: false,
 };
 
+/// What THE HUNDRED asks, tile by tile.
+///
+/// **The same struct the road uses**, so the choice, requirement, outcome,
+/// receipt, prose-lint and theme machinery all apply unchanged. Two fields are
+/// dead here and say so: `at` is `usize::MAX` because a county event stands on
+/// a tile rather than a rung, and `expects` is empty because there is no
+/// creature behind it.
+///
+/// **A county event never fights.** `FightAsWritten`, `FightInstead`, `Step`,
+/// `Enter` and `StartDungeon` are all barred - the county's only fights are
+/// its pinnacles and THE PARISH - and `county::county_events_never_fight` is
+/// the lint that keeps it true. What is left is what a county is for: things
+/// left in fields, and people who know the ground.
+///
+/// **Eight into eleven slots** (D-2). Three of them are arranged twice, which
+/// is why the id is not enough to say a tile has been answered and why
+/// `Run::county_event` is not filtered on `answered`.
+pub const COUNTY_EVENTS: &[LadderEvent] = &[
+    LadderEvent {
+        id: "the-pale",
+        at: usize::MAX,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "",
+        title: "THE PALE",
+        prose: &[
+            "A fence with no field behind it. It runs from nowhere to nowhere \
+             and it is in better repair than anything else in the county, and \
+             the gate in it is shut with three separate arrangements none of \
+             which is a lock.",
+            "There is a board on the gate and the board has a list on it. \
+             Somebody wrote the list to be read from exactly here, one tile \
+             out, and it has been read from here a great many times.",
+        ],
+        choices: &[
+            Choice {
+                label: "Hand over an orb and open it",
+                blurb: "It goes into the gatepost. You do not get it back.",
+                requires: Requirement::ThePaleIsReady,
+                outcome: Outcome::All(&[
+                    Outcome::SurrenderOrb,
+                    Outcome::Flag("the-pale-is-open"),
+                ]),
+                unmet: "The list is not finished, or you have no orb to give",
+            },
+            Choice {
+                label: "Read the list again",
+                blurb: "It says the same thing. It will keep saying it.",
+                requires: Requirement::None,
+                outcome: Outcome::Flag("read-the-pale"),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-boundary-ditch",
+        at: usize::MAX,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "",
+        title: "THE BOUNDARY DITCH",
+        prose: &[
+            "A ditch, and beside it the spoil from the ditch, and standing in \
+             the spoil a woman called Ordish with a spade she has not put down \
+             since before you came over the rise.",
+            "She is not digging a new ditch. She is digging the old one out, \
+             which she explains is a different job and a worse one, and which \
+             she has been paid for once, forty years ago, by somebody who has \
+             since stopped existing.",
+        ],
+        choices: &[
+            Choice {
+                label: "Take the other spade",
+                blurb: "Two hours. She talks the whole time and none of it is small.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::Pay { times: 1 },
+                    Outcome::Count("county-work"),
+                ]),
+                unmet: "",
+            },
+            Choice {
+                label: "Ask what she has turned up",
+                blurb: "Forty years of ditch has forty years of things in it.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("Whetstone"),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-field-barn",
+        at: usize::MAX,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "",
+        title: "THE FIELD BARN",
+        prose: &[
+            "One barn, in the middle of one field, a long way from any house \
+             that would want a barn. The door is shut with a stone.",
+            "Inside: hay from a year that was better than this one, a bicycle \
+             with no chain, and a shelf at head height with things on it that \
+             somebody put there on purpose and did not label.",
+        ],
+        choices: &[
+            Choice {
+                label: "Take something off the shelf",
+                blurb: "It is not stealing if you leave the stone where it was.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("Iron Band"),
+                unmet: "",
+            },
+            Choice {
+                label: "Sleep in the hay",
+                blurb: "An hour, and the roof holds.",
+                requires: Requirement::None,
+                outcome: Outcome::Health(20),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-milestone",
+        at: usize::MAX,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "",
+        title: "THE MILESTONE",
+        prose: &[
+            "A stone the height of your knee with a number cut into it. The \
+             number is not a distance. It is not a year either, and it is not \
+             the number of any road that has ever run past here.",
+            "Somebody has been keeping it clear of the grass. The cut edges \
+             are sharp, and the stone is older than sharp edges last.",
+        ],
+        choices: &[
+            Choice {
+                label: "Write the number down",
+                blurb: "You will know what it is for or you will not.",
+                requires: Requirement::None,
+                outcome: Outcome::Count("county-work"),
+                unmet: "",
+            },
+            Choice {
+                label: "Clear the grass back yourself",
+                blurb: "Somebody has been doing this. Now somebody has done it.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::Flag("kept-the-milestone"),
+                    Outcome::Pay { times: 1 },
+                ]),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-gleaners",
+        at: usize::MAX,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "",
+        title: "THE GLEANERS",
+        prose: &[
+            "Four of them working a field that has already been cut, bent \
+             over, going slowly, picking up what the cutting left. They have \
+             the right to be here and they will tell you so before you ask.",
+            "The oldest is called Rell and she does not straighten up to talk \
+             to you. She says the field is worse every year and the right is \
+             the same right, and both of those are somebody's doing.",
+        ],
+        choices: &[
+            Choice {
+                label: "Glean with them",
+                blurb: "Slow, and split five ways at the end of it.",
+                requires: Requirement::None,
+                outcome: Outcome::Pay { times: 1 },
+                unmet: "",
+            },
+            Choice {
+                label: "Ask who cut the field",
+                blurb: "Rell straightens up for this one.",
+                requires: Requirement::None,
+                outcome: Outcome::Flag("asked-who-cuts-it"),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-pound",
+        at: usize::MAX,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "",
+        title: "THE POUND",
+        prose: &[
+            "A square of wall with a gate in it, built to hold anything found \
+             wandering until whoever lost it pays to have it back. There is \
+             nothing in it now except a great deal of nettle.",
+            "The gate is locked and the wall is four feet high. It has been \
+             that way, presumably, for as long as anybody has been paying.",
+        ],
+        choices: &[
+            Choice {
+                label: "Pay the fee anyway",
+                blurb: "There is a slot in the gatepost and it is not rusted shut.",
+                requires: Requirement::Purse { times: 1 },
+                outcome: Outcome::All(&[
+                    Outcome::Flag("paid-the-pound"),
+                    Outcome::Give("Tin Band"),
+                ]),
+                unmet: "You have not got a bounty spare",
+            },
+            Choice {
+                label: "Step over the wall",
+                blurb: "It is four feet high. The nettles are the only guard it has.",
+                requires: Requirement::None,
+                outcome: Outcome::Health(-10),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-charcoal-burner",
+        at: usize::MAX,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "",
+        title: "THE CHARCOAL BURNER",
+        prose: &[
+            "Smoke coming out of a heap of earth, and a man asleep beside it \
+             who wakes the moment the smoke changes colour and not before. He \
+             is called Sowerby and he has been in this county longer than the \
+             roads have.",
+            "He knows what is under every field for a mile. He says this the \
+             way a man says what the weather is doing, and then he tells you \
+             one of them, because you are going up and he is not.",
+        ],
+        choices: &[
+            Choice {
+                label: "Listen",
+                blurb: "It takes as long as it takes. The heap does not wait.",
+                requires: Requirement::None,
+                outcome: Outcome::Give("A Word About the Hundred"),
+                unmet: "",
+            },
+            Choice {
+                label: "Watch the heap while he sleeps",
+                blurb: "He has not slept properly in nine days and it shows.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::Pay { times: 2 },
+                    Outcome::Flag("watched-the-heap"),
+                ]),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-drowned-lane",
+        at: usize::MAX,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "",
+        title: "THE DROWNED LANE",
+        prose: &[
+            "The lane goes into the water and comes out the other side, and \
+             the water in between is the lane as well, and has been since the \
+             brook was straightened for somebody's convenience.",
+            "There is a plank. The plank is somebody's idea of a bridge and it \
+             is nobody's idea of a good one.",
+        ],
+        choices: &[
+            Choice {
+                label: "Take the plank",
+                blurb: "Quickly, and looking at the far end rather than down.",
+                requires: Requirement::None,
+                outcome: Outcome::Flag("crossed-the-lane"),
+                unmet: "",
+            },
+            Choice {
+                label: "Wade, and mend the plank after",
+                blurb: "Wet to the knee, and the next one across will not be.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::Count("county-work"),
+                    Outcome::Pay { times: 1 },
+                ]),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-parish-chest",
+        at: usize::MAX,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "",
+        title: "THE PARISH CHEST",
+        prose: &[
+            "An iron-bound box the size of a coffin, standing on a floor that \
+             has no building on it any more. Three locks, and the three keys \
+             were given to three people so that no one of them could open it \
+             alone.",
+            "Two of those people are gone and the third is not from here. The \
+             box has been standing open-lidded to the rain for a long time and \
+             the locks still work perfectly.",
+        ],
+        choices: &[
+            Choice {
+                label: "Say what the third key was for",
+                blurb: "A surveyor up on the road told you, and did not know they had.",
+                requires: Requirement::Flag("knows-the-third-key"),
+                outcome: Outcome::All(&[
+                    Outcome::Flag("opened-the-chest"),
+                    Outcome::GrantRow,
+                ]),
+                unmet: "You do not know what the third key was for",
+            },
+            Choice {
+                label: "Look at what the rain left",
+                blurb: "Paper does not last. What is under the paper does.",
+                requires: Requirement::None,
+                outcome: Outcome::Pay { times: 1 },
+                unmet: "",
+            },
+        ],
+    },
+];
+
+/// One county event by id.
+pub fn county_event(id: &str) -> Option<&'static LadderEvent> {
+    COUNTY_EVENTS.iter().find(|e| e.id == id)
+}
+
 pub const EVENTS: &[LadderEvent] = &[
+    // -------------------------------------------- THE HUNDRED's three on-ramps
+    //
+    // Rungs 11, 13 and 17. All three genuinely free - no event, no town gate,
+    // no boss - which is thirteen rungs rather than A0's nineteen, because
+    // that list counts events and six of its entries are gates.
+    //
+    // **THE STOCKMAN moved from 25**, where A0 put it: The Manse is `after:
+    // 24`, so 25 is its gate rung and `switchyard::the_four_doors` has refused
+    // an event there since the last mission. It is a `Trigger::Rung` here
+    // rather than the one-rung `Whispered` window Part B drew, because the
+    // word that window waited on would have had to come off a bar that is
+    // exactly six names and full.
+    LadderEvent {
+        id: "the-theodolite",
+        at: 11,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Rust Colossus",
+        title: "THE THEODOLITE",
+        prose: &[
+            "Three legs and a brass head, standing in the middle of the road \
+             with nobody near it. The head turns when you touch it and keeps \
+             turning after you stop.",
+            "Look through it and the road is not what is in the eyepiece. What \
+             is in the eyepiece is a field with a stone in it, and a line \
+             ruled from the stone to somewhere out of frame, and the line does \
+             not move when you move the head.",
+            "A hand-written card is tied to one leg. Ackworth, it says, and \
+             then: THREE LINES CROSS SOMEWHERE. THE CROSSING IS NOT MARKED. \
+             MARKING IT WAS NEVER THE POINT.",
+        ],
+        choices: &[
+            Choice {
+                label: "Take the card",
+                blurb: "Ackworth's handwriting, and Ackworth's arithmetic on the back.",
+                requires: Requirement::None,
+                outcome: Outcome::Flag("knows-the-ordnance"),
+                unmet: "",
+            },
+            Choice {
+                label: "Take the theodolite apart",
+                blurb: "Brass is brass, and you read the card on the way past.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::Flag("knows-the-ordnance"),
+                    Outcome::Pay { times: 1 },
+                ]),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-stockman",
+        at: 13,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Grave Chorus",
+        title: "THE STOCKMAN",
+        prose: &[
+            "A man sitting on a gate counting something that is not there. \
+             Ketton, he says, when you ask, and then he goes back to it: he \
+             gets to sixteen and starts again, and Ketton has been doing it \
+             long enough that the gate has worn where he sits.",
+            "Sixteen, he says, is how many places there are. Not sixteen \
+             animals and not sixteen fields. Sixteen places, in a ring, and \
+             the ring does not go anywhere - it goes round, and whatever is \
+             walking it has been walking it since before you asked.",
+            "He will not say what is walking. He says you would not see it \
+             yet and that seeing it is a thing you have to be taught by a \
+             sign, and the signs are down there, and he is not going down \
+             there again.",
+        ],
+        choices: &[
+            Choice {
+                label: "Count with him",
+                blurb: "Sixteen. Sixteen. It is not a long ring and it is not a fast walk.",
+                requires: Requirement::None,
+                outcome: Outcome::Flag("knows-the-drove-roads"),
+                unmet: "",
+            },
+            Choice {
+                label: "Ask what he lost",
+                blurb: "Two hundred head, over one winter, and he counts them still.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::Flag("knows-the-drove-roads"),
+                    Outcome::Health(15),
+                ]),
+                unmet: "",
+            },
+        ],
+    },
+    LadderEvent {
+        id: "the-commons",
+        at: 17,
+        trigger: Trigger::Rung,
+        blocked_by: &[],
+        expects: "Pale Twin",
+        title: "THE COMMONS",
+        prose: &[
+            "Four posts in a line across open ground, and a fifth lying down, \
+             and nothing between any of them. It is the beginning of a fence \
+             and it has been the beginning of a fence for a long time.",
+            "A woman named Yaxley is putting the fifth one back up on her own, \
+             badly. She explains without being asked that this is the fourth \
+             time and that the fence was never about keeping anything in.",
+            "\"There is a proper one further down,\" Yaxley says. \"It goes all \
+             the way round something. Nobody who put it up is still alive and \
+             it has not fallen over once.\"",
+        ],
+        choices: &[
+            Choice {
+                label: "Help her with the post",
+                blurb: "It takes two, which is why it has been down four times.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::Flag("knows-the-enclosure"),
+                    Outcome::Count("county-work"),
+                ]),
+                unmet: "",
+            },
+            Choice {
+                label: "Ask what is inside the proper one",
+                blurb: "Yaxley stops working for the first time since you arrived.",
+                requires: Requirement::None,
+                outcome: Outcome::Flag("knows-the-enclosure"),
+                unmet: "",
+            },
+        ],
+    },
+    // C1. Standing only for a run that has been down there and got nothing
+    // out of it - a trip that cleared no tile, or a toll failed and never
+    // crossed. `WhenFlagged` rather than `Trigger::Rung`, so he finds you when
+    // he finds you rather than on a rung a gate might already have.
+    LadderEvent {
+        id: "the-constable",
+        at: 39,
+        trigger: Trigger::WhenFlagged { flag: "county-business", from: 8 },
+        blocked_by: &[],
+        expects: "The Rust Parliament",
+        title: "THE CONSTABLE",
+        prose: &[
+            "The constable is called Wragby and he is waiting at the side of \
+             the road with his hands behind his back, and he has been waiting \
+             a while. He knows your name and he says it the way a man says a \
+             name he has written down.",
+            "There is a matter of a county, Wragby says. There is a matter of \
+             somebody going about in it and coming back up with nothing to \
+             show, which is not against anything, and which is the sort of \
+             thing that gets looked into.",
+            "He is going to take you down and he is not asking. What he does \
+             not mention, and what is perfectly obvious once the steps start, \
+             is that the gaol he is taking you to is nowhere near an edge.",
+        ],
+        choices: &[
+            Choice {
+                label: "Go quietly",
+                blurb: "Five moves, from the middle, and the middle is a long way in.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::Flag("arrested"),
+                    Outcome::Flag("county-business-settled"),
+                ]),
+                unmet: "",
+            },
+            Choice {
+                label: "Explain yourself",
+                blurb: "It works. He writes it down and it takes the afternoon.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::Flag("county-business-settled"),
+                    Outcome::Pay { times: 1 },
+                ]),
+                unmet: "",
+            },
+        ],
+    },
+    // C2. Off-rung, pushed by `settle` when a grid has nothing assembled in
+    // it. Its `at` and `expects` are a formality - `forced_event` puts it in
+    // front of you wherever you are - and `Trigger::WhenFlagged` on a flag
+    // nothing sets is how the road's own tables say "not by rung".
+    LadderEvent {
+        id: "the-waste",
+        at: 42,
+        trigger: Trigger::WhenFlagged { flag: "never", from: 16 },
+        blocked_by: &[],
+        expects: "Verdigris",
+        title: "THE WASTE",
+        prose: &[
+            "Somebody has been looking at your gear. Not at the good parts - \
+             at the grid with nothing in it, which he calls waste ground and \
+             which he says is a word with a legal meaning.",
+            "The man is called Vessey and improving it is his job. Waste \
+             ground that stays waste for long enough stops being anybody's, \
+             Vessey says, and then it is his, and then he improves it.",
+            "He would like to improve yours. Or he would like to bet you that \
+             you cannot leave it exactly as it is.",
+        ],
+        choices: &[
+            Choice {
+                label: "Let him improve it",
+                blurb: "He fills it with something. You do not choose what.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::Give("Tin Band"),
+                    Outcome::Pay { times: 1 },
+                    Outcome::Flag("waste-improved"),
+                ]),
+                unmet: "",
+            },
+            Choice {
+                label: "Take the bet",
+                blurb: "Five rungs. Leave it empty and he pays; fill it and you do.",
+                requires: Requirement::None,
+                outcome: Outcome::Flag("waste-bet-taken"),
+                unmet: "",
+            },
+            Choice {
+                label: "Spoken for",
+                blurb: "It is not waste. It is where the third layer goes.",
+                requires: Requirement::None,
+                outcome: Outcome::Flag("waste-declined"),
+                unmet: "",
+            },
+        ],
+    },
+    // ------------------------------------------------ THE HUNDRED comes up
+    //
+    // The one road door the county opens, and the one thing on the road that
+    // opens a county tile. B6's crossing, both directions, in one event: you
+    // carry a word up out of a field and what you are told up here is what the
+    // third lock down there was for.
+    //
+    // Rung 37, which is genuinely free - no event, no town gate, no boss. A0's
+    // list of nineteen counts events only and six of its entries are gates;
+    // thirteen are actually free and this is one of them.
+    LadderEvent {
+        id: "the-county-surveyed",
+        at: 37,
+        trigger: Trigger::Whispered { rumour: "A Word About the Hundred", from: 12 },
+        blocked_by: &[],
+        expects: "The Iron Choir",
+        title: "THE COUNTY SURVEYED",
+        prose: &[
+            "There is a table set up at the side of the road with a map on it \
+             and a woman holding the map down against the wind with both \
+             elbows. The map is of a place that is not on the road.",
+            "Her name is Tasker and she takes what the burner told you the way \
+             somebody takes a parcel they have been waiting on, and then \
+             Tasker is quiet for long enough that you think you have said the \
+             wrong thing.",
+            "\"That is a hundred,\" she says. \"A subdivision, and a count. \
+             Somebody counted it. Somebody kept a box.\"",
+        ],
+        choices: &[
+            Choice {
+                label: "Ask about the box",
+                blurb: "Three locks and three keys. She knows what the third one was for.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::Flag("knows-the-third-key"),
+                    Outcome::Flag("the-county-is-surveyed"),
+                ]),
+                unmet: "",
+            },
+            Choice {
+                label: "Ask what she is being paid",
+                blurb: "The map is not hers and the table is not hers.",
+                requires: Requirement::None,
+                outcome: Outcome::All(&[
+                    Outcome::Pay { times: 2 },
+                    Outcome::Flag("the-county-is-surveyed"),
+                ]),
+                unmet: "",
+            },
+            // The counter's one reader. Three tiles down there count the same
+            // thing - a ditch dug out, a milestone kept clear, a plank mended -
+            // and Tasker is the only person on the road who would know to ask.
+            //
+            // It exists because `completable::no_more_counters_go_unread_than_already_do`
+            // refused three new counters with no door, which is `CLAUDE.md`
+            // §6 trap 19 catching exactly what it was written for. The answer
+            // was one counter and a reader, not three counters and a budget.
+            Choice {
+                label: "Tell her what you have been doing down there",
+                blurb: "Ditches, milestones, planks. She writes every one of them down.",
+                requires: Requirement::Counter { what: "county-work", at_least: 2 },
+                outcome: Outcome::All(&[
+                    Outcome::Pay { times: 3 },
+                    Outcome::Flag("knows-the-third-key"),
+                    Outcome::Flag("the-county-is-surveyed"),
+                ]),
+                unmet: "You have done nothing down there worth writing down",
+            },
+        ],
+    },
+
     // ---- the two the pub sells ----
     //
     // Neither stands here for anybody who did not buy the rumour, and neither
@@ -2427,6 +3093,18 @@ impl Requirement {
             Requirement::Counter { what, at_least } => {
                 format!("Requires: {} at least {} times", what.replace('-', " "), at_least)
             }
+            Requirement::CountyTiles { region, at_least } => format!(
+                "Requires: {} tiles cleared in the {}",
+                at_least,
+                match region {
+                    crate::county::Region::North => "north",
+                    crate::county::Region::Middle => "middle",
+                    crate::county::Region::South => "south",
+                }
+            ),
+            Requirement::CountyCleared(chain) => {
+                format!("Requires: {:?} finished", chain).to_lowercase().replace("requires:", "Requires:")
+            }
             Requirement::AssembledOfRarity(r) => {
                 format!("Requires: an assembled {}", r.name())
             }
@@ -2440,6 +3118,12 @@ impl Requirement {
                 format!("Costs {} times this rung's bounty", times)
             }
             Requirement::HoldingRumour => "Requires: a word you have not spent".into(),
+            Requirement::HoldingOrb => "Requires: an Orb of Travel, and it stays here".into(),
+            Requirement::ThePaleIsReady => {
+                "Requires: six tiles in each third of the county, two boundary stones, and an \
+                 Orb of Travel"
+                    .into()
+            }
             Requirement::Classes(n) => format!("Requires: {} title(s)", n),
         }
     }
@@ -2453,10 +3137,14 @@ impl Requirement {
             | Requirement::Holding(_)
             | Requirement::Flag(_)
             | Requirement::Counter { .. }
+            | Requirement::CountyTiles { .. }
+            | Requirement::CountyCleared(_)
             | Requirement::AssembledOfRarity(_)
             | Requirement::AlignedItems(_)
             | Requirement::Purse { .. }
             | Requirement::HoldingRumour
+            | Requirement::HoldingOrb
+            | Requirement::ThePaleIsReady
             | Requirement::Classes(_)
             | Requirement::Figure { .. } => true,
             Requirement::LooseItemOfSize { w, h } => {

@@ -385,6 +385,38 @@ pub enum EffectKind {
     /// what it is. The multipliers are enormous and the conditions are very
     /// easy to break by accident, which is the trade.
     SoleIf { what: Solitude, times: i32 },
+    /// **Bearing.** This item's stats count double while it is the only
+    /// assembled item in its slot.
+    ///
+    /// Greaves only. Not `SoleIf { Solitude::StackedWith }`, which is about
+    /// *overlap* with the grids laid on top of one another: two greaves items
+    /// that never touch and never overlap are both alone by that rule and
+    /// neither is alone by this one. Bearing counts, and what it counts is the
+    /// grid the piece is standing in.
+    ///
+    /// Checked at loadout recompute rather than per tick, because whether an
+    /// item is alone in its slot is a fact about the board and not about the
+    /// fight.
+    Bearing,
+    /// **Overtake.** The first time this item fires in a fight, it fires again
+    /// immediately.
+    ///
+    /// Gloves only. The echo cannot itself Overtake - it is the same
+    /// activation repeated, the way `Echo` repeats one, rather than a second
+    /// activation that could qualify on its own.
+    Overtake,
+    /// **Commons.** This item counts as adjacent to every assembled item on
+    /// its board, and they to it.
+    ///
+    /// Chest only. Both directions, because "adjacent" is a relation and a
+    /// one-way one is not one: an item that read its neighbours but was
+    /// invisible to theirs would be a different mechanic wearing this one's
+    /// name.
+    ///
+    /// Loadout recompute, not per tick. The rating prices it as the adjacency
+    /// it claims, which is the test of whether `rating.rs` can price adjacency
+    /// honestly.
+    Commons,
     /// This piece gains `per` of `stat` for every orthogonally adjacent piece
     /// of `kind` in the same grid. Where `DoubleNeighbor` reaches out and
     /// changes what its neighbours are worth, this reads them and changes
@@ -10664,6 +10696,174 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 0,
         price: 1,
     },
+
+    // ------------------------------------------------- THE HUNDRED, at F6
+    //
+    // Five, appended once and never inserted: `share.rs` is index-keyed into
+    // `CATALOG` and that format is append-only for ever.
+    //
+    // All five `EVENT_ONLY`, which does four jobs at once - off the road
+    // shelves, out of the crucible both ways, out of `dearer_than`, and out of
+    // every footprint family `stepped_component` walks. The three enchantments
+    // are additionally never town stock: the county's ground is dug up, not
+    // bought, and `is_town_stock` reads a kind rather than a name, so the
+    // event-only list is what keeps them off the shelf a town puts out.
+    //
+    // One per chain, in the slot that chain taxes, carrying the effect F5
+    // landed. A chain that taxes a slot and then pays out in it is the whole
+    // shape: the Ordnance charges the greaves and pays the greaves, so the
+    // board that got through the drifts is the board the reward is for.
+    PieceDef {
+        // THE ORDNANCE. A trig point is a thing standing by itself on top of a
+        // hill with nothing else on it, which is Bearing's condition drawn.
+        name: "Trig Pillar",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (0, 1), (0, 2)],
+        base: Stats { armor: 5, curse_resist: 3, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: Some(Effect {
+            label: "counts double while it is the only item on the feet",
+            kind: EffectKind::Bearing,
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        // The tempo slot's own verb, small: what a grid spent on one item buys
+        // is that the one item comes round often.
+        speed_bonus: 10,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 40,
+    },
+    PieceDef {
+        // THE DROVE ROADS. What comes through first goes through twice.
+        name: "Drove Way",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (1, 0), (2, 0), (3, 0)],
+        // Strong in the base rather than in the effect. F13 measured Overtake
+        // at a fifth of Bearing and moved the weight **down** to say so, and a
+        // chain's whole reward has to be worth finishing a chain for - so the
+        // piece is made strong, which is what the gear skill says to do and
+        // what inflating a weight to price a thing it is not worth would have
+        // been instead of.
+        base: Stats { strength: 6, curse_resist: 9, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: Some(Effect {
+            label: "its first firing of a fight runs twice",
+            kind: EffectKind::Overtake,
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // The reaction slot's own verb. A drove road is a road other things
+        // are moving along, and this pays for standing beside them.
+        triggers: &[Trigger::OnAdjacentActivate(Action::GainArmor(3))],
+        quest: None,
+        power_bonus: 0,
+        price: 38,
+    },
+    PieceDef {
+        // THE ENCLOSURE. A common is land nothing is fenced off from, which is
+        // the fence read backwards - and the joke the chain is named for.
+        name: "The Common Ground",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats { health: 26, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: Some(Effect {
+            label: "counts as touching every finished item on the board",
+            kind: EffectKind::Commons,
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 42,
+    },
+
+    // The two orbs. Weapon cores first and tickets second, the way every Orb
+    // of Travel has been since the Unwinding: a run that never finds the
+    // pedestal has still got a working spell engine.
+    PieceDef {
+        // Spent at a pedestal, and it puts you down at any mouth of the county
+        // - found or not, which is the value the pedestal translation keeps.
+        name: "Surveyor's Orb",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Orb,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats { mana: 3, magic_damage: 6, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: None,
+        cooldown_ms: 2600,
+        speed_bonus: 0,
+        // A theodolite takes one sighting and draws it to two places at once,
+        // which is what forking is.
+        //
+        // **Not Derail**, which was the first draft and which `catalog_shape`
+        // refused on the first run: Derail is Gloves-majority at 70% and the
+        // Signalman's Orb already holds the weapon's whole minority share. A
+        // second weapon carrier does not put one piece out of place, it moves
+        // the *balance* - which is the difference between an exclusive rule
+        // and a majority one, and the reason the majorities are written as
+        // majorities.
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::GainForking(1),
+            on_failure: Action::GainMana(2),
+        }],
+        quest: None,
+        power_bonus: 16,
+        price: 26,
+    },
+    PieceDef {
+        // Held, not spent: the first move of every trip is free. Up to six
+        // moves across a full census, which is more than a pedestal's one
+        // journey and is why this one is not a pedestal orb.
+        name: "Drover's Orb",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Orb,
+        cells: &[(0, 0), (0, 1), (0, 2), (1, 1)],
+        base: Stats { mana: 2, magic_damage: 7, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: None,
+        cooldown_ms: 2400,
+        speed_bonus: 0,
+        // Moving stock along, which is what a drover does.
+        triggers: &[Trigger::OnOtherCast(Action::Shunt { ms: 450 })],
+        quest: None,
+        power_bonus: 14,
+        price: 25,
+    },
+
+    // The county's one word, appended at F7 rather than with the five above.
+    //
+    // One append too many, and named as such: F6 is the milestone called "the
+    // catalogue, once". The reason it is not a real cost is the reason "once"
+    // is a rule at all - `share.rs` is index-keyed and append-only, which a
+    // second append satisfies as completely as a first - and the reason it
+    // could not be helped is that a word is content and F6 was the milestone
+    // before content. The cost that would have been real is a re-gearing, and
+    // an event-only one-cell quest piece cannot cause one.
+    PieceDef {
+        name: "A Word About the Hundred",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Quest,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        assembly_bonus: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
 ];
 
 /// Gear that exists only on a boss.
@@ -10686,6 +10886,16 @@ pub fn is_boss_only(name: &str) -> bool {
 /// got them - a Platinum Chip bought off a shelf is a door key with no door
 /// behind it.
 pub const EVENT_ONLY: &[&str] = &[
+    // THE HUNDRED. Three enchantments dug out of a county and two orbs that
+    // are how you get back into it - none of them for sale anywhere, and the
+    // three enchantments not on a town's shelf either, because the county's
+    // ground is dug up rather than bought.
+    "A Word About the Hundred",
+    "Trig Pillar",
+    "Drove Way",
+    "The Common Ground",
+    "Surveyor's Orb",
+    "Drover's Orb",
     "Gold Chip",
     "Platinum Chip",
     "Sprocketman's Gratitude",

@@ -58,6 +58,7 @@ fn item(name: &str, slot: SlotKind, cooldown_ms: u32) -> ItemProfile {
         open_cells: 0,
         attracts_curses: false,
         steady: false,
+        overtakes: false,
         power: 100,
         rating: 0,
         power_bonus: 0,
@@ -602,7 +603,8 @@ fn every_rumour_and_the_trophy_trade_is_a_quest_item() {
     // the three carried stats that contradicted their own doc comments. A chip
     // whose note says it "costs you a cell to keep" was paying two magic
     // damage and two mana for the privilege.
-    assert_eq!(quest_items().len(), 14, "ten words, the trophy trade, and three tokens");
+    assert_eq!(quest_items().len(), 15, "eleven words, the trophy trade, and three tokens. THE HUNDRED's is the \
+         eleventh, and it is the one a charcoal burner tells you in a field");
 }
 
 #[test]

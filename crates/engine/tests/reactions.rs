@@ -44,6 +44,7 @@ fn item(name: &str, slot: SlotKind, cooldown_ms: u32, stats: Stats) -> ItemProfi
         open_cells: 0,
         attracts_curses: false,
         steady: false,
+        overtakes: false,
         power: 100,
         rating: 0,
         power_bonus: 0,

@@ -2943,6 +2943,13 @@ pub struct RunningItem {
     pub attracts_curses: bool,
     /// A misfire does not eat this one's activation.
     pub steady: bool,
+    /// **Overtake**: the first firing of the fight runs twice.
+    pub overtakes: bool,
+    /// Whether this item has fired yet, which is the whole of Overtake's
+    /// condition. Per item rather than per fighter, because a board with two
+    /// overtaking gloves gets two opening double-swings and that is what
+    /// building two of them is for.
+    pub has_fired: bool,
     /// Neither stunned nor misfiring, for the rest of the fight.
     ///
     /// `steady` is the first half and predates this. The second is the answer
@@ -2993,6 +3000,8 @@ impl RunningItem {
             slot: Some(p.slot),
             attracts_curses: p.attracts_curses,
             steady: p.steady,
+            overtakes: p.overtakes,
+            has_fired: false,
             unshakable: false,
             cooldown_ms: p.cooldown_ms,
             progress_ms: 0,
@@ -3033,6 +3042,9 @@ impl RunningItem {
             // A monster's own teeth stand on nothing.
             attracts_curses: false,
             steady: false,
+            // Overtake is a glove's, and a creature wears no gloves.
+            overtakes: false,
+            has_fired: false,
             unshakable: false,
             cooldown_ms: a.cooldown_ms.max(TICK_MS),
             progress_ms: 0,
@@ -4528,9 +4540,15 @@ pub fn simulate_party(
                             continue;
                         }
                     }
-                    activate(&mut p, &mut foes, me, idx, t, &mut log);
+                    let again = activate(&mut p, &mut foes, me, idx, t, &mut log);
                     if check_down(&p, &foes, t, &mut log, &mut outcome, &mut fallen) {
                         break 'fight;
+                    }
+                    if again {
+                        activate(&mut p, &mut foes, me, idx, t, &mut log);
+                        if check_down(&p, &foes, t, &mut log, &mut outcome, &mut fallen) {
+                            break 'fight;
+                        }
                     }
                 }
             }
@@ -4795,6 +4813,12 @@ fn land_stun(victim: &mut Combatant, aim: StunAim, at_ms: u32) -> Option<(usize,
     Some((idx, item.stun_ms))
 }
 
+/// Run one item.
+///
+/// Returns whether it should be run once more straight away - Overtake, and
+/// only on an item's first firing of the fight. The caller re-runs it rather
+/// than this function recursing, so that `check_down` sits between the two:
+/// an opening blow that kills does not get a second one.
 fn activate(
     p: &mut Combatant,
     foes: &mut Vec<Combatant>,
@@ -4802,7 +4826,7 @@ fn activate(
     idx: usize,
     t: u32,
     log: &mut Vec<LogEntry>,
-) {
+) -> bool {
     let front = aim_of(foes, p.aim);
     let side = me.side;
     // Taken before the local rebindings below shadow `me` with a combatant.
@@ -4818,6 +4842,23 @@ fn activate(
         let me = pick(p, foes, me);
         me.activations += 1;
         me.echo_every > 0 && me.activations % me.echo_every == 0
+    };
+    // Overtake: the first firing of the fight runs a second time.
+    //
+    // Returned to the caller rather than repeated here, because what runs
+    // again is the **whole activation** - triggers, pools, spells and all -
+    // and not the blow. `reps` would have been the cheap place to put it and
+    // would have been wrong for exactly the slot the effect is for: only
+    // weapons swing, gloves act entirely through triggers, and a gloves
+    // effect that doubled a swing would do nothing at all.
+    //
+    // `has_fired` is set here, at the top, so the second run cannot qualify
+    // on its own - one repeat, not a loop.
+    let overtakes = {
+        let it = &mut pick(p, foes, me).items[idx];
+        let first = it.overtakes && !it.has_fired;
+        it.has_fired = true;
+        first
     };
     let mut cast_name = None;
     if !item.casts.is_empty() {
@@ -5324,6 +5365,8 @@ fn activate(
     notify_reactors(p, foes, me, idx, t, log);
     // And the other side, which nothing answered until the feet learned to.
     notify_opponents(p, foes, me, t, log);
+
+    overtakes
 }
 
 /// Run every reaction the **other side** owes to an activation.
@@ -7249,6 +7292,259 @@ pub const ALTERNATES: &[MonsterSpec] = &[
         rank: Rank::Ordinary,
         drops: &[],
         items: &[5, 3, 3, 2, 3],
+    },
+
+    // ---------------------------------------------------- THE HUNDRED's five
+    //
+    // Three chain endings, the herd one of them drives, and the thing at the
+    // end of the perambulation. Landed undressed: stats at their band and
+    // `gear: &[]`, which is what `bestiary::unpacked()` counts and what the
+    // frame lint goes red on until F12 dresses them.
+    //
+    // **Appended, never inserted, and the fixture is why.** `gear_at.txt` keys
+    // every line on `ALTERNATES[i]`, so five specs at the top of this table
+    // moved 2,592 placements without one creature changing what it wears -
+    // which reads exactly like a re-gearing and is not one. `ALTERNATES` is
+    // append-only for the same reason `CATALOG` is, and until this milestone
+    // nothing said so anywhere.
+    //
+    // Bands take the ladder's stats at band, the Switchyard precedent. The
+    // curve is defined at Medium and F12 is what measures them against it.
+    MonsterSpec {
+        // THE ORDNANCE. On the hill three lines cross at, and nothing marks
+        // the hill - the lines do.
+        name: "THE SURVEYOR",
+        health: 3690,
+        strength: 96,
+        regen: 9,
+        mind_resist: 72,
+        physical_resist: 50,
+        magic_resist: 46,
+        curse_resist: 72,
+        attacks: &[],
+        gear: &[
+            ("Grovemind Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Slash and Burn", SlotKind::Weapon, 3, 0, 0),
+            ("Sunder", SlotKind::Weapon, 3, 1, 0),
+            ("Starfall", SlotKind::Weapon, 0, 2, 0),
+            ("Rootwork Alignment", SlotKind::Weapon, 3, 2, 0),
+            ("Stormcaught Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 3, 0, 0),
+            ("Bronze Frame", SlotKind::Helmet, 0, 2, 0),
+            ("Reckoning Plate", SlotKind::Helmet, 2, 2, 0),
+            ("Scrying Lens", SlotKind::Helmet, 4, 2, 1),
+            ("Martyr's Crest", SlotKind::Helmet, 5, 0, 1),
+            ("Stormcaught Frame", SlotKind::Helmet, 0, 4, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 3, 5, 0),
+            ("Scrying Lens", SlotKind::Helmet, 5, 3, 1),
+            ("Bone Frame", SlotKind::Helmet, 0, 6, 0),
+            ("Scrying Lens", SlotKind::Helmet, 1, 7, 0),
+        ],
+        gear_offset: 0,
+        bounty: 273,
+        sprite: MonsterSprite::Warden,
+        rank: Rank::Ordinary,
+        drops: &["Trig Pillar"],
+        items: &[5, 2, 4, 3, 2],
+    },
+    MonsterSpec {
+        // THE DROVE ROADS, and the half of it that is a man.
+        name: "THE DROVER",
+        health: 5490,
+        strength: 138,
+        regen: 12,
+        mind_resist: 86,
+        physical_resist: 63,
+        magic_resist: 60,
+        curse_resist: 86,
+        attacks: &[],
+        gear: &[
+            ("Rootwoven Material", SlotKind::Gloves, 0, 0, 0),
+            ("Flaying Mold", SlotKind::Gloves, 3, 0, 0),
+            ("Seal of Power", SlotKind::Gloves, 0, 1, 0),
+            ("Grasping Ring", SlotKind::Gloves, 5, 0, 0),
+            ("Rootwoven Material", SlotKind::Gloves, 0, 2, 0),
+            ("Throttling Mold", SlotKind::Gloves, 3, 2, 0),
+            ("Grasping Ring", SlotKind::Gloves, 2, 1, 0),
+            ("Grasping Ring", SlotKind::Gloves, 4, 1, 0),
+            ("Rootwoven Material", SlotKind::Gloves, 5, 1, 1),
+            ("Throttling Mold", SlotKind::Gloves, 4, 4, 0),
+            ("Seal of the Deep", SlotKind::Gloves, 2, 4, 0),
+            ("Grasping Ring", SlotKind::Gloves, 2, 3, 0),
+            ("Rootwoven Material", SlotKind::Gloves, 0, 3, 1),
+            ("Flaying Mold", SlotKind::Gloves, 1, 4, 3),
+            ("Seal of the Deep", SlotKind::Gloves, 3, 5, 1),
+            ("Grasping Ring", SlotKind::Gloves, 1, 3, 0),
+            ("Rootwoven Material", SlotKind::Gloves, 0, 6, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 2, 6, 3),
+            ("Seal of the Deep", SlotKind::Gloves, 0, 7, 0),
+            ("Grasping Ring", SlotKind::Gloves, 5, 6, 0),
+            ("Overseer's Circlet", SlotKind::Helmet, 0, 0, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 3, 0, 0),
+            ("Mirrored Visor", SlotKind::Helmet, 0, 2, 0),
+            ("Overseer's Circlet", SlotKind::Helmet, 3, 2, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 2, 4, 0),
+            ("Mirrored Visor", SlotKind::Helmet, 0, 3, 3),
+            ("Overseer's Circlet", SlotKind::Helmet, 4, 4, 1),
+            ("Consecrated Plating", SlotKind::Helmet, 2, 6, 0),
+            ("Mirrored Visor", SlotKind::Helmet, 0, 5, 1),
+        ],
+        gear_offset: 0,
+        bounty: 350,
+        sprite: MonsterSprite::Marshal,
+        rank: Rank::Ordinary,
+        drops: &["Drove Way"],
+        items: &[4, 4, 4, 4, 4, 3, 3, 3],
+    },
+    MonsterSpec {
+        // And the half that is not. A drover without a herd is a man on a
+        // walk, which is why the interception is a brawl.
+        name: "THE DRIVEN",
+        health: 4390,
+        strength: 110,
+        regen: 12,
+        mind_resist: 70,
+        physical_resist: 55,
+        magic_resist: 52,
+        curse_resist: 70,
+        attacks: &[],
+        gear: &[
+            ("Rootwoven Material", SlotKind::Gloves, 0, 0, 0),
+            ("Hexer's Tally", SlotKind::Gloves, 3, 0, 0),
+            ("Seal of Power", SlotKind::Gloves, 0, 1, 0),
+            ("Grasping Ring", SlotKind::Gloves, 5, 0, 0),
+            ("Rootwoven Material", SlotKind::Gloves, 0, 2, 0),
+            ("Flaying Mold", SlotKind::Gloves, 3, 1, 2),
+            ("Rootwoven Material", SlotKind::Gloves, 5, 1, 1),
+            ("Flaying Mold", SlotKind::Gloves, 3, 3, 0),
+            ("Seal of the Deep", SlotKind::Gloves, 1, 3, 0),
+            ("Grasping Ring", SlotKind::Gloves, 0, 3, 0),
+            ("Rootwoven Material", SlotKind::Gloves, 0, 4, 0),
+            ("Flaying Mold", SlotKind::Gloves, 0, 5, 0),
+            ("Grasping Ring", SlotKind::Gloves, 2, 5, 0),
+            ("Grasping Ring", SlotKind::Gloves, 3, 5, 0),
+            ("Rootwoven Material", SlotKind::Gloves, 4, 4, 1),
+            ("Flaying Mold", SlotKind::Gloves, 2, 6, 0),
+            ("Grasping Ring", SlotKind::Gloves, 5, 4, 0),
+            ("Grasping Ring", SlotKind::Gloves, 5, 5, 0),
+            ("Overseer's Circlet", SlotKind::Helmet, 0, 0, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 3, 0, 0),
+            ("Mirrored Visor", SlotKind::Helmet, 0, 2, 0),
+            ("Tithe Collector", SlotKind::Helmet, 5, 0, 1),
+            ("Overseer's Circlet", SlotKind::Helmet, 3, 2, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 2, 4, 0),
+            ("Overseer's Circlet", SlotKind::Helmet, 0, 4, 1),
+            ("Mirrored Visor", SlotKind::Helmet, 2, 6, 0),
+            ("Mirrored Visor", SlotKind::Helmet, 4, 4, 1),
+        ],
+        gear_offset: 0,
+        bounty: 200,
+        sprite: MonsterSprite::March,
+        rank: Rank::Ordinary,
+        drops: &["Drover's Orb"],
+        items: &[4, 2, 4, 4, 4, 4, 2, 3],
+    },
+    MonsterSpec {
+        // THE ENCLOSURE, standing at the end of the corner the pale opens.
+        name: "THE COMMISSIONER",
+        health: 7720,
+        strength: 192,
+        regen: 17,
+        mind_resist: 95,
+        physical_resist: 74,
+        magic_resist: 72,
+        curse_resist: 95,
+        attacks: &[],
+        gear: &[
+            ("Rootwoven Material", SlotKind::Gloves, 0, 0, 0),
+            ("Flaying Mold", SlotKind::Gloves, 3, 0, 0),
+            ("Seal of Power", SlotKind::Gloves, 0, 1, 0),
+            ("Grasping Ring", SlotKind::Gloves, 5, 0, 0),
+            ("Mage's Wrapping", SlotKind::Gloves, 4, 1, 0),
+            ("Flaying Mold", SlotKind::Gloves, 2, 1, 3),
+            ("Siphon Ring", SlotKind::Gloves, 1, 2, 0),
+            ("Ring of Tides", SlotKind::Gloves, 0, 2, 0),
+            ("Rootwoven Material", SlotKind::Gloves, 0, 3, 0),
+            ("Flaying Mold", SlotKind::Gloves, 3, 3, 0),
+            ("Seal of the Deep", SlotKind::Gloves, 0, 4, 0),
+            ("Seal of the Deep", SlotKind::Gloves, 5, 3, 1),
+            ("Rootwoven Material", SlotKind::Gloves, 0, 5, 0),
+            ("Flaying Mold", SlotKind::Gloves, 3, 4, 2),
+            ("Seal of the Deep", SlotKind::Gloves, 0, 6, 0),
+            ("Grasping Ring", SlotKind::Gloves, 2, 4, 0),
+            ("Rootwoven Material", SlotKind::Gloves, 2, 6, 0),
+            ("Gauntlet Mold", SlotKind::Gloves, 3, 6, 3),
+            ("Grasping Ring", SlotKind::Gloves, 5, 5, 0),
+            ("Siphon Ring", SlotKind::Gloves, 2, 7, 0),
+            ("Overseer's Circlet", SlotKind::Helmet, 0, 0, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 3, 0, 0),
+            ("Crown of the Deep", SlotKind::Helmet, 0, 2, 0),
+            ("Overseer's Circlet", SlotKind::Helmet, 3, 2, 0),
+            ("Consecrated Plating", SlotKind::Helmet, 2, 4, 0),
+            ("Mirrored Visor", SlotKind::Helmet, 0, 3, 3),
+            ("Overseer's Circlet", SlotKind::Helmet, 4, 4, 1),
+            ("Consecrated Plating", SlotKind::Helmet, 2, 6, 0),
+            ("Mirrored Visor", SlotKind::Helmet, 0, 5, 1),
+        ],
+        gear_offset: 0,
+        bounty: 416,
+        sprite: MonsterSprite::Crown,
+        rank: Rank::Ordinary,
+        drops: &["The Common Ground"],
+        items: &[4, 4, 4, 4, 4, 3, 3, 3],
+    },
+    MonsterSpec {
+        // THE PERAMBULATION's end. Band fifty and over: the county has spent
+        // thirty tiles proving whoever got here has all five basis vectors,
+        // and this is the thing that asks for all five at once.
+        name: "THE PARISH",
+        health: 9900,
+        strength: 228,
+        regen: 22,
+        mind_resist: 96,
+        physical_resist: 80,
+        magic_resist: 78,
+        curse_resist: 96,
+        attacks: &[],
+        gear: &[
+            ("Fateglass Orb", SlotKind::Weapon, 0, 0, 0),
+            ("Kingsbane", SlotKind::Weapon, 2, 0, 0),
+            ("Shatterbolt", SlotKind::Weapon, 5, 0, 1),
+            ("Emberburst", SlotKind::Weapon, 1, 1, 0),
+            ("Pilgrim Alignment", SlotKind::Weapon, 0, 2, 0),
+            ("Buttressed Frame", SlotKind::Helmet, 0, 0, 0),
+            ("Deadweight Plating", SlotKind::Helmet, 3, 0, 1),
+            ("Bloomcap", SlotKind::Helmet, 2, 1, 3),
+            ("Crown of the Deep", SlotKind::Helmet, 0, 1, 3),
+            ("Reliquary Frame of Nine", SlotKind::Helmet, 3, 1, 2),
+            ("Visor of Focus", SlotKind::Helmet, 1, 3, 0),
+            ("Bloomcap", SlotKind::Helmet, 4, 3, 3),
+            ("Crown of the Deep", SlotKind::Helmet, 0, 4, 0),
+            ("Buttressed Frame", SlotKind::Helmet, 2, 4, 2),
+            ("Visor of Focus", SlotKind::Helmet, 5, 4, 1),
+            ("Deadweight Plating", SlotKind::Helmet, 0, 6, 1),
+            ("Crown of the Deep", SlotKind::Helmet, 2, 6, 2),
+            ("Witch's Stilts", SlotKind::Gloves, 0, 0, 1),
+            ("Hexer's Mold", SlotKind::Gloves, 3, 0, 3),
+            ("Blightfinger", SlotKind::Gloves, 5, 0, 0),
+            ("Blightfinger", SlotKind::Gloves, 1, 1, 0),
+            ("Spun Material", SlotKind::Gloves, 4, 1, 1),
+            ("Channeling Mold", SlotKind::Gloves, 2, 1, 3),
+            ("Witch's Stilts", SlotKind::Gloves, 0, 2, 2),
+            ("Channeling Mold", SlotKind::Gloves, 2, 3, 0),
+            ("Witch's Stilts", SlotKind::Gloves, 0, 3, 0),
+            ("Channeling Mold", SlotKind::Gloves, 2, 4, 2),
+            ("Witch's Stilts", SlotKind::Gloves, 4, 3, 2),
+            ("Channeling Mold", SlotKind::Gloves, 3, 5, 2),
+            ("Mage's Sandals", SlotKind::Gloves, 0, 6, 0),
+            ("Channeling Mold", SlotKind::Gloves, 1, 6, 2),
+        ],
+        gear_offset: 0,
+        bounty: 560,
+        sprite: MonsterSprite::Bells,
+        rank: Rank::Ordinary,
+        drops: &["Surveyor's Orb"],
+        items: &[5, 4, 4, 4, 4, 2, 2, 2, 2, 2],
     },
 ];
 

@@ -101,6 +101,7 @@ fn report_what_the_two_conditionals_actually_manage() {
         open_cells: 0,
         attracts_curses: false,
         steady: false,
+        overtakes: false,
         power: 100,
         rating: 0,
         power_bonus: 0,
@@ -239,11 +240,18 @@ fn the_yards_six_are_priced_like_the_things_they_are() {
 /// Measuring the two conditionals moved nothing that was already in the game.
 ///
 /// `SHUNT_PS`, `BALLAST_FUNDED`, `DERAIL_WINDOW` and `ACCRUED_ASSUMED` price
-/// four verbs that six components speak and nothing else does. So a weight
-/// moving at M8 can only move those six - and every one of them is event-only,
-/// which is what keeps `stepped_component` from re-dressing a creature.
-/// `catalog_shape::no_creature_changed_what_it_wears` is the measurement; this
-/// is the reason it is allowed to still be green.
+/// four verbs that **seven** components speak and nothing else does. So a
+/// weight moving can only move those seven - and every one of them is
+/// event-only, which is what keeps `stepped_component` from re-dressing a
+/// creature. `catalog_shape::no_creature_changed_what_it_wears` is the
+/// measurement; this is the reason it is allowed to still be green.
+///
+/// **Six until THE HUNDRED's F6.** The Drover's Orb speaks `Shunt`, which is
+/// the weapon's legal minority share of a greaves verb (`catalog_shape`'s
+/// "Shunt outside the weapon" row, `Level::Only` shared with the weapon). The
+/// count is a ratchet on the sentence under it and not the sentence, and the
+/// sentence has not moved: everything that speaks one of the four is
+/// event-only.
 #[test]
 fn only_the_yards_own_six_speak_the_verbs_the_new_weights_price() {
     use gearmaster_engine::piece::{is_event_only, walk_actions, Action, CATALOG};
@@ -265,7 +273,11 @@ fn only_the_yards_own_six_speak_the_verbs_the_new_weights_price() {
             });
         }
     }
-    assert_eq!(speakers.len(), 6, "{speakers:?}");
+    assert_eq!(
+        speakers.len(),
+        7,
+        "the yard's six and THE HUNDRED's Drover's Orb: {speakers:?}"
+    );
     for n in &speakers {
         assert!(is_event_only(n), "{n} speaks a yard verb and can reach a creature");
     }

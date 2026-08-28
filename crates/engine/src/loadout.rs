@@ -48,6 +48,10 @@ pub struct ItemProfile {
     pub adjacent_assembled_same_slot: usize,
     /// Empty cells touching this item - what `PerAdjacentEmpty` repeats over.
     pub open_cells: usize,
+    /// **Overtake**: the first time this item fires in a fight, it fires
+    /// again immediately. Read off the pieces here so combat does not have to
+    /// walk a registry it does not have.
+    pub overtakes: bool,
     /// Whether a misfire eats this item's activation.
     ///
     /// One piece in the game says no - a Stray Orb, whose spells go off
@@ -113,6 +117,129 @@ impl ItemProfile {
             return 0;
         }
         self.hit_for(strength) as i64 * 1000 * 1000 / self.cooldown_ms as i64
+    }
+}
+
+/// Fold **Commons** into one item's neighbour lists.
+///
+/// A commons item is adjacent to every assembled item on the board and every
+/// assembled item is adjacent to it, so either end of the relation puts the
+/// pair in each other's lists - `commons[i] || commons[j]`, not `&&`, and not
+/// `commons[i]` alone, which would be a one-way adjacency and a different
+/// mechanic wearing this one's name.
+///
+/// Split out because F5 lands the effect and F6 lands the pieces that carry
+/// it, so this is the only part of the rule a test can reach until then - and
+/// because the two things that go wrong here are counting a real neighbour
+/// twice and leaving an item in `diagonal_items` that is now adjacent, both of
+/// which are invisible in a board test and obvious in this one.
+pub fn join_the_commons(
+    i: usize,
+    commons: &[bool],
+    adjacent: &mut Vec<usize>,
+    diagonal: &mut Vec<usize>,
+) {
+    if commons.is_empty() {
+        return;
+    }
+    for j in 0..commons.len() {
+        if j != i && (commons[i] || commons[j]) {
+            adjacent.push(j);
+        }
+    }
+    adjacent.sort_unstable();
+    // A neighbour cannot be a neighbour twice, and a commons item that also
+    // genuinely touches something must not be counted once for each reason.
+    adjacent.dedup();
+    // `diagonal_items` is documented as "never also adjacent". Commons makes
+    // corners into edges, and this is what keeps the promise.
+    diagonal.retain(|j| !adjacent.contains(j));
+}
+
+/// Whether **Bearing** pays: the item carries it, and its slot holds no other
+/// assembled item.
+///
+/// Counted, not overlapped. Two greaves items that never touch are both alone
+/// under `Solitude::StackedWith` and neither is alone under this.
+pub fn bearing_doubles(carries_bearing: bool, others_assembled_in_slot: usize) -> bool {
+    carries_bearing && others_assembled_in_slot == 0
+}
+
+/// What THE HUNDRED's six tolls read off a board.
+///
+/// **Derived figures, never raw stats.** A toll asks what a board *does* a
+/// second, which is the question a river and a ford and a scarp are all
+/// versions of, and it is a different question from what a board *has*. The
+/// worked pair A3 exists for: eight mana on a four-second item pays 2,000
+/// milli-mana a second and three mana on a one-second item pays 3,000, so the
+/// worse-looking piece crosses the deeper river.
+///
+/// Everything is in **milli-units a second** - a thousandth of a point a
+/// second - with the division done per item and then summed, which is not the
+/// same as summing and then dividing and is the shape that makes a fast item
+/// worth what it is worth. No float touches any of it.
+///
+/// Over **assembled items only**. A loose piece contributes passive stats and
+/// does not act, and a toll is about acting.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Figures {
+    /// Mana a second, in thousandths. The river.
+    pub flow: i64,
+    /// Flat physical damage a second, in thousandths. One of the two fords.
+    pub physical_dps: i64,
+    /// Flat magic damage a second, in thousandths. The other.
+    pub magic_dps: i64,
+    /// Armour a second, in thousandths. The scarp.
+    pub armour_ps: i64,
+    /// The fastest assembled item, in milliseconds. The drift.
+    ///
+    /// `None` when nothing is assembled, which is not the same as slow: a
+    /// board with no items has no fastest one, and a drift asks for a board
+    /// that acts *often* rather than for a board.
+    pub fastest_ms: Option<u32>,
+    /// Summed curse resistance across assembled items. The hedge.
+    ///
+    /// The one figure that is a stat rather than a rate, because curse
+    /// resistance is a percentage held rather than a thing paid out - and a
+    /// hedge is a fence you are proof against rather than one you outrun.
+    pub curse_resist: i32,
+}
+
+/// One item's contribution to a per-second figure, in thousandths.
+///
+/// `stat * 1_000_000 / cooldown_ms`: a point per activation on a 1,000 ms item
+/// is one a second, which is 1,000 milli-units. The same arithmetic
+/// `ItemProfile::dps_milli` has always used for weapon damage.
+fn per_second_milli(stat: i32, cooldown_ms: u32) -> i64 {
+    if cooldown_ms == 0 {
+        return 0;
+    }
+    stat as i64 * 1_000_000 / cooldown_ms as i64
+}
+
+impl Figures {
+    /// Read a board's six figures off its assembled items.
+    pub fn of(items: &[ItemProfile]) -> Figures {
+        let mut f = Figures::default();
+        for i in items {
+            f.flow += per_second_milli(i.stats.mana, i.cooldown_ms);
+            f.physical_dps += per_second_milli(i.stats.physical_damage, i.cooldown_ms);
+            f.magic_dps += per_second_milli(i.stats.magic_damage, i.cooldown_ms);
+            f.armour_ps += per_second_milli(i.stats.armor, i.cooldown_ms);
+            f.curse_resist += i.stats.curse_resist;
+            if i.cooldown_ms > 0 {
+                f.fastest_ms = Some(f.fastest_ms.map_or(i.cooldown_ms, |m| m.min(i.cooldown_ms)));
+            }
+        }
+        f
+    }
+
+    /// The damage figure a ford in one lane asks for.
+    pub fn dps(&self, lane: crate::county::Lane) -> i64 {
+        match lane {
+            crate::county::Lane::Physical => self.physical_dps,
+            crate::county::Lane::Magic => self.magic_dps,
+        }
     }
 }
 
@@ -712,6 +839,24 @@ impl Loadout {
                         times = times.max(n);
                     }
                 }
+                // Bearing: double while this is the only assembled item in its
+                // slot. Folded in here because "this item's stats count n
+                // times" is what this pass computes, and a second pass that
+                // multiplied stats somewhere else would be a second answer to
+                // one question.
+                //
+                // Counted, not overlapped. Two greaves items that never touch
+                // are both alone under `Solitude::StackedWith` and neither is
+                // alone under this.
+                let bears = item
+                    .pieces
+                    .iter()
+                    .any(|&p| matches!(reg.def(p).effect.map(|e| e.kind), Some(EffectKind::Bearing)));
+                let others_here =
+                    gathered.iter().enumerate().filter(|(j, (k, _))| *j != i && k == kind).count();
+                if bearing_doubles(bears, others_here) {
+                    times = times.max(2);
+                }
                 times
             })
             .collect();
@@ -722,6 +867,20 @@ impl Loadout {
         let spans: Vec<Option<(u8, u8)>> = gathered
             .iter()
             .map(|(kind, item)| self.slot(*kind).row_span(&item.pieces))
+            .collect();
+
+        // Commons: an item that counts as adjacent to every assembled item on
+        // the board, and they to it. Computed before the pass below rather
+        // than inside it, because the relation is symmetric and a pass that
+        // only ever looks at `i` can only make it one-way - which would be a
+        // different mechanic wearing this one's name.
+        let commons: Vec<bool> = gathered
+            .iter()
+            .map(|(_, item)| {
+                item.pieces
+                    .iter()
+                    .any(|&p| matches!(reg.def(p).effect.map(|e| e.kind), Some(EffectKind::Commons)))
+            })
             .collect();
 
         let mut out = Vec::with_capacity(gathered.len());
@@ -747,6 +906,7 @@ impl Loadout {
                     }
                 }
             }
+            join_the_commons(i, &commons, &mut adjacent, &mut diagonal);
 
             let core = item.pieces.iter().copied().find(|&p| reg.def(p).kind.is_core());
             let cooldown_ms = item_cooldown_ms(reg, &item.pieces, *kind);
@@ -882,6 +1042,9 @@ impl Loadout {
                     .pieces
                     .iter()
                     .any(|&p| reg.def(p).name == crate::piece::STRAY_ORB),
+                overtakes: item.pieces.iter().any(|&p| {
+                    matches!(reg.def(p).effect.map(|e| e.kind), Some(EffectKind::Overtake))
+                }),
                 adjacent_items: adjacent,
                 aligned_items: aligned,
                 diagonal_items: diagonal,

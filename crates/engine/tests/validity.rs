@@ -564,10 +564,31 @@ fn every_door_that_waits_on_a_key_can_be_handed_one_in_time() {
                 });
                 let on_bar =
                     gearmaster_engine::rumour::by_name(rumour).is_some_and(|r| r.on_the_bar);
-                if by_town || on_bar {
+                // And a county tile, which is the fourth way and no later than
+                // the first town's gate: THE HUNDRED's steps are not a door
+                // and do not cost the visit, so a run standing at that gate
+                // can be down there on the same rung.
+                let dug_up = gearmaster_engine::event::COUNTY_EVENTS.iter().any(|o| {
+                    o.choices.iter().any(|c| {
+                        gearmaster_engine::event::every_outcome(&c.outcome).iter().any(|out| {
+                            matches!(out, gearmaster_engine::event::Outcome::Give(n) if *n == rumour)
+                        })
+                    })
+                });
+                if by_town || on_bar || dug_up {
                     continue;
                 }
                 (rumour, soonest)
+            }
+            // A flag the engine raises rather than a door. `county-business`
+            // is set by `Run::close_the_trip` when a trip into THE HUNDRED
+            // clears nothing, and no walk of `EVENTS` can see that - so the
+            // earliest it can arrive is the earliest a run can be down there,
+            // which is the first town's gate.
+            Trigger::WhenFlagged { flag, from: _ }
+                if flag == gearmaster_engine::run::COUNTY_BUSINESS =>
+            {
+                continue;
             }
             Trigger::WhenFlagged { flag, from: _ } => {
                 let mut soonest: Option<usize> = gearmaster_engine::event::set_by(flag)

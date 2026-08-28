@@ -196,7 +196,7 @@ fn fight_wearing_in_slot(piece: &str) -> gearmaster_engine::combat::CombatLog {
                 if run.report(def.slot).assembled_count() > 0 {
                     break 'seat;
                 }
-                run.unequip(b);
+                assert!(run.unequip(b).is_ok(), "{piece}: the partner would not come back off");
             }
         }
     }

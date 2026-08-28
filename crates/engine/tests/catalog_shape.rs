@@ -348,6 +348,18 @@ const RULES: &[Rule] = &[
     // body has two mechanics here when it has one with two fundings.
     Rule { what: "Ballast", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
         budget: 0, target: 0, carries: |d| does(d, |a| matches!(a, Action::Ballast(_))) },
+    // THE HUNDRED's three, each in the slot its chain taxes. A greaves grid
+    // spent on one item, a glove that opens twice, and a chest that makes the
+    // board one continuous thing.
+    Rule { what: "Bearing", home: SlotKind::Greaves, level: Level::Only, shared_with: &[],
+        budget: 0, target: 0,
+        carries: |d| matches!(d.effect.map(|e| e.kind), Some(EffectKind::Bearing)) },
+    Rule { what: "Overtake", home: SlotKind::Gloves, level: Level::Only, shared_with: &[],
+        budget: 0, target: 0,
+        carries: |d| matches!(d.effect.map(|e| e.kind), Some(EffectKind::Overtake)) },
+    Rule { what: "Commons", home: SlotKind::Chest, level: Level::Only, shared_with: &[],
+        budget: 0, target: 0,
+        carries: |d| matches!(d.effect.map(|e| e.kind), Some(EffectKind::Commons)) },
     // Deflection is the body's, beside reflection and for the same reason:
     // both are what a slot with no swing does about being hit. The feet keep a
     // minority share, because footwork is also a way of not being hit.
@@ -778,6 +790,13 @@ fn no_budget_is_slack() {
 /// is kept rather than deleted because the next mission that wants to settle
 /// a weight before its carriers exist should find the mechanism already here
 /// and already ratcheted, rather than reinventing it or loosening the lint.
+/// **Three, until F6.** THE HUNDRED lands its effects at F5 and the five
+/// components that speak them at F6, for the reason the Switchyard landed four
+/// verbs before their six: a weight settled after a creature is geared against
+/// it re-gears every creature on three settings. The mirror below goes red the
+/// day any of them finds a carrier, which puts the rows back under the lint.
+/// **Empty since F6.** It held THE HUNDRED's three for one milestone, which is
+/// what the mechanism is for.
 const RULES_AWAITING_THEIR_PIECES: &[&str] = &[];
 
 #[test]
@@ -931,6 +950,13 @@ fn gear_at_every_difficulty() -> String {
 /// fixture is for, because a catalogue that grew by eight components between
 /// M0 and M9 had eight chances to re-sort a footprint family underneath
 /// somebody nobody was editing.
+/// **Re-baselined at THE HUNDRED's F12**, and it is the second legitimate one.
+/// The fixture grew from 6,216 placements to **6,744** and **nothing was
+/// removed**: all 528 new lines belong to THE SURVEYOR, THE DROVER, THE
+/// DRIVEN, THE COMMISSIONER and THE PARISH, who had no board until that
+/// milestone borrowed one for each of them. No creature that had a board
+/// changed what it wears, on any of the four settings.
+///
 #[test]
 fn no_creature_changed_what_it_wears() {
     let want = include_str!("fixtures/gear_at.txt");

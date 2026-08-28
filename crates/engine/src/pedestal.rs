@@ -34,6 +34,14 @@ pub enum Where {
     /// door is answered, which is what makes a siding worth more than the
     /// door was: it takes you somewhere you have not been.
     Siding { dungeon: &'static str, floor: usize },
+    /// THE HUNDRED, at a mouth of your choosing.
+    ///
+    /// B1.2. The Ordnance's ticket, and the value it keeps over the draft-two
+    /// version - "opens a mouth at your current rung", which needed a
+    /// use-from-tray verb nothing else in the game has - is the **choice of
+    /// mouth**: found or not, which is the only way into a hidden town's steps
+    /// for a run that never found the town.
+    County,
 }
 
 /// Somewhere an orb goes.
@@ -106,6 +114,12 @@ pub const DESTINATIONS: &[Destination] = &[
         via_orb: "Signalman's Orb",
         kind: Where::Siding { dungeon: "the-switchyard", floor: 1 },
     },
+    Destination {
+        id: "the-hundred",
+        name: "THE HUNDRED",
+        via_orb: "Surveyor's Orb",
+        kind: Where::County,
+    },
 ];
 
 pub fn by_orb(orb: &str) -> Option<&'static Destination> {
@@ -133,7 +147,7 @@ pub fn lands_on(dungeon: &str, floor: usize) -> bool {
     DESTINATIONS.iter().any(|d| match d.kind {
         Where::Dungeon(id) => id == dungeon && floor == 0,
         Where::Siding { dungeon: id, floor: f } => id == dungeon && f == floor,
-        Where::Event(_) => false,
+        Where::Event(_) | Where::County => false,
     })
 }
 
@@ -162,6 +176,15 @@ mod tests {
                     "{} leads to {}, which is not an event",
                     d.id,
                     id
+                ),
+                // THE HUNDRED is not a table with ids in it - it is derived
+                // from a seed - so what there is to check is that a mouth
+                // exists at all, which `county::MOUTHS` guarantees by being
+                // one entry per town and `county` tests from both ends.
+                Where::County => assert!(
+                    !crate::county::MOUTHS.is_empty(),
+                    "{} leads to a county with no way in",
+                    d.id
                 ),
                 Where::Siding { dungeon, floor } => {
                     let x = crate::dungeon::by_id(dungeon).unwrap_or_else(|| {
