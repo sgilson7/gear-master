@@ -1722,8 +1722,20 @@ impl Run {
             // *you*, standing still, which is the best thing in the chain.
             // Checked after the outcome is applied, at the bottom of this
             // function, so the answer pays out before the fight starts.
+            // **The pale is a gate and not a question.** Every other county
+            // event is finished with you once you have answered it; this one
+            // is finished with you once it *opens*, and reading the list is
+            // not opening it.
+            //
+            // Without this the pale is consumed on first contact - "read the
+            // list again" is open to anybody, answering it clears the tile,
+            // and nothing that walks to uncleared tiles ever comes back. It is
+            // the one county event whose tile is a door rather than a scene,
+            // and `the_pale_is_not_consumed_by_reading_its_own_list` is what
+            // holds it open.
+            let a_gate_still_shut = ev.id == crate::county::PALE && !self.pale_is_open();
             if let Some(at) = self.county_at {
-                if !self.county_cleared.contains(&at) {
+                if !a_gate_still_shut && !self.county_cleared.contains(&at) {
                     self.county_cleared.push(at);
                 }
             }

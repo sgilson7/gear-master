@@ -1402,3 +1402,75 @@ something:
 | pins moved and re-pinned | 21 |
 | fixtures re-baselined | 2 of 4, both named in their own doc comments |
 | four-board table | **unmoved since F0** |
+
+---
+
+## F16 the validity pass, over the county
+
+Asked of a *place* the question `validity.rs` asks of a *build*: is every tile
+of THE HUNDRED somewhere a run can stand, and is every county event somewhere
+a run can be asked? Walked with `A_WINNING_RUN` and `A_PERFECT_RUN`.
+**Engine 1040, GUI 81, CLI 9. No warnings.**
+
+### Reachability: clean
+
+| question | answer |
+|---|---|
+| does five moves from six gates and the gaol cover all 49 tiles? | **yes**, every seed |
+| does a finished board reach everything? | all but **2 tiles a seed**, and every one of them is a **toll it does not qualify for** |
+| is any event, objective, pinnacle or gaol ever walled off? | **never**, over 200 seeds and both boards |
+| is every authored county event on every county? | **yes** - the deck deal, checked from the other end |
+
+**The gaol is load-bearing and nothing said so.** V7 promises every tile is
+within *eight* moves of a mouth and a trip is *five*, so V7 does not make this
+true - C1 does. Being arrested is the only way into the tiles five moves from
+an edge cannot reach, which turns "a punishment a clever player farms" into a
+structural guarantee. `every_tile_is_inside_one_trip_of_some_way_in` is the
+assertion and it includes the gaol in its starting set on purpose.
+
+### The bug: the pale was consumed on first contact
+
+Every other county event is finished with you once you answer it. **The pale is
+a gate.** Its second choice - "read the list again" - is open to anybody,
+answering it cleared the tile, and nothing that walks toward uncleared tiles
+ever came back. A run that wandered over the pale early could never open it.
+
+Fixed: the pale's tile clears when it *opens*, not when it is read. Measured
+over 120 simulated censuses of each finished board:
+
+```text
+                     ordnance   drove   enclosure   pale open   parish
+  before                   28     118           2          21        0
+  after                    49     114           5          73        0
+```
+
+**The pale went from opening on 19% of censuses to 61%.** The Ordnance rose
+too, from 28 to 49 - the same walk that could not come back to a gate could not
+come back to a hill.
+
+### The finding that is not a bug: the Enclosure is a chain of two journeys
+
+Even with the fix, THE ENCLOSURE finishes on **5%** of simulated censuses and
+THE PARISH on **none**, which follows - the perambulation wants all three
+chains. Sixty-eight of the seventy-three runs that open the gate never reach
+what it opens.
+
+The cause is sequencing, and it is measurable: **the pale's checklist becomes
+ready on trip nine of ten in 81 of 120 runs.** After that a run needs *two*
+more journeys - one to stand on the pale, one to reach the far corner where THE
+COMMISSIONER is - and it has one trip.
+
+The checklist itself is not the problem. The three region lines pass almost
+always; two boundary stones fails 14 of 120 and the orb fails 5 of 120. It is
+**18 tiles across three regions** that necessarily completes late, by design -
+B3.1 calls the Enclosure "the chain you finish by having been everywhere".
+
+**Recorded rather than fixed.** The three obvious dials are all design
+decisions with the owner's name on them: fewer tiles per region, opening the
+pale granting a trip, or THE COMMISSIONER standing where the pale can reach.
+
+### And the simulation is generous, which makes the number worse
+
+The walker takes all ten trips including the Constable and the Waste bet
+without earning either, carries a finished board from rung one, and never
+loses. Five percent is the **optimistic** figure.

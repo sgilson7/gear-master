@@ -1056,3 +1056,405 @@ fn both_finished_boards_beat_all_five_at_medium() {
         );
     }
 }
+
+// ================================================ the validity of the county
+//
+// `validity.rs` is what the repo can say about a *build* being clearable.
+// This is the same question asked of a *place*: is every tile of THE HUNDRED
+// somewhere a run can actually stand, and is every county event somewhere a
+// run can actually be asked?
+//
+// The two halves are different and both matter. **Reachable** is geometry and
+// tolls: could any run get there at all. **Met** is play: does a run walking
+// its ten trips actually end up there. The first is a property of the county
+// and is asserted here; the second is a property of a *player* and is
+// measured rather than asserted, because a walker that plays badly proves
+// nothing about a county.
+
+/// Five moves from six gates and the gaol covers all forty-nine tiles.
+///
+/// The county's own V7 promises every tile is within **eight** moves of a
+/// mouth, and a trip is **five** - so V7 does not say this and nothing did
+/// until now. What makes it true is the gaol: C1 puts a run down within three
+/// of the centre, and the centre is what five moves from an edge cannot
+/// always reach.
+#[test]
+fn every_tile_is_inside_one_trip_of_some_way_in() {
+    use std::collections::{BTreeSet, VecDeque};
+    for seed in a_spread_of_county_seeds() {
+        let c = county::generate(seed);
+        let mut can: BTreeSet<(u8, u8)> = BTreeSet::new();
+        let mut starts: Vec<(u8, u8)> = MOUTHS.iter().map(|(_, m)| *m).collect();
+        starts.extend(c.gaol());
+        for from in starts {
+            let mut seen = BTreeSet::new();
+            let mut q = VecDeque::new();
+            seen.insert(from);
+            q.push_back((from, 0u8));
+            while let Some((p, used)) = q.pop_front() {
+                if used == county::MOVES_A_TRIP {
+                    continue;
+                }
+                for n in county::neighbours(p) {
+                    if seen.insert(n) {
+                        q.push_back((n, used + 1));
+                    }
+                }
+            }
+            can.extend(seen);
+        }
+        assert_eq!(
+            can.len(),
+            county::TILES,
+            "seed {seed:#x}: {} of {} tiles are more than one trip from every way in, \
+             including the gaol",
+            county::TILES - can.len(),
+            county::TILES
+        );
+    }
+}
+
+/// The only tiles a finished board cannot reach are tolls it does not pay.
+///
+/// Measured over the two reference boards and forty counties: no **event**,
+/// **objective**, **pinnacle** or **gaol** is ever behind a toll a finished
+/// board cannot cross. What is behind one is another toll, which is the
+/// mechanic working.
+#[test]
+fn nothing_but_a_toll_is_ever_walled_off_from_a_finished_board() {
+    use std::collections::{BTreeSet, VecDeque};
+    for code in [
+        gearmaster_engine::share::A_WINNING_RUN,
+        gearmaster_engine::share::A_PERFECT_RUN,
+    ] {
+        for seed in a_spread_of_county_seeds() {
+            let mut run = common::board_from(code);
+            run.run_seed = seed;
+            run.rung = 30;
+            run.gold = 100_000;
+            // With the pale answered: the far corner is behind a gate by
+            // design, and a reachability check that counted it would be
+            // measuring the design rather than the county.
+            run.flags.push(county::PALE_OPEN);
+            let c = run.county();
+            let f = run.county_figures();
+            let bounty = run.rung_bounty();
+
+            let mut can: BTreeSet<(u8, u8)> = BTreeSet::new();
+            let mut starts: Vec<(u8, u8)> = MOUTHS.iter().map(|(_, m)| *m).collect();
+            starts.extend(c.gaol());
+            for from in starts {
+                let mut seen = BTreeSet::new();
+                let mut q = VecDeque::new();
+                seen.insert(from);
+                q.push_back((from, 0u8));
+                while let Some((p, used)) = q.pop_front() {
+                    if used == county::MOVES_A_TRIP {
+                        continue;
+                    }
+                    for n in county::neighbours(p) {
+                        if let TileKind::Feature(t) = c.at(n).kind {
+                            if !t.met(&f, run.gold, bounty) {
+                                continue;
+                            }
+                        }
+                        if seen.insert(n) {
+                            q.push_back((n, used + 1));
+                        }
+                    }
+                }
+                can.extend(seen);
+            }
+            for t in c.tiles() {
+                if can.contains(&t.at) {
+                    continue;
+                }
+                assert!(
+                    matches!(t.kind, TileKind::Feature(_)),
+                    "seed {seed:#x}: {:?} at {:?} is behind a toll this board cannot pay. \
+                     A toll refusing a board is the mechanic; a question refusing one is a \
+                     scene nobody can read",
+                    t.kind,
+                    t.at
+                );
+            }
+        }
+    }
+}
+
+/// Every county event is on a tile a run can stand on.
+///
+/// The two above, put together and asked about the thing that matters: nine
+/// authored scenes, and a run can be asked all nine.
+#[test]
+fn every_county_event_is_somewhere_a_run_can_be_asked_it() {
+    use std::collections::{BTreeSet, VecDeque};
+    let mut ever_stranded: Vec<&str> = Vec::new();
+    for seed in a_spread_of_county_seeds() {
+        let mut run = a_run(seed);
+        run.flags.push(county::PALE_OPEN);
+        let c = run.county();
+        let f = run.county_figures();
+        let bounty = run.rung_bounty();
+        let mut can: BTreeSet<(u8, u8)> = BTreeSet::new();
+        let mut starts: Vec<(u8, u8)> = MOUTHS.iter().map(|(_, m)| *m).collect();
+        starts.extend(c.gaol());
+        for from in starts {
+            let mut seen = BTreeSet::new();
+            let mut q = VecDeque::new();
+            seen.insert(from);
+            q.push_back((from, 0u8));
+            while let Some((p, used)) = q.pop_front() {
+                if used == county::MOVES_A_TRIP {
+                    continue;
+                }
+                for n in county::neighbours(p) {
+                    if let TileKind::Feature(t) = c.at(n).kind {
+                        if !t.met(&f, run.gold, bounty) {
+                            continue;
+                        }
+                    }
+                    if seen.insert(n) {
+                        q.push_back((n, used + 1));
+                    }
+                }
+            }
+            can.extend(seen);
+        }
+        for t in c.tiles() {
+            if let TileKind::Event(id) = t.kind {
+                if !can.contains(&t.at) && !ever_stranded.contains(&id) {
+                    ever_stranded.push(id);
+                }
+            }
+        }
+        // And every authored event is on the county somewhere, which the deck
+        // deal promises and this checks from the other end.
+        for e in gearmaster_engine::event::COUNTY_EVENTS {
+            assert!(
+                c.tiles().iter().any(|t| t.kind == TileKind::Event(e.id)),
+                "seed {seed:#x}: {} is authored and on no tile",
+                e.id
+            );
+        }
+    }
+    assert!(
+        ever_stranded.is_empty(),
+        "{ever_stranded:?} landed somewhere no run could be asked them"
+    );
+}
+
+/// A spread of counties, by seed. Small enough to run in the suite.
+fn a_spread_of_county_seeds() -> Vec<u64> {
+    (0..40u64).map(|k| k.wrapping_mul(0x9E37_79B9_7F4A_7C15)).collect()
+}
+
+/// Reading the pale's list is not answering the pale.
+///
+/// **The bug this validity pass found.** Every other county event is finished
+/// with you once you have answered it. The pale is a *gate*: "read the list
+/// again" is open to anybody, and answering it used to clear the tile - so the
+/// pale was consumed on first contact and a run that walked over it early
+/// could never open it. A hundred and twenty simulated runs finished THE
+/// ENCLOSURE **twice**, and this was one of the two reasons.
+#[test]
+fn the_pale_is_not_consumed_by_reading_its_own_list() {
+    let mut run = a_run(0x1_00D);
+    let pale = run.county_written().pale();
+    let ev = gearmaster_engine::event::county_event(county::PALE).expect("authored");
+    let read = ev.choices.iter().find(|c| c.label.contains("Read")).expect("a choice");
+
+    stand_on(&mut run, pale);
+    run.county_event = Some(county::PALE);
+    assert!(run.choice_open(read));
+    run.take_choice(read);
+
+    assert!(!run.pale_is_open(), "reading the list opened the gate");
+    assert!(
+        !run.county_is_cleared(pale),
+        "the pale cleared itself for being read, so the gate can never be opened"
+    );
+
+    // And once it opens, it is finished with you like anything else.
+    for region in county::Region::ALL {
+        let tiles: Vec<(u8, u8)> = (0..7u8)
+            .flat_map(|y| (0..7u8).map(move |x| (x, y)))
+            .filter(|p| county::Region::of_row(p.1) == region)
+            .take(6)
+            .collect();
+        for t in tiles {
+            if !run.county_cleared.contains(&t) {
+                run.county_cleared.push(t);
+            }
+        }
+    }
+    run.count("boundary-stones");
+    run.count("boundary-stones");
+    run.give("Drover's Orb");
+    stand_on(&mut run, pale);
+    run.county_event = Some(county::PALE);
+    run.take_choice(&ev.choices[0]);
+    assert!(run.pale_is_open());
+    assert!(run.county_is_cleared(pale), "an opened gate is still standing there");
+}
+
+/// A simulated full census, walked deliberately, and what it finishes.
+///
+/// **Measured, not asserted at a target.** A walker is a player and a bad
+/// player proves nothing about a county, so what this pins is only the floor
+/// the fix above earned - and it prints the rest, because the rest is a
+/// balance question with the owner's name on it.
+///
+/// At this commit, over 120 runs of each finished board (release, and the
+/// figures are in `analysis/the-hundred.md`):
+///
+/// ```text
+///                      ordnance   drove   enclosure   pale open   parish
+///   before the fix          28      118           2          21        0
+///   after                   49      114           5          73        0
+/// ```
+///
+/// The pale went from opening on **19%** of censuses to **61%**, which is the
+/// bug being real. THE ENCLOSURE still finishes on **5%**, and the gap is the
+/// last step: sixty-eight of the seventy-three runs that open the gate never
+/// reach what it opens, because the checklist comes ready around trip nine and
+/// the far corner wants a trip of its own. That is written up rather than
+/// fixed - see `design/HANDOFF-hundred.md` §3.
+#[test]
+fn a_deliberate_census_opens_the_pale_more_often_than_not() {
+    let mut opened = 0usize;
+    let seeds: Vec<u64> = (0..12u64).map(|k| k.wrapping_mul(0x9E37_79B9_7F4A_7C15)).collect();
+    let n = seeds.len();
+    for seed in seeds {
+        let mut run = common::board_from(gearmaster_engine::share::A_WINNING_RUN);
+        run.run_seed = seed;
+        run.mode = Mode::Grinder;
+        run.difficulty = Difficulty::Medium;
+        run.rung = 30;
+        run.gold = 100_000;
+        for ch in Chain::ALL {
+            run.flags.push(county::chain_known(ch));
+        }
+        for (id, m) in MOUTHS.iter() {
+            if run.enter_county(TripSource::Town(id), *m) {
+                walk_a_trip(&mut run);
+            }
+        }
+        if run.enter_county(TripSource::SurveyorsOrb, MOUTHS[0].1) {
+            walk_a_trip(&mut run);
+        }
+        if run.arrested_into_the_county() {
+            walk_a_trip(&mut run);
+        }
+        if run.pale_is_open() {
+            opened += 1;
+        }
+    }
+    // A **floor**, well under the measurement, because twelve seeds is a
+    // small sample and the point is to catch a regression rather than to pin a
+    // rate. Over a hundred and twenty runs in release it is three in five;
+    // before the gate stopped clearing itself for being read it was one in
+    // five, which on twelve seeds is two or three.
+    assert!(
+        opened * 3 >= n,
+        "the pale opened on {opened} of {n} censuses, which is at or under the rate it had \
+         when the gate cleared itself for being read. A gate a run cannot come back to is a \
+         chain nobody finishes"
+    );
+}
+
+/// One trip, walked the way a player would: the hill when it exists, the pale
+/// when the list is ready, and otherwise the nearest thing not yet done.
+fn walk_a_trip(run: &mut Run) {
+    for _ in 0..16 {
+        answer_the_tile_h(run);
+        if run.county_at.is_none() {
+            break;
+        }
+        let Some(s) = a_deliberate_step(run) else { break };
+        if !run.county_walk(s) && run.county_at.is_none() {
+            break;
+        }
+    }
+    run.leave_county();
+}
+
+fn answer_the_tile_h(run: &mut Run) {
+    for _ in 0..8 {
+        if run.phase == gearmaster_engine::run::Phase::Fighting {
+            run.force_win();
+            run.settle();
+            run.back_to_loadout();
+            continue;
+        }
+        let Some(ev) = run.pending_event() else { break };
+        let Some(c) = ev.choices.iter().find(|c| run.choice_open(c)).copied() else { break };
+        run.take_choice(&c);
+    }
+}
+
+fn a_deliberate_step(run: &Run) -> Option<Step> {
+    let c = run.county_written();
+    if run.county_gate_met(Chain::Ordnance) && !run.county_chain_done(Chain::Ordnance) {
+        if let Some(s) = step_toward(run, c.hill()) {
+            return Some(s);
+        }
+    }
+    if run.pale_is_ready() && !run.pale_is_open() {
+        if let Some(s) = step_toward(run, c.pale()) {
+            return Some(s);
+        }
+    }
+    if run.pale_is_open() && !run.county_chain_done(Chain::Enclosure) {
+        if let Some(t) = c.pinnacle(Chain::Enclosure) {
+            if let Some(s) = step_toward(run, t) {
+                return Some(s);
+            }
+        }
+    }
+    nearest_undone(run)
+}
+
+fn walkable(run: &Run, to: (u8, u8)) -> bool {
+    let c = run.county();
+    if c.is_sealed(to) && !run.pale_is_open() {
+        return false;
+    }
+    match c.at(to).kind {
+        TileKind::Feature(t) => {
+            run.county_is_cleared(to)
+                || t.met(&run.county_figures(), run.gold, run.rung_bounty())
+        }
+        _ => true,
+    }
+}
+
+fn step_toward(run: &Run, target: (u8, u8)) -> Option<Step> {
+    first_step(run, |p| p == target)
+}
+
+fn nearest_undone(run: &Run) -> Option<Step> {
+    first_step(run, |p| !run.county_is_cleared(p))
+}
+
+fn first_step(run: &Run, goal: impl Fn((u8, u8)) -> bool) -> Option<Step> {
+    use std::collections::{BTreeSet, VecDeque};
+    let here = run.county_at?;
+    let mut seen: BTreeSet<(u8, u8)> = BTreeSet::new();
+    let mut q: VecDeque<((u8, u8), Option<Step>)> = VecDeque::new();
+    seen.insert(here);
+    q.push_back((here, None));
+    while let Some((p, first)) = q.pop_front() {
+        if first.is_some() && goal(p) {
+            return first;
+        }
+        for s in Step::ALL {
+            let Some(n) = s.from(p) else { continue };
+            if !walkable(run, n) || !seen.insert(n) {
+                continue;
+            }
+            q.push_back((n, first.or(Some(s))));
+        }
+    }
+    None
+}
