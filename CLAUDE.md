@@ -37,7 +37,7 @@ Five missions are finished and all five are deployed:
 ## 1. Orientation in five minutes
 
 ```
-cargo test -p gearmaster-engine          # the safety net: 1050 tests, 58 binaries + lib, ~40s
+cargo test -p gearmaster-engine          # the safety net: 1059 tests, 58 binaries + lib, ~40s
 cargo test -p gearmaster-gui             # 81 more; cargo build does NOT compile them
 cargo test -p gearmaster-cli             # 9 more: scripted runs, piped in twice
 cargo run  -p gearmaster-cli             # headless REPL: play the real game in a terminal
@@ -572,6 +572,27 @@ fights its way to any given door. That is the gap.
     eighteen pieces' worth of mana a second was invisible to every county
     toll. Neither shows up in a fight's outcome. Gate a normalisation on a
     measurement, not on the argument for it.
+
+43. **A predicate with two readers is two predicates that happen to agree.**
+    `is_town_stock` meant "may the road deal this?" to the shop and "does a
+    town stock it?" to `avail.rs`, and those were one question until THE
+    THRESHOLD started selling things. `is_off_the_road` is the union the road
+    filters on now. `stepped_component` was a silent third reader and stepped
+    a creature straight into a threshold helmet.
+
+44. **A quota is a design review.** `Plating` floats between the helmet and
+    the greaves so it may not carry an identity mechanic; `OnBattleStart` is
+    the greaves' and a helmet may not borrow it. Both refused a draft of the
+    threshold shelf and both were right - the second turned a trigger into an
+    `EffectKind`, which is what the trade actually is: standing, true from the
+    bell, rather than something that happens when an item comes round.
+
+45. **`ALTERNATES` cannot be borrowed across a theme.** Bands may not fall
+    along a road out and a dungeon's creatures share one theme, so everything
+    borrowable for a den or a cave at band 30-32 is a *switchyard* creature. A
+    bear den with a roundhouse in it passes both lints and is trap 29. Widening
+    a dungeon means authoring creatures; there is no reuse that is not a
+    staple.
 
 One blind spot in `prose.rs` worth knowing before it finds you: a name that
 only ever **opens** a sentence is invisible to `names_something`, because at a
