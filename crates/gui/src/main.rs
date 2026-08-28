@@ -12403,7 +12403,19 @@ async fn main() {
         // the points sit over the dungeon: you are standing in it, and the
         // town gate is what you come back to rather than what is in front of
         // you. `road_stack` puts it on top for the same reason.
-        if run.county_at.is_some() {
+        // `&& !fighting` is T0, and it is the same fault as the comment below
+        // one screen along. Walking onto a pinnacle calls `begin_county_fight`,
+        // which runs the whole simulation and sets `Phase::Fighting` - but
+        // nothing here ever built a `Playback` from it, so the bar never
+        // advanced, `settle` was never reached, and the branch below drew the
+        // county map over a battle nobody could see. `county_walk` and
+        // `leave_county` both refuse while the phase is not `Loadout`, so every
+        // control was dead at once and the run was over.
+        //
+        // The playback is built the moment the fight starts, just below, and
+        // this branch stands aside while it plays. The battle screen is drawn
+        // further up the frame and needs nothing else.
+        if run.county_at.is_some() && run.phase != Phase::Fighting {
             // **A question on the tile you are standing on is asked here.**
             //
             // The event screen is two hundred lines below this branch and this
@@ -12440,6 +12452,16 @@ async fn main() {
             match render_county(&run, mx, my) {
                 Some(Some(step)) => {
                     run.county_walk(step);
+                    // A step onto a pinnacle is a step into a fight. The
+                    // engine has already run it by the time this returns, so
+                    // what is missing is only somebody to watch it.
+                    if run.phase == Phase::Fighting && pb.is_none() {
+                        let profiles = run.combat_items();
+                        if let Some(log) = run.log.clone() {
+                            pb = Some(Playback::new(&log, &profiles, playback_speed));
+                            settled = false;
+                        }
+                    }
                     message = run
                         .last_receipt
                         .clone()

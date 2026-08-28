@@ -139,8 +139,35 @@ fn the_ordnance_pays_a_sheet_a_greave_and_an_orb() {
     for t in run.county().tiles() {
         assert!(run.county_threshold_known(t.at));
     }
-    // The trip is over either way.
-    assert_eq!(run.county_at, None);
+    // **You are still down there.** This asserted `None` - "the trip is over
+    // either way" - until T0, when it stopped being either way: winning a
+    // chain puts you back on the map with the moves you had left, so a run
+    // that banked ten and spent one reaching the hill does not forfeit nine
+    // for finishing it. Losing still ends the trip, which
+    // `a_lost_pinnacle_still_ends_the_trip` is what pins now.
+    assert_eq!(run.county_at, Some(written.hill()), "a won chain threw you out of the county");
+}
+
+/// And losing one still does end it, which is A7 and not an oversight.
+///
+/// The asymmetry is the whole of T0's second half: a loss costs what a road
+/// loss costs, and being sent back up out of the county is part of that cost.
+#[test]
+fn a_lost_pinnacle_still_ends_the_trip() {
+    let mut run = a_run(0x1_00D);
+    let written = run.county_written();
+    for t in written.objectives(Chain::Ordnance) {
+        clear(&mut run, t);
+    }
+    stand_on(&mut run, written.hill());
+    run.county_pinnacle = Some(Chain::Ordnance);
+    // A board that cannot win: no items, and the fight resolves against it.
+    run.loadout = gearmaster_engine::loadout::Loadout::new();
+    run.fight_next();
+    run.settle();
+    run.back_to_loadout();
+    assert!(!run.county_chain_done(Chain::Ordnance), "a loss finished the chain");
+    assert_eq!(run.county_at, None, "a lost chain left you standing down there");
 }
 
 /// The Surveyor's Orb offers any mouth, found or not.
@@ -1529,4 +1556,107 @@ fn a_road_door_is_still_behind_its_fountain() {
         run.pending_event().is_none(),
         "the county's fix let a road door past the fountain, which it must not"
     );
+}
+
+// ------------------------------------------------ T0: a state nothing drew
+//
+// Reported from play: found The Drover, and the game froze on the county map
+// with no way to move or click. Four facts made it and three were right on
+// their own. Walking onto a pinnacle calls `begin_county_fight`, which runs
+// the whole simulation and leaves `Phase::Fighting`. The interface never built
+// a playback from it, so nothing advanced and nothing settled. And both
+// `county_walk` and `leave_county` refuse while the phase is not `Loadout`,
+// so every control died at once.
+//
+// The engine half of the fix is that a won chain leaves you on the map. The
+// test below is the *general* form of what went wrong, which is worth more
+// than a test for the Drover: a run that reaches a state no screen draws is
+// stuck there whatever put it in one.
+
+/// Every state a county trip can reach is one some screen will draw.
+///
+/// `Phase::Fighting` with `county_at` set was the state nothing drew - the
+/// battle screen is skipped while the county map is up, and the county map
+/// refuses every control while a fight is unsettled. So the pairing itself is
+/// what this asserts against, without needing a graphics context to do it.
+#[test]
+fn no_county_state_is_one_no_screen_can_draw() {
+    use gearmaster_engine::run::Phase;
+    let mut run = a_run(0x1_00D);
+    // A board that can win the fight the walk starts, because losing ends the
+    // trip on purpose and would prove the wrong half.
+    common::build_full_loadout(&mut run);
+    let written = run.county_written();
+    for t in written.objectives(Chain::Ordnance) {
+        clear(&mut run, t);
+    }
+    // Standing *beside* the hill and walking onto it, because the fight is
+    // started by the walk. `force_win` wins by fiat and never enters
+    // `Fighting`, so a test that used it would prove nothing about the state
+    // this is named for.
+    let (hx, hy) = written.hill();
+    let (step, from) = if hy > 0 {
+        (Step::South, (hx, hy - 1))
+    } else {
+        (Step::North, (hx, hy + 1))
+    };
+    stand_on(&mut run, from);
+    assert!(run.county_walk(step), "could not step onto the hill from beside it");
+    assert_eq!(run.county_at, Some(written.hill()), "the step went somewhere else");
+    assert_eq!(run.phase, Phase::Fighting, "the pinnacle did not start a fight");
+
+    // The state during it: a fight to watch, and a log to build it from. The
+    // freeze was that `run.log` held the answer and nothing read it.
+    assert!(run.log.is_some(), "a fight with no log is a fight nothing can play back");
+
+    // And it resolves rather than standing there.
+    // Won by fiat rather than by board. This test is about the state machine
+    // the walk left behind, not about whether a full loadout can take the
+    // Ordnance - it cannot, and making it able to would be tuning a boss to
+    // suit a test. `force_win` replaces the log and settles it, which is the
+    // same door the fight's own playback goes through.
+    run.force_win();
+    run.back_to_loadout();
+    assert_eq!(run.phase, Phase::Loadout, "the fight never ended");
+    assert!(
+        run.county_at.is_some(),
+        "a won chain left the county, so the trip's remaining moves were forfeited"
+    );
+    // Which means the controls work again, and that is the whole bug.
+    assert!(
+        run.county_moves_left == 0 || run.leave_county(),
+        "the way out is still refused after the fight"
+    );
+}
+
+/// A walk that meets a pinnacle keeps walking afterwards.
+///
+/// Bounded, because trap 24: a county walk that runs until it runs out is a
+/// hang the day a tile refuses, and this one deliberately walks into the tile
+/// that used to stop everything.
+#[test]
+fn the_walk_carries_on_past_a_finished_chain() {
+    let mut run = a_run(0x1_00D);
+    common::build_full_loadout(&mut run);
+    let written = run.county_written();
+    for t in written.objectives(Chain::Ordnance) {
+        clear(&mut run, t);
+    }
+    stand_on(&mut run, written.hill());
+    run.county_moves_left = 6;
+    run.county_pinnacle = Some(Chain::Ordnance);
+    run.force_win();
+    run.back_to_loadout();
+
+    let before = run.county_moves_left;
+    assert!(before > 0, "no moves left to prove anything with");
+    let mut moved = false;
+    for s in [Step::North, Step::South, Step::East, Step::West] {
+        if run.county_walk(s) {
+            moved = true;
+            break;
+        }
+    }
+    assert!(moved, "every direction was refused after finishing a chain");
+    assert_eq!(run.county_moves_left, before - 1, "the step cost the wrong number of moves");
 }

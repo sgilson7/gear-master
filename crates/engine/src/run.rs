@@ -3533,8 +3533,20 @@ impl Run {
             } else {
                 lines.push(format!("{} stands", chain.name()));
             }
-            self.county_at = None;
-            self.county_moves_left = 0;
+            // **Winning puts you back on the map.** It used to end the trip
+            // either way, which meant a run that banked ten moves and spent
+            // one reaching a chain forfeited the other nine for finishing it.
+            //
+            // Losing still ends it, because A7 says a loss costs what a road
+            // loss costs and that is deliberate - the asymmetry is the point,
+            // not an oversight. The tile is marked cleared above, so there is
+            // nothing here to walk into twice.
+            if outcome == Outcome::Victory {
+                lines.push(moves_left(self.county_moves_left));
+            } else {
+                self.county_at = None;
+                self.county_moves_left = 0;
+            }
             self.last_receipt = Some(lines);
             // A loss still costs what a road loss costs, which the rest of
             // this function does - but the rung must not move either way, so
