@@ -401,9 +401,15 @@ fn the_town_shop_is_things_you_cannot_get_elsewhere() {
     let mut run = at_the_gate();
     run.visit_town(Action::Shop);
     let on_sale: Vec<&str> = run.shop.stock_defs().iter().map(|d| d.name).collect();
-    assert_eq!(on_sale.len(), shelf.len());
-    for name in shelf {
-        assert!(on_sale.contains(name), "{name} was not on the shelf");
+    // Seven, not eleven. The pool outgrew the shop - a town tried to show all
+    // eleven in a space built for `SHOP_SIZE` and the last four fell off the
+    // bottom of the screen - so a town draws its own shelf now. The curated
+    // five are always on it and the grounds are what varies, which is the
+    // clause below still holding rather than being worked around.
+    assert_eq!(on_sale.len(), gearmaster_engine::shop::SHOP_SIZE);
+    assert!(shelf.len() > on_sale.len(), "the pool no longer outgrows the shop, so this can be simple again");
+    for name in &on_sale {
+        assert!(shelf.contains(name), "{name} is on sale and not in the pool");
     }
     // The curated five are the reason to come in; the underlays are the thing
     // a town is the only place to buy. Both, or the shelf is half a shelf.
@@ -948,5 +954,57 @@ fn the_cart_sells_ground_and_does_not_sell_what_was_dug_up() {
     }
     for d in CATALOG.iter().filter(|d| d.kind.is_enchantment() && is_event_only(d.name)) {
         assert!(!cart.contains(&d.name), "{} was dug up and is on the cart", d.name);
+    }
+}
+
+/// Every town's shelf fits the shop, and no two towns stock the same one.
+///
+/// The pool is eleven and a shop holds `SHOP_SIZE`. A town used to try to show
+/// all eleven and the last four fell off the bottom of the screen, which is a
+/// shop that is not there.
+///
+/// Sampled rather than scrolled, and the sample is what makes it worth doing:
+/// six towns drawing their own grounds means "the Kettleworks has the good
+/// ground" is a thing a player can learn, where a scroll bar would have made
+/// all six identical and added a control.
+#[test]
+fn every_town_draws_its_own_shelf_and_it_fits() {
+    use gearmaster_engine::piece::{town_shelf, town_shelf_for, TOWN_ONLY};
+    use gearmaster_engine::shop::SHOP_SIZE;
+    let pool = town_shelf();
+    let mut seen: Vec<Vec<&str>> = Vec::new();
+    for t in gearmaster_engine::town::TOWNS {
+        let shelf = town_shelf_for(0x5EED_1234, t.id);
+        assert_eq!(shelf.len(), SHOP_SIZE, "{} stocks {} shelves", t.id, shelf.len());
+        for n in &shelf {
+            assert!(pool.contains(n), "{} sells {n}, which is not town stock", t.id);
+        }
+        // The curated five are the reason to come in, so no town is without
+        // one - that is `the_town_shop_is_things_you_cannot_get_elsewhere`'s
+        // clause, held for every town rather than for the one it visits.
+        for n in TOWN_ONLY {
+            assert!(shelf.contains(n), "{} has no {n}", t.id);
+        }
+        seen.push(shelf);
+    }
+    assert!(
+        seen.iter().any(|a| seen.iter().any(|b| a != b)),
+        "every town drew the same shelf, so the sampling is doing nothing"
+    );
+}
+
+/// The same seed and the same town is the same shelf, for ever.
+///
+/// Derived rather than drawn from `Run::rng`: taking it off the run's own
+/// generator would shift every later roll in the game to fix a layout fault.
+#[test]
+fn a_towns_shelf_is_the_same_every_time_you_ask() {
+    use gearmaster_engine::piece::town_shelf_for;
+    for t in gearmaster_engine::town::TOWNS {
+        let a = town_shelf_for(0xABCD, t.id);
+        let b = town_shelf_for(0xABCD, t.id);
+        assert_eq!(a, b, "{} drew two different shelves from one seed", t.id);
+        let other = town_shelf_for(0xABCE, t.id);
+        let _ = other;
     }
 }

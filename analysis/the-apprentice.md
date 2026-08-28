@@ -401,3 +401,376 @@ milestone is measured against.
 
 **SCR(R10, starter) = 0**, as the plan predicted, and now for the first time
 the number was produced by playing rather than by argument.
+
+---
+
+# Interlude — the card mission landed on top of this one
+
+Read off **`1cda004`**. Twelve commits (T0 to T6 plus the deploy) arrived
+between A1 and A2: the county freeze, the item card grouped by *when* its
+figures happen, one spelling for a pool grant, and a glossary shelf. They
+touched `stats.rs`, `piece.rs`, `rating.rs`, the GUI's cards and the CLI's
+shop listing - all of which A0 measured and A1 reads.
+
+**What survived unchanged**, re-taken at the new tip:
+
+| | A0, at `020bc7c` | Now, at `1cda004` |
+|---|---|---|
+| a rung-50 fight | 0.768 ms | **0.768 ms** |
+| `Figures::of()` (S0) | 42 ns | **42 ns** |
+| `combat_items()` on 19 items | 0.271 ms | **0.271 ms** |
+| a whole ladder, one core | 18.9 ms | **18.8 ms** |
+| eight threads | 16,848 fights/s | **17,130 fights/s** |
+| owner's board up the ladder | 48/50, 44 board-decided | **48/50, 44 board-decided** |
+| the census, every row | - | **identical** |
+| `pack_francis`, Bone Archer | 8.0 s, 21/240 cells | **9.0 s, 21/240 cells** |
+| `pack_francis`, Cog Priest | 59.4 s, 69/240 cells | **60.8 s, 69/240 cells** |
+| `pack_francis`, Francis | 242.5 s, **failed** | **243.3 s, failed identically** |
+
+Ratings moved - `gear_at.txt` was re-baselined at 6,744 placements - and not
+one of these did. That is worth having: it says the packer's bar is a
+property of the search rather than of the curve underneath it, so A3's target
+does not move when the curve does.
+
+**What moved:** the suite. Engine **1,053 passed, 52 ignored** (was 1,043 and
+51); GUI **83** (was 81); CLI **12** (A1's own). Everything else in A0 stands.
+
+## Two amendments to A1, both from the new code
+
+### Any verb can start a fight, and the console did not know it
+
+`f4354ec` fixed a freeze **reported from play**: walking onto a pinnacle in
+THE HUNDRED calls `begin_county_fight`, which simulates the whole bout and
+leaves `Phase::Fighting` with a log waiting - and `county_walk` and
+`leave_county` both refuse outside `Loadout`, so every control died at once,
+including the way out.
+
+A1's console had the same fault in its own shape: `apply(Walk)` returned
+happily, `menu()` then returned empty because the phase was `Fighting`, and
+the pilot would have stopped with "nothing left to press" on the one tile
+where a chain ends. It settles any fight wherever one appears now, rather
+than inside the two verbs that were known to start one.
+
+The assertion is written as the general fault, which is what that commit's own
+gate does: **after any press, there is something to press, or the run is
+over.** It runs on every one of the fuzz's 1,080 states.
+
+### The card's four groups are player-visible now, so the view carries them
+
+`Stats::parts_when` classifies every stat field as `Passive`, `OnActivation`
+or `Damage`, checked against the fight rather than hand-written. Eight of the
+twenty are handed over on every activation. The card draws them in groups; the
+CLI's shop listing uses `summary_by_when`; and the `View`'s tray and shelf
+pieces carry the same grouping, so an agent does not have to guess which of
+`+2 nature` and `+8 curse res` is a rate.
+
+This is not cosmetic for this mission. **S0 - the fight-free surrogate the
+whole packer redesign rests on - has to weight a per-activation figure by the
+item's cadence and a passive figure once**, and until T3 there was no engine
+answer to which was which. `design/the-apprentice.md` §5 is amended to say so.
+
+The same commit fixed a fault in the figures themselves: `Figures::of` reads
+`stats.mana` and nothing else, and eighteen pieces granted mana through a
+trigger - invisible to every county toll asking what a board makes a second.
+The preset crosses six of the twelve thresholds now rather than five. **S0
+measures more of what a board does than it did when A0 measured it**, at the
+same 42 ns.
+
+## What did not need updating
+
+A2 to A9 stand as written. The theme meter, the tiered objective, the
+expert-iteration design and the coverage ledger are all untouched by a mission
+about how a card is laid out - and the one thing that could have moved them,
+the rating curve, moved without moving a single number the packer is measured
+by.
+
+---
+
+# A2 — The oracle and the theme meter
+
+Read off **`1cda004`** plus this milestone. `crates/oracle`, **19 tests**, and
+no engine change. The workspace: engine 1,053 / 0 / 52, GUI 83, CLI 12,
+console 16, oracle 19, agent 5 - **1,188 green, no warnings**.
+
+## A2.1 What the three tiers actually cost
+
+A0 timed the engine's primitives. This times what a search pays, which is not
+the same thing. One performance core, release, medians:
+
+| Tier | | Cost | Against a fight |
+|---|---|---|---|
+| **S0** | the surrogate, board already built | **584 ns** | **411× cheaper** |
+| **S0** | the surrogate, **rebuilding the board first** | **1,444,750 ns** | **6× dearer** |
+| **S1** | one fight | 240,458 ns | - |
+| **S1** | one fight, cached | 1,292 ns | 186× cheaper |
+| **S2** | the sixteen-fight acceptance gate | 3,898,875 ns | 16× dearer |
+
+Eight threads run **1,503 gates a second** - 24,054 fights - and twelve run
+1,760, which is the efficiency cores buying 17% again.
+
+**The tiering is real, and it has a condition nobody had written down: the
+board has to stay built.** Rebuilding a seventy-five-piece board from its
+placements costs 1.44 ms, which is two and a half thousand S0 reads and six
+whole fights. A search that scores a candidate by rebuilding it has already
+spent more than the fight it was avoiding.
+
+So A3's local search mutates a live board - place one piece, re-lock the
+touched slot, read the figures - and never reconstructs from a placement list
+except at the boundaries. That is now a requirement rather than an
+optimisation, and it is the second structural difference from the incumbent
+packer: the first is that it improves rather than resamples.
+
+**S0 was twenty-four times slower before it was fixed**, and the reason is
+worth keeping. `Stats::parts_when` is the engine's own classification of which
+figures are handed over on every activation - but it returns each one
+*formatted into a `String`*, so summing a group by parsing them back cost
+13,959 ns a board. The classification is constant per field, so it is asked
+once: twenty-one probes at startup, each setting one field in an empty block
+and reading back which group the engine puts it in. A table of *fields* is
+kept; a table of classifications is not, which is the discipline T3 built
+`parts_when` with in the first place. `tests/s0.rs` fails if a
+twenty-second field is ever added to `Stats` and the list does not hear
+about it.
+
+## A2.2 The cache
+
+**10,880 lookups, 272 misses, 97.5% hit rate**, and every one of the 10,880
+compared against what the engine says uncached. 272 distinct fights - twenty
+creatures by four reference boards by four difficulties - each asked for forty
+times, which is the shape a local search has rather than a shape chosen to
+flatter the number.
+
+The key is `(player board, creature, difficulty, purse bucket)`. A board's key
+is over its **sorted** placements, so an ordering is not a board and a moved
+piece is: `two_boards_that_differ_are_not_one_key` holds both halves.
+
+## A2.3 The gate, ported
+
+Every constant is read out of `tests/pack_francis.rs` at test time and
+compared - `FLOOR_MS`, `FLAT_UNTIL`, `CASINO_BAR_MS`, `BAND` - so a port that
+drifts from its original fails rather than diverging quietly. The curve is
+checked rung by rung, the flat window's wider band at the boundary, the preset
+corridor in all four of its cases, and a loss as infinitely far from the line.
+
+Then the port is pointed at a board the original has an opinion about. The
+original's own output for Cog Priest reads
+
+    board want W8.0s W14.0s W14.0s W14.0s got W8.0s W9.0s W9.0s W9.0s
+
+and this port reads the same eight figures: the owner's board beats the
+**shipped** Cog Priest in 14.0 s against a 9.35 s line - **0.497 off the
+curve, against a band of 0.30** - and the candidate the search was proposing
+sits at 9.0 s. So the shipped creature is half a band outside the line it is
+supposed to sit on, which is why the packer was proposing a replacement, and
+a port that *accepted* it would be a port that had lost the curve.
+
+## A2.4 The theme meter, and what it found
+
+Ten signatures, each computed from a `CombatLog`, each a ratio over the fight.
+The table is `cargo run --release -p gearmaster-oracle --bin themes`.
+
+### The yardstick cannot feel three of the ten themes
+
+`CurseKind::landing_ms` clamps curse resistance to 100 and scales a curse's
+duration by `(100 - resist)/100` (`curse.rs:137`). **At 100 it is total
+immunity.** The owner's finished build carries **145** and the friend's
+**135**.
+
+So every curse either of them meets lands for zero milliseconds. Measured, on
+six creatures across the two halves:
+
+| Creature | four-piece board | preset | owner | friend |
+|---|---|---|---|---|
+| Salt Idol | 6 curses, 115 burn | 6, 155 | **0, 0** | **0, 0** |
+| Ruin Hound | 10 curses, 228 burn | 10, 196 | **0, 0** | **0, 0** |
+| Bone Cantor | 7 curses, 2 stuns | 7, 2 | **0, 0** | **0, 0** |
+| Ember Wisp | 48 curses | 52 | **0** | **0** |
+| Cog Priest | 42 curses | 74 | **0** | **0** |
+| Obsidian Colossus | 99 curses | 123 | **0** | **0** |
+
+The creatures are not the problem: they curse constantly against a board that
+can be cursed. **The difficulty curve is read off a board that is immune to
+them.** Three of the ten themes - Burner, Slower, Warden - speak mostly in
+curses, and against the yardstick they are silent.
+
+That is why the table is printed in two columns. **FELT** is scored against
+the two boards a player might actually have at that rung; **CURVE** against
+the two finished builds the line is read off.
+
+| theme | n | felt | worst | best | curve | the claim |
+|---|---:|---:|---:|---:|---:|---|
+| Striker | 6 | 0.55 | 0.37 | 0.78 | 0.17 | fast and fragile |
+| Wall | 7 | 0.54 | 0.18 | 0.67 | **0.07** | slow, heavy, hits back |
+| Burner | 7 | **0.20** | 0.01 | 0.46 | **0.00** | kills on the clock |
+| Slower | 8 | 0.63 | 0.25 | 0.94 | **0.24** | denies tempo |
+| Drainer | 8 | 0.41 | 0.25 | 0.72 | 0.51 | starves a banked build |
+| Caster | 8 | 0.53 | 0.50 | 0.61 | 0.50 | bursty and mana-gated |
+
+Drainer and Caster barely move between the columns, because mind damage and
+magic are not resisted to nothing. Wall falls from 0.54 to 0.07.
+
+### The Burner cluster does not kill on the clock
+
+Even where it is felt, Burner is the worst theme by a factor of two and a half
+- 0.20 against the next-lowest 0.41. The ten that read least like themselves
+are four Burners at the top:
+
+    Bone Cantor      0.01   most of it burns 0.02 · rather than lands 0.00
+    The Hollow King  0.03   most of it burns 0.06 · rather than lands 0.00
+    Salt Idol        0.11   most of it burns 0.17 · rather than lands 0.00
+    Pale Twin        0.15   most of it burns 0.24 · rather than lands 0.08
+
+Their gear is not the problem either. Bone Cantor's Searing Cleaver applies the
+curse twice and Ruin Hound carries four searing items. The blows simply dwarf
+the burn: rungs 14 to 20 are packed as strikers that happen to carry a searing
+word, and `MonsterTheme::allows` cannot tell the difference because it filters
+the pool and never reads the fight.
+
+### A meter reading is a property of a pair, not of a creature
+
+Four Drainers score 0.25 with *"it takes what you banked 0.00"* - because the
+four-piece board has banked nothing to take. A drain against an empty pool
+reads as zero, and that is a fact about the board.
+
+So fidelity is a property of a **(creature, board)** pair. Both columns are
+printed and neither is the answer on its own; a search using this as its λ
+term (A3) scores against a board that can both express and receive the theme,
+and says which board it used.
+
+### The meter's own trap, found by its own test
+
+`a_fight_where_nothing_happened_scores_nothing` failed on the first run:
+**Burner scored 0.50 on an empty fight.** Every theme has a negative half -
+"rather than lands", "and does little else", "and does nothing clever" - and a
+creature that does nothing at all satisfies every one of them for free. The
+cheapest way to read as a Burner was to be inert.
+
+That is `CLAUDE.md` §6 trap 29 in the exact form the handoff predicted this
+mission would meet it, and it was in the meter before the meter had scored
+anything. Two fixes: a negative claim about a share reads **zero** when there
+is no damage to have a share of, and an empty fight bears out nothing at all.
+Striker's curve column fell from 0.42 to 0.17 when it landed, and Burner's
+from 0.04 to 0.00 - both had been inflated by free negatives.
+
+## A2.5 What A2 hands A3
+
+1. **Keep the board built.** The rebuild is the cost, not the fight.
+2. **The gate is portable and pinned**, so a search can be judged by the same
+   rule the incumbent is judged by, at the same numbers.
+3. **λ has something to multiply.** Theme fidelity is a number now, and it
+   comes with the warning that it is a number about a pair.
+4. **Two balance findings the owner may want before A3 packs anything**: the
+   curve is read off curse-immune boards, and the Burner cluster kills on the
+   swing. Packing rungs 14-20 against the present yardstick would author seven
+   more creatures whose theme the measurement cannot see.
+
+---
+
+# A3 — The pilot's hands
+
+**Re-scoped by the owner.** A3 was "the packer: greedy plus local search,
+benchmarked against `pack_francis`". The instruction is that the packer runs
+only once there is a trained agent, and that its builds are then the source of
+creature boards - so the oracle-scored creature packer is not built at all.
+`pack_francis` stays the incumbent and its 243-second failure on Francis
+stands as a recorded fact rather than something this milestone races.
+
+What A3 is instead: **the board sense the pilot needs to play at all**, which
+A4 wanted regardless. The A1 control seated the first thing that fitted and
+reached rung 2.
+
+The benchmark is unchanged, and it is the one that decides whether anything
+above it means anything: *a packer that cannot recover what a person did with
+the same pieces cannot be trusted to do better with different ones.*
+
+## A3.1 Blind hands, privileged eyes
+
+The pilot builds with two presses and no oracle: **put a piece down, read what
+the slot says, take it back if it did not help.** `Undo` is a button in the
+game and that is what makes it legal rather than clever.
+
+What it reads is `Sense` - the same arithmetic the oracle's S0 does, computed
+from the `View` rather than from a `Loadout`, because every figure is on a
+screen: the six county figures, the character sheet, how many items assembled,
+and - since the card rewrite - **which of a piece's figures are rates and which
+are quantities**. Before T3 said *when* each figure happens, an agent scoring a
+board off the screen would have had to guess, and guessing wrong prices a rate
+as a quantity.
+
+Two implementations of one idea drift, so `lab/tests/one_score.rs` holds them
+to the same answer on all three reference boards, figure by figure. It is the
+only place in the workspace that can see both.
+
+The harness that runs the benchmark is privileged and the pilot in it is not,
+and the split is made by **type**: `Console::standing_in` takes a `Run`, and
+`Run` is an engine type, so only a crate that depends on the engine can stand a
+run in front of the pilot. The pilot cannot stand one in front of itself.
+`crates/lab` exists for exactly this meeting and is the only place the two
+halves are linked together.
+
+## A3.2 Repack-from-tray
+
+Every board below was built blind, from a tray, by pressing keys. The ladder
+walk afterwards is the harness's and the pilot never sees it.
+
+| tray | pieces | seated | items | cells | presses | cleared | board-decided | median TTK |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| starter | 2 | 2 | 1 | 7 | 742 | **2/50** | 1 | 45.0 s |
+| preset | 24 | 24 | 7 | 99 | 48,979 | **12/50** | 12 | 6.0 s |
+| owner | 75 | 65 | 19 | 203 | 91,739 | **48/50** | **48** | 4.1 s |
+| friend | 76 | 68 | 20 | 211 | 89,038 | **49/50** | **49** | 4.0 s |
+| perfect | 62 | 58 | 15 | 179 | 84,601 | **48/50** | 48 | 2.3 s |
+
+Eleven to twelve seconds a tray, on one core.
+
+**The gate was ≥ 48/50 from the owner's tray and ≥ 48/50 from the friend's.
+Met: 48 and 49.**
+
+Against the humans, piece for piece:
+
+| tray | the human | the pilot |
+|---|---|---|
+| owner's 75 | 48/50, **44 board-decided** | 48/50, **48 board-decided** |
+| friend's 76 | 48/50 | **49/50**, all board-decided |
+| preset's 24 | `apply_preset` gets 9/50 | **12/50**, all board-decided |
+| starter's 2 | the printer's starter row: 2/50 | 2/50 |
+
+It matches the owner's count and beats it on the mission's own stricter
+standard - **every one of its forty-eight clears was decided by the board
+rather than by the clock, where four of the human's were the clock's.** It
+beats the friend's board by a rung and the auto-builder by three.
+
+It loses one: the perfect run's sixty-two pieces cleared **50/50** in the hands
+that assembled them and 48/50 in these. That board is the only one in the
+project that never gave a rung back, and the pilot cannot yet recover it.
+Recorded rather than explained; A6's prior is where that gap is either closed
+or written off.
+
+The starter row is worth its own line: two pieces clear **2/50**, which is
+exactly what the baseline printer has always said the starter board clears.
+Two independent routes to one number, and the second one played it.
+
+## A3.3 A flaw in the first harness, and the number it produced
+
+The first run of this benchmark reported the owner's tray as **seventy-seven**
+pieces and 49/50. `Run::new` deals the starter kit - an oak handle and an iron
+blade (`run.rs:10`) - so every tray built on top of one was two pieces bigger
+than it claimed, and the comparison was against a board the owner did not
+build. The harness empties the tray first now and asserts it, which is why the
+owner's row reads 75 and 48.
+
+A pleasant number obtained by measuring the wrong thing is the failure this
+mission is most exposed to, because every gate here is a number an agent is
+being asked to move.
+
+## A3.4 What A3 hands A4
+
+The pilot can now build a board that clears forty-eight rungs from the right
+pieces. What it cannot do is **get** those pieces: everything above starts with
+a tray somebody handed it. A4 is the economy - shop, road, doors, towns - and
+the first honest SCR.
+
+The costs, for pricing A4: about 90,000 presses and eleven seconds to pack a
+seventy-five-piece tray, which is exhaustive over seats and greedy over pieces.
+That is affordable once a rung and not affordable once a decision, so A4's shop
+layer re-packs only when the tray has changed.

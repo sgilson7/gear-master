@@ -5269,8 +5269,11 @@ impl Run {
                 out.stacks = self.stacks_of("Tired");
             }
             Action::Shop => {
-                self.shop.stock_exactly(crate::piece::town_shelf());
-                out.stocked = crate::piece::town_shelf().len();
+                // This town's own seven of the eleven, so the shelf fits the
+                // screen and no two towns stock the same shop.
+                let shelf = crate::piece::town_shelf_for(self.run_seed, t.id);
+                self.shop.stock_exactly(&shelf);
+                out.stocked = shelf.len();
             }
             Action::Pub => {
                 self.shop.stock_exactly(crate::rumour::on_offer());

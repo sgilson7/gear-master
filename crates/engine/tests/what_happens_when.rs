@@ -380,3 +380,62 @@ fn a_piece_with_nothing_to_say_heads_nothing() {
     let quiet = CATALOG.iter().filter(|d| d.base == Stats::ZERO && d.triggers.is_empty()).count();
     assert!(quiet > 0, "no piece is quiet any more, so this test guards nothing");
 }
+
+/// Nothing a player can hold is a card with nothing on it.
+///
+/// Three relics - The Tally, The Odometer, The Ledger - pay off the *run*
+/// rather than off their own stat block, so their `Stats` are zero and their
+/// triggers are empty and their cards said nothing whatsoever. The interface
+/// had never mentioned the word `relic` anywhere: machinery that is complete,
+/// priced and tested, and reached by no screen.
+///
+/// The Stranger's Parcel was the fourth, and it was worse than blank: Wint
+/// hands it over with `Outcome::Give` and no courier waiting, so a player who
+/// kept it carried a dead cell for the rest of the run on a hunch that paid
+/// nothing at all.
+#[test]
+fn every_piece_a_player_can_hold_says_something() {
+    let mut mute: Vec<&str> = Vec::new();
+    for d in CATALOG {
+        let has_stats = d.base != Stats::ZERO;
+        let has_rules = !d.triggers.is_empty() || d.effect.is_some() || d.assembly_bonus.is_some();
+        let is_relic =
+            gearmaster_engine::relic::is_relic(d.name) || gearmaster_engine::relic::is_crushable(d.name);
+        let has_quest = d.quest.is_some();
+        // A rumour is one cell and deliberately says nothing on its own card:
+        // it is a condition that sits in the tray, and `rumour.rs` is where it
+        // speaks. Everything else has to have something under its name.
+        let is_rumour = gearmaster_engine::rumour::RUMOURS.iter().any(|r| r.name == d.name);
+        if !has_stats && !has_rules && !is_relic && !has_quest && !is_rumour {
+            mute.push(d.name);
+        }
+    }
+    // What is left is a backlog rather than a bug, and it is two kinds.
+    //
+    // `An Unwound Mainspring`, `Scrap Ticket` and `Platinum Chip` are
+    // **tokens**: a key to a door, a thing a pub trades for, and a casino
+    // stake - none of them gear. Their card is
+    // their name, and the road tells you what they are for at the moment it
+    // matters.
+    //
+    // The other three are ordinary catalogue pieces with no stats and no
+    // rules - shape and a price, and nothing else. That is dead content and it
+    // should go down, not up.
+    const BLANK: &[&str] = &[
+        "An Unwound Mainspring",
+        "Bulwark Bead",
+        "Chained Codex",
+        "Flywheel Cog",
+        "Glacier Ink",
+        "Platinum Chip",
+        "Scrap Ticket",
+    ];
+    mute.sort_unstable();
+    assert_eq!(
+        mute, BLANK,
+        "the set of cards with nothing on them has moved. It may go down and it \
+         may not go up: a piece a player can pick up and read has to say what it \
+         is for, and a relic or a crushable says it in `relic.rs` rather than in \
+         its own stat block."
+    );
+}

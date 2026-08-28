@@ -4358,6 +4358,35 @@ fn render_def_tooltip_inner(
             lines.push((l, col_effect()));
         }
     }
+    // A run-relic pays off the run rather than off its own stat block, so its
+    // `Stats` are zero and its triggers are empty and its card said **nothing
+    // at all**. Three of them - The Tally, The Odometer, The Ledger - and the
+    // interface had never mentioned the word `relic` anywhere: complete
+    // machinery, priced, tested, and reached by no screen.
+    //
+    // The blurb is the relic's own, from `relic.rs`, so the card cannot
+    // describe a payout the run will not make.
+    if let Some(r) = gearmaster_engine::relic::relic(def.name) {
+        lines.push((
+            words::word("card-relic", "WHILE YOU CARRY IT").to_string(),
+            col_gold(),
+        ));
+        for l in wrap(r.blurb, 46) {
+            lines.push((format!("  {l}"), col_effect()));
+        }
+    }
+    // And a crushable, which is the same fault one table along: spent rather
+    // than worn, so its stat block is empty and its blurb lived in `relic.rs`
+    // where no card looked.
+    if let Some(c) = gearmaster_engine::relic::crushable(def.name) {
+        lines.push((
+            words::word("card-crushable", "BREAK IT FOR").to_string(),
+            col_gold(),
+        ));
+        for l in wrap(c.blurb, 46) {
+            lines.push((format!("  {l}"), col_effect()));
+        }
+    }
     // The triggers split in two, and the split is the whole of T4: an
     // `OnActivate` is *what one activation hands over*, and everything else is
     // a condition. They used to be told apart by whether the action was a pool

@@ -10061,7 +10061,28 @@ pub static CATALOG: &[PieceDef] = &[
         cooldown_ms: 0,
         speed_bonus: 0,
         triggers: &[],
-        quest: None,
+        // But it is not *nothing*, which is what it was. Wint's version has no
+        // delivery behind it - `Outcome::Give` and no courier waiting - so a
+        // player who kept it was carrying a dead cell for the rest of the run
+        // on the strength of a hunch, and the hunch paid nothing.
+        //
+        // A quest rather than a stat line, because the stat line is what was
+        // wrong with it before: paying rent on arrival makes the passenger's
+        // five rungs free, and paying it on *work done* does not. Carried and
+        // seated while the gear around it goes off, it turns into the thing a
+        // man who walked off up the bank leaves you holding.
+        quest: Some(Quest {
+            label: "The Stranger's Parcel",
+            goal: 30,
+            track: QuestTrack::AdjacentActivations,
+            // Bone Charm rather than anything dearer, and the reason is a
+            // rule rather than taste: a quest reward is the far side of
+            // somebody's quest and creature boards may not wear one.
+            // Grudge Bead was the better piece and two creatures already
+            // wear it, so naming it here would have added them to a backlog
+            // that is meant to go down.
+            becomes: "Bone Charm",
+        }),
         power_bonus: 0,
         price: 1,
     },
@@ -11032,6 +11053,45 @@ pub fn is_town_only(name: &str) -> bool {
 /// the shelf failing to say what the thing is. Keyed on the kind because a
 /// name list is a thing to forget: every underlay written after this one is
 /// town gear without anybody having to remember.
+/// What one town has on its shelves, drawn from the whole town pool.
+///
+/// The pool is **eleven** and a shop holds seven, so every town used to try to
+/// show all eleven and the last four fell off the bottom of the screen. A shop
+/// that cannot be read is a shop that is not there.
+///
+/// Sampled rather than scrolled, because the alternative is better than a fix:
+/// six towns drawing seven of eleven each gives every town a shelf of its own,
+/// so "the Kettleworks has the good gloves" becomes a thing a player can
+/// learn. Scrolling would have made all six identical and added a control.
+///
+/// **Derived, never drawn from `Run::rng`.** Same run seed and same town, same
+/// shelf, for ever - and taking it off the run's own generator would shift
+/// every later roll in the game, which is a re-measurement of the whole
+/// economy to fix a layout fault. The county does this already and for the
+/// same reason.
+pub fn town_shelf_for(run_seed: u64, town_id: &str) -> Vec<&'static str> {
+    let pool = town_shelf();
+    let want = crate::shop::SHOP_SIZE;
+    if pool.len() <= want {
+        return pool.to_vec();
+    }
+    // **The curated five are never sampled out.** `towns.rs` says why in one
+    // line - "the curated five are the reason to come in; the underlays are
+    // the thing a town is the only place to buy. Both, or the shelf is half a
+    // shelf" - so what varies by town is which *ground* it has in, which is
+    // the half there is more of than a shop can hold.
+    let mut out: Vec<&'static str> = TOWN_ONLY.to_vec();
+    let mut rest: Vec<&'static str> =
+        pool.iter().copied().filter(|n| !TOWN_ONLY.contains(n)).collect();
+    let keyed = town_id.bytes().fold(0xC0FF_EE00_u64, |a, b| a.rotate_left(7) ^ b as u64);
+    let mut rng = crate::rng::Rng::new(run_seed ^ keyed);
+    while out.len() < want && !rest.is_empty() {
+        let i = rng.below(rest.len());
+        out.push(rest.remove(i));
+    }
+    out
+}
+
 pub fn town_shelf() -> &'static [&'static str] {
     static SHELF: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
     SHELF.get_or_init(|| {

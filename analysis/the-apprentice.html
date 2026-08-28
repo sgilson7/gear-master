@@ -449,7 +449,7 @@
     <div><span>Read off</span><b>020bc7c · 2026-08-28</b></div>
     <div><span>Machine</span><b>M2 Max · 8P + 4E · 32 GB</b></div>
     <div><span>Milestones</span><b>A0 – A9</b></div>
-    <div><span>Status</span><b>A0–A1 done · 4 decisions open</b></div>
+    <div><span>Status</span><b>A0–A3 done · 4 decisions open</b></div>
   </div>
 </header>
 
@@ -794,19 +794,19 @@
         <tr>
           <td class="rowlabel"><b>S0</b></td>
           <td><code>Figures::of(&amp;combat_items())</code> plus stats, item count, summed rating. No fight, no ticks, integer division per item</td>
-          <td class="n">42 ns</td>
+          <td class="n">584 ns</td>
           <td><b>yes</b> — the county tab draws it</td>
         </tr>
         <tr>
           <td class="rowlabel"><b>S1</b></td>
           <td>One fight against one spec at one difficulty</td>
-          <td class="n">0.77 ms</td>
+          <td class="n">0.24 ms</td>
           <td>no</td>
         </tr>
         <tr>
           <td class="rowlabel"><b>S2</b></td>
           <td>The ported acceptance gate: four reference boards × four difficulties</td>
-          <td class="n">5.1 ms</td>
+          <td class="n">3.9 ms</td>
           <td>no</td>
         </tr>
       </tbody>
@@ -819,10 +819,16 @@
       <code>loadout::Figures</code> — the six county tolls — is a <em>fight-free,
       player-visible</em> score of what a board does per second: mana flow, damage
       in each lane, armour, the fastest item, curse resistance. It was written so
-      a river could ask a board a question. It costs <b>42 nanoseconds</b> — one
-      seventeen-thousandth of a rung-50 fight — so a search that rejects a candidate
-      on figures pays nothing for the rejection. It is also the signal a blind pilot
-      uses to judge its own board the way a person does.
+      a river could ask a board a question. The whole surrogate costs <b>584
+      nanoseconds</b> — a four-hundredth of a fight — so a search that rejects a
+      candidate on figures pays nothing for the rejection. It is also the signal a
+      blind pilot uses to judge its own board the way a person does.</p>
+    <p>
+      A2 found the condition nobody had written down: <strong>the board has to stay
+      built.</strong> Rebuilding a 75-piece board from its placements costs 1.44 ms
+      — two and a half thousand surrogate reads, and six whole fights. A search that
+      scores a candidate by rebuilding it has already spent more than the fight it
+      was avoiding.
     </p>
   </div>
 
@@ -832,6 +838,135 @@
     at equal wall-clock, that is a finding rather than a failure — the space is
     smaller than it looks and the right investment is a better sampler.
   </p>
+</section>
+
+<!-- ============================================================ 4.5 -->
+<section>
+  <h2><span class="num">A2 · found</span>The yardstick cannot feel three of the ten themes</h2>
+  <p class="deck">
+    The theme meter's first run, and it did not report on the creatures. It
+    reported on the boards they are measured against.
+  </p>
+
+  <p>
+    <code>CurseKind::landing_ms</code> clamps curse resistance to 100 and scales a
+    curse's duration by <code>(100 − resist)/100</code>. At 100 that is total
+    immunity. <strong>The owner's finished build carries 145 and the friend's
+    135</strong> — and the entire difficulty curve is read off the owner's board at
+    Medium.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>Curses landed, and burn damage dealt, by the same creature against each board</caption>
+      <thead><tr><th>Creature</th><th class="n">four-piece</th><th class="n">preset</th><th class="n">owner</th><th class="n">friend</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">Salt Idol</td><td class="n">6 · 115</td><td class="n">6 · 155</td><td class="n zero">0 · 0</td><td class="n zero">0 · 0</td></tr>
+        <tr><td class="rowlabel">Ruin Hound</td><td class="n">10 · 228</td><td class="n">10 · 196</td><td class="n zero">0 · 0</td><td class="n zero">0 · 0</td></tr>
+        <tr><td class="rowlabel">Ember Wisp</td><td class="n">48 · 0</td><td class="n">52 · 0</td><td class="n zero">0 · 0</td><td class="n zero">0 · 0</td></tr>
+        <tr><td class="rowlabel">Cog Priest</td><td class="n">42 · 0</td><td class="n">74 · 0</td><td class="n zero">0 · 0</td><td class="n zero">0 · 0</td></tr>
+        <tr><td class="rowlabel">Obsidian Colossus</td><td class="n">99 · 0</td><td class="n">123 · 0</td><td class="n zero">0 · 0</td><td class="n zero">0 · 0</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    The creatures are not the problem — they curse constantly against a board that
+    can be cursed. Three of the ten themes speak mostly in curses, and against the
+    yardstick they are silent. So the table is printed in two columns:
+    <b>felt</b>, against the boards a player might actually have at that rung, and
+    <b>curve</b>, against the finished builds the line is read off.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>Theme fidelity, ladder rungs 1–44</caption>
+      <thead><tr><th>Theme</th><th class="n">n</th><th class="n">felt</th><th class="n">curve</th><th>the claim</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">Striker</td><td class="n">6</td><td class="n">0.55</td><td class="n">0.17</td><td>fast and fragile</td></tr>
+        <tr><td class="rowlabel">Wall</td><td class="n">7</td><td class="n">0.54</td><td class="n zero">0.07</td><td>slow, heavy, hits back</td></tr>
+        <tr><td class="rowlabel">Burner</td><td class="n">7</td><td class="n zero">0.20</td><td class="n zero">0.00</td><td>kills on the clock</td></tr>
+        <tr><td class="rowlabel">Slower</td><td class="n">8</td><td class="n">0.63</td><td class="n">0.24</td><td>denies tempo</td></tr>
+        <tr><td class="rowlabel">Drainer</td><td class="n">8</td><td class="n">0.41</td><td class="n">0.51</td><td>starves a banked build</td></tr>
+        <tr><td class="rowlabel">Caster</td><td class="n">8</td><td class="n">0.53</td><td class="n">0.50</td><td>bursty and mana-gated</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>The Burner cluster kills on the swing</h3>
+  <p>
+    Even where it is felt, Burner is the worst theme by a factor of two and a half.
+    Its gear is not the problem — Bone Cantor's Searing Cleaver applies the curse
+    twice, Ruin Hound carries four searing items — the blows simply dwarf the burn.
+    Rungs 14 to 20 are packed as strikers that happen to carry a searing word, and
+    <code>MonsterTheme::allows</code> cannot tell, because it filters the pool and
+    never reads the fight.
+  </p>
+
+  <div class="note flag">
+    <span class="tag">The meter's own trap, found by its own test</span>
+    <p>
+      <code>a_fight_where_nothing_happened_scores_nothing</code> failed on the first
+      run: <strong>Burner scored 0.50 on an empty fight.</strong> Every theme has a
+      negative half — "rather than lands", "and does little else" — and a creature
+      that does nothing satisfies all of them for free. The cheapest way to read as a
+      Burner was to be inert. That is exactly the trap the handoff predicted this
+      mission would meet, and it was in the meter before the meter had scored
+      anything.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ 4.7 -->
+<section>
+  <h2><span class="num">A3 · done</span>The pilot builds a board that clears forty-eight rungs</h2>
+  <p class="deck">
+    Blind, from a tray, by pressing keys. It never sees a fight it is not
+    standing in.
+  </p>
+
+  <p>
+    The pilot builds with two presses and no oracle: put a piece down, read what
+    the slot says, take it back if it did not help. <code>Undo</code> is a button
+    in the game, and that is what makes this legal rather than clever. What it
+    reads is the same arithmetic the oracle's surrogate does — computed from the
+    screen instead of from a loadout, because every figure it needs is drawn
+    somewhere a person looks.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>Repack-from-tray — built blind, walked by the harness</caption>
+      <thead><tr><th>Tray</th><th class="n">pieces</th><th class="n">items</th><th class="n">presses</th><th class="n">cleared</th><th class="n">board-decided</th><th>the human, same pieces</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">starter</td><td class="n">2</td><td class="n">1</td><td class="n">742</td><td class="n">2/50</td><td class="n">1</td><td>2/50 — the printer's own figure</td></tr>
+        <tr><td class="rowlabel">preset</td><td class="n">24</td><td class="n">7</td><td class="n">48,979</td><td class="n">12/50</td><td class="n">12</td><td>the auto-builder gets 9/50</td></tr>
+        <tr><td class="rowlabel">owner</td><td class="n">75</td><td class="n">19</td><td class="n">91,739</td><td class="n">48/50</td><td class="n">48</td><td>48/50, <b>44</b> board-decided</td></tr>
+        <tr><td class="rowlabel">friend</td><td class="n">76</td><td class="n">20</td><td class="n">89,038</td><td class="n">49/50</td><td class="n">49</td><td>48/50</td></tr>
+        <tr><td class="rowlabel">perfect</td><td class="n">62</td><td class="n">15</td><td class="n">84,601</td><td class="n">48/50</td><td class="n">48</td><td class="zero">50/50 — the pilot falls two short</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    It matches the owner's count and beats it on the mission's own stricter
+    standard: <strong>every one of its forty-eight clears was decided by the board
+    rather than by the clock</strong>, where four of the human's were the clock's.
+    It loses one — the perfect run's sixty-two pieces cleared 50/50 in the hands
+    that assembled them, and 48/50 in these.
+  </p>
+
+  <div class="note watch">
+    <span class="tag">A flaw in the first harness, and the number it produced</span>
+    <p>
+      The first run reported the owner's tray as <b>seventy-seven</b> pieces and
+      49/50. <code>Run::new</code> deals the starter kit, so every tray built on top
+      of one was two pieces bigger than it claimed — a comparison against a board
+      the owner did not build. A pleasant number obtained by measuring the wrong
+      thing is the failure this mission is most exposed to, because every gate here
+      is a number an agent is being asked to move.
+    </p>
+  </div>
 </section>
 
 <!-- ============================================================ 5 -->
@@ -978,16 +1113,17 @@
         <h4>The oracle and the theme meter</h4>
         <p>Memoised, incremental scoring; the ported acceptance gate; the ten
           fidelity signatures. Plus the printer that scores all 78 creatures.</p>
-        <p class="gate"><b>Gate:</b> cached equals recomputed over 10,000 lookups; the fidelity table exists and is discussed.</p>
+        <p class="gate"><b>Met.</b> 10,880 lookups, 97.5% hit rate, every one checked against the engine. The gate reproduces the original's own printed figures. The fidelity table exists — and found two balance faults.</p>
       </div>
     </li>
     <li>
       <div>
-        <h4>The packer</h4>
-        <p>Greedy plus NRPA and CEM, theme-conditioned, tiered objective,
-          parallel restarts. Two benchmarks: repack-from-tray, and creature boards
-          against the sampler's own gate.</p>
-        <p class="gate"><b>Gate:</b> ≥ 48/50 from the owner's tray and the friend's; more creatures in band than the sampler, faster.</p>
+        <h4>The pilot's hands</h4>
+        <p>Blind board sense: put a piece down, read the slot, take it back if it
+          did not help. No oracle — the score is computed from the screen. The
+          creature packer moved to A9, so that its boards come from a trained
+          agent's play rather than from a search.</p>
+        <p class="gate"><b>Met.</b> Repack-from-tray: <b>48/50</b> from the owner's 75 pieces and <b>49/50</b> from the friend's — and every clear board-decided, where four of the human's were the clock's.</p>
       </div>
     </li>
     <li>
@@ -1038,11 +1174,15 @@
     </li>
     <li>
       <div>
-        <h4>In service</h4>
-        <p>The five county creatures packed rather than borrowed. The validity
-          ledger published, re-runnable. The fourth reference build, if one was
-          found, exported as a share code the suite fights without knowing an agent
-          existed.</p>
+        <h4>The harvest, and in service</h4>
+        <p><b>The packer, from trained play.</b> A board the agent built is a board
+          the economy actually produced — which <code>pack_francis</code> never was,
+          since it draws from the whole catalogue by rating. Keep the assembled
+          items, drop gear a creature may not wear, cut to the theme's grids, trim
+          to the rung's budget, then run A2's gate and fidelity meter. The five
+          county creatures are packed here rather than borrowed; the validity ledger
+          is published; the fourth reference build, if one was found, goes in as a
+          share code the suite fights without knowing an agent existed.</p>
         <p class="gate"><b>Gate:</b> engine suite green, no new engine dependency, no new non-data file in the engine.</p>
       </div>
     </li>

@@ -8059,7 +8059,7 @@ ALTERNATES[3] The Watchers EASY Weapon 0,0 r0
 ALTERNATES[3] The Watchers EASY Weapon 1,0 r0
     Cursed Blade
 ALTERNATES[3] The Watchers EASY Weapon 2,0 r0
-    Bone Charm
+    Overflow Vial
 ALTERNATES[3] The Watchers EASY Weapon 3,0 r0
     Twinned Grip
 ALTERNATES[3] The Watchers EASY Weapon 3,2 r0
