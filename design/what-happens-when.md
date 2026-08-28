@@ -42,9 +42,14 @@ otherwise. **42 pieces** are folded this way.
 its fields are handed over *on every activation*, by the same code path as an
 `OnActivate` trigger (`combat.rs:5150`, inside the fire path):
 
-| Per activation | Passive |
-|---|---|
-| `armor`, `mana`, `mind`, `physical_damage`, `magic_damage`, `rage`, `faith`, `nature` | `health`, `strength`, `regen`, `power`, `mind_resist`, `curse_resist`, `physical_resist`, `magic_resist`, `physical_pierce`, `magic_pierce`, `physical_harden`, `magic_harden` |
+| Damage, per activation | Everything else, per activation | Passive |
+|---|---|---|
+| `physical_damage`, `magic_damage`, `mind` | `armor`, `mana`, `rage`, `faith`, `nature` | `health`, `strength`, `regen`, `power`, `mind_resist`, `curse_resist`, `physical_resist`, `magic_resist`, `physical_pierce`, `magic_pierce`, `physical_harden`, `magic_harden` |
+
+The first column is split out because damage is not one more figure in a list -
+it is the figure a reader came for, it is **totalled** rather than itemised,
+and it is the only group whose parts have to be multiplied through the item's
+own power before they mean anything. §2 gives it a group of its own.
 
 `Stats::parts()` prints all of them in one undifferentiated list, and the piece
 card renders that list as one block. So **201 pieces** carry a per-activation
@@ -78,13 +83,48 @@ two disagree about the same piece.
 
 ## 2. What a card becomes
 
-Three groups, in the order a player needs them:
+Four groups, in the order a player needs them:
 
 ```
+DAMAGE           what it hits for, totalled - and what answers it
 PASSIVE          what it is worth standing still
-WHEN IT FIRES    what one activation hands over
+WHEN IT FIRES    what else one activation hands over
 TRIGGERS         what makes it do something else
 ```
+
+**Damage is its own category and it is not the weapon's.** It belongs to any
+item that deals any, which today means a weapon that swings *or* anything at
+all that carries mind - the mind lane is the helmet's, and `item.mind` is
+handled outside the weapon branch (`combat.rs:5094`) precisely so a helmet can
+reach you. A helmet doing 40 mind gets the same top line a sword doing 61
+physical gets, because to the reader they are the same question.
+
+It stays **totalled and at the top**, the way `item_summary_lines` already
+prints `hits for 61 (21.7 a second)` with its lane breakdown beneath. That
+line is the best thing on any card in the game and none of this touches it -
+the change is that it becomes a labelled group, that mind joins it, and that
+it appears on the non-weapons that deal some.
+
+### The thing this group will expose
+
+`hit_for` returns **0 for anything that is not a weapon** (`loadout.rs:104`),
+and that is not a display shortcut - it is the fight. `second-order.md` §10
+recorded the consequence two missions ago and nothing has drawn it since:
+
+> Twenty-three components carry raw damage they can never land - twelve
+> gloves, seven chest, three greaves, one helmet - and `rating.rs` prices every
+> point of it.
+
+So a glove with `physical_damage: 8` has a figure that does nothing, and its
+card has always shown it as though it did. Once damage is a group with a
+total, that piece has a group whose total is **zero** — and the card either
+says so or omits the group, and either way the lie stops. Mind is the
+exception that proves it: same field family, different branch, and it lands
+from any slot.
+
+This makes the group an audit as well as a heading, and it is the reason to
+build it from `hit_for` and the mind lane rather than from the `Stats` fields
+directly. **The card must not total a figure the fight will not use.**
 
 Rootbound Material, today and after:
 
@@ -103,9 +143,25 @@ Rootbound Material, today and after:
 The cooldown is in the heading because it is what turns a figure into a rate,
 and it is the number the reader is missing.
 
-### Chips, because three headings is usually two too many
+A helmet that deals mind damage, which today has no total anywhere:
 
-Measured over the 518 pieces:
+```
+  Foreboding Crest              Foreboding Crest
+  helmet crest 2x2              helmet crest 2x2
+  ...                           DAMAGE
+  +11 mind                        11 mind  (3.9 a second)
+  +4 insight                    EVERY 2.8s
+  22 gold                         +4 insight   (eye)
+                                22 gold
+```
+
+### Chips, because four headings is usually three too many
+
+Damage cross-cuts the other three - a weapon has damage *and* passives - so it
+is counted separately. **201** pieces carry a damage figure of some kind, and
+how many of those the fight will actually use is what T1 has to find out.
+
+The other three, measured over the 518 pieces:
 
 | Shape | Pieces |
 |---|---:|
@@ -116,17 +172,21 @@ Measured over the 518 pieces:
 | **all three** | **1** |
 | none of the three | 29 |
 
-**One piece in the catalogue has all three groups.** Three full headings on
-every card would be two empty labels almost every time, so the headings are
-drawn only for groups that have something in them — and where a group has a
-single line, it collapses to a **chip**: the glyph, the figure, and a small
-when-mark, on one row. The same compaction the class strip and the `G`
-glossary already use.
+**One piece in the catalogue has all three of those groups**, and most have
+one. Four full headings on every card would be three empty labels almost every
+time, so headings are drawn only for groups that have something in them — and
+where a group holds a single line, it collapses to a **chip**: the glyph, the
+figure, and a small when-mark, on one row. The same compaction the class strip
+and the `G` glossary already use.
 
-The when-mark is three symbols and no words: a **dot** for standing still, a
-**spark** for one activation, a **link** for answering something else. Drawn
-once in the fourth glossary shelf (M7's HOW A FIGHT WORKS), which is already
-the page that draws relations rather than describing them.
+Damage is the exception that keeps its heading whenever it is present, because
+it is a total rather than a list and a total wants saying out loud.
+
+The when-mark is four symbols and no words: a **blade** for damage, a **dot**
+for standing still, a **spark** for one activation, a **link** for answering
+something else. Drawn once in the fourth glossary shelf (M7's HOW A FIGHT
+WORKS), which is already the page that draws relations rather than describing
+them.
 
 ---
 
@@ -156,14 +216,16 @@ Each ends green on both suites with no warnings. ▲ marks a deploy.
 ### T1 — The audit, and the printer that finds the next one
 
 - An ignored printer that walks `CATALOG` and prints, per piece, every figure
-  it grants and when it happens — the three groups, resolved.
+  it grants and when it happens — the four groups, resolved — and for each
+  damage figure, whether the fight will use it.
 - Its output committed to `analysis/what-happens-when.md`, which is the list
   the owner asked for: every piece like Rootbound Material, named.
 - **Gate:** a lint that every field `Stats::parts()` can print has a `when`,
   so a field added later cannot slip through unclassified. Red until T3 lands
   the classification, so it ships `#[ignore]`d with its reason, or T3 comes
   first — see the note at the end.
-- **Deliverable:** the disagreements are a list rather than a suspicion.
+- **Deliverable:** the disagreements are a list rather than a suspicion,
+  including the twenty-three components carrying damage the fight cannot land.
 
 ### T2 — One spelling ▲
 
@@ -195,10 +257,14 @@ reads it directly, and it is the spelling that survives an item merging.
   marked `WhenItFires` moved on the combatant, and no other. That is the test
   that makes the rest of this safe.
 
-### T4 — The piece card in three groups ▲
+### T4 — The piece card in four groups ▲
 
-- The card renders `PASSIVE` / `EVERY n.ns` / `TRIGGERS`, headings only where
-  a group is non-empty, single-line groups collapsed to a chip.
+- The card renders `DAMAGE` / `PASSIVE` / `EVERY n.ns` / `TRIGGERS`, headings
+  only where a group is non-empty, single-line groups collapsed to a chip, and
+  damage keeping its heading whenever it is there.
+- **Damage is built from what the fight uses**, not from the `Stats` fields:
+  `hit_for` for the swing, the mind lane for everything that carries it. A
+  figure the fight will not use does not get totalled - see §2.
 - The `+2 nature each time its item fires` sentence goes: the heading says
   when, so the line does not have to, and the figure gets its glyph back.
 - **Gate:** the layout test in the house style — every line and chip inside
@@ -211,13 +277,15 @@ reads it directly, and it is the spelling that survives an item merging.
 - `item_summary_lines` keeps its OUT OF COMBAT / IN COMBAT split and gains the
   third group, so a piece and the item it becomes describe themselves the same
   way.
-- The CLI's `inv` and `items` print the same three groups in text.
+- The CLI's `inv` and `items` print the same four groups in text.
 - **Gate:** a test that a piece's card and its item's card agree about which
-  group every figure is in — the disagreement that started all of this.
+  group every figure is in — the disagreement that started all of this — and
+  that the damage total on both is the number `hit_for` and the mind lane
+  actually produce, for a weapon and for a mind-dealing helmet.
 
 ### T6 — The when-marks, the shelf, and the record ▲
 
-- The three when-marks drawn, and a row on the fourth glossary shelf that
+- The four when-marks drawn, and a row on the fourth glossary shelf that
   shows what each one means by drawing it.
 - `analysis/what-happens-when.md` re-run and diffed; `CLAUDE.md`'s counts and
   a new trap — *a stat block is not a stat block; eight of its fields are a
@@ -233,9 +301,16 @@ reads it directly, and it is the spelling that survives an item merging.
 2. **`when` gets hand-written.** Then it is right for one mission. The gate at
    T3 is the whole safeguard and it should be built before the table, not
    after.
-3. **Three headings on a two-line card.** 296 pieces are passive-only and 29
+3. **Four headings on a two-line card.** 296 pieces are passive-only and 29
    have nothing at all. If the rewrite makes those cards *taller*, it has made
    the common case worse to fix the rare one. The chip collapse is not a nicety.
+6. **The damage group turns a known mispricing into a visible one.** Twenty-three
+   components will show a damage group that totals nothing, or no group where
+   the old card showed a figure. That is correct and it is `second-order.md`
+   §10 arriving on screen, but it will read as a regression to anybody who has
+   not read it - so T1's audit should name those twenty-three by piece, and T6
+   should say plainly in the record that the figures did not change, only the
+   claim about them.
 4. **`regen` reads as a per-activation figure and is not.** It is per second,
    passive, and it wears the leaf glyph — the one field most likely to be
    filed in the wrong group by eye. It is a good test case.
