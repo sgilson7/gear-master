@@ -676,6 +676,18 @@ pub fn is_mouth(p: (u8, u8)) -> bool {
     MOUTHS.iter().any(|(_, m)| *m == p)
 }
 
+/// How many answered doors the Drover gains a point of strength for.
+///
+/// **D-4, taken as recommended: shipped behind its own constant so that F14's
+/// replay can zero it in one line.** A run that dawdled meets a harder drover
+/// - pursuit punishing patience, and the sudden-death budget enforced from the
+/// other side.
+///
+/// It punishes a slow run twice, which is the argument against it: harder
+/// drover *and* fewer events left. Set this to 0 and the pursuit is the same
+/// pursuit whenever it is met, and nothing else in the game changes.
+pub const DROVER_STRENGTH_PER: u32 = 8;
+
 /// The fifth edge tile a perambulation reaches is where THE PARISH stands.
 pub const PARISH_AT: u8 = 5;
 

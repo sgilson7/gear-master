@@ -5114,11 +5114,24 @@ impl Run {
         self.forget_undo();
         // `simulate_party` steps each spec for the difficulty itself, the way
         // it does for a brawl.
-        let party: Vec<crate::combat::MonsterSpec> = crate::county::pinnacle_party(chain)
+        let mut party: Vec<crate::combat::MonsterSpec> = crate::county::pinnacle_party(chain)
             .iter()
             .filter_map(|n| crate::combat::creature(n))
             .copied()
             .collect();
+        // D-4. The Drover gets stronger with the clock: a run that dawdled
+        // meets a harder drover. Behind its own constant so that zeroing it is
+        // one line and nothing else moves - which is what taking D-4's
+        // recommendation meant.
+        if chain == crate::county::Chain::Drove {
+            let gained =
+                (self.events_resolved / crate::county::DROVER_STRENGTH_PER.max(1)) as i32;
+            if crate::county::DROVER_STRENGTH_PER > 0 {
+                for m in party.iter_mut() {
+                    m.strength += gained;
+                }
+            }
+        }
         self.fight_party(&party)
     }
 

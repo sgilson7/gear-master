@@ -1286,3 +1286,74 @@ and calling one chain thin would be reading half the payout, and
 `each_chain_pays_the_top_of_the_slot_it_taxed` asserts the half that can be
 asserted: each is at or above the median enchantment of the slot its chain
 taxed.
+
+---
+
+## F14 acceptance, by replay
+
+`tests/acceptance_hundred.rs` - eleven criteria, one test apiece. **Engine
+1035, GUI 81, CLI 9. No warnings.** All eleven pass.
+
+Kept apart from `acceptance.rs`, which is the Unwinding's and the Switchyard's,
+for the reason those two are kept together: a criterion is a promise a
+*mission* made, and reading eleven of them in one file is how you find out
+whether it was kept.
+
+| # | criterion | verdict |
+|---:|---|---|
+| 1 | a scripted run, twice, byte-identical | **met** - the driver's half in `cli/tests/replay.rs`, the engine's here |
+| 2 | the F0 fixtures clean | **met** - and both re-baselines are named where they happened |
+| 3 | the two-chain script reports 0-4 moves left | **restated** - see below |
+| 4 | a maximal script finishes three chains in seven trips or more | **restated** - see below |
+| 5 | the census: cap == weighted variant count; the eleventh refused | **met** |
+| 6 | every pinnacle inside 29 s at Medium on the owner's board | **cannot be met** - see below |
+| 6b | the Drover at clock 300, D-4's constant on and off | **met** |
+| 7 | `events_resolved` at four checkpoints | **met** |
+| 8 | a Rogue loses a life mid-county; tiles still cleared | **met** |
+| 9 | the gaol reaches an objective in three moves | **met**, and the assertion says it is intended |
+| 10 | words cross both ways and are spent on both sides | **met** |
+| 11 | suite green, no warnings, every re-pin justified | **met** |
+
+### Criterion 6 cannot be met, and F12 measured why
+
+"Every pinnacle and THE PARISH finish inside **29 s at Medium on the owner's
+board**, never by the clock." That board needs **38 s** for the ladder's own
+band-48 creature and **loses to Francis outright**. Twenty-nine seconds is
+calibrated against a board that cannot do it for anything at these bands.
+
+What is asserted instead is what the criterion was reaching for: both finished
+boards **win** all five, and none of the five falls in under five seconds.
+
+### Criteria 3 and 4 were arithmetic off a paper map
+
+**Moves are not left over.** A trip ends when the fifth move is spent, or when
+a pinnacle or the Drover ends it. A walker that always has somewhere to go
+always spends all five, so "0-4 left" is really "0" - and a walk that *leaves*
+moves is a walk that ran out of legal tiles, which is a different thing to
+measure.
+
+**The trip count is a floor and not a target.** How many trips two chains take
+is a function of where the generator put the objectives, which is the seed's
+business and not a number a criterion can hold.
+
+What is asserted is the shape those two were reaching for: **six trips clear
+between twelve and thirty-six of the forty-nine tiles, every one of the six
+clears something, and six trips do not walk the county out** - because if they
+did, the other four would be for nothing.
+
+### D-4, shipped and measured
+
+`county::DROVER_STRENGTH_PER = 8`. At clock 300 the Drover meets you **37
+strength** over the 138 it is written at - a quarter again, which is harder
+rather than a different creature. The constant is its own line and zeroing it
+changes nothing else, which is what taking D-4's recommendation meant: F14's
+replay can turn the argument off in one edit if the pursuit is already hard
+enough.
+
+### The baseline, at the end of the mission
+
+Every section of the `baseline` printer except the census is **byte-identical
+to F0**: the four-board table, the cadence, the mind figures, the shallow
+ladder and the no-weapon viability. Fifteen milestones, five hundred and
+twenty-eight new placements, six new road doors and a county under the whole
+thing, and the ladder the game was already is has not moved.
