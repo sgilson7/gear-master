@@ -795,7 +795,9 @@ fn no_budget_is_slack() {
 /// verbs before their six: a weight settled after a creature is geared against
 /// it re-gears every creature on three settings. The mirror below goes red the
 /// day any of them finds a carrier, which puts the rows back under the lint.
-const RULES_AWAITING_THEIR_PIECES: &[&str] = &["Bearing", "Overtake", "Commons"];
+/// **Empty since F6.** It held THE HUNDRED's three for one milestone, which is
+/// what the mechanism is for.
+const RULES_AWAITING_THEIR_PIECES: &[&str] = &[];
 
 #[test]
 fn every_rule_names_a_mechanic_that_exists() {

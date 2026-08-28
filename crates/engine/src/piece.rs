@@ -10696,6 +10696,143 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 0,
         price: 1,
     },
+
+    // ------------------------------------------------- THE HUNDRED, at F6
+    //
+    // Five, appended once and never inserted: `share.rs` is index-keyed into
+    // `CATALOG` and that format is append-only for ever.
+    //
+    // All five `EVENT_ONLY`, which does four jobs at once - off the road
+    // shelves, out of the crucible both ways, out of `dearer_than`, and out of
+    // every footprint family `stepped_component` walks. The three enchantments
+    // are additionally never town stock: the county's ground is dug up, not
+    // bought, and `is_town_stock` reads a kind rather than a name, so the
+    // event-only list is what keeps them off the shelf a town puts out.
+    //
+    // One per chain, in the slot that chain taxes, carrying the effect F5
+    // landed. A chain that taxes a slot and then pays out in it is the whole
+    // shape: the Ordnance charges the greaves and pays the greaves, so the
+    // board that got through the drifts is the board the reward is for.
+    PieceDef {
+        // THE ORDNANCE. A trig point is a thing standing by itself on top of a
+        // hill with nothing else on it, which is Bearing's condition drawn.
+        name: "Trig Pillar",
+        slot: SlotKind::Greaves,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (0, 1), (0, 2)],
+        base: Stats { armor: 5, curse_resist: 3, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: Some(Effect {
+            label: "counts double while it is the only item on the feet",
+            kind: EffectKind::Bearing,
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        // The tempo slot's own verb, small: what a grid spent on one item buys
+        // is that the one item comes round often.
+        speed_bonus: 10,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 40,
+    },
+    PieceDef {
+        // THE DROVE ROADS. What comes through first goes through twice.
+        name: "Drove Way",
+        slot: SlotKind::Gloves,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (1, 0), (2, 0), (3, 0)],
+        base: Stats { strength: 3, curse_resist: 4, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: Some(Effect {
+            label: "its first firing of a fight runs twice",
+            kind: EffectKind::Overtake,
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        // The reaction slot's own verb. A drove road is a road other things
+        // are moving along, and this pays for standing beside them.
+        triggers: &[Trigger::OnAdjacentActivate(Action::GainArmor(3))],
+        quest: None,
+        power_bonus: 0,
+        price: 38,
+    },
+    PieceDef {
+        // THE ENCLOSURE. A common is land nothing is fenced off from, which is
+        // the fence read backwards - and the joke the chain is named for.
+        name: "The Common Ground",
+        slot: SlotKind::Chest,
+        kind: PieceKind::Enchantment,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats { health: 26, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: Some(Effect {
+            label: "counts as touching every finished item on the board",
+            kind: EffectKind::Commons,
+            when: When::Always,
+        }),
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 42,
+    },
+
+    // The two orbs. Weapon cores first and tickets second, the way every Orb
+    // of Travel has been since the Unwinding: a run that never finds the
+    // pedestal has still got a working spell engine.
+    PieceDef {
+        // Spent at a pedestal, and it puts you down at any mouth of the county
+        // - found or not, which is the value the pedestal translation keeps.
+        name: "Surveyor's Orb",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Orb,
+        cells: &[(0, 0), (1, 0), (0, 1), (1, 1)],
+        base: Stats { mana: 3, magic_damage: 6, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: None,
+        cooldown_ms: 2600,
+        speed_bonus: 0,
+        // A theodolite takes one sighting and draws it to two places at once,
+        // which is what forking is.
+        //
+        // **Not Derail**, which was the first draft and which `catalog_shape`
+        // refused on the first run: Derail is Gloves-majority at 70% and the
+        // Signalman's Orb already holds the weapon's whole minority share. A
+        // second weapon carrier does not put one piece out of place, it moves
+        // the *balance* - which is the difference between an exclusive rule
+        // and a majority one, and the reason the majorities are written as
+        // majorities.
+        triggers: &[Trigger::SpendMana {
+            cost: 3,
+            on_success: Action::GainForking(1),
+            on_failure: Action::GainMana(2),
+        }],
+        quest: None,
+        power_bonus: 16,
+        price: 26,
+    },
+    PieceDef {
+        // Held, not spent: the first move of every trip is free. Up to six
+        // moves across a full census, which is more than a pedestal's one
+        // journey and is why this one is not a pedestal orb.
+        name: "Drover's Orb",
+        slot: SlotKind::Weapon,
+        kind: PieceKind::Orb,
+        cells: &[(0, 0), (0, 1), (0, 2), (1, 1)],
+        base: Stats { mana: 2, magic_damage: 7, ..Stats::ZERO },
+        assembly_bonus: None,
+        effect: None,
+        cooldown_ms: 2400,
+        speed_bonus: 0,
+        // Moving stock along, which is what a drover does.
+        triggers: &[Trigger::OnOtherCast(Action::Shunt { ms: 450 })],
+        quest: None,
+        power_bonus: 14,
+        price: 25,
+    },
 ];
 
 /// Gear that exists only on a boss.
@@ -10718,6 +10855,15 @@ pub fn is_boss_only(name: &str) -> bool {
 /// got them - a Platinum Chip bought off a shelf is a door key with no door
 /// behind it.
 pub const EVENT_ONLY: &[&str] = &[
+    // THE HUNDRED. Three enchantments dug out of a county and two orbs that
+    // are how you get back into it - none of them for sale anywhere, and the
+    // three enchantments not on a town's shelf either, because the county's
+    // ground is dug up rather than bought.
+    "Trig Pillar",
+    "Drove Way",
+    "The Common Ground",
+    "Surveyor's Orb",
+    "Drover's Orb",
     "Gold Chip",
     "Platinum Chip",
     "Sprocketman's Gratitude",

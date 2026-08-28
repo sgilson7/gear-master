@@ -1013,24 +1013,42 @@ fn accrue_refuses_a_fusion_in_the_fight_as_well_as_in_the_catalogue() {
 use gearmaster_engine::loadout::{bearing_doubles, join_the_commons};
 use gearmaster_engine::piece::EffectKind;
 
-/// Nothing carries them yet, and that is the milestone's own exit criterion.
+/// One carrier each, in the slot its chain taxes.
+///
+/// This was the F5 exit criterion inverted - "nothing carries them yet" - and
+/// F6 turned it over rather than deleting it, because the list is the same
+/// list either way and what changed is which side of it is right.
 #[test]
-fn the_three_new_effects_have_no_carrier_at_f5() {
-    let carried: Vec<&str> = gearmaster_engine::piece::CATALOG
-        .iter()
-        .filter(|d| {
-            matches!(
-                d.effect.map(|e| e.kind),
-                Some(EffectKind::Bearing | EffectKind::Overtake | EffectKind::Commons)
-            )
-        })
-        .map(|d| d.name)
-        .collect();
-    assert!(
-        carried.is_empty(),
-        "F5 lands the effects and F6 lands the pieces. {carried:?} arrived early, which means \
-         the weights in `rating.rs` were settled after something was priced against them"
-    );
+fn each_of_the_three_has_exactly_one_carrier() {
+    // `EffectKind` carries no `PartialEq` - it holds `Stats` and half the
+    // catalogue's vocabulary - so the predicate is a matcher rather than an
+    // equality.
+    let carriers = |want: fn(&EffectKind) -> bool| -> Vec<&str> {
+        gearmaster_engine::piece::CATALOG
+            .iter()
+            .filter(|d| d.effect.is_some_and(|e| want(&e.kind)))
+            .map(|d| d.name)
+            .collect()
+    };
+    assert_eq!(carriers(|k| matches!(k, EffectKind::Bearing)), vec!["Trig Pillar"]);
+    assert_eq!(carriers(|k| matches!(k, EffectKind::Overtake)), vec!["Drove Way"]);
+    assert_eq!(carriers(|k| matches!(k, EffectKind::Commons)), vec!["The Common Ground"]);
+
+    // And each is in the slot the rule puts it in, which `catalog_shape`
+    // enforces from the other end.
+    use gearmaster_engine::piece::SlotKind;
+    let slot = |n: &str| {
+        gearmaster_engine::piece::CATALOG.iter().find(|d| d.name == n).expect("appended").slot
+    };
+    assert_eq!(slot("Trig Pillar"), SlotKind::Greaves);
+    assert_eq!(slot("Drove Way"), SlotKind::Gloves);
+    assert_eq!(slot("The Common Ground"), SlotKind::Chest);
+
+    // None of the five is for sale anywhere, which is what makes appending
+    // them re-gear nobody.
+    for n in ["Trig Pillar", "Drove Way", "The Common Ground", "Surveyor's Orb", "Drover's Orb"] {
+        assert!(gearmaster_engine::piece::is_event_only(n), "{n} is on a shelf");
+    }
 }
 
 // ---------------------------------------------------------------- Bearing

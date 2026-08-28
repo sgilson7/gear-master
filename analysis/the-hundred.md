@@ -676,3 +676,72 @@ F13. Rated against `SoleIf`'s 22 a multiple and `DoubleAdjacentItemStat`'s 20.
 since the gear-slot rewrite. The greaves effect that shares its name does not
 share its word: it names items **Sole**. A name is a word a player reads and
 two mechanics answering to one is a name that says nothing.
+
+---
+
+## F6 the catalogue, once
+
+Five components appended and never inserted - `share.rs` is index-keyed into
+`CATALOG` and that format is append-only for ever. **Engine 982, GUI 80, CLI 8.
+No warnings.**
+
+| Piece | Slot | Chain | Carries |
+|---|---|---|---|
+| Trig Pillar | Greaves | Ordnance | `Bearing`, +10% speed |
+| Drove Way | Gloves | Drove | `Overtake`, `OnAdjacentActivate` |
+| The Common Ground | Chest | Enclosure | `Commons`, 26 health |
+| Surveyor's Orb | Weapon | Ordnance | `SpendMana` → `GainForking` |
+| Drover's Orb | Weapon | Drove | `OnOtherCast` → `Shunt` |
+
+**One per chain, in the slot that chain taxes.** The Ordnance charges the
+greaves through drifts and pays out in the greaves, so the board that got
+through is the board the reward is for.
+
+**`gear_at` is unmoved across all 6,216 placements**, which is the measured
+form of "event-only re-gears nobody", and the whole `baseline` printer is
+unchanged except the census: **512 pieces to 517**, plus the rows those five
+are counted in. The four-board table and the cadence table diff clean.
+
+### Two things refused it on the first run, and both were right
+
+**`the_turtle_theme_covers_the_catalogue`**, immediately: five pieces in plain
+words. The gear skill's rule is that `piece.rs` and the theme's table change in
+the same commit, and the lint is what makes it true rather than remembered.
+They are named for places the book has - `("Trig Pillar", "The Petonkle Trig
+Stone")`, `("Drove Way", "The Kolok Drove Road")` - with the chest one taking a
+substance, because a chestpiece is read off the defence ladder and sneel is the
+rung twenty-six health sits on.
+
+**`catalog_shape`**, on the Surveyor's Orb. Its first draft carried `Derail`,
+which is Gloves-**majority** at 70% and whose entire weapon minority share is
+already the Signalman's Orb. A second weapon carrier does not put one piece out
+of place, it moves the *balance* - which is the difference between an exclusive
+rule and a majority one, and the reason the majorities are written as
+majorities. The orb carries `SpendMana → GainForking` instead: weapon-exclusive,
+and a theodolite drawing one sighting to two places is what forking is.
+
+### Three pins moved, all three re-pinned with the reason
+
+- `RULES_AWAITING_THEIR_PIECES` emptied. `no_rule_waits_for_a_piece_that_has_arrived`
+  was red until it was, which is the mechanism doing exactly its job: F6 could
+  not land the components without putting the three rows back under the lint
+  they were exempted from.
+- `effects::the_three_new_effects_have_no_carrier_at_f5` **turned over** rather
+  than deleted, into `each_of_the_three_has_exactly_one_carrier`. The list is
+  the same list; what changed is which side of it is right.
+- `enchantment`'s count 10 to **13**, and `prices::only_the_yards_own_six_speak_the_verbs`
+  6 to **7** - the Drover's Orb speaks `Shunt`, which is the weapon's legal
+  minority share of a greaves verb. The count is a ratchet on the sentence
+  under it and the sentence has not moved: everything that speaks one of the
+  four is event-only, so none of them can reach a creature.
+
+### One law, applied twice
+
+The Switchyard's E-4 settled "ground is bought in a town, **or dug up**, and
+never for sale on the road" by filtering `town_shelf()` on `is_event_only`.
+THE HUNDRED's three needed no code at all: they are enchantments, so
+`is_town_stock` is true and `shop.rs`'s three road filters refuse them; they
+are event-only, so the cart refuses them too. `the_countys_ground_is_dug_up_and_never_sold`
+is the assertion, and it is deliberately a **second** test rather than three
+more names on `THE_YARDS_GROUND` - a list that grows every mission is a list
+that stops naming anything.

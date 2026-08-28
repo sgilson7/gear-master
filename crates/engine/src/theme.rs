@@ -913,6 +913,20 @@ pub static TURTLE_DICK: Theme = Theme {
         ("Signalman's Orb", "The Signal Ball"),
         ("A Word About the Sidings", "A Word About the Cork Yards"),
         ("A Word About the Points", "A Word About the Sprocketman's Lever"),
+        // THE HUNDRED. A county is land, so the three enchantments are places
+        // and the two balls are the warp device's lesser cousins again - the
+        // shape the yard's pair already set.
+        //
+        // Petonkle and Kolok are the book's own (proposal §1); a trig stone
+        // and a drove road are errands rather than epics, which is the
+        // register. The chest one takes a substance because a chestpiece is
+        // read off the defence ladder, and sneel is Henpeck's good steel
+        // (p. 44) - the rung twenty-six health sits on.
+        ("Trig Pillar", "The Petonkle Trig Stone"),
+        ("Drove Way", "The Kolok Drove Road"),
+        ("The Common Ground", "The Sneel Common"),
+        ("Surveyor's Orb", "The Measuring Ball"),
+        ("Drover's Orb", "The Droving Ball"),
         ("Zealot's Crest", "Rice Crier Crest"),
         ("Zealot's Haft", "Rice Crier Haft"),
         ("Zealot's Sole", "Rice Crier Sole"),
