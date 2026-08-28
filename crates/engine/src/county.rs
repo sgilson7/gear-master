@@ -1014,24 +1014,44 @@ fn arrange(seed: u64) -> Option<County> {
 
 /// The twelve tolls a county carries: two of each of the six kinds.
 ///
-/// **Starting thresholds, not measured ones.** A3 names them and F11 chooses
-/// the real numbers from F4's table of what the owner's board actually pays at
-/// rungs 10, 20, 30 and 40 - which is a measurement that cannot exist until
-/// the six figures do. Moving a number here moves no gear and re-gears
-/// nobody: a threshold is read at a tile and priced nowhere.
+/// **Measured at F11**, off F4's table of what the four reference boards
+/// actually pay. A3's starting numbers were arithmetic off a paper map and
+/// every one of them was crossed by the auto-builder's board; these are chosen
+/// so that each kind has one tier a formed board takes and one it has to be
+/// built for.
+///
+/// The figures they were chosen against, read at F4:
+///
+/// ```text
+/// build          flow    phys/s   magic/s  armour/s   fastest   hedge
+/// starter           0         0         0         0         -       0
+/// preset        2.544         6         0    32.829    1500ms      10
+/// owner         11.77    58.255     9.828    85.971    1500ms     131
+/// friend        23.23     2.083    29.868    80.569    1900ms      63
+/// ```
+///
+/// **A board that crosses rivers is not a board that climbs scarps**, and
+/// these numbers are what makes that a fact rather than a sentence: the owner
+/// fails the deep river and the magic ford, the friend fails the physical
+/// ford, the steep scarp, the fast drift and the high hedge, and neither of
+/// them crosses all twelve. `tolls::what_the_reference_boards_cross` is the
+/// pin, and moving a number here moves no gear and re-gears nobody - a
+/// threshold is read at a tile and priced nowhere.
 pub const TOLLS: [Toll; 12] = [
-    Toll::River { milli_per_s: 2000 },
-    Toll::River { milli_per_s: 4000 },
-    Toll::Ford { lane: Lane::Physical, milli_per_s: 3000 },
-    Toll::Ford { lane: Lane::Magic, milli_per_s: 5000 },
-    Toll::Scarp { milli_per_s: 2000 },
-    Toll::Scarp { milli_per_s: 4000 },
-    Toll::Drift { fastest_ms: 2500 },
-    Toll::Drift { fastest_ms: 2000 },
-    Toll::Hedge { curse_resist: 3 },
-    Toll::Hedge { curse_resist: 5 },
+    // One a formed board has, and one it has to build for.
+    Toll::River { milli_per_s: 3_000 },
+    Toll::River { milli_per_s: 15_000 },
+    Toll::Ford { lane: Lane::Physical, milli_per_s: 10_000 },
+    Toll::Ford { lane: Lane::Magic, milli_per_s: 20_000 },
+    Toll::Scarp { milli_per_s: 30_000 },
+    Toll::Scarp { milli_per_s: 84_000 },
+    // Lower is harder: a drift asks how *often* the board acts.
+    Toll::Drift { fastest_ms: 2_000 },
+    Toll::Drift { fastest_ms: 1_600 },
+    Toll::Hedge { curse_resist: 12 },
+    Toll::Hedge { curse_resist: 80 },
     Toll::Gate { bounties: 1 },
-    Toll::Gate { bounties: 1 },
+    Toll::Gate { bounties: 2 },
 ];
 
 // --------------------------------------------------------------- the checks

@@ -1102,3 +1102,51 @@ of THE THEODOLITE, because only one of its two answers taught the geometry:
 **a door that teaches you only if you pick the right answer is a door that
 punishes reading it.** Both answers teach now, and the second one says so -
 "Brass is brass, and you read the card on the way past."
+
+---
+
+## F11 thresholds, chosen from F4's table
+
+Twelve numbers, measured. **Engine 1021, GUI 81, CLI 9. No warnings.**
+
+### What each tile asks, and who gets past it
+
+```
+~R3    crossed by: owner, friend           ^D2     crossed by: preset, owner, friend
+~R15   crossed by: friend                  ^D1.6   crossed by: preset, owner
+~F10p  crossed by: owner                   #H12    crossed by: owner, friend
+~F20m  crossed by: friend                  #H80    crossed by: owner
+^S30   crossed by: preset, owner, friend   #G1x    crossed by: all four
+^S84   crossed by: owner                   #G2x    crossed by: all four
+```
+
+| board | crosses |
+|---|---:|
+| starter | 2 of 12 |
+| preset | 5 of 12 |
+| owner | 10 of 12 |
+| friend | 8 of 12 |
+
+A3's numbers were crossed by the auto-builder's board eleven times out of
+twelve. These are chosen so that **each kind has one tier a formed board takes
+and one it has to be built for**, and so that no board takes everything.
+
+### The sentence the numbers make true
+
+*A board that crosses rivers is not a board that climbs scarps.* It is
+asserted by naming the tiles rather than by counting them, because a count is
+satisfied by two boards failing the same two:
+
+- **the owner** is iron, and is refused by `~R15` and `~F20m` - the deep river
+  and the magic ford.
+- **the friend** is magic, and is refused by `~F10p`, `^S84`, `^D1.6` and
+  `#H80` - the iron ford, the steep scarp, the fast drift and the high hedge.
+  Its fastest item is 1,900 ms and the hard drift wants 1,600.
+
+### F11's stated target cannot be written, and F4 measured why
+
+"The owner's board pays 3 of 6 at rung 12, 4 of 6 at 18 and 26." A reference
+board is a **share code**: it does not grow, so five of the six figures are
+identical at every rung and only the toll gate reads the rung at all. The
+target was reaching for a spread and a spread is what is pinned - four boards
+at 2, 5, 10 and 8 of twelve, and nothing that takes all of them.

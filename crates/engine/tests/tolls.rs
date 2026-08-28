@@ -412,3 +412,109 @@ fn report_what_a_board_pays() {
         println!("{:<10} {:>8}   crossed by: {}", toll.threshold(), format!("{:?}", toll.letter()), if takers.is_empty() { "nobody".to_string() } else { takers.join(", ") });
     }
 }
+
+// ------------------------------------------------ F11: the numbers, measured
+
+/// What each of the four reference boards gets across, tile by tile.
+///
+/// **F11's pin.** A3's starting thresholds were arithmetic off a paper map and
+/// eleven of the twelve were crossed by the auto-builder's board; these are
+/// chosen off F4's measured table so that each kind has one tier a formed
+/// board takes and one it has to be built for.
+///
+/// The spec's own target - "the owner's board pays 3 of 6 at rung 12, 4 of 6
+/// at 18 and 26" - **cannot be written**, and F4 measured why: a reference
+/// board is a share code, so it does not grow, and five of the six figures are
+/// identical at every rung. Only the toll gate reads the rung at all. What is
+/// pinned instead is the thing that target was reaching for: a **spread**
+/// across the four boards, and no board that takes everything.
+#[test]
+fn what_the_reference_boards_cross() {
+    let boards: [(&str, fn() -> Run, usize); 4] = [
+        ("starter", || Run::seeded(0x5EED_1234_ABCD_0001), 2),
+        ("preset", || {
+            let mut r = Run::seeded(0x5EED_1234_ABCD_0001);
+            r.apply_preset();
+            r
+        }, 5),
+        ("owner", || common::board_from(gearmaster_engine::share::A_WINNING_RUN), 10),
+        ("friend", || common::board_from(gearmaster_engine::share::A_FRIENDS_RUN), 8),
+    ];
+    for (name, make, want) in boards {
+        let mut run = make();
+        run.rung = 20;
+        run.gold = run.rung_bounty() * 2;
+        let f = run.county_figures();
+        let crossed = county::TOLLS
+            .iter()
+            .filter(|t| t.met(&f, run.gold, run.rung_bounty()))
+            .count();
+        assert_eq!(
+            crossed, want,
+            "{name} crosses {crossed} of the twelve and the measurement said {want}. \
+             Re-pin with the new figures, from `--test tolls -- --ignored report_what_a_board_pays`"
+        );
+    }
+}
+
+/// No board takes everything, and each fails what it did not build for.
+///
+/// The sentence the numbers exist to make true: a board that crosses rivers is
+/// not a board that climbs scarps. Asserted by naming the tiles each of the
+/// two finished boards is refused by, because a count alone would be satisfied
+/// by two boards failing the same two.
+#[test]
+fn the_two_finished_boards_fail_different_things() {
+    let refused = |code: &str| -> Vec<String> {
+        let mut run = common::board_from(code);
+        run.rung = 20;
+        run.gold = run.rung_bounty() * 2;
+        let f = run.county_figures();
+        county::TOLLS
+            .iter()
+            .filter(|t| !t.met(&f, run.gold, run.rung_bounty()))
+            .map(|t| t.threshold())
+            .collect()
+    };
+    let owner = refused(gearmaster_engine::share::A_WINNING_RUN);
+    let friend = refused(gearmaster_engine::share::A_FRIENDS_RUN);
+
+    assert!(!owner.is_empty(), "the owner's board crosses every toll in the county");
+    assert!(!friend.is_empty(), "the friend's board crosses every toll in the county");
+    assert_ne!(owner, friend, "two very different boards are refused by the same tiles");
+
+    // The owner is iron and the friend is magic, and the tolls know it.
+    assert!(owner.contains(&"~F20m".to_string()), "the iron board crossed a deep magic ford");
+    assert!(friend.contains(&"~F10p".to_string()), "the magic board crossed a deep iron ford");
+    // And the friend's slower board is refused by the fast drift.
+    assert!(friend.contains(&"^D1.6".to_string()), "a 1,900 ms board crossed a 1,600 ms drift");
+}
+
+/// Every kind has one tier a formed board takes and one it has to build for.
+#[test]
+fn each_kind_has_an_easy_tier_and_a_hard_one() {
+    let mut run = common::board_from(gearmaster_engine::share::A_WINNING_RUN);
+    run.rung = 20;
+    run.gold = run.rung_bounty() * 2;
+    let f = run.county_figures();
+    let mut by_kind: std::collections::BTreeMap<char, Vec<bool>> = Default::default();
+    for t in county::TOLLS {
+        by_kind.entry(t.letter()).or_default().push(t.met(&f, run.gold, run.rung_bounty()));
+    }
+    assert_eq!(by_kind.len(), 6, "six kinds");
+    for (letter, met) in &by_kind {
+        assert_eq!(met.len(), 2, "{letter} has {} tiers", met.len());
+        assert!(
+            met[0] || met[1],
+            "{letter}: the owner's board is refused by both tiers, so this kind is a wall \
+             rather than a question"
+        );
+    }
+    // And at least two kinds refuse the owner's board somewhere, or the tiers
+    // are not tiers.
+    let has_a_hard_tier = by_kind.values().filter(|m| !m[0] || !m[1]).count();
+    assert!(
+        has_a_hard_tier >= 2,
+        "only {has_a_hard_tier} of the six kinds refuses the owner's board at either tier"
+    );
+}
