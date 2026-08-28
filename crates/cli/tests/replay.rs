@@ -156,6 +156,11 @@ fn the_road_the_driver_prints_knows_about_the_yard() {
 /// Seven fights to Sump Bottom's gate, down the steps, and every way a move
 /// can end in the transcript: an edge, fresh ground, a tile walked over twice,
 /// the last move, and one asked after the trip is spent.
+///
+/// `answer 0` after each move because a tile that asks something is answered
+/// **there** - nothing walks away from an open question, which is the bug
+/// playing it found. An `answer` with nothing asking says so and costs
+/// nothing, so the script is the same script whichever tiles come up.
 const A_TRIP: &str = "\
 sandbox
 preset
@@ -168,12 +173,18 @@ fight
 fight
 road
 go
+answer 0
 walk w
 walk e
+answer 0
 walk n
+answer 0
 walk w
+answer 0
 walk s
+answer 0
 walk e
+answer 0
 walk n
 road
 town on
@@ -250,4 +261,43 @@ quit
     );
     assert!(once.contains("gates:"), "the county drew no gates");
     assert!(once.contains("of 49 cleared"), "the county drew no tally");
+}
+
+/// The driver draws the question the tile just asked.
+///
+/// **The other half of the bug playing it found.** `show_county` printed the
+/// compass and never the question, so a walk that landed on a scene printed
+/// four directions and the scene appeared much later. A screen that can hold
+/// a question has to draw it.
+#[test]
+fn a_county_tile_asks_its_question_where_you_are_standing() {
+    let out = play("\
+sandbox
+preset
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+go
+walk e
+answer 0
+walk e
+quit
+");
+    // The mouth's own tile asks something, and the driver shows it: a title, a
+    // scene, numbered answers, and how to give one.
+    assert!(out.contains("`answer <n>`."), "the driver never offered an answer:\n{out}");
+    // And nothing walks until it is answered - the second `walk e` is the one
+    // that moves, and the first is refused with the question still up.
+    // The question comes up before anything moves: the banner that says where
+    // you are standing does not appear until the tile has been answered.
+    let asked = out.find("`answer <n>`.").expect("a question");
+    let banner = out.find("THE HUNDRED - ").expect("a banner, once the tile is done with you");
+    assert!(
+        asked < banner,
+        "the walking screen was drawn before the question on the tile under it"
+    );
 }

@@ -1421,13 +1421,28 @@ impl Run {
     /// The event standing in front of this rung, if there is one and it has
     /// not been answered.
     pub fn pending_event(&self) -> Option<&'static crate::event::LadderEvent> {
-        if self.phase != Phase::Loadout || self.at_fountain() || self.at_doubling_fountain() {
+        if self.phase != Phase::Loadout {
             return None;
+        }
+        // **A county tile's question is not behind the fountain.** The
+        // fountain is owed on a rung and the county is not a rung: a run that
+        // walked down the steps with one due would otherwise set the tile's
+        // question, see nothing, keep walking - and be asked it on the road
+        // one town later, which is what playing it looked like.
+        //
+        // Asked before the two gates rather than after, because those gates
+        // are about the *road* being ready to ask, and down here the road is
+        // not what is asking.
+        if let Some(ev) = self.county_event.and_then(crate::event::county_event) {
+            return Some(ev);
         }
         // A rumour door first: it stands on the same rung as whatever else is
         // there, and having gone to the trouble of earning it you should get
         // to see it. `standing_event` is that question; the two gates above
         // are the difference between "there" and "askable now".
+        if self.at_fountain() || self.at_doubling_fountain() {
+            return None;
+        }
         self.standing_event()
     }
 

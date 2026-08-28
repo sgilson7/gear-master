@@ -1474,3 +1474,60 @@ pale granting a trip, or THE COMMISSIONER standing where the pale can reach.
 The walker takes all ten trips including the Constable and the Waste bet
 without earning either, carries a finished board from rung one, and never
 loses. Five percent is the **optimistic** figure.
+
+---
+
+## F17 two bugs playing it found
+
+Both reported from an actual session, and the second was the cause of the
+first. **Engine 1043, GUI 81, CLI 10. No warnings.**
+
+### "The events during the county didn't resolve until after I left"
+
+THE DROWNED LANE happened on the road, one town later. Two faults, in layers.
+
+**`pending_event` was gated on the fountain.** Correctly, for the road - a
+fountain owed is answered before a door, and `road_stack` has said so since
+the Unwinding. **The county is not a rung.** A run that walked down the steps
+with a fountain due set the tile's question, was shown nothing, kept walking -
+because `county_walk` refuses on `pending_event().is_some()` and that was
+`None` - and met the scene when the fountain was finally drunk.
+
+The county's own question is asked **before** the two gates now, because those
+gates are about the *road* being ready to ask and down there the road is not
+what is asking. `a_road_door_is_still_behind_its_fountain` is the other half:
+the rule this was careful not to touch.
+
+**And two screens swallowed it.** The GUI's county branch sits two hundred
+lines above the event screen and `continue`s, so a county event was drawn by
+nothing at all. It draws the question itself now rather than falling through,
+because the town gate is still up while you are down there - the way down does
+not cost the visit - and the gate's branch is between the two. The CLI had the
+same hole: `show_county` printed the compass and never the question, and
+`show_question` is split out of `show_road` and called by both.
+
+**A screen that can hold a question has to draw it**, and three places had to
+learn it separately.
+
+### "You should be shown the map"
+
+The walking screen was a compass and a heading. Playing it made the problem
+plain: four buttons saying `B6 open ground` tell you what is next door and
+nothing about where you are, so five moves go by without a picture of the
+county they are spent in.
+
+It draws the map now - the same grid the M overlay's second tab draws, at the
+same rules, because `draw_county_grid` is one function for the same reason
+`route::route` is one function. **A tile you could step onto is ringed and can
+be clicked.** The compass is kept under it and shrunk to a row: a direction is
+what a move *is*, and two ways to say the same thing is how a screen gets
+learned.
+
+Under the map, the tile the cursor is over says what it is in words - a grid
+reference and a glyph is not a sentence, and a player one tile from a river
+wants to read what the river wants.
+
+`the_walking_screen_fits_a_map_a_compass_and_a_way_out` replaces the old
+compass test: forty-nine tiles and five controls, none overlapping, all on
+screen, the compass under the map, and thirty pixels between them for the line
+that says what you are looking at.

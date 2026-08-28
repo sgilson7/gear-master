@@ -433,6 +433,12 @@ fn print_receipt(run: &mut Run) {
 fn show_county(run: &Run) {
     use gearmaster_engine::county;
     let Some(at) = run.county_at else { return };
+    // A question on the tile you are standing on is the only thing you can do
+    // next, so it is the only thing worth printing.
+    if run.pending_event().is_some() {
+        show_question(run);
+        return;
+    }
     let c = run.county();
     // Read off `describe()` rather than formatted here, for `show_road`'s
     // reason: the banner is a reading of the run now, and two interfaces
@@ -504,10 +510,20 @@ fn show_road(run: &Run) {
         }
         println!("    `throw <n>`, or `leave`.");
     }
+    show_question(run);
+}
+
+/// Whatever is asking you something, and what it will take for an answer.
+///
+/// Split out of `show_road` because `show_county` needs it too, and needed it
+/// before this existed: a question set by walking onto a tile was printed by
+/// nothing, so a player walked five tiles past it and met it on the road one
+/// town later. A screen that can hold a question has to draw it.
+fn show_question(run: &Run) {
     if let Some(e) = run.pending_event() {
         println!("\n{}", run.theme.place(e.id, e.title));
-        for line in e.prose {
-            println!("  {}", line);
+        for line in run.theme.scene(e.id, e.prose) {
+            println!("  {}", run.theme.retell(line));
         }
         for (i, c) in e.choices.iter().enumerate() {
             let open = run.choice_open(c);
@@ -520,6 +536,7 @@ fn show_road(run: &Run) {
                 println!("        {}", c.unmet);
             }
         }
+        println!("    `answer <n>`.");
     }
 }
 

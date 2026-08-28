@@ -6943,12 +6943,20 @@ fn map_tabs() -> [Rect; 2] {
 /// Pure, for `map_tabs`'s reason. Seven by seven, centred, with room above it
 /// for the heading and below it for the gates and the checklist.
 fn county_cells() -> Vec<Rect> {
+    county_cells_at(130.0, 62.0)
+}
+
+/// The same grid, at a chosen top and cell size.
+///
+/// Two screens draw the county now - the map's second tab, and the screen you
+/// walk it on - and they draw the same grid at two sizes. One function, for
+/// the reason `route::route` is one function: two renderings of one thing
+/// cannot disagree about what the thing is.
+fn county_cells_at(y0: f32, side: f32) -> Vec<Rect> {
     let n = gearmaster_engine::county::W as usize;
-    let side = 62.0;
     let gap = 4.0;
     let w = n as f32 * side + (n - 1) as f32 * gap;
     let x0 = (LOGICAL_W - w) / 2.0;
-    let y0 = 130.0;
     (0..n)
         .flat_map(|y| {
             (0..n).map(move |x| {
@@ -6963,6 +6971,127 @@ fn county_cells() -> Vec<Rect> {
         .collect()
 }
 
+/// The forty-nine tiles, drawn.
+///
+/// **One set of drawing rules, shared by both screens that draw a county** -
+/// the map's second tab and the screen you walk it on - and the same rules
+/// `route::ascii_county` follows in characters. Filled cleared, ringed where
+/// you are, hollow somewhere you have been near, blank never been near; a
+/// toll's glyph always and its figure only when it is known; a sighting draws
+/// its whole line.
+///
+/// Returns the tile under the cursor, if any.
+fn draw_county_grid(
+    run: &Run,
+    c: &gearmaster_engine::county::County,
+    cells: &[Rect],
+    mx: f32,
+    my: f32,
+) -> Option<(u8, u8)> {
+    use gearmaster_engine::county::{self, Chain, TileKind, W};
+    let small = cells.first().map(|r| r.w < 56.0).unwrap_or(false);
+    let seen = |p: (u8, u8)| -> bool {
+        run.county_is_cleared(p)
+            || county::neighbours(p).iter().any(|n| run.county_is_cleared(*n))
+            || county::is_mouth(p)
+            || run.county_at == Some(p)
+    };
+    // Where a move could go from here, so the screen you walk on can say so.
+    let reachable: Vec<(u8, u8)> = run
+        .county_at
+        .map(|here| county::neighbours(here))
+        .unwrap_or_default();
+    let mut hovered = None;
+    for (i, cell) in cells.iter().enumerate() {
+        let p = ((i % W as usize) as u8, (i / W as usize) as u8);
+        let t = c.at(p);
+        let here = run.county_at == Some(p);
+        let known = seen(p);
+        let next_door = reachable.contains(&p);
+        let fill = if run.county_is_cleared(p) {
+            Color::from_rgba(46, 42, 30, 255)
+        } else if known {
+            Color::from_rgba(26, 26, 38, 255)
+        } else {
+            Color::from_rgba(14, 14, 22, 255)
+        };
+        draw_rectangle(cell.x, cell.y, cell.w, cell.h, fill);
+        let hot = cell.contains(Vec2::new(mx, my));
+        if hot {
+            hovered = Some(p);
+        }
+        // A tile you could step onto is ringed brighter than one you could
+        // not, which is the whole of what the walking screen has to say.
+        let (weight, ink) = if here {
+            (2.5, col_gold())
+        } else if next_door && hot {
+            (2.5, col_gold())
+        } else if next_door {
+            (2.0, col_ok())
+        } else {
+            (1.0, Color::from_rgba(52, 52, 72, 255))
+        };
+        draw_rectangle_lines(cell.x, cell.y, cell.w, cell.h, weight, ink);
+        ui_text(
+            &county::reference(p),
+            cell.x + 5.0,
+            cell.y + 13.0,
+            10.0,
+            if here { col_gold() } else { col_dim() },
+        );
+        let label = match t.kind {
+            TileKind::Feature(toll) if run.county_threshold_known(p) => toll.threshold(),
+            TileKind::Feature(toll) => format!("{}{}", toll.glyph(), toll.letter()),
+            _ if !known => String::new(),
+            TileKind::Objective { chain, nth } if run.knows_the_chain(chain) => format!(
+                "{}{nth}",
+                match chain {
+                    Chain::Ordnance => "T",
+                    Chain::Drove => "S",
+                    Chain::Enclosure => "B",
+                }
+            ),
+            TileKind::Objective { .. } => "stone".into(),
+            TileKind::Pinnacle { .. } => "***".into(),
+            TileKind::Gaol => "GAOL".into(),
+            TileKind::Event(id) if id == county::PALE => "PALE".into(),
+            TileKind::Event(_) => "?".into(),
+            TileKind::Empty => String::new(),
+        };
+        if !label.is_empty() {
+            ui_text(
+                &words::retell(&label),
+                cell.x + 5.0,
+                cell.y + if small { 28.0 } else { 36.0 },
+                if small { 12.0 } else { 14.0 },
+                if known { col_ok() } else { col_dim() },
+            );
+        }
+        if run.sightings() > 0 {
+            let written = run.county_written();
+            let on_a_line =
+                (1..=run.sightings() as u8).any(|n| written.sighting(n).contains(&p));
+            if on_a_line && !run.county_is_cleared(p) {
+                draw_rectangle_lines(
+                    cell.x + 3.0,
+                    cell.y + 3.0,
+                    cell.w - 6.0,
+                    cell.h - 6.0,
+                    1.0,
+                    Color::from_rgba(120, 110, 70, 255),
+                );
+            }
+        }
+        if run.signs_read() >= 1
+            && !run.county_chain_done(Chain::Drove)
+            && run.drover_tile() == p
+        {
+            ui_text("<>", cell.x + cell.w - 20.0, cell.y + 13.0, 12.0, col_gold());
+        }
+    }
+    hovered
+}
+
 /// THE HUNDRED, on the second tab.
 ///
 /// The same drawing rules `route::ascii_county` follows, because they are A8's
@@ -6970,7 +7099,8 @@ fn county_cells() -> Vec<Rect> {
 /// seen, blank never-been-near; a toll's glyph always and its figure only when
 /// it is known.
 fn render_county_map(run: &Run, mx: f32, my: f32) {
-    use gearmaster_engine::county::{self, Chain, TileKind, W};
+    use gearmaster_engine::county::{self, Chain};
+    let _ = Chain::Ordnance;
     ui_text(words::word("the-hundred", "THE HUNDRED"), 40.0, 52.0, 26.0, col_gold());
     if run.county_trips.is_empty() {
         ui_text(
@@ -7000,94 +7130,7 @@ fn render_county_map(run: &Run, mx: f32, my: f32) {
 
     let c = run.county();
     let cells = county_cells();
-    let seen = |p: (u8, u8)| -> bool {
-        run.county_is_cleared(p)
-            || county::neighbours(p).iter().any(|n| run.county_is_cleared(*n))
-            || county::is_mouth(p)
-            || run.county_at == Some(p)
-    };
-    let mut hovered: Option<(u8, u8)> = None;
-    for (i, cell) in cells.iter().enumerate() {
-        let p = ((i % W as usize) as u8, (i / W as usize) as u8);
-        let t = c.at(p);
-        let here = run.county_at == Some(p);
-        let known = seen(p);
-        let fill = if run.county_is_cleared(p) {
-            Color::from_rgba(46, 42, 30, 255)
-        } else if known {
-            Color::from_rgba(26, 26, 38, 255)
-        } else {
-            Color::from_rgba(14, 14, 22, 255)
-        };
-        draw_rectangle(cell.x, cell.y, cell.w, cell.h, fill);
-        draw_rectangle_lines(
-            cell.x,
-            cell.y,
-            cell.w,
-            cell.h,
-            if here { 2.5 } else { 1.0 },
-            if here { col_gold() } else { Color::from_rgba(52, 52, 72, 255) },
-        );
-        if cell.contains(Vec2::new(mx, my)) {
-            hovered = Some(p);
-        }
-        // The reference, always: a player reading a banner wants to find the
-        // tile it named.
-        ui_text(&county::reference(p), cell.x + 5.0, cell.y + 14.0, 10.0, col_dim());
-        let label = match t.kind {
-            TileKind::Feature(toll) if run.county_threshold_known(p) => toll.threshold(),
-            TileKind::Feature(toll) => format!("{}{}", toll.glyph(), toll.letter()),
-            _ if !known => String::new(),
-            // A chain nobody has explained to you is stones in fields. The
-            // three on-ramps are what turn them into numbered things.
-            TileKind::Objective { chain, nth } if run.knows_the_chain(chain) => format!(
-                "{}{nth}",
-                match chain {
-                    Chain::Ordnance => "T",
-                    Chain::Drove => "S",
-                    Chain::Enclosure => "B",
-                }
-            ),
-            TileKind::Objective { .. } => "stone".into(),
-            TileKind::Pinnacle { .. } => "***".into(),
-            TileKind::Gaol => "GAOL".into(),
-            TileKind::Event(id) if id == county::PALE => "PALE".into(),
-            TileKind::Event(_) => "?".into(),
-            TileKind::Empty => String::new(),
-        };
-        if !label.is_empty() {
-            ui_text(
-                &words::retell(&label),
-                cell.x + 5.0,
-                cell.y + 36.0,
-                14.0,
-                if known { col_ok() } else { col_dim() },
-            );
-        }
-        // A sighting draws its line, once taken.
-        if run.sightings() > 0 {
-            let written = run.county_written();
-            let on_a_line = (1..=run.sightings() as u8)
-                .any(|n| written.sighting(n).contains(&p));
-            if on_a_line && !run.county_is_cleared(p) {
-                draw_rectangle_lines(
-                    cell.x + 3.0,
-                    cell.y + 3.0,
-                    cell.w - 6.0,
-                    cell.h - 6.0,
-                    1.0,
-                    Color::from_rgba(120, 110, 70, 255),
-                );
-            }
-        }
-        // The Drover, once a sign has taught you to look.
-        if run.signs_read() >= 1
-            && !run.county_chain_done(Chain::Drove)
-            && run.drover_tile() == p
-        {
-            ui_text("<>", cell.x + cell.w - 20.0, cell.y + 14.0, 12.0, col_gold());
-        }
-    }
+    let hovered = draw_county_grid(run, &c, &cells, mx, my);
 
     // Under the grid: the gates, and whatever the hover is standing over.
     let bottom = cells.last().map(|c| c.bottom()).unwrap_or(0.0) + 26.0;
@@ -7370,37 +7413,6 @@ fn points_cells(r: Rect, n: usize) -> Vec<Rect> {
 /// What the leave button says, everywhere it is offered.
 const LEAVE_BLURB: &str = "What you cleared stays cleared. The door does not reopen.";
 
-/// The four ways out of a tile, and the way out of the county.
-///
-/// A compass rather than a row: north above, south below, east and west
-/// either side, because a player reading a grid reference off a banner and
-/// then looking for "west" wants it on the left. The way out is a strip under
-/// it, the shape `points_cells` already gives leaving.
-///
-/// Pure, and returns rectangles rather than drawing them, so a test can ask
-/// whether anything overlaps anything without a graphics context
-/// (`CLAUDE.md` §6 trap 32).
-fn compass_cells(r: Rect) -> [Rect; 5] {
-    let cw = 150.0;
-    let ch = 52.0;
-    let gap = 12.0;
-    let cx = r.x + r.w / 2.0;
-    // 236 and not 210. Three rows of the compass and the strip under it come
-    // to `3 * (ch + gap) + 6 + 30` = 228, and at 210 the way out hung eighteen
-    // pixels past the bottom border - which is `points_cells`'s own comment
-    // about its own number, found here by the same kind of test rather than by
-    // looking at it.
-    let top = r.y + r.h - 236.0;
-    [
-        // n, s, e, w - the order of `county::Step::ALL`, so the caller can zip
-        // the two and cannot get them the wrong way round.
-        Rect::new(cx - cw / 2.0, top, cw, ch),
-        Rect::new(cx - cw / 2.0, top + 2.0 * (ch + gap), cw, ch),
-        Rect::new(cx + cw / 2.0 + gap, top + ch + gap, cw, ch),
-        Rect::new(cx - cw * 1.5 - gap, top + ch + gap, cw, ch),
-        Rect::new(r.x + 28.0, top + 3.0 * (ch + gap) + 6.0, r.w - 56.0, 30.0),
-    ]
-}
 
 /// What one step says on its face: where it goes and whether it will let you.
 ///
@@ -7449,15 +7461,19 @@ fn step_label(
     Some((name, String::new(), true))
 }
 
-/// THE HUNDRED: where you are standing, and the four ways off it.
+/// THE HUNDRED: the county, and the four ways off the tile you are on.
 ///
-/// **The plainest screen that makes the county playable**, and deliberately
-/// not the map: A8's second tab on the M overlay is F9's, and this is what
-/// Deploy Point 1 needs in order to be the thing the spec says it is - a
-/// county somebody can walk far enough into to find out whether five moves
-/// feels wrong. Without it a player who takes the way down spends a trip and
-/// lands back on the town screen with no verb, which is the pedestal's old bug
-/// with a price on it.
+/// **It draws the map.** The first version was a compass and a heading, and
+/// playing it made the problem obvious - four buttons saying `B6 open ground`
+/// tell you what is next door and nothing about where you are, so five moves
+/// go by without a picture of the county they are spent in. This draws the
+/// same grid the M overlay's second tab draws, at the same rules, and the
+/// compass sits under it.
+///
+/// A tile you could step onto can be clicked. The compass is kept because a
+/// direction is what a move *is* - the county is walked N/S/E/W and naming
+/// the four is what makes that plain - and because two ways to say the same
+/// thing is how a screen gets learned.
 ///
 /// `Some(Some(step))` is a move, `Some(None)` is walking out, `None` is
 /// nothing clicked.
@@ -7467,32 +7483,79 @@ fn render_county(
     mx: f32,
     my: f32,
 ) -> Option<Option<gearmaster_engine::county::Step>> {
-    use gearmaster_engine::county::Step;
+    use gearmaster_engine::county::{self, Step};
     let Some(at) = run.county_at else { return None };
-    let pad = 70.0;
-    let w = LOGICAL_W - 2.0 * pad;
-    let h = 460.0f32.clamp(320.0, LOGICAL_H - 40.0);
-    let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, w, h);
-    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 236));
-    draw_rectangle(r.x, r.y, r.w, r.h, Color::from_rgba(18, 18, 28, 252));
-    draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, col_gold());
+    draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 246));
 
     let c = run.county();
     let title = words::retell("THE HUNDRED");
-    ui_text(&title, r.x + 28.0, r.y + 42.0, 24.0, col_gold());
-    let where_ = format!("{} - {}", gearmaster_engine::county::reference(at), words::retell(c.at(at).kind.what()));
-    ui_text(&where_, r.x + 28.0, r.y + 68.0, 15.0, Color::from_rgba(198, 200, 218, 255));
+    ui_text(&title, 40.0, 44.0, 24.0, col_gold());
+    let where_ = format!(
+        "{} - {}",
+        county::reference(at),
+        words::retell(c.at(at).kind.what())
+    );
+    ui_text(&where_, 40.0, 68.0, 15.0, Color::from_rgba(198, 200, 218, 255));
     let left = format!(
         "{} of {} moves",
         run.county_moves_left,
         gearmaster_engine::county::MOVES_A_TRIP
     );
-    ui_text(&left, r.x + r.w - 28.0 - text_width(&left, 13.0), r.y + 42.0, 13.0, col_dim());
+    ui_text(&left, LOGICAL_W - 40.0 - text_width(&left, 14.0), 44.0, 14.0, col_gold());
+    let tally = format!(
+        "{} of 49 cleared, {} of {} trips",
+        run.county_cleared.len(),
+        run.county_trips.len(),
+        gearmaster_engine::run::trip_cap()
+    );
+    ui_text(&tally, LOGICAL_W - 40.0 - text_width(&tally, 12.0), 66.0, 12.0, col_dim());
 
-    let cells = compass_cells(r);
+    // The map, smaller than the overlay's so the compass and the way out fit
+    // under it.
+    let cells = county_cells_at(88.0, 54.0);
+    let hovered = draw_county_grid(run, &c, &cells, mx, my);
+
     let mut picked = None;
+    // Clicking a tile you could step onto walks there.
+    if is_mouse_button_pressed(MouseButton::Left) {
+        if let Some(to) = hovered {
+            if let Some(s) = Step::ALL.into_iter().find(|s| s.from(at) == Some(to)) {
+                picked = Some(Some(s));
+            }
+        }
+    }
+
+    // What the cursor is over, in words, under the grid. A grid reference and
+    // a glyph is not a sentence, and a player one tile from a river wants to
+    // read what the river wants.
+    let below = cells.last().map(|r| r.bottom()).unwrap_or(0.0) + 24.0;
+    if let Some(p) = hovered {
+        match step_label(run, &c, Step::ALL.into_iter().find(|s| s.from(at) == Some(p)).unwrap_or(Step::North))
+            .filter(|_| county::manhattan(at, p) == 1)
+        {
+            Some((name, note, met)) => {
+                ui_text(&name, 40.0, below, 15.0, if met { col_gold() } else { col_dim() });
+                if !note.is_empty() {
+                    ui_text(&note, 40.0, below + 18.0, 12.0, if met { col_ok() } else { col_dim() });
+                }
+            }
+            None => {
+                let t = c.at(p);
+                ui_text(
+                    &format!("{} - {}", county::reference(p), words::retell(t.kind.what())),
+                    40.0,
+                    below,
+                    15.0,
+                    col_dim(),
+                );
+            }
+        }
+    }
+
+    // The compass, and the way out.
+    let compass = compass_cells_at(below + 34.0);
     for (i, step) in Step::ALL.into_iter().enumerate() {
-        let cell = cells[i];
+        let cell = compass[i];
         let said = step_label(run, &c, step);
         let hot = cell.contains(Vec2::new(mx, my)) && said.is_some();
         draw_rectangle(
@@ -7510,35 +7573,66 @@ fn render_county(
             if hot { 2.5 } else { 1.5 },
             if hot { col_gold() } else { Color::from_rgba(64, 64, 88, 255) },
         );
+        let compass_word = match step {
+            Step::North => "N",
+            Step::South => "S",
+            Step::East => "E",
+            Step::West => "W",
+        };
         match said {
-            // The edge of the county, which is the one refusal that is free.
-            None => ui_text(
-                words::word("county-edge", "the edge"),
-                cell.x + 12.0,
-                cell.y + 24.0,
-                13.0,
-                col_dim(),
-            ),
-            Some((name, note, met)) => {
-                ui_text(&name, cell.x + 12.0, cell.y + 22.0, 14.0, if met { col_gold() } else { col_dim() });
-                if !note.is_empty() {
-                    for (n, l) in wrap_px(&note, cell.w - 24.0, 11.0).into_iter().take(2).enumerate() {
-                        ui_text(&l, cell.x + 12.0, cell.y + 38.0 + n as f32 * 13.0, 11.0, if met { col_ok() } else { col_dim() });
-                    }
-                }
+            None => {
+                ui_text(compass_word, cell.x + 10.0, cell.y + 20.0, 13.0, col_dim());
+                ui_text(
+                    words::word("county-edge", "the edge"),
+                    cell.x + 30.0,
+                    cell.y + 20.0,
+                    12.0,
+                    col_dim(),
+                );
+            }
+            Some((name, _, met)) => {
+                ui_text(compass_word, cell.x + 10.0, cell.y + 20.0, 13.0, col_gold());
+                ui_text(
+                    &name,
+                    cell.x + 30.0,
+                    cell.y + 20.0,
+                    12.0,
+                    if met { col_ok() } else { col_dim() },
+                );
                 if hot && is_mouse_button_pressed(MouseButton::Left) {
                     picked = Some(Some(step));
                 }
             }
         }
     }
-    if leave_strip(cells[4], mx, my) {
+    if leave_strip(compass[4], mx, my) {
         picked = Some(None);
     }
     picked
 }
 
-/// The points: the roads out of the floor you just cleared, and the way home.
+/// The compass and the way out, under the map.
+///
+/// One row of four and a strip, rather than the cross the first version drew:
+/// the map is above it now and the map is where direction is read, so what is
+/// left for these to do is name the four tiles and be clickable.
+///
+/// Pure, so the geometry is testable without a font context
+/// (`CLAUDE.md` §6 trap 32).
+fn compass_cells_at(top: f32) -> [Rect; 5] {
+    let gap = 10.0;
+    let w = (LOGICAL_W - 80.0 - gap * 3.0) / 4.0;
+    let h = 34.0;
+    [
+        Rect::new(40.0, top, w, h),
+        Rect::new(40.0 + w + gap, top, w, h),
+        Rect::new(40.0 + (w + gap) * 2.0, top, w, h),
+        Rect::new(40.0 + (w + gap) * 3.0, top, w, h),
+        Rect::new(40.0, top + h + gap, LOGICAL_W - 80.0, 30.0),
+    ]
+}
+
+/// The points: the roads out of the floor you just cleared, and the way home./// The points: the roads out of the floor you just cleared, and the way home.
 ///
 /// Built on the event screen's layout on purpose. A set of points is a
 /// question with two answers and a paragraph over it, which is what an event
@@ -12310,6 +12404,39 @@ async fn main() {
         // town gate is what you come back to rather than what is in front of
         // you. `road_stack` puts it on top for the same reason.
         if run.county_at.is_some() {
+            // **A question on the tile you are standing on is asked here.**
+            //
+            // The event screen is two hundred lines below this branch and this
+            // branch `continue`s, so a county event set by walking onto a tile
+            // was drawn by nothing at all - and then appeared the moment the
+            // trip ended and `county_at` went to `None`. Which is exactly what
+            // it looked like from the outside: the drowned lane happening on
+            // the road, one town later.
+            //
+            // Asked *here* rather than by falling through, because the town
+            // gate is still up while you are down there - the way down does
+            // not cost the visit - and the gate's branch is between this one
+            // and the event screen. Falling through would have drawn the town.
+            if let Some(ev) = run.pending_event() {
+                let picked = render_event(&run, ev, &figure, mx, my);
+                render_stack_strip(&run, mx, my);
+                if let Some(c) = picked {
+                    let gave = run.take_choice(c);
+                    message = match gave {
+                        Some(name) => format!(
+                            "You hand over the {}. It counts it out twice.",
+                            words::piece(name)
+                        ),
+                        None => format!("{}.", words::retell(c.label)),
+                    };
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    frame += 1;
+                }
+                next_frame().await;
+                continue;
+            }
             match render_county(&run, mx, my) {
                 Some(Some(step)) => {
                     run.county_walk(step);
@@ -14224,39 +14351,62 @@ mod tests {
         );
     }
 
-    /// The compass fits, and no two ways off a tile share a pixel.
+    /// The county screen holds a map, a compass and a way out, and nothing
+    /// sits on anything.
     ///
-    /// The county screen's whole geometry, checked the way `pedestal_rects`
-    /// and `points_cells` are checked: `compass_cells` returns rectangles
-    /// rather than drawing them, so this needs no graphics context
+    /// It was a compass and a heading until somebody played it, and four
+    /// buttons saying `B6 open ground` tell you what is next door and nothing
+    /// about where you are. The map is the screen now and this is its
+    /// geometry, checked the way `points_cells` and `pedestal_rects` are:
+    /// `county_cells_at` and `compass_cells_at` return rectangles rather than
+    /// drawing them, so this needs no graphics context
     /// (`CLAUDE.md` §6 trap 32).
     #[test]
-    fn the_compass_fits_and_nothing_sits_on_anything() {
-        let pad = 70.0;
-        let h = 460.0f32.clamp(320.0, LOGICAL_H - 40.0);
-        let r = Rect::new(pad, (LOGICAL_H - h) / 2.0, LOGICAL_W - 2.0 * pad, h);
-        let cells = compass_cells(r);
+    fn the_walking_screen_fits_a_map_a_compass_and_a_way_out() {
+        // The same numbers `render_county` uses.
+        let cells = county_cells_at(88.0, 54.0);
+        assert_eq!(cells.len(), 49, "the county is seven by seven");
+        let bottom = cells.last().unwrap().bottom();
+        let compass = compass_cells_at(bottom + 24.0 + 34.0);
 
-        let named = ["north", "south", "east", "west", "the way out"];
-        for (n, c) in named.iter().zip(&cells) {
-            assert!(c.x >= r.x, "{n} is off the left of the panel");
-            assert!(c.x + c.w <= r.x + r.w, "{n} runs off the right of the panel");
-            assert!(c.y >= r.y, "{n} is above the panel");
-            assert!(c.y + c.h <= r.y + r.h, "{n} runs off the bottom of the panel");
+        for (i, c) in cells.iter().enumerate() {
+            assert!(c.x >= 0.0 && c.x + c.w <= LOGICAL_W, "tile {i} runs off the side");
+            assert!(c.y >= 70.0, "tile {i} is drawn over the heading");
+            assert!(c.y + c.h <= LOGICAL_H, "tile {i} runs off the bottom");
         }
+        // No two tiles share a pixel.
         for (i, a) in cells.iter().enumerate() {
             for (j, b) in cells.iter().enumerate().skip(i + 1) {
+                let over = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+                assert!(!over, "tile {i} sits on tile {j}");
+            }
+        }
+        // The compass is under the map, on the screen, and does not overlap
+        // itself or it.
+        let named = ["north", "south", "east", "west", "the way out"];
+        for (n, r) in named.iter().zip(&compass) {
+            assert!(r.x >= 0.0 && r.x + r.w <= LOGICAL_W, "{n} runs off the side");
+            assert!(r.y >= bottom, "{n} is drawn over the map");
+            assert!(
+                r.y + r.h <= LOGICAL_H,
+                "{n} runs off the bottom by {} pixels",
+                r.y + r.h - LOGICAL_H
+            );
+        }
+        for (i, a) in compass.iter().enumerate() {
+            for (j, b) in compass.iter().enumerate().skip(i + 1) {
                 let over = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
                 assert!(!over, "{} sits on {}", named[i], named[j]);
             }
         }
-        // And it is a compass rather than a row: north above south, west left
-        // of east, because a player who has just read a grid reference off the
-        // banner looks for west on the left.
-        let [n, s, e, w, _] = cells;
-        assert!(n.y < s.y, "north is below south");
-        assert!(w.x < e.x, "west is to the right of east");
-        assert!(n.x > w.x && n.x < e.x, "north is not between them");
+        // And there is room between the map and the compass for the line that
+        // says what the cursor is over.
+        assert!(
+            compass[0].y - bottom >= 30.0,
+            "only {} pixels between the map and the compass, and the hovered tile's line \
+             is drawn there",
+            compass[0].y - bottom
+        );
     }
 
     /// A step says which of the two noes it is.

@@ -1458,3 +1458,75 @@ fn first_step(run: &Run, goal: impl Fn((u8, u8)) -> bool) -> Option<Step> {
     }
     None
 }
+
+/// A question on a tile is asked **there**, and not on the road afterwards.
+///
+/// **The bug playing it found.** `pending_event` was gated on the fountain -
+/// correctly, for the road, where a fountain owed is answered before a door -
+/// and the county is not a rung. A run that walked down the steps with one
+/// due set the tile's question, was shown nothing, kept walking, and met THE
+/// DROWNED LANE on the road one town later.
+///
+/// The gate is asked **after** the county's own question now, because those
+/// gates are about the road being ready to ask and down there the road is not
+/// what is asking.
+#[test]
+fn a_county_question_is_not_behind_a_fountain() {
+    let mut run = a_run(0x1_00D);
+    // A rung with a fountain owed on it. `at_fountain` is "the next one you
+    // have not poured stands here", so standing on the rung is the whole of
+    // it - a settle would pour it.
+    run.rung = Run::FOUNTAINS[0];
+    assert!(
+        run.at_fountain() || run.at_doubling_fountain(),
+        "this test needs a fountain owed and there is not one"
+    );
+    // On the road, the fountain is still first: that rule is not what changed.
+    let road_first = run.pending_event();
+    assert!(
+        road_first.is_none(),
+        "a road door was asked over the top of a fountain, which is the rule this fix was \
+         careful not to touch"
+    );
+
+    // Down the steps, onto a tile that asks something.
+    let c = run.county_written();
+    let tile = c
+        .tiles()
+        .iter()
+        .find(|t| matches!(t.kind, TileKind::Event(id) if id != county::PALE))
+        .map(|t| t.at)
+        .expect("a county has eleven");
+    run.county_trips.push(TripSource::Town("sump-bottom"));
+    run.county_at = Some(tile);
+    run.county_moves_left = 5;
+    let ev = match c.at(tile).kind {
+        TileKind::Event(id) => id,
+        _ => unreachable!(),
+    };
+    run.county_event = Some(ev);
+
+    assert_eq!(
+        run.pending_event().map(|e| e.id),
+        Some(ev),
+        "the tile's question is invisible while a fountain is owed, so a run walks past it \
+         and meets it on the road"
+    );
+    // And nothing moves until it is answered, which is what makes it a
+    // question rather than a thing that happens to you later.
+    assert!(!run.county_walk(Step::North), "a run walked away from an unanswered question");
+    assert!(!run.county_walk(Step::South));
+}
+
+/// The fountain still comes first on the road.
+#[test]
+fn a_road_door_is_still_behind_its_fountain() {
+    let mut run = a_run(0x1_00D);
+    run.rung = Run::FOUNTAINS[0];
+    assert!(run.at_fountain() || run.at_doubling_fountain());
+    assert!(run.county_at.is_none());
+    assert!(
+        run.pending_event().is_none(),
+        "the county's fix let a road door past the fountain, which it must not"
+    );
+}
