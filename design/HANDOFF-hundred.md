@@ -31,7 +31,7 @@ milestone that wants to reopen one has something to argue against.
 | **F1** The county, generated | **done** - `analysis/the-hundred.md` "F1 the county, generated" |
 | **F2** Standing in it | **done** - `analysis/the-hundred.md` "F2 standing in it" |
 | **F3** The clock | **done** - `analysis/the-hundred.md` "F3 the clock" |
-| **F4** Tolls, and the two Requirement variants | not started |
+| **F4** Tolls, and the two Requirement variants | **done** - `analysis/the-hundred.md` "F4 tolls" — **DEPLOY POINT 1** |
 | **F5** Bearing, Overtake, Commons - inert | not started |
 | **F6** The catalogue, once | not started |
 | **F7** County events and the word crossing | not started |
@@ -108,6 +108,31 @@ county and a shop reroll are all walked past the counter to prove it.
 `answered` - declining is not answering - and it has to come off the clock too,
 or a run advances the Drover by saying "not yet" to one door repeatedly. That
 is an interception bought rather than intercepted.
+
+### F4 - Tolls, and the two Requirement variants
+
+Six figures, the tax, one-tile visibility, and two inert requirements.
+**969 engine, 78 GUI, 8 CLI. No warnings.** `baseline` byte-identical to F0
+and `gear_at` unmoved on all 6,216 placements.
+
+**A3's formula is out by a factor of a thousand and its worked example is
+right.** A stat is per activation; a rate is `stat * 1_000_000 / cooldown_ms`,
+which is what `ItemProfile::dps_milli` has computed since the gear-slot
+rewrite. `flow_is_not_mana` pins A3's pair: 2000 and 3000, and the board with
+less mana crosses the deeper river.
+
+**Every threshold A3 ships is trivially met.** Eleven of the twelve are
+crossed by the auto-builder's board and the twelfth by the starter. The owner
+pays 11.77 flow into a river asking 2 to 6 and holds 131 curse resistance
+against a hedge asking 3 to 8. D-5 said this would happen; F11 is where it is
+fixed, and F4 deliberately does not move a number - a threshold bent before the
+measurement is a threshold bent to a guess.
+
+**The rung column in F4's own deliverable says the same thing four times.** A
+share code is one board and it does not grow, so five of the six figures do not
+move with the rung; only the toll gate reads it, through the bounty. The table
+is one row a board, and F11 calibrates against the progression the four boards
+stand for.
 
 ## 3. Open questions for the user
 

@@ -116,6 +116,84 @@ impl ItemProfile {
     }
 }
 
+/// What THE HUNDRED's six tolls read off a board.
+///
+/// **Derived figures, never raw stats.** A toll asks what a board *does* a
+/// second, which is the question a river and a ford and a scarp are all
+/// versions of, and it is a different question from what a board *has*. The
+/// worked pair A3 exists for: eight mana on a four-second item pays 2,000
+/// milli-mana a second and three mana on a one-second item pays 3,000, so the
+/// worse-looking piece crosses the deeper river.
+///
+/// Everything is in **milli-units a second** - a thousandth of a point a
+/// second - with the division done per item and then summed, which is not the
+/// same as summing and then dividing and is the shape that makes a fast item
+/// worth what it is worth. No float touches any of it.
+///
+/// Over **assembled items only**. A loose piece contributes passive stats and
+/// does not act, and a toll is about acting.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Figures {
+    /// Mana a second, in thousandths. The river.
+    pub flow: i64,
+    /// Flat physical damage a second, in thousandths. One of the two fords.
+    pub physical_dps: i64,
+    /// Flat magic damage a second, in thousandths. The other.
+    pub magic_dps: i64,
+    /// Armour a second, in thousandths. The scarp.
+    pub armour_ps: i64,
+    /// The fastest assembled item, in milliseconds. The drift.
+    ///
+    /// `None` when nothing is assembled, which is not the same as slow: a
+    /// board with no items has no fastest one, and a drift asks for a board
+    /// that acts *often* rather than for a board.
+    pub fastest_ms: Option<u32>,
+    /// Summed curse resistance across assembled items. The hedge.
+    ///
+    /// The one figure that is a stat rather than a rate, because curse
+    /// resistance is a percentage held rather than a thing paid out - and a
+    /// hedge is a fence you are proof against rather than one you outrun.
+    pub curse_resist: i32,
+}
+
+/// One item's contribution to a per-second figure, in thousandths.
+///
+/// `stat * 1_000_000 / cooldown_ms`: a point per activation on a 1,000 ms item
+/// is one a second, which is 1,000 milli-units. The same arithmetic
+/// `ItemProfile::dps_milli` has always used for weapon damage.
+fn per_second_milli(stat: i32, cooldown_ms: u32) -> i64 {
+    if cooldown_ms == 0 {
+        return 0;
+    }
+    stat as i64 * 1_000_000 / cooldown_ms as i64
+}
+
+impl Figures {
+    /// Read a board's six figures off its assembled items.
+    pub fn of(items: &[ItemProfile]) -> Figures {
+        let mut f = Figures::default();
+        for i in items {
+            f.flow += per_second_milli(i.stats.mana, i.cooldown_ms);
+            f.physical_dps += per_second_milli(i.stats.physical_damage, i.cooldown_ms);
+            f.magic_dps += per_second_milli(i.stats.magic_damage, i.cooldown_ms);
+            f.armour_ps += per_second_milli(i.stats.armor, i.cooldown_ms);
+            f.curse_resist += i.stats.curse_resist;
+            if i.cooldown_ms > 0 {
+                f.fastest_ms = Some(f.fastest_ms.map_or(i.cooldown_ms, |m| m.min(i.cooldown_ms)));
+            }
+        }
+        f
+    }
+
+    /// The damage figure a ford in one lane asks for.
+    pub fn dps(&self, lane: crate::county::Lane) -> i64 {
+        match lane {
+            crate::county::Lane::Physical => self.physical_dps,
+            crate::county::Lane::Magic => self.magic_dps,
+        }
+    }
+}
+
 /// Name an item by its core piece, falling back to the first piece it has.
 fn core_name(reg: &PieceRegistry, pieces: &[PieceId]) -> String {
     pieces

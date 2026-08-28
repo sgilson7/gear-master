@@ -455,3 +455,126 @@ They stop being equal at F7: a county event id can be **arranged onto more
 than one tile** (D-2 puts eight events into twelve slots), and an id on
 `answered` is an id that never asks again. So the clock has to be its own
 number, which is what A2.2 asked for and this is the reason.
+
+---
+
+## F4 tolls, and the two Requirement variants
+
+Six figures over `Loadout`, the tax, one-tile visibility,
+`Requirement::CountyTiles` and `::CountyCleared`. **Engine 969, GUI 78, CLI 8.
+No warnings.** `baseline` byte-identical to F0, `gear_at` **6,216 placements
+unmoved**, the three road fixtures unmoved. `tests/tolls.rs` is 12 tests and a
+printer.
+
+### A3's formula is out by a factor of a thousand, and its worked example is right
+
+A3 writes `flow = sum(stats.mana * 1000 / cooldown_ms)` and calls it
+milli-mana a second. Eight mana on a 4,000 ms item gives **2** under that
+formula, and A3's own worked pair says it should pay **2000**. The factor is
+`1_000_000`, not `1000`: a stat is per *activation*, and turning it into a rate
+is `stat x (1000 ms/s) / cooldown_ms`, which in thousandths is
+`stat * 1_000_000 / cooldown_ms`.
+
+The house already computes per-second figures this way -
+`ItemProfile::dps_milli` is `hit * 1000 * 1000 / cooldown_ms` and has been
+since the gear-slot rewrite. The worked pair is the spec, the table's
+arithmetic was a slip, and `flow_is_not_mana` asserts both halves of the pair:
+2000 and 3000, and that the board with **less mana** crosses the deeper river.
+
+### The division is per item, and a test says what the other way would give
+
+`the_division_is_done_per_item_and_then_summed`: one mana on a 1,000 ms item
+and one on a 3,000 ms item pays `1000 + 333`, and it asserts *against*
+`2 * 1_000_000 / 4000` - five hundred - because the two items do not take
+turns. Rounding down happens where the division does, which is per item.
+
+### The table F11 sets thresholds from
+
+Read at this commit off `--test tolls -- --ignored report_what_a_board_pays`.
+
+```
+build          flow    phys/s   magic/s  armour/s   fastest   hedge
+starter           0         0         0         0         -       0
+preset        2.544         6         0    32.829    1500ms      10
+owner         11.77    58.255     9.828    85.971    1500ms     131
+friend        23.23     2.083    29.868    80.569    1900ms      63
+```
+
+**Five of the six figures do not move with the rung**, and that is a fact about
+the reference boards rather than about the tolls: a share code is one board and
+it does not grow. F4's deliverable asked for the owner's figures "at rungs 10,
+20, 30 and 40" and those four rows are identical. The rung is read by the toll
+gate alone, through the bounty - 34g, 134g, 224g, 328g at rungs 11, 21, 31, 41 -
+so it is printed separately. **F11 calibrates against the progression the four
+boards stand for**, not against a rung column that says the same thing four
+times.
+
+### Every threshold A3 ships is trivially met, and that is what F11 is for
+
+```
+~R2    crossed by: preset, owner, friend      ^D2.5  crossed by: preset, owner, friend
+~R4    crossed by: owner, friend              ^D2    crossed by: preset, owner, friend
+~F3p   crossed by: preset, owner              #H3    crossed by: preset, owner, friend
+~F5m   crossed by: owner, friend              #H5    crossed by: preset, owner, friend
+^S2    crossed by: preset, owner, friend      #G1x   crossed by: starter, preset, owner, friend
+^S4    crossed by: preset, owner, friend      #G1x   crossed by: starter, preset, owner, friend
+```
+
+Eleven of the twelve are crossed by the auto-builder's board and the twelfth by
+the starter. The owner pays **11.77** flow into a river asking 2 to 6, **58** physical
+a second into a ford asking 3 to 6, **86** armour a second into a scarp asking 2
+to 5, and holds **131** curse resistance against a hedge asking 3 to 8. Every
+number in A3 is roughly an order of magnitude low, and the drift is worse than
+low - the preset board's fastest item is 1,500 ms, so both drifts are free.
+
+D-5 said this would happen ("arithmetic off a paper map") and F11 is where it
+is fixed. The numbers are not moved here: F4's job is to build the ruler and a
+threshold bent before the measurement is a threshold bent to a guess.
+
+### Four decisions
+
+**F4-1. `Figures` lives in `loadout.rs` and takes `&[ItemProfile]`.** A9 says
+"six toll figures over `&Loadout`"; what the figures are actually over is
+`combat_items`, which is assembled items only, and taking the slice makes the
+one thing that matters testable without a recipe between the test and the
+arithmetic.
+
+**F4-2. `fastest_ms` is an `Option`.** A board with nothing assembled has no
+fastest item, which is not the same as a slow one - a drift asks for a board
+that acts *often*, and an empty grid does not act. `Drift { 9_999 }` refuses an
+empty board and `an_empty_board_has_no_fastest_item` says so.
+
+**F4-3. The hedge is the one figure that is a stat rather than a rate.**
+Curse resistance is a percentage held rather than a thing paid out, and a hedge
+is a fence you are proof against rather than one you outrun.
+
+**F4-4. A crossed Feature is only free while it stays cleared.** The toll is
+asked of a tile that is not yet cleared, so crossing is permanent and a run
+that strips its board keeps its bridges. `a_crossed_toll_stays_crossed` empties
+the loadout to zero and walks back over.
+
+### One thing a starter board cannot do, and a test that had to be told
+
+`a_crossed_toll_stays_crossed` was written against `Run::seeded` and failed:
+**a starter board pays no toll on any county**. That is the tolls working, not
+the test failing, and it now uses the owner's board with the reason in a
+comment. Its sibling `a_failed_toll_costs_one_move_and_no_position` keeps the
+starter board, because a board that fails everything is exactly what a test of
+the tax wants.
+
+### The two Requirement variants, inert
+
+`CountyTiles { region, at_least }` is answered by `Run::county_cleared_in` and
+works today; `CountyCleared(chain)` reads a flag no outcome sets, through
+`Run::county_chain_done`, and is false for all three until F8 can beat a
+pinnacle. Three flag names - `chain_done`, `THE_SHEET`, `PALE_OPEN` - are
+declared in `county.rs` with one accessor each on `Run`, so that F8 changes one
+place per flag rather than a `flags.contains` at a call site.
+
+### F2's walking tests all moved, and the reason is in one helper
+
+Five tests picked "any direction that is not sealed", which was true until this
+milestone made a direction a question about the board. They share
+`somewhere_to_go(&run)` now - not sealed, not the edge, and either not a toll
+or one this board pays - and it prefers somewhere uncleared so a walk covers
+ground rather than pacing between two tiles.

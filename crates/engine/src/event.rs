@@ -43,6 +43,19 @@ pub enum Requirement {
     /// arming leaves a receipt line and no explanation, which is the closest
     /// this game gets to being haunted.
     Counter { what: &'static str, at_least: u32 },
+    /// Tiles of THE HUNDRED cleared in one region, at least this many.
+    ///
+    /// The pale's checklist reads three of these (B3.1). A region rather than
+    /// a total because eighteen tiles spread across the county is two trips'
+    /// work in three directions, and eighteen in one corner is one trip walked
+    /// four times - and the Enclosure is the chain you finish by having been
+    /// everywhere.
+    CountyTiles { region: crate::county::Region, at_least: usize },
+    /// A chain of THE HUNDRED finished: its pinnacle beaten.
+    ///
+    /// The perambulation waits on all three (B5), and the two words that cross
+    /// back up onto the road wait on one.
+    CountyCleared(crate::county::Chain),
     /// An assembled item of at least this rarity, anywhere on the board.
     ///
     /// Rarity is an *item's*, not a component's - `RARE_AT` is 90 on a scale
@@ -2427,6 +2440,18 @@ impl Requirement {
             Requirement::Counter { what, at_least } => {
                 format!("Requires: {} at least {} times", what.replace('-', " "), at_least)
             }
+            Requirement::CountyTiles { region, at_least } => format!(
+                "Requires: {} tiles cleared in the {}",
+                at_least,
+                match region {
+                    crate::county::Region::North => "north",
+                    crate::county::Region::Middle => "middle",
+                    crate::county::Region::South => "south",
+                }
+            ),
+            Requirement::CountyCleared(chain) => {
+                format!("Requires: {:?} finished", chain).to_lowercase().replace("requires:", "Requires:")
+            }
             Requirement::AssembledOfRarity(r) => {
                 format!("Requires: an assembled {}", r.name())
             }
@@ -2453,6 +2478,8 @@ impl Requirement {
             | Requirement::Holding(_)
             | Requirement::Flag(_)
             | Requirement::Counter { .. }
+            | Requirement::CountyTiles { .. }
+            | Requirement::CountyCleared(_)
             | Requirement::AssembledOfRarity(_)
             | Requirement::AlignedItems(_)
             | Requirement::Purse { .. }

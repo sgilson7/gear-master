@@ -1441,6 +1441,14 @@ impl Run {
             Requirement::LooseItemOfSize { .. } => !self.offerings(c.requires).is_empty(),
             Requirement::Flag(what) => self.flags.contains(&what),
             Requirement::Counter { what, at_least } => self.counted(what) >= at_least,
+            Requirement::CountyTiles { region, at_least } => {
+                self.county_cleared_in(region) >= at_least
+            }
+            // Answered at F8, when a pinnacle can be beaten. Until then no
+            // chain is finished and nothing asks - the two variants land inert
+            // so that the milestone which authors the pale's checklist finds
+            // the requirement rather than inventing it under deadline.
+            Requirement::CountyCleared(chain) => self.county_chain_done(chain),
             Requirement::AssembledOfRarity(want) => self
                 .combat_items()
                 .iter()
@@ -2206,6 +2214,46 @@ impl Run {
         self.flags.contains(&crate::county::PALE_OPEN)
     }
 
+    /// The six figures this board pays a toll with.
+    ///
+    /// Over assembled items only, and read fresh: a player who walks up to a
+    /// river, goes back to the loadout screen and builds a mana item has
+    /// changed the answer, which is the whole point of a toll being a
+    /// measurement rather than a key.
+    pub fn county_figures(&self) -> crate::loadout::Figures {
+        crate::loadout::Figures::of(&self.combat_items())
+    }
+
+    /// Whether this tile's threshold can be read from where you are standing.
+    ///
+    /// **One tile away and not before.** A county you can read from the mouth
+    /// is a county you plan on paper; a county you can read one tile at a time
+    /// is one you walk. The Surveyor's sheet (B1, F8) is the thing that turns
+    /// the first into the second, and it is a reward for that reason.
+    pub fn county_threshold_known(&self, at: (u8, u8)) -> bool {
+        if self.county_is_cleared(at) || self.holds_the_surveyors_sheet() {
+            return true;
+        }
+        self.county_at.is_some_and(|here| crate::county::manhattan(here, at) <= 1)
+    }
+
+    /// Whether a chain of THE HUNDRED has been finished: its pinnacle beaten.
+    ///
+    /// False for all three until F8, which is the milestone that can beat one.
+    /// A method rather than three flag tests, for `pale_is_open`'s reason.
+    pub fn county_chain_done(&self, chain: crate::county::Chain) -> bool {
+        self.flags.contains(&crate::county::chain_done(chain))
+    }
+
+    /// Whether the Ordnance has paid out its sheet, which shows every
+    /// threshold from anywhere.
+    ///
+    /// Always false until F8 authors the chain that sets the flag. A method
+    /// rather than a flag test at its call site, for `pale_is_open`'s reason.
+    pub fn holds_the_surveyors_sheet(&self) -> bool {
+        self.flags.contains(&crate::county::THE_SHEET)
+    }
+
     /// Whether a tile has been cleared this run.
     pub fn county_is_cleared(&self, at: (u8, u8)) -> bool {
         self.county_cleared.contains(&at)
@@ -2293,10 +2341,31 @@ impl Run {
             self.end_county_trip_if_spent();
             return false;
         }
-        // F4 puts the toll here: a Feature whose figure you do not meet costs
-        // the move and leaves you where you were. Until the six figures exist
-        // there is nothing to fail, and a tile nobody can be refused by is a
-        // tile you walk onto.
+        // A2.1 step 2. A Feature you have already crossed is a bridge you paid
+        // for once, so this asks only of a tile that is not yet cleared.
+        if let crate::county::TileKind::Feature(toll) = county.at(to).kind {
+            if !self.county_is_cleared(to) {
+                let figures = self.county_figures();
+                let bounty = self.rung_bounty();
+                if !toll.met(&figures, self.gold, bounty) {
+                    self.county_moves_left -= 1;
+                    self.last_receipt = Some(vec![
+                        format!(
+                            "{} - {} - no",
+                            crate::county::reference(to),
+                            county.at(to).kind.what()
+                        ),
+                        toll.shortfall(&figures, self.gold, bounty),
+                        moves_left(self.county_moves_left),
+                    ]);
+                    self.end_county_trip_if_spent();
+                    return false;
+                }
+                // The gate is the only one that takes anything, and it takes
+                // it once - the tile is cleared by the crossing.
+                self.gold -= toll.toll_in_gold(bounty);
+            }
+        }
         self.county_moves_left -= 1;
         self.county_at = Some(to);
         let mut lines = vec![format!(

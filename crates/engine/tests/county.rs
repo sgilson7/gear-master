@@ -609,6 +609,37 @@ fn a_run() -> Run {
     run
 }
 
+/// A step this run can actually take from where it is standing.
+///
+/// Not sealed, not the edge, and either not a toll or one this board pays.
+/// Written once and used by every walking test, because F4 turned "any
+/// direction" into a question about the board: a starter board pays almost
+/// nothing, and five of the six tolls are a measurement of what a board does
+/// a second.
+///
+/// Prefers somewhere uncleared, so a walk covers ground rather than pacing.
+fn somewhere_to_go(run: &Run) -> Option<Step> {
+    let here = run.county_at?;
+    let c = run.county();
+    let f = run.county_figures();
+    let bounty = run.rung_bounty();
+    let passable = |s: &Step| {
+        s.from(here).is_some_and(|to| {
+            if c.is_sealed(to) && !run.pale_is_open() {
+                return false;
+            }
+            match c.at(to).kind {
+                TileKind::Feature(t) => run.county_is_cleared(to) || t.met(&f, run.gold, bounty),
+                _ => true,
+            }
+        })
+    };
+    Step::ALL
+        .into_iter()
+        .find(|s| passable(s) && s.from(here).is_some_and(|to| !run.county_is_cleared(to)))
+        .or_else(|| Step::ALL.into_iter().find(passable))
+}
+
 /// Stand at a town's gate, the way the road puts you there.
 fn at_the_gate_of(run: &mut Run, id: &str) {
     let t = town::by_id(id).expect("a town");
@@ -690,16 +721,9 @@ fn five_moves_and_a_free_arrival() {
     assert!(run.county_is_cleared(mouth), "the mouth's own tile did not resolve");
 
     // Five moves, and the fifth ends the trip.
-    let c = run.county();
     let mut taken = 0;
     for _ in 0..5 {
-        let here = run.county_at.expect("still down there");
-        let step = Step::ALL
-            .into_iter()
-            .find(|s| {
-                s.from(here).is_some_and(|to| !c.is_sealed(to))
-            })
-            .expect("somewhere to go");
+        let step = somewhere_to_go(&run).expect("somewhere to go");
         assert!(run.county_walk(step), "move {taken} refused");
         taken += 1;
         if taken < 5 {
@@ -719,8 +743,7 @@ fn a_cleared_tile_is_walked_over_and_not_visited_again() {
     let mut run = a_run();
     let mouth = MOUTHS[1].1;
     assert!(run.enter_county(TripSource::Town("kettleworks"), mouth));
-    let c = run.county();
-    let out = Step::ALL.into_iter().find(|s| s.from(mouth).is_some_and(|t| !c.is_sealed(t))).unwrap();
+    let out = somewhere_to_go(&run).expect("somewhere to go");
     let there = out.from(mouth).unwrap();
     assert!(run.county_walk(out));
     let back = Step::ALL.into_iter().find(|s| s.from(there) == Some(mouth)).unwrap();
@@ -782,8 +805,7 @@ fn walking_into_the_edge_costs_nothing() {
 fn leaving_forfeits_the_moves_and_nothing_else() {
     let mut run = a_run();
     assert!(run.enter_county(TripSource::Town("high-wick"), (6, 2)));
-    let c = run.county();
-    let out = Step::ALL.into_iter().find(|s| s.from((6, 2)).is_some_and(|t| !c.is_sealed(t))).unwrap();
+    let out = somewhere_to_go(&run).expect("somewhere to go");
     assert!(run.county_walk(out));
     let cleared = run.county_cleared.clone();
     assert_eq!(cleared.len(), 2);
@@ -898,7 +920,8 @@ fn a_death_does_not_take_the_county_away() {
             run.lives = gearmaster_engine::run::ROGUE_LIVES;
         }
         assert!(run.enter_county(TripSource::Town("sump-bottom"), MOUTHS[0].1));
-        assert!(run.county_walk(Step::North));
+        let step = somewhere_to_go(&run).expect("somewhere to go");
+        assert!(run.county_walk(step));
         assert!(run.leave_county());
         let kept = run.county_cleared.clone();
         let trips = run.county_trips.clone();
@@ -920,7 +943,8 @@ fn a_death_does_not_take_the_county_away() {
 fn a_wipe_takes_it_all() {
     let mut run = a_run();
     assert!(run.enter_county(TripSource::Town("sump-bottom"), MOUTHS[0].1));
-    assert!(run.county_walk(Step::North));
+    let step = somewhere_to_go(&run).expect("somewhere to go");
+    assert!(run.county_walk(step));
     let seed = run.county_seed();
     run.wipe();
     assert!(run.county_cleared.is_empty(), "a wipe kept the county");
@@ -954,12 +978,13 @@ fn the_run_derives_its_county_and_never_stores_one() {
 fn a_move_is_refused_when_something_else_is_up() {
     let mut run = a_run();
     assert!(run.enter_county(TripSource::Town("sump-bottom"), MOUTHS[0].1));
+    let step = somewhere_to_go(&run).expect("somewhere to go");
     run.begin_fight();
-    assert!(!run.county_walk(Step::North), "walked mid-fight");
+    assert!(!run.county_walk(step), "walked mid-fight");
     assert!(!run.leave_county(), "left mid-fight");
     run.settle();
     run.back_to_loadout();
-    assert!(run.county_walk(Step::North), "the fight kept the county shut");
+    assert!(run.county_walk(step), "the fight kept the county shut");
 }
 
 /// Three pinned towns, fifteen moves, and the county remembers all of it.
@@ -976,7 +1001,6 @@ fn a_move_is_refused_when_something_else_is_up() {
 #[test]
 fn three_towns_and_fifteen_moves() {
     let mut run = a_run();
-    let c = run.county();
     let mut trips = 0;
     for id in ["sump-bottom", "kettleworks", "high-wick"] {
         at_the_gate_of(&mut run, id);
@@ -985,15 +1009,9 @@ fn three_towns_and_fifteen_moves() {
         trips += 1;
 
         for m in 0..5 {
-            let here = run.county_at.expect("still down there");
-            let legal = |s: &Step| {
-                s.from(here).is_some_and(|to| !c.is_sealed(to) || run.pale_is_open())
-            };
-            let step = Step::ALL
-                .into_iter()
-                .find(|s| legal(s) && s.from(here).is_some_and(|to| !run.county_is_cleared(to)))
-                .or_else(|| Step::ALL.into_iter().find(legal))
-                .expect("somewhere to go");
+            let step = somewhere_to_go(&run).unwrap_or_else(|| {
+                panic!("{id}, move {m}: nowhere this board can go")
+            });
             assert!(run.county_walk(step), "{id}, move {m}: refused");
         }
         assert_eq!(run.county_at, None, "{id}'s trip did not end");
@@ -1079,11 +1097,7 @@ fn the_clock_counts_doors_and_nothing_else() {
     at_the_gate_of(&mut run, "kettleworks");
     run.visit_town(Action::County);
     for _ in 0..5 {
-        let here = run.county_at.expect("down there");
-        let c = run.county();
-        if let Some(step) =
-            Step::ALL.into_iter().find(|s| s.from(here).is_some_and(|t| !c.is_sealed(t)))
-        {
+        if let Some(step) = somewhere_to_go(&run) {
             run.county_walk(step);
         }
     }

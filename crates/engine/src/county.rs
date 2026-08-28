@@ -105,6 +105,86 @@ pub enum Toll {
 }
 
 impl Toll {
+    /// Whether a board and a purse get across.
+    ///
+    /// `gold` and `bounty` are only read by the toll gate, and it is the only
+    /// one that **spends** anything - the other five are a measurement of the
+    /// board rather than a price, so crossing one costs nothing and crossing
+    /// it again costs nothing twice.
+    pub fn met(&self, f: &crate::loadout::Figures, gold: i32, bounty: i32) -> bool {
+        match *self {
+            Toll::River { milli_per_s } => f.flow >= milli_per_s as i64,
+            Toll::Ford { lane, milli_per_s } => f.dps(lane) >= milli_per_s as i64,
+            Toll::Scarp { milli_per_s } => f.armour_ps >= milli_per_s as i64,
+            // A board with nothing assembled has no fastest item, which is not
+            // the same as a slow one: a drift asks for a board that acts often
+            // and an empty grid does not act at all.
+            Toll::Drift { fastest_ms } => f.fastest_ms.is_some_and(|ms| ms <= fastest_ms),
+            Toll::Hedge { curse_resist } => f.curse_resist >= curse_resist,
+            Toll::Gate { bounties } => gold >= bounties as i32 * bounty,
+        }
+    }
+
+    /// What crossing costs, which is nothing except at the gate.
+    pub fn toll_in_gold(&self, bounty: i32) -> i32 {
+        match *self {
+            Toll::Gate { bounties } => bounties as i32 * bounty,
+            _ => 0,
+        }
+    }
+
+    /// The figure this toll reads, and the figure it wants, for a receipt that
+    /// says how far short a board fell rather than that it fell short.
+    pub fn shortfall(&self, f: &crate::loadout::Figures, gold: i32, bounty: i32) -> String {
+        match *self {
+            Toll::River { milli_per_s } => {
+                format!("mana a second {} against {}", milli(f.flow), milli(milli_per_s as i64))
+            }
+            Toll::Ford { lane, milli_per_s } => format!(
+                "{} damage a second {} against {}",
+                match lane {
+                    Lane::Physical => "physical",
+                    Lane::Magic => "magic",
+                },
+                milli(f.dps(lane)),
+                milli(milli_per_s as i64)
+            ),
+            Toll::Scarp { milli_per_s } => {
+                format!("armour a second {} against {}", milli(f.armour_ps), milli(milli_per_s as i64))
+            }
+            Toll::Drift { fastest_ms } => format!(
+                "fastest item {} against {} ms",
+                f.fastest_ms.map(|m| format!("{m} ms")).unwrap_or_else(|| "nothing assembled".into()),
+                fastest_ms
+            ),
+            Toll::Hedge { curse_resist } => {
+                format!("curse resistance {} against {}", f.curse_resist, curse_resist)
+            }
+            Toll::Gate { bounties } => {
+                format!("{}g against {}g", gold, bounties as i32 * bounty)
+            }
+        }
+    }
+
+    /// What the tile says it wants, when a player is close enough to read it.
+    pub fn threshold(&self) -> String {
+        match *self {
+            Toll::River { milli_per_s } => format!("~R{}", milli(milli_per_s as i64)),
+            Toll::Ford { lane, milli_per_s } => format!(
+                "~F{}{}",
+                milli(milli_per_s as i64),
+                match lane {
+                    Lane::Physical => "p",
+                    Lane::Magic => "m",
+                }
+            ),
+            Toll::Scarp { milli_per_s } => format!("^S{}", milli(milli_per_s as i64)),
+            Toll::Drift { fastest_ms } => format!("^D{}", milli(fastest_ms as i64)),
+            Toll::Hedge { curse_resist } => format!("#H{curse_resist}"),
+            Toll::Gate { bounties } => format!("#G{bounties}x"),
+        }
+    }
+
     /// The glyph the map draws, and the prefix its threshold is printed
     /// against. Canonical: the theme layer retells the *word*, never this.
     pub const fn glyph(&self) -> char {
@@ -149,6 +229,24 @@ pub const UNARRANGED: &str = "county-event-unarranged";
 /// kind of tile. It costs `TileKind` no variant and the pale nothing it was
 /// promised.
 pub const PALE: &str = "the-pale";
+
+/// The flag a chain sets when its pinnacle goes down.
+///
+/// Authored at F8. Named here for the reason the other two are: the county is
+/// what the flag is about, and one place asks.
+pub const fn chain_done(chain: Chain) -> &'static str {
+    match chain {
+        Chain::Ordnance => "the-ordnance-is-done",
+        Chain::Drove => "the-drove-roads-are-done",
+        Chain::Enclosure => "the-enclosure-is-done",
+    }
+}
+
+/// The flag the Ordnance's sheet sets: every threshold visible from anywhere.
+///
+/// Authored at F8. Named here because a threshold's visibility is the county's
+/// business, and `Run::holds_the_surveyors_sheet` is the one place that asks.
+pub const THE_SHEET: &str = "the-surveyors-sheet";
 
 /// The flag the pale's own choice sets, and the far corner reads.
 ///
@@ -355,6 +453,18 @@ impl County {
             i += 1;
         }
         County { tiles, hill, bearings, pale, sealed, attempts }
+    }
+}
+
+/// A milli-unit figure, said the way a person reads it: 2000 is `2`, 2500 is
+/// `2.5`. Integer arithmetic all the way down; the decimal point is printing.
+pub fn milli(n: i64) -> String {
+    let whole = n / 1000;
+    match (n % 1000).abs() {
+        0 => format!("{whole}"),
+        r if r % 100 == 0 => format!("{whole}.{}", r / 100),
+        r if r % 10 == 0 => format!("{whole}.{:02}", r / 10),
+        r => format!("{whole}.{r:03}"),
     }
 }
 
