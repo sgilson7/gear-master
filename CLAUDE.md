@@ -161,7 +161,7 @@ recipe become an *item* that acts. Recipes (`piece.rs:1039`):
 
 | Slot | Recipes |
 |---|---|
-| Weapon | Handle + 1-2 Damaging + 0-2 Accessory · Book + Ink + Spell + 0-1 Accessory · Orb + 2-3 Spell + 0-1 Alignment |
+| Weapon | Handle + 1-2 Damaging + 0-2 Accessory · **Book + 1-2 Spell + 0-2 Ink + 0-1 Alignment + 0-1 Accessory** · Orb + 2-3 Spell + 0-1 Alignment |
 | Helmet | Frame + 1-2 Plating + 0-1 Crest |
 | Chest | Base + 1-3 Layer |
 | Gloves | Material + Mold + 0-2 Ring |
@@ -309,21 +309,18 @@ print them beside their figures, and the glossary's fourth shelf draws what
 each one pays instead of describing it.
 `design/assembly-bonuses-and-books.md` §5 is the ledger.
 
-**M3, the book recipe, is blocked and it is the one thing left.** Relaxing it
-to Book + Spells does what it should and then beats THE UNWOUND in 10.0s,
-which `acceptance::e6_5` refuses. The cause is not the recipe: **THE UNWOUND
-lives in `ALTERNATES`, not `LADDER`**, so `loadout_at`'s depth lookup returns
-`None` and it is geared with no piercing and no hardening at all. Branch
-`unwound-depth` carries the fix and breaks exactly one test, because restoring
-the defences makes it unbeatable by the boards that exist. It wants
-re-authoring, not tuning. §6 of the design document has the sweeps.
+**M3, the book recipe, is done.** It was blocked for two missions on a
+measurement that stopped being true: relaxing it to
+`Book 1 + Spell 1-2 + Ink 0-2 + Alignment 0-1 + Accessory 0-1` was said to
+beat THE UNWOUND in 10.0s, and it does not - all three reference boards still
+lose to it, before and after. The friend's grid re-partitions exactly as
+predicted, 17 items to 18, because Chained Codex, Gravebloom Ink, Pilgrim
+Alignment and Forking Bead were **loose pieces** the strict recipe could not
+bind. `design/assembly-bonuses-and-books.md` §6 has what it cost, measured.
 
-**What the county did *not* answer** is the same gap it inherited: nothing
-demonstrates that a build a *seed's own shop economy* can produce fights its
-way to any given door. THE HUNDRED adds a second thing a board is measured
-against - six figures read off the assembled items - and `tolls.rs` is the
-first place in the repository that says what a board pays rather than whether
-it wins. That is a ruler, not a solver.
+**The `?` beside a slot needed no change for it**, and that is worth knowing
+before you go looking: `recipe_tip` reads `recipe_parts`, which reads
+`recipes`. The recipe is the only place a recipe is written down.
 
 **The mission after that is `design/rl-agent-plan.md`**: make the game playable
 by a reinforcement-learning agent, with no generative AI anywhere in the loop,

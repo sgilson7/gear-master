@@ -1243,15 +1243,33 @@ pub fn recipes(kind: SlotKind) -> &'static [&'static [(PieceKind, usize, usize)]
                 (PieceKind::Damaging, 1, 2),
                 (PieceKind::Accessory, 0, 2),
             ],
+            // The book: a core and something to cast, and everything else is
+            // a choice. `design/assembly-bonuses-and-books.md` §2.2, which
+            // this had not caught up with - the recipe wanted an ink and took
+            // exactly one spell, so "a book build" meant one arrangement.
+            //
+            // **Every bound here is relaxed and none is tightened**, which is
+            // why it cannot break a board: anything that assembled before
+            // still assembles. The four creature boards built around book
+            // cores - Chained Codex, Leaden Tome, Apprentice's Primer, Grand
+            // Grimoire - all keep working, and `gear_at` says so.
+            //
+            // The two identities separate properly once it is written this
+            // way. **The book is the focused caster**: one or two spells and
+            // up to two inks multiplying them, and ink stacking is its whole
+            // argument. **The orb is the broad one**: two or three spells, no
+            // ink at all, one alignment colouring every one of them - a choice
+            // about *which* pool the whole ball leans on rather than a flat
+            // multiplier. They overlap at two spells, and that is fine: there
+            // the book is paying cells for multipliers and the orb is paying
+            // them for a third payload.
             &[
                 (PieceKind::Book, 1, 1),
-                (PieceKind::Ink, 1, 1),
-                (PieceKind::Spell, 1, 1),
+                (PieceKind::Spell, 1, 2),
+                (PieceKind::Ink, 0, 2),
+                (PieceKind::Alignment, 0, 1),
                 (PieceKind::Accessory, 0, 1),
             ],
-            // An orb takes no ink. Its spells are scaled by the alignment set
-            // into it instead, which is a choice about *which* pool the whole
-            // ball leans on rather than a flat multiplier.
             &[
                 (PieceKind::Orb, 1, 1),
                 (PieceKind::Spell, 2, 3),

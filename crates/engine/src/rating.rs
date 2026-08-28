@@ -1277,9 +1277,21 @@ mod tests {
                 .map(shop_price)
                 .min()
                 .expect("the catalogue has these");
+            // **Three, not four, since the book recipe caught up with §2.2.**
+            // A book may hold two spells, two inks, an alignment and an
+            // accessory now, so the best *possible* weapon item is a bigger
+            // item than it was - and every rating in the slot is a fraction of
+            // that ceiling, so every weapon piece deflated slightly.
+            //
+            // Exactly one piece crossed a boundary: **Stray Orb, 4g to 3g**.
+            // Nothing else moved - not a rarity row, not a quota, not one
+            // figure of the four-board table. The catalogue's own floor is
+            // **2g**, so a multiplier still costs more than a blank, which is
+            // what this test is about and what it still says.
             assert!(
-                cheapest >= 4,
-                "{:?} start at {}g, which is what a piece that does nothing costs",
+                cheapest >= 3,
+                "{:?} start at {}g, and the cheapest piece in the game is 2g - so this one \
+                 is priced as a piece that does nothing",
                 kind,
                 cheapest
             );

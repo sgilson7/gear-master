@@ -552,18 +552,42 @@ fn a_martial_weapon_still_assembles_alongside_the_new_recipes() {
     assert_eq!(run.report(SlotKind::Weapon).assembled_count(), 1);
 }
 
+/// A book takes a second spell, and an orb still wants two.
+///
+/// **Its name was the old rule** - `a_book_will_not_take_a_second_spell` -
+/// which is the shape §2.2 of `design/assembly-bonuses-and-books.md` was
+/// written to change: the book took exactly one spell and required an ink, so
+/// "a book build" meant one arrangement. It takes one or two spells now, with
+/// the ink optional and up to two of them, and ink stacking is what makes a
+/// single big spell worth building around.
+///
+/// The orb is unchanged and is here for the contrast: two or three spells and
+/// **no ink at all**, which an orb has not wanted since alignments took over
+/// that job. They overlap at two spells, where the book is paying cells for
+/// multipliers and the orb for a third payload.
 #[test]
-fn a_book_will_not_take_a_second_spell_but_an_orb_wants_one() {
+fn a_book_takes_a_second_spell_now_and_an_orb_still_wants_two() {
     let mut run = Run::with_all_pieces();
     equip(&mut run, "Pocket Grimoire", SlotKind::Weapon, 0, 0);
     equip(&mut run, "Soot Ink", SlotKind::Weapon, 1, 0);
     equip(&mut run, "Emberburst", SlotKind::Weapon, 2, 0);
     equip(&mut run, "Rime Nova", SlotKind::Weapon, 2, 2);
+    let report = run.report(SlotKind::Weapon);
     assert_eq!(
-        run.report(SlotKind::Weapon).assembled_count(),
-        0,
-        "a book binds one spell, not two"
+        report.assembled_count(),
+        1,
+        "a book binds one spell or two: {}",
+        report.summary()
     );
+
+    // And a book with **no ink at all**, which is the half of the relaxation
+    // that makes the book reachable rather than merely bigger: before this, a
+    // book without an ink was a pile.
+    let mut bare = Run::with_all_pieces();
+    equip(&mut bare, "Pocket Grimoire", SlotKind::Weapon, 0, 0);
+    equip(&mut bare, "Emberburst", SlotKind::Weapon, 1, 0);
+    let report = bare.report(SlotKind::Weapon);
+    assert_eq!(report.assembled_count(), 1, "a book and a spell is a weapon: {}", report.summary());
 
     // Two spells around an orb are exactly what it asks for - and no ink,
     // which an orb has not wanted since alignments took over that job.
@@ -1020,8 +1044,25 @@ fn a_slot_with_several_recipes_describes_each_one() {
     let titles: Vec<&str> = ways.iter().map(|w| w.title).collect();
     assert_eq!(titles, vec!["Martial weapon", "Book spell", "Crystal ball"]);
 
-    assert_eq!(ways[1].required, vec!["1 book", "1 ink", "1 spell"]);
-    assert_eq!(ways[1].optional, vec!["1 accessory"]);
+    // The book, as `design/assembly-bonuses-and-books.md` §2.2 asks for it: a
+    // core and something to cast, and everything else a choice. It read
+    // `["1 book", "1 ink", "1 spell"]` until the recipe caught up with the
+    // document, which is the line M3's own spec named as the one to re-pin.
+    //
+    // **This is what the `?` beside the weapon grid shows**, and it shows it
+    // because it is derived - `recipe_tip` reads `recipe_parts`, which reads
+    // `recipes`. Nothing in the interface had to be told.
+    assert_eq!(ways[1].required, vec!["1 book", "1 spell"]);
+    assert_eq!(
+        ways[1].optional,
+        vec!["1 more spell", "2 inks", "1 alignment", "1 accessory"],
+        "the book's optional half is what a player reads off the ? beside the weapon"
+    );
+
+    // And the orb is untouched beside it, which is what makes the two
+    // identities separate rather than the book simply becoming an orb.
+    assert_eq!(ways[2].required, vec!["1 crystal ball", "2 spells"]);
+    assert_eq!(ways[2].optional, vec!["1 more spell", "1 alignment"]);
 }
 
 /// The required half is exactly what the assembly rule enforces. If a recipe's

@@ -227,6 +227,19 @@ fn a_shared_board_comes_back_as_the_items_it_was_built_from() {
     }
 }
 
+/// **Re-pinned when the book recipe caught up with §2.2.** The friend's weapon
+/// grid went from two items to three, and the third is the point: Chained
+/// Codex, Gravebloom Ink, Pilgrim Alignment and Forking Bead were **loose
+/// pieces** on that board - the strict recipe wanted an ink *and* refused an
+/// alignment, so they could not bind to anything - and they are a book weapon
+/// now.
+///
+/// The friend's board is 17 items and became 18. It still clears 48 of 50,
+/// still loses to THE UNWOUND, and its median time-to-kill moved 8.15s to
+/// 8.65s. That is the design's own risk realised and inspected rather than
+/// re-blessed: "relaxing a recipe cannot stop a board assembling, but it can
+/// make a loose pile *start* assembling".
+///
 /// The three shared boards, item by item, by name.
 ///
 /// The floors above say a dense board must not collapse. This says what it
@@ -280,8 +293,9 @@ const MEMBERSHIP: &[(&str, &[(SlotKind, &str)])] = &[
         (SlotKind::Greaves, "Anchored Sole + Ironthread Material"),
         (SlotKind::Greaves, "Pilgrim's Sole + Spun Material"),
         (SlotKind::Greaves, "Thornweald Grip + Treadmill Sole"),
-        (SlotKind::Weapon, "Blood Rite + Mirrorcast + The Seeker's Tears"),
-        (SlotKind::Weapon, "Hollow Sphere + Last Rite + Mirror Ward + Tidal Alignment"),
+        (SlotKind::Weapon, "Blood Rite + Chained Codex + Forking Bead + Gravebloom Ink + Pilgrim Alignment"),
+        (SlotKind::Weapon, "Blood Rite + Hollow Sphere + Mirror Ward"),
+        (SlotKind::Weapon, "Last Rite + Mirrorcast + The Seeker's Tears"),
     ]),
     ("perfect", &[
         (SlotKind::Helmet, "Bronze Frame + Runed Plating + Warlord's Crest"),

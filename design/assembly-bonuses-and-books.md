@@ -802,7 +802,7 @@ is the note at the end of its section.
 |---|---|---|---|
 | M1 | The name, and the numbers | `84552b7`, `e8abe09` | **in** |
 | M2 | The bonus can act, inert | `d22b34a` | **in**, ladder byte-identical |
-| M3 | The book, rebuilt | - | **blocked** - see §6 |
+| M3 | The book, rebuilt | 2026-08-28 | **done** - see §6 |
 | M4 | Four free bonuses, and Communion | `cee6459` | **in** |
 | M5 | Three new primitives | `de6648a` | **in** |
 | M6 | The pools get their symbols | `c406ed1` | **in** |
@@ -843,7 +843,46 @@ fusion self-sustaining rather than a one-shot at the bell.
 
 ---
 
-## 6. Why M3 is blocked
+## 6. Why M3 was blocked, and why it no longer is
+
+**M3 landed on 2026-08-28, after THE HUNDRED.** The blocker below did not
+reproduce and the measurement is why:
+
+```
+                     THE UNWOUND at Medium      before    after
+  friend                                     lost 1.9s  lost 1.9s
+  owner                                      lost 9.2s  lost 9.2s
+  perfect                                    lost 1.7s  lost 1.7s
+```
+
+The friend's weapon grid **does** re-partition exactly as predicted - 17 items
+to 18, with Chained Codex, Gravebloom Ink, Pilgrim Alignment and Forking Bead
+binding into a book weapon they could not bind into before - and the resulting
+board does **not** beat THE UNWOUND. `acceptance::e6_5`, `francis`,
+`progression`, `reference_builds` and `acceptance` are all green.
+
+What changed in between is the assembly bonuses and THE HUNDRED: `rating.rs`
+weights moved, `stepped_component` re-geared, and the board the sweep at
+`cab0364` measured is not the board the same share code decodes to today.
+
+What it cost, all of it measured and re-pinned with the reason:
+
+| | |
+|---|---|
+| friend's board | 17 items to **18**; still clears 48/50 |
+| friend's median TTK | 8.15s to **8.65s** |
+| friend's weapon share | 97.4% to **96.7%** |
+| friend's mind damage | 698 to **1009** |
+| `decode_build::MEMBERSHIP` | the friend's weapon grid, two items to three |
+| `rating`'s casting-price floor | 4g to **3g** - one piece, Stray Orb, and the catalogue's own floor is 2g |
+| `gear_at` | **unmoved**, all 6,744 placements: no creature re-partitioned |
+| `report_shape` | **unmoved**: not a rarity row, not a quota |
+
+The weapon slot's ceiling rose, because the best *possible* weapon item is now
+a seven-piece book. Every weapon rating is a fraction of that ceiling, so every
+weapon piece deflated slightly and exactly one crossed a boundary.
+
+### The original blocker, kept for the record
 
 Relaxing the book recipe to Book + Spells (inks and alignments optional) does
 what it was meant to: the friend's weapon grid re-partitions into a
