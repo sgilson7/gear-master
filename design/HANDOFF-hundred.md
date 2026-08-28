@@ -27,120 +27,25 @@ milestone that wants to reopen one has something to argue against.
 
 | Milestone | State |
 |---|---|
-| **F0** Baseline | **done** - `analysis/the-hundred.md` "F0 baseline" |
-| **F1** The county, generated | **done** - `analysis/the-hundred.md` "F1 the county, generated" |
-| **F2** Standing in it | **done** - `analysis/the-hundred.md` "F2 standing in it" |
-| **F3** The clock | **done** - `analysis/the-hundred.md` "F3 the clock" |
-| **F4** Tolls, and the two Requirement variants | **done** - `analysis/the-hundred.md` "F4 tolls" — **DEPLOY POINT 1** |
-| **F5** Bearing, Overtake, Commons - inert | not started |
-| **F6** The catalogue, once | not started |
-| **F7** County events and the word crossing | not started |
-| **F8** The chains, as frames | not started |
-| **F9** The map's second tab | not started |
-| **F10** Theme | not started |
-| **F11** Thresholds | not started |
-| **F12** Boards, by hand | **held** - packed with the owner in the loop |
-| **F13** Rating pins | not started |
-| **F14** Acceptance, by replay | not started |
-| **F15** The record | not started |
+| **F0** Baseline | **done** |
+| **F1** The county, generated | **done** |
+| **F2** Standing in it | **done** |
+| **F3** The clock | **done** |
+| **F4** Tolls, and the two Requirement variants | **done** - DEPLOY POINT 1 |
+| **F5** Bearing, Overtake, Commons - inert | **done** |
+| **F6** The catalogue, once | **done** |
+| **F7** County events and the word crossing | **done** |
+| **F8** The chains, as frames | **done** |
+| **F9** The map's second tab | **done** - DEPLOY POINT 2 |
+| **F10** Theme | **done** |
+| **F11** Thresholds | **done** |
+| **F12** Boards, **borrowed** | **done** - and the hand-packing is deferred, see §5 |
+| **F13** Rating pins | **done** |
+| **F14** Acceptance, by replay | **done** |
+| **F15** The record | **done** - this file, `CLAUDE.md`, and the merge |
 
-### F1 - The county, generated
-
-`county.rs` and `tests/county.rs`: a 7x7 as a pure function of a derived seed,
-twelve checks, a 32-seed retry and an authored `FALLBACK` that passes all of
-them. **937 engine, 78 GUI, 5 CLI. No warnings.** The `baseline` printer is
-byte-identical to F0, `gear_at` is unmoved on all 6,216 placements and so are
-the three road fixtures. Nothing is wired to a run.
-
-**Ten thousand seeds, zero retries.** The first version retried 54% of the
-time and one tally said why: V6 spaces the three pinnacles, and the generator
-was asking it of one of them. The hill *is* the Ordnance's pinnacle and the
-Commissioner is one of the sealed three, and both are knowable when they are
-placed - so both are filtered rather than refused.
-
-**Nine decisions the spec left to be made**, all in `analysis/the-hundred.md`
-under F1 with what each one cost. The two worth knowing before F2: the hill is
-stored as a pinnacle and *drawn* as empty, which inverts B1.1's presentation
-and leaves its behaviour intact; and the pale is an Event tile rather than a
-new `TileKind`, which is what keeps A1.2's composition exact.
-
-**Two findings that were the spec's rather than the code's.** V9 did not make
-C1's argument true - a gaol one tile from a mouth is not a shortcut - and it
-has a second half now. And V2 read as a union is satisfied by the county it
-exists to refuse; it is a matching.
-
-### F2 - Standing in it
-
-A2.1's movement, A2.2's state, `TripSource` and its census, `Interrupt::County`
-on top of the stack, `Action::County` on all six towns, the CLI's `go`, `walk`
-and `out`. **953 engine, 78 GUI, 8 CLI. No warnings.** The `baseline` printer
-is still byte-identical to F0.
-
-**The cap is the enum.** `trip_cap()` sums `TripSource::seats()`, where a town
-is worth `TOWNS.len()`, so a mission that adds a way down cannot land without
-the suite making it raise the cap. Ten, and every figure in A4 was costed
-against ten.
-
-**One bug introduced and caught in the same hour**, by a test whose doc comment
-named the two towns that have a pedestal. Sump Bottom and Kettleworks do not,
-and a shared door constant handed them one.
-
-**Two pins moved.** The pedestal is no longer the only thing outside the
-one-action rule. Both assertions say why in the message rather than in a commit.
-
-**The exit criterion could not be met through the driver**, and it is the
-Switchyard's M3 wall unmoved: no board the CLI can build from its own verbs
-clears rung 9, and Kettleworks' gate is after rung 17. Split in two, both in
-the suite - the driver proves a trip replays byte-identically, and the engine
-walks three towns and fifteen moves. `every_town_lets_you_down_at_its_own_mouth`
-does all six.
-
-### F3 - The clock
-
-`events_resolved`, moving. **957 engine, 78 GUI, 8 CLI. No warnings.**
-
-**A5's three increment points are one.** Every event in the game is answered
-in `take_choice_unchecked` and nowhere else, which is the strongest form of
-"nothing else" there is. A fight won, a fight lost, a town door, five tiles of
-county and a shop reroll are all walked past the counter to prove it.
-
-**And one place it comes back down.** `Outcome::Defer` takes a door back off
-`answered` - declining is not answering - and it has to come off the clock too,
-or a run advances the Drover by saying "not yet" to one door repeatedly. That
-is an interception bought rather than intercepted.
-
-### F4 - Tolls, and the two Requirement variants
-
-Six figures, the tax, one-tile visibility, and two inert requirements.
-**969 engine, 78 GUI, 8 CLI. No warnings.** `baseline` byte-identical to F0
-and `gear_at` unmoved on all 6,216 placements.
-
-**A3's formula is out by a factor of a thousand and its worked example is
-right.** A stat is per activation; a rate is `stat * 1_000_000 / cooldown_ms`,
-which is what `ItemProfile::dps_milli` has computed since the gear-slot
-rewrite. `flow_is_not_mana` pins A3's pair: 2000 and 3000, and the board with
-less mana crosses the deeper river.
-
-**Every threshold A3 ships is trivially met.** Eleven of the twelve are
-crossed by the auto-builder's board and the twelfth by the starter. The owner
-pays 11.77 flow into a river asking 2 to 6 and holds 131 curse resistance
-against a hedge asking 3 to 8. D-5 said this would happen; F11 is where it is
-fixed, and F4 deliberately does not move a number - a threshold bent before the
-measurement is a threshold bent to a guess.
-
-**A minimal county screen landed with F4 rather than with F9**, and it is
-scope taken on purpose. Taking the way down set `county_at` and left the town
-gate up, so the town screen re-rendered with no verb on it - the pedestal's old
-bug, with a trip spent on the way in. Deploy Point 1 asks a person to find out
-whether five moves feels wrong, which needs a screen. It is not the map; A8's
-second tab is still F9's. Its layout is pure and tested, and the test caught
-the way out hanging eighteen pixels past the border on its first run.
-
-**The rung column in F4's own deliverable says the same thing four times.** A
-share code is one board and it does not grow, so five of the six figures do not
-move with the rung; only the toll gate reads it, through the bounty. The table
-is one row a board, and F11 calibrates against the progression the four boards
-stand for.
+Every milestone's numbers are in `analysis/the-hundred.md`, one block apiece,
+headed by the commit they were read off.
 
 ## 3. Open questions for the user
 
@@ -176,3 +81,79 @@ table in `analysis/the-hundred.md` gives the true addresses.
 moved twice by: A0's free-rung list counts events and not town gates. Thirteen
 rungs are genuinely free, not nineteen, and two of the mission's four road
 placements are on gates.
+
+---
+
+## 5. What is not done
+
+- **The five wear borrowed boards.** F12 gave each of them a ladder creature's
+  whole board rather than packing one, and that is the mission's one deliberate
+  half-measure: packing by hand wants somebody reading the diff, and it was
+  moved past the deploy on the owner's instruction. `hundred::the_five_wear_a_board_borrowed_from_their_band`
+  names every pair and is what has to change when they are packed - and it
+  should change to something that measures the boards rather than compares them
+  to somebody else's.
+- **Three of the five run past sudden death on the owner's board** at Medium.
+  That is the board and not the county: the same board needs 38 s for the
+  ladder's own band-48 creature and loses to Francis outright. Recorded rather
+  than fixed, and it is the first thing the hand-packing should look at.
+- **Nobody has played it.** Still true and still the biggest gap. Every claim
+  in this file is from the suite, from two CLI transcripts that diff clean, and
+  from reading the road aloud.
+- **The CLI has no theme switch**, which predates this mission and is why a
+  themed county has never been printed by the driver. The GUI has one.
+- **The Drover's strength scaling is on.** D-4 said to ship it behind its own
+  constant so it could be turned off in one line. It is
+  `county::DROVER_STRENGTH_PER`, it is 8, and at clock 300 the pursuit meets
+  you a quarter stronger. Nobody has played it either.
+
+## 6. The five things that cost the most
+
+**A0's free-rung list counts events and not town gates**, which is `CLAUDE.md`
+§6 trap 27 and which moved two of the mission's four road placements. Thirteen
+rungs are genuinely free, not the nineteen A0 lists. Found at F0, before a line
+of content was written, which is the cheapest possible place.
+
+**`ALTERNATES` is append-only and nothing said so.** Five creature specs
+inserted at the top of that table moved **2,592 lines** of `gear_at.txt`
+without one creature changing what it wears, because the fixture keys every
+line on `ALTERNATES[i]`. It reads exactly like a re-gearing. `CATALOG` has the
+same property and everybody knows it; this one had never come up.
+
+**Overtake had to repeat the activation and not the blow.** The first version
+put it in `reps` beside `Echo` and `Fork` - the cheap place, and the wrong one
+for exactly the slot the effect is for. `reps` repeats the swing, only weapons
+swing, and Overtake is gloves-only, so the effect did nothing whatsoever. The
+**negative** test found it: the control glove reported zero opening blows,
+because a glove has none.
+
+**A forced event goes to the front of the stack, and a door in front of another
+is not a queue.** C2 was pushed through `forced_event` and broke the
+Switchyard's chain walk in both modes, because
+`road_stack::the_door_underneath_cannot_be_answered_over_the_top_of_the_one_in_front`
+is deliberate. Making `take_choice` answer whichever standing door owns the
+choice would also have fixed it, and was reverted: the rule is the game's and
+the fix belonged on the other side. Vessey has his own field and waits.
+
+**Reading the road aloud found the thing no lint could.** THE THEODOLITE, THE
+STOCKMAN and THE COMMONS each set a flag and **nothing anywhere read one** -
+the whole payload of three doors standing on three rungs. They have a reader
+now: a chain nobody has explained to you is stones in fields, and the map says
+so.
+
+## 7. What shipped
+
+| Part | What |
+|---|---|
+| **A1** | A seven by seven county, a pure function of a seed derived from the run's, with twelve checks and an authored `FALLBACK` that passes all of them |
+| **A2** | Five moves a trip, orthogonal, resolved in order; ten trips a run and the cap is the enum |
+| **A3** | Six tolls, all of them rates, in integers, over the assembled board - and a formula A3 got wrong by a factor of a thousand |
+| **A4-A5** | The census, and a clock that is doors answered and nothing else |
+| **A8** | A second tab on the M overlay, and `route::ascii` grown a county half without moving the road |
+| **B1** | Three sightings, two of which are knowledge and the third a key, and a hill nothing marks |
+| **B2** | A sixteen-tile ring, a pursuit that walks by the clock, and a door answered that can bring it to you |
+| **B3** | A checklist read at one tile, one requirement for five lines, and a far corner that opens |
+| **B5** | A perambulation: a route rather than a destination, broken by an illegal move or a failed toll |
+| **B6** | One word, up out of a field and back down as an answer |
+| **C** | A constable who takes you to the middle, and a man with a legal opinion about your empty grid |
+| **D** | Sixteen milestones, every one measured against the one before it |

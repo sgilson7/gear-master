@@ -1357,3 +1357,48 @@ to F0**: the four-board table, the cadence, the mind figures, the shallow
 ladder and the no-weapon viability. Fifteen milestones, five hundred and
 twenty-eight new placements, six new road doors and a county under the whole
 thing, and the ladder the game was already is has not moved.
+
+---
+
+## F15 the record
+
+`design/HANDOFF-hundred.md` in the house shape, `CLAUDE.md` brought to this
+tip, and the merge. **Engine 1035, GUI 81, CLI 9 - 1125 in the workspace. No
+warnings.**
+
+### What `CLAUDE.md` gained
+
+Counts: 1035/81/9, 57 engine binaries, `CATALOG` 518, `EVENTS` 44 plus
+`COUNTY_EVENTS` 9, `FRAMES` 29, `RUMOURS` 11, `DESTINATIONS` 7, `ALTERNATES`
+33. A `county.rs` row in §3. Three CLI verbs. Four diffed fixtures where there
+were two, and the three env vars that re-baseline them.
+
+**Six new traps**, 34 to 39, and every one of them cost this mission
+something:
+
+34. `ALTERNATES` is append-only, and `gear_at.txt` is why
+35. a forced event goes to the front of the stack, and a door in front of
+    another is not a queue
+36. only weapons swing, so an effect that multiplies `reps` does nothing in
+    four slots out of five
+37. borrowing a creature's board copies its faults
+38. a flag set by a choice and read by nothing is trap 19 in flag form, and
+    nothing lints it
+39. `is_orb_of_travel` is the four pedestal keys, not `PieceKind::Orb`
+
+### The mission in one table
+
+| | |
+|---|---:|
+| milestones | 16 |
+| commits | 17 |
+| new engine module | `county.rs`, 1,150 lines |
+| new test binaries | 4 - `county`, `tolls`, `hundred`, `acceptance_hundred` |
+| new tests | 103 in the engine, 1 in the GUI, 2 in the CLI |
+| new components | 6 - three enchantments, two orbs, one word |
+| new creatures | 5, in borrowed boards |
+| new road doors | 6 |
+| county events | 9 |
+| pins moved and re-pinned | 21 |
+| fixtures re-baselined | 2 of 4, both named in their own doc comments |
+| four-board table | **unmoved since F0** |

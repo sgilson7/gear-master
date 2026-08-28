@@ -1,9 +1,8 @@
 # CLAUDE.md — Gear Master, for a fresh agent
 
-Written against commit `120db15` (2026-08-27), at the end of the assembly
-bonuses. The Switchyard is merged. Every count below was read off that tip; if
-`git log --oneline -1` says something else, the numbers are quotes and the
-printers in §5 are the measurements.
+Written against the merge of **THE HUNDRED** (2026-08-28). Every count below
+was read off that tip; if `git log --oneline -1` says something else, the
+numbers are quotes and the printers in §5 are the measurements.
 
 You are working on **Gear Master**: a deterministic, browser-playable
 puzzle-autobattler in Rust. Five gear grids, polyomino pieces, a fifty-rung
@@ -14,7 +13,7 @@ fight a pure function of what was packed.
 Read this file top to bottom once. Then read `design/rl-agent-plan.md`, which
 is **the mission** (§6), and `HANDOFF-solver.md`, which is the brief for it.
 
-Four missions are finished. Three are deployed; the fourth is on a branch:
+Five missions are finished and all five are deployed:
 
 - **the gear-slot rewrite** - `design/gear-slot-basis-rewrite.md`, and
   `design/HANDOFF.md`'s predecessor as its record.
@@ -27,17 +26,20 @@ Four missions are finished. Three are deployed; the fourth is on a branch:
 - **the Switchyard** - `design/the-switchyard.md` is the spec,
   `design/HANDOFF-switchyard.md` the decisions and
   `analysis/switchyard.md` every measurement, one block a milestone headed by
-  the commit it was read off. **On branch `switchyard`, eleven commits, not
-  merged and not published.**
+  the commit it was read off.
+- **THE HUNDRED** - `design/the-hundred.md` is the spec,
+  `design/HANDOFF-hundred.md` the decisions and what is not done, and
+  `analysis/the-hundred.md` every measurement, one block a milestone. Sixteen
+  milestones, F0 to F15.
 
 ---
 
 ## 1. Orientation in five minutes
 
 ```
-cargo test -p gearmaster-engine          # the safety net: 907 tests, 53 binaries + lib, ~35s
-cargo test -p gearmaster-gui             # 75 more; cargo build does NOT compile them
-cargo test -p gearmaster-cli             # 5 more: a scripted run, piped in twice
+cargo test -p gearmaster-engine          # the safety net: 1035 tests, 57 binaries + lib, ~40s
+cargo test -p gearmaster-gui             # 81 more; cargo build does NOT compile them
+cargo test -p gearmaster-cli             # 9 more: scripted runs, piped in twice
 cargo run  -p gearmaster-cli             # headless REPL: play the real game in a terminal
 cargo run  -p gearmaster-gui             # macroquad GUI (native window)
 make pack                                # board packer: dress creatures by hand, saves into combat.rs
@@ -53,11 +55,11 @@ CLI REPL verbs (the same engine the GUI drives): `help`, `show [slot]`, `inv`,
 `stats`, `equip <n> <slot> <x> <y>`, `unequip <n>`, `rotate <n>`, `preset`,
 `clear`, `sandbox`, `shop`, `buy <n>`, `sell <n>`, `ladder`, `items`,
 `fight`, `road`, `map`, `answer <n>`, `town`, `town on`, `town <door>`,
-`drink`, `throw <n>`, `leave`, `quit`. A scripted run piped into stdin
+`drink`, `throw <n>`, `leave`, `go`, `walk n|s|e|w`, `out`, `quit`. A scripted run piped into stdin
 replays identically - that is the design contract, and since the Switchyard's
 M3 it is also a test (`crates/cli/tests/replay.rs`), which it had never been.
 
-**Workspace:** `crates/engine` (all rules, **zero dependencies** -
+**Workspace:** `crates/engine` (all rules, 43,455 lines, **zero dependencies** -
 `crates/engine/Cargo.toml` has an empty `[dependencies]` and a comment saying
 why), `crates/cli` (595 lines), `crates/gui` (macroquad; `main.rs` 13,953
 lines, `pack.rs` 627). `design/` holds the living design documents and the
@@ -96,28 +98,29 @@ they disagree, this is the bug report"*. `analysis/` holds measurements.
 
 | Module | Lines | Owns |
 |---|---:|---|
-| `piece.rs` | 11,223 | Everything a piece is: `SlotKind` (5), `PieceKind` (18, `Enchantment` and `Quest` among them), `EffectKind`, `Resource` (8: Mana, Rage, Faith, Nature, three fusions, Insight - **all eight makeable by a board** since M8), `Action` (25), `Trigger` (14, `Watch` and `OnEnemyActivate` among them), `Quest`, recipes (`:1039`), per-slot default cooldowns (`:1089`: weapon 1500 ms, gloves 3000, greaves 3500, helmet 4000, chest 5000), `PieceRegistry` (instance = def index + rotation, `:1120`), and the **512**-entry `CATALOG` (`:1202`; helmet 99, chest 72, gloves 84, greaves 68, weapon 189). `BOSS_ONLY`, `EVENT_ONLY`, `VIP_ONLY`, `TOWN_ONLY` lists at the bottom |
-| `combat.rs` | 7,320 | The fight: 50 ms ticks (`curse::TICK_MS`), `SUDDEN_DEATH_MS = 30_000` (`:40`), `MAX_DURATION_MS = 60_000`, `Difficulty {Easy, Medium, Hard, Insane}` (`:527`; Medium is gear-as-written, others step gear via `stepped_component`, `:292`), `MonsterSpec` (`:234`), **78 creatures**: `LADDER` 50 (`RUST_GOLEM` spliced in by name), `ALTERNATES` 28, `CREVICE` 0. `CombatLog { outcome, duration_ms, entries, .. }` (`:3513`); `tally_items` - what one item did in a fight, attributed by the last `Activate` |
+| `piece.rs` | 11,400 | Everything a piece is: `SlotKind` (5), `PieceKind` (18, `Enchantment` and `Quest` among them), `EffectKind`, `Resource` (8: Mana, Rage, Faith, Nature, three fusions, Insight - **all eight makeable by a board** since M8), `Action` (25), `Trigger` (14, `Watch` and `OnEnemyActivate` among them), `Quest`, recipes (`:1039`), per-slot default cooldowns (`:1089`: weapon 1500 ms, gloves 3000, greaves 3500, helmet 4000, chest 5000), `PieceRegistry` (instance = def index + rotation, `:1120`), and the **518**-entry `CATALOG` (helmet 100, chest 73, gloves 85, greaves 69, weapon 191). `BOSS_ONLY`, `EVENT_ONLY`, `VIP_ONLY`, `TOWN_ONLY` lists at the bottom |
+| `combat.rs` | 7,800 | The fight: 50 ms ticks (`curse::TICK_MS`), `SUDDEN_DEATH_MS = 30_000` (`:40`), `MAX_DURATION_MS = 60_000`, `Difficulty {Easy, Medium, Hard, Insane}` (`:527`; Medium is gear-as-written, others step gear via `stepped_component`, `:292`), `MonsterSpec` (`:234`), **78 creatures**: `LADDER` 50 (`RUST_GOLEM` spliced in by name), `ALTERNATES` 28, `CREVICE` 0. `CombatLog { outcome, duration_ms, entries, .. }` (`:3513`); `tally_items` - what one item did in a fight, attributed by the last `Activate` |
 | `run.rs` | 4,214 | A run: `Mode {Grinder, Rogue}`, `Phase`, gold, rung, lives, the shop, classes, every road flag and counter, `road_stack()` (derived, `:912`), `take_choice`/`apply_outcome`, `visit_town`, `enter_dungeon`, `melt`, `crush`, `fight_next` (`:3437`), `settle` (`:2043`), `apply_preset` (`:3224`), `skip_to`/`force_win` (`:2440`, `:2434` - test and picker helpers that win without fighting) |
-| `event.rs` | 2,711 | `EVENTS` - **38**, a `pub const` (`:590`), each `LadderEvent { id, at (zero-based), trigger, choices }`; `Requirement` (12 variants), `Outcome` (35), `Trigger` (Rung, QuickKill, SlowKill, Whispered, WhenFlagged - the last three carry `from`, a window); six `Brawl`s; reverse indexes `set_by`, `every_outcome`, `opened_by_taking` |
+| `event.rs` | 3,300 | `EVENTS` - **44** and `COUNTY_EVENTS` - **9**, a `pub const` (`:590`), each `LadderEvent { id, at (zero-based), trigger, choices }`; `Requirement` (12 variants), `Outcome` (35), `Trigger` (Rung, QuickKill, SlowKill, Whispered, WhenFlagged - the last three carry `from`, a window); six `Brawl`s; reverse indexes `set_by`, `every_outcome`, `opened_by_taking` |
 | `theme.rs` | 2,189 | The turtle theme: names, story, `vocabulary`, `told: &[Retold]` keyed by road id - all display-only |
 | `class.rs` | 1,371 | `CLASSES` - **31**; `ClassPower` (SlowTime, Overflowing, Leeching, WrongSense, FirstBlood, ...); fountains score axes; Piety and Unionized stack |
 | `rating.rs` | 1,388 | Worth: `piece_rating`, `monster_value` (`:815`, the creature-side correction), `RARE_AT=90, EPIC_AT=130, LEGENDARY_AT=170` (`:230`), `ACTIVATIONS_PER_S = 5.0` (`:497`) |
 | `loadout.rs` | 1,026 | Five `Slot`s, `ItemProfile`, assembly, `lock_assembled_in` (`:243`), `combat_items` (`:658`). **No player-build solver anywhere** - the nearest things are `Run::apply_preset` (twenty-two hard-coded placements) and the three share codes in `share.rs` |
 | `naming.rs` | 754 | Generated item names; names grow with rarity (3/4/5/6 words) |
-| `bestiary.rs` | 756 | `MonsterTheme` (**10**: Striker, Wall, Burner, Slower, Drainer, Caster, Hollow, Swarm, Beast, Warden; slots per theme at `:119-134`), `theme_for(rung)` (`:343`), `MonsterFrame` and `FRAMES` (**24**, all dressed, `:400`), the frame lint |
+| `bestiary.rs` | 800 | `MonsterTheme` (**10**: Striker, Wall, Burner, Slower, Drainer, Caster, Hollow, Swarm, Beast, Warden; slots per theme at `:119-134`), `theme_for(rung)` (`:343`), `MonsterFrame` and `FRAMES` (**29**, all dressed - five in **borrowed** boards), the frame lint |
 | `slot.rs` | 603 | One grid: `SLOT_W = 6`, `SLOT_H = 8` base (`:5, :8`), growable by rows; `can_place` (`:221`), `legal_anchors` (`:289`), items, neighbours, groups, `sets_touch_diagonally` |
 | `town.rs` | 577 | `TOWNS` - **6** (3 pinned after rung indices 6, 17, 31; 3 hidden), `Action` (17 doors), one action a visit |
 | `shop.rs` | 536 | `SHOP_SIZE = 6`, `STARTING_GOLD = 28`, `REROLL_COST = 1`, `SHELF_TILT`, `insight_open`, standing orders; town stock and enchantments never dealt on the road |
 | `route.rs` | 605 | `route(run)` (`:124`) and `ascii(run)` (`:265`): the road drawn from the tables plus the run |
 | `stats.rs` | 506 | `Stats`; `power` is a multiplier in hundredths; `parts()` walks it once and returns each figure with the glyph key that draws it, so `summary()` and the tooltip cannot disagree |
-| `rumour.rs` | 479 | **10** rumours; 1-cell conditions that sit in the tray and open doors |
+| `rumour.rs` | 500 | **11** rumours; 1-cell conditions that sit in the tray and open doors |
 | `curse.rs` | 396 | Searing, Frost, Stun, Misfire; `TICK_MS = 50` (`:12`) |
 | `share.rs` | 356 | Share codes, version 3, base-32; a placement is `def<<12 \| slot<<9 \| x<<6 \| y<<2 \| rot` (`:218`); `A_FRIENDS_RUN`, `A_WINNING_RUN`, `A_PERFECT_RUN` (`:159-180`). **Index-keyed into `CATALOG`** |
 | `dungeon.rs` | 993 | **7** dungeons. `Floor` and `Exit`: floors are a **graph**, so a floor with one exit is the next room, none is a buffer stop and two are a set of points. `fights_ahead` is what a banner counts; seven graph lints |
 | `relic.rs` | 188 | **4** run-relics (pay from a board, off run counters), crushables |
-| `pedestal.rs` | 223 | **6** destinations, once a run; `Where::Siding` puts you down *inside* a dungeon |
-| `shape.rs`, `rng.rs`, `lib.rs` | 100, 94, 36 | Polyomino math; the PRNG; exports |
+| `pedestal.rs` | 240 | **7** destinations, once a run; `Where::Siding` puts you down *inside* a dungeon and `Where::County` at any mouth of THE HUNDRED |
+| `county.rs` | 1,150 | **THE HUNDRED**: a 7x7 county as a pure function of a derived seed. `County`, `Tile`, `TileKind`, `Toll` (6), `Region` (3), `Chain` (3), `Step`, `Bearing`, `CIRCUIT` (16), `MOUTHS` (6, fixed), `TOLLS` (12), `FALLBACK`, `generate`, `refusals` (V1-V12), `boundary`. Derived on demand, **never stored** |
+| `shape.rs`, `rng.rs`, `lib.rs` | 100, 94, 37 | Polyomino math; the PRNG; exports |
 
 ---
 
@@ -178,9 +181,9 @@ every creature on Easy, Hard and Insane when a weight moves **or when
 
 ## 5. The test suite is the map of what matters
 
-53 integration binaries in `crates/engine/tests/` plus the lib's 168.
-**907 green, 48 ignored** in the engine, **75** in the GUI and **5** in the
-CLI - 987 in the workspace - and it builds with **no warnings** under rustc
+57 integration binaries in `crates/engine/tests/` plus the lib's 168.
+**1035 green, 51 ignored** in the engine, **81** in the GUI and **9** in the
+CLI - 1125 in the workspace - and it builds with **no warnings** under rustc
 1.95.
 
 | Group | Binaries (tests) |
@@ -195,6 +198,7 @@ CLI - 987 in the workspace - and it builds with **no warnings** under rustc
 | Measurement | `baseline` (4 + 6 ignored printers), `prices` (2 + 3 ignored) |
 | Validity | **`validity` (19 + 3 ignored)** - what the repo can currently say about a build being clearable |
 | The yard | **`switchyard` (30 + 1 ignored)** - the floor graph, the points, the chain and the balance |
+| The county | **`county` (43)** - generation, V1-V12, walking, trips, the census, memory; **`tolls` (17 + 1)** - six figures, the tax, visibility, the twelve thresholds; **`hundred` (32 + 1)** - the chains, the hill, the circuit, the checklist, the perambulation, the gaol, the map; **`acceptance_hundred` (11)** - the mission's eleven criteria |
 | The driver | **`crates/cli/tests/replay.rs` (5)** - a scripted run piped in twice and byte-compared |
 
 The printers. They **print**; they do not write `analysis/` despite what this
@@ -206,21 +210,29 @@ anything - capture the output and diff it against the previous commit's:
 cargo test -p gearmaster-engine --test baseline -- --ignored --nocapture --test-threads=1
 cargo test -p gearmaster-engine --test catalog_shape -- --ignored --nocapture
 cargo test -p gearmaster-engine --test prose -- --ignored --nocapture read
+cargo test -p gearmaster-engine --test tolls -- --ignored --nocapture report_what_a_board_pays
 PACK_MONSTER="Cog Priest" cargo test --release -p gearmaster-engine --test pack_francis pack -- --ignored --nocapture --exact
 ```
 
 At the tip: owner 48/50, 75.5% weapon share, median 9.00 s; friend 48/50,
-97.4%, 8.15 s; preset 9/50; starter 2/50. **Byte-identical through all eleven
-Switchyard milestones**, which is what `analysis/switchyard.md` keeps proving.
-Ratchet green, 0 away. Oracle cost in release: 0.03-1.4 ms a fight, whole
-ladder 31 ms.
+97.4%, 8.15 s; preset 9/50; starter 2/50. **Every section of the printer
+except the census is byte-identical to where the Switchyard left it** - the
+four-board table, the cadence, the mind figures, the shallow ladder and the
+no-weapon viability survived sixteen more milestones. Ratchet green, 0 away.
 
-Two fixtures are diffed rather than asserted, and both name the command that
-re-baselines them: `tests/fixtures/gear_at.txt` (every creature's gear at every
-difficulty, 5,568 placements) and `analysis/replays/dungeons.txt` (all six
-straight-line dungeons walked from the top). Neither may be re-baselined
-without saying in the commit which creature or which dungeon started saying
-something different.
+Three fixtures re-baseline under an env var rather than on `--ignored`, so
+that measuring cannot silently overwrite the evidence it is measuring against:
+`REBASELINE_GEAR_AT=1` (`catalog_shape`), `REBASELINE_ROAD_AT=1` (`the_road`),
+`REBASELINE_COUNTY_MAP=1` (`hundred`).
+
+Four fixtures are diffed rather than asserted, and each names the command that
+re-baselines it: `tests/fixtures/gear_at.txt` (every creature's gear at every
+difficulty, **6,744** placements), `tests/fixtures/road-at-{5,20,40}.txt`
+(`route::ascii_road` at three rungs, held **exactly** and asserted as a prefix
+of the whole map), `tests/fixtures/county-map.txt` (THE HUNDRED drawn for a
+known walk) and `analysis/replays/dungeons.txt` (all six straight-line dungeons
+walked from the top). None may be re-baselined without saying **in the fixture
+test's own doc comment** what started saying something different.
 
 The third one is not a measurement, it is the **road read aloud** - every
 scene, town gate and dungeon landing in the order a player meets them, wrapped
@@ -256,6 +268,20 @@ scenes say what the buttons under them say.
 it was executed from. Rogue also gets a fourth life (`ROGUE_LIVES`, and five is
 the eventual intent).
 
+**THE HUNDRED is merged and published.** A seven-by-seven county under the
+road, generated as a pure function of a seed derived from the run's and never
+stored. Six tolls that read what a board *does a second* rather than what it
+has; three chains that tax five basis vectors between them; ten trips a run
+and the cap is an enum; a clock that is doors answered and nothing else, which
+a Drover walks a sixteen-tile ring by. Sixteen milestones, F0 to F15.
+`design/HANDOFF-hundred.md` is the decisions and what is not done;
+`analysis/the-hundred.md` is every measurement.
+
+**The five county creatures wear borrowed boards.** F12 gave each of them a
+ladder creature's whole board rather than packing one, deliberately and with
+the owner's instruction: packing by hand wants somebody reading the diff and
+it was moved past the deploy. That is the mission's one open piece of work.
+
 **The Switchyard is merged.** Eleven milestones, M0 to M10 plus its record. A
 four-door chain across rungs 21-34, a nine-floor dungeon that is a **graph**
 rather than a list, four new combat verbs, six components and two Orbs of
@@ -284,6 +310,13 @@ lives in `ALTERNATES`, not `LADDER`**, so `loadout_at`'s depth lookup returns
 `unwound-depth` carries the fix and breaks exactly one test, because restoring
 the defences makes it unbeatable by the boards that exist. It wants
 re-authoring, not tuning. §6 of the design document has the sweeps.
+
+**What the county did *not* answer** is the same gap it inherited: nothing
+demonstrates that a build a *seed's own shop economy* can produce fights its
+way to any given door. THE HUNDRED adds a second thing a board is measured
+against - six figures read off the assembled items - and `tolls.rs` is the
+first place in the repository that says what a board pays rather than whether
+it wins. That is a ruler, not a solver.
 
 **The mission after that is `design/rl-agent-plan.md`**: make the game playable
 by a reinforcement-learning agent, with no generative AI anywhere in the loop,
@@ -450,6 +483,46 @@ fights its way to any given door. That is the gap.
     last placement tried, not the one that worked - and the failure reads as
     "never assembled", which points at the recipe rather than the loop. Label
     the outer loop and put the piece back when it does not work.
+
+34. **`ALTERNATES` is append-only, and `gear_at.txt` is why.** The fixture
+    keys every line on `ALTERNATES[i]`, so five specs inserted at the *top* of
+    that table moved 2,592 placements without one creature changing what it
+    wears - which reads exactly like a re-gearing and is not one. `CATALOG`
+    has had this property since `share.rs` and everybody knows it. This one
+    had never come up.
+
+35. **A forced event goes to the front of the road stack, and a door in front
+    of another is not a queue.** `road_stack::the_door_underneath_cannot_be_answered_over_the_top_of_the_one_in_front`
+    is deliberate: the door in front is the one being asked, so anything
+    pushed through `forced_event` blocks everything scheduled underneath it
+    until it is answered. THE WASTE did that to the Switchyard's chain walk in
+    both modes. If what you are pushing is a question about the *board* rather
+    than a place the run has just been sent, it belongs at the **end** of
+    `standing_events` and wants its own field.
+
+36. **Only weapons swing.** An effect that repeats "the activation" by
+    multiplying `reps` repeats the *blow*, and gloves, greaves, chest and
+    helmet have none - they act entirely through triggers. Overtake did
+    nothing at all in the one slot it is allowed in, and the test that found
+    it was the **negative** one, which reported zero opening blows for the
+    control.
+
+37. **Borrowing a creature's board copies its faults.** Three separate lints
+    chose THE HUNDRED's five donors: boss gear belongs to exactly one creature
+    (Francis's coat), the ladder past band 43 wears quest rewards, and six
+    creatures have an `items:` partition that does not describe the board it
+    is attached to (`gui/src/pack.rs::REORDERED_ON_FIRST_SAVE`, whose comment
+    says it should never rise). A board is not just its pieces.
+
+38. **A flag set by a choice and read by nothing is trap 19 in flag form**,
+    and nothing lints it. `COUNTERS_NOBODY_READS` covers counters only. Three
+    doors of this mission each paid a `knows-the-*` flag that nothing anywhere
+    read, and **reading the road aloud** is what found it, not a test.
+
+39. **`is_orb_of_travel` is the four pedestal keys, not `PieceKind::Orb`.**
+    Twenty-three pieces are Orb-kind (trap 26) and four of them are tickets. A
+    gate that asks for "an orb" has to say which it means, and asking for the
+    tickets refuses every orb a mission adds that is held rather than spent.
 
 One blind spot in `prose.rs` worth knowing before it finds you: a name that
 only ever **opens** a sentence is invisible to `names_something`, because at a
