@@ -1,0 +1,18 @@
+THE HUNDRED
+    A     B     C     D     E     F     G
+ 1   #G?        o     .~R?  o?    o      ^D?
+ 2  o           O     oB1   #T1   o
+ 3   ^S?  o?          .     o           o?
+ 4  o^D?  #S1   o~F?  .~F?               #H?
+ 5   ~R?  o           .?                 #H?
+ 6  o                 ogaol
+ 7         ^S?  o#G?  #T2   o?
+  gates: A6 SUMP BOTTOM · C1 KETTLEWORKS · G3 HIGH WICK · A2 a town you have not found · F1 a town you have not found · E7 a town you have not found
+  the drover: F4 (clock 6)
+  C3 - the pale:
+    [ ] Requires: 6 tiles cleared in the north
+    [ ] Requires: 6 tiles cleared in the middle
+    [ ] Requires: 6 tiles cleared in the south
+    [ ] Requires: boundary stones at least 2 times
+    [ ] Requires: an Orb of Travel, and it stays here
+  3 of 49 cleared · 1 of 10 trips spent

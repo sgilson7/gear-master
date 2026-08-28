@@ -337,7 +337,11 @@ pub fn route(run: &Run) -> RouteMap {
 /// The headless driver's version, and the reason `route` is in the engine at
 /// all: two renderings of one function cannot disagree about which road the
 /// game has.
-pub fn ascii(run: &Run) -> Vec<String> {
+/// The road half of the map, alone.
+///
+/// What `ascii` was until F9. The three fixtures in `the_road.rs` pin this,
+/// and `ascii` is this plus the county when there is a county to draw.
+pub fn ascii_road(run: &Run) -> Vec<String> {
     let map = route(run);
     let mut out = Vec::new();
     let mark = |f: Fill| match f {
@@ -406,6 +410,155 @@ pub fn ascii(run: &Run) -> Vec<String> {
             }
         }
     }
+    out
+}
+
+/// The whole map: the road, and THE HUNDRED under it.
+///
+/// The road half is unchanged and always first, which is what the three
+/// fixtures in `the_road.rs` pin - they hold `ascii_road`'s output and this
+/// function's first ninety-six lines are it.
+pub fn ascii(run: &Run) -> Vec<String> {
+    let mut out = ascii_road(run);
+    out.push(String::new());
+    out.extend(ascii_county(run));
+    out
+}
+
+/// THE HUNDRED, seven by seven, in the road's own vocabulary.
+///
+/// A8's drawing rules. Marks first, because they are the whole grammar:
+///
+/// ```text
+///   #  cleared          a tile this run has finished with
+///   O  where you are
+///   o  seen             adjacent to somewhere you have been
+///   .  known of         a mouth, or a line a sighting drew
+///   (blank)             never been near it
+/// ```
+///
+/// A toll shows its glyph always and its **threshold only when known** - one
+/// tile away, or anywhere at all once the Ordnance has paid out its sheet.
+/// That is the whole of why the sheet is a reward: a county you can read from
+/// the road is a county you plan on paper.
+pub fn ascii_county(run: &Run) -> Vec<String> {
+    use crate::county::{self, Chain, TileKind, H, W};
+    let mut out = Vec::new();
+    let been = !run.county_trips.is_empty();
+    if !been {
+        // Greyed with a line, which is what a map says about a place you have
+        // heard of and not gone to.
+        out.push("THE HUNDRED".into());
+        out.push("  a county, under the road. Every town has steps down.".into());
+        return out;
+    }
+
+    let c = run.county();
+    let seen = |p: (u8, u8)| -> bool {
+        run.county_is_cleared(p)
+            || county::neighbours(p).iter().any(|n| run.county_is_cleared(*n))
+            || county::is_mouth(p)
+            || run.county_at == Some(p)
+    };
+    // A sighting draws its whole line on the map from the moment it is taken.
+    let drawn: Vec<(u8, u8)> = {
+        let written = run.county_written();
+        let mut lines = Vec::new();
+        for n in 1..=run.sightings() as u8 {
+            lines.extend(written.sighting(n));
+        }
+        lines
+    };
+
+    out.push("THE HUNDRED".into());
+    // The column letters sit over the cells rather than beside them: a row is
+    // two characters of number, two of gap, then six a tile.
+    let mut head = "    ".to_string();
+    for x in 0..W {
+        head.push_str(&format!("{:<6}", (b'A' + x) as char));
+    }
+    out.push(head.trim_end().to_string());
+    for y in 0..H {
+        let mut row = format!("{:>2}  ", y + 1);
+        for x in 0..W {
+            let p = (x, y);
+            let t = c.at(p);
+            let mark = if run.county_at == Some(p) {
+                'O'
+            } else if run.county_is_cleared(p) {
+                '#'
+            } else if seen(p) {
+                'o'
+            } else if drawn.contains(&p) {
+                '.'
+            } else {
+                ' '
+            };
+            // A toll's glyph is always drawn; its figure is not.
+            let body = match t.kind {
+                TileKind::Feature(toll) if run.county_threshold_known(p) => toll.threshold(),
+                TileKind::Feature(toll) => format!("{}{}?", toll.glyph(), toll.letter()),
+                _ if !seen(p) && !drawn.contains(&p) => String::new(),
+                TileKind::Objective { chain, nth } => format!(
+                    "{}{nth}",
+                    match chain {
+                        Chain::Ordnance => 'T',
+                        Chain::Drove => 'S',
+                        Chain::Enclosure => 'B',
+                    }
+                ),
+                TileKind::Pinnacle { .. } => "***".into(),
+                TileKind::Gaol => "gaol".into(),
+                TileKind::Event(id) if id == county::PALE => "PALE".into(),
+                TileKind::Event(_) => "?".into(),
+                TileKind::Empty => String::new(),
+            };
+            row.push_str(&format!("{mark}{body:<5}"));
+        }
+        out.push(row.trim_end().to_string());
+    }
+
+    // The gates, and which of them have been found.
+    let mut mouths: Vec<String> = Vec::new();
+    for (id, m) in county::MOUTHS.iter() {
+        let town = crate::town::by_id(id);
+        let found = town.is_some_and(|t| {
+            matches!(t.unlock, crate::town::Unlock::Pinned) || run.towns_revealed.contains(id)
+        });
+        mouths.push(format!(
+            "{} {}",
+            county::reference(*m),
+            if found { town.map(|t| t.name).unwrap_or(id) } else { "a town you have not found" }
+        ));
+    }
+    out.push(format!("  gates: {}", mouths.join(" · ")));
+
+    // The Drover, once a sign has taught you to look.
+    if run.signs_read() >= 1 && !run.county_chain_done(Chain::Drove) {
+        out.push(format!(
+            "  the drover: {} (clock {})",
+            county::reference(run.drover_tile()),
+            run.events_resolved
+        ));
+    }
+
+    // The pale's checklist, at one tile.
+    let at_the_pale = run
+        .county_at
+        .is_some_and(|here| county::manhattan(here, c.pale()) <= 1);
+    if at_the_pale {
+        out.push(format!("  {} - the pale:", county::reference(c.pale())));
+        for (r, met) in run.pale_checklist() {
+            out.push(format!("    [{}] {}", if met { 'x' } else { ' ' }, r.describe()));
+        }
+    }
+
+    out.push(format!(
+        "  {} of 49 cleared · {} of {} trips spent",
+        run.county_cleared.len(),
+        run.county_trips.len(),
+        crate::run::trip_cap()
+    ));
     out
 }
 

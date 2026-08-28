@@ -982,3 +982,67 @@ nothing. No walk of `EVENTS` can see that, so `completable`, `phase_two` and
 `validity` each gained one named exception rather than a loosened assertion -
 `completable::ENGINE_SETS` is the list, it has one entry, and the entry names
 the function that raises it.
+
+---
+
+## F9 the map's second tab
+
+`route::ascii_county`, `route::ascii` = the road and then the county, a
+fixture for a known walk, and the M overlay's second tab. **Engine 1016, GUI
+81, CLI 9. No warnings.**
+
+### The road fixtures were not re-baselined, which is what F0 planned
+
+`route::ascii` grew a county half and the three road fixtures did **not**
+change. They hold `route::ascii_road` - what `ascii` was until this milestone -
+and the test asserts them as a **prefix** of the whole map, which is exactly
+what F0's own comment said to do when the day came:
+
+> A8 has `route::ascii` growing a county half at F9. When it does, this fixture
+> is the road half and this test must say so in its own assertion -
+> `&got[..want.len()]`, with the reason named - rather than be re-baselined to
+> include a county nobody could read at F0.
+
+Five milestones later, that is what happened.
+
+### What the county map says, and what it does not
+
+```text
+    A     B     C     D     E     F     G
+ 1   #G?        o     .~R?  o?    o      ^D?
+ 2  o           O     oB1   #T1   o
+ 3   ^S?  o?          .     o           o?
+ 4  o^D?  #S1   o~F?  .~F?               #H?
+ 5   ~R?  o           .?                 #H?
+ 6  o                 ogaol
+ 7         ^S?  o#G?  #T2   o?
+  gates: A6 SUMP BOTTOM · C1 KETTLEWORKS · G3 HIGH WICK · A2 a town you have not found · ...
+  the drover: F4 (clock 6)
+  C3 - the pale: [ ] six in the north  [ ] six in the middle  ...
+  3 of 49 cleared · 1 of 10 trips spent
+```
+
+`#` cleared, `O` where you are, `o` seen, `.` a line a sighting drew, blank
+never been near. **A toll shows its glyph always and its figure only when
+known** - `~R?` is a river whose depth you cannot read from here and `~R2` is
+one you can. That is the whole of why the Ordnance's sheet is a reward rather
+than a setting: a county you can read from the road is a county you plan on
+paper.
+
+The Drover is drawn only between the first sign read and the last fight, the
+gates name the towns that have been found and say "a town you have not found"
+for the rest, and the pale's checklist appears at one tile.
+
+### The GUI's half, tested where it can be
+
+`map_tabs` and `county_cells` return rectangles rather than drawing them
+(`CLAUDE.md` §6 trap 32), so `the_second_tab_and_the_grid_it_opens_both_fit`
+checks the whole geometry without a font context: both tabs on screen and not
+overlapping, forty-nine cells on screen and not overlapping, every cell **under**
+the tab strip rather than through it, and at least 130 pixels left under the
+grid because the pale's five lines need them.
+
+The two drawings read the same rules off the same run - `county_threshold_known`,
+`sightings`, `signs_read`, `pale_checklist` - which is what "the CLI and the GUI
+draw the same county" has to mean when one is characters and the other is
+rectangles.

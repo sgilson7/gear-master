@@ -6927,6 +6927,220 @@ fn render_dungeon_tint(run: &Run) {
     draw_rectangle(LOGICAL_W - t, 0.0, t, LOGICAL_H, c);
 }
 
+/// The two tabs on the M overlay, glossary pattern.
+///
+/// Pure, so the geometry is testable without a font context - the reason
+/// `chip_rects` takes a measure and this returns rectangles
+/// (`CLAUDE.md` §6 trap 32).
+fn map_tabs() -> [Rect; 2] {
+    let tw = 170.0;
+    [Rect::new(LOGICAL_W - 40.0 - tw * 2.0 - 10.0, 34.0, tw, 30.0),
+     Rect::new(LOGICAL_W - 40.0 - tw, 34.0, tw, 30.0)]
+}
+
+/// One cell of the county grid on the map screen.
+///
+/// Pure, for `map_tabs`'s reason. Seven by seven, centred, with room above it
+/// for the heading and below it for the gates and the checklist.
+fn county_cells() -> Vec<Rect> {
+    let n = gearmaster_engine::county::W as usize;
+    let side = 62.0;
+    let gap = 4.0;
+    let w = n as f32 * side + (n - 1) as f32 * gap;
+    let x0 = (LOGICAL_W - w) / 2.0;
+    let y0 = 130.0;
+    (0..n)
+        .flat_map(|y| {
+            (0..n).map(move |x| {
+                Rect::new(
+                    x0 + x as f32 * (side + gap),
+                    y0 + y as f32 * (side + gap),
+                    side,
+                    side,
+                )
+            })
+        })
+        .collect()
+}
+
+/// THE HUNDRED, on the second tab.
+///
+/// The same drawing rules `route::ascii_county` follows, because they are A8's
+/// and there is one set of them: filled cleared, ringed where you are, hollow
+/// seen, blank never-been-near; a toll's glyph always and its figure only when
+/// it is known.
+fn render_county_map(run: &Run, mx: f32, my: f32) {
+    use gearmaster_engine::county::{self, Chain, TileKind, W};
+    ui_text(words::word("the-hundred", "THE HUNDRED"), 40.0, 52.0, 26.0, col_gold());
+    if run.county_trips.is_empty() {
+        ui_text(
+            words::word(
+                "the-hundred-hint",
+                "A county, under the road. Every town has steps down into it, and each town's \
+                 steps are walked once a run.",
+            ),
+            40.0,
+            76.0,
+            13.0,
+            col_dim(),
+        );
+        return;
+    }
+    ui_text(
+        words::word(
+            "the-hundred-legend",
+            "filled is cleared, ringed is where you are, hollow is somewhere you have been \
+             near. A toll shows what it is; what it wants you read from one tile away.",
+        ),
+        40.0,
+        76.0,
+        13.0,
+        col_dim(),
+    );
+
+    let c = run.county();
+    let cells = county_cells();
+    let seen = |p: (u8, u8)| -> bool {
+        run.county_is_cleared(p)
+            || county::neighbours(p).iter().any(|n| run.county_is_cleared(*n))
+            || county::is_mouth(p)
+            || run.county_at == Some(p)
+    };
+    let mut hovered: Option<(u8, u8)> = None;
+    for (i, cell) in cells.iter().enumerate() {
+        let p = ((i % W as usize) as u8, (i / W as usize) as u8);
+        let t = c.at(p);
+        let here = run.county_at == Some(p);
+        let known = seen(p);
+        let fill = if run.county_is_cleared(p) {
+            Color::from_rgba(46, 42, 30, 255)
+        } else if known {
+            Color::from_rgba(26, 26, 38, 255)
+        } else {
+            Color::from_rgba(14, 14, 22, 255)
+        };
+        draw_rectangle(cell.x, cell.y, cell.w, cell.h, fill);
+        draw_rectangle_lines(
+            cell.x,
+            cell.y,
+            cell.w,
+            cell.h,
+            if here { 2.5 } else { 1.0 },
+            if here { col_gold() } else { Color::from_rgba(52, 52, 72, 255) },
+        );
+        if cell.contains(Vec2::new(mx, my)) {
+            hovered = Some(p);
+        }
+        // The reference, always: a player reading a banner wants to find the
+        // tile it named.
+        ui_text(&county::reference(p), cell.x + 5.0, cell.y + 14.0, 10.0, col_dim());
+        let label = match t.kind {
+            TileKind::Feature(toll) if run.county_threshold_known(p) => toll.threshold(),
+            TileKind::Feature(toll) => format!("{}{}", toll.glyph(), toll.letter()),
+            _ if !known => String::new(),
+            TileKind::Objective { chain, nth } => format!(
+                "{}{nth}",
+                match chain {
+                    Chain::Ordnance => "T",
+                    Chain::Drove => "S",
+                    Chain::Enclosure => "B",
+                }
+            ),
+            TileKind::Pinnacle { .. } => "***".into(),
+            TileKind::Gaol => "GAOL".into(),
+            TileKind::Event(id) if id == county::PALE => "PALE".into(),
+            TileKind::Event(_) => "?".into(),
+            TileKind::Empty => String::new(),
+        };
+        if !label.is_empty() {
+            ui_text(
+                &words::retell(&label),
+                cell.x + 5.0,
+                cell.y + 36.0,
+                14.0,
+                if known { col_ok() } else { col_dim() },
+            );
+        }
+        // A sighting draws its line, once taken.
+        if run.sightings() > 0 {
+            let written = run.county_written();
+            let on_a_line = (1..=run.sightings() as u8)
+                .any(|n| written.sighting(n).contains(&p));
+            if on_a_line && !run.county_is_cleared(p) {
+                draw_rectangle_lines(
+                    cell.x + 3.0,
+                    cell.y + 3.0,
+                    cell.w - 6.0,
+                    cell.h - 6.0,
+                    1.0,
+                    Color::from_rgba(120, 110, 70, 255),
+                );
+            }
+        }
+        // The Drover, once a sign has taught you to look.
+        if run.signs_read() >= 1
+            && !run.county_chain_done(Chain::Drove)
+            && run.drover_tile() == p
+        {
+            ui_text("<>", cell.x + cell.w - 20.0, cell.y + 14.0, 12.0, col_gold());
+        }
+    }
+
+    // Under the grid: the gates, and whatever the hover is standing over.
+    let bottom = cells.last().map(|c| c.bottom()).unwrap_or(0.0) + 26.0;
+    let gates: Vec<String> = county::MOUTHS
+        .iter()
+        .map(|(id, m)| {
+            let town = gearmaster_engine::town::by_id(id);
+            let found = town.is_some_and(|t| {
+                matches!(t.unlock, gearmaster_engine::town::Unlock::Pinned)
+                    || run.towns_revealed.contains(id)
+            });
+            format!(
+                "{} {}",
+                county::reference(*m),
+                if found {
+                    words::retell(town.map(|t| t.name).unwrap_or(id))
+                } else {
+                    words::word("gate-unfound", "not found").to_string()
+                }
+            )
+        })
+        .collect();
+    ui_text(&gates.join("   "), 40.0, bottom, 12.0, col_dim());
+    ui_text(
+        &format!(
+            "{} of 49 cleared, {} of {} trips spent",
+            run.county_cleared.len(),
+            run.county_trips.len(),
+            gearmaster_engine::run::trip_cap()
+        ),
+        40.0,
+        bottom + 18.0,
+        12.0,
+        col_dim(),
+    );
+
+    // The pale's checklist, at one tile - hovered or stood beside.
+    let at_the_pale = run
+        .county_at
+        .is_some_and(|h| county::manhattan(h, c.pale()) <= 1)
+        || hovered == Some(c.pale());
+    if at_the_pale {
+        let mut y = bottom + 40.0;
+        for (r, met) in run.pale_checklist() {
+            ui_text(
+                &format!("[{}] {}", if met { 'x' } else { ' ' }, words::retell(&r.describe())),
+                40.0,
+                y,
+                12.0,
+                if met { col_ok() } else { col_dim() },
+            );
+            y += 16.0;
+        }
+    }
+}
+
 fn render_route(run: &Run, mx: f32, my: f32) {
     use gearmaster_engine::route::{route, EdgeKind, Fill, NodeKind};
     let map = route(run);
@@ -11074,6 +11288,9 @@ async fn main() {
     // shelves need re-dealing from it.
     let mut searching = false;
     let mut restock_shelf = false;
+    // Which half of the M overlay is showing. The road, until somebody asks
+    // for the other one.
+    let mut map_tab: usize = 0;
     let mut glossary_tab: usize = std::env::var("GEARMASTER_GLOSSARY_TAB")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -12492,8 +12709,64 @@ async fn main() {
         // so this can never depict a road the game does not have, and the
         // headless driver prints the same one in ASCII.
         if map_open {
-            render_route(&run, mx, my);
-            if is_key_pressed(KeyCode::Escape)
+            draw_rectangle(0.0, 0.0, LOGICAL_W, LOGICAL_H, Color::from_rgba(6, 6, 10, 246));
+            if map_tab == 0 {
+                render_route(&run, mx, my);
+            } else {
+                render_county_map(&run, mx, my);
+            }
+            // The tabs, over both. A8's, and the glossary's pattern: the road
+            // tab is what M has always opened and the county is beside it,
+            // greyed with a line until a run has been down there.
+            let tabs = map_tabs();
+            let names = [
+                words::word("the-road", "THE ROAD"),
+                words::word("the-hundred", "THE HUNDRED"),
+            ];
+            let mut picked = None;
+            for (i, (rect, name)) in tabs.iter().zip(names).enumerate() {
+                let on = i == map_tab;
+                let hot = rect.contains(Vec2::new(mx, my));
+                draw_rectangle(
+                    rect.x,
+                    rect.y,
+                    rect.w,
+                    rect.h,
+                    if on {
+                        Color::from_rgba(52, 46, 30, 255)
+                    } else {
+                        Color::from_rgba(28, 28, 40, 255)
+                    },
+                );
+                draw_rectangle_lines(
+                    rect.x,
+                    rect.y,
+                    rect.w,
+                    rect.h,
+                    if on || hot { 2.0 } else { 1.0 },
+                    if on || hot { col_gold() } else { Color::from_rgba(64, 64, 88, 255) },
+                );
+                let known = i == 0 || !run.county_trips.is_empty();
+                ui_text(
+                    name,
+                    rect.x + 12.0,
+                    rect.y + 20.0,
+                    13.0,
+                    if on {
+                        col_gold()
+                    } else if known {
+                        col_ok()
+                    } else {
+                        col_dim()
+                    },
+                );
+                if hot && is_mouse_button_pressed(MouseButton::Left) {
+                    picked = Some(i);
+                }
+            }
+            if let Some(i) = picked {
+                map_tab = i;
+            } else if is_key_pressed(KeyCode::Escape)
                 || is_key_pressed(KeyCode::M)
                 || is_mouse_button_pressed(MouseButton::Left)
             {
@@ -13906,6 +14179,45 @@ mod tests {
             open.len(),
             gearmaster_engine::theme::THEMES.len(),
             "unlocking did not offer every voice the engine has"
+        );
+    }
+
+    /// The map's two tabs fit, and the county grid fits under them.
+    ///
+    /// A8's second tab, checked the way `compass_cells` and `points_cells`
+    /// are: `map_tabs` and `county_cells` return rectangles rather than
+    /// drawing them, so this needs no graphics context.
+    #[test]
+    fn the_second_tab_and_the_grid_it_opens_both_fit() {
+        let tabs = map_tabs();
+        for (n, t) in ["the road", "the hundred"].iter().zip(&tabs) {
+            assert!(t.x >= 0.0, "{n} is off the left");
+            assert!(t.x + t.w <= LOGICAL_W, "{n} runs off the right");
+            assert!(t.y >= 0.0 && t.y + t.h <= LOGICAL_H, "{n} is off the screen");
+        }
+        assert!(tabs[0].x + tabs[0].w <= tabs[1].x, "the two tabs overlap");
+
+        let cells = county_cells();
+        assert_eq!(cells.len(), 49, "the county is seven by seven");
+        for (i, c) in cells.iter().enumerate() {
+            assert!(c.x >= 0.0 && c.x + c.w <= LOGICAL_W, "cell {i} runs off the side");
+            assert!(c.y + c.h <= LOGICAL_H, "cell {i} runs off the bottom");
+            // And under the tabs rather than through them.
+            assert!(c.y >= tabs[0].bottom(), "cell {i} is drawn over the tab strip");
+        }
+        // No two cells share a pixel.
+        for (i, a) in cells.iter().enumerate() {
+            for (j, b) in cells.iter().enumerate().skip(i + 1) {
+                let over = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+                assert!(!over, "cell {i} sits on cell {j}");
+            }
+        }
+        // Room under the grid for the gates, the tally and the checklist.
+        let bottom = cells.last().unwrap().bottom();
+        assert!(
+            LOGICAL_H - bottom >= 130.0,
+            "only {} pixels under the grid, and the pale's five lines need more",
+            LOGICAL_H - bottom
         );
     }
 

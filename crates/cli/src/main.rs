@@ -395,7 +395,7 @@ fn help() {
     println!("  items                    list the items that will act in combat");
     println!("  fight                    simulate and print the whole bout");
     println!("  road                     what is standing on this rung");
-    println!("  map                      the whole road, as this run has it");
+    println!("  map                      the whole road and the county under it");
     println!("  answer <n> [figure]      take choice n at the event in front of you");
     println!("  town | town on | town <door>   the gate, walking past it, or going in");
     println!("  drink                    take what the fountain is offering");

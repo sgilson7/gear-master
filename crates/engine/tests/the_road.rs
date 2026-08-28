@@ -277,7 +277,7 @@ const ROAD_AT: &[(usize, &str)] = &[
 #[test]
 fn the_road_is_drawn_the_way_it_was_drawn_at_f0() {
     for (rung, want) in ROAD_AT {
-        let got = gearmaster_engine::route::ascii(&a_bare_run_at(*rung));
+        let got = gearmaster_engine::route::ascii_road(&a_bare_run_at(*rung));
         let want: Vec<&str> = want.lines().collect();
         for (i, (g, w)) in got.iter().zip(&want).enumerate() {
             assert_eq!(
@@ -290,10 +290,17 @@ fn the_road_is_drawn_the_way_it_was_drawn_at_f0() {
         assert_eq!(
             got.len(),
             want.len(),
-            "rung {rung}: the map is {} lines and the fixture is {}",
+            "rung {rung}: the road is {} lines and the fixture is {}",
             got.len(),
             want.len()
         );
+
+        // And the whole map opens with it, line for line. This is the prefix
+        // assertion F0 wrote down: `ascii` is the road and then the county,
+        // and the road half does not move because a county was added under it.
+        let whole = gearmaster_engine::route::ascii(&a_bare_run_at(*rung));
+        assert!(whole.len() > got.len(), "rung {rung}: the map lost its county half");
+        assert_eq!(&whole[..got.len()], &got[..], "rung {rung}: the county moved the road");
     }
 }
 

@@ -703,3 +703,142 @@ fn zero_authored_gear_boards_at_f8() {
         assert!(spec.items.is_empty(), "{n} has items and F12 has not happened");
     }
 }
+
+// ==================================================== F9: the map
+
+/// The county, drawn, for a known seed and a known walk.
+///
+/// A fixture rather than a set of assertions because what is being pinned is
+/// the *drawing* - marks, glyphs, what is hidden and what is not - and a test
+/// that asserted each of those separately would be a second implementation of
+/// the drawing rules.
+#[test]
+fn the_county_is_drawn_the_way_a8_says() {
+    let got = a_walked_run_for_the_map();
+    let want = include_str!("fixtures/county-map.txt");
+    let want: Vec<&str> = want.lines().collect();
+    let got = gearmaster_engine::route::ascii_county(&got);
+    for (i, (g, w)) in got.iter().zip(&want).enumerate() {
+        assert_eq!(
+            g, w,
+            "line {i}: the county draws differently. Re-baseline with REBASELINE_COUNTY_MAP=1 \
+             only after naming here what started looking different"
+        );
+    }
+    assert_eq!(got.len(), want.len(), "the map is {} lines and the fixture is {}", got.len(), want.len());
+}
+
+/// One seed, one walk, drawn: a trip taken, a sighting or two, some tolls met
+/// and some not.
+fn a_walked_run_for_the_map() -> Run {
+    let mut run = a_run(0x1_00D);
+    let written = run.county_written();
+    // Two trig points, so one line is drawn and the hill is still hidden.
+    for t in written.objectives(Chain::Ordnance).into_iter().take(2) {
+        clear(&mut run, t);
+    }
+    // A sign, so the Drover is on the map.
+    clear(&mut run, written.objectives(Chain::Drove)[0]);
+    run.events_resolved = 6;
+    // And a trip in progress, standing beside the pale so its checklist shows.
+    run.county_trips.push(TripSource::Town("sump-bottom"));
+    run.county_at = Some(county::neighbours(written.pale())[0]);
+    run.county_moves_left = 3;
+    run
+}
+
+/// Re-baselines the county map, and only under `REBASELINE_COUNTY_MAP=1`.
+#[test]
+#[ignore]
+fn report_county_map() {
+    let run = a_walked_run_for_the_map();
+    let text = gearmaster_engine::route::ascii_county(&run).join("\n") + "\n";
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/county-map.txt");
+    if std::env::var("REBASELINE_COUNTY_MAP").as_deref() == Ok("1") {
+        std::fs::write(&path, &text).expect("writes");
+        println!("wrote {}", path.display());
+    } else {
+        print!("{text}");
+    }
+}
+
+/// A run that has never been down there is told there is a down there.
+///
+/// Greyed with a line (A8), and the line says how to get there - because a map
+/// that shows nothing is a map a player reads once.
+#[test]
+fn the_county_tab_is_greyed_before_the_first_visit() {
+    let run = a_run(0x1_00D);
+    let drawn = gearmaster_engine::route::ascii_county(&run);
+    assert_eq!(drawn.len(), 2, "an unvisited county drew a grid: {drawn:?}");
+    assert!(drawn[0].contains("THE HUNDRED"));
+    assert!(drawn[1].contains("steps"), "the line does not say how to get there: {:?}", drawn[1]);
+    // And nothing about the county is given away.
+    let all = drawn.join(" ");
+    assert!(!all.contains("gaol"), "an unvisited map named the gaol");
+    assert!(!all.contains("PALE"), "an unvisited map named the pale");
+}
+
+/// A toll's glyph is always drawn; its threshold is not.
+#[test]
+fn the_map_shows_every_toll_and_only_the_thresholds_you_know() {
+    let mut run = a_walked_run_for_the_map();
+    let c = run.county();
+    let unknown: Vec<(u8, u8)> = c
+        .tiles()
+        .iter()
+        .filter(|t| matches!(t.kind, TileKind::Feature(_)))
+        .filter(|t| !run.county_threshold_known(t.at))
+        .map(|t| t.at)
+        .collect();
+    assert!(!unknown.is_empty(), "every toll is readable, so this proves nothing");
+    let drawn = gearmaster_engine::route::ascii_county(&run).join("\n");
+    assert!(drawn.contains('?'), "a toll nobody can read did not say so");
+
+    // The sheet turns every threshold on, and the glyphs do not change.
+    run.flags.push(county::THE_SHEET);
+    let with = gearmaster_engine::route::ascii_county(&run).join("\n");
+    for at in &unknown {
+        let TileKind::Feature(toll) = c.at(*at).kind else { unreachable!() };
+        assert!(
+            with.contains(&toll.threshold()),
+            "the sheet did not show {:?}'s figure",
+            at
+        );
+    }
+}
+
+/// The Drover is on the map once a sign is read, and off it once he is beaten.
+#[test]
+fn the_drover_is_drawn_only_between_the_first_sign_and_the_last_fight() {
+    let mut run = a_run(0x1_00D);
+    run.county_trips.push(TripSource::Town("sump-bottom"));
+    run.county_at = Some(MOUTHS[0].1);
+    let before = gearmaster_engine::route::ascii_county(&run).join("\n");
+    assert!(!before.contains("the drover"), "a run that read no sign can see the pursuit");
+
+    let sign = run.county_written().objectives(Chain::Drove)[0];
+    clear(&mut run, sign);
+    let during = gearmaster_engine::route::ascii_county(&run).join("\n");
+    assert!(during.contains("the drover"), "a sign was read and the ring is still invisible");
+
+    run.flags.push(county::chain_done(Chain::Drove));
+    let after = gearmaster_engine::route::ascii_county(&run).join("\n");
+    assert!(!after.contains("the drover"), "the pursuit is drawn after it ended");
+}
+
+/// A gate you have not found is a gate, and not a town's name.
+#[test]
+fn a_hidden_towns_gate_is_on_the_map_and_its_name_is_not() {
+    let mut run = a_run(0x1_00D);
+    run.county_trips.push(TripSource::Town("sump-bottom"));
+    run.county_at = Some(MOUTHS[0].1);
+    let drawn = gearmaster_engine::route::ascii_county(&run).join("\n");
+    assert!(drawn.contains("SUMP BOTTOM"), "a pinned town's gate is not named");
+    assert!(!drawn.contains("THE MANSE"), "a town nobody has found is named on the map");
+    assert!(drawn.contains("a town you have not found"));
+
+    run.reveal_town("the-manse");
+    let found = gearmaster_engine::route::ascii_county(&run).join("\n");
+    assert!(found.contains("THE MANSE"), "a found town's gate is still anonymous");
+}

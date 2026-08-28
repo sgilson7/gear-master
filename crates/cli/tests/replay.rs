@@ -210,3 +210,44 @@ fn help_lists_the_county_verbs() {
         assert!(out.contains(verb), "help does not advertise {verb:?}:\n{out}");
     }
 }
+
+/// The driver prints the county half of the map, and the same one twice.
+///
+/// F9's exit criterion is that the CLI and the GUI draw the same county, and
+/// what a driver can prove of that is that it draws one at all and that two
+/// runs of one script draw it identically. The GUI's half is
+/// `the_second_tab_and_the_grid_it_opens_both_fit`, and both read the same
+/// drawing rules off the same run.
+#[test]
+fn the_map_draws_the_county_and_draws_it_the_same_way_twice() {
+    let script = "\
+sandbox
+preset
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+map
+go
+walk e
+map
+out
+map
+quit
+";
+    let once = play(script);
+    let twice = play(script);
+    assert_eq!(once, twice, "the same script drew a different county");
+    assert!(once.contains("THE HUNDRED"), "no county on the map:\n{once}");
+    // Greyed before the first visit, and a grid after it.
+    assert!(
+        once.contains("A county, under the road")
+            || once.contains("a county, under the road"),
+        "an unvisited county did not say what it was"
+    );
+    assert!(once.contains("gates:"), "the county drew no gates");
+    assert!(once.contains("of 49 cleared"), "the county drew no tally");
+}
