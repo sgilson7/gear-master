@@ -375,8 +375,23 @@ fn census() -> Census {
     };
 
     add("pieces", &|_| true);
-    add("inert (no trigger, effect or assembly bonus)", &|d| {
-        d.triggers.is_empty() && d.effect.is_none() && d.assembly_bonus.is_none()
+    // "Does nothing when it fires", which is what this line has always meant
+    // and only approximately measured. It counted triggers, and T2 moved
+    // thirty-five pool grants out of the trigger list and into `Stats` where
+    // the other hundred and fifty-eight already lived - identical to the
+    // fight, and this census read it as thirty-five pieces going inert.
+    //
+    // A piece that banks two nature every time it fires is not inert, however
+    // that is spelled. So the per-activation half of its stat block counts,
+    // which is the classification `parts_when` exists to provide.
+    add("inert (nothing on activation, no effect or assembly bonus)", &|d| {
+        use gearmaster_engine::stats::When;
+        let acts = d
+            .base
+            .parts_when()
+            .iter()
+            .any(|(_, _, w)| matches!(w, When::OnActivation | When::Damage));
+        d.triggers.is_empty() && d.effect.is_none() && d.assembly_bonus.is_none() && !acts
     });
     add("positional (effect, assembly bonus or reaction)", &|d| {
         d.effect.is_some()

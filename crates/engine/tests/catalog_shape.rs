@@ -80,9 +80,24 @@ fn spends_a_pool(def: &PieceDef) -> bool {
     })
 }
 
-/// No trigger, no effect, no assembly bonus. A stat line and nothing else.
+/// A stat line and nothing else — nothing on activation, no effect, no bonus.
+///
+/// It counted triggers only, which was already a poor proxy: a piece banking
+/// two nature every time it fires was "plain flat-stat filler" as long as it
+/// spelled that in `Stats`, and a hundred and fifty-eight of them did. T2 moved
+/// thirty-six more into that spelling and this predicate would have called them
+/// filler too — the quota measuring *worse* because the catalogue got tidier.
+///
+/// So it asks `parts_when` instead. Anything handed over on activation, in
+/// either spelling, is not filler.
 fn inert(def: &PieceDef) -> bool {
-    def.triggers.is_empty() && def.effect.is_none() && def.assembly_bonus.is_none()
+    use gearmaster_engine::stats::When;
+    let acts = def
+        .base
+        .parts_when()
+        .iter()
+        .any(|(_, _, w)| matches!(w, When::OnActivation | When::Damage));
+    def.triggers.is_empty() && def.effect.is_none() && def.assembly_bonus.is_none() && !acts
 }
 
 fn rarity(def: &PieceDef) -> Rarity {

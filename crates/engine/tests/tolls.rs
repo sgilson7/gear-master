@@ -436,10 +436,16 @@ fn what_the_reference_boards_cross() {
             let mut r = Run::seeded(0x5EED_1234_ABCD_0001);
             r.apply_preset();
             r
-        }, 5),
+        }, 6),
         ("owner", || common::board_from(gearmaster_engine::share::A_WINNING_RUN), 10),
         ("friend", || common::board_from(gearmaster_engine::share::A_FRIENDS_RUN), 8),
     ];
+    // The preset went 5 -> 6 at T2, and it is a fault being fixed rather than
+    // a figure drifting. `Figures::of` reads `stats.mana` for flow, so a piece
+    // that granted mana as `OnActivate(GainMana)` contributed **nothing** to
+    // the toll that asks how much mana a second a board makes - eighteen
+    // pieces' worth, invisible to every threshold in the county. Folding the
+    // two spellings into one made it visible.
     for (name, make, want) in boards {
         let mut run = make();
         run.rung = 20;

@@ -7,11 +7,11 @@ Written by `what_happens_when::audit`. Do not hand-edit.
 | | Pieces |
 |---|---:|
 | catalogue | 518 |
-| carrying a per-activation figure in `Stats` | 247 |
+| carrying a per-activation figure in `Stats` | 265 |
 | carrying a damage figure | 103 |
 | **carrying damage the fight cannot land** | **23** |
-| granting a pool as a trigger, not a stat | 18 |
-| spelling one pool grant both ways | 20 |
+| granting a pool as a trigger, not a stat | 0 |
+| spelling one pool grant both ways | 2 |
 
 ## Damage the fight cannot land
 
@@ -22,7 +22,7 @@ slot, which is why the helmets are not here.
 - Emberplate               Chestpiece +7 magic dmg
 - Voidsilk Base            Chestpiece +150 hp, +2 mana, +6 magic dmg
 - Starlit Mantle           Chestpiece +9 magic dmg, +20% magic pierce
-- Leyline Cuirass          Chestpiece +200 hp, +5 magic dmg
+- Leyline Cuirass          Chestpiece +200 hp, +3 mana, +5 magic dmg
 - Spiked Vambrace          Gloves   +8 phys dmg, +25% phys pierce
 - Breaker's Fist           Gloves   +14 phys dmg, +35% phys pierce
 - Thornweald Grip          Gloves   +5 phys dmg, +2 nature
@@ -48,47 +48,11 @@ slot, which is why the helmets are not here.
 `Stats { nature: 2 }` and `OnActivate(Gain { Nature, 2 })` are the same
 thing to the fight. These say it as a trigger:
 
-- Sevenleague Sole
-- Leyline Cuirass
-- Bloodrage Grip
-- Cull
-- Rootbound Material
-- Prismatic Ink
-- Seer's Orb
-- Titan's Grip
-- Pocket Grimoire
-- Siphon
-- Tidewrack Ink
-- Wrathwrit Ink
-- Gravebloom Ink
-- Oathbound Ink
-- Runewash Ink
-- Deepwater Ink
-- Sunder
-- Gilded Crest
 
 And these say it both ways at once, so their card adds the two together:
 
-- Votive Crest
-- Reliquary Frame
-- Bloomguard
-- Green Crown
-- Chapel Frame
-- Warcry Crest
-- Runebound Tome
-- Steel Frame
-- Crest of Vigor
-- Bone Frame
-- Mage's Circlet
-- Tin Frame
-- Bronze Frame
-- Ridged Frame
-- Zealot's Crest
-- Berserker's Crest
-- Bloomed Crest
 - Crownwright's Measure
 - The Green Ledger
-- Quiet Room
 
 ## Every piece
 
@@ -127,7 +91,7 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Sevenleague Sole — Greaves mold
   PASSIVE: +12% curse res
-  EVERY TIME IT FIRES (triggered): gain 2 mana
+  EVERY TIME IT FIRES: +2 mana
 
 ### Emberplate — Chestpiece layer
   DAMAGE: +7 magic dmg
@@ -150,7 +114,7 @@ And these say it both ways at once, so their card adds the two together:
 ### Leyline Cuirass — Chestpiece base
   DAMAGE: +5 magic dmg
   PASSIVE: +200 hp
-  EVERY TIME IT FIRES (triggered): gain 3 mana
+  EVERY TIME IT FIRES: +3 mana
 
 ### Spiked Vambrace — Gloves mold
   DAMAGE: +8 phys dmg
@@ -176,7 +140,7 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Bloodrage Grip — Weapon handle
   DAMAGE: +4 phys dmg
-  EVERY TIME IT FIRES (triggered): gain 2 rage
+  EVERY TIME IT FIRES: +2 rage
 
 ### Fury Sigil — Weapon accessory
   EVERY TIME IT FIRES: +1 rage
@@ -190,16 +154,14 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Cull — Weapon damaging
   DAMAGE: +16 phys dmg
-  EVERY TIME IT FIRES (triggered): gain 1 rage
+  EVERY TIME IT FIRES: +1 rage
 
 ### Votive Crest — Helmet crest
-  EVERY TIME IT FIRES: +1 faith
-  EVERY TIME IT FIRES (triggered): gain 2 faith
+  EVERY TIME IT FIRES: +3 faith
 
 ### Reliquary Frame — Helmet frame
   PASSIVE: +12% mind res
-  EVERY TIME IT FIRES: +2 mana
-  EVERY TIME IT FIRES (triggered): gain 2 faith
+  EVERY TIME IT FIRES: +2 mana, +2 faith
 
 ### Consecrated Plating — Helmet plating
   PASSIVE: +15% phys res, +15% magic res
@@ -215,7 +177,7 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Rootbound Material — Greaves material
   PASSIVE: +8% curse res
-  EVERY TIME IT FIRES (triggered): gain 2 nature
+  EVERY TIME IT FIRES: +2 nature
 
 ### Verdant Weave — Chestpiece layer
   PASSIVE: +1 regen
@@ -242,7 +204,7 @@ And these say it both ways at once, so their card adds the two together:
   TRIGGERS: when another spell in this item is cast, deal 7 magic damage to the enemy
 
 ### Prismatic Ink — Weapon ink
-  EVERY TIME IT FIRES (triggered): gain 1 mana
+  EVERY TIME IT FIRES: +1 mana
 
 ### Shatterbolt — Weapon spell
   DAMAGE: +13 magic dmg
@@ -374,13 +336,11 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Bloomguard — Gloves material
   PASSIVE: +1 regen
-  EVERY TIME IT FIRES: +2 nature
-  EVERY TIME IT FIRES (triggered): gain 2 nature
+  EVERY TIME IT FIRES: +4 nature
 
 ### Green Crown — Helmet frame
   PASSIVE: +8% mind res
-  EVERY TIME IT FIRES: +1 mana, +1 nature
-  EVERY TIME IT FIRES (triggered): gain 2 nature
+  EVERY TIME IT FIRES: +1 mana, +3 nature
 
 ### Oathplate — Chestpiece layer
   PASSIVE: +10% phys res
@@ -389,8 +349,7 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Chapel Frame — Helmet frame
   PASSIVE: +10% mind res
-  EVERY TIME IT FIRES: +2 mana, +1 faith
-  EVERY TIME IT FIRES (triggered): gain 2 faith
+  EVERY TIME IT FIRES: +2 mana, +3 faith
 
 ### Zealot's Sole — Greaves mold
   EVERY TIME IT FIRES: +2 faith
@@ -406,8 +365,7 @@ And these say it both ways at once, so their card adds the two together:
   EVERY TIME IT FIRES (triggered): gain 3 armor
 
 ### Warcry Crest — Helmet crest
-  EVERY TIME IT FIRES: +2 rage
-  EVERY TIME IT FIRES (triggered): gain 2 rage
+  EVERY TIME IT FIRES: +4 rage
 
 ### Ravener's Mold — Gloves mold
   EVERY TIME IT FIRES: +2 rage
@@ -415,12 +373,11 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Runebound Tome — Weapon book
   DAMAGE: +4 magic dmg
-  EVERY TIME IT FIRES: +1 mana
-  EVERY TIME IT FIRES (triggered): gain 2 mana
+  EVERY TIME IT FIRES: +3 mana
 
 ### Seer's Orb — Weapon crystal ball
   DAMAGE: +3 magic dmg
-  EVERY TIME IT FIRES (triggered): gain 2 mana
+  EVERY TIME IT FIRES: +2 mana
 
 ### Starfall — Weapon spell
   DAMAGE: +16 magic dmg
@@ -445,14 +402,14 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Titan's Grip — Gloves material
   PASSIVE: +14 str
-  EVERY TIME IT FIRES (triggered): gain 3 mana
+  EVERY TIME IT FIRES: +3 mana
 
 ### Sevenleague Boots — Greaves material
   PASSIVE: +5 regen
   EVERY TIME IT FIRES (triggered): gain 12 armor
 
 ### Pocket Grimoire — Weapon book
-  EVERY TIME IT FIRES (triggered): gain 1 mana
+  EVERY TIME IT FIRES: +1 mana
 
 ### Leaden Tome — Weapon book
   EVERY TIME IT FIRES: +12 armor
@@ -485,7 +442,7 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Siphon — Weapon spell
   DAMAGE: +4 mind
-  EVERY TIME IT FIRES (triggered): gain 3 mana
+  EVERY TIME IT FIRES: +3 mana
 
 ### Warding Sigil — Weapon spell
   EVERY TIME IT FIRES: +9 armor
@@ -520,8 +477,7 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Steel Frame — Helmet frame
   PASSIVE: +4% mind res
-  EVERY TIME IT FIRES: +12 armor, +1 mana
-  EVERY TIME IT FIRES (triggered): gain 2 mana
+  EVERY TIME IT FIRES: +12 armor, +3 mana
 
 ### Iron Plating — Helmet plating
   EVERY TIME IT FIRES: +15 armor, +1 mana
@@ -531,8 +487,7 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Crest of Vigor — Helmet crest
   PASSIVE: +1 regen
-  EVERY TIME IT FIRES: +2 mana
-  EVERY TIME IT FIRES (triggered): gain 2 mana
+  EVERY TIME IT FIRES: +4 mana
 
 ### Padded Base — Chestpiece base
   PASSIVE: +125 hp
@@ -601,8 +556,7 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Bone Frame — Helmet frame
   PASSIVE: +6 hp, +1 regen
-  EVERY TIME IT FIRES: +10 armor, +1 mana
-  EVERY TIME IT FIRES (triggered): gain 2 rage
+  EVERY TIME IT FIRES: +10 armor, +1 mana, +2 rage
 
 ### Hide Base — Chestpiece base
   PASSIVE: +70 hp
@@ -624,8 +578,7 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Mage's Circlet — Helmet frame
   PASSIVE: +3% mind res
-  EVERY TIME IT FIRES: +5 mana
-  EVERY TIME IT FIRES (triggered): gain 3 mana
+  EVERY TIME IT FIRES: +8 mana
   TRIGGERS: on activation, spend 6 mana: if it works, gain 1 mana empowerment; if not, gain 2 mana
 
 ### Runed Lining — Chestpiece layer
@@ -785,22 +738,22 @@ And these say it both ways at once, so their card adds the two together:
   TRIGGERS: when another spell in this item is cast, apply curse of searing to the enemy
 
 ### Tidewrack Ink — Weapon ink
-  EVERY TIME IT FIRES (triggered): gain 2 mana
+  EVERY TIME IT FIRES: +2 mana
 
 ### Wrathwrit Ink — Weapon ink
-  EVERY TIME IT FIRES (triggered): gain 2 rage
+  EVERY TIME IT FIRES: +2 rage
 
 ### Gravebloom Ink — Weapon ink
-  EVERY TIME IT FIRES (triggered): gain 2 nature
+  EVERY TIME IT FIRES: +2 nature
 
 ### Oathbound Ink — Weapon ink
-  EVERY TIME IT FIRES (triggered): gain 2 faith
+  EVERY TIME IT FIRES: +2 faith
 
 ### Mercurial Ink — Weapon ink
   EVERY TIME IT FIRES (triggered): cut 0.2s off its own cooldown
 
 ### Runewash Ink — Weapon ink
-  EVERY TIME IT FIRES (triggered): gain 2 mana
+  EVERY TIME IT FIRES: +2 mana
 
 ### Cinderscript Ink — Weapon ink
   EVERY TIME IT FIRES (triggered): apply curse of searing to the enemy
@@ -811,7 +764,7 @@ And these say it both ways at once, so their card adds the two together:
   TRIGGERS: per empty cell touching this item: on activation, deal 2 magic damage to the enemy
 
 ### Deepwater Ink — Weapon ink
-  EVERY TIME IT FIRES (triggered): gain 3 mana
+  EVERY TIME IT FIRES: +3 mana
 
 ### Starlit Ink — Weapon ink
   TRIGGERS: when an item in another slot on the same rows activates, deal 26 magic damage to the enemy
@@ -859,7 +812,7 @@ And these say it both ways at once, so their card adds the two together:
 ### Sunder — Weapon spell
   DAMAGE: +15 magic dmg
   PASSIVE: +35% magic pierce
-  EVERY TIME IT FIRES (triggered): gain 2 mana
+  EVERY TIME IT FIRES: +2 mana
 
 ### Frostbind — Weapon spell
   DAMAGE: +5 magic dmg
@@ -1029,13 +982,11 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Tin Frame — Helmet frame
   PASSIVE: +2% mind res
-  EVERY TIME IT FIRES: +6 armor, +1 mana
-  EVERY TIME IT FIRES (triggered): gain 1 mana
+  EVERY TIME IT FIRES: +6 armor, +2 mana
 
 ### Bronze Frame — Helmet frame
   PASSIVE: +5% mind res
-  EVERY TIME IT FIRES: +10 armor, +1 mana
-  EVERY TIME IT FIRES (triggered): gain 2 mana
+  EVERY TIME IT FIRES: +10 armor, +3 mana
 
 ### Warded Frame — Helmet frame
   PASSIVE: +9% mind res, +8% magic res
@@ -1044,8 +995,7 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Ridged Frame — Helmet frame
   PASSIVE: +7% mind res
-  EVERY TIME IT FIRES: +14 armor, +1 mana
-  EVERY TIME IT FIRES (triggered): gain 2 faith
+  EVERY TIME IT FIRES: +14 armor, +1 mana, +2 faith
 
 ### Buttressed Frame — Helmet frame
   PASSIVE: +12% mind res, +10% phys res
@@ -1116,23 +1066,20 @@ And these say it both ways at once, so their card adds the two together:
 
 ### Gilded Crest — Helmet crest
   PASSIVE: +2 regen
-  EVERY TIME IT FIRES (triggered): gain 2 mana
+  EVERY TIME IT FIRES: +2 mana
 
 ### Seer's Crest — Helmet crest
   EVERY TIME IT FIRES: +2 mana
   TRIGGERS: on activation, spend 3 mana: if it works, apply curse of misfire to the enemy; if not, gain 2 mana
 
 ### Zealot's Crest — Helmet crest
-  EVERY TIME IT FIRES: +3 faith
-  EVERY TIME IT FIRES (triggered): gain 3 faith
+  EVERY TIME IT FIRES: +6 faith
 
 ### Berserker's Crest — Helmet crest
-  EVERY TIME IT FIRES: +3 rage
-  EVERY TIME IT FIRES (triggered): gain 3 rage
+  EVERY TIME IT FIRES: +6 rage
 
 ### Bloomed Crest — Helmet crest
-  EVERY TIME IT FIRES: +3 nature
-  EVERY TIME IT FIRES (triggered): gain 2 nature
+  EVERY TIME IT FIRES: +5 nature
 
 ### Warlord's Crest — Helmet crest
   PASSIVE: +6 str
@@ -1940,8 +1887,7 @@ And these say it both ways at once, so their card adds the two together:
   EVERY TIME IT FIRES (triggered): cut 0.3s off its own cooldown
 
 ### Quiet Room — Helmet enchantment
-  EVERY TIME IT FIRES: +3 mana
-  EVERY TIME IT FIRES (triggered): gain 5 mana
+  EVERY TIME IT FIRES: +8 mana
 
 ### Wayfarer's Orb — Weapon crystal ball
   DAMAGE: +4 magic dmg

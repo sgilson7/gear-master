@@ -427,7 +427,7 @@ LADDER[9] Warded Idol EASY Weapon 0,0 r1
 LADDER[9] Warded Idol EASY Weapon 0,1 r1
     Iron Blade
 LADDER[9] Warded Idol EASY Helmet 0,0 r0
-    Ridged Frame
+    Reliquary Frame of Nine
 LADDER[9] Warded Idol EASY Helmet 3,0 r0
     Warding Plate
 LADDER[9] Warded Idol EASY Chest 0,0 r0
@@ -765,7 +765,7 @@ LADDER[13] Grave Chorus EASY Greaves 3,0 r0
 LADDER[13] Grave Chorus EASY Greaves 0,1 r0
     Bulwark Plating
 LADDER[13] Grave Chorus EASY Greaves 2,2 r0
-    Rootbound Material
+    Runed Material
 LADDER[13] Grave Chorus EASY Greaves 4,2 r0
     Coldstep Mold
 LADDER[13] Grave Chorus EASY Greaves 0,3 r0
@@ -1181,7 +1181,7 @@ LADDER[17] Pale Twin EASY Greaves 0,0 r1
 LADDER[17] Pale Twin EASY Greaves 2,0 r0
     Coldstep Mold
 LADDER[17] Pale Twin EASY Greaves 4,0 r0
-    Rootbound Material
+    Runed Material
 LADDER[17] Pale Twin EASY Greaves 3,2 r0
     Coldstep Mold
 LADDER[17] Pale Twin EASY Greaves 1,2 r0
@@ -1259,7 +1259,7 @@ LADDER[17] Pale Twin INSANE Greaves 0,0 r1
 LADDER[17] Pale Twin INSANE Greaves 2,0 r0
     Pilgrim Sole
 LADDER[17] Pale Twin INSANE Greaves 4,0 r0
-    Reliquary Sole
+    Rootbound Material
 LADDER[17] Pale Twin INSANE Greaves 3,2 r0
     Pilgrim Sole
 LADDER[17] Pale Twin INSANE Greaves 1,2 r0
@@ -3535,7 +3535,7 @@ LADDER[33] The Last Gearwright EASY Greaves 1,2 r0
 LADDER[33] The Last Gearwright EASY Greaves 0,5 r0
     Tempered Sole
 LADDER[33] The Last Gearwright EASY Greaves 1,6 r0
-    Warplate Greave
+    Rootbound Material
 LADDER[33] The Last Gearwright EASY Greaves 3,6 r0
     Reckoning Plate
 LADDER[33] The Last Gearwright MEDIUM Weapon 0,0 r0
@@ -6059,7 +6059,7 @@ LADDER[46] Nine of Ashes EASY Helmet 3,2 r0
 LADDER[46] Nine of Ashes EASY Helmet 2,3 r0
     Scarred Plating
 LADDER[46] Nine of Ashes EASY Helmet 5,1 r0
-    Votive Crest
+    Harvest Crest
 LADDER[46] Nine of Ashes EASY Helmet 0,3 r0
     Hollowbone Frame
 LADDER[46] Nine of Ashes EASY Helmet 2,4 r0
@@ -6117,7 +6117,7 @@ LADDER[46] Nine of Ashes EASY Greaves 3,0 r0
 LADDER[46] Nine of Ashes EASY Greaves 0,1 r0
     Overflow Plate
 LADDER[46] Nine of Ashes EASY Greaves 2,1 r0
-    Warplate Greave
+    Rootbound Material
 LADDER[46] Nine of Ashes EASY Greaves 4,1 r0
     Sapling Mold
 LADDER[46] Nine of Ashes EASY Greaves 1,3 r0
@@ -6257,13 +6257,13 @@ LADDER[46] Nine of Ashes HARD Helmet 3,0 r0
 LADDER[46] Nine of Ashes HARD Helmet 3,1 r0
     Lonely Plating
 LADDER[46] Nine of Ashes HARD Helmet 0,2 r0
-    Green Crown
+    Ridged Frame
 LADDER[46] Nine of Ashes HARD Helmet 3,2 r0
     Lonely Plating
 LADDER[46] Nine of Ashes HARD Helmet 2,3 r0
     Lonely Plating
 LADDER[46] Nine of Ashes HARD Helmet 5,1 r0
-    Warcry Crest
+    Votive Crest
 LADDER[46] Nine of Ashes HARD Helmet 0,3 r0
     Ossuary Frame
 LADDER[46] Nine of Ashes HARD Helmet 2,4 r0
@@ -6365,7 +6365,7 @@ LADDER[46] Nine of Ashes INSANE Helmet 3,2 r0
 LADDER[46] Nine of Ashes INSANE Helmet 2,3 r0
     Lonely Plating
 LADDER[46] Nine of Ashes INSANE Helmet 5,1 r0
-    Vigil Crest
+    Warcry Crest
 LADDER[46] Nine of Ashes INSANE Helmet 0,3 r0
     Ossuary Frame
 LADDER[46] Nine of Ashes INSANE Helmet 2,4 r0
@@ -7071,13 +7071,13 @@ LADDER[49] Francis MEDIUM Weapon 0,0 r1
 LADDER[49] Francis MEDIUM Weapon 3,0 r0
     Bonesaw
 LADDER[49] Francis HARD Helmet 0,0 r0
-    Green Crown
+    Ridged Frame
 LADDER[49] Francis HARD Helmet 3,0 r1
     Mirrorbright Plating
 LADDER[49] Francis HARD Helmet 2,1 r0
     Braced Plating
 LADDER[49] Francis HARD Helmet 0,1 r3
-    Green Crown
+    Ridged Frame
 LADDER[49] Francis HARD Helmet 1,3 r0
     Broken Crown
 LADDER[49] Francis HARD Helmet 4,1 r0
@@ -7085,7 +7085,7 @@ LADDER[49] Francis HARD Helmet 4,1 r0
 LADDER[49] Francis HARD Helmet 0,4 r1
     The Empty Crown
 LADDER[49] Francis HARD Helmet 2,5 r0
-    Green Crown
+    Ridged Frame
 LADDER[49] Francis HARD Helmet 0,6 r1
     Mirrorbright Plating
 LADDER[49] Francis HARD Helmet 4,6 r0
@@ -7457,15 +7457,15 @@ ALTERNATES[0] The Dreaming Idiot HARD Weapon 5,0 r0
 ALTERNATES[0] The Dreaming Idiot HARD Weapon 0,2 r0
     Rootwork Alignment
 ALTERNATES[0] The Dreaming Idiot INSANE Helmet 0,0 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[0] The Dreaming Idiot INSANE Helmet 3,0 r0
     Bulwark Plating
 ALTERNATES[0] The Dreaming Idiot INSANE Helmet 0,2 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[0] The Dreaming Idiot INSANE Helmet 3,2 r0
     Consecrated Plating
 ALTERNATES[0] The Dreaming Idiot INSANE Helmet 0,4 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[0] The Dreaming Idiot INSANE Helmet 3,4 r0
     Consecrated Plating
 ALTERNATES[0] The Dreaming Idiot INSANE Chest 0,0 r0
@@ -7713,11 +7713,11 @@ ALTERNATES[1] The Reciter HARD Weapon 1,3 r0
 ALTERNATES[1] The Reciter HARD Weapon 5,3 r0
     Leech Bead
 ALTERNATES[1] The Reciter INSANE Helmet 0,0 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[1] The Reciter INSANE Helmet 3,0 r0
     Consecrated Plating
 ALTERNATES[1] The Reciter INSANE Helmet 0,2 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[1] The Reciter INSANE Helmet 3,2 r0
     Godsteel Plating
 ALTERNATES[1] The Reciter INSANE Helmet 5,0 r0
@@ -7937,11 +7937,11 @@ ALTERNATES[2] The Long Haul HARD Weapon 4,2 r0
 ALTERNATES[2] The Long Haul HARD Weapon 3,3 r0
     Grimoire Rack
 ALTERNATES[2] The Long Haul INSANE Helmet 0,0 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[2] The Long Haul INSANE Helmet 3,0 r0
     Godsteel Plating
 ALTERNATES[2] The Long Haul INSANE Helmet 0,2 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[2] The Long Haul INSANE Helmet 3,2 r0
     Godsteel Plating
 ALTERNATES[2] The Long Haul INSANE Helmet 0,1 r0
@@ -8055,7 +8055,7 @@ ALTERNATES[3] The Watchers EASY Greaves 2,4 r0
 ALTERNATES[3] The Watchers EASY Greaves 0,5 r0
     Broken Crown
 ALTERNATES[3] The Watchers EASY Weapon 0,0 r0
-    Bloodrage Grip
+    Mage's Rod
 ALTERNATES[3] The Watchers EASY Weapon 1,0 r0
     Cursed Blade
 ALTERNATES[3] The Watchers EASY Weapon 2,0 r0
@@ -8065,7 +8065,7 @@ ALTERNATES[3] The Watchers EASY Weapon 3,0 r0
 ALTERNATES[3] The Watchers EASY Weapon 3,2 r0
     Cursed Blade
 ALTERNATES[3] The Watchers EASY Weapon 5,0 r0
-    Bloodrage Grip
+    Mage's Rod
 ALTERNATES[3] The Watchers EASY Weapon 4,4 r2
     Cursed Blade
 ALTERNATES[3] The Watchers EASY Weapon 2,5 r0
@@ -8231,19 +8231,19 @@ ALTERNATES[3] The Watchers HARD Weapon 4,4 r2
 ALTERNATES[3] The Watchers HARD Weapon 2,5 r0
     Clockwork Key
 ALTERNATES[3] The Watchers INSANE Helmet 0,0 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[3] The Watchers INSANE Helmet 0,1 r0
     Broken Crown
 ALTERNATES[3] The Watchers INSANE Helmet 3,0 r0
     Gilded Crest
 ALTERNATES[3] The Watchers INSANE Helmet 1,3 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[3] The Watchers INSANE Helmet 0,4 r0
     Consecrated Plating
 ALTERNATES[3] The Watchers INSANE Helmet 3,4 r0
     Gilded Crest
 ALTERNATES[3] The Watchers INSANE Helmet 2,5 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[3] The Watchers INSANE Helmet 0,6 r0
     Godsteel Plating
 ALTERNATES[3] The Watchers INSANE Helmet 4,3 r1
@@ -8403,7 +8403,7 @@ ALTERNATES[5] THE STAIR THAT LISTENS EASY Weapon 4,3 r0
 ALTERNATES[5] THE STAIR THAT LISTENS EASY Weapon 1,0 r0
     Choir of Ash
 ALTERNATES[5] THE STAIR THAT LISTENS EASY Greaves 1,4 r0
-    Bloomguard
+    Ironhide Wrap
 ALTERNATES[5] THE STAIR THAT LISTENS EASY Greaves 2,3 r0
     Rimebound Mold
 ALTERNATES[5] THE STAIR THAT LISTENS EASY Greaves 2,1 r0
@@ -8415,7 +8415,7 @@ ALTERNATES[5] THE STAIR THAT LISTENS EASY Gloves 2,2 r0
 ALTERNATES[5] THE STAIR THAT LISTENS EASY Gloves 2,1 r0
     Braced Mold
 ALTERNATES[5] THE STAIR THAT LISTENS EASY Gloves 2,5 r0
-    Runed Material
+    Warplate Greave
 ALTERNATES[5] THE STAIR THAT LISTENS EASY Gloves 2,4 r0
     Deft Mold
 ALTERNATES[5] THE STAIR THAT LISTENS MEDIUM Helmet 2,3 r0
@@ -8475,7 +8475,7 @@ ALTERNATES[5] THE STAIR THAT LISTENS HARD Weapon 4,3 r0
 ALTERNATES[5] THE STAIR THAT LISTENS HARD Weapon 1,0 r0
     Sunder
 ALTERNATES[5] THE STAIR THAT LISTENS HARD Greaves 1,4 r0
-    Ashen Material
+    Bloomguard
 ALTERNATES[5] THE STAIR THAT LISTENS HARD Greaves 2,3 r0
     Sump Sole
 ALTERNATES[5] THE STAIR THAT LISTENS HARD Greaves 2,1 r0
@@ -8483,11 +8483,11 @@ ALTERNATES[5] THE STAIR THAT LISTENS HARD Greaves 2,1 r0
 ALTERNATES[5] THE STAIR THAT LISTENS HARD Gloves 4,3 r0
     Seal of the Deep
 ALTERNATES[5] THE STAIR THAT LISTENS HARD Gloves 2,2 r0
-    Bloomguard
+    Waxed Material
 ALTERNATES[5] THE STAIR THAT LISTENS HARD Gloves 2,1 r0
     Vicegrip Mold
 ALTERNATES[5] THE STAIR THAT LISTENS HARD Gloves 2,5 r0
-    Plaguewalkers
+    Reliquary Sole
 ALTERNATES[5] THE STAIR THAT LISTENS HARD Gloves 2,4 r0
     Vicegrip Mold
 ALTERNATES[5] THE STAIR THAT LISTENS INSANE Helmet 2,3 r0
@@ -8511,7 +8511,7 @@ ALTERNATES[5] THE STAIR THAT LISTENS INSANE Weapon 4,3 r0
 ALTERNATES[5] THE STAIR THAT LISTENS INSANE Weapon 1,0 r0
     Slash and Burn
 ALTERNATES[5] THE STAIR THAT LISTENS INSANE Greaves 1,4 r0
-    Scaled Material
+    Ashen Material
 ALTERNATES[5] THE STAIR THAT LISTENS INSANE Greaves 2,3 r0
     Witherroot
 ALTERNATES[5] THE STAIR THAT LISTENS INSANE Greaves 2,1 r0
@@ -8519,11 +8519,11 @@ ALTERNATES[5] THE STAIR THAT LISTENS INSANE Greaves 2,1 r0
 ALTERNATES[5] THE STAIR THAT LISTENS INSANE Gloves 4,3 r0
     Seal of Power
 ALTERNATES[5] THE STAIR THAT LISTENS INSANE Gloves 2,2 r0
-    Waxed Material
+    Bloomguard
 ALTERNATES[5] THE STAIR THAT LISTENS INSANE Gloves 2,1 r0
     Vicegrip Mold
 ALTERNATES[5] THE STAIR THAT LISTENS INSANE Gloves 2,5 r0
-    Warplate Greave
+    Reliquary Sole
 ALTERNATES[5] THE STAIR THAT LISTENS INSANE Gloves 2,4 r0
     Vicegrip Mold
 ALTERNATES[6] THE LAST LANDING EASY Weapon 0,0 r0
@@ -8569,7 +8569,7 @@ ALTERNATES[6] THE LAST LANDING EASY Helmet 3,2 r0
 ALTERNATES[6] THE LAST LANDING EASY Helmet 4,3 r1
     Mana Ward
 ALTERNATES[6] THE LAST LANDING EASY Helmet 5,1 r0
-    Votive Crest
+    Harvest Crest
 ALTERNATES[6] THE LAST LANDING MEDIUM Weapon 0,0 r0
     Leaden Tome
 ALTERNATES[6] THE LAST LANDING MEDIUM Weapon 3,0 r0
@@ -8657,7 +8657,7 @@ ALTERNATES[6] THE LAST LANDING HARD Helmet 3,2 r0
 ALTERNATES[6] THE LAST LANDING HARD Helmet 4,3 r1
     Mirrored Visor
 ALTERNATES[6] THE LAST LANDING HARD Helmet 5,1 r0
-    Warcry Crest
+    Votive Crest
 ALTERNATES[6] THE LAST LANDING INSANE Weapon 0,0 r0
     Leaden Tome
 ALTERNATES[6] THE LAST LANDING INSANE Weapon 3,0 r0
@@ -8701,9 +8701,9 @@ ALTERNATES[6] THE LAST LANDING INSANE Helmet 3,2 r0
 ALTERNATES[6] THE LAST LANDING INSANE Helmet 4,3 r1
     Godsteel Plating
 ALTERNATES[6] THE LAST LANDING INSANE Helmet 5,1 r0
-    Vigil Crest
+    Warcry Crest
 ALTERNATES[7] THE SHADOW EASY Gloves 0,0 r0
-    Warplate Greave
+    Rootbound Material
 ALTERNATES[7] THE SHADOW EASY Gloves 2,0 r0
     Ravener's Mold
 ALTERNATES[7] THE SHADOW EASY Gloves 4,0 r0
@@ -8711,7 +8711,7 @@ ALTERNATES[7] THE SHADOW EASY Gloves 4,0 r0
 ALTERNATES[7] THE SHADOW EASY Gloves 5,0 r1
     Storm Signet
 ALTERNATES[7] THE SHADOW EASY Gloves 3,1 r0
-    Warplate Greave
+    Rootbound Material
 ALTERNATES[7] THE SHADOW EASY Gloves 1,2 r0
     Ravener's Mold
 ALTERNATES[7] THE SHADOW EASY Gloves 0,2 r0
@@ -8723,7 +8723,7 @@ ALTERNATES[7] THE SHADOW EASY Gloves 2,3 r1
 ALTERNATES[7] THE SHADOW EASY Gloves 0,3 r3
     Ravener's Mold
 ALTERNATES[7] THE SHADOW EASY Gloves 3,4 r0
-    Warplate Greave
+    Rootbound Material
 ALTERNATES[7] THE SHADOW EASY Gloves 1,5 r0
     Ravener's Mold
 ALTERNATES[7] THE SHADOW EASY Gloves 5,4 r0
@@ -8731,7 +8731,7 @@ ALTERNATES[7] THE SHADOW EASY Gloves 5,4 r0
 ALTERNATES[7] THE SHADOW EASY Gloves 0,5 r1
     Storm Signet
 ALTERNATES[7] THE SHADOW EASY Gloves 2,6 r0
-    Warplate Greave
+    Rootbound Material
 ALTERNATES[7] THE SHADOW EASY Gloves 4,5 r2
     Ravener's Mold
 ALTERNATES[7] THE SHADOW EASY Gloves 1,7 r0
@@ -8927,7 +8927,7 @@ ALTERNATES[7] THE SHADOW INSANE Helmet 0,6 r0
 ALTERNATES[7] THE SHADOW INSANE Helmet 3,6 r0
     Overflow Plate
 ALTERNATES[8] THE LANTERN EASY Gloves 0,0 r0
-    Warplate Greave
+    Rootbound Material
 ALTERNATES[8] THE LANTERN EASY Gloves 2,0 r0
     Ravener's Mold
 ALTERNATES[8] THE LANTERN EASY Gloves 4,0 r0
@@ -8943,11 +8943,11 @@ ALTERNATES[8] THE LANTERN EASY Gloves 0,2 r0
 ALTERNATES[8] THE LANTERN EASY Gloves 5,2 r1
     Storm Signet
 ALTERNATES[8] THE LANTERN EASY Gloves 2,3 r0
-    Warplate Greave
+    Rootbound Material
 ALTERNATES[8] THE LANTERN EASY Gloves 0,3 r3
     Ravener's Mold
 ALTERNATES[8] THE LANTERN EASY Gloves 4,4 r0
-    Warplate Greave
+    Rootbound Material
 ALTERNATES[8] THE LANTERN EASY Gloves 2,5 r0
     Ravener's Mold
 ALTERNATES[8] THE LANTERN EASY Gloves 4,3 r0
@@ -8955,7 +8955,7 @@ ALTERNATES[8] THE LANTERN EASY Gloves 4,3 r0
 ALTERNATES[8] THE LANTERN EASY Gloves 1,5 r0
     Blightfinger
 ALTERNATES[8] THE LANTERN EASY Gloves 0,6 r0
-    Warplate Greave
+    Rootbound Material
 ALTERNATES[8] THE LANTERN EASY Gloves 2,6 r2
     Ravener's Mold
 ALTERNATES[8] THE LANTERN EASY Helmet 0,0 r0
@@ -9307,7 +9307,7 @@ ALTERNATES[10] WHAT THE SEAM HID EASY Helmet 0,2 r0
 ALTERNATES[10] WHAT THE SEAM HID EASY Helmet 4,1 r1
     Crown of the Deep
 ALTERNATES[10] WHAT THE SEAM HID EASY Helmet 0,3 r0
-    Ridged Frame
+    Reliquary Frame of Nine
 ALTERNATES[10] WHAT THE SEAM HID EASY Helmet 3,3 r1
     Scrying Lens
 ALTERNATES[10] WHAT THE SEAM HID EASY Helmet 4,3 r2
@@ -9417,11 +9417,11 @@ ALTERNATES[10] WHAT THE SEAM HID HARD Weapon 1,1 r0
 ALTERNATES[10] WHAT THE SEAM HID HARD Weapon 0,2 r0
     Pilgrim Alignment
 ALTERNATES[10] WHAT THE SEAM HID HARD Helmet 0,0 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[10] WHAT THE SEAM HID HARD Helmet 3,0 r0
     Visor of Focus
 ALTERNATES[10] WHAT THE SEAM HID HARD Helmet 2,1 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[10] WHAT THE SEAM HID HARD Helmet 0,2 r0
     Visor of Focus
 ALTERNATES[10] WHAT THE SEAM HID HARD Helmet 4,1 r1
@@ -9433,13 +9433,13 @@ ALTERNATES[10] WHAT THE SEAM HID HARD Helmet 3,3 r1
 ALTERNATES[10] WHAT THE SEAM HID HARD Helmet 4,3 r2
     Bloomcap
 ALTERNATES[10] WHAT THE SEAM HID HARD Helmet 0,4 r3
-    Green Crown
+    Ridged Frame
 ALTERNATES[10] WHAT THE SEAM HID HARD Helmet 2,4 r1
     Visor of Focus
 ALTERNATES[10] WHAT THE SEAM HID HARD Helmet 3,5 r1
     Bloomcap
 ALTERNATES[10] WHAT THE SEAM HID HARD Helmet 0,6 r2
-    Green Crown
+    Ridged Frame
 ALTERNATES[10] WHAT THE SEAM HID HARD Helmet 3,7 r0
     Visor of Focus
 ALTERNATES[10] WHAT THE SEAM HID HARD Gloves 0,0 r1
@@ -9673,7 +9673,7 @@ ALTERNATES[12] THE THING ON THE HOOK EASY Helmet 2,1 r3
 ALTERNATES[12] THE THING ON THE HOOK EASY Helmet 0,1 r3
     Crown of the Deep
 ALTERNATES[12] THE THING ON THE HOOK EASY Helmet 3,1 r2
-    Ridged Frame
+    Reliquary Frame of Nine
 ALTERNATES[12] THE THING ON THE HOOK EASY Helmet 1,3 r0
     Scrying Lens
 ALTERNATES[12] THE THING ON THE HOOK EASY Helmet 4,3 r3
@@ -9789,7 +9789,7 @@ ALTERNATES[12] THE THING ON THE HOOK HARD Weapon 1,1 r0
 ALTERNATES[12] THE THING ON THE HOOK HARD Weapon 0,2 r0
     Pilgrim Alignment
 ALTERNATES[12] THE THING ON THE HOOK HARD Helmet 0,0 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[12] THE THING ON THE HOOK HARD Helmet 3,0 r1
     Mirrorbright Plating
 ALTERNATES[12] THE THING ON THE HOOK HARD Helmet 2,1 r3
@@ -9805,7 +9805,7 @@ ALTERNATES[12] THE THING ON THE HOOK HARD Helmet 4,3 r3
 ALTERNATES[12] THE THING ON THE HOOK HARD Helmet 0,4 r0
     Crown of the Deep
 ALTERNATES[12] THE THING ON THE HOOK HARD Helmet 2,4 r2
-    Green Crown
+    Ridged Frame
 ALTERNATES[12] THE THING ON THE HOOK HARD Helmet 5,4 r1
     Visor of Focus
 ALTERNATES[12] THE THING ON THE HOOK HARD Helmet 0,6 r1
@@ -10063,7 +10063,7 @@ ALTERNATES[14] THE THOUSANDTH BEAR EASY Gloves 0,0 r0
 ALTERNATES[14] THE THOUSANDTH BEAR EASY Gloves 2,0 r0
     Ravener's Mold
 ALTERNATES[14] THE THOUSANDTH BEAR EASY Gloves 4,0 r0
-    Warplate Greave
+    Rootbound Material
 ALTERNATES[14] THE THOUSANDTH BEAR EASY Gloves 2,1 r2
     Ravener's Mold
 ALTERNATES[14] THE THOUSANDTH BEAR EASY Gloves 0,2 r0
@@ -10415,7 +10415,7 @@ ALTERNATES[16] THE WUMPUS EASY Gloves 0,0 r0
 ALTERNATES[16] THE WUMPUS EASY Gloves 2,0 r0
     Ravener's Mold
 ALTERNATES[16] THE WUMPUS EASY Gloves 4,0 r0
-    Warplate Greave
+    Rootbound Material
 ALTERNATES[16] THE WUMPUS EASY Gloves 2,1 r2
     Ravener's Mold
 ALTERNATES[16] THE WUMPUS EASY Gloves 0,2 r0
@@ -10435,7 +10435,7 @@ ALTERNATES[16] THE WUMPUS EASY Gloves 5,3 r0
 ALTERNATES[16] THE WUMPUS EASY Gloves 0,4 r1
     Storm Signet
 ALTERNATES[16] THE WUMPUS EASY Gloves 0,6 r0
-    Warplate Greave
+    Rootbound Material
 ALTERNATES[16] THE WUMPUS EASY Gloves 2,6 r0
     Ravener's Mold
 ALTERNATES[16] THE WUMPUS MEDIUM Weapon 0,0 r0
@@ -11029,11 +11029,11 @@ ALTERNATES[18] THE UNWOUND HARD Chest 0,5 r0
 ALTERNATES[18] THE UNWOUND HARD Chest 2,5 r0
     Scale Layer
 ALTERNATES[18] THE UNWOUND HARD Gloves 0,0 r0
-    Rootbound Material
+    Plaguewalkers
 ALTERNATES[18] THE UNWOUND HARD Gloves 2,0 r3
     Hexer's Mold
 ALTERNATES[18] THE UNWOUND HARD Gloves 4,0 r0
-    Rootbound Material
+    Plaguewalkers
 ALTERNATES[18] THE UNWOUND HARD Gloves 2,1 r1
     Hexer's Mold
 ALTERNATES[18] THE UNWOUND HARD Gloves 1,2 r0
@@ -11041,7 +11041,7 @@ ALTERNATES[18] THE UNWOUND HARD Gloves 1,2 r0
 ALTERNATES[18] THE UNWOUND HARD Gloves 0,2 r0
     Signet of Ash
 ALTERNATES[18] THE UNWOUND HARD Gloves 4,2 r0
-    Rootbound Material
+    Plaguewalkers
 ALTERNATES[18] THE UNWOUND HARD Gloves 2,3 r3
     Hexer's Mold
 ALTERNATES[18] THE UNWOUND HARD Gloves 1,3 r0
@@ -11049,7 +11049,7 @@ ALTERNATES[18] THE UNWOUND HARD Gloves 1,3 r0
 ALTERNATES[18] THE UNWOUND HARD Gloves 0,3 r0
     Signet of Ash
 ALTERNATES[18] THE UNWOUND HARD Greaves 0,0 r0
-    Rootbound Material
+    Plaguewalkers
 ALTERNATES[18] THE UNWOUND HARD Greaves 2,0 r0
     Echo Sole
 ALTERNATES[18] THE UNWOUND HARD Greaves 0,1 r0
@@ -11059,7 +11059,7 @@ ALTERNATES[18] THE UNWOUND HARD Greaves 3,1 r0
 ALTERNATES[18] THE UNWOUND HARD Greaves 1,5 r0
     Iron Plating
 ALTERNATES[18] THE UNWOUND HARD Greaves 4,3 r0
-    Rootbound Material
+    Plaguewalkers
 ALTERNATES[18] THE UNWOUND HARD Greaves 5,5 r1
     Echo Sole
 ALTERNATES[18] THE UNWOUND HARD Greaves 4,6 r1
@@ -11069,7 +11069,7 @@ ALTERNATES[18] THE UNWOUND HARD Helmet 0,0 r0
 ALTERNATES[18] THE UNWOUND HARD Helmet 3,0 r0
     Iron Plating
 ALTERNATES[18] THE UNWOUND HARD Helmet 1,1 r0
-    Votive Crest
+    Coven Crest
 ALTERNATES[18] THE UNWOUND HARD Helmet 2,2 r0
     Warded Frame
 ALTERNATES[18] THE UNWOUND HARD Helmet 4,2 r1
@@ -11083,7 +11083,7 @@ ALTERNATES[18] THE UNWOUND HARD Helmet 1,5 r0
 ALTERNATES[18] THE UNWOUND HARD Helmet 4,5 r0
     Scarred Plating
 ALTERNATES[18] THE UNWOUND HARD Helmet 0,6 r0
-    Votive Crest
+    Coven Crest
 ALTERNATES[18] THE UNWOUND HARD Weapon 0,4 r0
     Archmage's Primer
 ALTERNATES[18] THE UNWOUND HARD Weapon 2,4 r0
@@ -11133,11 +11133,11 @@ ALTERNATES[18] THE UNWOUND INSANE Chest 0,5 r0
 ALTERNATES[18] THE UNWOUND INSANE Chest 2,5 r0
     Verdant Weave
 ALTERNATES[18] THE UNWOUND INSANE Gloves 0,0 r0
-    Plaguewalkers
+    Warplate Greave
 ALTERNATES[18] THE UNWOUND INSANE Gloves 2,0 r3
     Hexer's Mold
 ALTERNATES[18] THE UNWOUND INSANE Gloves 4,0 r0
-    Plaguewalkers
+    Warplate Greave
 ALTERNATES[18] THE UNWOUND INSANE Gloves 2,1 r1
     Hexer's Mold
 ALTERNATES[18] THE UNWOUND INSANE Gloves 1,2 r0
@@ -11145,7 +11145,7 @@ ALTERNATES[18] THE UNWOUND INSANE Gloves 1,2 r0
 ALTERNATES[18] THE UNWOUND INSANE Gloves 0,2 r0
     Ring of Wells
 ALTERNATES[18] THE UNWOUND INSANE Gloves 4,2 r0
-    Plaguewalkers
+    Warplate Greave
 ALTERNATES[18] THE UNWOUND INSANE Gloves 2,3 r3
     Hexer's Mold
 ALTERNATES[18] THE UNWOUND INSANE Gloves 1,3 r0
@@ -11153,7 +11153,7 @@ ALTERNATES[18] THE UNWOUND INSANE Gloves 1,3 r0
 ALTERNATES[18] THE UNWOUND INSANE Gloves 0,3 r0
     Ring of Wells
 ALTERNATES[18] THE UNWOUND INSANE Greaves 0,0 r0
-    Plaguewalkers
+    Warplate Greave
 ALTERNATES[18] THE UNWOUND INSANE Greaves 2,0 r0
     Echo Sole
 ALTERNATES[18] THE UNWOUND INSANE Greaves 0,1 r0
@@ -11163,7 +11163,7 @@ ALTERNATES[18] THE UNWOUND INSANE Greaves 3,1 r0
 ALTERNATES[18] THE UNWOUND INSANE Greaves 1,5 r0
     Iron Plating
 ALTERNATES[18] THE UNWOUND INSANE Greaves 4,3 r0
-    Plaguewalkers
+    Warplate Greave
 ALTERNATES[18] THE UNWOUND INSANE Greaves 5,5 r1
     Echo Sole
 ALTERNATES[18] THE UNWOUND INSANE Greaves 4,6 r1
@@ -11173,7 +11173,7 @@ ALTERNATES[18] THE UNWOUND INSANE Helmet 0,0 r0
 ALTERNATES[18] THE UNWOUND INSANE Helmet 3,0 r0
     Iron Plating
 ALTERNATES[18] THE UNWOUND INSANE Helmet 1,1 r0
-    Coven Crest
+    Votive Crest
 ALTERNATES[18] THE UNWOUND INSANE Helmet 2,2 r0
     Warded Frame
 ALTERNATES[18] THE UNWOUND INSANE Helmet 4,2 r1
@@ -11187,7 +11187,7 @@ ALTERNATES[18] THE UNWOUND INSANE Helmet 1,5 r0
 ALTERNATES[18] THE UNWOUND INSANE Helmet 4,5 r0
     Lonely Plating
 ALTERNATES[18] THE UNWOUND INSANE Helmet 0,6 r0
-    Coven Crest
+    Votive Crest
 ALTERNATES[18] THE UNWOUND INSANE Weapon 0,4 r0
     Archmage's Primer
 ALTERNATES[18] THE UNWOUND INSANE Weapon 2,4 r0
@@ -11243,7 +11243,7 @@ ALTERNATES[19] THE SHUNTER EASY Gloves 3,1 r0
 ALTERNATES[19] THE SHUNTER EASY Gloves 5,1 r1
     Braced Mold
 ALTERNATES[19] THE SHUNTER EASY Gloves 0,2 r0
-    Warplate Greave
+    Rootbound Material
 ALTERNATES[19] THE SHUNTER EASY Gloves 2,2 r1
     Braced Mold
 ALTERNATES[19] THE SHUNTER EASY Gloves 3,3 r0
@@ -11993,7 +11993,7 @@ ALTERNATES[24] THE GANTRY HARD Helmet 3,4 r0
 ALTERNATES[24] THE GANTRY HARD Helmet 5,2 r1
     Martyr's Crest
 ALTERNATES[24] THE GANTRY HARD Helmet 0,5 r3
-    Green Crown
+    Ridged Frame
 ALTERNATES[24] THE GANTRY HARD Helmet 2,6 r0
     Overflow Plate
 ALTERNATES[24] THE GANTRY HARD Helmet 4,6 r0
@@ -12125,7 +12125,7 @@ ALTERNATES[25] THE LAMP ROOM HARD Helmet 3,4 r0
 ALTERNATES[25] THE LAMP ROOM HARD Helmet 5,2 r1
     The Empty Crown
 ALTERNATES[25] THE LAMP ROOM HARD Helmet 0,5 r3
-    Green Crown
+    Ridged Frame
 ALTERNATES[25] THE LAMP ROOM HARD Helmet 2,6 r0
     Overflow Plate
 ALTERNATES[25] THE LAMP ROOM HARD Helmet 4,6 r0
@@ -12253,7 +12253,7 @@ ALTERNATES[26] THE GOODS SHED HARD Helmet 0,2 r0
 ALTERNATES[26] THE GOODS SHED HARD Helmet 5,0 r1
     The Empty Crown
 ALTERNATES[26] THE GOODS SHED HARD Helmet 2,2 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[26] THE GOODS SHED HARD Helmet 4,3 r0
     Overflow Plate
 ALTERNATES[26] THE GOODS SHED HARD Helmet 2,4 r0
@@ -13257,7 +13257,7 @@ ALTERNATES[32] THE PARISH EASY Helmet 2,1 r3
 ALTERNATES[32] THE PARISH EASY Helmet 0,1 r3
     Crown of the Deep
 ALTERNATES[32] THE PARISH EASY Helmet 3,1 r2
-    Ridged Frame
+    Reliquary Frame of Nine
 ALTERNATES[32] THE PARISH EASY Helmet 1,3 r0
     Scrying Lens
 ALTERNATES[32] THE PARISH EASY Helmet 4,3 r3
@@ -13373,7 +13373,7 @@ ALTERNATES[32] THE PARISH HARD Weapon 1,1 r0
 ALTERNATES[32] THE PARISH HARD Weapon 0,2 r0
     Pilgrim Alignment
 ALTERNATES[32] THE PARISH HARD Helmet 0,0 r0
-    Green Crown
+    Ridged Frame
 ALTERNATES[32] THE PARISH HARD Helmet 3,0 r1
     Mirrorbright Plating
 ALTERNATES[32] THE PARISH HARD Helmet 2,1 r3
@@ -13389,7 +13389,7 @@ ALTERNATES[32] THE PARISH HARD Helmet 4,3 r3
 ALTERNATES[32] THE PARISH HARD Helmet 0,4 r0
     Crown of the Deep
 ALTERNATES[32] THE PARISH HARD Helmet 2,4 r2
-    Green Crown
+    Ridged Frame
 ALTERNATES[32] THE PARISH HARD Helmet 5,4 r1
     Visor of Focus
 ALTERNATES[32] THE PARISH HARD Helmet 0,6 r1

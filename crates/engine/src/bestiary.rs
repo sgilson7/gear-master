@@ -326,12 +326,18 @@ fn says(d: &PieceDef, want: fn(&Action) -> bool) -> bool {
 /// Carries nothing any theme would recognise. Cores and filler, which every
 /// board needs whatever it is for.
 pub fn plain(d: &PieceDef) -> bool {
-    d.triggers.is_empty()
-        && d.effect.is_none()
-        && d.base.physical_damage == 0
-        && d.base.magic_damage == 0
-        && d.base.armor == 0
-        && d.base.health == 0
+    // "Says nothing when it fires." It used to count triggers and four stat
+    // fields, which meant a piece banking two nature every activation was
+    // plain filler as long as it spelled that in `Stats` - and a hundred and
+    // fifty-eight of them did. T2 moved thirty-six more into that spelling
+    // and the predicate would have called them filler too.
+    //
+    // So it asks the classification instead: anything a piece hands over on
+    // activation, in any spelling, is a piece with something to say.
+    let acts = d.base.parts_when().iter().any(|(_, _, w)| {
+        matches!(w, crate::stats::When::OnActivation | crate::stats::When::Damage)
+    });
+    d.triggers.is_empty() && d.effect.is_none() && !acts && d.base.health == 0
 }
 
 /// The clusters, from `design/monster-themes.md`.

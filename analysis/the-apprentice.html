@@ -1,0 +1,1178 @@
+<title>The Apprentice</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --bg:        #F4F6F8;
+    --surface:   #FFFFFF;
+    --sunken:    #EAEEF2;
+    --border:    #DCE2E9;
+    --rule:      #C3CCD6;
+    --text:      #171C24;
+    --muted:     #5C6673;
+    --faint:     #8892A0;
+    --accent:    #9C6E15;
+    --accent-bg: #F6EDD8;
+    --ok:        #2F6F4E;
+    --warn:      #A5581B;
+    --crit:      #A83A2C;
+
+    --blind:   #276E7D;
+    --privy:   #75558E;
+
+    --measure: 68ch;
+    --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --f-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:        #12161C;
+      --surface:   #1A1F27;
+      --sunken:    #161B22;
+      --border:    #2A313B;
+      --rule:      #3A424E;
+      --text:      #E4E8ED;
+      --muted:     #99A3B0;
+      --faint:     #737E8C;
+      --accent:    #D9A648;
+      --accent-bg: #2A2415;
+      --ok:        #6FBF92;
+      --warn:      #E09A56;
+      --crit:      #E5796A;
+
+      --blind:   #5FB8C9;
+      --privy:   #B49AD0;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg:        #12161C;
+    --surface:   #1A1F27;
+    --sunken:    #161B22;
+    --border:    #2A313B;
+    --rule:      #3A424E;
+    --text:      #E4E8ED;
+    --muted:     #99A3B0;
+    --faint:     #737E8C;
+    --accent:    #D9A648;
+    --accent-bg: #2A2415;
+    --ok:        #6FBF92;
+    --warn:      #E09A56;
+    --crit:      #E5796A;
+
+    --blind:   #5FB8C9;
+    --privy:   #B49AD0;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--f-body);
+    font-size: 17px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 0 1.5rem 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1000px; margin: 0 auto; }
+
+  /* ---------------------------------------------------------- masthead */
+
+  header.masthead {
+    padding: 4.5rem 0 2rem;
+    border-bottom: 2px solid var(--text);
+    margin-bottom: 2.5rem;
+  }
+
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: .72rem;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0 0 1.25rem;
+  }
+
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    line-height: 1.02;
+    letter-spacing: -.022em;
+    text-wrap: balance;
+    margin: 0 0 1rem;
+  }
+
+  .standfirst {
+    font-size: 1.16rem;
+    color: var(--muted);
+    max-width: 58ch;
+    margin: 0 0 2rem;
+  }
+
+  .status-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 2.25rem;
+    font-family: var(--f-mono);
+    font-size: .8rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--border);
+  }
+  .status-strip div { padding: .7rem 0; }
+  .status-strip span {
+    display: block;
+    font-size: .68rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: .15rem;
+  }
+  .status-strip b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ------------------------------------------------------------ typography */
+
+  section { margin: 0 0 4.5rem; }
+
+  h2 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 1.62rem;
+    letter-spacing: -.012em;
+    line-height: 1.2;
+    text-wrap: balance;
+    margin: 0 0 .35rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--rule);
+  }
+  h2 .num {
+    font-family: var(--f-mono);
+    font-size: .78rem;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: .1em;
+    display: block;
+    margin-bottom: .55rem;
+  }
+  .deck {
+    color: var(--muted);
+    font-size: 1.02rem;
+    max-width: 60ch;
+    margin: 0 0 2rem;
+  }
+
+  h3 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 1.06rem;
+    letter-spacing: -.005em;
+    margin: 2.4rem 0 .6rem;
+  }
+
+  p { margin: 0 0 1.1rem; max-width: var(--measure); }
+  ul, ol { max-width: var(--measure); padding-left: 1.2rem; margin: 0 0 1.2rem; }
+  li { margin-bottom: .5rem; }
+  li::marker { color: var(--faint); }
+
+  code {
+    font-family: var(--f-mono);
+    font-size: .855em;
+    background: var(--sunken);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: .08em .32em;
+    white-space: nowrap;
+  }
+
+  strong { font-weight: 600; }
+  em { font-style: italic; color: var(--muted); }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* ----------------------------------------------------------- data blocks */
+
+  .scroll { overflow-x: auto; margin: 0 0 1.5rem; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 540px;
+    font-family: var(--f-mono);
+    font-size: .81rem;
+    font-variant-numeric: tabular-nums;
+  }
+  caption {
+    text-align: left;
+    font-family: var(--f-mono);
+    font-size: .7rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    padding-bottom: .7rem;
+  }
+  th {
+    text-align: left;
+    font-weight: 600;
+    font-size: .7rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1.5px solid var(--rule);
+    padding: .4rem .8rem .4rem 0;
+  }
+  td {
+    padding: .42rem .8rem .42rem 0;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th.n, td.n { text-align: right; padding-right: 1.1rem; }
+  tbody tr:last-child td { border-bottom: 1.5px solid var(--rule); }
+  .rowlabel { font-family: var(--f-body); font-size: .95rem; }
+  td.zero { color: var(--crit); font-weight: 600; }
+  td.quoted { color: var(--warn); }
+
+  /* ------------------------------------------------------------ callouts */
+
+  .note {
+    border-left: 3px solid var(--rule);
+    background: var(--surface);
+    padding: 1.1rem 1.3rem;
+    margin: 0 0 1.5rem;
+    max-width: var(--measure);
+  }
+  .note p:last-child { margin-bottom: 0; }
+  .note .tag {
+    font-family: var(--f-mono);
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: .45rem;
+  }
+  .note.flag  { border-left-color: var(--crit); }
+  .note.flag .tag { color: var(--crit); }
+  .note.good  { border-left-color: var(--ok); }
+  .note.good .tag { color: var(--ok); }
+  .note.watch { border-left-color: var(--warn); }
+  .note.watch .tag { color: var(--warn); }
+
+  /* --------------------------------------------------------- the products */
+
+  .products {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    margin: 0 0 2rem;
+  }
+  .products > div { background: var(--surface); padding: 1.15rem 1.05rem 1.25rem; }
+  .products .metric {
+    font-family: var(--f-mono);
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .products .vec {
+    font-family: var(--f-display);
+    font-size: 1.22rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    margin: .5rem 0 .4rem;
+  }
+  .products p { font-size: .87rem; color: var(--muted); margin: 0; max-width: none; }
+
+  /* ------------------------------------------------------------- figure */
+
+  figure { margin: 0 0 1.8rem; }
+  figure .scroll { margin: 0; }
+  figure svg { display: block; width: 100%; min-width: 620px; height: auto; }
+  figcaption {
+    font-size: .88rem;
+    color: var(--muted);
+    max-width: 62ch;
+    margin-top: .9rem;
+    padding-left: .9rem;
+    border-left: 2px solid var(--border);
+  }
+
+  .dg-box { fill: var(--surface); stroke: var(--rule); stroke-width: 1.5; }
+  .dg-box-blind { fill: var(--surface); stroke: var(--blind); stroke-width: 2; }
+  .dg-box-privy { fill: var(--surface); stroke: var(--privy); stroke-width: 2; }
+  .dg-name {
+    font-family: var(--f-mono); font-size: 13px; font-weight: 600;
+    fill: var(--text);
+  }
+  .dg-sub {
+    font-family: var(--f-mono); font-size: 10.5px;
+    fill: var(--faint); letter-spacing: .04em;
+  }
+  .dg-edge { stroke: var(--rule); stroke-width: 1.5; fill: none; }
+  .dg-label {
+    font-family: var(--f-mono); font-size: 10.5px; fill: var(--muted);
+  }
+  .dg-cut { stroke: var(--crit); stroke-width: 1.5; stroke-dasharray: 5 4; fill: none; }
+  .dg-cut-mark { stroke: var(--crit); stroke-width: 2; }
+  .dg-cut-label {
+    font-family: var(--f-mono); font-size: 11px; font-weight: 600;
+    fill: var(--crit); letter-spacing: .04em;
+  }
+  .dg-arrow { fill: var(--rule); }
+
+  /* ----------------------------------------------------------- milestones */
+
+  ol.stages { list-style: none; padding: 0; max-width: none; counter-reset: stage -1; }
+  ol.stages > li {
+    counter-increment: stage;
+    display: grid;
+    grid-template-columns: 3.4rem 1fr;
+    gap: 0 1.2rem;
+    padding: 1.15rem 0;
+    border-bottom: 1px solid var(--border);
+    margin: 0;
+  }
+  ol.stages > li::before {
+    content: "A" counter(stage);
+    font-family: var(--f-mono);
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: .07em;
+    color: var(--accent);
+    padding-top: .22rem;
+  }
+  ol.stages h4 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 1.02rem;
+    margin: 0 0 .3rem;
+  }
+  ol.stages p { font-size: .93rem; color: var(--muted); margin: 0 0 .5rem; max-width: 62ch; }
+  ol.stages p:last-child { margin-bottom: 0; }
+  .gate {
+    font-family: var(--f-mono);
+    font-size: .73rem;
+    color: var(--text);
+    background: var(--sunken);
+    border: 1px solid var(--border);
+    padding: .3rem .55rem;
+    display: inline-block;
+    line-height: 1.5;
+  }
+  .gate b { color: var(--accent); font-weight: 600; }
+
+  /* ------------------------------------------------------------ decisions */
+
+  details {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 0 1.2rem;
+    margin: 0 0 .8rem;
+    max-width: var(--measure);
+  }
+  summary {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: .98rem;
+    cursor: pointer;
+    padding: .95rem 0;
+    list-style-position: outside;
+  }
+  summary .key {
+    font-family: var(--f-mono);
+    font-size: .74rem;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: .08em;
+    margin-right: .6rem;
+  }
+  details[open] summary { border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
+  details > *:last-child { margin-bottom: 1.1rem; }
+  details p { font-size: .95rem; }
+  .default {
+    font-family: var(--f-mono);
+    font-size: .73rem;
+    color: var(--muted);
+    display: block;
+    margin-top: .6rem;
+  }
+  .default b { color: var(--ok); font-weight: 600; }
+
+  footer {
+    border-top: 2px solid var(--text);
+    padding-top: 1.4rem;
+    font-family: var(--f-mono);
+    font-size: .76rem;
+    color: var(--faint);
+  }
+  footer p { max-width: none; margin: 0 0 .4rem; }
+
+  @media (max-width: 640px) {
+    body { font-size: 16px; padding: 0 1.1rem 4rem; }
+    header.masthead { padding-top: 2.75rem; }
+    ol.stages > li { grid-template-columns: 1fr; gap: .35rem; }
+    ol.stages > li::before { padding-top: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">Gear Master · Mission spec</p>
+  <h1>The Apprentice</h1>
+  <p class="standfirst">
+    An agent that learns this game from outside it — headless, holding only the
+    menu and the screen a person holds — so that the repo can finally say which
+    doors are reachable, and pack the creature boards it has been packing by
+    hand.
+  </p>
+  <div class="status-strip">
+    <div><span>Read off</span><b>020bc7c · 2026-08-28</b></div>
+    <div><span>Machine</span><b>M2 Max · 8P + 4E · 32 GB</b></div>
+    <div><span>Milestones</span><b>A0 – A9</b></div>
+    <div><span>Status</span><b>A0–A1 done · 4 decisions open</b></div>
+  </div>
+</header>
+
+<!-- ============================================================ 1 -->
+<section>
+  <h2><span class="num">Part One</span>Three things this repo cannot do</h2>
+  <p class="deck">
+    Each of them is a hole with the same shape: a test that asks whether a thing
+    exists, and no test that asks whether it works in the order a player meets it.
+  </p>
+
+  <p>
+    <strong>Nothing here has ever played a run.</strong> <code>force_win</code>
+    and <code>skip_to</code> assign outcomes. <code>completable.rs</code> proves a
+    key <em>can</em> exist before its door shuts. <code>apply_preset</code> seats
+    twenty-two pieces somebody chose by hand. No test demonstrates that a build a
+    seed's own shop can produce fights its way to any door — so no test can say
+    whether every event in this game is reachable by a person.
+  </p>
+
+  <p>
+    <strong>The packer is a sampler.</strong> <code>pack_francis</code> draws
+    three hundred boards from a fixed distribution, pays the full sixteen-fight
+    acceptance gate on every one, and keeps the best. There is no local search
+    anywhere in it. It costs 39.5 s a creature and lands in band by luck.
+  </p>
+
+  <p>
+    <strong>A theme is checked against the pool, never against the fight.</strong>
+    <code>MonsterTheme::allows</code> filters which pieces a creature may draw
+    from. Nothing asks whether the resulting fight <em>reads</em> as the theme, so
+    a Burner that kills with one big blow passes every test in the repo.
+  </p>
+
+  <div class="products">
+    <div>
+      <span class="metric">Metric · DCR</span>
+      <p class="vec">The validity checker</p>
+      <p>Door coverage over forward, player-legal play. Three columns — offered,
+        answered, branched — because the cheapest way to satisfy a coverage
+        metric is to stand in front of things.</p>
+    </div>
+    <div>
+      <span class="metric">Metric · PQ</span>
+      <p class="vec">The packer</p>
+      <p>Creatures in band, seconds a creature, theme fidelity, and whether it
+        can recover 48/50 from the owner's own tray. The bar is the sampler it
+        replaces.</p>
+    </div>
+    <div>
+      <span class="metric">Metric · SCR</span>
+      <p class="vec">The pilot</p>
+      <p>Seeds cleared to a named target, board clears and game clears counted in
+        separate columns. A fight past 30 s was decided by the clock.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 2 -->
+<section>
+  <h2><span class="num">Part Two</span>Everything is zero, and that is the honest number</h2>
+  <p class="deck">
+    Every metric is defined so that today's value is zero by construction. Read
+    off <code>020bc7c</code>.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>The ground, before anything is built</caption>
+      <thead>
+        <tr><th>What the mission measures</th><th>Value today</th><th>Where the number comes from</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="rowlabel">Runs ever played by anything in this repo</td><td class="zero">0</td><td>no environment exists</td></tr>
+        <tr><td class="rowlabel">Door coverage — offered / answered / branched</td><td class="zero">0 / 0 / 0</td><td>follows from the row above</td></tr>
+        <tr><td class="rowlabel">Seed-clear rate, every target and mode</td><td class="zero">0</td><td>proved only by <code>force_win</code></td></tr>
+        <tr><td class="rowlabel">Packer, seconds a creature</td><td class="quoted">8 s / 59 s / 242 s</td><td><b>measured at A0</b> — Bone Archer, Cog Priest, Francis</td></tr>
+        <tr><td class="rowlabel">Packer, theme fidelity</td><td class="zero">no meter</td><td>nothing measures a fight against its theme</td></tr>
+        <tr><td class="rowlabel">Creatures the packer can author</td><td class="zero">not Francis</td><td><b>measured at A0</b> — best of 300 candidates was a loss</td></tr>
+        <tr><td class="rowlabel">Repack from the owner's own tray</td><td class="quoted">unmeasured</td><td>the human packed 48/50 from those 75 pieces</td></tr>
+        <tr><td class="rowlabel">County creatures packed rather than borrowed</td><td class="zero">0 of 5</td><td>THE HUNDRED's one open piece of work</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note watch">
+    <span class="tag">The trap that governs everything below</span>
+    <p>
+      An agent optimises the metric it is given, so ask what the cheapest way to
+      satisfy each gate is <em>before</em> you ship the gate. Coverage's cheapest
+      satisfaction is standing in front of doors — hence three columns. Fidelity's
+      is carrying the vocabulary — hence every signature is a ratio over a fight
+      log. A clear's is winning on the clock — hence board clears and game clears
+      never share a column.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ 3 -->
+<section>
+  <h2><span class="num">Part Three</span>What “no access to the code base” is made of</h2>
+  <p class="deck">
+    Not discipline. The dependency graph.
+  </p>
+
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 760 400" role="img" aria-label="Crate diagram: the agent depends only on the console crate, which offers the player's menu and screen; it has no dependency edge to the oracle crate, so it cannot simulate a fight or read the catalogue.">
+      <defs>
+        <marker id="ap-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path class="dg-arrow" d="M 0 0 L 10 5 L 0 10 z"></path>
+        </marker>
+      </defs>
+
+      <!-- engine -->
+      <rect class="dg-box" x="285" y="18" width="200" height="54"></rect>
+      <text class="dg-name" x="385" y="41" text-anchor="middle">gearmaster-engine</text>
+      <text class="dg-sub" x="385" y="58" text-anchor="middle">every rule · zero dependencies</text>
+
+      <!-- console -->
+      <rect class="dg-box-blind" x="55" y="146" width="215" height="56"></rect>
+      <text class="dg-name" x="162" y="170" text-anchor="middle">gearmaster-console</text>
+      <text class="dg-sub" x="162" y="187" text-anchor="middle">the menu · the screen</text>
+
+      <!-- oracle -->
+      <rect class="dg-box-privy" x="500" y="146" width="215" height="56"></rect>
+      <text class="dg-name" x="607" y="170" text-anchor="middle">gearmaster-oracle</text>
+      <text class="dg-sub" x="607" y="187" text-anchor="middle">fights · catalogue · ratings</text>
+
+      <!-- agent -->
+      <rect class="dg-box-blind" x="40" y="300" width="240" height="60"></rect>
+      <text class="dg-name" x="160" y="325" text-anchor="middle">gearmaster-agent</text>
+      <text class="dg-sub" x="160" y="343" text-anchor="middle">the pilot — blind, evaluated</text>
+
+      <!-- lab -->
+      <rect class="dg-box-privy" x="460" y="300" width="255" height="60"></rect>
+      <text class="dg-name" x="587" y="325" text-anchor="middle">gearmaster-lab</text>
+      <text class="dg-sub" x="587" y="343" text-anchor="middle">trainer · packer · binaries</text>
+
+      <!-- edges -->
+      <line class="dg-edge" x1="162" y1="300" x2="162" y2="208" marker-end="url(#ap-arrow)"></line>
+      <text class="dg-label" x="174" y="258">depends on</text>
+
+      <line class="dg-edge" x1="185" y1="146" x2="300" y2="78" marker-end="url(#ap-arrow)"></line>
+
+      <line class="dg-edge" x1="587" y1="300" x2="600" y2="208" marker-end="url(#ap-arrow)"></line>
+      <text class="dg-label" x="612" y="258">depends on</text>
+
+      <line class="dg-edge" x1="580" y1="146" x2="468" y2="78" marker-end="url(#ap-arrow)"></line>
+
+      <line class="dg-edge" x1="455" y1="330" x2="290" y2="330" marker-end="url(#ap-arrow)"></line>
+      <text class="dg-label" x="372" y="322" text-anchor="middle">trains · relabels</text>
+
+      <!-- the cut -->
+      <line class="dg-cut" x1="285" y1="305" x2="497" y2="199"></line>
+      <line class="dg-cut-mark" x1="379" y1="243" x2="403" y2="263"></line>
+      <line class="dg-cut-mark" x1="403" y1="243" x2="379" y2="263"></line>
+      <text class="dg-cut-label" x="400" y="290" text-anchor="middle">cannot name it</text>
+    </svg>
+    </div>
+    <figcaption>
+      Rust will not let a crate name a dependency that is not in its manifest. The
+      pilot's manifest lists the console and nothing else, so it cannot call
+      <code>simulate_party</code>, read <code>CATALOG</code>, ask what creature is
+      coming, or <code>skip_to</code> a rung. Not "must not" — cannot.
+      <code>cargo tree -p gearmaster-agent</code> is the proof, and a test asserts
+      the graph so a future convenience cannot quietly add the edge.
+    </figcaption>
+  </figure>
+
+  <h3>Privileged critic, blind actor</h3>
+  <p>
+    The trainer may use the oracle: to score the pilot's boards, to shape reward,
+    to build a value target. That is ordinary practice and it stays honest as long
+    as the actor cannot consult it at inference. So the lab trains, the agent
+    plays, and the thing evaluated is the agent alone with the oracle switched off.
+  </p>
+
+  <h3>Three lines about what a player may know</h3>
+  <ul>
+    <li><strong>Anything on the screen</strong> is fair — it is in the observation.</li>
+    <li><strong>Anything learned by playing</strong> is fair, across episodes and
+      seeds. A person who plays seed 17 twenty times knows its shops; a person who
+      has fought a Burner knows what a Burner does. Cross-episode memory is
+      learning.</li>
+    <li><strong>Anything read out of the tables</strong> is not, ever — and the
+      crate graph makes it impossible rather than forbidden.</li>
+  </ul>
+
+  <p>
+    Which settles the fight-and-rewind question the old plan agonised over:
+    replaying a seed is unlimited in training, because a player can restart, and
+    evaluation is first sight — one forward play on a held-out seed, no restart,
+    no fork, no rewind. <code>Run::undo</code> stays legal, because it is a button
+    in the game.
+  </p>
+
+  <div class="note good">
+    <span class="tag">A1 · the leak audit answered itself</span>
+    <p>
+      This section used to flag <code>Run::monster()</code> as a leak to close: it
+      hands back the coming creature's whole spec, gear included. <strong>It is not
+      one.</strong> The window draws the creature's stats, then every item it will
+      swing, then its whole board — under a comment saying the panel is a preview
+      that exists so you can shop against what is coming, and that showing half of
+      it would defeat the point. The view carries all of it.
+    </p>
+    <p>
+      What it withholds is the rest of the ladder, where the two interfaces
+      disagree: the CLI prints every creature's outfit at every rung and the window
+      shows only the next one. The console takes the window's answer, because
+      telling an agent <em>less</em> than a player knows can only make a
+      reachability claim stronger.
+    </p>
+  </div>
+
+  <h3>The proof is a transcript a person can type</h3>
+  <p>
+    The GUI is the reference surface — it calls 90 distinct <code>Run</code>
+    methods. The CLI is eleven verbs short of the game: no reroll, barter, melt,
+    crush, grow, lock, undo, give, passenger seating, relic payment or shelf
+    pinning. A1 completes it, which makes every action typeable and turns
+    <code>crates/cli/tests/replay.rs</code> — a script piped in twice and
+    byte-compared — into the proof checker, with no new machinery.
+  </p>
+</section>
+
+<!-- ============================================================ 3.5 -->
+<section>
+  <h2><span class="num">A1 · found</span>Three things the lints caught before an agent played</h2>
+  <p class="deck">
+    None of them came from a failing feature. All three came from asking a
+    question no test in this repo had asked: does the interface offer what the
+    engine has, and does the screen read what the game reads?
+  </p>
+
+  <h3>Four player-facing verbs had no interface at all</h3>
+  <p>
+    The parity lint walks both shipped drivers for the <code>Run</code> methods
+    they call, walks the engine for the methods that change something, and
+    compares. Four are tested, documented, and reachable from nothing a person
+    can drive.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>Reachable from tests only, at 020bc7c</caption>
+      <thead><tr><th>Method</th><th>What it does</th><th>Who could ask for it</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel"><code>clear_slot</code></td><td>empty one grid</td><td>nobody — both drivers clear all five</td></tr>
+        <tr><td class="rowlabel"><code>crush</code></td><td>break a relic for what is inside it</td><td class="zero">nobody at all, in either driver, ever</td></tr>
+        <tr><td class="rowlabel"><code>grow_slot</code></td><td>spend an owed row on one board</td><td>nobody — only all-five growth is reachable</td></tr>
+        <tr><td class="rowlabel"><code>walk_the_perambulation</code></td><td><b>THE PARISH's tenth trip</b></td><td class="zero">nobody — one test, and nothing else</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note flag">
+    <span class="tag">The one that matters</span>
+    <p>
+      THE PARISH finishes on no simulated census, and the handoff gives three
+      dials for it. There is a fourth reason and it is not a dial: <strong>no
+      interface could walk the perambulation.</strong> The CLI has
+      <code>perambulate</code> now, and <code>mouths</code> to find out where to
+      start. The window still has no button for any of the four, and a test fails
+      the day one arrives.
+    </p>
+  </div>
+
+  <h3>The shop shows a price it will not charge</h3>
+  <p>
+    <code>Run::price</code> is the shelf price plus the markup, and
+    <code>Run::buy</code> charges exactly that. Both interfaces draw the
+    catalogue's number instead — the price <em>before</em> the markup. THE
+    TOLLBOOTH answers with a 10% markup and says so in its receipt, and from that
+    moment every shelf in the game displays a number it will not honour. The
+    console shows what will be charged and the CLI was fixed with it; the
+    window's three call sites are recorded for the owner.
+  </p>
+
+  <h3>A verb the game does not have</h3>
+  <p>
+    The console was written with an <code>Enter</code> verb for walking into a
+    dungeon. The lint refused it: nothing in either interface calls
+    <code>enter_dungeon</code>, because a run never walks into a dungeon — it is
+    <em>put</em> in one, by answering a door, by a town's cellar, or by feeding an
+    orb to a pedestal. This is the direction that matters most here: the lint
+    stopped an agent from having an action a person does not.
+  </p>
+
+  <div class="note">
+    <span class="tag">A1 · the control, played</span>
+    <p>
+      <code>starter</code> is the first thing in this repo's history to play a run
+      forward through a player's own actions — seating what will sit, trying each
+      anchor, keeping the one that finishes an item and taking the others back with
+      the player's own undo. On the default seed it reaches <b>rung 2</b> with six
+      board clears in 145 presses, then stops climbing: two pieces of gear beat the
+      Cave Rat in 4.5 s and lose to the Bog Toad in 7.2 s, for ever, because a
+      Grinder knocks back on a loss. That is the zero every later milestone is
+      measured against, and it was produced by playing rather than by argument.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ 4 -->
+<section>
+  <h2><span class="num">Part Four</span>Why the packer is slow, in one number</h2>
+  <p class="deck">
+    Every candidate pays for sixteen fights, including the ones a single integer
+    could have rejected. Measured at A0 on this machine: 8.0 s for a four-piece
+    creature, 59.4 s for a twenty-one-piece one, and 242.5 s for Francis — which it
+    then fails to author at all.
+  </p>
+
+  <div class="note flag">
+    <span class="tag">Measured at A0 · 020bc7c</span>
+    <p>
+      Three hundred candidates, four minutes, and <em>“nothing landed on the curve
+      for rung 50: wanted 21.6s within 30%, best was a loss.”</em> The sampler
+      cannot author the game's final boss. That is the measured form of “does not
+      work well”, and it is what A3 has to beat — not a better time on a creature
+      the sampler can already do, but a board on the one it cannot.
+    </p>
+  </div>
+
+  <p>
+    Two fixes, and they are separable. <strong>Tier the objective</strong> so that
+    the inner loop never simulates a fight, and <strong>improve rather than
+    resample</strong> — local search from the best board found, with a memoised
+    oracle and a per-slot incremental rebuild, instead of three hundred
+    independent draws that never learn anything from each other.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>The tiered objective — measured on this machine, one performance core</caption>
+      <thead>
+        <tr><th>Tier</th><th>What it is</th><th class="n">Cost</th><th>Player-legal?</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="rowlabel"><b>S0</b></td>
+          <td><code>Figures::of(&amp;combat_items())</code> plus stats, item count, summed rating. No fight, no ticks, integer division per item</td>
+          <td class="n">42 ns</td>
+          <td><b>yes</b> — the county tab draws it</td>
+        </tr>
+        <tr>
+          <td class="rowlabel"><b>S1</b></td>
+          <td>One fight against one spec at one difficulty</td>
+          <td class="n">0.77 ms</td>
+          <td>no</td>
+        </tr>
+        <tr>
+          <td class="rowlabel"><b>S2</b></td>
+          <td>The ported acceptance gate: four reference boards × four difficulties</td>
+          <td class="n">5.1 ms</td>
+          <td>no</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note good">
+    <span class="tag">The find that makes this work</span>
+    <p>
+      <code>loadout::Figures</code> — the six county tolls — is a <em>fight-free,
+      player-visible</em> score of what a board does per second: mana flow, damage
+      in each lane, armour, the fastest item, curse resistance. It was written so
+      a river could ask a board a question. It costs <b>42 nanoseconds</b> — one
+      seventeen-thousandth of a rung-50 fight — so a search that rejects a candidate
+      on figures pays nothing for the rejection. It is also the signal a blind pilot
+      uses to judge its own board the way a person does.
+    </p>
+  </div>
+
+  <p>
+    Target at A3: <strong>under 5 s a creature</strong> at a band-hit rate better
+    than the sampler's, on eight performance cores. If it cannot beat the sampler
+    at equal wall-clock, that is a finding rather than a failure — the space is
+    smaller than it looks and the right investment is a better sampler.
+  </p>
+</section>
+
+<!-- ============================================================ 5 -->
+<section>
+  <h2><span class="num">Part Five</span>A theme is a claim about the fight</h2>
+  <p class="deck">
+    Ten signatures, each computed from a combat log, each a ratio rather than a
+    property of the gear. This is the piece the brief asked for and the piece the
+    repo has never had.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>The fidelity meter — what each theme has to prove in the log</caption>
+      <thead>
+        <tr><th>Theme</th><th>Reads as</th><th>Signature over the log</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="rowlabel">Striker</td><td>fast and fragile</td><td>short time-to-kill; damage concentrated in weapon and gloves; few, large blows</td></tr>
+        <tr><td class="rowlabel">Wall</td><td>slow, heavy, hits back</td><td>long fight; high share of incoming absorbed by armour; reflected entries present</td></tr>
+        <tr><td class="rowlabel">Burner</td><td>kills on the clock</td><td>majority of damage arrives as Searing ticks rather than blows</td></tr>
+        <tr><td class="rowlabel">Slower</td><td>denies tempo</td><td>the player's activation count falls measurably against the same board unslowed</td></tr>
+        <tr><td class="rowlabel">Drainer</td><td>starves a banked build</td><td>pool drained above a floor; mind damage present</td></tr>
+        <tr><td class="rowlabel">Caster</td><td>bursty, mana-gated</td><td>magic share high; activations clustered rather than even</td></tr>
+        <tr><td class="rowlabel">Hollow</td><td>takes the maximum away</td><td>maximum-health reduction present, and no damage share at all</td></tr>
+        <tr><td class="rowlabel">Swarm</td><td>everywhere, briefly</td><td>activation count high and mean blow ≤ <code>SWARM_BLOW</code> (25)</td></tr>
+        <tr><td class="rowlabel">Beast</td><td>no trick at all</td><td>physical share dominant; no curses, no drains</td></tr>
+        <tr><td class="rowlabel">Warden</td><td>out-waits you</td><td>long fight; curses applied above a floor; damage low</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    Two things fall straight out, both at A2, both before any learning. A
+    <strong>printer</strong> that scores all 78 creatures against their own themes
+    and names the ones that do not read as what they claim — a balance finding the
+    repo has never been able to produce. And a <strong>term in the packer's
+    objective</strong>: <code>score = acceptance + λ · fidelity</code>, where
+    λ&nbsp;=&nbsp;0 recovers today's packer exactly, which is what makes the A3
+    comparison fair.
+  </p>
+
+  <p>
+    The same theme is the <strong>conditioning vector</strong> for the learned
+    policy: ten one-hot, plus a fidelity weight, a coverage weight, difficulty and
+    mode. One net serves all ten themes and both jobs, and the dial is a parameter
+    rather than a retrain. A8 makes that falsifiable — train on eight themes, hold
+    two out, and measure whether the held-out two are packed better than by the
+    λ&nbsp;=&nbsp;0 packer. A conditioning vector that does not generalise is a
+    lookup table with extra steps, and the test says which one was built.
+  </p>
+</section>
+
+<!-- ============================================================ 6 -->
+<section>
+  <h2><span class="num">Part Six</span>The search is the expert; the net learns from it</h2>
+  <p class="deck">
+    The brief wants an agent that learns. The research says that on a
+    deterministic, exactly-scored problem with a cheap simulator, search often
+    wins. Expert iteration satisfies both, and it is not a compromise.
+  </p>
+
+  <ol>
+    <li><strong>The expert.</strong> Greedy recipe packing, NRPA and CEM local
+      search, a beam over the menu. Slow, strong, and it produces labelled
+      decisions: at this screen, with this doctrine, the search chose this and the
+      episode reached this rung.</li>
+    <li><strong>The student.</strong> Policy and value heads over the observation.
+      The policy is factored — first what kind of move, then which piece (≤ 12),
+      then which anchor and rotation (≤ 384) — masked by the menu the console
+      offers. The value head trains under Ranked Reward: "did this beat my own
+      recent percentile", which manufactures a curriculum for a single-player
+      problem that has no opponent to play against.</li>
+    <li><strong>The loop.</strong> The student's policy becomes the prior inside
+      the search, which makes the expert faster, which produces better labels. The
+      gate every turn is wall-clock: net-guided search must beat unguided search at
+      equal seconds, or the net is recorded and switched off.</li>
+  </ol>
+
+  <p>
+    <strong>Reward is shaped</strong>, because a terminal win or loss over fifty
+    rungs is a needle: the change in the player-visible figures after each
+    placement; outcome <em>and margin</em> after each fight, so a win at 29 s and a
+    win at 9 s do not score the same; a rung; and a novelty bonus the first time a
+    run stands in front of a door it has never seen — which is what makes the agent
+    a validity explorer rather than a win-maximiser, and its weight is the dial.
+  </p>
+
+  <p>
+    <strong>Why not PPO from scratch.</strong> It would work eventually and it
+    wastes the asset. The environment is deterministic, the reward is exact and
+    free, an expert exists, and the horizon per decision is short. PPO's strength —
+    credit assignment through a stochastic, expensive environment — is the one
+    thing this problem does not need. It stays on the shelf for the run-level
+    layer if the beam turns out to be the weak part.
+  </p>
+
+  <div class="note">
+    <span class="tag">On this machine</span>
+    <p>
+      An M2 Max: 12 cores, of which 8 are performance and 4 are efficiency, 32 GB
+      unified, Metal. Burn with <code>Autodiff&lt;NdArray&gt;</code> first,
+      <code>Autodiff&lt;Wgpu&gt;</code> measured against it on the real net — for
+      nets this small, kernel-launch overhead often makes the CPU backend faster.
+      Candle-metal is the fallback here rather than tch, since it needs no
+      LibTorch. Nothing Python, ever.
+    </p>
+    <p>
+      And the efficiency cores make every throughput number a lie unless the
+      thread count is written beside it: they are three to four times slower and
+      <code>rayon</code> will happily use them.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ 7 -->
+<section>
+  <h2><span class="num">Part Seven</span>Ten milestones, each with a gate</h2>
+  <p class="deck">
+    Two ordering rules, both inherited: no framework dependency before A6's gate
+    opens, and no artifact enters the engine except as data.
+  </p>
+
+  <ol class="stages">
+    <li>
+      <div>
+        <h4>The ground, on this machine</h4>
+        <p>No agent code. Re-take every number the plan is priced in — fights a
+          second, the sampler's real cost, the coverage census, the seed set — on
+          this laptop, in release, on mains power.</p>
+        <p class="gate"><b>Met.</b> Throughput 1.6–2.1× <em>faster</em> than the container's. 1,043 + 81 + 10 tests green, no warnings. Six of CLAUDE.md's counts corrected; census and 128 seeds written out.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>The console, and the CLI made whole</h4>
+        <p>The player's surface as a crate: verbs, the menu, the screen. The
+          eleven missing CLI verbs. The leak audit on the coming creature.</p>
+        <p class="gate"><b>Met.</b> 21 tests across two new crates, sub-second. Parity holds both ways; transcripts replay byte-identically. Engine suite unchanged at 1,043. <b>Three findings</b> — see below.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>The oracle and the theme meter</h4>
+        <p>Memoised, incremental scoring; the ported acceptance gate; the ten
+          fidelity signatures. Plus the printer that scores all 78 creatures.</p>
+        <p class="gate"><b>Gate:</b> cached equals recomputed over 10,000 lookups; the fidelity table exists and is discussed.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>The packer</h4>
+        <p>Greedy plus NRPA and CEM, theme-conditioned, tiered objective,
+          parallel restarts. Two benchmarks: repack-from-tray, and creature boards
+          against the sampler's own gate.</p>
+        <p class="gate"><b>Gate:</b> ≥ 48/50 from the owner's tray and the friend's; more creatures in band than the sampler, faster.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>The pilot</h4>
+        <p>The blind agent plays a run through the console and nothing else.
+          Three strategies: starter, greedy, beam. Every clear writes a transcript
+          the CLI will replay.</p>
+        <p class="gate"><b>Gate:</b> clear rate above zero at rungs 10, 25 and 50 in both modes, with proofs.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>Coverage as an objective</h4>
+        <p>The novelty reward, a targeted mode that plans to a named door, and
+          the ledger. Anything unreached gets a second pass at ten times the
+          budget before it is called unreachable.</p>
+        <p class="gate"><b>Gate:</b> every gap classified — never offered, offered and refused, or answered and unpaid. Three different bug reports.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>The prior</h4>
+        <p>Behind a feature flag. Expert iteration from the search: factored
+          policy masked by the menu, value under Ranked Reward, both conditioned on
+          the doctrine.</p>
+        <p class="gate"><b>Gate:</b> on held-out seeds, at equal wall-clock <em>including inference</em>, net-guided beats unguided — or it is written down and stopped.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>The loop</h4>
+        <p>Search with the prior, relabel, retrain. Curriculum by seed and by
+          rung. The plateau test at 1× and 10×, with failures classified as
+          evaluation or exploration.</p>
+        <p class="gate"><b>Gate:</b> held-out clear rate, coverage and packer quality all above A3 and A4.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>The theme dial</h4>
+        <p>Train on eight themes, hold two out. Does conditioning change
+          behaviour? Does fidelity rise without band accuracy falling? Report the
+          confusion matrix — which themes the packer conflates is a statement about
+          the themes.</p>
+        <p class="gate"><b>Gate:</b> the two held-out themes pack better than λ = 0.</p>
+      </div>
+    </li>
+    <li>
+      <div>
+        <h4>In service</h4>
+        <p>The five county creatures packed rather than borrowed. The validity
+          ledger published, re-runnable. The fourth reference build, if one was
+          found, exported as a share code the suite fights without knowing an agent
+          existed.</p>
+        <p class="gate"><b>Gate:</b> engine suite green, no new engine dependency, no new non-data file in the engine.</p>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<!-- ============================================================ 8 -->
+<section>
+  <h2><span class="num">Part Eight</span>What the code said, reading it cold</h2>
+  <p class="deck">
+    Four things worth knowing before A0, each read off <code>020bc7c</code> rather
+    than quoted from a document.
+  </p>
+
+  <p>
+    <strong>Every line citation in the earlier documents is stale.</strong>
+    <code>run.rs</code> has grown 1,250 lines since the handoff was written — the
+    county and the book recipe — so the addresses in <code>CLAUDE.md</code>, the
+    Solver plan and <code>HANDOFF-solver.md</code> are all short by hundreds. The
+    API names are all still correct; only the addresses moved.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>Corrected addresses — the load-bearing ones</caption>
+      <thead>
+        <tr><th>Name</th><th>The handoff says</th><th>It is at</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="rowlabel"><code>pub struct Run</code> — still no <code>Clone</code></td><td>run.rs:465</td><td><b>run.rs:611</b></td></tr>
+        <tr><td class="rowlabel"><code>Run::start</code></td><td>run.rs:787</td><td><b>run.rs:1100</b></td></tr>
+        <tr><td class="rowlabel"><code>Run::choice_open</code></td><td>run.rs:1097</td><td><b>run.rs:1540</b></td></tr>
+        <tr><td class="rowlabel"><code>Run::force_win</code> / <code>skip_to</code></td><td>run.rs:2434, :2440</td><td><b>run.rs:4065, :4071</b></td></tr>
+        <tr><td class="rowlabel"><code>Run::can_equip</code></td><td>run.rs:3127</td><td><b>run.rs:4758</b></td></tr>
+        <tr><td class="rowlabel"><code>Run::fight_next</code></td><td>run.rs:3437</td><td><b>run.rs:5084</b></td></tr>
+        <tr><td class="rowlabel"><code>simulate_party</code></td><td>combat.rs:3862</td><td><b>combat.rs:4217</b></td></tr>
+        <tr><td class="rowlabel"><code>recipes</code></td><td>piece.rs:1039</td><td><b>piece.rs:1238</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    <strong>The sampler has no local search at all</strong> —
+    <code>pack_francis.rs:783</code> is <code>for trial in 0..trials()</code>, three
+    hundred independent draws, and nothing in the loop learns from the one before
+    it. That is most of the answer to "slow, and does not work well".
+  </p>
+
+  <p>
+    <strong>The county tolls are a fight-free board score</strong>, and they are on
+    the player's screen. <code>loadout::Figures</code> was written so a river could
+    ask a board what it does per second; it is exactly the surrogate objective the
+    packer needs and exactly the signal a blind pilot needs.
+  </p>
+
+  <p>
+    <strong>The CLI is not the player's surface.</strong> It is a subset — eleven
+    verbs short — which means a transcript cannot be a proof of playability until
+    A1 closes the gap. The GUI is the reference, and its 90 <code>Run</code> calls
+    are the enumeration the parity lint is written against.
+  </p>
+</section>
+
+<!-- ============================================================ 9 -->
+<section>
+  <h2><span class="num">Part Nine</span>Four decisions before A0</h2>
+  <p class="deck">
+    Each has a default so work can start without an answer. Each is one line to
+    overrule. Eight more are in the spec.
+  </p>
+
+  <details>
+    <summary><span class="key">E1</span>Four crates, or two?</summary>
+    <p>
+      Four — console, oracle, agent, lab — makes the boundary a fact about the
+      dependency graph rather than a promise in a doc comment, and turns "the agent
+      has no access to the code base" into one <code>cargo tree</code>. Two
+      (console and agent, with a source lint) is cheaper, weaker, and the thing most
+      likely to erode.
+    </p>
+    <span class="default">Default: <b>four</b></span>
+  </details>
+
+  <details>
+    <summary><span class="key">E4</span>What may a theme cost in band accuracy?</summary>
+    <p>
+      Winning the fight is the first-order goal; reading as itself is the second.
+      Unless a number is set now, the packer will quietly trade one for the other
+      and nobody will notice which.
+    </p>
+    <span class="default">Default: <b>reject any board losing more than 10% of band accuracy for fidelity</b></span>
+  </details>
+
+  <details>
+    <summary><span class="key">E8</span>How many overnights?</summary>
+    <p>
+      The plan is priced for one M2 Max and about two weeks of wall-clock across
+      A3 to A7, most of it unattended. Seeds shard trivially across a second
+      machine if there is one.
+    </p>
+    <span class="default">Default: <b>unattended overnight runs, one machine</b></span>
+  </details>
+
+  <details>
+    <summary><span class="key">E11</span>Is 128 seeds right?</summary>
+    <p>
+      Sixty-four training and sixty-four held out. Fewer is faster and noisier; more
+      is slower. The four seeds the repo already uses go in the training half so the
+      held-out half stays clean, and no seed ever moves across the split or joins
+      the set because the agent did well on it.
+    </p>
+    <span class="default">Default: <b>64 / 64</b></span>
+  </details>
+
+  <div class="note">
+    <span class="tag">The failure mode to watch</span>
+    <p>
+      The mission inherits the one this repo keeps meeting: an agent that reaches a
+      target by a route no player could take, behind a green suite. The crate graph
+      is the guard, and it is only as good as the test that asserts it — which is
+      why that test is written at A1, before the first strategy exists, so there is
+      never a proof nobody checked.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <p>Source: <code>design/the-apprentice.md</code> — the full execution spec. Measurements: <code>analysis/the-apprentice.md</code>, one block a milestone.</p>
+  <p>Predecessors: <code>design/rl-agent-plan.md</code> · <code>design/rl-research.md</code> · <code>HANDOFF-solver.md</code></p>
+  <p>Read off <code>020bc7c</code>, 2026-08-28. Every number here is either read off that tip or marked as an estimate A0 replaces.</p>
+</footer>
+
+</div>

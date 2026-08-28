@@ -685,3 +685,54 @@ One rung harder at each setting above Medium, from removing a `9^0.25`
 multiplier, two standing passives and the run-in's component step, and putting
 one or two assembled items back in their place. The settings still separate,
 and what separates them is now a board.
+
+---
+
+## 29. Two spellings of one effect are two spellings, not one
+
+T2 folded 36 pieces' `OnActivate(Gain { Nature, 2 })` into `Stats { nature: 2 }`,
+on the premise that the fight treats them identically. The gate for it was that
+the ladder must come back **byte-identical**, precisely because any movement
+would mean the premise was wrong.
+
+It moved. Twice, in different places, and both are worth having.
+
+**The ordering inside an activation.** `Stats`-spelled pools are banked at
+`combat.rs:5125`; `OnActivate` triggers run at `:5187`. Same amount, sixty
+lines earlier - and the spell mana check sits between them at `:4923` in the
+cast. So converting moves the grant ahead of any trigger in the same item that
+spends a pool. The friend board's weapon share went **96.7% -> 96.8%**: one
+more spell paid for over a fight. No clear count and no time-to-kill moved.
+
+**`Figures::of` reads `stats.mana` and nothing else** (`loadout.rs:225`). So a
+piece granting mana as a trigger contributed **nothing** to the county toll
+that asks how much mana a second a board makes. Eighteen pieces' worth,
+invisible to every threshold in the county. The preset board crosses six of
+the twelve now rather than five, and that is a fault being fixed rather than a
+figure drifting.
+
+The lesson is not "do not normalise". It is that **"the engine treats these
+identically" is a claim about one code path**, and there were three: the fire
+order, the rating, and every reader that walks `Stats` without walking
+triggers. A byte-identical gate is what turns that claim into a question.
+
+## 30. A predicate that counts triggers measures spelling, not behaviour
+
+Three places asked "does this piece do anything" by asking whether its trigger
+list was empty: `baseline`'s census, `bestiary::plain`, and `catalog_shape`'s
+`inert`. All three were already wrong before T2 - a piece banking two nature
+every activation was "plain flat-stat filler" as long as it spelled that in
+`Stats`, and **158** of them did.
+
+T2 moved 36 more into that spelling and all three predicates reported the
+catalogue getting *worse* because it had got tidier. The census showed 124
+inert pieces going to 156; the helmet filler quota went to 44% against a
+ceiling of 30.
+
+Corrected, they read the classification instead, and the true figure is
+**54 inert pieces, not 124**. The old definition overstated dead filler by
+more than double for two missions, and nothing noticed because the number only
+ever went up when content was added.
+
+Any predicate of the form "has no triggers" is measuring how a thing is
+written. `parts_when` is what to ask instead.
