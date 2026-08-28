@@ -334,15 +334,24 @@ impl Stats {
     /// twenty fields in the interface, and this repository has just finished
     /// deleting four copies of a walker for exactly that reason.
     pub fn parts(&self) -> Vec<(String, &'static str)> {
-        let mut parts: Vec<(String, &'static str)> = Vec::new();
+        self.parts_when().into_iter().map(|(t, g, _)| (t, g)).collect()
+    }
+
+    /// The same figures, each saying when it happens.
+    ///
+    /// `parts` is this with the third element dropped, so the two cannot
+    /// disagree about what a block contains - the same argument that put
+    /// `parts` and `summary` on one traversal in the first place.
+    pub fn parts_when(&self) -> Vec<(String, &'static str, When)> {
+        let mut parts: Vec<(String, &'static str, When)> = Vec::new();
         if self.health != 0 {
-            parts.push((format!("{:+} hp", self.health), ""));
+            parts.push((format!("{:+} hp", self.health), "", When::Passive));
         }
         if self.strength != 0 {
-            parts.push((format!("{:+} str", self.strength), ""));
+            parts.push((format!("{:+} str", self.strength), "", When::Passive));
         }
         if self.regen != 0 {
-            parts.push((format!("{:+} regen", self.regen), "nature"));
+            parts.push((format!("{:+} regen", self.regen), "nature", When::Passive));
         }
         if self.power != 0 {
             // Power reaches the item carrying it and nothing else, so the
@@ -350,32 +359,33 @@ impl Stats {
             parts.push((
                 format!("{:+}.{:02}x its own power", self.power / 100, (self.power % 100).abs()),
                 "speed",
+                When::Passive,
             ));
         }
         if self.armor != 0 {
-            parts.push((format!("{:+} armor", self.armor), "armor"));
+            parts.push((format!("{:+} armor", self.armor), "armor", When::OnActivation));
         }
         if self.mana != 0 {
-            parts.push((format!("{:+} mana", self.mana), "mana"));
+            parts.push((format!("{:+} mana", self.mana), "mana", When::OnActivation));
         }
         if self.mind != 0 {
-            parts.push((format!("{:+} mind", self.mind), "mind"));
+            parts.push((format!("{:+} mind", self.mind), "mind", When::Damage));
         }
         if self.mind_resist != 0 {
-            parts.push((format!("{:+}% mind res", self.mind_resist), "mind"));
+            parts.push((format!("{:+}% mind res", self.mind_resist), "mind", When::Passive));
         }
         if self.curse_resist != 0 {
-            parts.push((format!("{:+}% curse res", self.curse_resist), "curse"));
+            parts.push((format!("{:+}% curse res", self.curse_resist), "curse", When::Passive));
         }
-        for (v, label, glyph) in [
-            (self.physical_damage, "phys dmg", "physical"),
-            (self.magic_damage, "magic dmg", "magic"),
-            (self.rage, "rage", "rage"),
-            (self.faith, "faith", "faith"),
-            (self.nature, "nature", "nature"),
+        for (v, label, glyph, when) in [
+            (self.physical_damage, "phys dmg", "physical", When::Damage),
+            (self.magic_damage, "magic dmg", "magic", When::Damage),
+            (self.rage, "rage", "rage", When::OnActivation),
+            (self.faith, "faith", "faith", When::OnActivation),
+            (self.nature, "nature", "nature", When::OnActivation),
         ] {
             if v != 0 {
-                parts.push((format!("{:+} {}", v, label), glyph));
+                parts.push((format!("{:+} {}", v, label), glyph, when));
             }
         }
         for (v, label, glyph) in [
@@ -387,7 +397,7 @@ impl Stats {
             (self.magic_harden, "magic harden", "magic"),
         ] {
             if v != 0 {
-                parts.push((format!("{:+}% {}", v, label), glyph));
+                parts.push((format!("{:+}% {}", v, label), glyph, When::Passive));
             }
         }
         parts
@@ -412,6 +422,44 @@ pub fn after_defences(raw: i32, resist: i32, pierce: i32, harden: i32) -> i32 {
     let effective_resist = resist * (100 - effective_pierce) / 100;
     let kept = 100 - effective_resist;
     ((raw as i64 * kept as i64) / 100).max(0) as i32
+}
+
+/// When a figure on a stat block actually happens.
+///
+/// A `Stats` is not a block of passive numbers and never was. Eight of its
+/// fields are handed over on **every activation**, by the same code path an
+/// `OnActivate` trigger uses - so a card that prints `+2 nature` beside
+/// `+175 hp` is printing a rate beside a quantity and saying they are the
+/// same kind of thing. Over a thirty-second fight on a 2.8-second item they
+/// are not close.
+///
+/// Kept here rather than in the interface because three surfaces print these
+/// figures and they already disagreed about two of them. A field added later
+/// cannot be printed by anything until somebody has said when it happens.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum When {
+    /// True while it is worn, and true between fights.
+    Passive,
+    /// Handed over once, every time the item fires.
+    OnActivation,
+    /// Handed over on activation, and aimed at somebody.
+    ///
+    /// Split from `OnActivation` because damage is totalled rather than
+    /// listed, and the total is the figure a reader came for. It is also the
+    /// only group whose parts go through the item's own power before they
+    /// mean anything.
+    Damage,
+}
+
+impl When {
+    /// The heading this group is drawn under.
+    pub fn heading(self) -> &'static str {
+        match self {
+            When::Damage => "DAMAGE",
+            When::Passive => "PASSIVE",
+            When::OnActivation => "EVERY TIME IT FIRES",
+        }
+    }
 }
 
 impl Stats {
