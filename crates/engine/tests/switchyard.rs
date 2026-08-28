@@ -695,13 +695,20 @@ fn leaving_before_a_buffer_stop_forfeits_the_yard() {
 /// visible - and inverted when the ninth board landed, which is the shape
 /// `bestiary`'s own budget has and the reason the budget is an equality rather
 /// than a bound.
+///
+/// It asks about **the yard's** floors and not about every frame in the game,
+/// which is the change THE HUNDRED's five forced and which it should have said
+/// from the start: a creature standing beside another mission's road is not a
+/// floor of this dungeon, and a test named for the yard that failed on one was
+/// a test measuring the wrong thing.
 #[test]
 fn every_floor_of_the_yard_is_dressed() {
-    assert!(
-        gearmaster_engine::bestiary::unpacked().is_empty(),
-        "{:?} still has no board",
-        gearmaster_engine::bestiary::unpacked().iter().map(|f| f.name).collect::<Vec<_>>()
-    );
+    let naked: Vec<&str> = gearmaster_engine::bestiary::unpacked()
+        .iter()
+        .filter(|f| yard().floors.iter().any(|fl| fl.creature == f.name))
+        .map(|f| f.name)
+        .collect();
+    assert!(naked.is_empty(), "{naked:?} still has no board");
     for f in yard().floors {
         let spec = gearmaster_engine::combat::alternate(f.creature).expect("a real creature");
         assert!(!spec.gear.is_empty(), "{} fights in nothing", f.creature);

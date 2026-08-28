@@ -24,8 +24,9 @@ fn a_run() -> Run {
 
 #[test]
 fn the_four_orbs_are_four_keys_to_four_places() {
-    // Six: the Unwinding's four, and the yard's two sidings.
-    assert_eq!(DESTINATIONS.len(), 6);
+    // Seven: the Unwinding's four, the yard's two sidings, and THE HUNDRED -
+    // the first destination that is not a place in a table.
+    assert_eq!(DESTINATIONS.len(), 7);
     let mut kinds = 0;
     for d in DESTINATIONS {
         assert!(pedestal::is_orb_of_travel(d.via_orb));
@@ -48,10 +49,16 @@ fn the_four_orbs_are_four_keys_to_four_places() {
             "{} is a ticket and nothing else, which punishes finding one early",
             def.name
         );
-        if matches!(d.kind, Where::Siding { .. }) {
+        // A ticket a mission *paid out* is never for sale; the four the
+        // Unwinding shipped are shop finds. The distinction is where the orb
+        // came from and not what kind of place it goes to, which is what the
+        // Siding-shaped test was standing in for - THE HUNDRED's is a
+        // `Where::County` and is paid by finishing a chain, so it belongs on
+        // the same side as the yard's two.
+        if matches!(d.kind, Where::Siding { .. } | Where::County) {
             assert!(
                 gearmaster_engine::piece::is_event_only(def.name),
-                "{} is a siding ticket and is on a shelf somewhere",
+                "{} is an earned ticket and is on a shelf somewhere",
                 def.name
             );
         } else {
@@ -87,6 +94,11 @@ fn feeding_it_an_orb_spends_the_orb_and_goes_where_the_orb_goes() {
             assert!(run.dungeon.map(|(_, f)| f >= floor).unwrap_or(false));
         }
         Where::Event(x) => assert_eq!(run.forced_event, Some(x)),
+        // A county trip, at whichever mouth the interface asked for.
+        Where::County => {
+            assert!(run.county_at.is_some(), "the orb went nowhere");
+            assert!(run.county_trip_taken(gearmaster_engine::run::TripSource::SurveyorsOrb));
+        }
     }
     let receipt = run.take_receipt().expect("a resolution");
     assert!(receipt[0].contains(d.via_orb), "{:?}", receipt);
@@ -196,6 +208,9 @@ fn every_orb_is_a_key_to_exactly_one_place() {
             Where::Event(id) => {
                 assert!(gearmaster_engine::event::EVENTS.iter().any(|e| e.id == id))
             }
+            // Not a table with ids in it: the county is derived from a seed,
+            // and what there is to check is that it has a way in.
+            Where::County => assert!(!gearmaster_engine::county::MOUTHS.is_empty()),
         }
     }
 }

@@ -7293,6 +7293,122 @@ pub const ALTERNATES: &[MonsterSpec] = &[
         drops: &[],
         items: &[5, 3, 3, 2, 3],
     },
+
+    // ---------------------------------------------------- THE HUNDRED's five
+    //
+    // Three chain endings, the herd one of them drives, and the thing at the
+    // end of the perambulation. Landed undressed: stats at their band and
+    // `gear: &[]`, which is what `bestiary::unpacked()` counts and what the
+    // frame lint goes red on until F12 dresses them.
+    //
+    // **Appended, never inserted, and the fixture is why.** `gear_at.txt` keys
+    // every line on `ALTERNATES[i]`, so five specs at the top of this table
+    // moved 2,592 placements without one creature changing what it wears -
+    // which reads exactly like a re-gearing and is not one. `ALTERNATES` is
+    // append-only for the same reason `CATALOG` is, and until this milestone
+    // nothing said so anywhere.
+    //
+    // Bands take the ladder's stats at band, the Switchyard precedent. The
+    // curve is defined at Medium and F12 is what measures them against it.
+    MonsterSpec {
+        // THE ORDNANCE. On the hill three lines cross at, and nothing marks
+        // the hill - the lines do.
+        name: "THE SURVEYOR",
+        health: 3690,
+        strength: 96,
+        regen: 9,
+        mind_resist: 72,
+        physical_resist: 50,
+        magic_resist: 46,
+        curse_resist: 72,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 273,
+        sprite: MonsterSprite::Warden,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    MonsterSpec {
+        // THE DROVE ROADS, and the half of it that is a man.
+        name: "THE DROVER",
+        health: 5490,
+        strength: 138,
+        regen: 12,
+        mind_resist: 86,
+        physical_resist: 63,
+        magic_resist: 60,
+        curse_resist: 86,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 350,
+        sprite: MonsterSprite::Marshal,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    MonsterSpec {
+        // And the half that is not. A drover without a herd is a man on a
+        // walk, which is why the interception is a brawl.
+        name: "THE DRIVEN",
+        health: 4390,
+        strength: 110,
+        regen: 12,
+        mind_resist: 70,
+        physical_resist: 55,
+        magic_resist: 52,
+        curse_resist: 70,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 200,
+        sprite: MonsterSprite::March,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    MonsterSpec {
+        // THE ENCLOSURE, standing at the end of the corner the pale opens.
+        name: "THE COMMISSIONER",
+        health: 7720,
+        strength: 192,
+        regen: 17,
+        mind_resist: 95,
+        physical_resist: 74,
+        magic_resist: 72,
+        curse_resist: 95,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 416,
+        sprite: MonsterSprite::Crown,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
+    MonsterSpec {
+        // THE PERAMBULATION's end. Band fifty and over: the county has spent
+        // thirty tiles proving whoever got here has all five basis vectors,
+        // and this is the thing that asks for all five at once.
+        name: "THE PARISH",
+        health: 9900,
+        strength: 228,
+        regen: 22,
+        mind_resist: 96,
+        physical_resist: 80,
+        magic_resist: 78,
+        curse_resist: 96,
+        attacks: &[],
+        gear: &[],
+        gear_offset: 0,
+        bounty: 560,
+        sprite: MonsterSprite::Bells,
+        rank: Rank::Ordinary,
+        drops: &[],
+        items: &[],
+    },
 ];
 
 /// The floors of Bunko's Cavern, pp. 84-85. Authored by the packing tool like

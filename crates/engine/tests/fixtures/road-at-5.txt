@@ -13,23 +13,28 @@ O  6 Plague Hound
 . -- A FOUNTAIN (fountain, between 7 and 8)
 . -- THE WIZARD'S THIRST (event, between 7 and 8)
 .  8 Iron Sentinel
+. -- THE CONSTABLE (event, between 8 and 9)
 .  9 Whisperling [mini]
 . -- THREE THINGS IN THE SHRINE (event, between 9 and 10)
      \_ THE CREVICE IN THE ROCK (3 fights)
 . 10 Warded Idol
 . -- THE TELLER (event, between 10 and 11)
 . 11 Mirror Fiend
+. -- THE THEODOLITE (event, between 11 and 12)
 . 12 Rust Colossus
 . -- THE COUNTY SURVEYED (event, between 12 and 13)
 . -- THE BIGGER SIGN (event, between 12 and 13)
 . 13 Ashen Marshal
+. -- THE STOCKMAN (event, between 13 and 14)
 . 14 Grave Chorus
 . -- A FOUNTAIN (fountain, between 14 and 15)
 . 15 The Hollow King [boss]
 . -- HE IS STILL TALKING (event, between 15 and 16)
 . 16 The Curator
+. -- THE WASTE (event, between 16 and 17)
 . -- THE DISPENSER (event, between 16 and 17)
 . 17 Salt Idol
+. -- THE COMMONS (event, between 17 and 18)
 . -- THE ASTRONOMER (event, between 17 and 18)
 . 18 Pale Twin
 . <> KETTLEWORKS (a town, between 18 and 19)

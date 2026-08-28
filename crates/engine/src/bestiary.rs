@@ -575,6 +575,44 @@ pub const FRAMES: &[MonsterFrame] = &[
         theme: MonsterTheme::Beast,
         note: "it is in steam; strength, health, no trick at all",
     },
+
+    // ------------------------------------------------- THE HUNDRED's five
+    //
+    // Three chain endings, the herd one of them drives, and the thing at the
+    // end of the perambulation. Each is met by a run that has spent five moves
+    // at a time proving something about its board, so each asks for the thing
+    // its chain taxed: the Ordnance charged drifts and scarps, the Drove
+    // charged rivers and fords, the Enclosure charged hedges and a purse.
+    MonsterFrame {
+        name: "THE SURVEYOR",
+        band: 35,
+        theme: MonsterTheme::Warden,
+        note: "he has measured your board already; make the fight short",
+    },
+    MonsterFrame {
+        name: "THE DROVER",
+        band: 42,
+        theme: MonsterTheme::Striker,
+        note: "pursuit; he has been walking since your first door",
+    },
+    MonsterFrame {
+        name: "THE DRIVEN",
+        band: 42,
+        theme: MonsterTheme::Swarm,
+        note: "the herd, and the reason the interception is a brawl",
+    },
+    MonsterFrame {
+        name: "THE COMMISSIONER",
+        band: 48,
+        theme: MonsterTheme::Wall,
+        note: "the fence made a person; he outlasts, and he is meant to",
+    },
+    MonsterFrame {
+        name: "THE PARISH",
+        band: 50,
+        theme: MonsterTheme::Caster,
+        note: "all five basis vectors at once, and the hardest thing authored",
+    },
 ];
 
 pub fn frame(name: &str) -> Option<&'static MonsterFrame> {
@@ -753,7 +791,12 @@ mod tests {
     /// at a time. It is an equality, not a bound, so packing a creature
     /// without lowering it fails just as loudly as adding one without raising
     /// it - which is how this went red the moment the ninth board landed.
-    const UNDRESSED: usize = 0;
+    /// **Five since THE HUNDRED's F8**, and it is the same mechanism doing
+    /// the same job a third time: THE SURVEYOR, THE DROVER, THE DRIVEN, THE
+    /// COMMISSIONER and THE PARISH stand at their bands with nothing on until
+    /// the milestone that dresses them. F8's own gate is "frame lint red by
+    /// five, budget re-pinned with the reason" - this is the reason.
+    const UNDRESSED: usize = 5;
 
     #[test]
     fn the_frames_are_no_more_undressed_than_they_were() {

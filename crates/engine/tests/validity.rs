@@ -580,6 +580,16 @@ fn every_door_that_waits_on_a_key_can_be_handed_one_in_time() {
                 }
                 (rumour, soonest)
             }
+            // A flag the engine raises rather than a door. `county-business`
+            // is set by `Run::close_the_trip` when a trip into THE HUNDRED
+            // clears nothing, and no walk of `EVENTS` can see that - so the
+            // earliest it can arrive is the earliest a run can be down there,
+            // which is the first town's gate.
+            Trigger::WhenFlagged { flag, from: _ }
+                if flag == gearmaster_engine::run::COUNTY_BUSINESS =>
+            {
+                continue;
+            }
             Trigger::WhenFlagged { flag, from: _ } => {
                 let mut soonest: Option<usize> = gearmaster_engine::event::set_by(flag)
                     .iter()

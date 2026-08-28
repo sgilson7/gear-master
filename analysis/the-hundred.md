@@ -846,3 +846,139 @@ not pass the road's lints would be a second standard nobody agreed to. It
 refused THE COUNTY SURVEYED immediately - a woman with a map and no name - and
 she is Tasker now, named **mid-sentence**, because `names_something` cannot
 tell a name at a sentence start from an article (`CLAUDE.md`'s blind-spot note).
+
+---
+
+## F8 the chains, as frames
+
+Three chains, three on-ramps, five creatures, the pale, the constable, the
+waste and the perambulation. **Engine 1011, GUI 80, CLI 8. No warnings.**
+`tests/hundred.rs` is 24 tests. The four-board table is unchanged and `gear_at`
+is unmoved on 6,216 placements - which is the exit criterion, because F8 lands
+the chains and **F12 dresses the creatures**.
+
+### Where the three on-ramps actually stand
+
+A0 drew them at 11, 17 and 25. **25 is The Manse's gate rung** (`after: 24`),
+which the suite has refused since the Switchyard. THE STOCKMAN is at **13**
+instead - free of events, gates and bosses - and it is a `Trigger::Rung` rather
+than the one-rung `Whispered` window Part B drew, because the word that window
+waited on would have had to come off a bar that is exactly six names and full.
+
+THE CONSTABLE was drawn at 18, which is Kettleworks' gate rung. He is
+`WhenFlagged` now, on a flag the **engine** raises, so he finds you when he
+finds you rather than on a rung a gate might already have.
+
+### `ALTERNATES` is append-only, and nothing said so
+
+Five creatures inserted at the top of the table moved **2,592 placements** in
+`gear_at.txt` without one creature changing what it wears: the fixture keys
+every line on `ALTERNATES[i]`, so an insertion renumbers every creature after
+it. It reads exactly like a re-gearing and is not one.
+
+`CATALOG` has been append-only since `share.rs` was written and everybody knows
+it. `ALTERNATES` has the same property for a different reason and this is the
+first mission to find out. The comment is in `combat.rs` above the five.
+
+### B1.1's presentation, inverted, and what that costs
+
+The spec stores the hill as `Empty` and rewrites it to a `Pinnacle` when the
+third sighting is taken. The store carries `Pinnacle { Ordnance }` and
+`County::as_seen` hides it - **F1-1's decision, and this is the milestone that
+had to make it work.** What it buys: A1.2's skeleton count and V6's spacing are
+true as written. What it costs: `Run::county()` is the *seen* view and
+`county_written()` is the table's, and the two things that need the truth - the
+sighting lines, and the check that the hill is where the arithmetic says - ask
+for the second.
+
+B1.1's stated behaviour survives exactly. `a_cleared_tile_unclears_when_it_becomes_the_hill`
+is the edge the spec names: a run that walked over the hill while it still
+looked empty cleared an empty tile, and `resolve_county_tile` drops that
+clearing when the tile becomes a pinnacle. The check is made **before** the
+cleared check, because the hill is the one tile in the game that can be cleared
+and then stop being cleared.
+
+### The pale asks for an Orb-kind piece, not an Orb of Travel
+
+`is_orb_of_travel` is the four pedestal keys, and the first draft of
+`Requirement::HoldingOrb` used it - which would have refused the county's own
+two, since the Drover's Orb is deliberately held rather than spent. B3.1's
+wording is "any Orb-kind piece" and that is what it asks now: `PieceKind::Orb`,
+twenty-three pieces over eight footprints (`CLAUDE.md` §6 trap 26).
+
+It is also the right price. An orb is a weapon core somebody built around, so
+surrendering one costs a **board** rather than a ticket - and `SurrenderOrb`
+takes it out of whatever it was built into, which is what makes that true.
+
+### One requirement for five lines, and they cannot drift
+
+`Requirement::ThePaleIsReady` is the gate; `Run::pale_checklist` is the same
+five questions asked separately so each can be ticked. Both go through
+`Run::requirement_met`, which is `choice_open`'s body split out - a checklist
+that computed its own answers would be a second implementation of every
+requirement in the game, kept in step by hand.
+`the_gate_cannot_disagree_with_the_list_above_it` is the assertion.
+
+### Vessey waits his turn, and three Switchyard tests found out why
+
+C2 was pushed through `forced_event`, which goes to the **front** of the road
+stack - and `road_stack::the_door_underneath_cannot_be_answered_over_the_top_of_the_one_in_front`
+is deliberate, so a door pushed in front of another is not a queue, it is a
+door the player cannot answer until the first is answered. Vessey arriving
+mid-chain broke `the_chain_can_be_walked_in_one_run_in_either_mode` in both
+modes and the full-walk transcript with it.
+
+`waste_offered` is its own field and `standing_events` appends it **last**. The
+distinction is real and worth the field: a forced event is a place you have
+just been sent, and this is a man at the roadside with an opinion about your
+greaves. He waits.
+
+**One thing was tried and reverted.** Making `take_choice` answer whichever
+standing door owns the choice rather than the first one - which would also have
+fixed it - was refused by that same road-stack test on the first run. The rule
+is deliberate and the fix belonged on the other side.
+
+### B5's failed toll, which the first version missed
+
+"Any illegal move, **or a failed toll**, breaks the walk." The first version
+broke the walk only on a move off the boundary, and
+`the_first_move_chooses_the_way_round_and_the_rest_obey_it` found it: a toll
+refused the move, the walk was not broken, and the run was left standing on the
+boundary with moves in hand. A perambulation is a route rather than a
+destination, and a route you cannot finish is not one you retry from where you
+stopped. A fence does the same thing.
+
+### The census is closed, and every way down is walked
+
+`every_way_down_exists_and_the_tenth_is_the_perambulation` takes all ten in one
+run: six towns, the orb, the arrest, the bet, and the perambulation last - and
+then asks for an eleventh and is refused.
+
+### Nine pins moved, all re-pinned with the reason
+
+`bestiary::UNDRESSED` 0 to **5** - the one budget in the repository allowed to
+go up, for the third time. `acceptance`'s census: `EVENTS` 39 to **44**,
+`FRAMES` 24 to **29**, `DESTINATIONS` 6 to **7**, `COUNTY_EVENTS` 8 to **9**
+(the pale is written in the same table and is not dealt from the pool).
+`acceptance::e6_8` and `phase_two`'s frame list carry the five names.
+`pedestal`'s orb count 6 to 7, and its "a siding ticket is never for sale" rule
+became "an **earned** ticket is never for sale" - which is what it was standing
+in for, and puts THE HUNDRED's on the right side.
+
+`switchyard::every_floor_of_the_yard_is_dressed` was asking about **every frame
+in the game** rather than about the yard's floors. It should have said so from
+the start: a creature standing beside another mission's road is not a floor of
+this dungeon, and a test named for the yard that failed on one was measuring
+the wrong thing.
+
+And the three road fixtures, a second time: **five lines added to each**, every
+one a door this milestone wrote, with nothing that was there before moved. The
+reason is in `ROAD_AT`'s doc comment.
+
+### Three lints learned that the engine sets flags
+
+`county-business` is raised by `Run::close_the_trip` when a trip clears
+nothing. No walk of `EVENTS` can see that, so `completable`, `phase_two` and
+`validity` each gained one named exception rather than a loosened assertion -
+`completable::ENGINE_SETS` is the list, it has one entry, and the entry names
+the function that raises it.

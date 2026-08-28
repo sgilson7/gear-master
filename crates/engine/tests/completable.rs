@@ -39,6 +39,16 @@ fn window(e: &LadderEvent) -> (usize, usize) {
 }
 
 /// A door pushed onto the stack by a pedestal stands on no rung at all.
+/// Flags the **engine** sets, which no walk of `EVENTS` can find.
+///
+/// A door waiting on one of these is not a door waiting on nothing. The list
+/// is short on purpose and every entry names where it is set: a flag the rules
+/// raise is a flag nobody can grep for, and the cost of that is this list.
+const ENGINE_SETS: &[&str] = &[
+    // `Run::close_the_trip` - a trip into THE HUNDRED that cleared no tile.
+    gearmaster_engine::run::COUNTY_BUSINESS,
+];
+
 fn off_the_road(e: &LadderEvent) -> bool {
     matches!(e.trigger, Trigger::WhenFlagged { flag: "never", .. })
 }
@@ -162,6 +172,10 @@ fn every_door_can_be_reached_before_its_window_shuts() {
                     when + 1
                 );
             }
+            // A flag the engine raises arrives the first time the rules that
+            // raise it can run, which for THE HUNDRED's is the first town's
+            // own steps - and the constable's window opens after that anyway.
+            Trigger::WhenFlagged { flag, .. } if ENGINE_SETS.contains(&flag) => {}
             Trigger::WhenFlagged { flag, .. } => {
                 let when = flag_by(flag)
                     .unwrap_or_else(|| panic!("{} waits on flag {}, which nothing sets", e.id, flag));

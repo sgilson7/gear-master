@@ -69,7 +69,12 @@ fn every_door_in_the_game_can_be_arrived_at() {
                     // through the lens. `validity::the_road_past_francis_
                     // opens_for_a_run_that_looked_and_is_carrying_the_key`
                     // proves it by walking rather than by asserting a name.
-                    const PUSHED_BY_THE_END_OF_THE_ROAD: &[&str] = &["the-unwound"];
+                    // And THE HUNDRED's third way: a board with a grid
+                    // nothing is assembled in, noticed by `settle` after a
+                    // won fight past rung sixteen. What it is about is a
+                    // board rather than a place, which is why it stands on
+                    // no rung at all.
+                    const PUSHED_BY_THE_END_OF_THE_ROAD: &[&str] = &["the-unwound", "the-waste"];
                     assert!(
                         PUSHED_BY_THE_END_OF_THE_ROAD.contains(&e.id)
                             || gearmaster_engine::pedestal::DESTINATIONS
@@ -87,7 +92,18 @@ fn every_door_in_the_game_can_be_arrived_at() {
                         .flat_map(every_outcome)
                         .any(|o| matches!(o, Outcome::Flag(f) if *f == flag))
                 });
-                assert!(by_a_door || by_a_floor, "{} waits on {}, which nothing sets", e.id, flag);
+                // And the rules themselves. `county-business` is raised by
+                // `Run::close_the_trip` when a trip into THE HUNDRED clears
+                // nothing, which no walk of a table can see - a flag the
+                // engine sets is a flag nobody can grep for, and the cost of
+                // that is one named exception rather than a loosened lint.
+                let by_the_engine = flag == gearmaster_engine::run::COUNTY_BUSINESS;
+                assert!(
+                    by_a_door || by_a_floor || by_the_engine,
+                    "{} waits on {}, which nothing sets",
+                    e.id,
+                    flag
+                );
             }
         }
     }
@@ -237,12 +253,21 @@ fn every_creature_the_mission_added_is_a_frame_with_a_brief() {
         assert!(f.band >= 1, "{} has no band, so nothing can pack it", f.name);
         assert!(!f.note.is_empty(), "{} tells its packer nothing", f.name);
     }
-    // Every frame in the game has a board again. It carried a hole for the
-    // Switchyard's nine between that mission's M6 and M9, and the hole was
-    // shaped like the dungeon rather than like a list of names, so packing the
-    // ninth creature closed it without anybody editing this file.
+    // What is not dressed is what one milestone is waiting to dress, and the
+    // list is read off `bestiary::UNDRESSED`'s own budget rather than copied -
+    // so dressing a creature without lowering the budget fails here as loudly
+    // as adding one without raising it.
+    //
+    // It carried a hole for the Switchyard's nine between that mission's M6
+    // and M9, and it carries one for THE HUNDRED's five now. The difference is
+    // that this mission's dressing milestone is deliberately after the deploy:
+    // packing a creature is the one job that wants somebody reading the diff.
     let naked: Vec<&str> = bestiary::unpacked().iter().map(|f| f.name).collect();
-    assert!(naked.is_empty(), "Phase 4 is finished and {naked:?} still has no board");
+    assert_eq!(
+        naked,
+        ["THE SURVEYOR", "THE DROVER", "THE DRIVEN", "THE COMMISSIONER", "THE PARISH"],
+        "the undressed creatures are not the ones this test is waiting for"
+    );
 }
 
 // ------------------------------------------------------ 4. a run reaches them
@@ -301,6 +326,16 @@ fn a_run_that_answers_everything_meets_the_whole_mission() {
         // The destinations do not stand on rungs at all: a pedestal pushes
         // them, and `pedestal.rs` is where that is checked.
         .filter(|e| !matches!(e.trigger, Trigger::WhenFlagged { flag: "never", .. }))
+        // Nor does THE CONSTABLE, for a different reason: what sets his flag
+        // is a *trip that cleared nothing*, and this walk never goes down the
+        // steps at all. `county::the_constable_takes_a_run_that_came_back_with_nothing`
+        // is where he is met.
+        .filter(|e| {
+            !matches!(
+                e.trigger,
+                Trigger::WhenFlagged { flag, .. } if flag == gearmaster_engine::run::COUNTY_BUSINESS
+            )
+        })
         .map(|e| e.id)
         .filter(|id| !met.contains(id))
         .collect();

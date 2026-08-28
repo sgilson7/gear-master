@@ -574,7 +574,10 @@ fn every_event_tile_names_an_event_that_exists() {
 #[test]
 fn the_pool_is_dealt_as_a_deck_and_not_a_die() {
     use gearmaster_engine::event::COUNTY_EVENTS;
-    assert_eq!(COUNTY_EVENTS.len(), 8, "D-2 is eight authored, not twelve thin");
+    // Nine authored, eight of them dealt: the pale is written in the same
+    // table because it is the same kind of thing, and it is placed by the
+    // generator rather than dealt from the pool.
+    assert_eq!(COUNTY_EVENTS.len(), 9, "D-2 is eight arranged, not twelve thin");
     for seed in a_spread_of_seeds() {
         let c = county::generate(seed);
         let mut count: std::collections::BTreeMap<&str, usize> = Default::default();
@@ -587,6 +590,7 @@ fn the_pool_is_dealt_as_a_deck_and_not_a_die() {
         }
         assert_eq!(count.values().sum::<usize>(), county::ARRANGED);
         assert_eq!(count.len(), 8, "seed {seed:#x} left an event off the county: {count:?}");
+        assert!(!count.contains_key("the-pale"), "the pale was dealt from the pool");
         for (id, n) in &count {
             assert!(*n <= 2, "seed {seed:#x} dealt {id} {n} times");
         }
@@ -758,7 +762,15 @@ fn a_run() -> Run {
 /// rather than five steps, and what every walking test below has to do now
 /// that F7 has put questions on the ground.
 fn answer_the_tile(run: &mut Run) {
-    while let Some(ev) = run.pending_event() {
+    for _ in 0..8 {
+        // A pinnacle, or the Drover arriving. Either ends the trip, win or
+        // lose, so the walk that called this has to notice.
+        if run.phase == gearmaster_engine::run::Phase::Fighting {
+            run.settle();
+            run.back_to_loadout();
+            continue;
+        }
+        let Some(ev) = run.pending_event() else { break };
         let Some(c) = ev.choices.iter().find(|c| run.choice_open(c)).copied() else { break };
         run.take_choice(&c);
     }
@@ -1040,7 +1052,11 @@ fn the_county_is_on_top_of_the_stack_and_blocks_a_rematch() {
     // The banner A2.1 asks for.
     let said = stack[0].describe();
     assert!(said.starts_with("THE HUNDRED - C1 - 5 moves left"), "the banner reads {said:?}");
-    run.county_walk(Step::South);
+    // The mouth's own tile may have asked something, and nothing walks while a
+    // question is open.
+    answer_the_tile(&mut run);
+    let step = somewhere_to_go(&run).expect("somewhere to go");
+    assert!(run.county_walk(step));
     let said = run.road_stack()[0].describe();
     assert!(said.contains("4 moves left"), "the banner did not count down: {said:?}");
 
@@ -1121,19 +1137,24 @@ fn a_wipe_takes_it_all() {
 #[test]
 fn the_run_derives_its_county_and_never_stores_one() {
     let mut run = a_run();
-    assert_eq!(run.county(), county::generate(run.county_seed()));
+    // `county_written()` is the table's county; `county()` is what the run can
+    // see, which hides the hill until three sightings are taken. The two are
+    // the same county everywhere else, and this is the equality that says the
+    // run stores nothing.
+    assert_eq!(run.county_written(), county::generate(run.county_seed()));
+    assert_eq!(run.county(), run.county_written().as_seen(run.sightings()));
     // Nothing a run does to itself changes which county is under it, except
     // the two things the seed is made of.
     assert!(run.enter_county(TripSource::Town("sump-bottom"), MOUTHS[0].1));
     run.county_walk(Step::North);
     run.gold += 100;
     run.rung = 30;
-    assert_eq!(run.county(), county::generate(run.county_seed()));
+    assert_eq!(run.county_written(), county::generate(run.county_seed()));
 
     let mut other = a_run();
     other.difficulty = Difficulty::Insane;
     assert_ne!(other.county_seed(), run.county_seed());
-    assert_ne!(other.county(), run.county(), "two settings share a county");
+    assert_ne!(other.county_written(), run.county_written(), "two settings share a county");
 }
 
 /// Neither the fight nor a pending event lets you walk.
@@ -1173,6 +1194,11 @@ fn three_towns_and_fifteen_moves() {
 
         answer_the_tile(&mut run);
         for m in 0..5 {
+            // A trip can end early: a pinnacle met, or the Drover arriving.
+            // Both are the county working, and both end the trip win or lose.
+            if run.county_at.is_none() {
+                break;
+            }
             let step = somewhere_to_go(&run).unwrap_or_else(|| {
                 panic!("{id}, move {m}: nowhere this board can go")
             });
@@ -1196,11 +1222,11 @@ fn three_towns_and_fifteen_moves() {
         ]
     );
     // Fifteen moves and three free arrivals is at most eighteen tiles, and
-    // fewer when a walk crosses itself - which is the point of walking three
-    // mouths rather than one three times.
+    // fewer when a walk crosses itself or a trip ends early on a pinnacle -
+    // which is the point of walking three mouths rather than one three times.
     let cleared = run.county_cleared.len();
     assert!(
-        (10..=18).contains(&cleared),
+        (6..=18).contains(&cleared),
         "fifteen moves and three arrivals cleared {cleared} tiles, which is either a walk \
          that never left the mouth or a move that cleared more than one tile"
     );

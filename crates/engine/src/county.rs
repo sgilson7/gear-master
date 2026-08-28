@@ -47,6 +47,17 @@ pub enum Region {
 }
 
 impl Region {
+    pub const ALL: [Region; 3] = [Region::North, Region::Middle, Region::South];
+
+    /// The canonical word. The theme layer swaps it.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Region::North => "north",
+            Region::Middle => "middle",
+            Region::South => "south",
+        }
+    }
+
     /// North is fourteen tiles, Middle twenty-one, South fourteen.
     pub const fn of_row(y: u8) -> Region {
         match y {
@@ -71,6 +82,61 @@ pub enum Chain {
 
 impl Chain {
     pub const ALL: [Chain; 3] = [Chain::Ordnance, Chain::Drove, Chain::Enclosure];
+
+    /// A stable key. Never shown raw.
+    pub const fn key(self) -> &'static str {
+        match self {
+            Chain::Ordnance => "the-ordnance",
+            Chain::Drove => "the-drove-roads",
+            Chain::Enclosure => "the-enclosure",
+        }
+    }
+
+    /// What it calls itself. Canonical; the theme layer swaps the noun.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Chain::Ordnance => "THE ORDNANCE",
+            Chain::Drove => "THE DROVE ROADS",
+            Chain::Enclosure => "THE ENCLOSURE",
+        }
+    }
+}
+
+/// What finishing a chain hands over.
+///
+/// One enchantment each, in the slot that chain taxed, plus the orb the two
+/// that have one pay. The Ordnance also sets `THE_SHEET`, which is not a
+/// component and so is not here.
+pub const fn chain_pays(chain: Chain) -> &'static [&'static str] {
+    match chain {
+        Chain::Ordnance => &["Trig Pillar", "Surveyor's Orb"],
+        Chain::Drove => &["Drove Way", "Drover's Orb"],
+        Chain::Enclosure => &["The Common Ground"],
+    }
+}
+
+/// The creature standing at a chain's end.
+///
+/// The Drove's is a brawl of two and this names the one the party is built
+/// around; `pinnacle_party` is the pair.
+pub const fn pinnacle_creature(chain: Chain) -> &'static str {
+    match chain {
+        Chain::Ordnance => "THE SURVEYOR",
+        Chain::Drove => "THE DROVER",
+        Chain::Enclosure => "THE COMMISSIONER",
+    }
+}
+
+/// Everything that comes to a chain's ending.
+///
+/// A drover without a herd is a man on a walk, which is why the Drove's is two
+/// and the other two are one.
+pub const fn pinnacle_party(chain: Chain) -> &'static [&'static str] {
+    match chain {
+        Chain::Ordnance => &["THE SURVEYOR"],
+        Chain::Drove => &["THE DROVER", "THE DRIVEN"],
+        Chain::Enclosure => &["THE COMMISSIONER"],
+    }
 }
 
 /// Which damage lane a ford asks for. A ford names its lane; a river does not,
@@ -362,6 +428,39 @@ pub struct County {
 }
 
 impl County {
+    /// The county as a run sees it: the hill drawn as what it looks like.
+    ///
+    /// **B1.1's presentation, inverted.** The spec stores the hill as `Empty`
+    /// and rewrites it to a Pinnacle when the third sighting is taken; the
+    /// store here carries `Pinnacle { Ordnance }` and this hides it until
+    /// then. The behaviour is identical - the game never marks the hill, the
+    /// lines do - and storing it as a pinnacle is what makes A1.2's skeleton
+    /// count and V6's spacing true as written.
+    ///
+    /// `sightings` is how many trig points have been cleared.
+    pub fn as_seen(&self, sightings: usize) -> County {
+        if sightings >= 3 {
+            return self.clone();
+        }
+        let mut seen = self.clone();
+        let i = self.hill.1 as usize * W as usize + self.hill.0 as usize;
+        seen.tiles[i].kind = TileKind::Empty;
+        seen
+    }
+
+    /// The full line through the hill that a trig point draws, once cleared.
+    ///
+    /// One line is a line. Two cross at exactly one tile, so **two sightings
+    /// are knowledge** - a player who draws them knows where to walk. The
+    /// third is not information, it is the key.
+    pub fn sighting(&self, nth: u8) -> Vec<(u8, u8)> {
+        let Some(b) = self.bearings.get(nth as usize - 1) else { return Vec::new() };
+        (0..H)
+            .flat_map(|y| (0..W).map(move |x| (x, y)))
+            .filter(|p| b.holds(self.hill, *p))
+            .collect()
+    }
+
     pub const fn at(&self, p: (u8, u8)) -> &Tile {
         &self.tiles[p.1 as usize * W as usize + p.0 as usize]
     }
@@ -562,6 +661,44 @@ pub fn on_circuit(p: (u8, u8)) -> bool {
 
 pub fn is_mouth(p: (u8, u8)) -> bool {
     MOUTHS.iter().any(|(_, m)| *m == p)
+}
+
+/// The fifth edge tile a perambulation reaches is where THE PARISH stands.
+pub const PARISH_AT: u8 = 5;
+
+/// The county's boundary, walked: every edge tile once, clockwise from A1.
+///
+/// Twenty-four tiles. A perambulation is a walk **round** the county rather
+/// than across it, so what "the next one" means is a position in this ring
+/// rather than a direction - and going the other way is the same ring read
+/// backwards, which is what makes "always clockwise or always
+/// counter-clockwise, chosen by the first move" one rule instead of two.
+pub fn boundary() -> Vec<(u8, u8)> {
+    let mut out = Vec::with_capacity(24);
+    for x in 0..W {
+        out.push((x, 0));
+    }
+    for y in 1..H - 1 {
+        out.push((W - 1, y));
+    }
+    for x in (0..W).rev() {
+        out.push((x, H - 1));
+    }
+    for y in (1..H - 1).rev() {
+        out.push((0, y));
+    }
+    out
+}
+
+/// The next tile round the boundary from `p`, one way or the other.
+///
+/// `None` when `p` is not on the boundary at all, which is a move that breaks
+/// the walk rather than one that continues it.
+pub fn next_round(p: (u8, u8), clockwise: bool) -> Option<(u8, u8)> {
+    let ring = boundary();
+    let i = ring.iter().position(|q| *q == p)?;
+    let n = ring.len();
+    Some(if clockwise { ring[(i + 1) % n] } else { ring[(i + n - 1) % n] })
 }
 
 /// N, S, E, W. Movement is orthogonal and there is no diagonal anything - the
@@ -835,8 +972,14 @@ fn arrange(seed: u64) -> Option<County> {
             .filter(|p| !taken(&kinds, *p))
             .collect();
         rng.shuffle(&mut rest);
-        let mut deck: Vec<&'static str> =
-            crate::event::COUNTY_EVENTS.iter().map(|e| e.id).collect();
+        // The pale is in the same table and is not in the deck: the generator
+        // placed it before the hill was picked, and dealing it again would put
+        // two gates on one county.
+        let mut deck: Vec<&'static str> = crate::event::COUNTY_EVENTS
+            .iter()
+            .map(|e| e.id)
+            .filter(|id| *id != PALE)
+            .collect();
         if deck.is_empty() {
             deck.push(UNARRANGED);
         }

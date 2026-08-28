@@ -2187,7 +2187,11 @@ fn every_creature_past_the_hollow_king_gains_an_item_a_setting() {
     use gearmaster_engine::combat::{Difficulty, ALTERNATES};
     const SAME_AS_MEDIUM_THROUGH: usize = Difficulty::SAME_AS_MEDIUM_THROUGH;
     let after = LADDER.iter().skip(SAME_AS_MEDIUM_THROUGH + 1).chain(ALTERNATES.iter());
-    for m in after {
+    // A creature with no board grows no item, and that is not a density fault
+    // - it is a creature waiting to be dressed. `bestiary::UNDRESSED` is the
+    // budget that says how many are allowed to be in that state, and this
+    // filter is the same one three other tests in this file already use.
+    for m in after.filter(|m| !gearmaster_engine::bestiary::is_unpacked(m.name)) {
         let n = |d| m.outfit_at(d).1.len();
         let med = n(Difficulty::Medium);
         assert_eq!(

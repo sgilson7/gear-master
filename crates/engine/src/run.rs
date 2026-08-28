@@ -77,6 +77,9 @@ impl TripSource {
     }
 }
 
+/// The flag THE CONSTABLE reads: a trip that came back with nothing.
+pub const COUNTY_BUSINESS: &str = "county-business";
+
 /// How many moves are left, said the way a person would say it.
 fn moves_left(n: u8) -> String {
     match n {
@@ -859,6 +862,48 @@ pub struct Run {
     pub county_cleared: Vec<(u8, u8)>,
     /// One entry a trip. The census: ten, and no more, ever.
     pub county_trips: Vec<TripSource>,
+    /// C2's bet: which grid must stay empty, and the rung it must last to.
+    pub waste_bet: Option<(SlotKind, usize)>,
+    /// Whether the fight in front of you is THE PARISH.
+    pub walking_the_parish: bool,
+    /// Which way round the perambulation is going, once the first move said.
+    ///
+    /// `None` until the first move, which is what "chosen by the first move"
+    /// means. Cleared with the trip.
+    pub perambulation_way: Option<bool>,
+    /// How many edge tiles the perambulation has reached.
+    ///
+    /// The **fifth** is where THE PARISH stands (B5).
+    pub perambulation_reached: u8,
+    /// Which mouth the Surveyor's Orb should put you down at.
+    ///
+    /// Set by whatever is drawing the pedestal screen before the orb is fed,
+    /// because the choice is the whole value of B1.2's translation: the orb
+    /// offers **any** of the six, found or not, which is the only way into a
+    /// hidden town's steps for a run that never found the town.
+    pub county_mouth_wanted: Option<(u8, u8)>,
+    /// Whether Vessey is waiting to be talked to.
+    ///
+    /// **Not `forced_event`**, and the difference is the whole reason it is a
+    /// second field. A forced event is a place you have just been sent and
+    /// goes to the front of the stack; this is a man at the roadside with an
+    /// opinion about your greaves, and he waits. Answered last, after
+    /// everything the road itself has standing.
+    pub waste_offered: bool,
+    /// How many tiles were cleared when this trip started.
+    ///
+    /// C1's condition is "a trip that ended with nothing cleared", which is a
+    /// question about the difference rather than about the total - and one
+    /// index is enough to answer it, the way `entry_started_at` answers the
+    /// dungeon banner's.
+    pub county_entry_cleared: usize,
+    /// The chain whose pinnacle is being fought, if one is.
+    ///
+    /// Set the moment the fight starts and read by `written_monster`, so that
+    /// the creature in front of you is the chain's rather than the rung's -
+    /// the priority A2.1 asks for is dungeon, then county pinnacle, then
+    /// brawl, then ladder, and this is the county's place in it.
+    pub county_pinnacle: Option<crate::county::Chain>,
     /// A county event waiting to be answered, by id into `COUNTY_EVENTS`.
     ///
     /// Kept apart from `forced_event` because the two tables are apart: a
@@ -1007,6 +1052,14 @@ impl Run {
             county_cleared: Vec::new(),
             county_trips: Vec::new(),
             county_event: None,
+            county_entry_cleared: 0,
+            county_pinnacle: None,
+            waste_bet: None,
+            waste_offered: false,
+            county_mouth_wanted: None,
+            perambulation_way: None,
+            perambulation_reached: 0,
+            walking_the_parish: false,
             events_resolved: 0,
             destinations_visited: Vec::new(),
             cursed_for_good: Vec::new(),
@@ -1139,6 +1192,19 @@ impl Run {
             if let Some(spec) =
                 d.floors.get(floor).and_then(|f| crate::combat::alternate(f.creature))
             {
+                return spec;
+            }
+        }
+        // THE HUNDRED's endings. Under a dungeon - you cannot be in both -
+        // and over everything the road has, because a run standing on a
+        // pinnacle is not standing on a rung.
+        if self.walking_the_parish {
+            if let Some(spec) = crate::combat::alternate("THE PARISH") {
+                return spec;
+            }
+        }
+        if let Some(chain) = self.county_pinnacle {
+            if let Some(spec) = crate::combat::alternate(crate::county::pinnacle_creature(chain)) {
                 return spec;
             }
         }
@@ -1337,6 +1403,18 @@ impl Run {
                 out.push(e);
             }
         }
+        // And Vessey, **last**. C2 is a question about your board rather than
+        // about where you are standing, so it waits behind everything the road
+        // itself has - a chain's door met on the same rung is met first, and
+        // `switchyard::the_chain_can_be_walked_in_one_run` is the test that
+        // found what happens when it is not.
+        if self.waste_offered && !self.answered.contains(&"the-waste") {
+            if let Some(e) = crate::event::EVENTS.iter().find(|e| e.id == "the-waste") {
+                if !out.iter().any(|o| o.id == e.id) {
+                    out.push(e);
+                }
+            }
+        }
         out
     }
 
@@ -1445,8 +1523,18 @@ impl Run {
 
     /// Can this choice be taken right now?
     pub fn choice_open(&self, c: &crate::event::Choice) -> bool {
+        self.requirement_met(c.requires)
+    }
+
+    /// Whether one requirement is met by this run.
+    ///
+    /// Split out of `choice_open` so the pale's checklist can ask the same
+    /// question a choice asks. A checklist that computed its own answers would
+    /// be a second implementation of every requirement in the game, kept in
+    /// step by hand.
+    pub fn requirement_met(&self, requires: crate::event::Requirement) -> bool {
         use crate::event::Requirement;
-        match c.requires {
+        match requires {
             Requirement::None => true,
             Requirement::Took(label) => self.took.contains(&label),
             // Worn or loose, both count: a key you have built into a helmet is
@@ -1454,7 +1542,7 @@ impl Run {
             Requirement::Holding(name) => {
                 self.owned.iter().any(|&id| self.registry.def(id).name == name)
             }
-            Requirement::LooseItemOfSize { .. } => !self.offerings(c.requires).is_empty(),
+            Requirement::LooseItemOfSize { .. } => !self.offerings(requires).is_empty(),
             Requirement::Flag(what) => self.flags.contains(&what),
             Requirement::Counter { what, at_least } => self.counted(what) >= at_least,
             Requirement::CountyTiles { region, at_least } => {
@@ -1478,6 +1566,21 @@ impl Run {
                 .inventory()
                 .iter()
                 .any(|&id| crate::rumour::is_rumour(self.registry.def(id).name)),
+            // `PieceKind::Orb`, which is B3.1's own wording - "any Orb-kind
+            // piece" - and **not** `is_orb_of_travel`, which is the four
+            // pedestal keys and would have refused the county's own two.
+            //
+            // `CLAUDE.md` §6 trap 26: the kind is twenty-three pieces over
+            // eight footprints. That is the right price for this gate anyway:
+            // an orb is a weapon core somebody built around, so surrendering
+            // one costs a board rather than a ticket.
+            Requirement::HoldingOrb => self
+                .owned
+                .iter()
+                .any(|&id| self.registry.def(id).kind == crate::piece::PieceKind::Orb),
+            Requirement::ThePaleIsReady => {
+                self.pale_is_ready() && self.requirement_met(Requirement::HoldingOrb)
+            }
             Requirement::Classes(n) => self.classes.len() >= n,
         }
     }
@@ -1606,11 +1709,19 @@ impl Run {
         if self.forced_event == Some(ev.id) {
             self.forced_event = None;
         }
+        if ev.id == "the-waste" {
+            self.waste_offered = false;
+        }
         // A county event is answered where it stands, and answering is what
         // clears the tile - a run that walked onto a question and walked away
         // has not answered it.
         if self.county_event == Some(ev.id) {
             self.county_event = None;
+            // Answering a county event moves the clock, and the clock is what
+            // the Drover walks by - so a question can bring the pursuit to
+            // *you*, standing still, which is the best thing in the chain.
+            // Checked after the outcome is applied, at the bottom of this
+            // function, so the answer pays out before the fight starts.
             if let Some(at) = self.county_at {
                 if !self.county_cleared.contains(&at) {
                     self.county_cleared.push(at);
@@ -1641,6 +1752,11 @@ impl Run {
         receipt.extend(self.opened_by(&chosen.outcome));
         receipt.extend(self.opened_by_taking(chosen.label));
         self.last_receipt = Some(receipt);
+        // The clock has moved, and the Drover walks by the clock. A door
+        // answered on the tile the pursuit is about to reach brings it to you.
+        if self.drover_is_here() {
+            self.intercept_the_drover();
+        }
         gave
     }
 
@@ -1779,6 +1895,23 @@ impl Run {
             ChoiceOutcome::Flag(what) => {
                 if !self.flags.contains(&what) {
                     self.flags.push(what);
+                }
+                // C2. The bet is on a *grid*, and which grid is a fact about
+                // the board rather than about the choice - so the outcome
+                // raises a flag and the rule reads the board, which is the
+                // same shape `Underwrite` and the contract already have.
+                // C1. He is not asking, so the ride is the outcome rather
+                // than a thing offered by it.
+                if what == "arrested" {
+                    self.arrested_into_the_county();
+                }
+                if what == "waste-bet-taken" {
+                    if let Some(k) = SlotKind::ALL
+                        .into_iter()
+                        .find(|k| self.report(*k).items.iter().all(|i| !i.assembled))
+                    {
+                        self.waste_bet = Some((k, self.rung + 5));
+                    }
                 }
             }
             ChoiceOutcome::Count(what) => self.count(what),
@@ -1953,6 +2086,23 @@ impl Run {
                 let roll = self.rng.below(outof.max(1) as usize) as u32;
                 let (_, lines) = self.apply_outcome(if roll < wins { won } else { lost }, req);
                 receipt = lines;
+            }
+            ChoiceOutcome::SurrenderOrb => {
+                // Worn or loose. `remove_anywhere` takes it out of whatever it
+                // was built into, which is what makes this a real price on a
+                // board rather than a tax on the tray.
+                if let Some(id) = self
+                    .owned
+                    .iter()
+                    .copied()
+                    .find(|&id| self.registry.def(id).kind == crate::piece::PieceKind::Orb)
+                {
+                    let name = self.registry.def(id).name;
+                    self.loadout.remove_anywhere(id);
+                    self.owned.retain(|&o| o != id);
+                    self.forget_undo();
+                    receipt = vec![format!("The gatepost takes {name}")];
+                }
             }
             ChoiceOutcome::Defer { rungs } => {
                 // Declining is not answering. The door comes off `answered`
@@ -2231,7 +2381,63 @@ impl Run {
     /// fact and the fact is one line of arithmetic away. A caller drawing it
     /// every frame should hold its own; nothing in the engine does.
     pub fn county(&self) -> crate::county::County {
+        self.county_written().as_seen(self.sightings())
+    }
+
+    /// The county as the tables wrote it, hill and all.
+    ///
+    /// Everything that draws, walks or resolves wants `county()`, which hides
+    /// the hill until three sightings are taken. This is for the two things
+    /// that need the truth: the sighting lines themselves, and the check that
+    /// the hill is where the arithmetic says.
+    pub fn county_written(&self) -> crate::county::County {
         crate::county::generate(self.county_seed())
+    }
+
+    /// How many trig points have been cleared: nought to three.
+    ///
+    /// Derived from `county_cleared` and the table, per A2.2 - "sightings
+    /// taken, sign tiles read and pale lines met are all derivable, and
+    /// nothing extra is stored".
+    pub fn sightings(&self) -> usize {
+        let c = self.county_written();
+        c.objectives(crate::county::Chain::Ordnance)
+            .iter()
+            .filter(|p| self.county_cleared.contains(p))
+            .count()
+    }
+
+    /// How many sign tiles have been read, which is what teaches the Drover.
+    pub fn signs_read(&self) -> usize {
+        let c = self.county_written();
+        c.objectives(crate::county::Chain::Drove)
+            .iter()
+            .filter(|p| self.county_cleared.contains(p))
+            .count()
+    }
+
+    /// How many boundary stones have been read.
+    pub fn stones_read(&self) -> usize {
+        let c = self.county_written();
+        c.objectives(crate::county::Chain::Enclosure)
+            .iter()
+            .filter(|p| self.county_cleared.contains(p))
+            .count()
+    }
+
+    /// Whether a chain's pinnacle may be fought.
+    ///
+    /// B1-B3's gates, in one place. The Ordnance wants all three sightings -
+    /// which is what makes the hill exist at all. The Drove wants a sign, so
+    /// that a run that has never been taught to look cannot intercept by
+    /// accident. The Enclosure wants the pale answered, because its pinnacle
+    /// is behind it.
+    pub fn county_gate_met(&self, chain: crate::county::Chain) -> bool {
+        match chain {
+            crate::county::Chain::Ordnance => self.sightings() >= 3,
+            crate::county::Chain::Drove => self.signs_read() >= 1,
+            crate::county::Chain::Enclosure => self.pale_is_open(),
+        }
     }
 
     /// Whether the pale has been answered and the far corner is open.
@@ -2306,9 +2512,146 @@ impl Run {
         crate::county::CIRCUIT[self.events_resolved as usize % crate::county::CIRCUIT.len()]
     }
 
+    /// B5. All three chains done, and the tenth trip is granted.
+    ///
+    /// A **route, not a destination**: every move must land on an edge tile,
+    /// always the same way round, and the fifth edge tile reached is where THE
+    /// PARISH stands. Any illegal move breaks the walk and the trip is spent -
+    /// which is the whole of what makes it a perambulation rather than a
+    /// tenth ordinary trip.
+    pub fn perambulation_is_granted(&self) -> bool {
+        crate::county::Chain::ALL.iter().all(|c| self.county_chain_done(*c))
+            && !self.county_trips.contains(&TripSource::Perambulation)
+            && self.county_trips.len() < trip_cap()
+    }
+
+    /// Whether this move is legal on a perambulation.
+    ///
+    /// Three rules and they are all about the boundary: the tile must be on
+    /// the edge, it must be the next one round, and "round" is whichever way
+    /// the first move went.
+    pub fn perambulation_allows(&self, to: (u8, u8)) -> bool {
+        if !self.on_a_perambulation() {
+            return true;
+        }
+        if !crate::county::on_edge(to) {
+            return false;
+        }
+        let Some(here) = self.county_at else { return false };
+        match self.perambulation_way {
+            None => true,
+            Some(clockwise) => crate::county::next_round(here, clockwise) == Some(to),
+        }
+    }
+
+    /// Whether the trip being walked is the perambulation.
+    pub fn on_a_perambulation(&self) -> bool {
+        self.county_at.is_some()
+            && self.county_trips.last() == Some(&TripSource::Perambulation)
+    }
+
+    /// The pale's checklist, ticked live (B3.1).
+    ///
+    /// Five lines, each a `Requirement` answered by the same machinery a
+    /// choice's `requires` uses - so the checklist a player reads at one tile
+    /// and the gate that opens are the same question asked twice rather than
+    /// two questions kept in step.
+    pub fn pale_checklist(&self) -> Vec<(crate::event::Requirement, bool)> {
+        use crate::county::Region;
+        use crate::event::Requirement;
+        let mut out: Vec<Requirement> = Region::ALL
+            .iter()
+            .map(|r| Requirement::CountyTiles { region: *r, at_least: 6 })
+            .collect();
+        out.push(Requirement::Counter { what: "boundary-stones", at_least: 2 });
+        out.push(Requirement::HoldingOrb);
+        out.into_iter()
+            .map(|r| {
+                let met = self.requirement_met(r);
+                (r, met)
+            })
+            .collect()
+    }
+
+    /// Whether the four lines that are read *before* the gate are all ticked.
+    ///
+    /// The fifth - an orb surrendered - is met at the gate itself, because
+    /// what it asks for is not a state of the run but a thing handed over.
+    pub fn pale_is_ready(&self) -> bool {
+        self.pale_checklist().iter().take(4).all(|(_, met)| *met)
+    }
+
+    /// Whether the Drover is standing where you are.
+    ///
+    /// Only once a sign has been read: it was always walking, and a sign tile
+    /// is what teaches a player to look. A run that has never been taught
+    /// cannot intercept by accident.
+    pub fn drover_is_here(&self) -> bool {
+        self.signs_read() >= 1
+            && !self.county_chain_done(crate::county::Chain::Drove)
+            && self.county_at == Some(self.drover_tile())
+    }
+
+    /// The pursuit, ended.
+    ///
+    /// A brawl, because a drover without a herd is a man on a walk. It is the
+    /// Drove's pinnacle by another road - the same party, the same settling -
+    /// so it goes through `county_pinnacle` rather than through `brawl`.
+    fn intercept_the_drover(&mut self) {
+        self.county_pinnacle = Some(crate::county::Chain::Drove);
+        self.begin_county_fight();
+    }
+
     /// Whether this source has already been spent.
     pub fn county_trip_taken(&self, from: TripSource) -> bool {
         self.county_trips.contains(&from)
+    }
+
+    /// C1. Taken down, and put on the gaol rather than at a gate.
+    ///
+    /// **The fastest ride into the middle there is**, and that is deliberate:
+    /// V9 keeps the gaol within three of the centre and every mouth is on an
+    /// edge, so a player will fail tolls on purpose to be sent down. That is
+    /// allowed to work - a punishment a clever player farms beats one a
+    /// careful player avoids - and what it actually costs is census slot nine.
+    ///
+    /// The one entry that does not start at a mouth, which is why it is its
+    /// own function rather than a `TripSource` handed to `enter_county`.
+    pub fn arrested_into_the_county(&mut self) -> bool {
+        if self.phase != Phase::Loadout || self.county_at.is_some() {
+            return false;
+        }
+        if self.county_trips.contains(&TripSource::Constable)
+            || self.county_trips.len() >= trip_cap()
+        {
+            return false;
+        }
+        let Some(gaol) = self.county_written().gaol() else { return false };
+        self.county_trips.push(TripSource::Constable);
+        self.county_at = Some(gaol);
+        self.county_moves_left = crate::county::MOVES_A_TRIP;
+        self.county_entry_cleared = self.county_cleared.len();
+        self.perambulation_way = None;
+        self.perambulation_reached = 0;
+        self.flags.retain(|f| *f != COUNTY_BUSINESS);
+        let mut lines = vec![format!("Taken down to {}", crate::county::reference(gaol))];
+        if let Some(said) = self.resolve_county_tile(gaol) {
+            lines.push(said);
+        }
+        lines.push(moves_left(self.county_moves_left));
+        self.last_receipt = Some(lines);
+        true
+    }
+
+    /// B5. The tenth trip, granted rather than taken.
+    ///
+    /// Enter at any mouth. Every move must land on an edge tile, always the
+    /// same way round; the fifth is THE PARISH.
+    pub fn walk_the_perambulation(&mut self, mouth: (u8, u8)) -> bool {
+        if !self.perambulation_is_granted() || !crate::county::on_edge(mouth) {
+            return false;
+        }
+        self.enter_county(TripSource::Perambulation, mouth)
     }
 
     /// Down into THE HUNDRED, five moves, from a mouth.
@@ -2330,6 +2673,9 @@ impl Run {
         self.county_trips.push(from);
         self.county_at = Some(mouth);
         self.county_moves_left = crate::county::MOVES_A_TRIP;
+        self.county_entry_cleared = self.county_cleared.len();
+        self.perambulation_way = None;
+        self.perambulation_reached = 0;
         let mut lines = vec![format!("Down into THE HUNDRED at {}", crate::county::reference(mouth))];
         if let Some(said) = self.resolve_county_tile(mouth) {
             lines.push(said);
@@ -2364,13 +2710,32 @@ impl Run {
         // for the reason a failed toll does: you went and looked.
         if county.is_sealed(to) && !self.pale_is_open() {
             self.county_moves_left -= 1;
-            self.last_receipt = Some(vec![
-                format!("{} is behind the pale", crate::county::reference(to)),
-                moves_left(self.county_moves_left),
-            ]);
+            let mut lines = vec![format!("{} is behind the pale", crate::county::reference(to))];
+            if self.on_a_perambulation() {
+                self.county_moves_left = 0;
+                lines.push("The perambulation is broken on a fence".into());
+                self.last_receipt = Some(lines);
+                self.close_the_trip();
+                return false;
+            }
+            lines.push(moves_left(self.county_moves_left));
+            self.last_receipt = Some(lines);
             self.end_county_trip_if_spent();
             return false;
         }
+        // B5. On a perambulation the boundary is the road, and stepping off
+        // it - or the wrong way round it - **breaks the walk**. The trip is
+        // spent, which is the price of a route rather than a destination.
+        if self.on_a_perambulation() && !self.perambulation_allows(to) {
+            self.county_moves_left = 0;
+            self.last_receipt = Some(vec![
+                format!("{} is not on the boundary", crate::county::reference(to)),
+                "The perambulation is broken, and a broken one is walked".into(),
+            ]);
+            self.close_the_trip();
+            return false;
+        }
+
         // A2.1 step 2. A Feature you have already crossed is a bridge you paid
         // for once, so this asks only of a tile that is not yet cleared.
         if let crate::county::TileKind::Feature(toll) = county.at(to).kind {
@@ -2379,15 +2744,28 @@ impl Run {
                 let bounty = self.rung_bounty();
                 if !toll.met(&figures, self.gold, bounty) {
                     self.county_moves_left -= 1;
-                    self.last_receipt = Some(vec![
+                    let mut lines = vec![
                         format!(
                             "{} - {} - no",
                             crate::county::reference(to),
                             county.at(to).kind.what()
                         ),
                         toll.shortfall(&figures, self.gold, bounty),
-                        moves_left(self.county_moves_left),
-                    ]);
+                    ];
+                    // B5: "tolls on the boundary must be paid; any illegal
+                    // move, **or a failed toll**, breaks the walk". A
+                    // perambulation is a route rather than a destination, and
+                    // a route you cannot finish is not one you get to retry
+                    // from where you stopped.
+                    if self.on_a_perambulation() {
+                        self.county_moves_left = 0;
+                        lines.push("The perambulation is broken on a toll it could not pay".into());
+                        self.last_receipt = Some(lines);
+                        self.close_the_trip();
+                        return false;
+                    }
+                    lines.push(moves_left(self.county_moves_left));
+                    self.last_receipt = Some(lines);
                     self.end_county_trip_if_spent();
                     return false;
                 }
@@ -2397,7 +2775,24 @@ impl Run {
             }
         }
         self.county_moves_left -= 1;
+        let was = self.county_at;
         self.county_at = Some(to);
+        if self.on_a_perambulation() {
+            if self.perambulation_way.is_none() {
+                self.perambulation_way =
+                    was.and_then(|h| crate::county::next_round(h, true).map(|n| n == to));
+            }
+            self.perambulation_reached += 1;
+            if self.perambulation_reached >= crate::county::PARISH_AT {
+                self.county_pinnacle = None;
+                self.last_receipt = Some(vec![
+                    format!("{} - and it is the fifth", crate::county::reference(to)),
+                    "THE PARISH".into(),
+                ]);
+                self.begin_parish();
+                return true;
+            }
+        }
         let mut lines = vec![format!(
             "{} - {}",
             crate::county::reference(to),
@@ -2408,6 +2803,10 @@ impl Run {
         }
         lines.push(moves_left(self.county_moves_left));
         self.last_receipt = Some(lines);
+        if self.drover_is_here() {
+            self.intercept_the_drover();
+            return true;
+        }
         self.end_county_trip_if_spent();
         true
     }
@@ -2424,9 +2823,61 @@ impl Run {
     /// identical ones so that the milestone which arms them finds a place to
     /// put the code rather than a shape to imitate.
     fn resolve_county_tile(&mut self, at: (u8, u8)) -> Option<String> {
+        use crate::county::{Chain, TileKind};
+        let kind = self.county().at(at).kind;
+
+        // A pinnacle whose gate is unmet says so and is not cleared. This is
+        // asked **before** the cleared check, because the hill is the one tile
+        // in the game that can be cleared and then stop being cleared: a run
+        // that walked over it while it still looked empty cleared an empty
+        // tile, and the third sighting makes that tile a pinnacle. A cleared
+        // tile that becomes a pinnacle is uncleared by the becoming (B1.1).
+        if let TileKind::Pinnacle { chain } = kind {
+            if self.county_cleared.contains(&at) {
+                self.county_cleared.retain(|p| *p != at);
+            }
+            if !self.county_gate_met(chain) {
+                return Some(match chain {
+                    Chain::Ordnance => "the hill, and you have not taken every sighting".into(),
+                    Chain::Drove => "nothing here has taught you to look yet".into(),
+                    Chain::Enclosure => "the pale is not open".into(),
+                });
+            }
+            self.county_pinnacle = Some(chain);
+            self.begin_county_fight();
+            return Some(format!("{:?} - the end of it", chain).to_uppercase());
+        }
+
         if self.county_cleared.contains(&at) {
             return Some("walked over, and already yours".into());
         }
+
+        // An objective pays its chain. The Enclosure's stones count, because
+        // the pale's fourth line reads a tally rather than a flag - two of
+        // three, and the third is behind the gate the tally opens, which is
+        // the chain's own joke.
+        if let TileKind::Objective { chain, nth } = kind {
+            self.county_cleared.push(at);
+            if chain == Chain::Enclosure {
+                self.count("boundary-stones");
+            }
+            return Some(match chain {
+                Chain::Ordnance => {
+                    let taken = self.sightings();
+                    match taken {
+                        3 => "the third sighting. Two lines were knowledge; this one is a key"
+                            .to_string(),
+                        n => format!("sighting {n} of 3, and the line is drawn"),
+                    }
+                }
+                Chain::Drove => format!(
+                    "a sign, and it says what came through: {} events ago the herd was here",
+                    self.events_resolved
+                ),
+                Chain::Enclosure => format!("boundary stone {nth}, and it is cut by the same hand"),
+            });
+        }
+
         // An Event tile asks its question instead of clearing. Answering is
         // what clears it, in `take_choice_unchecked`, and a tile whose event
         // has nothing to ask - a word it needs and you have not got - clears
@@ -2452,7 +2903,112 @@ impl Run {
     /// cost the visit.
     fn end_county_trip_if_spent(&mut self) {
         if self.county_moves_left == 0 && self.pending_event().is_none() {
-            self.county_at = None;
+            self.close_the_trip();
+        }
+    }
+
+    /// A trip is over. Whether it was worth taking is a question C1 asks.
+    ///
+    /// **The flag the constable reads.** A trip that cleared nothing is a run
+    /// that went down there and came back with nothing to show, which is not
+    /// against anything and is the sort of thing that gets looked into. Set by
+    /// the engine rather than by a choice, which is why
+    /// `completable::ENGINE_SETS` names it: a lint that walks `EVENTS` looking
+    /// for the outcome that sets a flag cannot see a flag the rules set.
+    fn close_the_trip(&mut self) {
+        if self.county_cleared.len() == self.county_entry_cleared
+            && !self.flags.contains(&COUNTY_BUSINESS)
+        {
+            self.flags.push(COUNTY_BUSINESS);
+        }
+        self.county_at = None;
+    }
+
+    /// C2. An empty grid past rung sixteen is somebody's business.
+    ///
+    /// Checked after a won fight. Fires **once** - either it is declined for
+    /// ever, or the bet is taken and settles itself - and it is pushed through
+    /// `forced_event` rather than standing on a rung, because what it is about
+    /// is a board rather than a place.
+    ///
+    /// `phase_two::every_door_in_the_game_can_be_arrived_at` knows about three
+    /// ways a door gets pushed now: a pedestal, the end of the road, and this.
+    pub const WASTE_FROM: usize = 15;
+
+    fn look_at_the_waste(&mut self) {
+        // On the road, and only on the road. Vessey stands at the roadside
+        // with a legal opinion about your greaves; he is not in a dungeon and
+        // he is not down a county. Without this he arrives on the landing
+        // between two floors of the Switchyard and blocks the points, which is
+        // how three of that mission's tests found him.
+        if self.rung <= Self::WASTE_FROM
+            || self.dungeon.is_some()
+            || self.county_at.is_some()
+            || self.waste_bet.is_some()
+            || self.flags.contains(&"waste-improved")
+            || self.flags.contains(&"waste-declined")
+            || self.waste_offered
+            || self.answered.contains(&"the-waste")
+        {
+            return;
+        }
+        let empty = SlotKind::ALL
+            .into_iter()
+            .find(|k| self.report(*k).items.iter().all(|i| !i.assembled));
+        if empty.is_some() {
+            self.waste_offered = true;
+        }
+    }
+
+    /// The bet, settled. Empty at the deadline pays a trip; filled owes gold.
+    fn settle_the_waste(&mut self) {
+        let Some((grid, deadline)) = self.waste_bet else { return };
+        let still_empty = self.report(grid).items.iter().all(|i| !i.assembled);
+        if !still_empty {
+            let owed = self.rung_bounty();
+            self.gold = (self.gold - owed).max(0);
+            self.waste_bet = None;
+            self.last_receipt = Some(vec![
+                format!("{} is not waste any more, and Vessey was watching", grid.name()),
+                format!("-{owed}g"),
+            ]);
+            return;
+        }
+        if self.rung >= deadline {
+            self.waste_bet = None;
+            if self.county_trips.contains(&TripSource::WasteBet)
+                || self.county_trips.len() >= trip_cap()
+            {
+                self.gold += self.rung_bounty() * 2;
+                self.last_receipt =
+                    Some(vec!["Vessey pays up, and in coin".into()]);
+            } else {
+                self.flags.push("waste-bet-won");
+                self.last_receipt = Some(vec![
+                    format!("{} stayed waste, and Vessey pays what he said", grid.name()),
+                    "A way down, whenever you want it".into(),
+                ]);
+            }
+        }
+    }
+
+    /// What a county loss costs: a Rogue life, or a Grinder rung.
+    ///
+    /// A7 - "a county loss costs what a road loss costs". Written out here
+    /// rather than falling through `settle`'s own arm because that arm also
+    /// moves the rung, and a pinnacle is not a rung: a Grinder knocked back
+    /// off a hill would lose ladder progress for something that never
+    /// advanced it.
+    fn spend_a_life_for_the_county(&mut self) {
+        match self.mode {
+            Mode::Grinder => {
+                if self.rung > 0 {
+                    self.rung -= 1;
+                }
+            }
+            Mode::Rogue => {
+                self.lives = self.lives.saturating_sub(1);
+            }
         }
     }
 
@@ -2466,7 +3022,7 @@ impl Run {
             return false;
         }
         let left = self.county_moves_left;
-        self.county_at = None;
+        self.close_the_trip();
         self.county_moves_left = 0;
         self.last_receipt = Some(vec![
             "Back up out of THE HUNDRED. What you cleared stays cleared.".into(),
@@ -2506,6 +3062,14 @@ impl Run {
                 }
             }
             crate::pedestal::Where::Event(e) => self.forced_event = Some(e),
+            // Any mouth, found or not. `enter_county` refuses a mouth that is
+            // not one and refuses a source already spent, and the interface
+            // picks which - `county::MOUTHS[0]` is the fallback for a caller
+            // that does not ask, which is the CLI and nothing else.
+            crate::pedestal::Where::County => {
+                let mouth = self.county_mouth_wanted.take().unwrap_or(crate::county::MOUTHS[0].1);
+                self.enter_county(TripSource::SurveyorsOrb, mouth);
+            }
         }
         self.last_receipt = Some(vec![
             format!("Fed the pedestal: {}", name),
@@ -2880,6 +3444,66 @@ impl Run {
         }
         let outcome = self.log.as_ref()?.outcome;
         self.settled = true;
+
+        // THE HUNDRED's endings settle before anything else, because a
+        // pinnacle is not a rung: winning one must not advance the ladder and
+        // losing one must not knock you back off it. The trip ends either way
+        // and what the chain pays is paid here.
+        if self.walking_the_parish {
+            self.walking_the_parish = false;
+            if outcome == Outcome::Victory {
+                self.flags.push("the-parish-is-walked");
+                self.last_receipt =
+                    Some(vec!["THE PARISH is walked, and the county is finished".into()]);
+            } else {
+                self.last_receipt = Some(vec!["THE PARISH stands".into()]);
+                self.spend_a_life_for_the_county();
+            }
+            self.county_at = None;
+            self.county_moves_left = 0;
+            self.phase = Phase::Loadout;
+            return Some(0);
+        }
+        if let Some(chain) = self.county_pinnacle.take() {
+            let mut lines: Vec<String> = Vec::new();
+            if outcome == Outcome::Victory {
+                self.flags.push(crate::county::chain_done(chain));
+                if let Some(at) = self.county_at {
+                    if !self.county_cleared.contains(&at) {
+                        self.county_cleared.push(at);
+                    }
+                }
+                lines.push(format!("{} is finished", chain.name()));
+                for reward in crate::county::chain_pays(chain) {
+                    self.give(reward);
+                    lines.push(format!("Gained: {reward}"));
+                }
+                if chain == crate::county::Chain::Ordnance {
+                    self.flags.push(crate::county::THE_SHEET);
+                    lines.push("Every threshold in the county, from anywhere".into());
+                }
+                if crate::county::Chain::ALL.iter().all(|c| self.county_chain_done(*c))
+                    && !self.county_trips.contains(&TripSource::Perambulation)
+                    && self.county_trips.len() < trip_cap()
+                {
+                    lines.push("All three. The perambulation is yours to walk".into());
+                }
+            } else {
+                lines.push(format!("{} stands", chain.name()));
+            }
+            self.county_at = None;
+            self.county_moves_left = 0;
+            self.last_receipt = Some(lines);
+            // A loss still costs what a road loss costs, which the rest of
+            // this function does - but the rung must not move either way, so
+            // the ladder half is skipped by returning the bounty and nothing
+            // else.
+            if outcome != Outcome::Victory {
+                self.spend_a_life_for_the_county();
+            }
+            self.phase = Phase::Loadout;
+            return Some(0);
+        }
         // A fresh shop is a fresh price. The escalation is meant to bite
         // inside one visit, not to follow you up the ladder.
         self.rerolls = 0;
@@ -3349,6 +3973,14 @@ impl Run {
         // And a shelf somebody promised for afterwards.
         if let Some(shelves) = self.shop_owed.take() {
             self.shop.stock_exactly(shelves);
+        }
+
+        // C2, both halves: a bet already taken is settled here, and a board
+        // with an empty grid is noticed here. In that order, so the fight that
+        // wins a bet cannot also be the one that offers it.
+        if outcome == Outcome::Victory {
+            self.settle_the_waste();
+            self.look_at_the_waste();
         }
 
         let ended = settlement.run_ended;
@@ -4439,6 +5071,40 @@ impl Run {
         self.settled = false;
         self.log = Some(log);
         self.log.as_ref().expect("just set")
+    }
+
+    /// B5's ending. The hardest authored thing in the game.
+    ///
+    /// Not a `county_pinnacle`: it belongs to no chain, and settling it must
+    /// not mark one done. It ends the trip the way a pinnacle does.
+    pub fn begin_parish(&mut self) -> &CombatLog {
+        self.forget_undo();
+        self.walking_the_parish = true;
+        let party: Vec<crate::combat::MonsterSpec> =
+            crate::combat::creature("THE PARISH").into_iter().copied().collect();
+        self.fight_party(&party)
+    }
+
+    /// The fight at the end of a chain of THE HUNDRED.
+    ///
+    /// A **party**, always, even where the party is one: the Drove's ending is
+    /// a drover and the herd he is driving, and building one code path for
+    /// "one creature" and another for "two" would mean the Ordnance and the
+    /// Drove settled differently. `simulate_party` handles a party of one.
+    ///
+    /// Losing costs what a road loss costs and ends the trip (A7); winning is
+    /// settled by `settle`, which is where the chain is marked done.
+    pub fn begin_county_fight(&mut self) -> &CombatLog {
+        let Some(chain) = self.county_pinnacle else { return self.begin_fight() };
+        self.forget_undo();
+        // `simulate_party` steps each spec for the difficulty itself, the way
+        // it does for a brawl.
+        let party: Vec<crate::combat::MonsterSpec> = crate::county::pinnacle_party(chain)
+            .iter()
+            .filter_map(|n| crate::combat::creature(n))
+            .copied()
+            .collect();
+        self.fight_party(&party)
     }
 
     /// Simulate against the original opponent, ladder position ignored.
