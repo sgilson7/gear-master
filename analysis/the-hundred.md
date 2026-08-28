@@ -411,3 +411,47 @@ started. F3 is the three increment points.
 F2/F3 with the rest; they are C1's and C2's and nothing reads them until F8,
 and a field with no reader is `CLAUDE.md` §6 traps 19 and 30 in a struct
 instead of a table.
+
+---
+
+## F3 the clock
+
+`events_resolved` moves, and nothing reads it yet. **Engine 957, GUI 78, CLI
+8. No warnings.** `baseline` byte-identical to F0.
+
+### A5's three places are one place
+
+A5 says the clock increments in exactly three places: a road event answered, a
+county event answered, and nothing else. In this engine **every event in the
+game is answered in one function** - `take_choice_unchecked` - and that
+includes a rung's door, a chain's, a dungeon mouth's, a forced one off a
+pedestal, and, from F7, a county tile's. One increment point is the strongest
+form of "nothing else" available, and `the_clock_counts_doors_and_nothing_else`
+walks a fight won, a fight lost, a town door, five tiles of county and a shop
+reroll past it to say so.
+
+### And one place it has to come back down
+
+**`Outcome::Defer` takes the door back off `answered`** - "declining is not
+answering", which is a rule that predates this mission - and it has to take it
+off the clock with it. A run that could advance the Drover by saying "not yet"
+to one door over and over could walk it round the sixteen-tile ring for
+nothing, which is an interception bought rather than intercepted. The
+decrement is one line under the pop so the two cannot drift, and
+`deferring_a_door_does_not_move_the_clock` is the test.
+
+Both deferrable doors in the game are `Trigger::Whispered`, so neither stands
+for a fresh run and the test hands over the word first - what is being
+measured is the clock and not the road to the door.
+
+### Why it is a counter and not `answered.len()`
+
+They are equal for a county-free run and `the_clock_reads_the_same_as_the_run_at_four_checkpoints`
+asserts exactly that at rungs 9, 19, 29 and 39, plus that the walk answered at
+least eight doors, because four checkpoints that are all zero would pass the
+equality and prove nothing.
+
+They stop being equal at F7: a county event id can be **arranged onto more
+than one tile** (D-2 puts eight events into twelve slots), and an id on
+`answered` is an id that never asks again. So the clock has to be its own
+number, which is what A2.2 asked for and this is the reason.

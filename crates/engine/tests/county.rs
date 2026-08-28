@@ -1035,3 +1035,187 @@ fn three_towns_and_fifteen_moves() {
         .collect();
     assert!(regions.len() >= 2, "three gates on three edges reached one region: {regions:?}");
 }
+
+// ================================================================ F3: the clock
+//
+// `events_resolved` is what the Drover walks by, and A5 says it moves in
+// exactly three places: a road event answered, a county event answered, and
+// nothing else. In this engine those are **one** place - `take_choice_unchecked`
+// is where every event in the game is answered - which is the strongest form
+// of "nothing else" there is.
+
+/// Nothing but answering a door moves the clock.
+///
+/// A5's third rule, and the one worth a test of its own: not fights, not tiles
+/// walked, not towns, not tolls, not gold, not a rung. Each of these is a
+/// thing a run does a great many of, and any one of them on the clock would
+/// make the Drover's position a function of how the run was played rather than
+/// of what it answered.
+#[test]
+fn the_clock_counts_doors_and_nothing_else() {
+    let mut run = a_run();
+    assert_eq!(run.events_resolved, 0);
+
+    // A fight, won.
+    run.rung = 3;
+    run.force_win();
+    run.settle();
+    run.back_to_loadout();
+    assert_eq!(run.events_resolved, 0, "a fight moved the clock");
+
+    // A fight, lost.
+    run.rung = 30;
+    run.begin_fight();
+    run.settle();
+    run.back_to_loadout();
+    assert_eq!(run.events_resolved, 0, "a defeat moved the clock");
+
+    // A town, and a door in it.
+    at_the_gate_of(&mut run, "sump-bottom");
+    run.visit_town(Action::Chapel);
+    assert_eq!(run.events_resolved, 0, "a town door moved the clock");
+
+    // Five tiles of county.
+    at_the_gate_of(&mut run, "kettleworks");
+    run.visit_town(Action::County);
+    for _ in 0..5 {
+        let here = run.county_at.expect("down there");
+        let c = run.county();
+        if let Some(step) =
+            Step::ALL.into_iter().find(|s| s.from(here).is_some_and(|t| !c.is_sealed(t)))
+        {
+            run.county_walk(step);
+        }
+    }
+    assert_eq!(run.events_resolved, 0, "walking the county moved the clock");
+
+    // Buying, selling, and the shop.
+    run.gold += 100;
+    let _ = run.reroll();
+    assert_eq!(run.events_resolved, 0, "a reroll moved the clock");
+}
+
+/// A door answered moves it by one, at four checkpoints of a walked run.
+///
+/// The scripted-run half of F3's gate. The road is walked from the bottom with
+/// every door answered as it stands, and the counter is read at four rungs
+/// against the run's own list of what it answered.
+#[test]
+fn the_clock_reads_the_same_as_the_run_at_four_checkpoints() {
+    let mut run = a_run();
+    let mut checkpoints = Vec::new();
+    for rung in 0..40usize {
+        run.rung = rung;
+        // Answer whatever is standing here, first choice that is open.
+        while let Some(ev) = run.pending_event() {
+            let before = run.events_resolved;
+            let Some(c) = ev.choices.iter().find(|c| run.choice_open(c)) else { break };
+            let deferring = format!("{:?}", c.outcome).contains("Defer");
+            run.take_choice(c);
+            if !run.answered.contains(&ev.id) {
+                break;
+            }
+            assert_eq!(
+                run.events_resolved,
+                before + 1,
+                "answering {} moved the clock by {}",
+                ev.id,
+                run.events_resolved as i64 - before as i64
+            );
+            let _ = deferring;
+        }
+        if run.road_is_blocked().is_some() {
+            run.skip_town();
+            run.pending_scene = None;
+        }
+        if [9usize, 19, 29, 39].contains(&rung) {
+            checkpoints.push((rung, run.events_resolved, run.answered.len()));
+        }
+    }
+    assert_eq!(checkpoints.len(), 4);
+    for (rung, clock, answered) in &checkpoints {
+        assert_eq!(
+            *clock as usize, *answered,
+            "at rung {rung} the clock says {clock} and the run answered {answered} doors. \
+             A county-free run's clock is its answered list, and this is the assertion that \
+             says so - if it moved, something other than a door is on the clock, or a door \
+             is being answered without going through `take_choice`"
+        );
+    }
+    // And it actually walked somewhere: four checkpoints that are all zero
+    // would pass the equality above and prove nothing.
+    assert!(
+        checkpoints[3].1 >= 8,
+        "the walk answered {} doors in forty rungs, which is not a walk",
+        checkpoints[3].1
+    );
+    assert!(checkpoints[0].1 < checkpoints[3].1, "the clock stopped");
+}
+
+/// Saying "not yet" is not saying anything, and the clock knows it.
+///
+/// `ChoiceOutcome::Defer` takes the door back off `answered` - declining is
+/// not answering - and it has to take it off the clock too. A run that could
+/// advance the Drover by deferring the same door would walk it round the ring
+/// for nothing, which is an interception bought rather than intercepted.
+#[test]
+fn deferring_a_door_does_not_move_the_clock() {
+    use gearmaster_engine::event::{Outcome, EVENTS};
+    let mut run = a_run();
+    // The first deferrable door that actually stands on its own rung for a
+    // fresh run. Two exist; one of them wants something first, and a test that
+    // picked it would be measuring the requirement rather than the clock.
+    let deferrable: Vec<_> = EVENTS
+        .iter()
+        .flat_map(|e| {
+            e.choices
+                .iter()
+                .filter(|c| matches!(c.outcome, Outcome::Defer { .. }))
+                .map(move |c| (e, c))
+        })
+        .collect();
+    assert!(
+        !deferrable.is_empty(),
+        "no door in the game can be deferred, which is news this test should not hide"
+    );
+    // Both of them are `Whispered`, so the run has to be carrying the word or
+    // the door is not there at all. Handed over rather than earned: what is
+    // being measured is the clock and not the road to the door.
+    let Some((ev, c)) = deferrable.into_iter().find(|(e, c)| {
+        if let gearmaster_engine::event::Trigger::Whispered { rumour, .. } = e.trigger {
+            run.give(rumour);
+        }
+        run.rung = e.at;
+        run.pending_event().map(|p| p.id) == Some(e.id) && run.choice_open(c)
+    }) else {
+        panic!("no deferrable door can be made to stand, which is news this test should not hide");
+    };
+    run.rung = ev.at;
+
+    let before = run.events_resolved;
+    run.take_choice(c);
+    assert!(!run.answered.contains(&ev.id), "deferring marked it answered");
+    assert_eq!(
+        run.events_resolved, before,
+        "deferring {} moved the clock; the Drover can be walked round the ring by saying \
+         'not yet' to one door over and over",
+        ev.id
+    );
+}
+
+/// The Drover is at `CIRCUIT[clock % 16]`, and the clock is the only thing
+/// that moves it.
+#[test]
+fn the_drover_walks_the_ring_by_the_clock() {
+    let mut run = a_run();
+    assert_eq!(run.drover_tile(), CIRCUIT[0]);
+    for n in 0..40u32 {
+        run.events_resolved = n;
+        assert_eq!(run.drover_tile(), CIRCUIT[n as usize % 16]);
+        assert!(county::on_circuit(run.drover_tile()));
+    }
+    // Sixteen doors and it is back where it started, which is what makes an
+    // interception a subtraction rather than a chase.
+    run.events_resolved = 16;
+    assert_eq!(run.drover_tile(), CIRCUIT[0]);
+}

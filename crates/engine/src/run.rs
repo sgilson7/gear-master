@@ -1570,6 +1570,15 @@ impl Run {
         }
         self.answered.push(ev.id);
         self.answered_on.push((ev.id, self.rung));
+        // The clock THE HUNDRED's Drover walks by (A5). **One place, not the
+        // three the spec counts**, because every event in the game - a rung's
+        // door, a chain's, a dungeon mouth's, a forced one off a pedestal, and
+        // from F7 a county tile's - is answered here and nowhere else.
+        //
+        // It is a separate counter and not `answered.len()` for a reason F7
+        // needs: a county event id can be arranged onto more than one tile,
+        // and an id on `answered` is an id that never asks again.
+        self.events_resolved += 1;
         if self.forced_event == Some(ev.id) {
             self.forced_event = None;
         }
@@ -1911,7 +1920,14 @@ impl Run {
                 // Declining is not answering. The door comes off `answered`
                 // and goes onto the list of things that will find you again,
                 // which is the whole difference between "no" and "not yet".
+                //
+                // And off the clock with it, one line later so the two cannot
+                // drift: a run that could advance the Drover by saying "not
+                // yet" to the same door could walk it round the ring for
+                // nothing, which is an interception bought rather than
+                // intercepted.
                 let id = self.answered.pop();
+                self.events_resolved = self.events_resolved.saturating_sub(1);
                 if let Some(id) = id {
                     match self.deferred.iter_mut().find(|(d, _)| *d == id) {
                         Some(e) => e.1 = self.rung + rungs,

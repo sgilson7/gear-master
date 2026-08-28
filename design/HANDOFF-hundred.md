@@ -30,7 +30,7 @@ milestone that wants to reopen one has something to argue against.
 | **F0** Baseline | **done** - `analysis/the-hundred.md` "F0 baseline" |
 | **F1** The county, generated | **done** - `analysis/the-hundred.md` "F1 the county, generated" |
 | **F2** Standing in it | **done** - `analysis/the-hundred.md` "F2 standing in it" |
-| **F3** The clock | not started |
+| **F3** The clock | **done** - `analysis/the-hundred.md` "F3 the clock" |
 | **F4** Tolls, and the two Requirement variants | not started |
 | **F5** Bearing, Overtake, Commons - inert | not started |
 | **F6** The catalogue, once | not started |
@@ -94,6 +94,20 @@ clears rung 9, and Kettleworks' gate is after rung 17. Split in two, both in
 the suite - the driver proves a trip replays byte-identically, and the engine
 walks three towns and fifteen moves. `every_town_lets_you_down_at_its_own_mouth`
 does all six.
+
+### F3 - The clock
+
+`events_resolved`, moving. **957 engine, 78 GUI, 8 CLI. No warnings.**
+
+**A5's three increment points are one.** Every event in the game is answered
+in `take_choice_unchecked` and nowhere else, which is the strongest form of
+"nothing else" there is. A fight won, a fight lost, a town door, five tiles of
+county and a shop reroll are all walked past the counter to prove it.
+
+**And one place it comes back down.** `Outcome::Defer` takes a door back off
+`answered` - declining is not answering - and it has to come off the clock too,
+or a run advances the Drover by saying "not yet" to one door repeatedly. That
+is an interception bought rather than intercepted.
 
 ## 3. Open questions for the user
 
