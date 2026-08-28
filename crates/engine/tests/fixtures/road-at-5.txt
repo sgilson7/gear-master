@@ -20,6 +20,7 @@ O  6 Plague Hound
 . -- THE TELLER (event, between 10 and 11)
 . 11 Mirror Fiend
 . 12 Rust Colossus
+. -- THE COUNTY SURVEYED (event, between 12 and 13)
 . -- THE BIGGER SIGN (event, between 12 and 13)
 . 13 Ashen Marshal
 . 14 Grave Chorus

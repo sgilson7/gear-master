@@ -6,6 +6,8 @@
 //! the place exists. The exit criterion is elsewhere: the ladder replays
 //! byte-identically, which `the_road` and `catalog_shape` say.
 
+mod common;
+
 use gearmaster_engine::combat::Difficulty;
 use gearmaster_engine::county::{
     self, Bearing, Chain, County, Region, Tile, TileKind, Toll, ATTEMPTS, CIRCUIT, FALLBACK,
@@ -540,23 +542,22 @@ fn the_gaol_is_deeper_in_than_any_mouth() {
 
 // ---------------------------------------------------- the events, not yet
 
-/// No county tile names an event that does not exist.
+/// Every county tile names an event that exists.
 ///
-/// Vacuous while `COUNTY_EVENTS` is empty and it is not vacuous *quietly*:
-/// every arranged tile carries [`county::UNARRANGED`], which is the whole of
-/// the exemption, and the mirror below goes red the day the pool has anything
-/// in it. F7 cannot land the events without putting these tiles back under
-/// this lint.
+/// It said "or says it is waiting" until F7, and the exemption was
+/// `county::UNARRANGED` - the placeholder every arranged tile carried while
+/// the pool was empty. The pool has eight in it now and the placeholder is
+/// unreachable, which is what `the_placeholder_is_never_dealt` says from the
+/// other end.
 #[test]
-fn every_event_tile_names_an_event_or_says_it_is_waiting() {
+fn every_event_tile_names_an_event_that_exists() {
     for seed in a_spread_of_seeds() {
         let c = county::generate(seed);
         for t in c.tiles() {
             if let TileKind::Event(id) = t.kind {
                 assert!(
-                    id == county::UNARRANGED || id == county::PALE,
-                    "seed {seed:#x}: {:?} names {id}, which is neither the pale nor a tile \
-                     waiting for F7",
+                    id == county::PALE || gearmaster_engine::event::county_event(id).is_some(),
+                    "seed {seed:#x}: {:?} names {id}, which is neither the pale nor an event",
                     t.at
                 );
             }
@@ -564,33 +565,174 @@ fn every_event_tile_names_an_event_or_says_it_is_waiting() {
     }
 }
 
+/// Eight authored into eleven slots, and every one of them is dealt before
+/// any is dealt twice.
+///
+/// D-2's arrangement. A per-tile draw would satisfy "eleven tiles carry an
+/// event" and would also let one event be on the county four times while three
+/// are on it not at all, which is eight events written and five of them read.
+#[test]
+fn the_pool_is_dealt_as_a_deck_and_not_a_die() {
+    use gearmaster_engine::event::COUNTY_EVENTS;
+    assert_eq!(COUNTY_EVENTS.len(), 8, "D-2 is eight authored, not twelve thin");
+    for seed in a_spread_of_seeds() {
+        let c = county::generate(seed);
+        let mut count: std::collections::BTreeMap<&str, usize> = Default::default();
+        for t in c.tiles() {
+            if let TileKind::Event(id) = t.kind {
+                if id != county::PALE {
+                    *count.entry(id).or_default() += 1;
+                }
+            }
+        }
+        assert_eq!(count.values().sum::<usize>(), county::ARRANGED);
+        assert_eq!(count.len(), 8, "seed {seed:#x} left an event off the county: {count:?}");
+        for (id, n) in &count {
+            assert!(*n <= 2, "seed {seed:#x} dealt {id} {n} times");
+        }
+    }
+}
+
+/// The placeholder F1 dealt is never dealt now.
+#[test]
+fn the_placeholder_is_never_dealt() {
+    for seed in a_spread_of_seeds() {
+        let c = county::generate(seed);
+        for t in c.tiles() {
+            assert!(
+                !matches!(t.kind, TileKind::Event(id) if id == county::UNARRANGED),
+                "seed {seed:#x}: {:?} still carries the placeholder",
+                t.at
+            );
+        }
+    }
+}
+
 /// County events never fight.
 ///
-/// The county's only fights are its pinnacles and THE PARISH. Vacuous until
-/// F7 authors the pool - present now so that the milestone which writes the
-/// first county event finds the lint rather than remembering it.
+/// The county's only fights are its pinnacles and THE PARISH. Vacuous until F7
+/// authored the pool; there are eight in it now, and this is the lint that
+/// keeps the restriction from rotting the first time somebody writes a ninth.
 #[test]
 fn county_events_never_fight() {
-    // `COUNTY_EVENTS` lands at F7. Until it does, the restriction has nothing
-    // to check and this test is the placeholder that says which outcomes are
-    // barred: FightAsWritten, FightInstead, Step, Enter, StartDungeon.
-    let pool: &[gearmaster_engine::event::LadderEvent] = &[];
-    for e in pool {
+    use gearmaster_engine::event::{every_outcome, Outcome, COUNTY_EVENTS};
+    assert!(!COUNTY_EVENTS.is_empty(), "this lint has stopped checking anything");
+    for e in COUNTY_EVENTS {
         for ch in e.choices {
-            for o in gearmaster_engine::event::every_outcome(&ch.outcome) {
+            for o in every_outcome(&ch.outcome) {
                 assert!(
                     !matches!(
                         o,
-                        gearmaster_engine::event::Outcome::FightAsWritten
-                            | gearmaster_engine::event::Outcome::FightInstead(_)
-                            | gearmaster_engine::event::Outcome::StartDungeon(_)
+                        Outcome::FightAsWritten
+                            | Outcome::FightInstead(_)
+                            | Outcome::Step(_)
+                            | Outcome::Enter(_)
+                            | Outcome::StartDungeon(_)
                     ),
-                    "{} fights, and the county's only fights are its pinnacles",
+                    "{} fights, and the county's only fights are its pinnacles and THE PARISH",
                     e.id
                 );
             }
         }
     }
+}
+
+/// A county event's two dead fields say they are dead.
+#[test]
+fn a_county_event_stands_on_a_tile_and_not_on_a_rung() {
+    use gearmaster_engine::event::COUNTY_EVENTS;
+    for e in COUNTY_EVENTS {
+        assert_eq!(e.at, usize::MAX, "{} thinks it stands on rung {}", e.id, e.at);
+        assert_eq!(e.expects, "", "{} expects {:?}, and no creature stands behind a tile", e.id, e.expects);
+        assert!(!e.choices.is_empty(), "{} asks nothing", e.id);
+    }
+    // And no id is shared with the road's table, because `standing_events`
+    // looks a pending county event up in one and everything else in the other.
+    for e in COUNTY_EVENTS {
+        assert!(
+            !gearmaster_engine::event::EVENTS.iter().any(|r| r.id == e.id),
+            "{} is on both tables",
+            e.id
+        );
+    }
+}
+
+/// A trip that answers four questions moves the clock by four.
+///
+/// F7's gate, and the half of A5 that could not be tested until there was
+/// something down here to answer.
+#[test]
+fn a_trip_that_answers_four_county_events_moves_the_clock_by_four() {
+    // A board that pays some tolls, so the walk is not fenced in at the mouth.
+    let mut run = common::board_from(gearmaster_engine::share::A_WINNING_RUN);
+    run.run_seed = 0x1_00D;
+    run.mode = Mode::Grinder;
+    run.difficulty = Difficulty::Medium;
+
+    let mut answered = 0u32;
+    let mut trips = 0;
+    for (id, mouth) in MOUTHS.iter() {
+        if answered >= 4 {
+            break;
+        }
+        assert!(run.enter_county(TripSource::Town(id), *mouth));
+        trips += 1;
+        let before = run.events_resolved;
+        answer_the_tile(&mut run);
+        answered += run.events_resolved - before;
+        while run.county_at.is_some() && answered < 4 {
+            let Some(step) = somewhere_to_go(&run) else { break };
+            let before = run.events_resolved;
+            run.county_walk(step);
+            answer_the_tile(&mut run);
+            answered += run.events_resolved - before;
+        }
+        run.leave_county();
+    }
+    assert!(
+        answered >= 4,
+        "{trips} trips answered {answered} county events; the county is too quiet to test this"
+    );
+    assert_eq!(
+        run.events_resolved, answered,
+        "the clock and the questions disagree. Nothing down there is on the clock except a \
+         door answered - not a tile walked, not a toll, not a trip"
+    );
+}
+
+/// A tile whose question you cannot answer clears rather than standing there.
+///
+/// The parish chest wants something the road gives, and a run that has not got
+/// it should walk over the floor of a vanished building and get on with it -
+/// not be stopped by a tile with no open choice, which would spend a move and
+/// give nothing back for ever.
+#[test]
+fn a_tile_with_nothing_to_ask_clears_like_any_other() {
+    let mut run = a_run();
+    let c = run.county();
+    let chest = c
+        .tiles()
+        .iter()
+        .find(|t| matches!(t.kind, TileKind::Event(id) if id == "the-parish-chest"))
+        .map(|t| t.at);
+    let Some(chest) = chest else { return };
+
+    // The second choice is open to anybody, so the chest always asks. What
+    // this pins is the *shape*: a tile with no open choice clears, and the
+    // engine has one because a gated county event is the obvious next thing
+    // somebody writes.
+    run.county_at = Some(chest);
+    run.county_moves_left = 5;
+    let ev = gearmaster_engine::event::county_event("the-parish-chest").expect("authored");
+    assert!(
+        ev.choices.iter().any(|ch| run.choice_open(ch)),
+        "the chest has no open choice at all, so it would clear silently and its gated \
+         choice would never be seen"
+    );
+    assert!(
+        ev.choices.iter().any(|ch| !run.choice_open(ch)),
+        "the chest's gated choice is open to a run that has not been up the road"
+    );
 }
 
 // ============================================================ F2: standing in it
@@ -607,6 +749,19 @@ fn a_run() -> Run {
     run.mode = Mode::Grinder;
     run.difficulty = Difficulty::Medium;
     run
+}
+
+/// Answer whatever the tile just asked, with the first choice that is open.
+///
+/// A county event stands on the tile you walked onto and nothing else can
+/// happen until it is answered - which is what makes a trip five *decisions*
+/// rather than five steps, and what every walking test below has to do now
+/// that F7 has put questions on the ground.
+fn answer_the_tile(run: &mut Run) {
+    while let Some(ev) = run.pending_event() {
+        let Some(c) = ev.choices.iter().find(|c| run.choice_open(c)).copied() else { break };
+        run.take_choice(&c);
+    }
 }
 
 /// A step this run can actually take from where it is standing.
@@ -725,6 +880,7 @@ fn five_moves_and_a_free_arrival() {
     for _ in 0..5 {
         let step = somewhere_to_go(&run).expect("somewhere to go");
         assert!(run.county_walk(step), "move {taken} refused");
+        answer_the_tile(&mut run);
         taken += 1;
         if taken < 5 {
             assert_eq!(run.county_moves_left, 5 - taken as u8);
@@ -743,9 +899,11 @@ fn a_cleared_tile_is_walked_over_and_not_visited_again() {
     let mut run = a_run();
     let mouth = MOUTHS[1].1;
     assert!(run.enter_county(TripSource::Town("kettleworks"), mouth));
+    answer_the_tile(&mut run);
     let out = somewhere_to_go(&run).expect("somewhere to go");
     let there = out.from(mouth).unwrap();
     assert!(run.county_walk(out));
+    answer_the_tile(&mut run);
     let back = Step::ALL.into_iter().find(|s| s.from(there) == Some(mouth)).unwrap();
     assert!(run.county_walk(back));
 
@@ -805,8 +963,10 @@ fn walking_into_the_edge_costs_nothing() {
 fn leaving_forfeits_the_moves_and_nothing_else() {
     let mut run = a_run();
     assert!(run.enter_county(TripSource::Town("high-wick"), (6, 2)));
+    answer_the_tile(&mut run);
     let out = somewhere_to_go(&run).expect("somewhere to go");
     assert!(run.county_walk(out));
+    answer_the_tile(&mut run);
     let cleared = run.county_cleared.clone();
     assert_eq!(cleared.len(), 2);
 
@@ -920,8 +1080,10 @@ fn a_death_does_not_take_the_county_away() {
             run.lives = gearmaster_engine::run::ROGUE_LIVES;
         }
         assert!(run.enter_county(TripSource::Town("sump-bottom"), MOUTHS[0].1));
+        answer_the_tile(&mut run);
         let step = somewhere_to_go(&run).expect("somewhere to go");
         assert!(run.county_walk(step));
+        answer_the_tile(&mut run);
         assert!(run.leave_county());
         let kept = run.county_cleared.clone();
         let trips = run.county_trips.clone();
@@ -943,6 +1105,7 @@ fn a_death_does_not_take_the_county_away() {
 fn a_wipe_takes_it_all() {
     let mut run = a_run();
     assert!(run.enter_county(TripSource::Town("sump-bottom"), MOUTHS[0].1));
+    answer_the_tile(&mut run);
     let step = somewhere_to_go(&run).expect("somewhere to go");
     assert!(run.county_walk(step));
     let seed = run.county_seed();
@@ -1008,11 +1171,13 @@ fn three_towns_and_fifteen_moves() {
         assert!(run.county_at.is_some(), "{id} did not go down");
         trips += 1;
 
+        answer_the_tile(&mut run);
         for m in 0..5 {
             let step = somewhere_to_go(&run).unwrap_or_else(|| {
                 panic!("{id}, move {m}: nowhere this board can go")
             });
             assert!(run.county_walk(step), "{id}, move {m}: refused");
+            answer_the_tile(&mut run);
         }
         assert_eq!(run.county_at, None, "{id}'s trip did not end");
         // The gate is still up, because the way down is not a door.
@@ -1096,9 +1261,16 @@ fn the_clock_counts_doors_and_nothing_else() {
     // Five tiles of county.
     at_the_gate_of(&mut run, "kettleworks");
     run.visit_town(Action::County);
+    // Walked without answering anything, so the clock cannot have moved: a
+    // county event answered is the one thing down here that is on it.
     for _ in 0..5 {
         if let Some(step) = somewhere_to_go(&run) {
             run.county_walk(step);
+        }
+        // A question standing on the tile blocks the next move, so this walk
+        // stops the moment it finds one - which is the point being made.
+        if run.pending_event().is_some() {
+            break;
         }
     }
     assert_eq!(run.events_resolved, 0, "walking the county moved the clock");

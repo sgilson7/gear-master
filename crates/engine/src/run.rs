@@ -859,6 +859,14 @@ pub struct Run {
     pub county_cleared: Vec<(u8, u8)>,
     /// One entry a trip. The census: ten, and no more, ever.
     pub county_trips: Vec<TripSource>,
+    /// A county event waiting to be answered, by id into `COUNTY_EVENTS`.
+    ///
+    /// Kept apart from `forced_event` because the two tables are apart: a
+    /// county event id can be arranged onto more than one tile, so it is asked
+    /// by the tile you are standing on rather than found by anything, and it
+    /// is **not** filtered on `answered` - an id on that list is an id the
+    /// road never asks again, which is the opposite of what a repeat needs.
+    pub county_event: Option<&'static str>,
     /// Road and county events answered, which is the clock the Drover walks
     /// by. Wired to its increment points at F3; nothing moves it yet.
     pub events_resolved: u32,
@@ -998,6 +1006,7 @@ impl Run {
             county_moves_left: 0,
             county_cleared: Vec::new(),
             county_trips: Vec::new(),
+            county_event: None,
             events_resolved: 0,
             destinations_visited: Vec::new(),
             cursed_for_good: Vec::new(),
@@ -1281,12 +1290,19 @@ impl Run {
     fn standing_events(&self) -> Vec<&'static crate::event::LadderEvent> {
         // Anything pushed here from off the road goes first. It is not waiting
         // for a rung, so a rung is not what decides when it is asked.
+        // Standing on a county tile that asked something. First, and ahead of
+        // even a forced event: you are down a hole and the road is not where
+        // you are.
         let mut out: Vec<&'static crate::event::LadderEvent> = self
-            .forced_event
-            .and_then(|id| crate::event::EVENTS.iter().find(|e| e.id == id))
-            .filter(|e| !self.answered.contains(&e.id))
+            .county_event
+            .and_then(crate::event::county_event)
             .into_iter()
             .collect();
+        out.extend(
+            self.forced_event
+                .and_then(|id| crate::event::EVENTS.iter().find(|e| e.id == id))
+                .filter(|e| !self.answered.contains(&e.id)),
+        );
         for e in self.whispered_events() {
             if !out.iter().any(|o| o.id == e.id) {
                 out.push(e);
@@ -1589,6 +1605,20 @@ impl Run {
         self.events_resolved += 1;
         if self.forced_event == Some(ev.id) {
             self.forced_event = None;
+        }
+        // A county event is answered where it stands, and answering is what
+        // clears the tile - a run that walked onto a question and walked away
+        // has not answered it.
+        if self.county_event == Some(ev.id) {
+            self.county_event = None;
+            if let Some(at) = self.county_at {
+                if !self.county_cleared.contains(&at) {
+                    self.county_cleared.push(at);
+                }
+            }
+            // A door answered on the last move ends the trip, which
+            // `county_walk` could not do while the question was open.
+            self.end_county_trip_if_spent();
         }
         self.took.push(c.label);
         // A price is paid when the choice is *taken*, which is what makes it a
@@ -2396,6 +2426,20 @@ impl Run {
     fn resolve_county_tile(&mut self, at: (u8, u8)) -> Option<String> {
         if self.county_cleared.contains(&at) {
             return Some("walked over, and already yours".into());
+        }
+        // An Event tile asks its question instead of clearing. Answering is
+        // what clears it, in `take_choice_unchecked`, and a tile whose event
+        // has nothing to ask - a word it needs and you have not got - clears
+        // like any other rather than standing there refusing.
+        if let crate::county::TileKind::Event(id) = self.county().at(at).kind {
+            if let Some(ev) = crate::event::county_event(id) {
+                if ev.choices.iter().any(|c| self.choice_open(c)) {
+                    self.county_event = Some(id);
+                    return Some(ev.title.to_string());
+                }
+                self.county_cleared.push(at);
+                return Some(format!("{} - and nothing you have to say to it", ev.title));
+            }
         }
         self.county_cleared.push(at);
         None

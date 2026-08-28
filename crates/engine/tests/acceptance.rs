@@ -255,10 +255,18 @@ fn e6_the_road_holds_everything_the_mission_promised() {
     // Thirty-eight: the Switchyard's four, and the road past Francis - which
     // was a creature, a route-map label and a `past_the_top()` nothing called,
     // and had no door for four missions.
-    assert_eq!(EVENTS.len(), 38, "the road lost a door");
+    //
+    // **Thirty-nine since THE HUNDRED's F7.** One door, and it is the one the
+    // county opens: a word carried up out of a field, and what the road tells
+    // you back is what opens a box down there. The county's own eight are
+    // `COUNTY_EVENTS` and are counted separately below, because a tile is not
+    // a rung and a census that added them together would say the road had
+    // grown by nine.
+    assert_eq!(EVENTS.len(), 39, "the road lost a door");
+    assert_eq!(gearmaster_engine::event::COUNTY_EVENTS.len(), 8, "the county lost a tile");
     assert_eq!(gearmaster_engine::town::TOWNS.len(), 6, "the road lost a town");
     assert_eq!(gearmaster_engine::dungeon::DUNGEONS.len(), 7, "the road lost a dungeon");
-    assert_eq!(gearmaster_engine::rumour::RUMOURS.len(), 10, "the road lost a word");
+    assert_eq!(gearmaster_engine::rumour::RUMOURS.len(), 11, "the road lost a word");
     assert_eq!(gearmaster_engine::pedestal::DESTINATIONS.len(), 6, "an orb lost its place");
     assert_eq!(gearmaster_engine::bestiary::FRAMES.len(), 24, "a creature went missing");
 }

@@ -10833,6 +10833,31 @@ pub static CATALOG: &[PieceDef] = &[
         power_bonus: 14,
         price: 25,
     },
+
+    // The county's one word, appended at F7 rather than with the five above.
+    //
+    // One append too many, and named as such: F6 is the milestone called "the
+    // catalogue, once". The reason it is not a real cost is the reason "once"
+    // is a rule at all - `share.rs` is index-keyed and append-only, which a
+    // second append satisfies as completely as a first - and the reason it
+    // could not be helped is that a word is content and F6 was the milestone
+    // before content. The cost that would have been real is a re-gearing, and
+    // an event-only one-cell quest piece cannot cause one.
+    PieceDef {
+        name: "A Word About the Hundred",
+        slot: SlotKind::Helmet,
+        kind: PieceKind::Quest,
+        cells: &[(0, 0)],
+        base: Stats::ZERO,
+        assembly_bonus: None,
+        effect: None,
+        cooldown_ms: 0,
+        speed_bonus: 0,
+        triggers: &[],
+        quest: None,
+        power_bonus: 0,
+        price: 1,
+    },
 ];
 
 /// Gear that exists only on a boss.
@@ -10859,6 +10884,7 @@ pub const EVENT_ONLY: &[&str] = &[
     // are how you get back into it - none of them for sale anywhere, and the
     // three enchantments not on a town's shelf either, because the county's
     // ground is dug up rather than bought.
+    "A Word About the Hundred",
     "Trig Pillar",
     "Drove Way",
     "The Common Ground",

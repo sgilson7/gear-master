@@ -922,6 +922,7 @@ pub static TURTLE_DICK: Theme = Theme {
         // register. The chest one takes a substance because a chestpiece is
         // read off the defence ladder, and sneel is Henpeck's good steel
         // (p. 44) - the rung twenty-six health sits on.
+        ("A Word About the Hundred", "A Word About the Petonkle Hundred"),
         ("Trig Pillar", "The Petonkle Trig Stone"),
         ("Drove Way", "The Kolok Drove Road"),
         ("The Common Ground", "The Sneel Common"),

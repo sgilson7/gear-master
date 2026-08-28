@@ -234,6 +234,28 @@ pub static RUMOURS: &[Rumour] = &[
     // have. Both are `Carried` for the reason the module note gives - a word
     // somebody told you is a key, and a key with a second lock on it is a key
     // with a second lock on it for no reason.
+    // THE HUNDRED's one word, and it makes the round trip on its own.
+    //
+    // **Up**: a charcoal burner who has been down there longer than the roads
+    // have tells you one thing, and it opens a door on the road that would not
+    // otherwise be there. **Down**: what that door tells you back is what the
+    // parish chest's third lock was for, and the chest is a county tile that
+    // is inert without it.
+    //
+    // One word rather than two because `SHELVES` is exactly six and full, so
+    // neither direction could have gone on the bar anyway - and because a word
+    // that goes up and comes back down as an answer is a better shape than two
+    // words passing each other.
+    Rumour {
+        name: "A Word About the Hundred",
+        on_the_bar: false,
+        hint: "A man who watches a heap of earth for nine days at a time says \
+               the ground here is a subdivision of something, and that \
+               somebody once counted it.",
+        price: Barter::Kind(crate::piece::PieceKind::Accessory),
+        opens: "the-county-surveyed",
+        needs: Condition::Carried,
+    },
     Rumour {
         name: "A Word About the Sidings",
         on_the_bar: false,
@@ -443,7 +465,22 @@ mod tests {
             let told = crate::town::TOWNS.iter().any(|t| {
                 t.actions.iter().any(|a| a.gives() == Some(r.name))
             });
-            assert!(given || told, "{} is on nobody's bar and in nobody's gift", r.name);
+            // And a county tile is a fourth. B6's arm, landed in the same
+            // milestone as the first word that comes up out of THE HUNDRED -
+            // a lint added after the content it is about is a lint that was
+            // never going to fail.
+            let dug_up = crate::event::COUNTY_EVENTS.iter().any(|e| {
+                e.choices.iter().any(|c| {
+                    crate::event::every_outcome(&c.outcome)
+                        .iter()
+                        .any(|o| matches!(o, crate::event::Outcome::Give(n) if *n == r.name))
+                })
+            });
+            assert!(
+                given || told || dug_up,
+                "{} is on nobody's bar, in nobody's gift and under nobody's field",
+                r.name
+            );
         }
     }
 

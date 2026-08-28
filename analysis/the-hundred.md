@@ -745,3 +745,104 @@ are event-only, so the cart refuses them too. `the_countys_ground_is_dug_up_and_
 is the assertion, and it is deliberately a **second** test rather than three
 more names on `THE_YARDS_GROUND` - a list that grows every mission is a list
 that stops naming anything.
+
+---
+
+## F7 county events and the word crossing
+
+Eight authored county events, dealt as a deck into eleven slots; one road door;
+one word that makes the round trip; and four lints that learned about county
+tiles. **Engine 987, GUI 80, CLI 8. No warnings.** The four-board table is
+unchanged and `gear_at` is unmoved on 6,216 placements.
+
+### The word goes up and comes back down as an answer
+
+B6 asks for words crossing both ways. **One word does both.** A charcoal
+burner called Sowerby, who has been in the county longer than the roads have,
+hands over *A Word About the Hundred*; carried up, it opens THE COUNTY
+SURVEYED at rung 37; and what Tasker tells you at her table is what the parish
+chest's third lock was for, which is a county tile that is inert without it.
+
+Two words rather than one was the first draft, and `SHELVES` refused it before
+it was written: the bar is **exactly six names and full**, so neither direction
+could have gone on it. One word that goes up and comes back down as an answer
+is a better shape than two words passing each other.
+
+### Eight into eleven, dealt as a deck and not a die
+
+D-2. The generator shuffles the pool and deals it, then shuffles and deals
+again for the remainder, so **every event is on the county once before any is
+on it twice**. A per-tile draw satisfies "eleven tiles carry an event" and also
+permits one event four times and three not at all, which is eight events
+written and five read. `the_pool_is_dealt_as_a_deck_and_not_a_die` pins it.
+
+That property is also load-bearing for a lint:
+`completable::every_counter_can_reach_the_number_it_is_asked_for` counts each
+county event **once**, because only the first deal is certain. Counting the
+repeat would be counting on a shuffle.
+
+### Five lints learned about county tiles, and four of them refused first
+
+| Lint | What it said |
+|---|---|
+| `theme::the_turtle_theme_covers_the_catalogue` | the word was in plain words |
+| `rumour::every_rumour_can_be_come_by` | "on nobody's bar and in nobody's gift" - **B6's third arm, landed in the milestone that needed it** |
+| `rumour::every_rumour_opens_a_real_event` | the door did not exist yet |
+| `completable::every_door_can_be_reached_before_its_window_shuts` | "nothing hands over A Word About the Hundred" |
+| `validity::every_door_that_waits_on_a_key_can_be_handed_one_in_time` | the same, from the other end |
+
+All four arms answer the same question - a county tile is a fourth way to come
+by a word - and all four date it at **the first town's own gate** rather than
+one rung later, because the way down is not a door and does not cost the visit.
+
+### Three counters nobody read, and the answer was not a budget
+
+`ditches-dug`, `stones-read` and `lanes-mended` went in as three `Count`
+outcomes and `no_more_counters_go_unread_than_already_do` refused all three
+against a budget of 3 - `CLAUDE.md` §6 trap 19 catching exactly what it was
+written for.
+
+The fix is **one** counter, `county-work`, and a reader: Tasker's third choice
+wants two of it and pays three bounties and the third key. Three tiles down
+there count the same thing - a ditch dug out, a milestone kept clear, a plank
+mended - and the surveyor is the only person on the road who would know to ask.
+The budget did not move.
+
+### An event tile asks; answering is what clears it
+
+A2.1. A run that walked onto a question and walked away has not answered it, so
+`resolve_county_tile` sets `Run::county_event` and `take_choice_unchecked`
+clears the tile. Two consequences worth knowing:
+
+- **A tile with no open choice clears like any other.** A gated county event
+  facing a run that has not got the key would otherwise stand there for ever,
+  spending a move and giving nothing back. The parish chest always has one open
+  choice, and `a_tile_with_nothing_to_ask_clears_like_any_other` pins both
+  halves - that it asks, and that its gated choice is *shut* to a run that has
+  not been up the road.
+- **`county_event` is not filtered on `answered`**, unlike `forced_event`. An id
+  on `answered` is an id the road never asks again, which is the opposite of
+  what a repeat needs - and this is the reason the clock is its own counter
+  rather than `answered.len()`, written down at F3 and now true.
+
+### Two pins moved and one fixture was re-baselined
+
+`acceptance::e6`'s census: `EVENTS` 38 to **39** and `RUMOURS` 10 to **11**,
+with `COUNTY_EVENTS.len() == 8` added as its own row - a tile is not a rung and
+adding them together would say the road had grown by nine.
+`primitives`' quest-item count 14 to **15**.
+
+And the three `route::ascii` fixtures, for the first time. **One line added to
+each, and it is the same line**: `. -- THE COUNTY SURVEYED (event, between 12
+and 13)`, which is where a door nobody has earned is drawn. Nothing else in
+ninety-six lines moved on any of the three, and the reason is written into
+`ROAD_AT`'s own doc comment rather than into a commit message.
+
+### The scenes are held to the road's standard
+
+`prose.rs` walks `EVENTS.iter().chain(COUNTY_EVENTS.iter())`: they are the same
+struct and a player reads them on the same screen, so a county scene that could
+not pass the road's lints would be a second standard nobody agreed to. It
+refused THE COUNTY SURVEYED immediately - a woman with a map and no name - and
+she is Tasker now, named **mid-sentence**, because `names_something` cannot
+tell a name at a sentence start from an article (`CLAUDE.md`'s blind-spot note).

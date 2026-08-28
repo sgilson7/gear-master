@@ -245,6 +245,14 @@ fn a_bare_run_at(rung: usize) -> Run {
     run
 }
 
+/// Re-baselined once, at THE HUNDRED's F7.
+///
+/// One line added to each of the three, and it is the same line:
+/// `. -- THE COUNTY SURVEYED (event, between 12 and 13)`. That is the one road
+/// door the county opens - `Whispered` on a word a charcoal burner hands over,
+/// with a window from rung 12 - and a door nobody has earned is drawn where it
+/// could first appear, which is 12. Nothing else in ninety-six lines moved on
+/// any of the three.
 const ROAD_AT: &[(usize, &str)] = &[
     (5, include_str!("fixtures/road-at-5.txt")),
     (20, include_str!("fixtures/road-at-20.txt")),

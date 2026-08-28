@@ -69,10 +69,17 @@ fn word_by(name: &str) -> Option<usize> {
         .filter(|t| t.actions.iter().any(|a| a.gives() == Some(name)))
         .map(|t| t.after + 1)
         .min();
-    match (by_door, by_town) {
-        (Some(a), Some(b)) => Some(a.min(b)),
-        (a, b) => a.or(b),
-    }
+    // A county tile is the fourth way to come by a word, and the earliest of
+    // the three, because the earliest way down is the first town's own steps.
+    //
+    // Not `first_town() + 1`: the way down is not a door and does not cost the
+    // visit, so a run standing at the first gate can be in the county on the
+    // same rung it arrived at the gate on.
+    let dug_up = gearmaster_engine::event::COUNTY_EVENTS
+        .iter()
+        .any(|e| gives(e, name))
+        .then(first_town);
+    [by_door, by_town, dug_up].into_iter().flatten().min()
 }
 
 fn gives(e: &LadderEvent, name: &str) -> bool {
@@ -261,7 +268,23 @@ fn every_counter_can_reach_the_number_it_is_asked_for() {
                         .any(|o| matches!(o, Outcome::Count(n) if *n == what))
                 })
                 .count();
-            let reachable = by_doors + by_towns + by_floors;
+            // And THE HUNDRED's tiles. A county event's id can be arranged
+            // onto two tiles of one county, but only one of them is *certain*
+            // - `the_pool_is_dealt_as_a_deck_and_not_a_die` promises every
+            // event is on the county once before any is on it twice - so each
+            // one counts once. Counting the repeat would be counting on a
+            // shuffle, which is not what "can reach" means.
+            let by_tiles = gearmaster_engine::event::COUNTY_EVENTS
+                .iter()
+                .filter(|e| {
+                    e.choices.iter().any(|c| {
+                        every_outcome(&c.outcome)
+                            .iter()
+                            .any(|o| matches!(o, Outcome::Count(n) if *n == what))
+                    })
+                })
+                .count();
+            let reachable = by_doors + by_towns + by_floors + by_tiles;
             assert!(
                 reachable >= at_least as usize,
                 "{} wants {} of {:?} and the road offers {}",
@@ -298,7 +321,13 @@ const COUNTERS_NOBODY_READS: usize = 3;
 
 fn counters_set() -> Vec<&'static str> {
     let mut out: Vec<&'static str> = Vec::new();
-    for c in EVENTS.iter().flat_map(|e| e.choices) {
+    // THE HUNDRED's tiles count things too, and a counter set under a field
+    // and read by nobody is the same dead content as one set on the road.
+    for c in EVENTS
+        .iter()
+        .chain(gearmaster_engine::event::COUNTY_EVENTS.iter())
+        .flat_map(|e| e.choices)
+    {
         for o in every_outcome(&c.outcome) {
             if let Outcome::Count(what) = o {
                 if !out.contains(what) {

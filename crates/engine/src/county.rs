@@ -33,6 +33,9 @@ pub const ATTEMPTS: u8 = 32;
 /// Five moves a trip, and arriving on the mouth's own tile is free.
 pub const MOVES_A_TRIP: u8 = 5;
 
+/// Event tiles the generator arranges from the pool. The pale is the twelfth.
+pub const ARRANGED: usize = 11;
+
 // --------------------------------------------------------------- the vocabulary
 
 /// Rows 1-2, 3-5, 6-7. The pale's checklist counts cleared tiles in each.
@@ -821,13 +824,31 @@ fn arrange(seed: u64) -> Option<County> {
 
         // Eleven arranged events, and everything left is empty. The pale is
         // the twelfth.
+        //
+        // Eight authored into eleven slots (D-2), dealt as a shuffled deck and
+        // then dealt again: **every** event is on the county once before any
+        // is on it twice, which a per-tile draw would not promise and which is
+        // the difference between "eight events, three repeated" and "eight
+        // events, one of them four times".
         let mut rest: Vec<(u8, u8)> = (0..H)
             .flat_map(|y| (0..W).map(move |x| (x, y)))
             .filter(|p| !taken(&kinds, *p))
             .collect();
         rng.shuffle(&mut rest);
-        for p in rest.iter().take(11) {
-            put(&mut kinds, *p, TileKind::Event(UNARRANGED));
+        let mut deck: Vec<&'static str> =
+            crate::event::COUNTY_EVENTS.iter().map(|e| e.id).collect();
+        if deck.is_empty() {
+            deck.push(UNARRANGED);
+        }
+        rng.shuffle(&mut deck);
+        let mut hand: Vec<&'static str> = Vec::new();
+        while hand.len() < ARRANGED {
+            let mut again = deck.clone();
+            rng.shuffle(&mut again);
+            hand.extend(again);
+        }
+        for (p, id) in rest.iter().take(ARRANGED).zip(hand) {
+            put(&mut kinds, *p, TileKind::Event(id));
         }
 
         return Some(County::of(kinds, hill, bearings, pale, sealed, 0));
