@@ -407,3 +407,41 @@ is classified, and nothing is classified until T3. Two readings:
 The order above assumes the first, because the owner asked to *identify the
 pieces first and fix them*, and the audit is the identification. Say so if the
 other way round is preferred; nothing else in the plan moves.
+
+
+---
+
+## 7. What shipped
+
+Written at the end of the mission. All seven landed.
+
+| | Milestone | State |
+|---|---|---|
+| T0 | The county freeze | **in** — and the trip returns you to the map |
+| T1 | The audit and its printer | **in** — `analysis/what-happens-when.md` |
+| T2 | One spelling | **in** — 38 pieces, and the gate caught two real faults |
+| T3 | The engine says when | **in** — `Stats::parts_when`, checked against the fight |
+| T4 | The card in four groups | **in** |
+| T5 | The item card and the CLI | **in** |
+| T6 | The marks and the record | **in** |
+
+Three things came out differently from how they were planned.
+
+**T2's byte-identical gate did not hold, and that was the point.** The premise
+was that the two spellings are identical to the engine. They are identical in
+*amount* and not in *order* - a `Stats` pool is banked sixty lines before
+`OnActivate` triggers run - and `Figures::of` reads `stats.mana` without ever
+walking a trigger, so eighteen pieces' worth of mana a second was invisible to
+every toll in the county. Both are recorded at `second-order.md` 29. The gate
+turned a premise into a question, which is what a gate is for.
+
+**Three predicates were measuring spelling rather than behaviour.** The
+census, `bestiary::plain` and `catalog_shape::inert` all asked "does this piece
+have triggers". All three were already wrong before T2 - 158 pieces banked a
+pool as a stat and were counted as filler - and T2 made them visibly wrong.
+Corrected, the true inert count is **54, not the 124** the census had been
+printing for two missions.
+
+**T6 did not fit.** M7's layout gate fired on the first build, exactly as its
+own commit predicted it would, and then its horizontal half fired too. The
+section is in the shelf's second column now, which was empty the whole time.

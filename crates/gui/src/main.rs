@@ -9054,6 +9054,21 @@ fn fight_diagram_layout(w: f32, measure: &dyn Fn(&str, f32) -> f32) -> (Vec<Plac
     let mut out: Vec<Placed> = Vec::new();
     let mut ty = 0.0f32;
 
+    /// The same heading, in a column that is not the first.
+    fn head_at(
+        out: &mut Vec<Placed>,
+        cy: &mut f32,
+        x: f32,
+        measure: &dyn Fn(&str, f32) -> f32,
+        key: &str,
+        plain: &'static str,
+    ) {
+        let t = words::word(key, plain).to_string();
+        let tw = measure(&t, 14.0);
+        out.push(Placed { x, y: *cy, w: tw, mark: Mark::Head(t) });
+        *cy += 24.0;
+    }
+
     fn head(
         out: &mut Vec<Placed>,
         ty: &mut f32,
@@ -9170,6 +9185,44 @@ fn fight_diagram_layout(w: f32, measure: &dyn Fn(&str, f32) -> f32) -> (Vec<Plac
             mark: Mark::Text(answer.to_string(), 13.0, body),
         });
         ty += row;
+    }
+
+    // What the four headings on a card mean, drawn rather than described -
+    // which is what this shelf is for. A reader who has met "EVERY 2.80s" on
+    // a card and wondered whether that was a promise or a rate can look it up
+    // in the one place that answers by showing.
+    //
+    // **In the second column**, because the first is full. M7's own gate said
+    // so the moment this was added - "the diagrams need 952px and the panel
+    // ends at 924" - which is the failure it was written for, arriving on
+    // schedule two missions later. The page is 1,440 wide and the left column
+    // uses about half of it, so the room was already there.
+    let mut cy = 0.0f32;
+    let col = (w * 0.52).max(560.0);
+    head_at(&mut out, &mut cy, col, measure, "what-a-card-says", "WHAT A CARD'S HEADINGS MEAN");
+    for (glyph, label, note) in [
+        ("physical", "DAMAGE", "totalled - only a weapon swings"),
+        ("armor", "PASSIVE", "true worn, and between fights"),
+        ("mana", "EVERY n.nns", "handed over each time it fires"),
+        ("speed", "TRIGGERS", "what makes it do something else"),
+    ] {
+        let mid = cy + g * 0.35;
+        out.push(Placed { x: col, y: cy, w: g, mark: Mark::Sym(glyph.into(), g) });
+        let lw = measure(label, 13.0);
+        out.push(Placed {
+            x: col + g + 8.0,
+            y: mid + 5.0,
+            w: lw,
+            mark: Mark::Text(label.to_string(), 13.0, col_gold()),
+        });
+        let note = words::retell(note);
+        out.push(Placed {
+            x: col + g + 8.0,
+            y: mid + 22.0,
+            w: measure(&note, 12.0),
+            mark: Mark::Text(note, 12.0, body),
+        });
+        cy += row;
     }
 
     ty += 10.0;

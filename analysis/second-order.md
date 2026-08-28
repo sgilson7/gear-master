@@ -736,3 +736,50 @@ ever went up when content was added.
 
 Any predicate of the form "has no triggers" is measuring how a thing is
 written. `parts_when` is what to ask instead.
+
+---
+
+## 31. A gate written two missions ago fired on schedule
+
+M7 built the glossary's drawn shelf and left a note in its own commit: *"the
+page currently ends 22px above the panel floor. One more section overflows,
+and now something says so."*
+
+T6 added one more section. The gate fired on the first build:
+
+> w=1440: the diagrams need 952px from y=160 and the panel ends at 924. A
+> section was added and the last one is off the bottom.
+
+Then, after moving the section into the second column, the *other* half of the
+same test fired - a note 732px wide ending 71px past the right edge, under the
+deliberately-too-wide stand-in font.
+
+Both are worth recording because the pair is unusual. A layout test that only
+checks the vertical is a test that pushes the problem sideways, and a
+one-sided font bound is what makes the horizontal answerable at all without a
+graphics context. Neither half was written for this milestone and both caught
+it.
+
+The fix was not to loosen either: the page is 1,440 wide and the left column
+used about half of it, so the room was already there.
+
+## 32. What the four groups cost, measured
+
+The whole point of the rewrite is that a card should say *when*, and the risk
+named in the plan was that four headings would make the common card taller.
+Measured over the 518 pieces, headings drawn:
+
+| Groups on a card | Pieces |
+|---|---:|
+| none | 29 |
+| one | 296 |
+| two | 192 |
+| three | 1 |
+
+So 325 of 518 cards - nearly two in three - gained at most one line, and the
+one piece with all three is the only card that gained three. The chip collapse
+the plan called "not a nicety" turned out to be needed for a single piece; the
+heading-only-where-non-empty rule did the work.
+
+Nothing in `analysis/baseline.md` moved: the printer measures fights and this
+is all display, except T2's two ordering effects which are recorded at 29.
