@@ -41,6 +41,9 @@ pub struct Figures {
     pub curse_resist: i32,
 }
 
+/// How wide every grid is. The screen draws six columns.
+pub const GRID_W: u8 = gearmaster_engine::slot::SLOT_W;
+
 /// One cell of one grid.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Cell {
@@ -88,8 +91,59 @@ pub struct Item {
     pub status: String,
     pub stats: Stats,
     pub pieces: Vec<PieceId>,
+    /// What each of those pieces *is*, in recipe words - "handle", "spell",
+    /// "plating". The slot panel prints them and a recipe is written in them,
+    /// so an agent that can read the recipe can read this.
+    pub roles: Vec<String>,
     pub notes: Vec<String>,
 }
+
+/// What a piece does with the eight pools.
+///
+/// **The thing THE APPRENTICE's objective could not see.** `Figures` carries
+/// mana a second and nothing else, so eighty-eight pieces that produce faith,
+/// nature or rage scored zero, and seventy-five that *spend* a pool to act
+/// scored zero as well - because a spend is a trigger and `Figures` reads
+/// `stats.*`. A tray of nature producers and a spell that spends nature for
+/// damage was invisible on both halves.
+///
+/// This is not privileged. The card prints "on activation, spend 8 nature: if
+/// it works, apply curse of searing" in as many words; this is the same
+/// sentence as numbers, so a learner does not have to parse English to know
+/// what a piece is for.
+///
+/// Indexed by `Resource::index`: mana, rage, faith, nature, druidic might,
+/// communion, zealotry, insight.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Pools {
+    /// Banked, per activation. From the `Stats` block and from any
+    /// unconditional gain.
+    pub produces: [i32; 8],
+    /// Spent, per activation, to make something else happen.
+    pub consumes: [i32; 8],
+    /// How many of this piece's actions are behind a spend, a neighbour or a
+    /// condition rather than happening every time.
+    pub conditional: u8,
+    /// How many happen unconditionally.
+    pub unconditional: u8,
+}
+
+impl Pools {
+    pub fn produces_any(&self) -> bool {
+        self.produces.iter().any(|&v| v != 0)
+    }
+    pub fn consumes_any(&self) -> bool {
+        self.consumes.iter().any(|&v| v != 0)
+    }
+    /// Pools this piece both makes and spends - a piece that feeds itself.
+    pub fn self_feeding(&self) -> bool {
+        (0..8).any(|i| self.produces[i] > 0 && self.consumes[i] > 0)
+    }
+}
+
+/// The eight pools, named in the order they are indexed.
+pub const POOLS: [&str; 8] =
+    ["mana", "rage", "faith", "nature", "druidic-might", "communion", "zealotry", "insight"];
 
 /// A piece, as the tray and the shelf draw one.
 ///
@@ -115,6 +169,8 @@ pub struct Piece {
     /// The stat block in the card's four groups: `("damage"|"passive"|
     /// "on activation", the figures)`.
     pub when: Vec<(String, String)>,
+    /// What it does with the eight pools.
+    pub pools: Pools,
     pub price: i32,
     pub triggers: Vec<String>,
     pub effect: Option<String>,
@@ -178,6 +234,35 @@ pub struct Points {
     pub exits: Vec<(usize, String, String, bool)>,
 }
 
+/// A dungeon, drawn as the atlas draws it.
+///
+/// A dungeon's floors are a **graph**, not a list (`CLAUDE.md` §6 trap 22),
+/// and since THE ATLAS the map lays that graph out for every dungeon a run has
+/// been into. What a floor holds is named only once the run has entered the
+/// dungeon - `gui/src/main.rs:7203`, "a floor you have not reached does not
+/// name what is on it" - so an unentered dungeon draws its shape and not its
+/// contents, and this carries the same.
+#[derive(Clone, Debug)]
+pub struct DungeonMap {
+    pub id: String,
+    pub name: String,
+    /// Which floor the run is standing on.
+    pub at: usize,
+    /// Whether the run has been in here, which is what names the floors.
+    pub entered: bool,
+    pub floors: Vec<Floor>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Floor {
+    pub index: usize,
+    /// What stands on it, or `None` where the map draws a question mark.
+    pub creature: Option<String>,
+    pub cleared: bool,
+    /// Where the roads out of it go. Empty is a buffer stop - "the end of it".
+    pub exits: Vec<(usize, String)>,
+}
+
 /// Standing in THE HUNDRED.
 #[derive(Clone, Debug)]
 pub struct County {
@@ -236,6 +321,39 @@ pub struct Fountain {
     pub offer: Vec<(String, String)>,
 }
 
+/// The board's pool economy.
+///
+/// `matched` is the number a build is: for each pool, how much of what is
+/// produced has somewhere to go. A board making twelve nature a fight with
+/// nothing that spends nature has produced a number.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct BoardPools {
+    pub produces: [i32; 8],
+    pub consumes: [i32; 8],
+    /// `min(produced, consumed)` a pool - what actually flows.
+    pub matched: [i32; 8],
+    /// Produced with nothing to spend it.
+    pub stranded: [i32; 8],
+    /// Wanted with nothing making it.
+    pub starved: [i32; 8],
+}
+
+impl BoardPools {
+    pub fn total_matched(&self) -> i32 {
+        self.matched.iter().sum()
+    }
+    pub fn total_stranded(&self) -> i32 {
+        self.stranded.iter().sum()
+    }
+    pub fn total_starved(&self) -> i32 {
+        self.starved.iter().sum()
+    }
+    /// Pools with something flowing at all.
+    pub fn flowing(&self) -> usize {
+        self.matched.iter().filter(|&&v| v > 0).count()
+    }
+}
+
 /// The whole screen.
 #[derive(Clone, Debug)]
 pub struct View {
@@ -250,6 +368,9 @@ pub struct View {
     pub classes: Vec<String>,
     pub stats: Stats,
     pub figures: Figures,
+    /// What the **whole board** does with the pools, summed over the pieces
+    /// that are actually seated, and the match between the two halves.
+    pub pools: BoardPools,
     pub grids: Vec<Grid>,
     pub tray: Vec<Piece>,
     pub tray_cap: usize,
@@ -263,6 +384,8 @@ pub struct View {
     pub county: Option<County>,
     pub fountain: Option<Fountain>,
     pub in_dungeon: bool,
+    /// The dungeon the run is standing in, as the atlas draws it.
+    pub dungeon: Option<DungeonMap>,
     pub brawl_waiting: bool,
     pub coming: Coming,
     pub last_fight: Option<Fight>,

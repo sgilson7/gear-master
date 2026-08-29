@@ -23,6 +23,7 @@
 //! same answer on the same board.
 
 use gearmaster_console::view::View;
+use gearmaster_console::Console;
 
 /// A board's worth, read off the screen.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
@@ -50,6 +51,25 @@ pub struct Sense {
 pub const WINDOW_MS: i64 = 10_000;
 
 impl Sense {
+    /// The same reading, off the console's shortcut rather than off a whole
+    /// drawn screen. What the hands use, because they take it twice a seat.
+    pub fn quick(c: &Console) -> Sense {
+        let (f, stats, items, filled) = c.figures();
+        Sense {
+            items,
+            flow: f.flow,
+            damage_ps: f.physical_dps + f.magic_dps,
+            armour_ps: f.armour_ps,
+            fastest_ms: f.fastest_ms,
+            curse_resist: f.curse_resist,
+            health: stats.health,
+            strength: stats.strength,
+            filled,
+            // Only the cell total needs the grids, and nothing scores on it.
+            cells: 0,
+        }
+    }
+
     pub fn of(v: &View) -> Sense {
         let items = v.grids.iter().map(|g| g.items.iter().filter(|i| i.assembled).count()).sum();
         let filled = v
@@ -71,25 +91,54 @@ impl Sense {
         }
     }
 
+    /// What this board can deliver over a fight: damage a second, across the
+    /// window a fight is decided in, plus what strength adds to every blow.
+    pub fn offence(&self) -> i64 {
+        let over_the_window = |per_second: i64| per_second * WINDOW_MS / 1_000_000;
+        over_the_window(self.damage_ps) + self.strength as i64 * 8
+    }
+
+    /// What this board can absorb: health, and the armour it lays down while
+    /// the fight runs.
+    pub fn defence(&self) -> i64 {
+        let over_the_window = |per_second: i64| per_second * WINDOW_MS / 1_000_000;
+        self.health as i64 + over_the_window(self.armour_ps) + self.curse_resist as i64 * 2
+    }
+
     /// One number, for choosing between two boards.
     ///
     /// Deliberately crude, and deliberately **not** a prediction of a fight:
     /// its job is to tell a better seat from a worse one, several hundred
     /// times a rung. An agent that could predict the fight would not need to
     /// have it.
+    ///
+    /// ## Why the two halves multiply
+    ///
+    /// The first version of this added them, damage weighted four to one
+    /// against health, and it built **glass cannons**. Measured at A6, against
+    /// the creature that stops nine runs in sixteen: the winning boards carry
+    /// 2,346 and 1,755 health and the stuck ones carry 280 to 974 - a quarter
+    /// of it - while landing comparable damage. One stuck board dealt *more*
+    /// damage than the owner's winning one and died anyway, and only eleven
+    /// percent of anything thrown was absorbed. They were not missing a
+    /// family; they were dying before they finished.
+    ///
+    /// A weighted sum cannot say that. A board is only worth the damage it
+    /// lives long enough to deliver, so the two halves **multiply** - and the
+    /// geometric mean is the form of that which keeps the same units as a sum,
+    /// so the item bonus below still means what it meant. It is maximised, for
+    /// a fixed total, where the two halves are equal, which is the shape of
+    /// the claim: neither a brick nor a cannon.
     pub fn worth(&self) -> i64 {
         let over_the_window = |per_second: i64| per_second * WINDOW_MS / 1_000_000;
+        let balanced = ((self.offence().max(0) * self.defence().max(0)) as f64).sqrt() as i64;
         // An item is worth a great deal more than a cell: a board of loose
         // pieces pays flat stats and never acts, and the ladder is not clear
         // by flat stats. Weighted so that finishing an item always beats
         // filling four cells with something that does not.
         self.items as i64 * 400
-            + over_the_window(self.damage_ps) * 4
-            + over_the_window(self.armour_ps)
+            + balanced * 2
             + over_the_window(self.flow)
-            + self.health as i64
-            + self.strength as i64 * 8
-            + self.curse_resist as i64 * 2
             + self.filled as i64
     }
 

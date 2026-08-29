@@ -1,0 +1,757 @@
+<title>The Two Trades</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --bg:        #F4F6F8;
+    --surface:   #FFFFFF;
+    --sunken:    #EAEEF2;
+    --border:    #DCE2E9;
+    --rule:      #C3CCD6;
+    --text:      #171C24;
+    --muted:     #5C6673;
+    --faint:     #8892A0;
+    --accent:    #9C6E15;
+    --accent-bg: #F6EDD8;
+    --ok:        #2F6F4E;
+    --warn:      #A5581B;
+    --crit:      #A83A2C;
+
+    --blind:   #276E7D;
+    --privy:   #75558E;
+
+    --measure: 68ch;
+    --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --f-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:        #12161C;
+      --surface:   #1A1F27;
+      --sunken:    #161B22;
+      --border:    #2A313B;
+      --rule:      #3A424E;
+      --text:      #E4E8ED;
+      --muted:     #99A3B0;
+      --faint:     #737E8C;
+      --accent:    #D9A648;
+      --accent-bg: #2A2415;
+      --ok:        #6FBF92;
+      --warn:      #E09A56;
+      --crit:      #E5796A;
+
+      --blind:   #5FB8C9;
+      --privy:   #B49AD0;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg:        #12161C;
+    --surface:   #1A1F27;
+    --sunken:    #161B22;
+    --border:    #2A313B;
+    --rule:      #3A424E;
+    --text:      #E4E8ED;
+    --muted:     #99A3B0;
+    --faint:     #737E8C;
+    --accent:    #D9A648;
+    --accent-bg: #2A2415;
+    --ok:        #6FBF92;
+    --warn:      #E09A56;
+    --crit:      #E5796A;
+
+    --blind:   #5FB8C9;
+    --privy:   #B49AD0;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--f-body);
+    font-size: 17px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 0 1.5rem 6rem;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1000px; margin: 0 auto; }
+
+  /* ---------------------------------------------------------- masthead */
+
+  header.masthead {
+    padding: 4.5rem 0 2rem;
+    border-bottom: 2px solid var(--text);
+    margin-bottom: 2.5rem;
+  }
+
+  .eyebrow {
+    font-family: var(--f-mono);
+    font-size: .72rem;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0 0 1.25rem;
+  }
+
+  h1 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    line-height: 1.02;
+    letter-spacing: -.022em;
+    text-wrap: balance;
+    margin: 0 0 1rem;
+  }
+
+  .standfirst {
+    font-size: 1.16rem;
+    color: var(--muted);
+    max-width: 58ch;
+    margin: 0 0 2rem;
+  }
+
+  .status-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 2.25rem;
+    font-family: var(--f-mono);
+    font-size: .8rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--border);
+  }
+  .status-strip div { padding: .7rem 0; }
+  .status-strip span {
+    display: block;
+    font-size: .68rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: .15rem;
+  }
+  .status-strip b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* ------------------------------------------------------------ typography */
+
+  section { margin: 0 0 4.5rem; }
+
+  h2 {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 1.62rem;
+    letter-spacing: -.012em;
+    line-height: 1.2;
+    text-wrap: balance;
+    margin: 0 0 .35rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--rule);
+  }
+  h2 .num {
+    font-family: var(--f-mono);
+    font-size: .78rem;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: .1em;
+    display: block;
+    margin-bottom: .55rem;
+  }
+  .deck {
+    color: var(--muted);
+    font-size: 1.02rem;
+    max-width: 60ch;
+    margin: 0 0 2rem;
+  }
+
+  h3 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 1.06rem;
+    letter-spacing: -.005em;
+    margin: 2.4rem 0 .6rem;
+  }
+
+  p { margin: 0 0 1.1rem; max-width: var(--measure); }
+  ul, ol { max-width: var(--measure); padding-left: 1.2rem; margin: 0 0 1.2rem; }
+  li { margin-bottom: .5rem; }
+  li::marker { color: var(--faint); }
+
+  code {
+    font-family: var(--f-mono);
+    font-size: .855em;
+    background: var(--sunken);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: .08em .32em;
+    white-space: nowrap;
+  }
+
+  strong { font-weight: 600; }
+  em { font-style: italic; color: var(--muted); }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* ----------------------------------------------------------- data blocks */
+
+  .scroll { overflow-x: auto; margin: 0 0 1.5rem; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 540px;
+    font-family: var(--f-mono);
+    font-size: .81rem;
+    font-variant-numeric: tabular-nums;
+  }
+  caption {
+    text-align: left;
+    font-family: var(--f-mono);
+    font-size: .7rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    padding-bottom: .7rem;
+  }
+  th {
+    text-align: left;
+    font-weight: 600;
+    font-size: .7rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1.5px solid var(--rule);
+    padding: .4rem .8rem .4rem 0;
+  }
+  td {
+    padding: .42rem .8rem .42rem 0;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th.n, td.n { text-align: right; padding-right: 1.1rem; }
+  tbody tr:last-child td { border-bottom: 1.5px solid var(--rule); }
+  .rowlabel { font-family: var(--f-body); font-size: .95rem; }
+  td.zero { color: var(--crit); font-weight: 600; }
+  td.quoted { color: var(--warn); }
+
+  /* ------------------------------------------------------------ callouts */
+
+  .note {
+    border-left: 3px solid var(--rule);
+    background: var(--surface);
+    padding: 1.1rem 1.3rem;
+    margin: 0 0 1.5rem;
+    max-width: var(--measure);
+  }
+  .note p:last-child { margin-bottom: 0; }
+  .note .tag {
+    font-family: var(--f-mono);
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: .45rem;
+  }
+  .note.flag  { border-left-color: var(--crit); }
+  .note.flag .tag { color: var(--crit); }
+  .note.good  { border-left-color: var(--ok); }
+  .note.good .tag { color: var(--ok); }
+  .note.watch { border-left-color: var(--warn); }
+  .note.watch .tag { color: var(--warn); }
+
+  /* --------------------------------------------------------- the products */
+
+  .products {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    margin: 0 0 2rem;
+  }
+  .products > div { background: var(--surface); padding: 1.15rem 1.05rem 1.25rem; }
+  .products .metric {
+    font-family: var(--f-mono);
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .products .vec {
+    font-family: var(--f-display);
+    font-size: 1.22rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    margin: .5rem 0 .4rem;
+  }
+  .products p { font-size: .87rem; color: var(--muted); margin: 0; max-width: none; }
+
+  /* ------------------------------------------------------------- figure */
+
+  figure { margin: 0 0 1.8rem; }
+  figure .scroll { margin: 0; }
+  figure svg { display: block; width: 100%; min-width: 620px; height: auto; }
+  figcaption {
+    font-size: .88rem;
+    color: var(--muted);
+    max-width: 62ch;
+    margin-top: .9rem;
+    padding-left: .9rem;
+    border-left: 2px solid var(--border);
+  }
+
+  .dg-box { fill: var(--surface); stroke: var(--rule); stroke-width: 1.5; }
+  .dg-box-blind { fill: var(--surface); stroke: var(--blind); stroke-width: 2; }
+  .dg-box-privy { fill: var(--surface); stroke: var(--privy); stroke-width: 2; }
+  .dg-name {
+    font-family: var(--f-mono); font-size: 13px; font-weight: 600;
+    fill: var(--text);
+  }
+  .dg-sub {
+    font-family: var(--f-mono); font-size: 10.5px;
+    fill: var(--faint); letter-spacing: .04em;
+  }
+  .dg-edge { stroke: var(--rule); stroke-width: 1.5; fill: none; }
+  .dg-label {
+    font-family: var(--f-mono); font-size: 10.5px; fill: var(--muted);
+  }
+  .dg-cut { stroke: var(--crit); stroke-width: 1.5; stroke-dasharray: 5 4; fill: none; }
+  .dg-cut-mark { stroke: var(--crit); stroke-width: 2; }
+  .dg-cut-label {
+    font-family: var(--f-mono); font-size: 11px; font-weight: 600;
+    fill: var(--crit); letter-spacing: .04em;
+  }
+  .dg-arrow { fill: var(--rule); }
+
+  /* ----------------------------------------------------------- milestones */
+
+  ol.stages { list-style: none; padding: 0; max-width: none; counter-reset: stage -1; }
+  ol.stages > li {
+    counter-increment: stage;
+    display: grid;
+    grid-template-columns: 3.4rem 1fr;
+    gap: 0 1.2rem;
+    padding: 1.15rem 0;
+    border-bottom: 1px solid var(--border);
+    margin: 0;
+  }
+  ol.stages > li::before {
+    content: "A" counter(stage);
+    font-family: var(--f-mono);
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: .07em;
+    color: var(--accent);
+    padding-top: .22rem;
+  }
+  ol.stages h4 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 1.02rem;
+    margin: 0 0 .3rem;
+  }
+  ol.stages p { font-size: .93rem; color: var(--muted); margin: 0 0 .5rem; max-width: 62ch; }
+  ol.stages p:last-child { margin-bottom: 0; }
+  .gate {
+    font-family: var(--f-mono);
+    font-size: .73rem;
+    color: var(--text);
+    background: var(--sunken);
+    border: 1px solid var(--border);
+    padding: .3rem .55rem;
+    display: inline-block;
+    line-height: 1.5;
+  }
+  .gate b { color: var(--accent); font-weight: 600; }
+
+  /* ------------------------------------------------------------ decisions */
+
+  details {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 0 1.2rem;
+    margin: 0 0 .8rem;
+    max-width: var(--measure);
+  }
+  summary {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: .98rem;
+    cursor: pointer;
+    padding: .95rem 0;
+    list-style-position: outside;
+  }
+  summary .key {
+    font-family: var(--f-mono);
+    font-size: .74rem;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: .08em;
+    margin-right: .6rem;
+  }
+  details[open] summary { border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
+  details > *:last-child { margin-bottom: 1.1rem; }
+  details p { font-size: .95rem; }
+  .default {
+    font-family: var(--f-mono);
+    font-size: .73rem;
+    color: var(--muted);
+    display: block;
+    margin-top: .6rem;
+  }
+  .default b { color: var(--ok); font-weight: 600; }
+
+  footer {
+    border-top: 2px solid var(--text);
+    padding-top: 1.4rem;
+    font-family: var(--f-mono);
+    font-size: .76rem;
+    color: var(--faint);
+  }
+  footer p { max-width: none; margin: 0 0 .4rem; }
+
+  @media (max-width: 640px) {
+    body { font-size: 16px; padding: 0 1.1rem 4rem; }
+    header.masthead { padding-top: 2.75rem; }
+    ol.stages > li { grid-template-columns: 1fr; gap: .35rem; }
+    ol.stages > li::before { padding-top: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+<style>
+  /* ---------------------------------------------- the split, side by side */
+  .trades {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    margin: 0 0 2rem;
+  }
+  .trades > div { background: var(--surface); padding: 1.2rem 1.15rem 1.35rem; }
+  .trades .who {
+    font-family: var(--f-mono);
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+  }
+  .trades .q .who { color: var(--blind); }
+  .trades .p .who { color: var(--privy); }
+  .trades .vec {
+    font-family: var(--f-display);
+    font-size: 1.24rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    margin: .5rem 0 .7rem;
+  }
+  .trades dl { margin: 0; font-size: .87rem; }
+  .trades dt {
+    font-family: var(--f-mono);
+    font-size: .66rem;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-top: .7rem;
+  }
+  .trades dd { margin: .1rem 0 0; color: var(--muted); }
+  .trades dd b { color: var(--text); font-weight: 600; }
+
+  /* the macro-action, drawn */
+  .dg-skill { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">Gear Master · Mission spec · branch <code>the-two-trades</code></p>
+  <h1>The Two Trades</h1>
+  <p class="standfirst">
+    A quartermaster who buys and packs, a pathfinder who walks and answers, and
+    both of them learned. The second one is told where to go — which is what turns
+    an agent that plays well into a solver that can prove a door is reachable.
+  </p>
+  <div class="status-strip">
+    <div><span>Written against</span><b>a8f8d19 · 2026-08-29</b></div>
+    <div><span>Milestones</span><b>Q0 – Q9</b></div>
+    <div><span>Ships</span><b>Nothing until Q9</b></div>
+    <div><span>To beat</span><b>SCR(Francis) 40.6% · 48/50 repack</b></div>
+  </div>
+</header>
+
+<!-- ============================================================ 1 -->
+<section>
+  <h2><span class="num">Part One</span>Why two, and why this split</h2>
+  <p class="deck">
+    The predecessor's pilot is 195,000 presses a run and 77% of them are
+    trial-seat-and-undo. No temporal-difference method assigns credit across that.
+  </p>
+
+  <p>
+    Splitting the problem is not a preference — it is what makes the horizon
+    learnable at all. The split is <strong>by screen</strong>, which is how a person
+    meets the game.
+  </p>
+
+  <div class="trades">
+    <div class="q">
+      <span class="who">Agent one</span>
+      <p class="vec">The quartermaster</p>
+      <dl>
+        <dt>plays</dt><dd>the loadout and the shop</dd>
+        <dt>owns</dt><dd>buy · sell · barter · reroll · pin · place · rotate · lock · clear · grow · undo · <b>done</b></dd>
+        <dt>episode</dt><dd><b>30–60</b> decisions — one shopping-and-packing session</dd>
+        <dt>reward</dt><dd>did this board <b>win the fight in front of it</b></dd>
+        <dt>asked</dt><dd>"make me a board that beats <em>that</em>"</dd>
+      </dl>
+    </div>
+    <div class="p">
+      <span class="who">Agent two</span>
+      <p class="vec">The pathfinder</p>
+      <dl>
+        <dt>plays</dt><dd>the road</dd>
+        <dt>owns</dt><dd>answer · town · throw points · leave · walk · drink · pedestal · crush · fight · <b>pack</b></dd>
+        <dt>episode</dt><dd><b>200–500</b> decisions — one run</dd>
+        <dt>reward</dt><dd>rungs cleared, and <b>+50 for the goal</b></dd>
+        <dt>asked</dt><dd>"get me to <em>there</em>"</dd>
+      </dl>
+    </div>
+  </div>
+
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 720 250" role="img" aria-label="The pathfinder chooses road actions and one macro-action, pack, which hands control to the quartermaster for a short episode that returns a board.">
+      <defs>
+        <marker id="tt-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path class="dg-arrow" d="M 0 0 L 10 5 L 0 10 z"></path>
+        </marker>
+      </defs>
+
+      <rect class="dg-box-privy" x="34" y="26" width="250" height="58"></rect>
+      <text class="dg-name" x="159" y="50" text-anchor="middle">the pathfinder</text>
+      <text class="dg-sub" x="159" y="68" text-anchor="middle">200-500 decisions a run</text>
+
+      <rect class="dg-skill" x="34" y="160" width="250" height="58"></rect>
+      <text class="dg-name" x="159" y="184" text-anchor="middle">the quartermaster</text>
+      <text class="dg-sub" x="159" y="202" text-anchor="middle">30-60 decisions an episode</text>
+
+      <line class="dg-edge" x1="120" y1="90" x2="120" y2="154" marker-end="url(#tt-arrow)"></line>
+      <text class="dg-label" x="132" y="112">pack</text>
+      <text class="dg-label" x="132" y="127">- one action</text>
+
+      <line class="dg-edge" x1="205" y1="154" x2="205" y2="90" marker-end="url(#tt-arrow)"></line>
+      <text class="dg-label" x="216" y="120">a board</text>
+
+      <rect class="dg-box" x="420" y="26" width="250" height="58"></rect>
+      <text class="dg-name" x="545" y="50" text-anchor="middle">+1 rung   +50 the goal</text>
+      <text class="dg-sub" x="545" y="68" text-anchor="middle">rungs, and where it was sent</text>
+
+      <rect class="dg-box" x="420" y="160" width="250" height="58"></rect>
+      <text class="dg-name" x="545" y="184" text-anchor="middle">one fight, exactly</text>
+      <text class="dg-sub" x="545" y="202" text-anchor="middle">won, and by how much</text>
+
+      <line class="dg-edge" x1="290" y1="55" x2="414" y2="55" marker-end="url(#tt-arrow)"></line>
+      <text class="dg-label" x="352" y="46" text-anchor="middle">reward</text>
+      <line class="dg-edge" x1="290" y1="189" x2="414" y2="189" marker-end="url(#tt-arrow)"></line>
+      <text class="dg-label" x="352" y="180" text-anchor="middle">reward</text>
+    </svg>
+    </div>
+    <figcaption>
+      <code>pack</code> is the pathfinder's one macro-action: it hands control down,
+      the quartermaster plays its own short episode, and a board comes back. That is
+      what turns 195,000 steps into four hundred. Their rewards share no term, which
+      is what lets them train at once — but the pathfinder's <em>environment</em> is
+      the quartermaster, so it always trains against a frozen, versioned checkpoint.
+    </figcaption>
+  </figure>
+</section>
+
+<!-- ============================================================ 2 -->
+<section>
+  <h2><span class="num">Part Two</span>Why the packer must be learned rather than tuned</h2>
+  <p class="deck">
+    Not an argument. A count, off the catalogue.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>What the hand-written objective can and cannot see</caption>
+      <thead><tr><th></th><th class="n">pieces</th><th>can <code>Sense::worth</code> see it?</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">produce <b>mana</b></td><td class="n">118</td><td>yes — <code>Figures::flow</code></td></tr>
+        <tr><td class="rowlabel">produce <b>faith</b></td><td class="n">33</td><td class="zero">no field exists</td></tr>
+        <tr><td class="rowlabel">produce <b>nature</b></td><td class="n">29</td><td class="zero">no field exists</td></tr>
+        <tr><td class="rowlabel">produce <b>rage</b></td><td class="n">26</td><td class="zero">no field exists</td></tr>
+        <tr><td class="rowlabel"><b>consume</b> a pool to act</td><td class="n">75</td><td class="zero">no — it is a trigger, and <code>Figures</code> reads <code>stats.*</code> only</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note flag">
+    <span class="tag">The case, in one example</span>
+    <p>
+      A tray of nature producers and a spell that spends nature for damage scores
+      <strong>zero on both halves</strong>: the producers have no field, and the
+      spell's damage is conditional, so it is not in <code>stats.physical_damage</code>.
+      The current packer reaches 48/50 by maximising <code>items × 400</code> —
+      density — which <code>rl-research.md</code> already calls <em>"nearly
+      irrelevant"</em>. The one board it cannot recover is the perfect run's: 50/50
+      by hand, 46–48 by search, and the one most likely to be built around a synergy.
+    </p>
+    <p>
+      A learner rewarded by <em>the fight</em> sees all of it, because the chain
+      shows up as damage in the log. That is the whole argument.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ 3 -->
+<section>
+  <h2><span class="num">Part Three</span>Ten milestones, a commit apiece</h2>
+  <p class="deck">
+    On <code>the-two-trades</code>, branched off <code>the-apprentice</code>. One
+    merge, at Q9 — everything before it is tooling that ships nothing.
+  </p>
+
+  <ol class="stages">
+    <li><div>
+      <h4>The ground, and the two menus</h4>
+      <p>Partition <code>Verb</code> between the two agents, exhaustively and
+        disjointly. Measure the real decision counts at each level.</p>
+      <p class="gate"><b>Gate:</b> the partition lint passes — every verb belongs to exactly one agent, nothing lost, nothing shared.</p>
+    </div></li>
+    <li><div>
+      <h4>The representation</h4>
+      <p>Feature encoders where a piece is described by <b>what it produces and what
+        it consumes</b>, and a board by the match between them. Not learning — the
+        milestone that decides whether learning can work.</p>
+      <p class="gate"><b>Gate:</b> a linear probe over the features predicts "this board's damage came from a conditional" better than chance. If it cannot, nothing after this matters.</p>
+    </div></li>
+    <li><div>
+      <h4>Two environments</h4>
+      <p>Reset, step, reward, legal — for both. The quartermaster's reset samples a
+        situation across the whole ladder, using <code>skip_to</code>, which is
+        training-only and unreachable from any agent.</p>
+      <p class="gate"><b>Gate:</b> horizons inside 60 and 600; both replay identically from a seed.</p>
+    </div></li>
+    <li><div>
+      <h4>The quartermaster learns</h4>
+      <p>DQN over the factored action, masked to the menu. Trained against sampled
+        situations so it is not a rung-10 specialist.</p>
+      <p class="gate"><b>Gate:</b> ≥ <b>48/50</b> from the owner's tray and <b>49/50</b> from the friend's — the hand-written packer's own numbers.</p>
+    </div></li>
+    <li><div>
+      <h4>Pools, proven</h4>
+      <p>A planted tray of producers and one consumer: does the learned packer
+        assemble it where the heuristic does not? Plus a census of pool-matching
+        across a hundred boards from each.</p>
+      <p class="gate"><b>Gate:</b> a measured difference, either way. "The learned packer does not find builds either" is a publishable result and would redirect the mission.</p>
+    </div></li>
+    <li><div>
+      <h4>The pathfinder learns</h4>
+      <p>Goal-conditioned DQN over the road, calling the <em>frozen</em> Q3
+        checkpoint. Curriculum from near goals to far ones.</p>
+      <p class="gate"><b>Gate:</b> SCR(Francis) ≥ <b>40.6%</b>, or a written finding.</p>
+    </div></li>
+    <li><div>
+      <h4>The validity solver</h4>
+      <p>The product. Every door tried as an <b>explicit goal</b> rather than met by
+        accident, and every gap classified in the five classes.</p>
+      <p class="gate"><b>Gate:</b> coverage above 70% offered and 58% branched, and <b>all seven dungeons entered</b> — the specific failure this was asked to fix.</p>
+    </div></li>
+    <li><div>
+      <h4>Generations</h4>
+      <p>Unfreeze. Retrain the quartermaster on the trays the pathfinder actually
+        produces, then the pathfinder on the new quartermaster.</p>
+      <p class="gate"><b>Gate:</b> each generation ≥ the last on the held-out 64 seeds, or the mission stops at the best and says so.</p>
+    </div></li>
+    <li><div>
+      <h4>Themes</h4>
+      <p>Train on eight themes, hold two out. What makes the quartermaster usable as
+        the enemy packer.</p>
+      <p class="gate"><b>Gate:</b> held-out themes beat unconditioned, measured by the fidelity meter under the acceptance gate.</p>
+    </div></li>
+    <li><div>
+      <h4>The harvest, and the record</h4>
+      <p>Creature boards from trained play — the five county creatures that still
+        wear borrowed ones.</p>
+      <p class="gate"><b>Merge</b> into main, and the wasm publish with it. The only point where the game changes, and the only one needing a diff the owner has read.</p>
+    </div></li>
+  </ol>
+</section>
+
+<!-- ============================================================ 4 -->
+<section>
+  <h2><span class="num">Part Four</span>Four things worth arguing about first</h2>
+
+  <h3>Q1 is not a machine-learning milestone, and it is the one that decides</h3>
+  <p>
+    If the state cannot express <em>"this piece makes nature and that one spends
+    it"</em>, no amount of Q-learning discovers the build — it learns the current
+    blindness faster. The gate is a probe, and a failed probe stops everything.
+  </p>
+
+  <h3>"In parallel" has to mean parallel with generations</h3>
+  <p>
+    Their rewards share no term, which is what makes simultaneous training
+    reasonable. But the pathfinder's <em>environment</em> is the quartermaster, so
+    it always trains against a <b>frozen, versioned</b> checkpoint, swapped at
+    generation boundaries. Every checkpoint names the version it trained against; a
+    result that cannot name both does not replay. It costs a little joint
+    optimality and buys the only thing that matters early: when a number moves, you
+    know which agent moved it.
+  </p>
+
+  <h3>The reward asymmetry is enforced by the crate graph, not by discipline</h3>
+  <p>
+    The quartermaster's reward is a fight, which a player cannot run — so the
+    <em>trainer</em> holds the oracle and the <em>agent</em> reads only the screen.
+    That is the asymmetric actor–critic, and <code>trades/tests/boundary.rs</code>
+    makes it checkable exactly as the pilot's does.
+  </p>
+
+  <h3>Recorded rather than argued</h3>
+  <p>
+    The environment is deterministic and cheap, so <b>search with a learned value
+    will probably beat model-free Q in the end.</b> Q is the simpler thing that
+    works and the right first implementation, and no work is wasted: if generations
+    plateau, the escalation is MCTS over the pathfinder's actions using the same
+    value head.
+  </p>
+
+  <div class="note watch">
+    <span class="tag">Two stop conditions worth agreeing now</span>
+    <p>
+      <b>Q4 finding no difference</b> retires this mission's premise, and the honest
+      response is to write it down and keep the hand-written packer.
+    </p>
+    <p>
+      <b>Q5 landing below 40.6%</b> is likely early and is not failure. The
+      goal-conditioning is the product: a goal-seeker at 30% that reaches every door
+      is worth more than a climber at 41% that has entered one dungeon in seven.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <p>Source: <code>design/the-two-trades.md</code>. Predecessor: <code>design/the-apprentice.md</code>, whose measurements are every gate above.</p>
+  <p>Branch <code>the-two-trades</code>, off <code>the-apprentice</code>. A commit a milestone; one merge at Q9.</p>
+  <p>Written against <code>a8f8d19</code>, 2026-08-29. No code yet.</p>
+</footer>
+
+</div>

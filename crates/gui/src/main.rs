@@ -19,6 +19,7 @@ use gearmaster_engine::rating::{resale_price, shop_price, Rarity};
 use gearmaster_engine::combat::Difficulty;
 use gearmaster_engine::run::{lives_in_words, Mode, ROGUE_LIVES};
 use gearmaster_engine::run::{Phase, Run};
+use gearmaster_console::{Console, Verb};
 use gearmaster_engine::shape::Shape;
 use gearmaster_engine::slot::{SLOT_H, SLOT_W};
 mod pack;
@@ -2774,6 +2775,55 @@ fn capitalise(s: &str) -> String {
         Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
         None => String::new(),
     }
+}
+
+/// What the watcher is doing, drawn over the top left.
+///
+/// Deliberately plain: it is a caption on somebody else's game, not a screen
+/// of its own. What it has to say is where in the transcript this is, what was
+/// just pressed, and that the window is being driven rather than played.
+fn draw_watch_strip(w: &watch::Watcher, h: &watch::Header, run: &Run) {
+    let (x, y) = (14.0, 14.0);
+    let (bw, bh) = (330.0, 96.0);
+    draw_rectangle(x, y, bw, bh, Color::from_rgba(10, 10, 16, 215));
+    draw_rectangle_lines(x, y, bw, bh, 1.5, Color::from_rgba(150, 130, 80, 220));
+    ui_text(
+        &format!("WATCHING  {}", w.name),
+        x + 10.0,
+        y + 19.0,
+        13.0,
+        Color::from_rgba(226, 196, 120, 255),
+    );
+    ui_text(
+        &format!(
+            "press {} of {}   rung {}   claims rung {}{}",
+            w.at(),
+            w.len(),
+            run.rung + 1,
+            h.reached,
+            if w.paused { "   PAUSED" } else { "" }
+        ),
+        x + 10.0,
+        y + 36.0,
+        11.0,
+        col_dim(),
+    );
+    for (i, line) in w.recent(3).iter().rev().enumerate() {
+        ui_text(
+            line,
+            x + 10.0,
+            y + 54.0 + i as f32 * 13.0,
+            11.0,
+            if i == 0 { WHITE } else { col_dim() },
+        );
+    }
+    ui_text(
+        "space pause   -> step   up/down speed",
+        x + 10.0,
+        y + bh - 6.0,
+        10.0,
+        Color::from_rgba(110, 110, 130, 255),
+    );
 }
 
 fn begin_next_fight(run: &mut Run, speed: f32) -> Option<Playback> {
@@ -11796,6 +11846,8 @@ fn render_panel(
 
 // ================================================================= main
 
+mod watch;
+
 #[macroquad::main(window_conf)]
 async fn main() {
     let mut run = Run::new();
@@ -11864,7 +11916,14 @@ async fn main() {
     ];
     // Where the game opens: the intro pages, then the mode picker, then play.
     // Any debug hook skips straight to the board.
-    let skip_intro = std::env::var("GEARMASTER_PACK").is_ok()
+    // `GEARMASTER_WATCH=<proof>` plays a recorded run into the window.
+    let watched = std::env::var("GEARMASTER_WATCH").ok();
+    let mut watcher = watched.as_deref().and_then(watch::Watcher::load).map(|(w, h)| {
+        run = Run::start(h.seed, h.mode, h.difficulty);
+        (w, h)
+    });
+    let skip_intro = watcher.is_some()
+        || std::env::var("GEARMASTER_PACK").is_ok()
         || std::env::var("GEARMASTER_PRESET").is_ok()
         || std::env::var("GEARMASTER_FIGHT").is_ok()
         || std::env::var("GEARMASTER_PLACE").is_ok()
@@ -12248,6 +12307,55 @@ async fn main() {
         // own copy from the log.
         let worn: Vec<ItemProfile> =
             if run.phase == Phase::Loadout { run.combat_items() } else { Vec::new() };
+
+        // ---- the watcher -------------------------------------------------
+        //
+        // One press at a time, and never while a fight is on screen: a fight
+        // is the thing worth watching and stepping past it would be showing
+        // the log rather than the bout.
+        if let Some((w, _)) = watcher.as_mut() {
+            if is_key_pressed(KeyCode::Space) {
+                w.paused = !w.paused;
+            }
+            if is_key_pressed(KeyCode::Up) {
+                w.every = (w.every * 0.6).max(0.008);
+            }
+            if is_key_pressed(KeyCode::Down) {
+                w.every = (w.every * 1.6).min(2.0);
+            }
+            let step_now = is_key_pressed(KeyCode::Right) && w.paused;
+            let now = get_time();
+            if pb.is_none() && run.phase == Phase::Loadout && (w.ready(now) || step_now) {
+                if let Some(v) = w.peek() {
+                    match v {
+                        Verb::Fight | Verb::FightParty => {
+                            // Through the window's own path, so the battle
+                            // screen plays out exactly as it does for a person.
+                            pb = begin_next_fight(&mut run, playback_speed);
+                            settled = pb.is_none();
+                            log_focus = None;
+                        }
+                        other => {
+                            // Through the agent's own console, so there is one
+                            // implementation of what a verb does.
+                            let held = std::mem::replace(&mut run, Run::seeded(0));
+                            let mut c = Console::standing_in(held, 0);
+                            let out = c.apply(other);
+                            run = c.into_run();
+                            if !out.lines.is_empty() {
+                                message = out.lines.join("  ");
+                            }
+                        }
+                    }
+                    w.advance();
+                    w.schedule(now);
+                }
+            }
+        }
+
+        if let Some((w, h)) = watcher.as_ref() {
+            draw_watch_strip(w, h, &run);
+        }
 
         if let Some(p) = pb.as_mut() {
             p.advance(&run);

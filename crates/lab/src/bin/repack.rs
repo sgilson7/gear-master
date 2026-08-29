@@ -20,6 +20,7 @@
 //! fight, and the number this prints is not available to it.
 
 use gearmaster_agent::hands;
+use gearmaster_agent::prior::Learned;
 use gearmaster_agent::sense::Sense;
 use gearmaster_console::{Console, Difficulty, Mode};
 use gearmaster_engine::combat::{simulate_at, Outcome, LADDER, SUDDEN_DEATH_MS};
@@ -85,9 +86,18 @@ fn main() {
         .and_then(|v| v.parse().ok())
         .unwrap_or(400_000);
 
+    // `REPACK_PRIOR=runs/prior.txt` ranks the seats before trying them.
+    let keep: usize = std::env::var("REPACK_KEEP").ok().and_then(|v| v.parse().ok()).unwrap_or(8);
+    let learned = std::env::var("REPACK_PRIOR")
+        .ok()
+        .and_then(|p| Learned::load(&p, keep));
     println!(
         "Repack-from-tray. The pilot sees a tray and five grids and presses keys;\n\
-         the ladder walk afterwards is the harness's, not its own.\n"
+         the ladder walk afterwards is the harness's, not its own.\n{}\n",
+        match &learned {
+            Some(_) => format!("A learned prior is ranking seats, keeping the top {}.", keep),
+            None => "No prior: every legal seat is tried.".to_string(),
+        }
     );
     println!(
         "{:<10} {:>6} {:>7} {:>7} {:>6} {:>7} {:>8} {:>9}   {}",
@@ -121,7 +131,10 @@ fn main() {
                 run.owned.push(id);
             }
             let mut c = Console::standing_in(run, 0);
-            let p = hands::pack(&mut c, budget);
+            let p = match &learned {
+                Some(l) => hands::pack_with(&mut c, budget, l),
+                None => hands::pack(&mut c, budget),
+            };
             seated += p.seated;
             presses += p.presses;
             run = c.into_run();

@@ -122,6 +122,18 @@ they disagree, this is the bug report"*. `analysis/` holds measurements.
 | `county.rs` | 1,150 | **THE HUNDRED**: a 7x7 county as a pure function of a derived seed. `County`, `Tile`, `TileKind`, `Toll` (6), `Region` (3), `Chain` (3), `Step`, `Bearing`, `CIRCUIT` (16), `MOUTHS` (6, fixed), `TOLLS` (12), `FALLBACK`, `generate`, `refusals` (V1-V12), `boundary`. Derived on demand, **never stored** |
 | `shape.rs`, `rng.rs`, `lib.rs` | 100, 94, 37 | Polyomino math; the PRNG; exports |
 
+Five crates stand beside the three, added by THE APPRENTICE and THE TWO
+TRADES. None of them is a dependency of the engine and the engine is still
+empty of dependencies:
+
+| Crate | Owns |
+|---|---|
+| `console` | The screen in fields: `View`, the `Verb` menu, `Console::apply`. Nothing in it the GUI or CLI does not draw |
+| `oracle` | The privileged half: fights on demand, `gate` (the acceptance verdict), `fidelity` (does this fight read as its theme) |
+| `agent` | The written control - a pilot that plays a seed from its own economy |
+| `trades` | The two learners: `brief`, `feature`, `env`, `qnet`, `pathfinder`, `partition`. **Depends on `console` and nothing else**, which is what makes the boundary structural |
+| `lab` | Harnesses and trainers. May read the engine; is never played |
+
 ---
 
 ## 4. The game, mechanically
@@ -327,19 +339,58 @@ depth - one payload, up to two inks multiplying it - and they do not overlap.
 knowing before you go looking: `recipe_tip` reads `recipe_parts`, which reads
 `recipes`. The recipe is the only place a recipe is written down.
 
-**The mission after that is `design/rl-agent-plan.md`**: make the game playable
-by a reinforcement-learning agent, with no generative AI anywhere in the loop,
-so that a trained agent becomes a better validity solver than the repo has. Read
-`design/rl-research.md` first for the stack recommendation. Its milestone 1 is
-a non-learning search baseline, and every later milestone reports against it.
+**THE APPRENTICE and THE TWO TRADES are merged.** `design/rl-agent-plan.md`
+was the brief - make the game playable by a reinforcement-learning agent, no
+generative AI in the loop, so a trained agent becomes a better validity solver
+than the repo has. `design/the-apprentice.md` is the first mission's spec and
+`design/the-two-trades.md` the second's; `HANDOFF-two-trades.md` is the
+handoff and `analysis/the-two-trades.md` every measurement, one block a
+milestone, Q0 to Q9.
 
-**Read `HANDOFF-solver.md` beside it.** The plan is a complete execution spec
-and this file does not duplicate it; the handoff is the difference between what
-the plan says and what the code says today. It was written against `18d1b85`
-and the prose pass moved sixteen of its `run.rs` and `combat.rs` line
-citations, changed one number it depends on (Rogue has **four** lives now, and
-§5's M3 says three), and named a seed in §7 that does not exist. Every API name
-in it is correct; the addresses are not.
+Five crates were added and the engine gained no dependency:
+`crates/console` (the screen, in fields - a `View` and a `Verb` menu, nothing
+in it the interface does not draw), `crates/oracle` (the privileged half:
+fights, the acceptance gate, A2's fidelity meter), `crates/agent` (the
+written control), `crates/trades` (the two learning agents) and `crates/lab`
+(harnesses and trainers).
+
+**The boundary is a dependency graph, not a discipline.** `gearmaster-trades`
+and `gearmaster-agent` depend on `gearmaster-console` and nothing else in the
+workspace, so `gearmaster_engine::` does not resolve inside them - it is
+"cannot" rather than "must not". `trades/tests/boundary.rs` is the ratchet.
+
+**What landed, and what did not.** The validity solver is real and is the
+mission's main result: goal-conditioned road-walking reaches **79% of doors,
+68% of branches, five towns of six and five dungeons of seven**, and every
+door it does not reach has a named cause in `analysis/the-two-trades.md` §Q6.
+No door in this game has been shown unreachable. The harvest is real too -
+four of THE HUNDRED's five county creatures now have boards **a run actually
+played**, all four accepted by the gate, and all five nearer the line than the
+borrowed boards they wear (§Q9, blocks in `analysis/dressed/`). Nothing was
+written into `combat.rs`; the owner reads every diff.
+
+**The quartermaster does not learn to pack, and three milestones say so.** Q3,
+Q7 and Q8 all miss their gates and they are one miss. The written control
+packs a tray to 48/50 rungs; the learner assembles about one item in forty
+presses. Q7 removed the two things that were obviously wrong - rotations are
+not decisions, and a free action must cost more than a real one - and the
+curve did not move. Q8's groundwork then removed Q7's own named suspect: a
+placement's value is whether it *finishes an item* and the move features could
+not say so. They can now, checked against the engine at **100% recall and 87%
+precision** (`--bin completes`), and the curve still did not move.
+`HANDOFF-two-trades.md` names the three remaining suspects in the order the
+measurements support, and each is one constant or one sampler rather than a
+rewrite.
+
+**A theme reaches an agent as thirteen numbers and never as a name** - which
+grids to fill and which pools the pieces it allows tend to move
+(`lab/src/themes.rs`, `trades/src/brief.rs`). Descriptive rather than one-hot
+on purpose: a held-out class is a coordinate that was zero in every gradient,
+so a one-hot could not have passed Q8's gate no matter how well the training
+went. The brief separates every theme, and Hollow and Warden each have close
+trained neighbours - and it is still worth **+0.000 and −0.043** on those two,
+which is memorisation rather than generalisation, and is Q3's miss wearing a
+different hat.
 
 **What the repo uses today to say a build is valid or a rung is clearable**,
 which is what the mission has to beat:
@@ -356,8 +407,13 @@ which is what the mission has to beat:
    (`tests/chain.rs:275-308` proves the chain "completable" this way; 25
    `skip_to` call sites in `progression.rs`).
 
-Nothing demonstrates that a build a *seed's own shop economy* can produce
-fights its way to any given door. That is the gap.
+**That gap is now partly closed.** `crates/agent`'s pilot plays a seed from
+its own shop economy, answering doors and fighting rungs, and
+`lab/src/bin/solve.rs` aims it at every door in the game and reports what it
+reached (§Q6). A run that gets there is a stronger claim than `force_win`,
+because the build was bought with the gold that seed dealt. What is still
+missing is the *negative* - nothing proves a door is unreachable, only that
+this solver has not reached it, and eleven have not been reached.
 
 **The traps, re-derived from this tip, in the order they will find you:**
 
@@ -593,6 +649,31 @@ fights its way to any given door. That is the gap.
     bear den with a roundhouse in it passes both lints and is trap 29. Widening
     a dungeon means authoring creatures; there is no reuse that is not a
     staple.
+
+42. **An off-ladder creature carries its own band and theme, and nothing
+    defaults them for you.** `FRAMES` has `band` and `theme` per creature
+    (`bestiary.rs:393`) because the curve, the density target and the theme
+    are all functions of a rung and a thing beside the road has none. A
+    harness that defaults to "about band 40" dressed THE SURVEYOR - band 35,
+    Warden - as a band-41 Drainer and judged it against a line it was never
+    meant to meet. Every number it printed was correct and none of them was
+    about that creature.
+
+43. **`pack_francis` judges a proposal against the creature it would replace,
+    and both sides can be off the line together.** Nothing in the repo asked
+    the acceptance gate about a creature *as it ships*, so nothing noticed
+    that three of THE HUNDRED's five borrowed boards are outside the band -
+    THE DROVER at 0.541, THE COMMISSIONER at 0.563 and THE PARISH at 0.630
+    against an allowance of 0.300. `lab/src/bin/asworn.rs` is the missing
+    question. A comparison is not a measurement.
+
+44. **A free action is a scale problem, not a verb problem.** A packing agent
+    pressed `Rotate` 400 times out of 420; `Rotate` was removed from its
+    action space and it pressed `Pin` 410 times out of 420. Taking verbs away
+    one at a time cannot work, because there is always another cheapest key -
+    the fault was that a no-op cost 0.01 while the value estimates were spread
+    over 1.70. Charge for what the *board* does, not for what the verb is
+    called.
 
 One blind spot in `prose.rs` worth knowing before it finds you: a name that
 only ever **opens** a sentence is invisible to `names_something`, because at a

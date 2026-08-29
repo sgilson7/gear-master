@@ -131,6 +131,37 @@ fn the_view_does_not_carry_the_rest_of_the_ladder() {
 }
 
 #[test]
+fn the_shortcut_reads_what_the_screen_reads() {
+    // `figures()` skips drawing the grids and the tray so the hands can afford
+    // to call it twice a seat. It must not skip anything else.
+    let mut c = Console::start(0x1111, Mode::Grinder, Difficulty::Medium);
+    for _ in 0..60 {
+        let menu = c.menu();
+        let Some(&v) = menu.first() else { break };
+        if !c.apply(v).ok {
+            break;
+        }
+        let full = c.view();
+        let (figures, stats, items, filled) = c.figures();
+        assert_eq!(figures, full.figures, "the figures");
+        assert_eq!(stats, full.stats, "the character sheet");
+        assert_eq!(
+            items,
+            full.grids.iter().map(|g| g.items.iter().filter(|i| i.assembled).count()).sum::<usize>(),
+            "how many items assembled"
+        );
+        assert_eq!(
+            filled,
+            full.grids
+                .iter()
+                .map(|g| g.cells.iter().filter(|c| c.piece.is_some()).count())
+                .sum::<usize>(),
+            "how many cells are filled"
+        );
+    }
+}
+
+#[test]
 fn the_screen_and_the_view_cannot_disagree() {
     // The text is drawn from the `View` and from nothing else, so a field that
     // changes changes both. Cheap to state, and it is the thing that stops a

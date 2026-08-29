@@ -135,6 +135,23 @@ pub fn draw(v: &View) -> Vec<String> {
         }
     }
 
+    if let Some(d) = &v.dungeon {
+        out.push(format!("  {} - floor {} of {}", d.name, d.at, d.floors.len()));
+        for f in &d.floors {
+            let here = if f.index == d.at { "->" } else { "  " };
+            let ways: Vec<String> =
+                f.exits.iter().map(|(to, label)| format!("{} -> {}", label, to)).collect();
+            out.push(format!(
+                "   {} {:>2}. {:<22} {}{}",
+                here,
+                f.index,
+                f.creature.clone().unwrap_or_else(|| "?".into()),
+                if f.cleared { "cleared  " } else { "" },
+                if ways.is_empty() { "the end of it".to_string() } else { ways.join(", ") }
+            ));
+        }
+    }
+
     if let Some(c) = &v.county {
         out.push(format!(
             "  THE HUNDRED {} - {}   {} moves left, {} trips left, clock {}",

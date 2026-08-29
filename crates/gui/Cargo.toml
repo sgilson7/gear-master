@@ -10,4 +10,9 @@ path = "src/main.rs"
 
 [dependencies]
 gearmaster-engine = { path = "../engine" }
+# Watching the pilot play needs the pilot's own vocabulary, and there is only
+# one of it. `GEARMASTER_WATCH=<proof>` reads a transcript and presses the keys
+# through the same `Console` the agent uses, so what the window shows is what
+# the agent did rather than a second implementation of it.
+gearmaster-console = { path = "../console" }
 macroquad = "0.4"
