@@ -157,3 +157,58 @@ claim - a build is a property of a board and not of a bag.
 **Gate met**, and with the honest metric rather than the flattering one: 14%
 of boards spend a pool, so plain accuracy rewards a model that always says no.
 Balanced accuracy is 85.7% against a 50% floor.
+
+---
+
+# Q2 — Two environments
+
+Read off **`3d761be`** plus this milestone. `crates/trades/src/env.rs`, **12
+tests** in the crate, no engine change.
+
+## Q2.1 What an episode is
+
+**The quartermaster's** is `Packing`: the sixteen verbs it owns, masked to the
+menu, plus one thing that is not a verb - **`Done`**. That action is what makes
+this an episode rather than a loop, and it is not a nicety: a step cost alone
+does not teach a packer to stop, it teaches it to press the cheapest key.
+
+**The pathfinder's** is `Walking`: its own sixteen, plus **`Pack`**, which
+hands the board to the quartermaster. And a **`Goal`** - a door, a dungeon, a
+town, a rung or a county tile - which `met()` answers **off the screen**, so a
+goal the pathfinder cannot recognise is a goal it cannot aim at.
+
+## Q2.2 The numbers
+
+One performance core, release, random policies:
+
+| | |
+|---|---|
+| quartermaster, an episode | **1.40 ms** |
+| its steps | 32 median, 60 at the cap |
+| **10⁶ quartermaster steps** | **43 s of environment on one core** |
+| pathfinder, a run with `pack` stubbed | 61 ms |
+
+Forty-three seconds a million steps is far better than the spec's estimate and
+it changes what is affordable: a Q3 training run is minutes of environment
+rather than hours, and the cost will be the network rather than the game.
+
+**One figure is not a measurement and says so.** The pathfinder's 600 steps is
+the *budget*, not the horizon: a random policy never fights, so it never
+progresses and never terminates - it reached rung 1. Q0's 204, measured off
+the control, is the real number. A random walk is a throughput test and not a
+horizon test, and reporting it as one would be the mistake this mission keeps
+catching.
+
+Six of three hundred random packing episodes won the fight they were packed
+for. That is the floor Q3 has to climb from.
+
+## Q2.3 The sampler
+
+`situation(seed, rung)` stands a run at a rung with a purse and a shop.
+It uses **`skip_to`, which is privileged and training-only**: the pathfinder
+cannot reach it because it is not a verb, and the quartermaster never learns
+how it got there. That is the curriculum, and without it a packer trained only
+on rung one has never seen a board worth packing.
+
+**Gate met:** both episodes run and end, every move offered is accepted, a seed
+replays, and the packing horizon is inside sixty.

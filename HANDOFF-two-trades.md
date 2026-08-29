@@ -15,8 +15,8 @@ code actually is.
 |---|---|
 | Q0 The ground, and the two menus | **done** - 16 verbs apiece, horizons 13 and 204 |
 | Q1 The representation | **done** - probe balanced 85.7% vs 50%; pools in the View |
-| Q2 Two environments | **in progress** |
-| Q3 The quartermaster learns | not started |
+| Q2 Two environments | **done** - 1.40 ms an episode; 10^6 steps in 43 s |
+| Q3 The quartermaster learns | **in progress** |
 | Q4 Pools, proven | not started |
 | Q5 The pathfinder learns | not started |
 | Q6 The validity solver | not started |

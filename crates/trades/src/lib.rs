@@ -10,6 +10,8 @@
 //! temporal-difference method assigns credit across that. Thirty to sixty
 //! decisions and two to five hundred are horizons that work.
 
+pub mod env;
 pub mod partition;
 
+pub use env::{Goal, Move, Packing, Step, Walking};
 pub use partition::{Trade, PATHFINDER, QUARTERMASTER};
