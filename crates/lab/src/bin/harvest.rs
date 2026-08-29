@@ -27,9 +27,24 @@ fn subject() -> (&'static MonsterSpec, usize) {
         return (&LADDER[i], i);
     }
     let i = ALTERNATES.iter().position(|s| s.name == want).unwrap_or(0);
-    // An off-ladder creature is judged at the band its neighbours sit in.
-    (&ALTERNATES[i], 40)
+    (&ALTERNATES[i], frame_of(&want).map_or(40, |(b, _)| b))
 }
+
+/// Where a creature stands and what it is meant to be.
+///
+/// **Off-ladder creatures carry their own band and theme** in `FRAMES`, and
+/// the first version of this harness did not ask: it defaulted every one of
+/// them to rung 40 and took the theme from `theme_for(40)`. So THE SURVEYOR -
+/// band 35, Warden - was dressed as a band-41 Drainer, judged against a
+/// 17.2 s line it was never meant to meet, and reported as reading 0.00 as a
+/// Drainer, which was true and beside the point.
+fn frame_of(name: &str) -> Option<(usize, MonsterTheme)> {
+    gearmaster_engine::bestiary::FRAMES
+        .iter()
+        .find(|f| f.name == name)
+        .map(|f| (f.band, f.theme))
+}
+
 
 fn main() {
     let (spec, rung) = subject();
@@ -40,6 +55,7 @@ fn main() {
     let theme = MonsterTheme::ALL
         .into_iter()
         .find(|t| std::env::var("HARVEST_THEME").is_ok_and(|v| t.name().eq_ignore_ascii_case(&v)))
+        .or_else(|| frame_of(spec.name).map(|(_, t)| t))
         .or_else(|| gearmaster_engine::bestiary::theme_for(rung));
 
     println!(

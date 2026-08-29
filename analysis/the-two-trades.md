@@ -539,3 +539,149 @@ Both fixes are in `qpack.rs` and both are right independent of the gate:
 `NOTHING_HAPPENED` because a free action genuinely should cost more. A run
 that presses `Pin` four hundred times is uninformative about anything else,
 and no run since does.
+
+---
+
+# Q8 — Themes
+
+Read off the working tree after the completion feature landed. Two networks of
+identical shape (`HIDDEN = 96`), identical budget (2,500 episodes), identical
+seed. One saw a brief every episode drawn from eight themes; the other saw
+thirteen zeros. Neither saw Hollow or Warden.
+
+## Q8.1 The brief, and why it is not a one-hot
+
+Q8's gate asks that a **held-out** theme be packed better with conditioning
+than without. A one-hot cannot pass it, and not because the training is bad: a
+class the network never saw is a coordinate that was zero in every gradient it
+ever took, so the conditioning contributes exactly nothing and the two packers
+are the same packer. The gate would be unpassable by construction.
+
+So a brief is a *description* in the packer's own vocabulary - which grids to
+fill, and which pools the pieces the theme allows tend to move
+(`lab/src/themes.rs`). Checked before training, because a brief that does not
+separate two themes cannot condition anything:
+
+| held out | nearest trained themes, by cosine |
+|---|---|
+| **Hollow** | Wall 0.99, Caster 0.87, Drainer 0.76 |
+| **Warden** | Burner 0.85, Wall 0.77, Slower 0.75 |
+
+Every theme has a distinct row and both held-out themes have close trained
+neighbours, so generalisation was a question worth asking rather than a
+foregone answer.
+
+## Q8.2 What the two packers did
+
+Twelve situations each, packed greedily, judged by A2's fidelity meter on a
+real fight with the packed board taking the field as the creature.
+
+| theme | items, briefed | items, control | fidelity, briefed | fidelity, control |
+|---|---:|---:|---:|---:|
+| Striker | 0.6 | 0.2 | **0.336** | 0.174 |
+| Wall | 0.7 | 0.2 | **0.062** | 0.021 |
+| Burner | 0.5 | 0.2 | 0.000 | 0.000 |
+| Slower | 1.1 | 0.2 | 0.023 | **0.051** |
+| Drainer | 0.7 | 0.2 | 0.000 | 0.000 |
+| Caster | 0.3 | 0.2 | 0.125 | 0.125 |
+| Swarm | 0.6 | 0.2 | **0.149** | 0.116 |
+| Beast | 0.5 | 0.2 | **0.500** | 0.250 |
+| **Hollow** *(held out)* | 0.8 | 0.2 | 0.000 | 0.000 |
+| **Warden** *(held out)* | 0.2 | 0.2 | 0.020 | **0.063** |
+
+Two things are true at once and both are worth having.
+
+**The conditioning did something.** The briefed packer assembles two to five
+times as many items, and the control's row is *identical for every theme* -
+0.2 items, the same board every time - which is what "unconditioned" means and
+is a good sign the harness is measuring what it says.
+
+**It did not carry.** On the eight themes it trained on, the brief is worth
+more fidelity in four, the same in three and less in one. On the two it never
+saw it is worth **+0.000** and **−0.043**. The brief is being used as a label
+to memorise against, not as a description to interpolate from.
+
+## Q8.3 The gate
+
+**Missed.** Asked that both held-out themes be packed better with the brief
+than without; Hollow ties at zero and Warden is worse by 0.043.
+
+The honest reading is that this is Q3's miss again rather than a separate
+failure. A network that assembles 0.8 items in forty presses has not learned
+to pack, and conditioning something that cannot pack yet on *what kind* of
+board to pack is asking the second question before the first is answered. The
+brief is built, it is checked, it separates the themes, and it is wired
+through the state - what it is waiting for is a packer worth conditioning.
+
+---
+
+# Q9 — The harvest
+
+## Q9.1 The bug that made the first four harvests meaningless
+
+`harvest`'s `subject()` defaulted every off-ladder creature to rung 40 and
+took its theme from `theme_for(40)`, which is Drainer. So THE SURVEYOR — band
+**35**, theme **Warden** — was dressed as a band-41 Drainer, judged against a
+17.2 s line it was never meant to meet, and reported as reading 0.00 as a
+Drainer, which was true and beside the point.
+
+`FRAMES` carries the band and the theme for exactly this reason
+(`bestiary.rs:393`). Both harnesses read it now.
+
+## Q9.2 What the five borrowed boards actually score
+
+Nothing in the repo had asked. `pack_francis` judges a *proposal* against the
+creature it would replace, and both sides of that comparison can be off the
+line together — which is what was happening: every candidate board for THE
+SURVEYOR came back at exactly 0.302, the same figure as the board it ships
+with, because the `owner` reference was winning at 12.0 s no matter what the
+creature wore.
+
+`cargo run --release -p gearmaster-lab --bin asworn`, at each creature's own
+band:
+
+| creature | band | line | as it ships |
+|---|---:|---:|---|
+| THE SURVEYOR | 36 | 14.7s | accepted, 0.186 off |
+| **THE DROVER** | 43 | 18.2s | **off-curve, 0.541 against 0.300** |
+| THE DRIVEN | 43 | 18.2s | accepted, 0.233 off |
+| **THE COMMISSIONER** | 49 | 21.1s | **off-curve, 0.563 against 0.300** |
+| **THE PARISH** | 51 | 22.1s | **off-curve, 0.630 against 0.300** |
+
+**Three of the five borrowed boards are outside the acceptance band.** That is
+not a criticism of F12's decision — borrowing bought five real fights at
+roughly the right weight on the day it shipped, and said so — but "roughly"
+turns out to be three creatures fighting at half again the length the curve
+asks for, and nothing was measuring it.
+
+## Q9.3 Boards from runs that were played
+
+`dress` plays sixteen seeds in both modes with the frozen A-series packer,
+replays each run's transcript to the board it finished holding, cuts that
+board to the creature's own theme's grids, drops gear a creature may not wear,
+and keeps whichever run's board lands nearest the line.
+
+| creature | as it ships | dressed from a run | reads as its theme |
+|---|---|---|---:|
+| THE SURVEYOR | accepted, 0.186 | **accepted, 0.050** | 0.00 |
+| THE DROVER | off-curve, 0.541 | **accepted, 0.009** | **1.00** |
+| THE DRIVEN | accepted, 0.233 | **accepted, 0.119** | 0.19 |
+| THE COMMISSIONER | off-curve, 0.563 | **accepted, 0.042** | 0.10 |
+| THE PARISH | off-curve, 0.630 | off-curve, 0.358 | 0.50 |
+
+**Four of five accepted, and all five nearer the line than the board they
+wear today.** THE DROVER lands at 0.009 off a line of 18.2 s and reads as a
+Striker at 1.00, which is as good an answer as this gate gives.
+
+The five blocks are in `analysis/dressed/`. **Nothing was written into
+`combat.rs`** — the owner reads every diff, and `make pack`'s save once
+rewrote a creature nobody was editing.
+
+## Q9.4 What the fidelity column says
+
+Three of the five read poorly as their own theme: Warden 0.00, Wall 0.10,
+Swarm 0.19. This is the exact hole Q8 was meant to fill. A board cut to a
+theme's *grids* is not a board that fights like the theme, and choosing pieces
+by what they *do* is the packing problem — so the fidelity column is a direct
+measurement of what a trained quartermaster would be worth, and it is worth
+between 0.00 and 0.50 per creature.
