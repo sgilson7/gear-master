@@ -66,3 +66,25 @@ pub fn walk_to(seed: u64, mode: Mode, difficulty: Difficulty, rung: usize) -> (C
     };
     (c, out)
 }
+
+/// The same run with its board taken apart, so the packing is the agent's.
+///
+/// **A walked situation arrives already packed**, because walking there means
+/// the pilot packed at every rung on the way. Handing that to a packing agent
+/// asks it to improve a board somebody else built out of a tray somebody else
+/// emptied, and it scores near the pilot whatever it does - which is a reward
+/// with no room in it. The first R5 campaign evaluated at **10 wins in 20 on
+/// episode zero**, before a single gradient step had been taken.
+///
+/// So the board comes apart and everything the run owns goes back to the tray.
+/// That is the shape of the benchmark this repo already has: *"a packer that
+/// cannot recover what a person did with the same pieces cannot be trusted to
+/// do better with different ones"*. The pieces are the run's own, the economy
+/// that bought them is real, and what is being asked is what to do with them.
+pub fn repack_at(seed: u64, mode: Mode, difficulty: Difficulty, rung: usize) -> (Console, Walked) {
+    let (mut c, w) = walk_to(seed, mode, difficulty, rung);
+    if w.arrived {
+        c.apply(gearmaster_console::Verb::ClearAll);
+    }
+    (c, w)
+}

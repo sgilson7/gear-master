@@ -166,7 +166,12 @@ use gearmaster_trades::brief::Brief;
         //
         // A run that died on the road is not evidence about the rung it was
         // sent to, so it is dropped rather than used.
-        let (c, walked) = curriculum::walk_to(seed, mode, Difficulty::Medium, rung);
+        // Walked and then **taken apart**: the pieces are the run's own and the
+        // packing is the agent's. A walked situation arrives packed by the
+        // pilot, and handing that over asks the agent to improve somebody
+        // else's board - which scored 10 wins in 20 on episode zero, before a
+        // gradient had been taken.
+        let (c, walked) = curriculum::repack_at(seed, mode, Difficulty::Medium, rung);
         walked.arrived.then_some((c, rung))
     }
 
