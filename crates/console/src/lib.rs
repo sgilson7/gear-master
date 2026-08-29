@@ -757,4 +757,4 @@ fn name_of(run: &Run, id: PieceId) -> String {
     }
 }
 
-mod read;
+pub mod read;

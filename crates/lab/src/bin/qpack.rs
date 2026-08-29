@@ -28,12 +28,14 @@ mod q {
     use burn::backend::{Autodiff, NdArray};
     use burn::tensor::activation::relu;
     use burn::tensor::{backend::AutodiffBackend, Tensor, TensorData};
-    use gearmaster_console::{Console, Difficulty, Mode};
+    use gearmaster_console::{Console, Difficulty, Mode, Verb};
     use gearmaster_engine::combat::{simulate_at, Outcome, LADDER, SUDDEN_DEATH_MS};
     use gearmaster_engine::rng::Rng;
     use gearmaster_engine::run::Run;
     use gearmaster_trades::env::{Move, Packing};
     use gearmaster_trades::feature::{self, PAIR};
+use gearmaster_lab::themes;
+use gearmaster_trades::brief::Brief;
     use std::time::Instant;
 
     type B = Autodiff<NdArray>;
@@ -70,7 +72,22 @@ mod q {
     ///
     /// One item is worth fifteen steps at this rate, which is the trade the
     /// number encodes.
-    const STEP_COST: f32 = 0.01;
+    const STEP_COST: f32 = 0.03;
+
+    /// What an action that changed nothing costs on top.
+    ///
+    /// Q7 took `Rotate` out of the action space on Q3's own diagnosis and the
+    /// policy moved straight onto `Pin` - 410 presses out of 420 - which is
+    /// the same pathology one action along. Taking actions away one at a time
+    /// is not a strategy. The real fault is that a no-op cost 0.01 while the Q
+    /// values were spread over 1.7, so the ordering between a no-op and a real
+    /// move was noise.
+    ///
+    /// So the charge is generic and it reads the board rather than the verb:
+    /// **an action that leaves the features exactly as it found them costs
+    /// more.** That catches every free action there is, including the ones a
+    /// later mission adds.
+    const NOTHING_HAPPENED: f32 = 0.25;
 
     /// One remembered decision.
     struct Step {
@@ -104,7 +121,46 @@ mod q {
     /// loss is worth more the closer it came. That second half is the gradient
     /// A6 found missing - without it every losing board scores the same and
     /// the search has nothing to climb.
-    fn score(c: &Console, rung: usize) -> f32 {
+    /// How much of the reward is "is this the board that was asked for".
+    ///
+    /// Half. The packer is still being asked to build something that wins - a
+    /// board reading perfectly as a Drainer and losing every fight is not an
+    /// enemy board anybody wants - but half is enough that two briefs have
+    /// visibly different best answers, which is the thing Q8 tests.
+    const FIDELITY: f32 = 0.5;
+
+    /// How much of the brief the board actually delivered.
+    ///
+    /// **Not A2's fidelity meter, and deliberately.** That meter reads a
+    /// *fight*, from the creature's side, which means turning the packed board
+    /// into a `MonsterSpec` - and `as_creature` leaks its gear on purpose
+    /// (`Box::leak`, oracle/src/lib.rs:197), which is correct for a harvest
+    /// that runs once and ruinous inside a loop that runs a hundred thousand
+    /// times. So training shapes on what the *board* is and the gate judges
+    /// with the meter, which is the right way round anyway: a shaping term
+    /// should be cheap and a gate should be the real thing.
+    fn delivered(c: &Console, w: &Brief) -> f32 {
+        if w.is_none() {
+            return 0.0;
+        }
+        let v = c.view();
+        let mut got = [0.0f32; gearmaster_trades::brief::BRIEF];
+        for (i, g) in v.grids.iter().enumerate().take(5) {
+            if g.items.iter().any(|it| it.assembled) {
+                got[i] = 1.0;
+            }
+        }
+        let peak = (0..8)
+            .map(|j| (v.pools.produces[j] + v.pools.consumes[j]) as f32)
+            .fold(0.0f32, f32::max)
+            .max(1.0);
+        for j in 0..8 {
+            got[5 + j] = (v.pools.produces[j] + v.pools.consumes[j]) as f32 / peak;
+        }
+        Brief(got).likeness(w)
+    }
+
+    fn score(c: &Console, rung: usize, w: &Brief) -> f32 {
         let (stats, items) = c.board_for_scoring();
         if items.is_empty() {
             return -1.5;
@@ -112,14 +168,15 @@ mod q {
         let spec = &LADDER[rung.min(LADDER.len() - 1)];
         let log = simulate_at(stats, &items, spec, Difficulty::Medium);
         let enemy_max = spec.health.max(1) as f32;
-        if log.outcome == Outcome::Victory {
+        let won = if log.outcome == Outcome::Victory {
             let quick = 1.0 - (log.duration_ms as f32 / SUDDEN_DEATH_MS as f32).min(1.0);
             let decided = if log.duration_ms < SUDDEN_DEATH_MS { 0.3 } else { 0.0 };
             1.0 + quick * 0.5 + decided
         } else {
             let left = log.enemy().health.max(0) as f32 / enemy_max;
             -1.0 + (1.0 - left) * 0.8
-        }
+        };
+        won + FIDELITY * delivered(c, w)
     }
 
     fn init(rng: &mut Rng, r: usize, c: usize) -> Vec<f32> {
@@ -208,6 +265,18 @@ mod q {
         let mut target = net.snapshot();
         let mut frozen = target.net();
         let mut buffer: Vec<Step> = Vec::with_capacity(80_000);
+        // **Whether this run is conditioned at all.** `QPACK_BRIEFS=0` trains
+        // the control for Q8's comparison: the same network, the same shape,
+        // the same episodes, and thirteen zeros where the brief goes.
+        let want_briefs = std::env::var("QPACK_BRIEFS").as_deref() != Ok("0");
+        // The learning curve is read against one fixed brief so the figure
+        // printed at episode 400 and the one at 2400 are comparable.
+        let eval_brief =
+            if want_briefs { themes::brief(themes::trained()[0]) } else { Brief::NONE };
+        println!(
+            "  briefs: {}",
+            if want_briefs { "on, eight themes, Hollow and Warden held out" } else { "off" }
+        );
         let t0 = Instant::now();
         let mut won = 0usize;
         let mut seen = 0usize;
@@ -238,13 +307,23 @@ mod q {
             };
             let mut phi = potential(&c);
 
+            // **What this episode was asked for.** One theme a episode, drawn
+            // from the eight; the two held out are never seen here and are the
+            // whole of the Q8 measurement.
+            let pool = themes::trained();
+            let w = if want_briefs {
+                themes::brief(pool[(rng.next_u64() % pool.len() as u64) as usize])
+            } else {
+                Brief::NONE
+            };
+
             loop {
-                let ms = e.moves(&c);
+                let ms = decisions(e.moves(&c));
                 if ms.is_empty() {
                     break;
                 }
                 let v = c.view();
-                let b = feature::board(&v);
+                let b = feature::briefed(&feature::board(&v), &w);
                 let pairs: Vec<[f32; PAIR]> = ms
                     .iter()
                     .map(|m| match m {
@@ -267,12 +346,12 @@ mod q {
 
                 // What comes next, for the bootstrap.
                 let next: Vec<[f32; PAIR]> = {
-                    let ms2 = e.moves(&c);
+                    let ms2 = decisions(e.moves(&c));
                     if ms2.is_empty() {
                         Vec::new()
                     } else {
                         let v2 = c.view();
-                        let b2 = feature::board(&v2);
+                        let b2 = feature::briefed(&feature::board(&v2), &w);
                         ms2.iter()
                             .map(|m| match m {
                                 Move::Press(verb) => feature::pair(&b2, &feature::mv(&v2, *verb)),
@@ -281,8 +360,13 @@ mod q {
                             .collect()
                     }
                 };
+                let after = feature::board(&c.view());
+                let inert = after == b[..feature::BOARD] && !e.finished;
                 let phi2 = if e.finished { 0.0 } else { potential(&c) };
-                let shaped = GAMMA * phi2 - phi - STEP_COST;
+                let shaped = GAMMA * phi2
+                    - phi
+                    - STEP_COST
+                    - if inert { NOTHING_HAPPENED } else { 0.0 };
                 phi = phi2;
                 trail.push((chosen, next, shaped));
                 if e.finished {
@@ -292,7 +376,7 @@ mod q {
 
             // The fight, once, at the end - and every step in the episode is
             // credited with it through the discount.
-            let r = score(&c, rung);
+            let r = score(&c, rung, &w);
             seen += 1;
             if r > 0.0 {
                 won += 1;
@@ -363,7 +447,7 @@ mod q {
                 // task gets harder underneath the number and a flat curve can
                 // be real progress or none at all. This is the same twenty
                 // situations every time.
-                let (ewon, eitems, esteps, espread) = evaluate(&frozen);
+                let (ewon, eitems, esteps, espread) = evaluate(&frozen, &eval_brief);
                 println!(
                     "  episode {:>5}   eps {:.2}   buffer {:>6}   training {:>3}/{:<4}   \
                      EVAL won {:>2}/20  items {:>4.1}  steps {:>5.1}  spread {:>6.3}",
@@ -397,8 +481,30 @@ mod q {
         println!("wrote runs/quartermaster.txt");
     }
 
+    /// The moves a learner actually chooses between.
+    ///
+    /// **Rotations are not decisions here.** Q3's diagnosis: the control does
+    /// not choose to rotate, it rotates to *look*, and looking is free because
+    /// it undoes it. A learner has no undo, so every rotation is a real step
+    /// against a real budget, and it must discover that rotate-then-place is a
+    /// composite whose value is entirely in the second half. It is a departure
+    /// from strict action-fidelity - a person presses twice - but the board it
+    /// produces is identical and a proof written from it still replays.
+    fn decisions(ms: Vec<Move>) -> Vec<Move> {
+        let kept: Vec<Move> = ms
+            .iter()
+            .copied()
+            .filter(|m| !matches!(m, Move::Press(Verb::Rotate { .. } | Verb::RotateLocked { .. })))
+            .collect();
+        if kept.is_empty() {
+            ms
+        } else {
+            kept
+        }
+    }
+
     /// Twenty fixed situations, played greedily. The learning curve.
-    fn evaluate(net: &gearmaster_trades::QNet) -> (usize, f64, f64, f64) {
+    fn evaluate(net: &gearmaster_trades::QNet, w: &Brief) -> (usize, f64, f64, f64) {
         let (mut won, mut items, mut steps) = (0usize, 0usize, 0usize);
         // How far apart the best and worst moves look. A network with nothing
         // to say scores every move the same, and that is a different failure
@@ -410,12 +516,12 @@ mod q {
             let (mut c, rung) = situation(0xE_A100 + i * 7919, rung);
             let mut e = Packing::new(BUDGET);
             loop {
-                let ms = e.moves(&c);
+                let ms = decisions(e.moves(&c));
                 if ms.is_empty() {
                     break;
                 }
                 let v = c.view();
-                let b = feature::board(&v);
+                let b = feature::briefed(&feature::board(&v), w);
                 let pairs: Vec<[f32; PAIR]> = ms
                     .iter()
                     .map(|m| match m {
@@ -437,7 +543,7 @@ mod q {
             }
             let (_, _, n, _) = c.figures();
             items += n;
-            if score(&c, rung) > 0.0 {
+            if score(&c, rung, w) > 0.0 {
                 won += 1;
             }
         }

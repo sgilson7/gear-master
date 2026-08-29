@@ -13,7 +13,7 @@
 
 use gearmaster_agent::hands;
 use gearmaster_console::view::POOLS;
-use gearmaster_console::{Console, Difficulty, Mode};
+use gearmaster_console::{Console, Mode};
 use gearmaster_engine::piece::{PieceDef, CATALOG};
 use gearmaster_engine::rng::Rng;
 use gearmaster_engine::run::Run;

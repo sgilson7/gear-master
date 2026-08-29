@@ -10,6 +10,7 @@
 //! temporal-difference method assigns credit across that. Thirty to sixty
 //! decisions and two to five hundred are horizons that work.
 
+pub mod brief;
 pub mod env;
 pub mod feature;
 pub mod partition;

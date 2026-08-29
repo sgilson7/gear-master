@@ -13,6 +13,8 @@ use gearmaster_engine::piece::PieceId;
 use gearmaster_engine::run::Run;
 use gearmaster_engine::share;
 use gearmaster_trades::env::{Move, Packing};
+use gearmaster_lab::themes;
+use gearmaster_trades::brief::Brief;
 use gearmaster_trades::QNet;
 use std::time::Instant;
 
@@ -62,6 +64,26 @@ fn main() {
         }
     );
     let Some(net) = net else { return };
+    // Which brief the repack benchmark is run under. `QCHECK_THEME=Warden`
+    // runs it under a held-out theme; no variable means the unconditioned
+    // control, which is thirteen zeros.
+    let brief = match std::env::var("QCHECK_THEME").ok() {
+        Some(want) => {
+            let t = themes::ALL
+                .iter()
+                .copied()
+                .find(|t| themes::name(*t).eq_ignore_ascii_case(&want))
+                .expect("a theme the engine has");
+            println!(
+                "  brief: {}{}\n",
+                themes::name(t),
+                if themes::HELD_OUT.contains(&t) { " (held out of training)" } else { "" }
+            );
+            themes::brief(t)
+        }
+        None => Brief::NONE,
+    };
+    let brief = &brief;
     println!(
         "{:<10} {:>6} {:>7} {:>7} {:>8} {:>9} {:>8}",
         "tray", "pieces", "items", "steps", "cleared", "median", "wall"
@@ -101,10 +123,13 @@ fn main() {
                     .collect();
                 // `Done` is scored as the all-zero action, the same way the
                 // trainer scores it.
-                let b = gearmaster_trades::feature::board(&v);
+                let b = gearmaster_trades::feature::briefed(
+                    &gearmaster_trades::feature::board(&v),
+                    brief,
+                );
                 let done_q =
                     net.q(&gearmaster_trades::feature::pair(&b, &[0.0; gearmaster_trades::feature::MOVE]));
-                let best = net.best(&v, &verbs);
+                let best = net.best(&v, &verbs, brief);
                 let m = match best {
                     Some((i, q)) if q >= done_q => Move::Press(verbs[i]),
                     _ => Move::Done,

@@ -8,12 +8,18 @@
 use gearmaster_console::view::{BoardPools, Piece, View};
 use gearmaster_console::{SlotKind, Verb};
 
+use crate::brief::{Brief, BRIEF};
+
 /// How many numbers describe a board.
 pub const BOARD: usize = 28;
 /// How many describe one candidate move.
 pub const MOVE: usize = 26;
 /// A state-action pair, which is what a Q network scores.
-pub const PAIR: usize = BOARD + MOVE;
+///
+/// The brief rides on the state side: it is part of the situation, not part of
+/// the move, because the same move is worth different amounts depending on
+/// what was asked for. That is the whole claim Q8 measures.
+pub const PAIR: usize = BOARD + BRIEF + MOVE;
 
 fn s(v: i32, by: f32) -> f32 {
     (v as f32 / by).clamp(-4.0, 4.0)
@@ -140,10 +146,18 @@ pub fn mv(v: &View, m: Verb) -> [f32; MOVE] {
     f
 }
 
+/// The board, plus what was asked for.
+pub fn briefed(b: &[f32; BOARD], w: &Brief) -> [f32; BOARD + BRIEF] {
+    let mut f = [0.0f32; BOARD + BRIEF];
+    f[..BOARD].copy_from_slice(b);
+    f[BOARD..].copy_from_slice(&w.0);
+    f
+}
+
 /// The pair a Q network scores.
-pub fn pair(b: &[f32; BOARD], m: &[f32; MOVE]) -> [f32; PAIR] {
+pub fn pair(b: &[f32; BOARD + BRIEF], m: &[f32; MOVE]) -> [f32; PAIR] {
     let mut out = [0.0f32; PAIR];
-    out[..BOARD].copy_from_slice(b);
-    out[BOARD..].copy_from_slice(m);
+    out[..BOARD + BRIEF].copy_from_slice(b);
+    out[BOARD + BRIEF..].copy_from_slice(m);
     out
 }

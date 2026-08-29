@@ -366,7 +366,12 @@ impl Console {
 
 use gearmaster_engine::piece::{walk_actions, Action, Resource, Trigger};
 
-fn pools_of(def: &'static gearmaster_engine::piece::PieceDef) -> crate::view::Pools {
+/// What one catalogue piece moves, without a run to hold it.
+///
+/// Public because the brief a themed packer is given is the *average* of this
+/// over the pieces that theme allows, and the thing computing that average
+/// must not be a second implementation of this walk.
+pub fn pools_of(def: &'static gearmaster_engine::piece::PieceDef) -> crate::view::Pools {
     let mut p = crate::view::Pools::default();
     // The stat block's own pools are banked every activation - which is what
     // `Stats::parts_when` classifies as `OnActivation`, and what T2 moved

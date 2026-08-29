@@ -12,6 +12,7 @@
 //! links no framework** and `cargo test --workspace` compiles none of it.
 //! Training is privileged; acting is not.
 
+use crate::brief::Brief;
 use crate::feature::{self, PAIR};
 use gearmaster_console::view::View;
 use gearmaster_console::Verb;
@@ -85,15 +86,15 @@ impl QNet {
         out
     }
 
-    /// Score every legal move against this board.
-    pub fn rank(&self, v: &View, moves: &[Verb]) -> Vec<f32> {
-        let b = feature::board(v);
+    /// Score every legal move against this board, for a given brief.
+    pub fn rank(&self, v: &View, moves: &[Verb], w: &Brief) -> Vec<f32> {
+        let b = feature::briefed(&feature::board(v), w);
         moves.iter().map(|&m| self.q(&feature::pair(&b, &feature::mv(v, m)))).collect()
     }
 
     /// The best legal move, and what it is worth.
-    pub fn best(&self, v: &View, moves: &[Verb]) -> Option<(usize, f32)> {
-        let scores = self.rank(v, moves);
+    pub fn best(&self, v: &View, moves: &[Verb], w: &Brief) -> Option<(usize, f32)> {
+        let scores = self.rank(v, moves, w);
         scores
             .iter()
             .copied()

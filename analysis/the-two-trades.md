@@ -453,3 +453,89 @@ precisely the four-step credit assignment a goal-conditioned learner exists to
 do, and the reason Q3's miss matters - not because the packer is the point, but
 because the whole architecture was to be trained together and one half of it
 did not arrive.
+
+---
+
+# Q7 — Generations, and the free action
+
+Read off the working tree at `f672971`+, three training runs of 2,200–2,500
+episodes each, ~30 minutes apiece on the M2 Max.
+
+Q7 was to run the generation loop of §7 — freeze one agent, train the other,
+swap. It did not get that far, because the thing that has to be true first is
+that **the quartermaster learns anything at all**, and Q3's gate said it does
+not. So Q7 spent itself on Q3's own diagnosis, and the result is a negative
+one worth more than the milestone would have been.
+
+## Q7.1 What Q3 said to do, and what happened when it was done
+
+Q3's record named the fix:
+
+> **A rotate-and-place composite**, so a placement carries its rotation. It is
+> a departure from strict action-fidelity — a person presses twice — but the
+> *board* it produces is identical, and a proof written from it still replays.
+> This is the one worth doing first.
+
+Done: `Rotate` and `RotateLocked` filtered out of the learner's action space
+in `qpack::decisions`. 2,500 episodes. The result:
+
+| what it pressed | preset | owner | friend | perfect |
+|---|---:|---:|---:|---:|
+| **Pin** | **102/120** | **341/420** | **410/420** | **339/360** |
+| Place | 13 | 46 | 7 | 8 |
+| everything else | 5 | 33 | 3 | 13 |
+
+The policy did not learn to place. It moved onto **`Pin`**, which is the next
+free action — pinning a shop shelf changes no board — and pressed it 85% of
+the time. Taking `Rotate` away moved the collapse one action along.
+
+## Q7.2 The real fault, which is a scale and not a verb
+
+A no-op cost `STEP_COST = 0.01`. The Q values at the end of training were
+spread over **1.70**. So the ordering between a free action and a real one was
+noise by a factor of a hundred and seventy, and *which* free action the policy
+found was an accident of initialisation. Removing verbs one at a time cannot
+fix that; there is always another cheapest key.
+
+So the charge was made generic and made to read the board rather than the
+verb: **an action whose feature vector comes back identical costs
+`NOTHING_HAPPENED = 0.25` on top**, and `STEP_COST` went to 0.03. That catches
+every free action there is, including ones a later mission adds.
+
+| | ep 400 | ep 800 | ep 1200 | ep 1600 |
+|---|---:|---:|---:|---:|
+| Q3, as shipped | items 0.1 · won 0 | 0.3 · 1 | 0.6 · 0 | 0.9 · 2 |
+| Q7, rotations out | 0.3 · 0 | 0.6 · 2 | 0.6 · 1 | 0.8 · 2 |
+| Q7, + inert charge | 0.8 · 0 | 0.6 · 1 | 0.6 · 1 | 0.6 · 1 |
+
+**Three runs, one trajectory.** Items assembled per episode plateaus below one
+and the win rate sits at one or two in twenty in all three. The fix removed
+the *symptom* — no run since presses one key 85% of the time — and did not
+move the gate.
+
+## Q7.3 The gate, and what it now means
+
+Q3's gate — the learned packer at or above the control's 48/50 and 85.7%
+balanced — is **missed**, and Q7 is the second milestone to miss it. What has
+changed is that the diagnosis is no longer "it needs more training". Three
+runs at different action spaces and different step costs produce the same
+curve, which is the signature of a **representation** that cannot express the
+answer rather than a search that has not found it.
+
+The specific suspicion, stated so a later mission can test it: a placement is
+scored as `(board, move)` where the move carries *where* and *what*, and the
+thing that makes a placement good is whether the piece **completes a recipe**
+with pieces already seated. `feature::mv` carries `feeds`/`fed` — whether the
+piece answers a pool the board starves for — and carries nothing about
+adjacency to an unfinished item. The control does not have this problem
+because it enumerates seats and asks the engine whether an item assembled.
+
+That is a feature, not a hyper-parameter, and it is the honest next thing.
+
+## Q7.4 What was committed anyway
+
+Both fixes are in `qpack.rs` and both are right independent of the gate:
+`decisions` because a rotation genuinely is not a decision, and
+`NOTHING_HAPPENED` because a free action genuinely should cost more. A run
+that presses `Pin` four hundred times is uninformative about anything else,
+and no run since does.
