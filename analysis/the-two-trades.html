@@ -348,7 +348,7 @@
     margin: 0;
   }
   ol.stages > li::before {
-    content: "A" counter(stage);
+    content: "Q" counter(stage);
     font-family: var(--f-mono);
     font-size: .8rem;
     font-weight: 600;
@@ -375,6 +375,32 @@
     line-height: 1.5;
   }
   .gate b { color: var(--accent); font-weight: 600; }
+
+  td.ok-cell, td.crit-cell {
+    font-family: var(--f-mono);
+    font-size: .74rem;
+    white-space: nowrap;
+  }
+  td.ok-cell   { color: var(--ok);   }
+  td.crit-cell { color: var(--crit); }
+
+  /* What the gate actually said, once it had been run. */
+  .out {
+    font-family: var(--f-mono);
+    font-size: .73rem;
+    line-height: 1.55;
+    margin: .45rem 0 0;
+    padding: .3rem 0 .3rem .7rem;
+    border-left: 2px solid var(--rule);
+    color: var(--muted);
+  }
+  .out b { font-weight: 600; }
+  .met    { border-left-color: var(--ok);   }
+  .met b  { color: var(--ok);   }
+  .miss   { border-left-color: var(--crit); }
+  .miss b { color: var(--crit); }
+  .part   { border-left-color: var(--warn); }
+  .part b { color: var(--warn); }
 
   /* ------------------------------------------------------------ decisions */
 
@@ -479,20 +505,106 @@
 <div class="wrap">
 
 <header class="masthead">
-  <p class="eyebrow">Gear Master · Mission spec · branch <code>the-two-trades</code></p>
+  <p class="eyebrow">Gear Master · Mission record · merged to <code>main</code></p>
   <h1>The Two Trades</h1>
   <p class="standfirst">
     A quartermaster who buys and packs, a pathfinder who walks and answers, and
-    both of them learned. The second one is told where to go — which is what turns
-    an agent that plays well into a solver that can prove a door is reachable.
+    both of them learned. One of the two arrived. This page is the plan it was
+    executed from, with what each milestone actually returned written underneath
+    it — including the three that missed, which are one miss wearing three hats.
   </p>
   <div class="status-strip">
-    <div><span>Written against</span><b>a8f8d19 · 2026-08-29</b></div>
-    <div><span>Milestones</span><b>Q0 – Q9</b></div>
-    <div><span>Ships</span><b>Nothing until Q9</b></div>
-    <div><span>To beat</span><b>SCR(Francis) 40.6% · 48/50 repack</b></div>
+    <div><span>Merged</span><b>d755efa · 2026-08-29</b></div>
+    <div><span>Gates</span><b>6 met · 3 missed · 1 partial</b></div>
+    <div><span>Doors reached</span><b>79% · no door shown unreachable</b></div>
+    <div><span>Creatures dressed</span><b>4 of 5 accepted</b></div>
   </div>
 </header>
+
+<!-- ============================================================ 0 -->
+<section>
+  <h2><span class="num">The result</span>One trade arrived</h2>
+  <p class="deck">
+    The pathfinder learned. The quartermaster did not. Everything downstream of
+    the packer was built and works anyway, because each piece was specified
+    against a <em>frozen</em> packer and the written control is a legitimate
+    generation zero.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>What was asked for</th><th>What it did</th><th></th></tr></thead>
+    <tbody>
+      <tr><td>A solver that proves a door reachable by <em>playing</em> to it</td>
+          <td><b>79%</b> of doors, <b>68%</b> of branches, 5 towns of 6, 5 dungeons of 7</td>
+          <td class="ok-cell">arrived</td></tr>
+      <tr><td>A packer that learns to build around pools</td>
+          <td>0.8 items assembled in 40 presses, against a control that packs 48/50</td>
+          <td class="crit-cell">did not</td></tr>
+      <tr><td>A packer that takes a theme</td>
+          <td>worth fidelity on 4 of 8 trained themes, <b>nothing</b> on the 2 held out</td>
+          <td class="crit-cell">did not</td></tr>
+      <tr><td>Creature boards from trained play</td>
+          <td><b>4 of 5</b> county creatures accepted, all 5 nearer the line than what they wear</td>
+          <td class="ok-cell">arrived</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>The three misses are one miss</h3>
+  <p>
+    Q3, Q7 and Q8 all fail, and they fail for the same reason: the quartermaster
+    does not learn to pack. Each obviously-wrong thing was removed and then
+    measured rather than assumed —
+  </p>
+  <ul>
+    <li><b>Rotations are not decisions.</b> The control does not choose to rotate,
+      it rotates to <em>look</em>, and looking is free because it undoes it.
+      Removed. The policy moved onto <code>Pin</code> instead.</li>
+    <li><b>A free action must cost more than a real one.</b> A no-op cost 0.01
+      against Q values spread over 1.70, so free-versus-real was noise by a
+      factor of 170. Charged generically, on what the <em>board</em> does rather
+      than what the verb is called. The symptom went; the curve did not move.</li>
+    <li><b>A placement's value is whether it finishes an item</b>, and the move
+      features could not say so. They can now — and the feature was checked
+      against the engine rather than argued for: press the key, count the items.
+      <b>100% recall at 87% precision.</b> The curve still did not move.</li>
+  </ul>
+  <p>
+    So the next suspect is not the features, and the handoff names three that the
+    measurements support — the exploration cannot <em>find</em> a completion
+    among five hundred legal placements a step; the shaping is too quiet against
+    the noise; the forty-press budget may be under what the job takes. Each is
+    one constant or one sampler, not a rewrite.
+  </p>
+
+  <h3>What the mission found in the shipped game</h3>
+  <p>
+    A harness written to <em>use</em> the acceptance gate ended up auditing it.
+    <code>pack_francis</code> judges a proposed board against the creature it
+    would replace — and both sides of that comparison can be off the line
+    together, which is what was happening. Asked about the five county creatures
+    as they stand today, at each creature's own band:
+  </p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Creature</th><th>Band</th><th>The line</th><th>As it ships</th><th>Dressed from a run</th></tr></thead>
+    <tbody>
+      <tr><td>THE SURVEYOR</td><td>36</td><td>14.7s</td><td>accepted, 0.186 off</td><td><b>accepted, 0.050</b></td></tr>
+      <tr><td>THE DROVER</td><td>43</td><td>18.2s</td><td class="crit-cell">off-curve, 0.541</td><td><b>accepted, 0.009</b></td></tr>
+      <tr><td>THE DRIVEN</td><td>43</td><td>18.2s</td><td>accepted, 0.233 off</td><td><b>accepted, 0.119</b></td></tr>
+      <tr><td>THE COMMISSIONER</td><td>49</td><td>21.1s</td><td class="crit-cell">off-curve, 0.563</td><td><b>accepted, 0.042</b></td></tr>
+      <tr><td>THE PARISH</td><td>51</td><td>22.1s</td><td class="crit-cell">off-curve, 0.630</td><td>off-curve, 0.358</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>
+    The band is 0.300. THE DROVER lands <b>0.009</b> off a line of 18.2 seconds
+    and reads as a Striker at <b>1.00</b>, which is as good an answer as this
+    gate gives. The blocks are in <code>analysis/dressed/</code> and nothing was
+    pasted into <code>combat.rs</code> — the owner reads every diff.
+  </p>
+</section>
 
 <!-- ============================================================ 1 -->
 <section>
@@ -634,6 +746,7 @@
       <p>Partition <code>Verb</code> between the two agents, exhaustively and
         disjointly. Measure the real decision counts at each level.</p>
       <p class="gate"><b>Gate:</b> the partition lint passes — every verb belongs to exactly one agent, nothing lost, nothing shared.</p>
+      <p class="out met"><b>MET.</b> 16 verbs apiece. Decision horizons measured at 13 and 204 — the number the whole design rests on, because 195,273 key-presses is not an episode and 204 decisions is.</p>
     </div></li>
     <li><div>
       <h4>The representation</h4>
@@ -641,6 +754,7 @@
         it consumes</b>, and a board by the match between them. Not learning — the
         milestone that decides whether learning can work.</p>
       <p class="gate"><b>Gate:</b> a linear probe over the features predicts "this board's damage came from a conditional" better than chance. If it cannot, nothing after this matters.</p>
+      <p class="out met"><b>MET, on the second try.</b> First probe scored +2.2 against a gate of 0.65 balanced. The bug was real and in the feature: pools were summed over every <em>seated</em> piece, and a loose piece pays its stats and never acts. Counting only pieces inside assembled items: <b>+5.7 lift, 85.7% balanced</b>.</p>
     </div></li>
     <li><div>
       <h4>Two environments</h4>
@@ -648,12 +762,14 @@
         situation across the whole ladder, using <code>skip_to</code>, which is
         training-only and unreachable from any agent.</p>
       <p class="gate"><b>Gate:</b> horizons inside 60 and 600; both replay identically from a seed.</p>
+      <p class="out met"><b>MET.</b> 1.40 ms an episode; 10<sup>6</sup> steps in 43 s. Both replay byte-identically.</p>
     </div></li>
     <li><div>
       <h4>The quartermaster learns</h4>
       <p>DQN over the factored action, masked to the menu. Trained against sampled
         situations so it is not a rung-10 specialist.</p>
       <p class="gate"><b>Gate:</b> ≥ <b>48/50</b> from the owner's tray and <b>49/50</b> from the friend's — the hand-written packer's own numbers.</p>
+      <p class="out miss"><b>MISSED — 8/50.</b> Learning is real: Q-value spread rose 0.15 → 1.90. But the policy pressed <code>Rotate</code> 400 times in 420. Rotating is free because you can undo it, and a learner has no undo.</p>
     </div></li>
     <li><div>
       <h4>Pools, proven</h4>
@@ -661,36 +777,42 @@
         assemble it where the heuristic does not? Plus a census of pool-matching
         across a hundred boards from each.</p>
       <p class="gate"><b>Gate:</b> a measured difference, either way. "The learned packer does not find builds either" is a publishable result and would redirect the mission.</p>
+      <p class="out met"><b>PREMISE CONFIRMED.</b> Handed a planted tray of producers and one consumer, the written control assembles the pair <b>1 time in 12</b>, and strands <b>68%</b> of everything its boards produce. The thing the user described — buy the nature pieces, then find the spell that eats nature — is exactly what the repo's packer cannot do.</p>
     </div></li>
     <li><div>
       <h4>The pathfinder learns</h4>
       <p>Goal-conditioned DQN over the road, calling the <em>frozen</em> Q3
         checkpoint. Curriculum from near goals to far ones.</p>
       <p class="gate"><b>Gate:</b> SCR(Francis) ≥ <b>40.6%</b>, or a written finding.</p>
+      <p class="out met"><b>MET.</b> 0% → <b>40.6%</b>. Six verbs were found that the control owned and had never once pressed — the doubling fountain, barter, sell, reroll, clearing a slot, and the pedestal.</p>
     </div></li>
     <li><div>
       <h4>The validity solver</h4>
       <p>The product. Every door tried as an <b>explicit goal</b> rather than met by
         accident, and every gap classified in the five classes.</p>
       <p class="gate"><b>Gate:</b> coverage above 70% offered and 58% branched, and <b>all seven dungeons entered</b> — the specific failure this was asked to fix.</p>
+      <p class="out part"><b>PARTLY MET.</b> Coverage <b>79% of doors and 68% of branches</b>, above both asks; towns 5 of 6; dungeons <b>5 of 7</b> against a gate of seven. Both misses have named causes: one hidden town blocks one dungeon and four doors, and the other sits behind an orb no run acquires. <b>No door in this game has been shown unreachable.</b></p>
     </div></li>
     <li><div>
       <h4>Generations</h4>
       <p>Unfreeze. Retrain the quartermaster on the trays the pathfinder actually
         produces, then the pathfinder on the new quartermaster.</p>
       <p class="gate"><b>Gate:</b> each generation ≥ the last on the held-out 64 seeds, or the mission stops at the best and says so.</p>
+      <p class="out miss"><b>MISSED, and it never reached generations.</b> Q3's own prescribed fix was applied — rotations out of the action space — and the policy moved straight onto <code>Pin</code>, 410 presses of 420. The fault is a scale, not a verb: a no-op cost 0.01 while the Q values were spread over 1.70. Charging generically for an action that leaves the board identical removed the symptom and did not move the curve. Three runs, one trajectory.</p>
     </div></li>
     <li><div>
       <h4>Themes</h4>
       <p>Train on eight themes, hold two out. What makes the quartermaster usable as
         the enemy packer.</p>
       <p class="gate"><b>Gate:</b> held-out themes beat unconditioned, measured by the fidelity meter under the acceptance gate.</p>
+      <p class="out miss"><b>MISSED — +0.000 and −0.043.</b> The brief is built, checked and wired: descriptive rather than one-hot, because a held-out class is a coordinate that was zero in every gradient and a one-hot could not have passed no matter how the training went. It is worth fidelity on four of the eight themes it trained on and nothing on the two it did not. Memorisation, not generalisation — which is Q3's miss again, since a packer assembling 0.8 items in forty presses has not earned a second question.</p>
     </div></li>
     <li><div>
       <h4>The harvest, and the record</h4>
       <p>Creature boards from trained play — the five county creatures that still
         wear borrowed ones.</p>
       <p class="gate"><b>Merge</b> into main, and the wasm publish with it. The only point where the game changes, and the only one needing a diff the owner has read.</p>
+      <p class="out met"><b>MERGED AND PUBLISHED.</b> And it found something: nothing in the repo had ever asked the acceptance gate about a creature <em>as it ships</em>, because <code>pack_francis</code> judges a proposal against the creature it would replace and both sides can be off the line together. <b>Three of THE HUNDRED's five borrowed boards are outside the band.</b> Boards harvested from runs that were actually played put four of the five back inside it, and all five nearer the line. Nothing was written into <code>combat.rs</code>.</p>
     </div></li>
   </ol>
 </section>
