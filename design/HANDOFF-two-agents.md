@@ -297,6 +297,53 @@ each have one.
    done** — and using it means the granular rewards cannot change what the best
    plan *is*, only how fast it is found. That is worth more than it costs.
 
+**Repeatable actions, and why a step must key on the outcome.**
+
+The question "is repeatability an issue" was asked and measured, and the
+answer is no for the case that prompted it — but the survey is worth carrying
+because it is the sharpest argument for the one-shot rule above.
+
+Doors that appear at more than one town, which is the "same name, different
+place" set:
+
+| door | towns | costs the visit | scope |
+|---|---:|---|---|
+| `town-county` | **6** | no | per town — six trips down |
+| `town-chapel` | 3 | yes | per town |
+| `town-pub` | 3 | yes | per town |
+| `town-factory` | 3 | yes | per town |
+| `town-shop` | 3 | yes | per town |
+| `town-pedestal` | 2 | no | **door per town, destination once a run** |
+
+The other twelve doors belong to one town each; the three hidden towns carry
+their own.
+
+**The county is already repeatable and already free.** `TripSource::Town(id)`
+is keyed by town id, `seats()` returns `TOWNS.len()`, and `costs_the_visit()`
+is false for `County` — so six trips are available and none of them spends a
+town's one action. Nothing needs changing for it.
+
+**The binding constraint is the visit, not the door.** A town is one action and
+`towns_seen` means one visit, so chapel, pub, factory and shop are repeatable
+across three towns while each costs that town's only action. County and
+pedestal are the two exceptions, which is exactly why they are the two that
+feel repeatable.
+
+**The pedestal is the asymmetry to watch.** The door is at two towns and costs
+nothing; `destinations_visited` is shared across both, deliberately — *"the
+second exists so a run whose orbs arrived late can still spend them, not so a
+patient run spends them twice."* A repeatable action with non-repeatable
+outcomes.
+
+So: **a step keys on the outcome, never on the action.** "Visit the chapel" is
+satisfiable three times and "go down into the county" six, and the county one
+is free, which makes it the cheapest farm in the game. Piety is the case that
+proves this is not pedantry: stacking Piety across three chapels is *meant* to
+be repeatable and is worth doing, so a step reading "chapel visited" would both
+farm and mislead, while one reading "Piety at least n" is honest about what the
+run actually needs. `Requirement::Counter { what, at_least }` already says that
+second thing.
+
 **And the named models get their argument back.** §3.5 wants
 `pathfinder_unwound`, `pathfinder_threshold` and `pathfinder_drover` to be
 three models rather than one copied three times. Three *specs* with different
@@ -383,8 +430,34 @@ different from one another.
 
 ### C7 — Named pathfinders ▲
 
-One harness, three specs, three artefacts: `pathfinder_unwound`,
-`pathfinder_threshold`, `pathfinder_drover`.
+One harness, three specs, three artefacts. **`pathfinder_threshold` is first**
+and is the owner's chosen target: the class at the end of the Manse chain.
+
+The chain, endpoints confirmed against the tables — **derive the middle rather
+than trusting this list**:
+
+1. the rumour `A Word About the Wrong Stars` opens **THE ASTRONOMER**
+   (`at: 28`, window from 17)
+2. a choice there hands over `A Word About the Cellar`
+3. that word opens **THE LOCKED GATE** (`at: 40`, window from **22**), whose
+   `Use the word` choice is `Outcome::RevealTown("the-manse")`
+4. **THE MANSE** is `Unlock::Hidden` and stands `after: 24`
+5. `Action::CellarDoor` enters `the-threshold`
+6. clearing it pays `reward: "Threshold-Sighted"`, plus `UnlockInsight` and
+   the flag `threshold-cleared`
+
+**There is a deadline in the middle of that**, and it is why this is a good
+first target rather than an easy one: the reveal window opens at rung 22 and
+the Manse gate stands after rung 24, so steps 1-3 have to be finished inside a
+narrow band or the town is never offered. `town_between` filters a hidden town
+by `towns_revealed` *and* by the rung gap, so a late reveal is a town you walk
+past. **Verify that against `completable.rs` before training anything** — it is
+the file that audits exactly this, and if the window is tighter than it looks
+the spec has to say so.
+
+The class itself is `ClassPower::WrongSense(60)`, which is the same trade THE
+WRONG SENSE crest makes — worth knowing, because a pathfinder that wins this
+chain hands the quartermaster a board that no longer deals ordinary damage.
 
 * **Gate:** each reaches its own objective more often than the other two do,
   which is the only thing that makes them three models rather than one model
