@@ -110,6 +110,16 @@ impl Console {
         Console { run, history: Vec::new(), seed, last: None }
     }
 
+    /// The board as a fight would run it.
+    ///
+    /// Privileged by its return type - `ItemProfile` is an engine type, so a
+    /// crate that cannot name the engine cannot call this. It exists for a
+    /// harness that wants to ask what a board the pilot built can do, which is
+    /// a question the pilot itself must never be able to ask.
+    pub fn board_for_scoring(&self) -> (Stats, Vec<gearmaster_engine::loadout::ItemProfile>) {
+        (self.run.player_stats(), self.run.combat_items())
+    }
+
     /// Hand the run back. Privileged for the same reason `standing_in` is:
     /// it is an engine type, so the pilot cannot ask for one.
     pub fn into_run(self) -> Run {
@@ -635,6 +645,49 @@ impl Console {
     }
 
     // ---- the screen ------------------------------------------------------
+
+    /// The four figures a board is judged by, without drawing the rest of the
+    /// screen.
+    ///
+    /// `view()` builds every grid, every tray entry and every shelf, which is
+    /// 51 µs - and the hands read a board's worth twice for every seat they
+    /// try, several hundred times a rung. This is the same numbers off the
+    /// same accessors, and it is on the screen for the same reason they are:
+    /// the county tab draws the figures, every slot draws whether it
+    /// assembled, and the character sheet is the character sheet.
+    ///
+    /// It is a **shortcut through the drawing**, not a shortcut past it, and
+    /// `tests/view.rs` holds the two to the same answer.
+    pub fn figures(&self) -> (view::Figures, Stats, usize, usize) {
+        let f = self.run.county_figures();
+        let mut items = 0;
+        let mut filled = 0;
+        for k in SlotKind::ALL {
+            let slot = self.run.loadout.slot(k);
+            // Cells, not pieces: a piece is a polyomino and the grid is the
+            // thing that runs out. Counting pieces here read 1 where the
+            // screen read 3, which the test caught on its first run.
+            filled += slot
+                .pieces()
+                .iter()
+                .map(|&id| self.run.registry.def(id).cells.len())
+                .sum::<usize>();
+            items += self.run.report(k).items.iter().filter(|i| i.assembled).count();
+        }
+        (
+            view::Figures {
+                flow: f.flow,
+                physical_dps: f.physical_dps,
+                magic_dps: f.magic_dps,
+                armour_ps: f.armour_ps,
+                fastest_ms: f.fastest_ms,
+                curse_resist: f.curse_resist,
+            },
+            self.run.player_stats(),
+            items,
+            filled,
+        )
+    }
 
     pub fn view(&self) -> View {
         self.build_view()

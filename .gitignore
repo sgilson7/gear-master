@@ -2,3 +2,21 @@
 **/*.rs.bk
 .DS_Store
 /dist
+
+# THE APPRENTICE's working files.
+#
+# A proof is `(seed, mode, difficulty, [verb])` and it is as long as the run it
+# proves: a fifty-three-rung run is forty-five thousand presses even after the
+# trial seats cancel out, which is half a megabyte of keys. The spec's "a few
+# KB each" was written when nothing had played a run.
+#
+# So **one** proof is committed - the deepest, as the mission's evidence - and
+# the rest are made on demand by `--bin proof`. They are reproducible from
+# their own headers, which is what makes them not-source.
+/crates/*/target
+/artifacts
+/runs
+*.mpk
+*.safetensors
+analysis/proofs/*.proof
+!analysis/proofs/C434E4A68C5906EE-grinder-medium.proof

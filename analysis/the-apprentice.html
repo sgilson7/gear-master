@@ -446,10 +446,10 @@
     hand.
   </p>
   <div class="status-strip">
-    <div><span>Read off</span><b>020bc7c · 2026-08-28</b></div>
+    <div><span>Read off</span><b>a8f8d19 · 2026-08-28</b></div>
     <div><span>Machine</span><b>M2 Max · 8P + 4E · 32 GB</b></div>
     <div><span>Milestones</span><b>A0 – A9</b></div>
-    <div><span>Status</span><b>A0–A3 done · 4 decisions open</b></div>
+    <div><span>Status</span><b>A0–A8 · trained · watchable</b></div>
   </div>
 </header>
 
@@ -518,14 +518,14 @@
 
   <div class="scroll">
     <table>
-      <caption>The ground, before anything is built</caption>
+      <caption>The ground at A0 — and where A4 left it</caption>
       <thead>
         <tr><th>What the mission measures</th><th>Value today</th><th>Where the number comes from</th></tr>
       </thead>
       <tbody>
-        <tr><td class="rowlabel">Runs ever played by anything in this repo</td><td class="zero">0</td><td>no environment exists</td></tr>
-        <tr><td class="rowlabel">Door coverage — offered / answered / branched</td><td class="zero">0 / 0 / 0</td><td>follows from the row above</td></tr>
-        <tr><td class="rowlabel">Seed-clear rate, every target and mode</td><td class="zero">0</td><td>proved only by <code>force_win</code></td></tr>
+        <tr><td class="rowlabel">Runs ever played by anything in this repo</td><td class="zero">0</td><td><b>A4: 128 runs, 64 seeds, both modes</b></td></tr>
+        <tr><td class="rowlabel">Door coverage — offered / answered / branched</td><td class="zero">0 / 0 / 0</td><td><b>A5: 70% / 70% / 58%</b> over 128 runs</td></tr>
+        <tr><td class="rowlabel">Seed-clear rate, every target and mode</td><td class="zero">0</td><td><b>A7: R10 100%, R25 79.7%, FRANCIS 40.6%</b> (Grinder)</td></tr>
         <tr><td class="rowlabel">Packer, seconds a creature</td><td class="quoted">8 s / 59 s / 242 s</td><td><b>measured at A0</b> — Bone Archer, Cog Priest, Francis</td></tr>
         <tr><td class="rowlabel">Packer, theme fidelity</td><td class="zero">no meter</td><td>nothing measures a fight against its theme</td></tr>
         <tr><td class="rowlabel">Creatures the packer can author</td><td class="zero">not Francis</td><td><b>measured at A0</b> — best of 300 candidates was a loss</td></tr>
@@ -969,6 +969,481 @@
   </div>
 </section>
 
+<!-- ============================================================ 4.8 -->
+<section>
+  <h2><span class="num">A4 · found</span>Nine of sixteen runs die on the same creature</h2>
+  <p class="deck">
+    The pilot plays a run forward from 28 gold and an oak handle. The first
+    sweep produced a clear rate — and a wall.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>Where a run stopped, and what its board could still do</caption>
+      <thead><tr><th>Seed</th><th class="n">rung</th><th class="n">items</th><th class="n">gold</th><th class="n">ladder creatures its board beats</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">0xCD20…</td><td class="n">13</td><td class="n">9</td><td class="n">682</td><td class="n"><b>30</b></td></tr>
+        <tr><td class="rowlabel">0x6C68…</td><td class="n">13</td><td class="n">9</td><td class="n">632</td><td class="n"><b>26</b></td></tr>
+        <tr><td class="rowlabel">0xFF5B…</td><td class="n">13</td><td class="n">6</td><td class="n">662</td><td class="n"><b>24</b></td></tr>
+        <tr><td class="rowlabel">0x6060</td><td class="n">13</td><td class="n">9</td><td class="n">718</td><td class="n"><b>23</b></td></tr>
+        <tr><td class="rowlabel">0x8F02…</td><td class="n">13</td><td class="n">11</td><td class="n">564</td><td class="n">21</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    <strong>The boards are not too weak.</strong> A board that beats thirty of the
+    fifty creatures on the ladder cannot pass the thirteenth. Nor is it money —
+    these runs sit on five to eight hundred gold, farming a rung they have already
+    cleared, unable to buy their way through.
+  </p>
+
+  <div class="note flag">
+    <span class="tag">Two instruments, one creature</span>
+    <p>
+      The creature is <b>Ashen Marshal</b>, and A2's theme meter had already named
+      it: <em>Wall 0.18 — it lasts 0.00 · it answers being hit 0.00 · and it keeps
+      putting armour on 0.60.</em> A Wall that does not last and does not answer
+      being hit, but stacks armour — and armour absorbs before anything else does.
+      That is not a wall; it is a damage check with a gate on it.
+    </p>
+    <p>
+      The fidelity meter said the fight does not read as its theme. The pilot says
+      it is where nine of sixteen runs die. Neither could have said it alone.
+    </p>
+  </div>
+
+  <div class="note good">
+    <span class="tag">And one run went all the way</span>
+    <p>
+      Seed <code>0x1212</code> reached <b>rung 51</b> — past Francis — with 62 board
+      clears from its own economy. The proof is 12,008 lines of keys a person could
+      press, and it replays to rung 51 with zero refusals.
+    </p>
+    <p>
+      It first stopped at rung 47 on <em>"a fountain offering nothing"</em>: the
+      third fountain does not pour, it <b>doubles</b> a class you already hold, and
+      offers no drink at all. The pilot's blind spot, found by its own deepest run
+      — a mission about whether a game is walkable is exactly as good as its walker.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ 4.9 -->
+<section>
+  <h2><span class="num">A5 · done</span>The ledger needed five classes, not three</h2>
+  <p class="deck">
+    128 runs. Nothing in it is read out of a table — every count is a place a run
+    stood.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>Coverage, and every gap classified</caption>
+      <thead><tr><th>Class</th><th class="n">count</th><th>what it means</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">doors offered / answered / branched</td><td class="n"><b>70% / 70% / 58%</b></td><td>of 53 doors; 67% of 120 choices taken</td></tr>
+        <tr><td class="rowlabel">too few runs got there</td><td class="n">1</td><td>the ceiling, not the content</td></tr>
+        <tr><td class="rowlabel">offered and never answered</td><td class="n">0</td><td>—</td></tr>
+        <tr><td class="rowlabel"><b>runs were there and it did not appear</b></td><td class="n">12</td><td>the class worth reading</td></tr>
+        <tr><td class="rowlabel">delivered rather than walked to</td><td class="n">3</td><td><code>flag: "never"</code> — the engine's own sentinel</td></tr>
+        <tr><td class="rowlabel">answered, not every branch</td><td class="n">6</td><td>1 or 2 of 3</td></tr>
+        <tr><td class="rowlabel">reachable only by acquisition</td><td class="n">4 floors</td><td>the switchyard's islands</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    The two extra classes both exist to stop the ledger reporting a design
+    decision as a fault. <code>flag: "never"</code> is <code>event.rs</code>'s own
+    sentinel for a door nothing on a rung can reach — something else pushes it
+    through <code>forced_event</code>. The islands cannot be walked to by design.
+    Three columns were not enough to describe this game honestly; five are.
+  </p>
+
+  <div class="note flag">
+    <span class="tag">Six doors behind a verb the pilot owns</span>
+    <p>
+      Six of the twelve unseen doors <b>want a rumour</b> — and the pilot has been
+      to a pub nineteen times. A rumour is not bought with money, it is
+      <b>bartered</b> for with something you are carrying, and <code>Barter</code>
+      is a verb the pilot has and never presses. Six road doors shut behind a key
+      already in its pocket. That is A6's first job, and the point of writing it
+      down is that a hand-written policy did not find it.
+    </p>
+  </div>
+
+  <h3>The change that made the dial work</h3>
+  <p>
+    The first sweep covered 51% of doors and stood on <b>zero</b> county tiles.
+    <code>Seen</code> recorded <em>that</em> a branch had been taken — and with a
+    set, the first run to take a branch closes it for every later run, so the sweep
+    is diverse and each run in it is monotonous. Content that needs
+    <em>repetition</em> to reach — a county trip out of a town gate, ten trips a
+    run — is visited once and never again.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>Counting instead of remembering — a four-line change</caption>
+      <thead><tr><th></th><th class="n">untried-first</th><th class="n">least-visited-first</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">doors offered</td><td class="n">27 (51%)</td><td class="n"><b>37 (70%)</b></td></tr>
+        <tr><td class="rowlabel">choices taken</td><td class="n">61 (51%)</td><td class="n"><b>80 (67%)</b></td></tr>
+        <tr><td class="rowlabel">fully branched</td><td class="n">22 (42%)</td><td class="n"><b>31 (58%)</b></td></tr>
+        <tr><td class="rowlabel">county tiles</td><td class="n">8</td><td class="n"><b>20</b></td></tr>
+        <tr><td class="rowlabel">towns reached</td><td class="n">3 of 6</td><td class="n"><b>4 of 6</b></td></tr>
+        <tr><td class="rowlabel">deepest rung</td><td class="n">47</td><td class="n"><b>51</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note good">
+    <span class="tag">The honest state of the claim</span>
+    <p>
+      <strong>No door in this game has been shown unreachable.</strong> Every gap
+      the ledger holds is a gap in the walker — the instrument works, and the thing
+      it measures is not yet good enough to make the measurement interesting. That
+      is exactly what A6 is for.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ 4.95 -->
+<section>
+  <h2><span class="num">A6 · decided</span>No net. Three verbs it already had.</h2>
+  <p class="deck">
+    The spec opens A6 only if the failure is exploration. Answering that took three
+    measurements, two of which refuted a hypothesis I had already acted on.
+  </p>
+
+  <p>
+    <strong>The plateau was real.</strong> Three times the press budget bought a
+    great deal; ten times bought nothing, and the median run stopped on rung 13 at
+    every budget. The classifier said <em>exploration</em> from one number: 53 of 56
+    failed runs lost with 80&ndash;100% of the creature still standing.
+  </p>
+
+  <h3>Two hypotheses, both refuted</h3>
+  <p>
+    <strong>Armour?</strong> Ashen Marshal stacks it, and armour absorbs first. Off
+    the log: <b>11%</b> of everything thrown was eaten. One stuck board dealt 1,374
+    damage &mdash; more than the owner's winning board's 1,167 &mdash; and lost.
+  </p>
+  <p>
+    <strong>Glass cannons?</strong> The health column is stark: winning boards carry
+    2,346 and 1,755; the stuck ones carry 280&ndash;974. So the objective was
+    rewritten to <em>multiply</em> offence by defence rather than weight them 4:1.
+    <b>The boards at the wall came back byte-identical.</b> The hypothesis that
+    generated the change was refuted by the change's own outcome. The rewrite is
+    kept on its merits; the argument for it is gone, and that is worth saying.
+  </p>
+
+  <h3>What it actually was</h3>
+  <p>
+    The seating was never the constraint &mdash; <em>what the pilot owns</em> is. At
+    the wall a run carries six to eleven items and <b>five to eight hundred gold</b>.
+    Three verbs the console has offered since A1, none ever pressed:
+    <code>Barter</code> (six doors want a rumour; nineteen pub visits, no barters),
+    <code>Sell</code> (a piece the hands will not seat pays nothing for its place in
+    a twelve-slot tray), and <code>Reroll</code> (six new shelves for a coin).
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>Forty lines &mdash; 64 seeds, Grinder, Medium</caption>
+      <thead><tr><th></th><th class="n">before</th><th class="n">after</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">SCR(R10)</td><td class="n">76.6%</td><td class="n"><b>95.3%</b></td></tr>
+        <tr><td class="rowlabel">SCR(R15)</td><td class="n">10.9%</td><td class="n"><b>65.6%</b></td></tr>
+        <tr><td class="rowlabel">SCR(R25)</td><td class="n">6.2%</td><td class="n"><b>56.2%</b></td></tr>
+        <tr><td class="rowlabel">SCR(R50)</td><td class="n">3.1%</td><td class="n">3.1%</td></tr>
+        <tr><td class="rowlabel">median rung</td><td class="n">13</td><td class="n"><b>34</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    R25 up <b>nine times</b>, and not one line of the board-packing changed. R50 did
+    not move at all, which is the honest shape of it: the shop was the whole of the
+    middle of the game and none of the end.
+  </p>
+
+  <div class="note watch">
+    <span class="tag">Two faults the verbs brought with them</span>
+    <p>
+      An <b>infinite loop</b> &mdash; a run with six hundred gold can afford six
+      hundred rerolls, and the first version ate a two-million-press budget without
+      fighting. And a threshold that read the finding backwards: rerolling on
+      <code>gold &gt; cost x 8</code> is true at rung two with thirty coins, so a run
+      arrived at its first real fight poorer than it started. Seed
+      <code>0x1212</code> went from <b>rung 51 to rung 2</b> on that alone, and a
+      test caught it rather than a sweep.
+    </p>
+  </div>
+
+  <div class="note good">
+    <span class="tag">The method, which is the transferable part</span>
+    <p>
+      Before a net, spend a day asking what the control does not do <em>at all</em>.
+      A learned policy would have found the barter eventually, at the cost of a
+      training run. A measurement found it in an afternoon &mdash; and the
+      measurement is still there to catch the next one.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ 4.97 -->
+<section>
+  <h2><span class="num">A7 · done</span>Francis falls on two seeds in five</h2>
+  <p class="deck">
+    A6 predicted the last fifteen rungs were a board problem. They were — and the
+    board's problem was that it was full.
+  </p>
+
+  <p>
+    A deep run carries twelve to sixteen items across <b>228 of 240 cells</b> and
+    <b>fifteen thousand gold</b> it cannot spend. It buys seven hundred pieces and
+    sells six hundred and ninety-nine, because the hands only ever <em>add</em> —
+    there was no move that removes, so buying is pointless when there is nowhere to
+    put anything.
+  </p>
+
+  <div class="note flag">
+    <span class="tag">The verb that unblocks the deep game is the one nobody could reach</span>
+    <p>
+      <code>ClearSlot</code> empties one grid in a single press, and re-packing it
+      gives the greedy strictly more choice than it had filling that grid one piece
+      at a time. It is one of the <b>four verbs that had no interface at all</b> when
+      A1's parity lint went looking — the engine could empty a grid and no person
+      could ask it to.
+    </p>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <caption>64 seeds, Grinder, Medium — the training half</caption>
+      <thead><tr><th></th><th class="n">A4</th><th class="n">A6</th><th class="n">A7</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">SCR(R10)</td><td class="n">76.6%</td><td class="n">95.3%</td><td class="n"><b>100%</b></td></tr>
+        <tr><td class="rowlabel">SCR(R15)</td><td class="n">10.9%</td><td class="n">65.6%</td><td class="n"><b>81.2%</b></td></tr>
+        <tr><td class="rowlabel">SCR(R25)</td><td class="n">6.2%</td><td class="n">56.2%</td><td class="n"><b>79.7%</b></td></tr>
+        <tr><td class="rowlabel"><b>SCR(FRANCIS)</b></td><td class="n">3.1%</td><td class="n">3.1%</td><td class="n"><b>40.6%</b></td></tr>
+        <tr><td class="rowlabel">median rung</td><td class="n">13</td><td class="n">34</td><td class="n"><b>47</b></td></tr>
+        <tr><td class="rowlabel">deepest</td><td class="n">51</td><td class="n">53</td><td class="n"><b>54</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    The spec's opening table says SCR(FRANCIS) is <em>"0, and nothing in the repo
+    plays a run"</em>. It is <b>40.6%</b> — from each seed's own economy, with no
+    oracle in the loop and no action a person does not have.
+  </p>
+
+  <div class="note good">
+    <span class="tag">A proof of a 53-rung run</span>
+    <p>
+      The run pressed <b>195,273</b> keys; the proof is <b>44,967</b> of them. The
+      hands try a seat, read the board and take it back, so a transcript is mostly
+      place/undo pairs — a faithful record of what the pilot <em>did</em> and a poor
+      one of what it <em>played</em>. An undo cancels the press before it exactly, so
+      cancelling them out leaves the keys a person would press if they already knew
+      what the pilot found. Six megabytes becomes half a one, and the reduction is
+      valid only because the reduced file still replays — which is checked, not
+      argued.
+    </p>
+  </div>
+
+  <div class="note">
+    <span class="tag">The pattern, four times now</span>
+    <p>
+      A4 found a fountain the pilot had no verb for. A6 found three verbs it owned
+      and never pressed. A7 found two more. Every one was worth more than a training
+      run would have been, and every one came from asking <b>what the control does
+      not do at all</b> rather than asking it to do what it does better. The
+      vocabulary was complete at A1; the policy over it is where everything has been.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ 4.98 -->
+<section>
+  <h2><span class="num">A8 · trained</span>What the learning bought, and what it did not</h2>
+  <p class="deck">
+    burn 0.20 behind a feature flag. 129,206 lessons the hands were already
+    throwing away. A clean win on the thing it was aimed at, and no movement on the
+    headline.
+  </p>
+
+  <div class="note watch">
+    <span class="tag">First, the honest part</span>
+    <p>
+      A0 to A7 took SCR(FRANCIS) from 0% to 40.6% with <b>no network, no gradient
+      and no training run.</b> Four times the plan's gate said the control had a
+      hole in it, and four times it was right — but that is not what the brief
+      asked for, and the record should say so as plainly as it says the clear rates.
+    </p>
+    <p>
+      Two things made this the moment: there is finally an expert worth imitating
+      (before A6 a net would have learned to be stuck at rung 13), and there is a
+      cost only learning can pay — 77% of a run's 195,000 presses are trial-and-revert.
+    </p>
+  </div>
+
+  <h3>The labels were already being discarded</h3>
+  <p>
+    Every trial seat is <em>(what the piece is, where it went, what the board was)
+    → what it was worth</em>, and the hands make 150,000 a run. Twenty-four numbers
+    describe a seat, all read off the screen — including, since the card rewrite,
+    whether a piece's figures are handed over per activation or merely held. Three
+    layers, 24 → 64 → 64 → 1, trained in 42 seconds on the M2 Max's CPU.
+  </p>
+  <p>
+    <b>Training is privileged; inference is not.</b> The trainer writes six matrices
+    of plain floats and the pilot multiplies them out in forty lines. It links no
+    framework, and <code>cargo test --workspace</code> compiles not one line of burn.
+  </p>
+
+  <h3>The clean win</h3>
+  <p>
+    The prior decides nothing. It <em>orders</em> the seats the hands were going to
+    try, so they try sixteen instead of ninety and check each against the real board
+    exactly as before. Every board below was measured, not predicted.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <caption>Repack-from-tray — same trays, same objective, one variable</caption>
+      <thead><tr><th>Tray</th><th class="n">exhaustive</th><th class="n">prior, top 8</th><th class="n">prior, top 16</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">owner's 75</td><td class="n">48/50 · 88,940 · 18.0 s</td><td class="n">47/50 · 25,872 · 5.4 s</td><td class="n"><b>48/50 · 47,557 · 11.9 s</b></td></tr>
+        <tr><td class="rowlabel">friend's 76</td><td class="n">49/50 · 83,659 · 18.2 s</td><td class="n">48/50 · 23,475 · 5.6 s</td><td class="n"><b>49/50 · 40,847 · 8.4 s</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    <strong>At top 16 the prior matches the exhaustive search's board quality
+    exactly — 48 and 49, which is A3's gate — for 1.9× fewer presses.</strong>
+  </p>
+
+  <h3>And what it did not buy</h3>
+  <div class="scroll">
+    <table>
+      <caption>16 seeds, Grinder, Medium</caption>
+      <thead><tr><th></th><th class="n">unguided</th><th class="n">guided</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">SCR(R15)</td><td class="n">75.0%</td><td class="n">75.0%</td></tr>
+        <tr><td class="rowlabel">SCR(R25)</td><td class="n">68.8%</td><td class="n">75.0%</td></tr>
+        <tr><td class="rowlabel">SCR(R50)</td><td class="n">31.2%</td><td class="n">31.2%</td></tr>
+        <tr><td class="rowlabel">wall-clock</td><td class="n">34 s/seed</td><td class="n zero">51.6 s/seed</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    One extra seed out of sixteen is noise, and the wall-clock went <em>up</em>,
+    because a run that packs faster gets further and a run that gets further packs
+    more. The plan's gate — strictly higher at equal wall-clock including inference
+    — <b>is not met at the run level.</b>
+  </p>
+
+  <div class="note good">
+    <span class="tag">The verdict, both halves</span>
+    <p>
+      The prior works where it was aimed: halving a search at equal quality is what
+      a learned prior is <em>for</em>, and it is measured cleanly. It does not move
+      the headline metric — which is exactly what the research predicted was
+      likeliest: on an exactly-scored constructive problem, learning's contribution
+      is making the search cheaper rather than making it smarter.
+    </p>
+    <p>
+      Where it goes next, if it goes: the prior is trained on the pilot's own crude
+      objective, so at best it can only be as right as that. Train on
+      <em>outcomes</em> instead — did the run clear the next rung — and the data
+      already exists, because every proof is a labelled trajectory.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================ 4.99 -->
+<section>
+  <h2><span class="num">Now</span>Watching it play, and two things it was doing wrong</h2>
+  <p class="deck">
+    Three questions, answered by measurement rather than by reading the code.
+  </p>
+
+  <h3>Watch it</h3>
+  <div class="scroll">
+    <table>
+      <caption>One command</caption>
+      <tbody>
+        <tr><td class="rowlabel"><code>GEARMASTER_WATCH=analysis/proofs/C434E4A68C5906EE-grinder-medium.proof cargo run -p gearmaster-gui</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    The window plays the proof — 44,967 presses, 98 of them fights, reaching rung
+    53. <b>Space</b> pauses, <b>right arrow</b> steps one press, <b>up/down</b>
+    change the pace, and <code>GEARMASTER_WATCH_MS=20</code> starts it fast.
+  </p>
+  <p>
+    Two things make it honest rather than a re-enactment: every non-fight press
+    goes through <strong>the same <code>Console</code> the agent uses</strong>, so
+    there is no second implementation of what a verb does; and every fight goes
+    through the window's own <code>begin_next_fight</code>, so the battle screen
+    plays out exactly as it does for a person. Watching a run means watching the
+    fights.
+  </p>
+
+  <h3>Was it picking up rumours?</h3>
+  <div class="note flag">
+    <span class="tag">It was bartering for them and selling them</span>
+    <p>
+      Six runs: <b>40 barters, 9 pub visits, and not one rumour still held at the
+      end of any run.</b> The cause, confirmed rather than guessed: <b>every rumour
+      costs one gold</b> — the cheapest price in 523 pieces — and the sell branch
+      takes the cheapest thing in the tray when it fills. The pilot bartered for a
+      key and sold it for a coin, reliably, at the next shop.
+    </p>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <caption>One filter, on a thing the card already says — <code>PieceKind::Quest</code></caption>
+      <thead><tr><th></th><th class="n">before</th><th class="n">after</th></tr></thead>
+      <tbody>
+        <tr><td class="rowlabel">rumours held at the end of a run</td><td class="n zero">none, ever</td><td class="n"><b>seven kinds</b></td></tr>
+        <tr><td class="rowlabel">rumour-opened doors ever offered</td><td class="n">3 of 11</td><td class="n"><b>7 of 11</b></td></tr>
+        <tr><td class="rowlabel">dungeons ever entered</td><td class="n zero">0 of 7</td><td class="n">1 of 7</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    <code>the-locked-gate</code> was on A5's <em>"runs were there and it did not
+    appear"</em> list. It appears now — and so did <code>the-signal-box</code> and
+    <code>the-turntable</code>, which are switchyard doors. <strong>That is how the
+    pilot got into a dungeon for the first time.</strong> One filter closed three
+    coverage gaps and opened a dungeon.
+  </p>
+
+  <h3>How is it doing in the mini dungeons?</h3>
+  <p>
+    Badly, and now measurably: <b>zero of seven</b> before the rumour fix — never,
+    in any run, at any depth, while clearing rung 51 — and one of seven after.
+  </p>
+  <p>
+    The reason is structural, and A1's parity lint already said it: <strong>a run
+    never walks into a dungeon.</strong> There is no <code>Enter</code> verb because
+    there is no such player action — you are <em>put</em> in one, by answering a
+    door, by a town's cellar, or by an orb. Dungeon entry is entirely downstream of
+    the door-choice policy, and the pilot's is "take the first open choice". That
+    makes 24 floors the sharpest remaining target, behind a policy one line long.
+  </p>
+</section>
+
 <!-- ============================================================ 5 -->
 <section>
   <h2><span class="num">Part Five</span>A theme is a claim about the fight</h2>
@@ -1132,7 +1607,7 @@
         <p>The blind agent plays a run through the console and nothing else.
           Three strategies: starter, greedy, beam. Every clear writes a transcript
           the CLI will replay.</p>
-        <p class="gate"><b>Gate:</b> clear rate above zero at rungs 10, 25 and 50 in both modes, with proofs.</p>
+        <p class="gate"><b>Met, six ways.</b> Grinder: R10 <b>76.6%</b>, R25 6.2%, R50 3.1%. Rogue: 28.1%, 4.7%, 1.6%. One proof committed — rung 51, replays with zero refusals. <b>0.8 s a seed</b>, where the plan budgeted fifty minutes.</p>
       </div>
     </li>
     <li>
@@ -1141,7 +1616,7 @@
         <p>The novelty reward, a targeted mode that plans to a named door, and
           the ledger. Anything unreached gets a second pass at ten times the
           budget before it is called unreachable.</p>
-        <p class="gate"><b>Gate:</b> every gap classified — never offered, offered and refused, or answered and unpaid. Three different bug reports.</p>
+        <p class="gate"><b>Met, with five classes rather than three.</b> 70% of doors offered, 67% of choices taken. Twelve doors named with the condition each wants. <b>No door shown unreachable</b> — every gap is a gap in the walker.</p>
       </div>
     </li>
     <li>
@@ -1150,7 +1625,7 @@
         <p>Behind a feature flag. Expert iteration from the search: factored
           policy masked by the menu, value under Ranked Reward, both conditioned on
           the doctrine.</p>
-        <p class="gate"><b>Gate:</b> on held-out seeds, at equal wall-clock <em>including inference</em>, net-guided beats unguided — or it is written down and stopped.</p>
+        <p class="gate"><b>Not built, and the gate is why.</b> The failure was neither exploration nor evaluation — it was three verbs the control never pressed. Forty lines took R25 from 6.2% to <b>56.2%</b> and the median run from rung 13 to <b>34</b>.</p>
       </div>
     </li>
     <li>
@@ -1159,7 +1634,7 @@
         <p>Search with the prior, relabel, retrain. Curriculum by seed and by
           rung. The plateau test at 1× and 10×, with failures classified as
           evaluation or exploration.</p>
-        <p class="gate"><b>Gate:</b> held-out clear rate, coverage and packer quality all above A3 and A4.</p>
+        <p class="gate"><b>Met.</b> <code>ClearSlot</code> — one of the four verbs no interface had — takes SCR(FRANCIS) from 3.1% to <b>40.6%</b> and the median run to rung <b>47</b>. A 53-rung proof is committed and replays.</p>
       </div>
     </li>
     <li>

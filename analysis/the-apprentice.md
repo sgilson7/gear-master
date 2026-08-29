@@ -774,3 +774,805 @@ The costs, for pricing A4: about 90,000 presses and eleven seconds to pack a
 seventy-five-piece tray, which is exhaustive over seats and greedy over pieces.
 That is affordable once a rung and not affordable once a decision, so A4's shop
 layer re-packs only when the tray has changed.
+
+---
+
+# Interlude — THE ATLAS
+
+Read off **`a8f8d19`**. Nine commits between A3 and A4: a map for every place a
+run has been, THE THRESHOLD grown a crossbar with a shop on it, and the yard
+cut into two islands. It touched the dungeon graphs, the catalogue and the
+interface, all of which this mission reads.
+
+**Everything of this mission's still passes**, unchanged and unedited:
+console 16, oracle 19, agent 10, lab 1. The parity lint passing is the useful
+part - it means THE ATLAS added no player action the pilot lacks, and nothing
+had to be checked by hand to know that.
+
+## What moved
+
+| | A3, at `1cda004` | Now, at `a8f8d19` |
+|---|---|---|
+| engine suite | 1,053 / 52 | **1,059 / 52** |
+| GUI suite | 83 | **88** |
+| `CATALOG` | 518 | **523** (a five-piece shelf sold in one room) |
+| dungeon floors | 23 | **24** |
+| dungeon exits | 16 | **16** - one added to the Threshold, one cut from the yard |
+| repack-from-tray | 48 / 49 / 48 | **48 / 49 / 48**, byte for byte |
+
+## The graphs, as they stand
+
+    the-crevice        3 floors  forks []      stops [2]           islands []
+    the-threshold      4 floors  forks [1]     stops [2, 3]        islands []
+    the-under-mine     2 floors  forks []      stops [1]           islands []
+    the-undertow       2 floors  forks []      stops [1]           islands []
+    den-rivals         2 floors  forks []      stops [1]           islands []
+    wumpus-world       2 floors  forks []      stops [1]           islands []
+    the-switchyard     9 floors  forks [2, 6]  stops [3, 4, 7, 8]  islands [5, 6, 7, 8]
+
+**Four of the switchyard's nine floors cannot be walked to.** They are reached
+only by feeding a particular Orb of Travel to a pedestal, which lands a run on
+a siding inside them. That is a sixth of every dungeon floor in the game
+behind a purchase.
+
+For the coverage ledger this is a **fourth class**, and it has to exist before
+A5 counts anything: *offered · answered · branched* were the three, and these
+floors are **reachable only through a specific acquisition**. Counting them as
+"never offered" would report a design decision as a bug, and counting them as
+reached would be worse.
+
+## Two amendments
+
+**The `View` carries the dungeon's graph now.** The atlas lays a dungeon out
+from its exits and names what stands on each floor once the run has entered -
+`gui/src/main.rs:7203`, *"a floor you have not reached does not name what is on
+it"*. That is routing information a player has and the pilot did not, and A4
+needs it: a run standing at the points on floor 1 of THE THRESHOLD is choosing
+between the way down and a shop, and until now the console could see the two
+labels but not where either went.
+
+**A5's ledger gains the fourth class**, above.
+
+## What did not move
+
+The three reference trays repack to exactly the same boards - 48/50, 49/50,
+48/50, identical cells and presses. Five new pieces entered the catalogue and
+none of them is in any of those trays, which is the answer one would want:
+this benchmark measures board sense against a fixed tray, so it is insensitive
+to content growth by construction, and now that is measured rather than
+assumed.
+
+---
+
+# A4 — The pilot plays
+
+Read off **`a8f8d19`**. `crates/agent/src/pilot.rs`, and three binaries in
+`crates/lab`. Workspace: **1,206 green, no warnings**.
+
+**Every number below was produced by playing.** A run starts with 28 gold and
+an oak handle, and everything after that is the pilot reading a screen and
+pressing keys.
+
+## A4.1 The headline
+
+64 seeds - the training half, exactly as A0 wrote it down - at Medium.
+
+| | Grinder | Rogue |
+|---|---:|---:|
+| **SCR(R5)** | **81.2%** (52/64) | 45.3% (29/64) |
+| **SCR(R10)** | **76.6%** (49/64) | 28.1% (18/64) |
+| **SCR(R15)** | 10.9% (7/64) | 6.2% (4/64) |
+| **SCR(R25)** | **6.2%** (4/64) | 4.7% (3/64) |
+| **SCR(R50)** | **3.1%** (2/64) | 1.6% (1/64) |
+| deepest run | rung 53 | rung 53 |
+| wall-clock | 0.8 s a seed | 0.5 s a seed |
+
+**A4's gate was SCR(R10), SCR(R25) and SCR(FRANCIS) above zero in both modes.
+All six are.** Every one of them was zero by construction until this
+milestone, because nothing in this repo had ever played a run.
+
+The wall-clock is worth its own line. The plan priced a FRANCIS attempt at up
+to fifty minutes a seed and budgeted two days for a sweep of sixty-four. The
+whole sweep takes **fifty seconds**, because this pilot does no search over
+the road at all - it answers what is in front of it and fights. That is
+headroom A6 can spend, and it means the plateau test A7 wants is minutes
+rather than an overnight.
+
+## A4.2 A proof, replayed
+
+`analysis/proofs/0000000000001212-grinder-medium.proof` - 12,008 lines, 348 KB.
+Seed `0x1212`, Grinder, Medium: **rung 51, 62 board clears, 62 game clears,
+10 losses, 11,996 presses.**
+
+Rung 51 is past Francis. The pilot beat the game's final boss from a seed's
+own economy, and the file is the whole run written out as keys a person could
+press. It replays to rung 51 with **zero refusals**, and
+`lab/tests/proofs.rs` is the `#[ignore]`d test that says so for every proof
+in the directory.
+
+**A replay that looked like a divergence and was not.** The first check
+compared the pilot's *highest* rung against the replay's *final* rung and
+reported 51 against 49. A Grinder is knocked back on a loss, so a run that
+touched 51 can finish standing on 49. The transcript was right and the
+comparison was wrong - which is the same shape as A3's starter-kit flaw, one
+week apart: a number that looks like a finding, produced by measuring a
+slightly different thing.
+
+## A4.3 A blind spot in the pilot, found by a run
+
+Seed `0x1212` first stopped at **rung 47** with *"a fountain offering
+nothing"*. The third fountain does not pour - it **doubles** a class you
+already hold, and offers `Double` alone with no `Drink` at all. The pilot
+looked for a drink, found none, and stopped in front of it.
+
+The console was right and the pilot was wrong, and the run that found it was
+the deepest one. With the third verb added, the same seed goes to 51. A
+mission about whether a game is walkable is exactly as good as the walker.
+
+## A4.4 The wall at rung 13
+
+Nine of the first sixteen seeds stopped on exactly the same rung. That is not
+a property of nine economies.
+
+| seed | rung | items | cells | gold | ladder creatures its board beats |
+|---|---:|---:|---:|---:|---:|
+| 0x6060 | 13 | 9 | 182 | 718 | **23** |
+| 0xCD20… | 13 | 9 | 175 | 682 | **30** |
+| 0x6C68… | 13 | 9 | 183 | 632 | **26** |
+| 0xFF5B… | 13 | 6 | 197 | 662 | **24** |
+| 0x8F02… | 13 | 11 | 191 | 564 | 21 |
+| 0x461F… | 13 | 7 | 154 | 663 | 12 |
+
+**The boards are not too weak.** A board that beats thirty of the fifty
+creatures on the ladder cannot pass the thirteenth. Nor is it money: these
+runs are sitting on five to eight hundred gold, farming a rung they have
+already cleared, unable to buy their way through.
+
+The creature is **Ashen Marshal**, and A2's theme meter had already named it.
+It is in the ten that read least like what they say they are: *Wall 0.18 - it
+lasts 0.00 · it answers being hit 0.00 · and it keeps putting armour on 0.60*.
+A Wall that does not last and does not answer being hit, but stacks armour -
+and armour absorbs before anything else does. That is not a wall, it is a
+damage check with a gate on it.
+
+**Two instruments built for different jobs, converging on one creature.** The
+fidelity meter said the fight does not read as its theme; the pilot says it is
+where nine of sixteen runs die. Neither could have said it alone.
+
+The other cluster is the early economy: five of sixteen stop at rungs 2-3 with
+three to five items and fourteen to eighteen gold - a shop that never offered
+the piece that would have finished a second item. That is the shallow end
+being a shop problem rather than a board problem, and it is what A6's prior
+would have to learn first.
+
+## A4.5 How it decides
+
+Not a policy - a **priority**, which is what a control is. Whatever stands on
+the rung is answered first, because the road stack pops in an order and a door
+in front of another is not a queue. Underneath: keep the board packed, buy for
+the grid with the least finished, and fight. Patience is eight fights on a
+rung it is not getting past, because a Grinder may farm for ever.
+
+Every one of those rules is a thing A6 replaces with something learned. They
+are written down so that there is a number to beat.
+
+## A4.6 What A4 hands A5
+
+- A run reaches a **door** 0 to 24 times and a **town** 0 to 3 times in the
+  runs above. That is the raw material of the coverage ledger and it is thin:
+  the median run answers six doors out of fifty-three.
+- The rung-13 wall caps coverage before it starts. Most of the road's content
+  stands past rung 13, and 89% of runs never see it.
+- **The four county mouths and the switchyard's islands have not been touched
+  at all** by any run so far, which A5 has to be able to say out loud rather
+  than report as a zero.
+
+---
+
+# A5 — Coverage as an objective
+
+Read off **`a8f8d19`**. `crates/agent/src/seen.rs`, the coverage dial on
+`Doctrine`, and `crates/lab/src/bin/cover.rs`, which writes
+**`analysis/coverage.md`**. Workspace: **1,209 green, no warnings**.
+
+## A5.1 The ledger
+
+128 runs - 64 seeds in each of two modes, at Medium, with the dial at maximum.
+**Nothing in it is read out of a table. Every count is a place a run stood.**
+
+| | offered | answered | branched |
+|---|---:|---:|---:|
+| doors (53) | **37** (70%) | **37** (70%) | **31** (58%) |
+| choices (120) | - | **80** (67%) | - |
+
+Every gap is classified rather than counted, and there are **five** classes
+rather than the three the spec asked for. The two extra ones both exist to
+stop the ledger reporting a design decision as a fault:
+
+| class | doors | what it means |
+|---|---:|---|
+| too few runs got there | **1** | the ceiling, not the content |
+| offered and never answered | **0** | - |
+| **runs were there and it did not appear** | **12** | the class worth reading |
+| **delivered rather than walked to** | **3** | `flag: "never"`, the engine's own sentinel |
+| answered, not every branch | **6** | 1 or 2 of 3 |
+| reachable only by acquisition | **4 floors** | the switchyard's islands |
+
+## A5.2 The class worth reading
+
+Twelve doors that runs stood on the rung for and never saw. Every one is
+conditional, and the ledger says which condition:
+
+    the-crownwright          rung 20, 13 runs stood there · wants a rumour
+    the-green-ledger         rung 23, 12 runs stood there · wants a rumour
+    the-wizards-thirst       rung 31, 10 runs stood there · wants a rumour
+    the-exhibition           rung 34,  9 runs stood there · wants a rumour
+    the-locked-gate          rung 41,  9 runs stood there · wants a rumour
+    the-glow-over-the-ridge  rung 46,  8 runs stood there · wants a rumour
+    the-sealed-bid           rung 36,  9 runs stood there · wants a flag
+    the-fork                 rung 37,  9 runs stood there · wants a flag
+    the-constable            rung 40,  9 runs stood there · wants a flag
+    the-passenger            rung 42,  9 runs stood there · wants a flag
+    the-foundry-remembers    rung 47,  8 runs stood there · wants a flag
+    the-pale                 in the county, 128 runs stood there
+
+**Six of the twelve want a rumour, and the pilot has been to a pub nineteen
+times.** A rumour is not bought with money - it is **bartered** for, with
+something you are carrying - and `Barter` is a verb the pilot has and never
+presses. So six road doors are shut behind a verb the pilot owns and does not
+use. That is a finding about the walker, precisely located, and it is A6's
+first job.
+
+Five want a flag, and three of those want the same one - `slagworks-known`.
+THE SLAGWORKS is one of the two towns no run has reached.
+
+`the-pale` is the county's, and the answer is arithmetic: 20 tiles stood on
+across 128 runs, out of forty-nine. A trip is five moves and the pale is one
+tile.
+
+## A5.3 Two classes that had to exist first
+
+**Delivered rather than walked to.** `event.rs:2877` says it plainly:
+`flag: "never"` is *"the sentinel for a door nothing on a rung can reach"* -
+something else pushes it through `forced_event`. THE UNWOUND is one, and so
+are THE THRUMBUS RACE and MOLE TOWN. A ledger that reported those as gaps
+would be describing the design and calling it a fault.
+
+**Reachable only by acquisition.** THE ATLAS's islands: four of the
+switchyard's nine floors cannot be walked to from any mouth.
+
+Both are the same mistake in two directions, and the ledger's whole value is
+that it does not make it. `offered / answered / branched` were three columns;
+the game needed five classes to be described honestly.
+
+## A5.4 The dial, and the change that made it work
+
+The first sweep covered **51%** of doors and stood on **zero** county tiles in
+128 runs. Two faults, both in the pilot:
+
+**The dial did not reach the town gate.** The pilot always wanted the shop, so
+it never went down the steps - and the county was not unreachable, it was
+unasked for. At coverage the gate is a door-shaped opportunity rather than a
+shop.
+
+**And the memory was a set.** `Seen` recorded *that* a branch had been taken.
+With a set, the first run to take a branch closes it for every later run: the
+sweep is diverse and each run in it is monotonous, and content that needs
+**repetition** - a county trip out of a town gate, ten trips a run - is
+visited once and never again. Counting instead, and taking the least-visited
+branch, is a four-line change:
+
+| | untried-first | least-visited-first |
+|---|---:|---:|
+| doors offered | 27 (51%) | **37 (70%)** |
+| choices taken | 61 (51%) | **80 (67%)** |
+| doors fully branched | 22 (42%) | **31 (58%)** |
+| county tiles | 8 | **20** |
+| towns reached | 3 of 6 | **4 of 6** - a hidden one appeared |
+| deepest rung | 47 | **51** |
+
+It got *deeper* as well as wider, which is not what a coverage dial is
+supposed to do to a clear rate and is worth not over-reading: one seed does
+the deep running either way.
+
+## A5.5 What A5 hands A6
+
+Three things, in the order they are worth:
+
+1. **`Barter` is a verb the pilot owns and never presses**, and six doors are
+   behind it. A learned policy would find this; the point of writing it down
+   is that a hand-written one did not.
+2. **The county is walked at 20 tiles out of 49 across 128 runs.** Ten trips a
+   run exist and the pilot takes one or two.
+3. **Two towns and five dungeons are still untouched** - THE MANSE, THE
+   SLAGWORKS, and every dungeon but the crevice and the yard. The dungeons are
+   entered by answering a door, so they are downstream of the same problem.
+
+**No door in this game has been shown unreachable.** Every gap the ledger
+holds is a gap in the walker, and that is the honest state of the validity
+claim after A5: the instrument works, and the thing it is measuring is not yet
+good enough to make the measurement interesting.
+
+---
+
+# A6 — The analysis that decides whether a net is justified
+
+Read off **`a8f8d19`**. The spec opens A6 *"only if A4's failure class is
+exploration"*, and the whole value of that gate is that it is a measurement
+rather than a preference. It took three measurements to answer, two of which
+refuted a hypothesis I had already acted on. **No network was built, and the
+gate is the reason.**
+
+## A6.1 The plateau
+
+Patience - fights spent on a rung a run is not passing - and not the press
+budget, which was never binding.
+
+| patience | budget | R10 | R15 | R25 | R50 | median rung |
+|---:|---:|---:|---:|---:|---:|---:|
+| 8 | 200k | 76.6% | 10.9% | 6.2% | 3.1% | 13 |
+| 24 | 600k | **90.6%** | 12.5% | 9.4% | 6.2% | 13 |
+| 80 | 2,000k | 90.6% | 12.5% | 9.4% | 7.8% | 13 |
+
+**Three times the budget buys a great deal; ten times buys nothing.** It had
+plateaued, and the median run stopped on rung 13 at every budget.
+
+## A6.2 Two hypotheses, both refuted by measurement
+
+**The classifier said exploration**, and it said so from one number: 53 of 56
+failed runs lost with 80-100% of the creature still standing. Nothing within
+10%. On the spec's own rule that is "the tray never held the family the fight
+wanted", which is what a learned prior is for.
+
+It was wrong twice, and both times the check was cheap.
+
+**Hypothesis one: armour.** Ashen Marshal stacks armour, armour absorbs before
+anything else, and a board of many small hits would do nothing to it. Measured
+off the log: **11% of everything thrown was eaten before it landed.** One
+stuck board dealt 1,374 damage - *more than the owner's winning board's 1,167*
+- and lost. Not armour.
+
+**Hypothesis two: glass cannons.** The `your hp` column is stark:
+
+| | health | dealt | taken | outcome |
+|---|---:|---:|---:|---|
+| owner's board | **2,346** | 1,167 | 455 | victory in 4.0 s |
+| friend's board | **1,755** | 1,360 | 439 | victory in 3.8 s |
+| eleven stuck boards | 280-974 | 228-1,374 | 646-2,129 | defeat |
+
+So the objective was rewritten: `Sense::worth` weighted damage four to one
+against health, and a board is only worth the damage it lives long enough to
+deliver, so the two halves **multiply** rather than add - a geometric mean,
+maximised where offence and defence are equal.
+
+**It changed nothing.** The boards at the wall came back byte-identical: same
+health, same damage, same fight, to the point. Clear rates moved inside noise
+and one repack benchmark got worse. The hypothesis that generated the change
+was refuted by the change's own outcome, which is the cheapest possible way to
+find out.
+
+The rewrite is kept anyway, on its own merits and not on the argument that
+produced it: it is the right shape for a board score, and A6's features are
+what a prior would learn on. **The argument for it is gone and the change is
+not.** That is worth saying out loud.
+
+## A6.3 What it actually was: three verbs the pilot never pressed
+
+The boards were identical because the pilot's *seating* was never the
+constraint. **What it owns is.** At the wall a run carries six to eleven items
+and **five to eight hundred gold**, and buys one piece a rung by a crude rule.
+
+A5 had already found the first of these and I had not connected it:
+
+- **`Barter`** - six road doors want a rumour, and a rumour is not bought with
+  money. Nineteen pub visits, no barters.
+- **`Sell`** - a piece the hands will not seat sits in the tray paying nothing,
+  and the tray is twelve. Nothing was ever sold.
+- **`Reroll`** - six new shelves for a coin, and a run standing on six hundred
+  gold has no better use for one. Nothing was ever rerolled.
+
+All three are verbs the console has offered since A1. The pilot pressed none
+of them.
+
+| | before | after |
+|---|---:|---:|
+| SCR(R5) | 81.2% | **100%** |
+| SCR(R10) | 76.6% | **95.3%** |
+| SCR(R15) | 10.9% | **65.6%** |
+| SCR(R25) | 6.2% | **56.2%** |
+| SCR(R50) | 3.1% | 3.1% |
+| median rung | **13** | **34** |
+| deepest | 51 | 53 |
+
+R25 went up **nine times**, R15 six, and the wall at rung 13 - nine of sixteen
+runs, two instruments pointing at it - is gone. The median run now stops
+where the last quarter of the ladder begins. **Not one line of the
+board-packing changed.**
+
+R50 did not move, and that is the honest shape of the result: the shop was the
+whole of the middle of the game and none of the end of it.
+
+## A6.3a Two faults the verbs brought with them
+
+**An infinite loop.** A reroll is a coin against six shelves and a run with
+six hundred gold can afford six hundred of them; the first version had no
+bound and ate a two-million-press budget without fighting a single rung.
+Shopping is capped at twenty-four presses between fights now.
+
+**And a threshold that read the finding backwards.** The reroll fired on
+`gold > reroll_cost * 8`, which is true at rung two with thirty coins - so a
+run rerolled six times before it had anything to spend on and arrived at its
+first real fight poorer than it started. Seed `0x1212` went from **rung 51 to
+rung 2** on that alone, and an agent test caught it rather than a sweep. The
+finding this verb came from was a run sitting on six hundred gold; that is the
+condition it belongs under, and gating it on hoarding took the median run from
+20 to **34**.
+
+## A6.4 Coverage, again
+
+| | A5 | A6 |
+|---|---:|---:|
+| doors offered | 37 of 53 (70%) | **38 of 53 (72%)**, on half the runs |
+| choices taken | 80 (67%) | 74 (62%), on half the runs |
+| the class worth reading | 12 doors | **11 doors** |
+
+Two rumour-gated doors opened - THE WIZARD'S THIRST and THE EXHIBITION - and
+two new ones appeared, THE SIGNAL BOX and THE TURNTABLE, because runs now
+reach rungs 25 and 28 to walk past them. The remaining eleven still want a
+rumour the pub did not stock or a flag from a town no run has reached.
+
+## A6.5 The decision about the net
+
+**Not built, and the gate is why.** The spec says a prior is the answer to
+exploration and a better objective is the answer to evaluation. It was
+neither: it was a **policy** failure - three actions in the vocabulary that
+the hand-written control never chose - and the fix was forty lines.
+
+That is the most useful thing this milestone produced, and it is an argument
+about method rather than about this game: **before a net, spend a day asking
+what the control does not do at all.** A learned policy would have found the
+barter, eventually, at the cost of a training run. A measurement found it in
+an afternoon, and the measurement is still there to catch the next one.
+
+What A7 has to answer, with the same discipline: after this, is the remaining
+gap - **R25 at 56%, R50 at 3%** - exploration, evaluation, or another verb
+nobody presses? The classifier says exploration and the classifier has now
+been wrong twice.
+
+One thing points at the answer already. The shop fixed the middle of the
+ladder and did nothing at all to the end of it, which is what one would expect
+if the last fifteen rungs are a *board* problem rather than an economy one -
+and A3 measured a board that clears 48 of them from the right pieces. The gap
+between 48/50 handed the pieces and 3% getting there from a seed is the whole
+of what is left.
+
+---
+
+# A7 — The loop, which turned out to be two more verbs
+
+Read off **`a8f8d19`**. A6 ended by predicting that the last fifteen rungs
+were a board problem rather than an economy one. **They were a board problem,
+and the board's problem was that it was full.**
+
+## A7.1 What a deep run looks like
+
+The same probe A4 used, re-run after A6:
+
+| seed | rung | items | cells | health | gold | ladder creatures its board beats |
+|---|---:|---:|---:|---:|---:|---:|
+| 0x1111 | 45 | 13 | 222 | 2,429 | **14,901** | 43 |
+| 0xC434… | 50 | 16 | 228 | 1,010 | **18,778** | 48 |
+| 0xCD20… | 45 | 10 | 235 | 506 | **13,944** | 43 |
+| 0x8F02… | 34 | 12 | 229 | 2,066 | **11,391** | 42 |
+
+Two hundred and twenty-eight cells of two hundred and forty. **The board is
+full and the purse holds fifteen thousand gold.** A deep run buys seven
+hundred pieces and sells six hundred and ninety-nine of them, because
+`hands::pack` only ever *adds* - it has no move that removes - so buying is
+pointless when there is nowhere to put anything.
+
+## A7.2 The verb that unblocks it is the one no interface had
+
+`ClearSlot` empties one grid in a single press. Re-packing it afterwards gives
+the greedy strictly more choice than it had when it filled that grid one piece
+at a time, because now it chooses from everything the run owns rather than
+from whatever happened to be in the tray at the time.
+
+It is one of **the four verbs `console/tests/parity.rs` found had no interface
+at all** at A1 - the engine could empty one grid and no person could ask it to.
+The verb that unblocks the deep game is the verb nobody could reach.
+
+And `Grow`, another of the four, is pressed now too.
+
+## A7.3 Two costs, both measured the hard way
+
+**Rebuilding every rung is a search, not a player.** A rebuild is a whole
+re-pack - fifteen thousand presses on a full board - and doing it whenever the
+tray had leftovers took the median run from 34 to **10**, with every seed out
+of budget. Gated on a *loss*, it is what a person does after a defeat.
+
+**And once a loss is still twenty-four times a rung**, because patience is
+twenty-four. Capped at once a rung, reset when the run gets past one.
+
+## A7.4 The result
+
+The whole training half, 64 seeds, Grinder, Medium.
+
+| | A4 | A6 | **A7** |
+|---|---:|---:|---:|
+| SCR(R5) | 81.2% | 100% | **100%** |
+| SCR(R10) | 76.6% | 95.3% | **100%** |
+| SCR(R15) | 10.9% | 65.6% | **81.2%** |
+| SCR(R25) | 6.2% | 56.2% | **79.7%** |
+| **SCR(FRANCIS)** | **3.1%** | **3.1%** | **40.6%** |
+| median rung | 13 | 34 | **47** |
+| deepest | 51 | 53 | **54** |
+| wall-clock | 0.8 s | 7 s | 32 s a seed |
+
+**Francis falls on twenty-six seeds in sixty-four**, from each seed's own
+economy, with no oracle anywhere in the loop and no action a person does not
+have. Every seed clears rung 10; four in five clear rung 25.
+
+For the row this began from: `design/the-apprentice.md` §1's table says
+SCR(FRANCIS) is *"0, and nothing in the repo plays a run"*. It is 40.6%.
+
+The cost is real: thirty-four seconds a seed against A4's 0.8. The whole of it
+is the rebuild, and the whole of the rebuild is `hands::pack` re-reading the
+board for every trial seat. That is the thing to make cheaper if A8 wants
+more sweeps, and it is an engineering cost rather than a design one.
+
+## A7.5 A proof of a fifty-three-rung run
+
+`analysis/proofs/C434E4A68C5906EE-grinder-medium.proof`. Seed
+`0xC434E4A68C5906EE`, Grinder, Medium: **rung 53, 73 board clears, 25 losses.**
+It replays to rung 53 with zero refusals.
+
+The run pressed **195,273** keys. The proof is **44,967** of them, because the
+hands try a seat, read the board and take it back - so a transcript is mostly
+`place`/`undo` pairs, which is a faithful record of what the pilot *did* and a
+poor record of what it *played*. An undo cancels the press before it exactly,
+so cancelling them out leaves the keys a person would press if they already
+knew what the pilot found. Six megabytes becomes half a one, and **the
+reduction is only valid because the reduced file still replays** - which is
+checked rather than argued.
+
+The spec's artifact policy says a proof is "a few KB each". That was written
+when nothing in the repo had played a run. A proof is as long as the run it
+proves; one is committed as the mission's evidence and the rest are made on
+demand, which `.gitignore` now says and why.
+
+## A7.6 The pattern, three times now
+
+A4 found the pilot stopped at a fountain it had no verb for. A6 found three
+verbs it owned and never pressed. A7 found two more. Every one of them was
+worth more than a training run would have been, and every one was found by
+**asking what the control does not do at all** rather than by asking it to do
+what it does better.
+
+The mission's own instrument keeps saying the same thing: the vocabulary was
+complete at A1, and the policy over it is where everything has been.
+
+---
+
+# A8 — The learning, at last, and exactly what it bought
+
+Read off **`a8f8d19`**. burn 0.20.1 behind `--features nn` in `crates/lab`;
+`cargo test --workspace` compiles not one line of it.
+
+## A8.0 What had and had not happened
+
+Nothing had been learned. A0 to A7 took SCR(FRANCIS) from 0% to 40.6% with no
+network, no gradient and no training run - four times the gate said the
+control had a hole in it, and four times it was right. That is a defensible
+sequence and it is **not** what the brief asked for, and the record should say
+so as plainly as it says the clear rates.
+
+Two things changed that made this the moment:
+
+1. **There is an expert worth imitating.** Before A6 the control was stuck at
+   rung 13; a net trained on it would have learned to be stuck at rung 13.
+2. **There is a cost only learning can pay.** A run takes thirty-two seconds
+   because the hands try *every* seat and take it back - 195,273 presses, 77%
+   of them trial-and-revert. That is a search doing by brute force what a
+   prior is for.
+
+## A8.1 The labels were already being thrown away
+
+Every trial seat is `(what the piece is, where it went, what the board was)
+→ what it was worth`. The hands make a hundred and fifty thousand of them a
+run and discard every one.
+
+`lesson.rs` describes a seat in **24 numbers**, all of them read off the
+`View`: the piece's size, shape, price, triggers, stats, and - since the card
+rewrite - whether any of its figures are handed over per activation rather
+than held. Then the grid it is going into: how full, how many items finished,
+how many neighbours the seat touches. A model over these learns *"a two-cell
+accessory in a nearly-full weapon grid is worth trying and a five-cell base is
+not"* without knowing anything about the run.
+
+**129,206 lessons** from eight played seeds and the three finished trays.
+
+## A8.2 The model
+
+Three layers, 24 → 64 → 64 → 1, ReLU, MSE, plain gradient descent. Written
+against burn's tensor API rather than its `Module` derive and `Learner` - six
+tensors and a manual step is less to go wrong across versions and short enough
+to read in one sitting. `Autodiff<NdArray>` on the M2 Max's CPU.
+
+    250 epochs, lr 0.1, 41.8 s      train 0.267   held out 0.176
+
+**Longer training makes it worse on held-out data**, and the reason is worth
+having: the held-out fifth is the *tail* of the file, which is the
+finished-tray packing rather than the early-run packing. At 800 epochs the
+training loss falls to 0.188 and held-out rises to 0.214. The split is a
+distribution shift, not a shuffle, and it is measuring the thing that matters
+- whether a prior learned on early boards is any use on deep ones.
+
+**Training is privileged and inference is not.** The trainer writes six
+matrices of plain floats; `agent/src/prior.rs` reads them and multiplies them
+out in forty lines. The pilot links no framework and the boundary is unmoved.
+
+## A8.3 What it bought, measured
+
+The prior does not decide anything. It **orders** the seats the hands were
+going to try, so they try sixteen instead of ninety and check each against the
+real board exactly as before. Every board below was measured, not predicted.
+
+Repack-from-tray, the A3 benchmark, same trays, same objective:
+
+| | exhaustive | prior, top 8 | prior, top 16 |
+|---|---:|---:|---:|
+| owner's 75 | **48**/50 · 88,940 presses · 18.0 s | 47/50 · 25,872 · 5.4 s | **48**/50 · 47,557 · **11.9 s** |
+| friend's 76 | **49**/50 · 83,659 · 18.2 s | 48/50 · 23,475 · 5.6 s | **49**/50 · 40,847 · **8.4 s** |
+| preset's 24 | 12/50 · 47,550 | 12/50 · 10,489 | 12/50 · 19,825 |
+
+**At top 16 the prior matches the exhaustive search's board quality exactly -
+48 and 49, which is A3's gate - for 1.9× fewer presses and 1.5× less
+wall-clock.** At top 8 it is 3.4× cheaper for one rung.
+
+That is a clean, controlled result: same trays, same objective, same
+reconstruction, one variable.
+
+## A8.4 What it did not buy
+
+At the run level, on sixteen seeds:
+
+| | unguided | guided, top 16 |
+|---|---:|---:|
+| SCR(R10) | 100% | 100% |
+| SCR(R15) | 75.0% | 75.0% |
+| SCR(R25) | 68.8% | **75.0%** |
+| SCR(R50) | 31.2% | 31.2% |
+| median rung | 47 | 47 |
+| wall-clock | 34 s a seed | **51.6 s a seed** |
+
+One extra seed at R25 out of sixteen is noise, and the wall-clock went **up**,
+because a run that packs faster gets further and a run that gets further packs
+more. The plan's gate for a prior is *"strictly higher at equal wall-clock
+including inference"*, and on this evidence **it is not met at the run
+level**.
+
+So the honest verdict is split, and both halves are worth having:
+
+- **The prior works where it was aimed.** Halving a search at equal quality is
+  what a learned prior is for and it is measured cleanly.
+- **It does not move the headline metric**, which is exactly the outcome
+  `rl-research.md` §5 called likeliest: on an exactly-scored constructive
+  problem, search is hard to beat per unit of compute, and the learning's real
+  contribution is making the search cheaper rather than making it smarter.
+
+## A8.5 Where the learning goes next, if it goes
+
+The prior is trained on **`Sense::worth`**, which is the pilot's own crude
+objective - so at best it can only be as right as that. Two things would move
+it, in order of expected value:
+
+1. **Train on outcomes rather than on the surrogate.** A seat's real label is
+   whether the run that took it cleared the next rung. That is a value
+   function rather than a regression on a proxy, and it is what the plan's
+   Ranked Reward was for. The data exists: every proof is a labelled
+   trajectory.
+2. **Learn the shop.** Every gain in this mission came from acquisition, and
+   `want_to_buy` is still six lines of hand-written preference. The features
+   are the same shelf cards the pilot already reads.
+
+Both are the same architecture with a different target, and neither needs
+anything the workspace does not now have.
+
+---
+
+# A8.6 Three questions, answered by measurement
+
+## Is it picking up rumours?
+
+**It was bartering for them and then selling them, every time.**
+
+`--bin report` over six runs, before the fix: **40 barters made, 9 pub doors
+gone through, and not one rumour still held at the end of any run.** Three of
+the eleven rumour-opened doors had ever been offered.
+
+The cause, confirmed rather than guessed: **every rumour in the game costs one
+gold**, which is the cheapest price in five hundred and twenty-three pieces.
+A6's `Sell` branch picks the cheapest thing in the tray when the tray fills.
+So the pilot bartered for a key and sold it for a coin, reliably, at the next
+shop.
+
+`PieceKind::Quest` is what a rumour's card says it is, so the fix is one
+filter on a thing the pilot can see:
+
+| | before | after |
+|---|---:|---:|
+| rumours held at the end of a run | **none, ever** | **seven kinds** |
+| rumour-opened doors ever offered | 3 of 11 | **7 of 11** |
+| dungeons ever entered | **0 of 7** | **1 of 7** |
+
+`the-locked-gate` was on A5's *"runs were there and it did not appear"* list.
+It appears now. So did `the-signal-box` and `the-turntable`, and those two are
+switchyard doors - **which is how the pilot got into a dungeon for the first
+time.** One filter closed three coverage gaps and opened a dungeon.
+
+Four rumours are still never acquired: the Crownwright's, the Glow, the
+Picket, and the Hundred. Three of those four are `told` rather than
+`on_the_bar` - they come from somewhere other than a pub - which is the next
+thing to find.
+
+## How is it doing in the mini dungeons?
+
+**Badly, and now measurably.** Before the rumour fix: **zero of seven,
+never, in any run, at any depth** - while clearing rung 51. After it: one of
+seven, the switchyard, four of its nine floors.
+
+The reason is structural and A1's parity lint already said it: **a run never
+walks into a dungeon.** There is no `Enter` verb because there is no such
+player action - you are *put* in one, by answering a door whose outcome is
+`Enter`, by a town's cellar, or by feeding an orb to a pedestal. So dungeon
+entry is entirely downstream of the door-choice policy, and the pilot's is
+"take the first open choice".
+
+That makes the dungeons the sharpest remaining target: **24 floors, six
+dungeons and four unreachable-by-walking islands, behind a policy that is one
+line long.**
+
+## How well is it doing overall?
+
+64 seeds, Grinder, Medium, the training half:
+
+| | value |
+|---|---|
+| SCR(R10) | **100%** |
+| SCR(R15) | 81.2% |
+| SCR(R25) | 79.7% |
+| SCR(FRANCIS) | **40.6%** |
+| median rung reached | 47 |
+| deepest | 54 |
+| doors answered a run | ~20 of 53 |
+| towns visited a run | 2.5 of 6 |
+| dungeons entered | **1 of 7** |
+| county tiles walked | 20 of 49, across 128 runs |
+
+The board it builds is as good as a person's from the same pieces (48/50 and
+49/50 at A3). What it is still bad at is **everything that is not the ladder**:
+one dungeon in seven, two and a half towns in six, a fifth of the county.
+
+---
+
+# Watching it play
+
+    GEARMASTER_WATCH=analysis/proofs/C434E4A68C5906EE-grinder-medium.proof \
+        cargo run -p gearmaster-gui
+
+The window plays the proof: 44,967 presses, 98 of them fights, reaching rung
+53. **Space** pauses, **right arrow** steps one press while paused, **up** and
+**down** change the pace, and `GEARMASTER_WATCH_MS=20` starts it fast.
+
+Two things make it honest rather than a re-enactment:
+
+1. **Every non-fight press goes through the same `Console` the agent uses.**
+   There is no second implementation of what a verb does, so what the window
+   shows is what the agent did rather than a story about it.
+2. **Every fight goes through the window's own `begin_next_fight`**, so the
+   battle screen plays out exactly as it does for a person. Watching a run
+   means watching the fights.
+
+`--bin watchcheck` walks the same path headlessly and reports the presses, the
+fights and the rung reached, so a proof can be checked without a window.

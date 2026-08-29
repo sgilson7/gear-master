@@ -13,6 +13,10 @@
 //! that keeps winning**. The first is why `Undo` is a verb.
 
 pub mod hands;
+pub mod lesson;
+pub mod prior;
+pub mod pilot;
+pub mod seen;
 pub mod sense;
 
 use gearmaster_console::{Console, Difficulty, Mode, Verb};

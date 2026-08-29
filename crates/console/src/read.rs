@@ -199,6 +199,28 @@ impl Console {
                 .collect(),
         });
 
+        let dungeon = run.dungeon.map(|(d, at)| {
+            let entered = run.dungeons_entered.contains(&d.id);
+            DungeonMap {
+                id: d.id.to_string(),
+                name: d.name.to_string(),
+                at,
+                entered,
+                floors: d
+                    .floors
+                    .iter()
+                    .enumerate()
+                    .map(|(i, f)| Floor {
+                        index: i,
+                        creature: (entered || run.has_cleared(d.id, i))
+                            .then(|| f.creature.to_string()),
+                        cleared: run.has_cleared(d.id, i),
+                        exits: f.exits.iter().map(|e| (e.to, e.label.to_string())).collect(),
+                    })
+                    .collect(),
+            }
+        });
+
         let county = run.county_at.map(|at| {
             let c = run.county();
             let moves_left = run
@@ -324,6 +346,7 @@ impl Console {
             county,
             fountain,
             in_dungeon: run.dungeon.is_some(),
+            dungeon,
             brawl_waiting: run.pending_brawl().is_some(),
             coming,
             last_fight,

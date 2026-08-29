@@ -11,7 +11,20 @@ rust-version.workspace = true
 # needs the oracle, and the pilot in the middle needs neither - which is the
 # whole point, and why this crate exists rather than the agent growing a
 # dependency.
+# The framework is **off by default and never in CI**.
+#
+# `cargo test --workspace` never compiles it, which is the plan's §2 rule and
+# the reason it sits here rather than in the agent: the pilot must stay a crate
+# that links one thing.
+[features]
+nn = ["dep:burn"]
+
 [dependencies]
+burn = { version = "0.20", default-features = false, features = [
+    "ndarray",
+    "autodiff",
+    "std",
+], optional = true }
 gearmaster-engine = { path = "../engine" }
 gearmaster-console = { path = "../console" }
 gearmaster-oracle = { path = "../oracle" }

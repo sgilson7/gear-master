@@ -41,6 +41,9 @@ pub struct Figures {
     pub curse_resist: i32,
 }
 
+/// How wide every grid is. The screen draws six columns.
+pub const GRID_W: u8 = gearmaster_engine::slot::SLOT_W;
+
 /// One cell of one grid.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Cell {
@@ -178,6 +181,35 @@ pub struct Points {
     pub exits: Vec<(usize, String, String, bool)>,
 }
 
+/// A dungeon, drawn as the atlas draws it.
+///
+/// A dungeon's floors are a **graph**, not a list (`CLAUDE.md` §6 trap 22),
+/// and since THE ATLAS the map lays that graph out for every dungeon a run has
+/// been into. What a floor holds is named only once the run has entered the
+/// dungeon - `gui/src/main.rs:7203`, "a floor you have not reached does not
+/// name what is on it" - so an unentered dungeon draws its shape and not its
+/// contents, and this carries the same.
+#[derive(Clone, Debug)]
+pub struct DungeonMap {
+    pub id: String,
+    pub name: String,
+    /// Which floor the run is standing on.
+    pub at: usize,
+    /// Whether the run has been in here, which is what names the floors.
+    pub entered: bool,
+    pub floors: Vec<Floor>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Floor {
+    pub index: usize,
+    /// What stands on it, or `None` where the map draws a question mark.
+    pub creature: Option<String>,
+    pub cleared: bool,
+    /// Where the roads out of it go. Empty is a buffer stop - "the end of it".
+    pub exits: Vec<(usize, String)>,
+}
+
 /// Standing in THE HUNDRED.
 #[derive(Clone, Debug)]
 pub struct County {
@@ -263,6 +295,8 @@ pub struct View {
     pub county: Option<County>,
     pub fountain: Option<Fountain>,
     pub in_dungeon: bool,
+    /// The dungeon the run is standing in, as the atlas draws it.
+    pub dungeon: Option<DungeonMap>,
     pub brawl_waiting: bool,
     pub coming: Coming,
     pub last_fight: Option<Fight>,
