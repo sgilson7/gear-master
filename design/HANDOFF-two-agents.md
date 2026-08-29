@@ -146,7 +146,7 @@ nothing else.
 
 ## 3. What the owner has decided
 
-Five decisions. They are not negotiable defaults; they are the brief.
+Six decisions. They are not negotiable defaults; they are the brief.
 
 ### 3.1 Train the quartermaster against every fight on the ladder, in order
 
@@ -236,12 +236,81 @@ plan. `Goal` already carries `Door / Dungeon / Town / Rung / County`, so the
 enum is there; what is missing is the training harness that takes one goal,
 trains to it, and writes a named model.
 
+### 3.6 A quest is a spec the pathfinder can read, and it pays along the way
+
+`Goal` today is one thing: a door, a dungeon, a town, a rung, a tile. Reaching
+it is `+50` and everything before it is worth nothing. **A chain twelve
+decisions long with one payout at the end is a reward the agent cannot climb** —
+it is the same fault §1 found in the packer, one agent along, and it is why
+eleven doors are unreached.
+
+So a quest becomes a **spec**: an ordered thing with named steps, and the
+pathfinder is paid at each one.
+
+**The tiers the owner has asked for**, cheapest to dearest:
+
+| what happened | why it pays |
+|---|---|
+| an event on the chain was **offered** | the run is in the right part of the road |
+| a **rumour or item the chain requires** was bought | a prerequisite that is easy to walk past |
+| the **correct choice** at a chain event was taken | the only irreversible decision in the chain |
+| the chain **finished** | the objective |
+
+Each tier is worth more than the one above it, and the last is worth more than
+all of them together — or the agent will farm the cheap tiers and never
+finish. That ordering is the whole design and it is the thing to get wrong.
+
+**Derive the spec, do not hand-write it.** `event.rs` already carries the
+reverse indexes this needs and they exist for exactly this kind of question:
+
+* `set_by(flag)` — every `(event, choice)` that sets a flag, walked through
+  `every_outcome` so a flag set inside an `All` counts as hard as one set
+  alone.
+* `every_outcome(o)` — flattens `All` and both arms of a `Gamble`.
+* `flags_waited_on()` — every flag some door is waiting for.
+* `conditioned_by(rumour)` — every event a rumour opens.
+* `Requirement` — twelve variants, including `Took`, `Holding`, `Flag`,
+  `Counter`, `HoldingRumour`, `CountyCleared`. **That enum is the vocabulary a
+  step is written in**, and it is already what the game checks.
+
+Working backwards from a goal through `Requirement` → `set_by` → the choice
+that sets it gives the chain without anybody typing it twice. A hand-written
+spec is a second copy of `EVENTS` and goes stale the first time a door moves —
+which `CLAUDE.md` trap 20 is about and which this repo has paid for four times.
+
+`tests/completable.rs` is the closest thing that already does this walk. It
+asks whether a key can exist before its door shuts; a quest spec asks the same
+graph a different question, and the two should share the traversal rather than
+each have one.
+
+**Three things to decide while building it:**
+
+1. **Whether a step can be reached more than once.** Paying for the same event
+   twice is a farm. Steps are one-shot per episode and the spec has to say so.
+2. **What "the correct choice" is.** For a chain derived backwards it is the
+   choice that sets the flag the next step waits on — which is well defined and
+   falls out of `set_by`. For a choice with two acceptable answers it is not,
+   and the spec should carry a set rather than a label.
+3. **Whether the tiers are potential-based.** `F = γΦ(s′) − Φ(s)` provably
+   leaves the optimal policy alone, and the packer's Φ is the worked example in
+   this repo. A chain has a natural potential — **how many steps of the spec are
+   done** — and using it means the granular rewards cannot change what the best
+   plan *is*, only how fast it is found. That is worth more than it costs.
+
+**And the named models get their argument back.** §3.5 wants
+`pathfinder_unwound`, `pathfinder_threshold` and `pathfinder_drover` to be
+three models rather than one copied three times. Three *specs* with different
+steps is what makes that true — without granular steps the only difference
+between them is which state gets `+50`, and a goal one-hot is a thin thing to
+hang three models on.
+
 ---
 
 ## 4. Milestones
 
 Ordering matters here more than usual: **C1 exists so that every later failure
-is attributable to one agent rather than to the pair.**
+is attributable to one agent rather than to the pair**, and C6 comes before
+C7 because a quest spec is what makes three named models three models.
 
 ### C1 — The driver, with the control packer ▲
 
@@ -294,16 +363,34 @@ The end of the quartermaster's training phase, per 3.4.
   `reference_builds.rs` can hold them.
 * **Deliverable:** a frozen packer model, and the three boards as evidence.
 
-### C6 — Named pathfinders ▲
+### C6 — The quest spec ▲
 
-One harness, three runs, three artefacts: `pathfinder_unwound`,
+3.6, and it comes before the named models because it is what makes them
+different from one another.
+
+* A `Quest` type: ordered steps, each in `Requirement`'s vocabulary, **derived**
+  from `EVENTS` by walking `set_by` and `every_outcome` backwards from a goal.
+* The four tiers, each dearer than the last and the finish dearer than all of
+  them together.
+* Steps are one-shot per episode.
+* **Gate:** the three chains of §3.5 derive without anybody typing them, and
+  the derived steps match what `completable.rs` already believes about the same
+  doors. Two walkers over one graph that disagree is a bug in whichever is
+  newer.
+* **Second gate:** an agent that farms a cheap tier scores less than one that
+  finishes. Write that as a test with two hand-made trajectories rather than
+  hoping training finds it.
+
+### C7 — Named pathfinders ▲
+
+One harness, three specs, three artefacts: `pathfinder_unwound`,
 `pathfinder_threshold`, `pathfinder_drover`.
 
 * **Gate:** each reaches its own objective more often than the other two do,
   which is the only thing that makes them three models rather than one model
   copied. And each is measured with C5's packer plugged in.
 
-### C7 — The record ▲
+### C8 — The record ▲
 
 `analysis/the-two-trades.md` gains the composition's numbers;
 `design/HANDOFF-two-agents.md` gains a "what shipped" ledger; `CLAUDE.md` gains
@@ -329,6 +416,13 @@ its counts and whatever traps this earned.
 6. **The row is slow.** Fifty fights an episode against forty presses a packing
    is a different order of wall clock. Budget it before C4 rather than
    discovering it at hour six.
+7. **Granular rewards are farmable.** Four tiers paying along a chain is four
+   ways to earn without finishing. Potential-based shaping is the defence and
+   the ordering is the other one - the finish must be worth more than every
+   step combined, and there should be a test that says so rather than a hope.
+8. **A hand-written quest spec is a second copy of `EVENTS`.** It will go stale
+   the first time a door moves, silently, and the agent will train against a
+   road the game does not have. Derive it.
 
 ---
 
