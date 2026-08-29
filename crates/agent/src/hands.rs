@@ -98,7 +98,7 @@ pub fn pack_recording(
     budget: usize,
     out: &mut Vec<Lesson>,
 ) -> Packed {
-    pack_inner(c, budget, Some(out), None)
+    pack_inner(c, budget, Some(out), None, None)
 }
 
 /// Seat as much of the tray as helps, one piece at a time.
@@ -109,7 +109,18 @@ pub fn pack_recording(
 /// board is not a container, and a cell spent on something inert is a cell the
 /// next piece cannot have.
 pub fn pack(c: &mut Console, budget: usize) -> Packed {
-    pack_inner(c, budget, None, None)
+    pack_inner(c, budget, None, None, None)
+}
+
+/// The same, writing down the keys that **stuck**.
+///
+/// Not every press: four fifths of what these hands do is seat-and-undo, and a
+/// transcript carrying the trials would replay identically and be four times
+/// longer for it (Q0: 761,840 trial pairs in 941,965 presses). What is written
+/// is the rotations and the placement that were kept, which is what a person
+/// watching the run would have done.
+pub fn pack_saying(c: &mut Console, budget: usize, said: &mut Vec<String>) -> Packed {
+    pack_inner(c, budget, None, None, Some(said))
 }
 
 /// A prior over seats: given a candidate, how good does it look?
@@ -126,7 +137,7 @@ pub trait Prior {
 
 /// Seat with a prior deciding which seats are worth the press.
 pub fn pack_with(c: &mut Console, budget: usize, prior: &dyn Prior) -> Packed {
-    pack_inner(c, budget, None, Some(prior))
+    pack_inner(c, budget, None, Some(prior), None)
 }
 
 fn pack_inner(
@@ -134,6 +145,7 @@ fn pack_inner(
     budget: usize,
     mut record: Option<&mut Vec<Lesson>>,
     prior: Option<&dyn Prior>,
+    mut said: Option<&mut Vec<String>>,
 ) -> Packed {
     let mut out = Packed::default();
     // Rotations are pressed rather than assumed: a player turns the piece in
@@ -225,10 +237,18 @@ fn pack_inner(
         for _ in 0..turn {
             c.apply(Verb::Rotate { piece });
             out.presses += 1;
+            if let Some(s) = said.as_deref_mut() {
+                s.push(Verb::Rotate { piece }.line());
+            }
         }
-        if c.apply(Verb::Place { piece, slot, x, y }).ok {
+        let seat = Verb::Place { piece, slot, x, y };
+        let line = seat.line();
+        if c.apply(seat).ok {
             out.presses += 1;
             out.seated += 1;
+            if let Some(s) = said.as_deref_mut() {
+                s.push(line);
+            }
         } else {
             break;
         }

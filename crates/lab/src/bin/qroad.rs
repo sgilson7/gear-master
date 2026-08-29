@@ -1,0 +1,481 @@
+//! Train the pathfinder.
+//!
+//!     cargo run --release -p gearmaster-lab --features nn --bin qroad
+//!
+//! The milestone Q5 specified and never ran. It was blocked on Q3: the
+//! pathfinder walks with a **frozen** packer, and the trained packer assembled
+//! about one item in forty presses, so there was nothing worth freezing. The
+//! post-merge finding fixed enough of that - `QPACK_PHI=1.5` took the repack
+//! benchmark from 8/50 to 14/50 - that a frozen checkpoint is now a real
+//! packer rather than a way of guaranteeing every episode loses.
+//!
+//! Same architecture as `qpack` and for the same reason: the road menu changes
+//! shape every step, so there is no head with a neuron per action. The network
+//! scores a `(road, step)` pair and the agent takes the argmax over what is
+//! legal.
+//!
+//! **`pack` is one action.** A run is 195,273 key-presses and 204 decisions,
+//! and the difference is entirely the packing - so the packer is a macro-action
+//! the pathfinder spends one decision on. That is the temporal abstraction the
+//! whole two-agent split exists to buy.
+//!
+//! ## Trained to a chain, and named after it
+//!
+//!     QROAD_QUEST=pathfinder_threshold cargo run --release -p gearmaster-lab \
+//!         --features nn --bin qroad
+//!
+//! With `QROAD_QUEST` set the episode is paid along a chain rather than at a
+//! rung: `lab::quests` derives the stops, `trades::quest` pays for them, and the
+//! model is written under the chain's own name. Without it the episode is what
+//! it was - climb, and sometimes be sent to a rung.
+//!
+//! **The packer defaults to the written control**, and §C1 is why: composing
+//! with the learned one first makes every failure ambiguous, and the learned
+//! one assembles 2.8 items where the control assembles seventeen. A road policy
+//! trained against a packer that cannot clear rung ten will never see the end of
+//! a chain that starts at rung eighteen.
+
+#[cfg(not(feature = "nn"))]
+fn main() {
+    eprintln!("built without --features nn");
+}
+
+#[cfg(feature = "nn")]
+fn main() {
+    q::run();
+}
+
+#[cfg(feature = "nn")]
+mod q {
+    use burn::backend::{Autodiff, NdArray};
+    use burn::tensor::activation::relu;
+    use burn::tensor::{Tensor, TensorData};
+    use gearmaster_console::{Console, Difficulty, Mode};
+    use gearmaster_engine::rng::Rng;
+    use gearmaster_lab::packers::Packer;
+    use gearmaster_lab::quests;
+    use gearmaster_trades::env::{Goal, Step as RoadStep, Walking};
+    use gearmaster_trades::feature;
+    use gearmaster_trades::pathfinder::{self, PAIR};
+    use gearmaster_trades::quest::{End, Progress, Quest};
+    // The width the weights are actually stored at.
+    //
+    // `QNet::q_pair` zero-pads a 51-wide road pair into a `feature::PAIR`-wide
+    // buffer, so a road network *is* a packing-shaped network with nineteen
+    // columns that are always zero. Building it any narrower writes a file the
+    // agent cannot load, which is what the first version did.
+    use gearmaster_trades::feature::PAIR as WIDE;
+    use std::time::Instant;
+
+    type B = Autodiff<NdArray>;
+    const HIDDEN: usize = 96;
+
+    /// How much a step into the future is worth.
+    ///
+    /// Higher than the packer's, and it has to be: a door forty rungs away is
+    /// forty decisions of credit, where a placement is worth something inside
+    /// the same episode. 0.997^200 is 0.55.
+    const GAMMA: f32 = 0.997;
+
+    /// The most decisions a run may take.
+    ///
+    /// `horizons` measured a run at 204 pathfinder decisions with `pack` as one
+    /// action, so 320 is generous rather than binding.
+    const BUDGET: usize = 320;
+
+    const UPDATES: usize = 8;
+
+    /// What a road decision that changed nothing costs.
+    ///
+    /// Sized against the reward it competes with: a rung is `+1`, so a third of
+    /// a rung is enough to make three wasted decisions worse than one rung of
+    /// progress, and not so much that exploring is punished into never
+    /// happening.
+    const NOTHING_HAPPENED: f32 = 0.35;
+
+    /// What finishing a chain pays.
+    ///
+    /// The same as reaching a goal, deliberately: a chain *is* a goal with the
+    /// road to it written down, and paying more for one would make the two
+    /// incomparable. Everything the chain pays before this telescopes to
+    /// nothing (`trades::quest`), so this is the whole of what an episode on a
+    /// chain can earn beyond the ladder.
+    const FINISH: f32 = 50.0;
+
+    struct Trans {
+        x: [f32; WIDE],
+        r: f32,
+        next: Vec<[f32; WIDE]>,
+    }
+
+    /// A road pair in the width the weights are stored at.
+    fn wide(p: &[f32; PAIR]) -> [f32; WIDE] {
+        let mut out = [0.0f32; WIDE];
+        out[..PAIR].copy_from_slice(p);
+        out
+    }
+
+    fn init(rng: &mut Rng, r: usize, c: usize) -> Vec<f32> {
+        let scale = (2.0 / r as f32).sqrt();
+        (0..r * c)
+            .map(|_| ((rng.next_u64() >> 11) as f32 / (1u64 << 53) as f32 - 0.5) * 2.0 * scale)
+            .collect()
+    }
+
+    type Dev = <B as burn::tensor::backend::Backend>::Device;
+    fn mat(v: Vec<f32>, r: usize, c: usize, d: &Dev) -> Tensor<B, 2> {
+        Tensor::<B, 2>::from_data(TensorData::new(v, [r, c]), d).require_grad()
+    }
+
+    struct Net {
+        w1: Tensor<B, 2>,
+        b1: Tensor<B, 2>,
+        w2: Tensor<B, 2>,
+        b2: Tensor<B, 2>,
+        w3: Tensor<B, 2>,
+        b3: Tensor<B, 2>,
+    }
+
+    impl Net {
+        fn new(rng: &mut Rng, d: &Dev) -> Net {
+            Net {
+                w1: mat(init(rng, WIDE, HIDDEN), WIDE, HIDDEN, d),
+                b1: mat(vec![0.0; HIDDEN], 1, HIDDEN, d),
+                w2: mat(init(rng, HIDDEN, HIDDEN), HIDDEN, HIDDEN, d),
+                b2: mat(vec![0.0; HIDDEN], 1, HIDDEN, d),
+                w3: mat(init(rng, HIDDEN, 1), HIDDEN, 1, d),
+                b3: mat(vec![0.0; 1], 1, 1, d),
+            }
+        }
+        fn forward(&self, x: Tensor<B, 2>) -> Tensor<B, 2> {
+            let rows = x.dims()[0];
+            let h = relu(x.matmul(self.w1.clone()).add(self.b1.clone().repeat_dim(0, rows)));
+            let h = relu(h.matmul(self.w2.clone()).add(self.b2.clone().repeat_dim(0, rows)));
+            h.matmul(self.w3.clone()).add(self.b3.clone().repeat_dim(0, rows))
+        }
+        fn plain(&self) -> Vec<(&'static str, Vec<f32>)> {
+            [
+                ("w1", &self.w1),
+                ("b1", &self.b1),
+                ("w2", &self.w2),
+                ("b2", &self.b2),
+                ("w3", &self.w3),
+                ("b3", &self.b3),
+            ]
+            .into_iter()
+            .map(|(n, t)| (n, t.clone().inner().to_data().convert::<f32>().into_vec().unwrap()))
+            .collect()
+        }
+        fn text(&self) -> String {
+            let mut out = String::new();
+            for (n, v) in self.plain() {
+                out.push_str(n);
+                for x in v {
+                    out.push(' ');
+                    out.push_str(&format!("{:.6}", x));
+                }
+                out.push('\n');
+            }
+            out
+        }
+        fn frozen(&self) -> gearmaster_trades::QNet {
+            gearmaster_trades::QNet::parse(&self.text()).expect("its own weights")
+        }
+    }
+
+    /// Where an episode is sent. Mostly nowhere; sometimes somewhere.
+    ///
+    /// A goal-conditioned network needs episodes with goals in them, and it
+    /// needs *reachable* ones early or the +50 never fires and the conditioning
+    /// is noise. So: a rung it can plausibly get to, drawn near where the last
+    /// episodes ended.
+    fn goal_for(rng: &mut Rng, best: usize, on_a_chain: bool) -> Option<Goal> {
+        // A chain owns the payout when there is one. Two large rewards in one
+        // episode is two tasks, and the agent would learn whichever is easier.
+        if on_a_chain {
+            return None;
+        }
+        match rng.next_u64() % 4 {
+            0 => None,
+            _ => {
+                let reach = best.max(3);
+                let want = 2 + (rng.next_u64() as usize % reach);
+                Some(Goal::Rung(want))
+            }
+        }
+    }
+
+    pub fn run() {
+        let episodes: usize =
+            std::env::var("QROAD_EPISODES").ok().and_then(|v| v.parse().ok()).unwrap_or(1200);
+        let pack_path = std::env::var("QROAD_PACKER").unwrap_or_else(|_| "control".into());
+        let packer = Packer::named(&pack_path);
+        let pack_budget: usize =
+            std::env::var("QROAD_PACK_BUDGET").ok().and_then(|v| v.parse().ok()).unwrap_or(40);
+        println!("  packer: {}   budget {}", packer.describe(&pack_path), pack_budget);
+
+        // The chain this model is being trained to finish, if there is one.
+        //
+        // Derived rather than typed: `quests::by_name` walks the tables
+        // backwards. A name that does not dress is refused out loud, because a
+        // chain with no finish on it trains an agent on the cheap tiers and
+        // never pays it for the objective.
+        let quest: Option<Quest> = match std::env::var("QROAD_QUEST") {
+            Ok(name) => match quests::by_name(&name) {
+                Ok(q) => {
+                    println!("  quest: {} - {} stops", q.name, q.stops.len());
+                    for s in &q.stops {
+                        println!(
+                            "    {:<14} {:?}   rungs {}-{}",
+                            format!("{:?}", s.tier),
+                            s.mark,
+                            s.window.0 + 1,
+                            s.window.1 + 1
+                        );
+                    }
+                    Some(q)
+                }
+                Err(why) => {
+                    eprintln!("QROAD_QUEST={name}: {why:?}");
+                    return;
+                }
+            },
+            Err(_) => {
+                println!("  quest: none - climbing, and sometimes sent to a rung");
+                None
+            }
+        };
+        let out_path = quest
+            .as_ref()
+            .map(|q| format!("runs/{}.txt", q.name))
+            .unwrap_or_else(|| "runs/pathfinder.txt".into());
+
+        let dev = Default::default();
+        let mut rng = Rng::new(0x0AD_BEEF);
+        let mut net = Net::new(&mut rng, &dev);
+        let mut frozen = net.frozen();
+        let mut buffer: Vec<Trans> = Vec::with_capacity(60_000);
+        let batch = 128usize;
+        let lr = 0.0015;
+        let t0 = Instant::now();
+        let mut best_seen = 3usize;
+        let (mut reached, mut tried) = (0usize, 0usize);
+        // How far along the chain the best episode of this block got, and how
+        // many finished it. The two numbers the training is actually about.
+        let (mut deepest_stop, mut finished) = (0usize, 0usize);
+
+        for ep in 0..episodes {
+            let eps = (1.0 - ep as f32 / (episodes as f32 * 0.7)).clamp(0.05, 1.0);
+            let seed = rng.next_u64();
+            let mode = if ep % 2 == 0 { Mode::Grinder } else { Mode::Rogue };
+            let mut c = Console::start(seed, mode, Difficulty::Medium);
+            let goal = goal_for(&mut rng, best_seen, quest.is_some());
+            let mut w = Walking::new(goal.clone(), BUDGET);
+            let mut progress = quest.as_ref().map(Progress::new);
+            let mut trail: Vec<([f32; WIDE], Vec<[f32; WIDE]>, f32)> = Vec::new();
+            let mut best_rung = 1usize;
+
+            loop {
+                let ms = w.moves(&c);
+                if ms.is_empty() || w.steps >= BUDGET {
+                    break;
+                }
+                let v = c.view();
+                let along = match (&quest, &progress) {
+                    (Some(q), Some(p)) => q.features(p),
+                    _ => [0.0; 2],
+                };
+                let r = pathfinder::road_on_quest(&v, goal.as_ref(), along);
+                let pairs: Vec<[f32; PAIR]> = ms
+                    .iter()
+                    .map(|s| pathfinder::pair(&r, &pathfinder::describe(&v, s)))
+                    .collect();
+                let at = if (rng.next_u64() % 1000) as f32 / 1000.0 < eps {
+                    (rng.next_u64() % ms.len() as u64) as usize
+                } else {
+                    pairs
+                        .iter()
+                        .map(|p| frozen.q_pair(p))
+                        .enumerate()
+                        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                        .map(|(i, _)| i)
+                        .unwrap()
+                };
+                let chosen = wide(&pairs[at]);
+                let rung_before = v.rung_shown;
+                let losses_before = v.losses;
+
+                // **`Pack` is the road's free action**, and it is the same
+                // trap `Rotate` and `Pin` were on the packing side: it is
+                // always legal, it never advances the run, and a network that
+                // has not yet learned that fighting pays will press it until
+                // the budget runs out. The thirty-episode checkpoint pressed it
+                // 320 times out of 320 and finished on rung 1.
+                //
+                // So the charge is the one that worked there: read the board,
+                // not the verb. A `Pack` that leaves the board exactly as it
+                // found it costs what a wasted decision is worth.
+                let board_before = feature::board(&v);
+                match &ms[at] {
+                    RoadStep::Pack => {
+                        // The shopping list, first. §3.3: the purchase happens
+                        // outside both agents' action spaces, so a chain that
+                        // wants a word gets one the moment the run is standing
+                        // somewhere that sells it - and *being* there in time is
+                        // what the agent is being paid to work out.
+                        if let (Some(q), Some(p)) = (&quest, &progress) {
+                            gearmaster_lab::shopping::fetch(q, p, &mut c);
+                        }
+                        packer.pack(&mut c, pack_budget);
+                    }
+                    RoadStep::Press(verb) => {
+                        if !c.apply(*verb).ok {
+                            break;
+                        }
+                    }
+                }
+                let inert = feature::board(&c.view()) == board_before;
+                w.steps += 1;
+
+                let after = c.view();
+                best_rung = best_rung.max(after.rung_shown);
+                let lost = after.losses > losses_before;
+
+                // Whether this step ended the episode, and how - which is the
+                // argument that decides whether a chain hands its tiers back.
+                // Worked out before the reward, because the reward needs it.
+                let ms2 = w.moves(&c);
+                let over = ms2.is_empty() || w.steps >= BUDGET;
+                let end = match (over, w.steps >= BUDGET) {
+                    (false, _) => End::Running,
+                    (true, true) => End::Truncated,
+                    (true, false) => End::Terminated,
+                };
+                let mut rw = pathfinder::Reward { rung_before, best_before: best_seen }
+                    .of(&c, &w, lost)
+                    - if inert { NOTHING_HAPPENED } else { 0.0 };
+                let mut done_here = false;
+                if let (Some(q), Some(p)) = (&quest, &mut progress) {
+                    // A finish ends the episode, so the ending handed to `pay`
+                    // is `Terminated` on the step that finishes it whatever the
+                    // budget says.
+                    let would_finish = {
+                        let mut peek = p.clone();
+                        q.observe(&mut peek, &after);
+                        q.done(&peek)
+                    };
+                    let e = if would_finish { End::Terminated } else { end };
+                    let paid = q.pay(p, &after, GAMMA, e, FINISH);
+                    rw += paid.total();
+                    deepest_stop = deepest_stop.max(p.passed());
+                    done_here = q.done(p);
+                }
+
+                let next: Vec<[f32; WIDE]> = if over || done_here {
+                    Vec::new()
+                } else {
+                    let v2 = c.view();
+                    let along2 = match (&quest, &progress) {
+                        (Some(q), Some(p)) => q.features(p),
+                        _ => [0.0; 2],
+                    };
+                    let r2 = pathfinder::road_on_quest(&v2, goal.as_ref(), along2);
+                    ms2.iter()
+                        .map(|s| wide(&pathfinder::pair(&r2, &pathfinder::describe(&v2, s))))
+                        .collect()
+                };
+                trail.push((chosen, next, rw));
+                if done_here {
+                    finished += 1;
+                    break;
+                }
+                if w.met(&c) {
+                    w.reached = true;
+                    break;
+                }
+            }
+
+            best_seen = best_seen.max(best_rung);
+            if goal.is_some() {
+                tried += 1;
+                if w.reached {
+                    reached += 1;
+                }
+            }
+            for (x, next, r) in trail {
+                buffer.push(Trans { x, r, next });
+            }
+            if buffer.len() > 60_000 {
+                buffer.drain(0..15_000);
+            }
+
+            for _ in 0..UPDATES {
+                if buffer.len() >= batch {
+                    let mut xs = Vec::with_capacity(batch * PAIR);
+                    let mut ys = Vec::with_capacity(batch);
+                    for _ in 0..batch {
+                        let s = &buffer[(rng.next_u64() % buffer.len() as u64) as usize];
+                        xs.extend_from_slice(&s.x);
+                        let boot = if s.next.is_empty() {
+                            0.0
+                        } else {
+                            s.next.iter().map(|p| frozen.q(p)).fold(f32::MIN, f32::max)
+                        };
+                        ys.push(s.r + GAMMA * boot);
+                    }
+                    let x = Tensor::<B, 2>::from_data(TensorData::new(xs, [batch, WIDE]), &dev);
+                    let y = Tensor::<B, 2>::from_data(TensorData::new(ys, [batch, 1]), &dev);
+                    let out = net.forward(x);
+                    let d = out.sub(y);
+                    let loss = d.clone().abs().clamp(0.0, 1.0).mul(d.abs()).mean();
+                    let grads = loss.backward();
+                    let step = |p: &mut Tensor<B, 2>| {
+                        if let Some(gr) = p.grad(&grads) {
+                            *p = Tensor::from_inner(p.clone().inner().sub(gr.mul_scalar(lr)))
+                                .require_grad();
+                        }
+                    };
+                    step(&mut net.w1);
+                    step(&mut net.b1);
+                    step(&mut net.w2);
+                    step(&mut net.b2);
+                    step(&mut net.w3);
+                    step(&mut net.b3);
+                }
+            }
+
+            if ep % 100 == 99 {
+                frozen = net.frozen();
+            }
+            if ep % 100 == 0 || ep + 1 == episodes {
+                match &quest {
+                    Some(q) => println!(
+                        "  episode {:>5}   eps {:.2}   buffer {:>6}   deepest rung {:>3}   \
+                         stops {:>2}/{:<2}   finished {:>3}",
+                        ep,
+                        eps,
+                        buffer.len(),
+                        best_seen,
+                        deepest_stop,
+                        q.stops.len(),
+                        finished
+                    ),
+                    None => println!(
+                        "  episode {:>5}   eps {:.2}   buffer {:>6}   deepest {:>3}   \
+                         goals reached {:>3}/{:<4}",
+                        ep, eps, buffer.len(), best_seen, reached, tried
+                    ),
+                }
+                reached = 0;
+                tried = 0;
+                deepest_stop = 0;
+                finished = 0;
+            }
+        }
+
+        println!("trained in {:.1}s", t0.elapsed().as_secs_f64());
+        std::fs::create_dir_all("runs").ok();
+        std::fs::write(&out_path, net.text()).unwrap();
+        println!("wrote {out_path}");
+    }
+}

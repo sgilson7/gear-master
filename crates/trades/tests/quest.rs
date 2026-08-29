@@ -29,7 +29,7 @@ const FINISH: f32 = 50.0;
 /// `crates/lab/src/bin/qquest.rs`. What this file is testing is the payment
 /// rule, and a payment rule does not care where the chain came from.
 fn threshold() -> Quest {
-    let stop = |tier, mark, window| Stop { tier, mark, window };
+    let stop = |tier, mark, window| Stop { tier, mark, by: Vec::new(), doors: Vec::new(), window };
     Quest {
         name: "pathfinder_threshold".into(),
         stops: vec![

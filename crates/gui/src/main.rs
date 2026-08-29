@@ -11853,6 +11853,13 @@ async fn main() {
     let mut run = Run::new();
     let mut drag = Drag::None;
     let mut pb: Option<Playback> = None;
+    /// How long a watched run holds a finished fight's result before moving on.
+    ///
+    /// Long enough to read who won and what it paid; short enough that fifty
+    /// rungs is not fifty pauses.
+    const RESULT_LINGER: f64 = 2.5;
+    // When the current fight's result screen went up, for the above.
+    let mut result_since: Option<f64> = None;
     // Whether the current fight's reward has been banked yet.
     let mut settled = false;
     // The combat log is a quiet strip unless you ask to see all of it.
@@ -13537,6 +13544,13 @@ async fn main() {
 
         if run.phase == Phase::Fighting {
             let done = pb.as_ref().map(|p| p.done).unwrap_or(false);
+            // When this fight's result screen first went up, so a watcher can
+            // hold it long enough to read and then move on.
+            match (done, result_since) {
+                (true, None) => result_since = Some(get_time()),
+                (false, Some(_)) => result_since = None,
+                _ => {}
+            }
             let g = battle_geom(done);
             let br = g.buttons;
             let hit = |i: usize| {
@@ -13551,7 +13565,17 @@ async fn main() {
             } else {
                 hit(0)
             };
-            if leave {
+            // **A watched run leaves by itself.** The way out of a finished
+            // fight is a mouse click on the primary button, so a transcript
+            // playing into the window stopped dead on every result screen and
+            // waited for a person - which is the one moment a watcher is meant
+            // to be unattended. It waits `linger` seconds on the result so the
+            // outcome is readable, then presses the button the same way a
+            // hand would.
+            let watched_out = watcher.as_ref().is_some_and(|(w, _)| !w.paused)
+                && done
+                && result_since.is_some_and(|t| get_time() - t > RESULT_LINGER);
+            if leave || watched_out {
                 run.back_to_loadout();
                 pb = None;
                 log_expanded = false;

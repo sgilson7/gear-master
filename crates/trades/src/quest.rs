@@ -49,6 +49,7 @@
 //! not progress worth anything.
 
 use gearmaster_console::view::View;
+use gearmaster_console::Door;
 
 /// What a stop is worth, cheapest first.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -139,6 +140,20 @@ impl Mark {
 pub struct Stop {
     pub tier: Tier,
     pub mark: Mark,
+    /// The choice labels that pass this stop, and the town doors that do.
+    ///
+    /// **A set and not a label** (§3.6): a stop with two acceptable answers has
+    /// two, and a spec that named one would be wrong about the road. The cellar
+    /// word has two - the astronomer hears you out, or the Slagworks' foreman
+    /// tells you - and a driver that only knew the first would call the second
+    /// route a failure.
+    ///
+    /// Nothing in the reward reads these and nothing in the features carries
+    /// them. They are here so a **written** driver can follow the plan, which is
+    /// what makes a control worth comparing a learned policy against; handing
+    /// them to the network would be handing it the answer.
+    pub by: Vec<String>,
+    pub doors: Vec<Door>,
     /// The earliest and latest rung this can be passed on, as the derivation
     /// tightened it. Carried for the report and for the features; nothing in
     /// the reward reads it, because a reward that punished being early would be

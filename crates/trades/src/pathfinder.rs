@@ -15,11 +15,30 @@ use crate::qnet::QNet;
 use gearmaster_console::view::View;
 use gearmaster_console::{Console, Verb};
 
-/// How many numbers describe the road and the goal.
-pub const ROAD: usize = 22;
+/// How many numbers describe the road, the goal and the chain.
+///
+/// Twenty-two until the quests landed. The last two are how far along a chain
+/// the run is, and they are not decoration: `Φ` telescopes over the progress,
+/// and a shaped reward the network cannot predict is noise rather than a hint.
+/// A pair stored at this width still zero-pads into `feature::PAIR`, which is
+/// seventy, so there is room and the file format did not move - but a road net
+/// trained at the old width reads its columns in the wrong places, so
+/// checkpoints do not survive the change.
+pub const ROAD: usize = 24;
 
 /// The road, the run, and what it was sent to reach.
+///
+/// For a walk with no chain in it. `road_on_quest` is the same thing with the
+/// two progress columns filled in.
 pub fn road(v: &View, goal: Option<&Goal>) -> [f32; ROAD] {
+    road_on_quest(v, goal, [0.0; 2])
+}
+
+/// The road, and how far along a chain the run is.
+///
+/// `quest` is `Quest::features`: what fraction of the stops have been passed,
+/// and whether the last of them was the finish.
+pub fn road_on_quest(v: &View, goal: Option<&Goal>, quest: [f32; 2]) -> [f32; ROAD] {
     let mut f = [0.0f32; ROAD];
     f[0] = v.rung_shown as f32 / 50.0;
     f[1] = (v.gold as f32 / 400.0).min(4.0);
@@ -48,6 +67,8 @@ pub fn road(v: &View, goal: Option<&Goal>) -> [f32; ROAD] {
         Some(Goal::Town(_)) => f[20] = 1.0,
         Some(Goal::Rung(_)) | Some(Goal::County(_)) => f[21] = 1.0,
     }
+    f[22] = quest[0];
+    f[23] = quest[1];
     f
 }
 
@@ -74,6 +95,11 @@ pub fn describe(v: &View, s: &crate::env::Step) -> [f32; feature::MOVE] {
 ///
 /// `+1` a rung, `+3` for a rung never stood on this episode, `-1` a lost
 /// fight, and **`+50` on reaching the goal**, which ends it.
+///
+/// A quest is paid *beside* this rather than inside it. `Quest::pay` returns a
+/// shaping term that telescopes to nothing and a finish that does not, and the
+/// two are added: the road's own reward is what makes a run climb, and the
+/// chain's is what makes it climb somewhere in particular.
 pub struct Reward {
     pub rung_before: usize,
     pub best_before: usize,
@@ -184,6 +210,25 @@ impl QNet {
         v[..n].copy_from_slice(&x[..n]);
         self.q(&v)
     }
+}
+
+/// The road's reward and a chain's, added.
+///
+/// Call once per decision with the console already stepped. `end` is what
+/// happened to the episode on this step, and it is the argument that decides
+/// whether the chain's tiers are handed back - see `quest`'s module note, and
+/// note that "the budget ran out" is an ending like any other here, on purpose.
+pub fn reward_on_quest(
+    r: &Reward,
+    after: &Console,
+    w: &Walking,
+    lost: bool,
+    q: &crate::quest::Quest,
+    p: &mut crate::quest::Progress,
+    end: crate::quest::End,
+    finish: f32,
+) -> f32 {
+    r.of(after, w, lost) + q.pay(p, &after.view(), 0.997, end, finish).total()
 }
 
 /// A verb the pathfinder can take, for a caller that wants the list.

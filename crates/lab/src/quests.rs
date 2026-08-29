@@ -62,7 +62,28 @@ pub fn quest(name: &str, goal: src::Objective) -> Result<Quest, Undressable> {
 }
 
 fn stop(s: &src::Station) -> Option<Stop> {
-    Some(Stop { tier: tier(s.tier), mark: mark(&s.mark)?, window: s.window })
+    let mut by = Vec::new();
+    let mut doors = Vec::new();
+    for a in &s.by {
+        match a {
+            src::Answer::Choice { label, .. } => by.push((*label).to_string()),
+            src::Answer::TownDoor { action, .. } => {
+                if !doors.contains(action) {
+                    doors.push(*action);
+                }
+            }
+            // The bar trades rather than gives, and it is the one door whose
+            // name is not in the station's own answer list because the barter
+            // is the shopping list's (`lab::shopping`) rather than a choice.
+            src::Answer::Bar => {
+                if !doors.contains(&gearmaster_engine::town::Action::Pub) {
+                    doors.push(gearmaster_engine::town::Action::Pub);
+                }
+            }
+            src::Answer::Dungeon(_) | src::Answer::Road | src::Answer::Engine(_) => {}
+        }
+    }
+    Some(Stop { tier: tier(s.tier), mark: mark(&s.mark)?, by, doors, window: s.window })
 }
 
 fn tier(t: src::Tier) -> Tier {

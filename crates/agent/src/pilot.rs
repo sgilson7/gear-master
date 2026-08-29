@@ -615,7 +615,13 @@ fn floors_of(_dungeon: &str) -> usize {
 /// The board is five grids and a piece belongs to one of them, so the question
 /// is which grid is least finished - a slot with no item at all is worth more
 /// than a fourth ring for one that has three.
-fn want_to_buy(v: &gearmaster_console::View) -> Option<usize> {
+///
+/// Public because a road agent's `Pack` is buy-and-seat rather than seat, and
+/// the buying half is this. Reused rather than rewritten so "the control" means
+/// one thing: `crates/lab/src/packers.rs` calls this and `hands::pack`, which
+/// between them are the quartermaster half of the pilot every benchmark in
+/// `analysis/the-two-trades.md` was measured against.
+pub fn want_to_buy(v: &gearmaster_console::View) -> Option<usize> {
     // Keep a rung's bounty in hand. A run that spends to the last coin cannot
     // reroll, cannot barter and cannot pay a toll.
     let spare = v.gold - 8;
