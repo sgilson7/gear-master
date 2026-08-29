@@ -193,7 +193,7 @@ fn main() {
     }
 
     // ---- what it would give ------------------------------------------
-    let (verdict, board, candidate) = judge(&gear, &chunks);
+    let (verdict, _board, candidate) = judge(&gear, &chunks);
     let got = g.rows(&oracle, &candidate);
 
     println!("\n  against the four reference boards, at Medium:");
