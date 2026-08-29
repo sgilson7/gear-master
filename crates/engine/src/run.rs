@@ -608,6 +608,13 @@ impl PartialEq for Interrupt {
 
 impl Eq for Interrupt {}
 
+/// Cloneable so a harness can keep a **pool of situations**.
+///
+/// A run stood at a rung by walking there is expensive - a whole control run of
+/// shops and fights - and a trainer wants thousands of them. Walking a pool
+/// once and cloning out of it is the difference between a curriculum and a
+/// wait. Nothing in the game clones a run; this is for `crates/lab`.
+#[derive(Clone)]
 pub struct Run {
     pub registry: PieceRegistry,
     /// Every component the player owns, in a stable display order. What is in

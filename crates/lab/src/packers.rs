@@ -54,6 +54,17 @@ pub fn control(c: &mut Console, learned_budget: usize) {
 
 /// The same, writing every key it presses where a transcript can find it.
 pub fn control_recording(c: &mut Console, _learned_budget: usize, said: &mut Vec<String>) {
+    // A row that has been granted and not spent is six cells nobody has. The
+    // pilot presses this and the macro-action did not, which is one of the
+    // reasons a walked curriculum stalled around rung ten where the pilot
+    // clears forty-eight.
+    while let Some(pick) = c.menu().iter().find(|v| matches!(v, Verb::Grow { .. })).copied() {
+        let line = pick.line();
+        if !c.apply(pick).ok {
+            break;
+        }
+        said.push(line);
+    }
     let before = c.view();
     let mut spent = 0;
     while spent < SHELVES {
@@ -76,6 +87,16 @@ pub fn control_recording(c: &mut Console, _learned_budget: usize, said: &mut Vec
         return;
     }
     hands::pack_saying(c, CONTROL_PRESSES, said);
+    // **`hands::reseat` does not belong here, and it was measured.** The board
+    // fills up and `pack` only ever adds, so rebuilding a full grid is the
+    // obvious next move - and calling it whenever adding failed took a walked
+    // Grinder curriculum from 46 seconds to **494** and from nine arrivals in
+    // twenty to eight. Ten times the wall clock for slightly fewer boards.
+    //
+    // It is not that reseating is wrong. It is that it costs a full sweep of a
+    // grid every time the tray has something that will not fit, which on a
+    // walked run is most rungs, and the thing it buys is worth less than the
+    // rungs the time could have walked instead.
 }
 
 /// A learned packer, or nothing at all.

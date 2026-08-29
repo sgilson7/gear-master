@@ -46,6 +46,11 @@ fn main() {
     let written = std::env::var("QAIM_ROAD").as_deref() == Ok("written");
     let packer = Packer::named(&std::env::var("QAIM_PACKER").unwrap_or_else(|_| "control".into()));
     let runs: usize = std::env::var("QAIM_RUNS").ok().and_then(|v| v.parse().ok()).unwrap_or(12);
+    let pinned_mode = match std::env::var("QAIM_MODE").as_deref() {
+        Ok("grinder") => Some(Mode::Grinder),
+        Ok("rogue") => Some(Mode::Rogue),
+        _ => None,
+    };
     let pack_budget: usize =
         std::env::var("QAIM_PACK_BUDGET").ok().and_then(|v| v.parse().ok()).unwrap_or(40);
 
@@ -68,7 +73,8 @@ fn main() {
     let mut r = Rng::new(0x0A1_1E5);
     for i in 0..runs {
         let seed = r.next_u64();
-        let mode = if i % 2 == 0 { Mode::Grinder } else { Mode::Rogue };
+        let mode = pinned_mode
+            .unwrap_or(if i % 2 == 0 { Mode::Grinder } else { Mode::Rogue });
         let (p, rung) = aim(&q, net.as_ref(), written, &packer, seed, mode, pack_budget);
         for (j, hit) in reached.iter_mut().enumerate() {
             if p.has(j) {

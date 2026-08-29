@@ -208,6 +208,23 @@ mod q {
     pub fn run() {
         let episodes: usize =
             std::env::var("QROAD_EPISODES").ok().and_then(|v| v.parse().ok()).unwrap_or(1200);
+        // **One mode a model.** Alternating them trains one policy to play two
+        // games whose only difference is what a loss costs - which is the
+        // difference the policy would most need to condition on, and it is in
+        // the features, but two models is what §3.5's gate asks for and it is
+        // the cheaper claim to check.
+        let pinned_mode = match std::env::var("QROAD_MODE").as_deref() {
+            Ok("grinder") => Some(Mode::Grinder),
+            Ok("rogue") => Some(Mode::Rogue),
+            _ => None,
+        };
+        println!(
+            "  mode: {}",
+            match pinned_mode {
+                Some(m) => format!("{m:?} only"),
+                None => "both, alternating".into(),
+            }
+        );
         let pack_path = std::env::var("QROAD_PACKER").unwrap_or_else(|_| "control".into());
         let packer = Packer::named(&pack_path);
         let pack_budget: usize =
@@ -245,10 +262,15 @@ mod q {
                 None
             }
         };
+        let suffix = match pinned_mode {
+            Some(Mode::Grinder) => "_grinder",
+            Some(Mode::Rogue) => "_rogue",
+            None => "",
+        };
         let out_path = quest
             .as_ref()
-            .map(|q| format!("runs/{}.txt", q.name))
-            .unwrap_or_else(|| "runs/pathfinder.txt".into());
+            .map(|q| format!("runs/{}{suffix}.txt", q.name))
+            .unwrap_or_else(|| format!("runs/pathfinder{suffix}.txt"));
 
         let dev = Default::default();
         let mut rng = Rng::new(0x0AD_BEEF);
@@ -267,7 +289,16 @@ mod q {
         for ep in 0..episodes {
             let eps = (1.0 - ep as f32 / (episodes as f32 * 0.7)).clamp(0.05, 1.0);
             let seed = rng.next_u64();
-            let mode = if ep % 2 == 0 { Mode::Grinder } else { Mode::Rogue };
+            let mode = match pinned_mode {
+                Some(m) => m,
+                None => {
+                    if ep % 2 == 0 {
+                        Mode::Grinder
+                    } else {
+                        Mode::Rogue
+                    }
+                }
+            };
             let mut c = Console::start(seed, mode, Difficulty::Medium);
             let goal = goal_for(&mut rng, best_seen, quest.is_some());
             let mut w = Walking::new(goal.clone(), BUDGET);

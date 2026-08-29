@@ -29,9 +29,9 @@ mod q {
     use burn::tensor::activation::relu;
     use burn::tensor::{backend::AutodiffBackend, Tensor, TensorData};
     use gearmaster_console::{Console, Difficulty, Mode, Verb};
-    use gearmaster_engine::combat::{simulate_at, Outcome, LADDER, SUDDEN_DEATH_MS};
     use gearmaster_engine::rng::Rng;
-    use gearmaster_engine::run::Run;
+    use gearmaster_lab::curriculum;
+    use gearmaster_lab::scoring::{self, Judge};
     use gearmaster_trades::env::{Move, Packing};
     use gearmaster_trades::feature::{self, PAIR};
 use gearmaster_lab::themes;
@@ -115,12 +115,59 @@ use gearmaster_trades::brief::Brief;
     /// holding a handle and a blade: the agent was being asked to beat a
     /// rung-forty creature out of one shop, and it never once did. A reward
     /// that is always -1 is not a reward.
-    fn situation(seed: u64, rung: usize) -> (Console, usize) {
-        let mut run = Run::start(seed, Mode::Grinder, Difficulty::Medium);
-        if rung > 0 {
-            run.skip_to(rung);
+    /// Situations walked once and cloned out of, because walking is expensive.
+    ///
+    /// A walked situation is a whole control run of shops and fights. Doing one
+    /// per episode would spend the training on the curriculum; doing one per
+    /// rung and cloning is the same curriculum at a hundredth of the cost, and
+    /// `Run` is `Clone` for exactly this.
+    struct Pool {
+        at: Vec<(usize, Console)>,
+        walks: usize,
+    }
+
+    impl Pool {
+        /// Walk a spread of rungs once. `each` situations per rung band.
+        fn build(mode: Mode, rungs: &[usize], each: usize) -> Pool {
+            let mut at = Vec::new();
+            let mut walks = 0;
+            for (i, &rung) in rungs.iter().enumerate() {
+                for k in 0..each {
+                    walks += 1;
+                    let seed = 0xC0FFEE_u64
+                        .wrapping_mul(i as u64 + 1)
+                        .wrapping_add(k as u64 * 0x9E3779B9);
+                    if let Some((c, r)) = situation(seed, rung, mode) {
+                        at.push((r, c));
+                    }
+                }
+            }
+            Pool { at, walks }
         }
-        (Console::standing_in(run, seed), rung)
+
+        /// A situation at or below `reach`, cloned.
+        fn draw(&self, rng: &mut Rng, reach: usize) -> Option<(Console, usize)> {
+            let ok: Vec<&(usize, Console)> = self.at.iter().filter(|(r, _)| *r <= reach).collect();
+            if ok.is_empty() {
+                return None;
+            }
+            let (r, c) = ok[(rng.next_u64() % ok.len() as u64) as usize];
+            Some((c.clone(), *r))
+        }
+    }
+
+    fn situation(seed: u64, rung: usize, mode: Mode) -> Option<(Console, usize)> {
+        // **Walked, not skipped.** `skip_to` pays the bounties and not the
+        // shops: a run stood at rung 25 that way carries 1,516 gold, seven
+        // pieces, one shelf and **no assembled item at all**, so the window in
+        // `scoring` has no board to look at. `lab::curriculum` walks the row
+        // the way §3.1 asks for, which is what makes the tray at rung twenty
+        // whatever the run bought on the way.
+        //
+        // A run that died on the road is not evidence about the rung it was
+        // sent to, so it is dropped rather than used.
+        let (c, walked) = curriculum::walk_to(seed, mode, Difficulty::Medium, rung);
+        walked.arrived.then_some((c, rung))
     }
 
     /// What an episode was worth: one fight against what is coming.
@@ -168,23 +215,18 @@ use gearmaster_trades::brief::Brief;
         Brief(got).likeness(w)
     }
 
-    fn score(c: &Console, rung: usize, w: &Brief) -> f32 {
+    /// What an episode was worth: the board against the rungs ahead of it.
+    ///
+    /// **One fight against one creature could not tell the modes apart.** A
+    /// fight is a pure function of two boards and `combat.rs` never names
+    /// `Mode`, so passing `Mode::Rogue` to the old reward produced the same
+    /// packer. `lab::scoring` is the reward that can: a window of the rungs
+    /// ahead, averaged for Grinder and averaged-then-charged-for-the-worst for
+    /// Rogue, because in Rogue the worst thing in the window is the thing that
+    /// happens and there are four of those in a run.
+    fn score(c: &Console, rung: usize, w: &Brief, judge: Judge) -> f32 {
         let (stats, items) = c.board_for_scoring();
-        if items.is_empty() {
-            return -1.5;
-        }
-        let spec = &LADDER[rung.min(LADDER.len() - 1)];
-        let log = simulate_at(stats, &items, spec, Difficulty::Medium);
-        let enemy_max = spec.health.max(1) as f32;
-        let won = if log.outcome == Outcome::Victory {
-            let quick = 1.0 - (log.duration_ms as f32 / SUDDEN_DEATH_MS as f32).min(1.0);
-            let decided = if log.duration_ms < SUDDEN_DEATH_MS { 0.3 } else { 0.0 };
-            1.0 + quick * 0.5 + decided
-        } else {
-            let left = log.enemy().health.max(0) as f32 / enemy_max;
-            -1.0 + (1.0 - left) * 0.8
-        };
-        won + FIDELITY * delivered(c, w)
+        scoring::score(stats, &items, rung, judge) + FIDELITY * delivered(c, w)
     }
 
     fn init(rng: &mut Rng, r: usize, c: usize) -> Vec<f32> {
@@ -314,6 +356,29 @@ use gearmaster_trades::brief::Brief;
         let mut won = 0usize;
         let mut seen = 0usize;
 
+        // **Which question is being asked of a board.** The mode reaches the
+        // packer here and nowhere else: it cannot reach a fight, because a
+        // fight is a pure function of two boards.
+        let mode = if std::env::var("QPACK_MODE").as_deref() == Ok("rogue") {
+            Mode::Rogue
+        } else {
+            Mode::Grinder
+        };
+        let judge = Judge::of_mode(mode);
+        let t_pool = Instant::now();
+        let pool = Pool::build(mode, &[0, 2, 4, 7, 10, 14, 18, 23, 28, 34], 2);
+        println!(
+            "  judge: {}   pool: {} situations from {} walks in {:.0}s",
+            judge.name(),
+            pool.at.len(),
+            pool.walks,
+            t_pool.elapsed().as_secs_f64()
+        );
+        if pool.at.is_empty() {
+            eprintln!("nothing walked - there is no curriculum to train against");
+            return;
+        }
+
         for ep in 0..episodes {
             // ε from 1.0 down to 0.05 over the first two thirds.
             let eps = (1.0 - ep as f32 / (episodes as f32 * 0.66)).clamp(0.05, 1.0);
@@ -321,8 +386,7 @@ use gearmaster_trades::brief::Brief;
             // learns: at the start almost everything is in the shallow end,
             // and by the end the whole ladder is in the sample.
             let reach = 3.0 + 47.0 * (ep as f32 / episodes as f32).powf(1.5);
-            let rung = (rng.next_u64() % reach as u64) as usize;
-            let (mut c, rung) = situation(rng.next_u64(), rung);
+            let Some((mut c, rung)) = pool.draw(&mut rng, reach as usize) else { continue };
             let mut e = Packing::new(budget());
             let mut trail: Vec<([f32; PAIR], Vec<[f32; PAIR]>, f32)> = Vec::new();
             // Potential-based shaping, on the crudest possible signal:
@@ -354,9 +418,9 @@ use gearmaster_trades::brief::Brief;
             // **What this episode was asked for.** One theme a episode, drawn
             // from the eight; the two held out are never seen here and are the
             // whole of the Q8 measurement.
-            let pool = themes::trained();
+            let themes_pool = themes::trained();
             let w = if want_briefs {
-                themes::brief(pool[(rng.next_u64() % pool.len() as u64) as usize])
+                themes::brief(themes_pool[(rng.next_u64() % themes_pool.len() as u64) as usize])
             } else {
                 Brief::NONE
             };
@@ -420,7 +484,7 @@ use gearmaster_trades::brief::Brief;
 
             // The fight, once, at the end - and every step in the episode is
             // credited with it through the discount.
-            let r = score(&c, rung, &w);
+            let r = score(&c, rung, &w, judge);
             seen += 1;
             if r > 0.0 {
                 won += 1;
@@ -514,7 +578,7 @@ use gearmaster_trades::brief::Brief;
                 // task gets harder underneath the number and a flat curve can
                 // be real progress or none at all. This is the same twenty
                 // situations every time.
-                let (ewon, eitems, esteps, espread) = evaluate(&frozen, &eval_brief);
+                let (ewon, eitems, esteps, espread) = evaluate(&frozen, &eval_brief, &pool, judge);
                 println!(
                     "  episode {:>5}   eps {:.2}   buffer {:>6}   training {:>3}/{:<4}   \
                      EVAL won {:>2}/20  items {:>4.1}  steps {:>5.1}  spread {:>6.3}",
@@ -544,8 +608,12 @@ use gearmaster_trades::brief::Brief;
             }
             out.push('\n');
         }
-        std::fs::write("runs/quartermaster.txt", out).unwrap();
-        println!("wrote runs/quartermaster.txt");
+        // Named after the judge, because that is the only thing that differs
+        // between the two: a fight cannot see the mode, so a Rogue packer is a
+        // packer that was asked a different question about the same fights.
+        let path = format!("runs/quartermaster_{}.txt", judge.name());
+        std::fs::write(&path, out).unwrap();
+        println!("wrote {path}");
     }
 
     /// The moves a learner actually chooses between.
@@ -571,16 +639,23 @@ use gearmaster_trades::brief::Brief;
     }
 
     /// Twenty fixed situations, played greedily. The learning curve.
-    fn evaluate(net: &gearmaster_trades::QNet, w: &Brief) -> (usize, f64, f64, f64) {
+    fn evaluate(
+        net: &gearmaster_trades::QNet,
+        w: &Brief,
+        pool: &Pool,
+        judge: Judge,
+    ) -> (usize, f64, f64, f64) {
         let (mut won, mut items, mut steps) = (0usize, 0usize, 0usize);
         // How far apart the best and worst moves look. A network with nothing
         // to say scores every move the same, and that is a different failure
         // from one that has learned the wrong thing.
         let mut spread = 0.0f64;
         let mut spreads = 0usize;
-        for i in 0..20u64 {
-            let rung = (i as usize * 2) % 24;
-            let (mut c, rung) = situation(0xE_A100 + i * 7919, rung);
+        let mut rng = Rng::new(0xE_A100);
+        let mut n = 0usize;
+        for _ in 0..20u64 {
+            let Some((mut c, rung)) = pool.draw(&mut rng, 50) else { continue };
+            n += 1;
             let mut e = Packing::new(budget());
             loop {
                 let ms = decisions(e.moves(&c));
@@ -610,11 +685,12 @@ use gearmaster_trades::brief::Brief;
             }
             let (_, _, n, _) = c.figures();
             items += n;
-            if score(&c, rung, w) > 0.0 {
+            if score(&c, rung, w, judge) > 0.0 {
                 won += 1;
             }
         }
-        (won, items as f64 / 20.0, steps as f64 / 20.0, spread / spreads.max(1) as f64)
+        let n = n.max(1) as f64;
+        (won, items as f64 / n, steps as f64 / n, spread / spreads.max(1) as f64)
     }
 
     fn argmax(pairs: &[[f32; PAIR]], net: &gearmaster_trades::QNet) -> usize {

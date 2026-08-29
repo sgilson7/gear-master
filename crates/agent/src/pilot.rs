@@ -105,6 +105,29 @@ pub fn play_guided(
     play_impl(seed, mode, difficulty, d, seen, Some(prior))
 }
 
+/// Play one seed until it has cleared `rung`, and hand back the console.
+///
+/// **For a curriculum.** A harness that wants the board a run *actually had* at
+/// rung twenty has to walk there, and it has to walk there the way the control
+/// walks - the pilot barters, sells, rerolls, grows and rearranges after a
+/// defeat, and a simplified walker that packs and fights does not. Measured
+/// (`lab --bin qrogue`): to rung 28 in Grinder against the walker's 13, and to
+/// rung **18** in Rogue against the walker's **1**.
+///
+/// The console comes back wherever the run got to, so read `Ended::best_rung`
+/// before believing it is standing where it was sent. A Rogue run that died is
+/// not evidence about the rung it was aimed at.
+pub fn play_to(
+    seed: u64,
+    mode: Mode,
+    difficulty: Difficulty,
+    d: Doctrine,
+    rung: usize,
+) -> (Console, Ended) {
+    let mut nothing = Seen::default();
+    play_impl_to(seed, mode, difficulty, d, &mut nothing, None, Some(rung))
+}
+
 /// Play one seed, writing what it meets into a memory that outlives it.
 ///
 /// The memory is what makes the coverage dial mean anything: a run that
@@ -127,6 +150,18 @@ fn play_impl(
     seen: &mut Seen,
     prior: Option<&dyn crate::hands::Prior>,
 ) -> Ended {
+    play_impl_to(seed, mode, difficulty, d, seen, prior, None).1
+}
+
+fn play_impl_to(
+    seed: u64,
+    mode: Mode,
+    difficulty: Difficulty,
+    d: Doctrine,
+    seen: &mut Seen,
+    prior: Option<&dyn crate::hands::Prior>,
+    stop_after: Option<usize>,
+) -> (Console, Ended) {
     let mut c = Console::start(seed, mode, difficulty);
     seen.runs += 1;
     let mut e = Ended {
@@ -175,6 +210,13 @@ fn play_impl(
     let mut reached_this_run: std::collections::BTreeSet<usize> = Default::default();
 
     while e.presses < d.budget && !c.over() {
+        // Sent somewhere rather than sent up. A curriculum wants the board a
+        // run had at a rung, and everything after that rung is a different
+        // question.
+        if stop_after.is_some_and(|r| c.view().rung_shown > r) {
+            e.why = "walked far enough";
+            break;
+        }
         let menu = c.menu();
         if menu.is_empty() {
             e.why = "nothing left to press";
@@ -592,7 +634,7 @@ fn play_impl(
     if c.over() {
         e.why = "the run ended";
     }
-    e
+    (c, e)
 }
 
 /// How many floors a dungeon has.

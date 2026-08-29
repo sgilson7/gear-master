@@ -20,6 +20,7 @@ fn main() {
     q2_does_dying_pay();
     q3_what_the_screen_says_about_the_mode();
     q4_how_many_doors_change_value_with_the_mode();
+    q5_is_it_the_mode_or_the_walker();
 }
 
 /// 1. Does an episode end when a Rogue run dies?
@@ -184,5 +185,41 @@ fn q4_how_many_doors_change_value_with_the_mode() {
     println!("   Outcome::Underwrite {:>2} choices - one loss forgiven for five rungs", underwrite.len());
     for (id, label) in spare.iter().chain(underwrite.iter()) {
         println!("     {id}  {label:?}");
+    }
+}
+
+/// 5. Is the low Rogue ceiling the mode, or the walker?
+///
+/// `curriculum::walk_to` presses the first road verb and packs once a rung. The
+/// pilot in `gearmaster-agent` is the control every benchmark in
+/// `analysis/the-two-trades.md` was measured against, and it does more: it
+/// barters, sells, rerolls and grows. If the pilot gets far in Rogue and the
+/// walker does not, the walker is the problem and a curriculum should use the
+/// pilot. If neither does, the mode is the problem and a Rogue curriculum
+/// cannot be walked at all with the packer this repo has.
+fn q5_is_it_the_mode_or_the_walker() {
+    use gearmaster_agent::pilot::{self, Doctrine};
+    use gearmaster_lab::curriculum;
+
+    println!("\n5. How far each control gets, by mode");
+    let seeds = [0x1212u64, 0x6060, 0xAA8D95DE31880461, 0xF1418AF3EDF965FD];
+    let d = Doctrine { patience: 12, budget: 400_000, coverage: 0.0 };
+    for mode in [Mode::Grinder, Mode::Rogue] {
+        let pilot_best: usize = seeds
+            .iter()
+            .map(|&s| pilot::play(s, mode, Difficulty::Medium, d).best_rung)
+            .sum::<usize>()
+            / seeds.len();
+        let walker_best: usize = seeds
+            .iter()
+            .map(|&s| curriculum::walk_to(s, mode, Difficulty::Medium, 40).1.rung)
+            .sum::<usize>()
+            / seeds.len();
+        println!(
+            "   {:<8} pilot reaches rung {:>2}   the curriculum walker reaches rung {:>2}",
+            format!("{mode:?}"),
+            pilot_best,
+            walker_best
+        );
     }
 }

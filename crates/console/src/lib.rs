@@ -73,6 +73,11 @@ impl Outcome {
 }
 
 /// A run, seen from the player's chair.
+///
+/// Cloneable for the same reason `Run` is: a harness that walks a pool of
+/// situations once and clones out of it is a curriculum, and one that re-walks
+/// per episode is a wait.
+#[derive(Clone)]
 pub struct Console {
     run: Run,
     /// Every verb pressed, in order. This is the proof.
