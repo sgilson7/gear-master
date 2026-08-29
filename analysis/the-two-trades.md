@@ -311,3 +311,58 @@ packer while the pathfinder trains, and which packer is frozen is a parameter.
 The goal-conditioned pathfinder - **the validity solver, which is the
 product** - does not depend on the quartermaster being learned. It depends on
 `pack` being *good*, and the good one exists.
+
+---
+
+# Q4 — Pools, proven
+
+Read off **`100d103`** plus this milestone. The claim this mission was started
+for, made falsifiable - and it holds.
+
+## Q4.1 The planted tray
+
+Four pieces that make a pool, one that spends it, four of nothing in
+particular. A packer that finds builds assembles the pair; one that counts
+items seats whatever is biggest.
+
+**The hand-written packer matched the planted pool in 1 of 12 trays.**
+
+    rage    22 makers,  9 spenders   matched in 1 of 4
+    faith   26 makers, 12 spenders   matched in 0 of 4
+    nature  26 makers,  7 spenders   matched in 0 of 4
+
+Given the build **handed to it**, it finds it once in twelve.
+
+## Q4.2 The census
+
+120 random trays of twelve, packed:
+
+| | |
+|---|---|
+| boards with any pool matched at all | **35 of 120 (29%)** |
+| matched, a board | 1.4 |
+| stranded - produced with nothing to spend it | 3.0 |
+| **share of production with no consumer on the board** | **68%** |
+
+**Two thirds of everything these boards make has nowhere to go.**
+
+## Q4.3 The gate, half met, and which half
+
+The gate asked for *a measured difference between the packers, either way*.
+Half of it is measured and half of it cannot be:
+
+* **The control does not find builds.** 1 in 12 on a planted tray, 68%
+  stranded across a census. That is the headroom this mission was started to
+  claim, and it is now a number rather than an argument.
+* **The learned packer cannot be compared**, because Q3 missed its gate and it
+  assembles almost nothing. A packer with two items has no pool economy to
+  measure.
+
+So the premise stands and the comparison is owed. That is a different position
+from either "the learner finds builds" or "neither does" - and writing it as
+one of those would be the mistake this mission keeps catching.
+
+**What it means for the rest.** The headroom is real and large: a packer that
+matched even half of what it strands would be building something the control
+has never built. Q3's diagnosis - the action factoring, not the training - is
+what stands between here and finding out.

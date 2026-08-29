@@ -17,8 +17,8 @@ code actually is.
 | Q1 The representation | **done** - probe balanced 85.7% vs 50%; pools in the View |
 | Q2 Two environments | **done** - 1.40 ms an episode; 10^6 steps in 43 s |
 | Q3 The quartermaster learns | **GATE MISSED** - 8/50 against 48/50. Learning is real (spread 0.15->1.90) but the action factoring is wrong: rotate-then-place is a composite the agent has to discover with no undo. See analysis Q3.4 |
-| Q4 Pools, proven | **in progress** |
-| Q5 The pathfinder learns | not started |
+| Q4 Pools, proven | **premise confirmed** - control matches a planted pool 1 in 12; 68% of production stranded. Comparison to the learned packer owed (Q3) |
+| Q5 The pathfinder learns | **in progress** |
 | Q6 The validity solver | not started |
 | Q7 Generations | not started |
 | Q8 Themes | not started |
