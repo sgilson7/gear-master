@@ -1015,3 +1015,18 @@ What C7 delivered that stands: the harness (`qroad` quest-conditioned, `qaim`,
 measurement that the chain is walkable, and **the reason the learning half has
 never worked**, which is one measurement and had been mis-attributed for three
 milestones.
+
+## C7.7 Where the artefacts are
+
+| what | where |
+|---|---|
+| the chain, walked and watchable | `analysis/proofs/AA8D95DE31880461-grinder-medium-pathfinder_threshold.proof` |
+| the two trained models | `analysis/nets/pathfinder-{threshold,unwound}.txt` |
+| how to run and watch any of it | `analysis/the-threshold-run.html` |
+| the chain, derived | `cargo run -p gearmaster-lab --bin qquest` |
+| the chain, walked forward | `cargo run -p gearmaster-lab --bin qchain` |
+| how far a composition gets | `cargo run --release -p gearmaster-lab --bin qaim` |
+| what the road agent can see | `cargo run --release -p gearmaster-lab --bin qmoves` |
+| training | `QROAD_QUEST=<name> cargo run --release -p gearmaster-lab --features nn --bin qroad` |
+| a proof | `QPROOF_QUEST=<name> cargo run --release -p gearmaster-lab --bin qproof` |
+| watching one | `GEARMASTER_WATCH=<proof> cargo run -p gearmaster-gui` |

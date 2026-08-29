@@ -1,0 +1,696 @@
+<title>The Threshold Run</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap">
+
+<style>
+  :root {
+    --ground: #F6F8F6;
+    --surface: #FFFFFF;
+    --sunk: #EDF1EE;
+    --text: #1A211E;
+    --muted: #5C6A64;
+    --faint: #8B9891;
+    --rule: #DBE2DD;
+    --accent: #256B52;
+    --accent-soft: #E2EFE9;
+    --warn: #8A4E22;
+    --warn-soft: #F6EBE1;
+    --code-bg: #14201B;
+    --code-text: #DCE8E1;
+    --code-dim: #7E948A;
+    --code-accent: #7FCBA6;
+
+    --step: clamp(1.5rem, 1.1rem + 1.9vw, 2.4rem);
+    --measure: 68ch;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #101512;
+      --surface: #171E1A;
+      --sunk: #1D2521;
+      --text: #E4EBE6;
+      --muted: #9AA8A1;
+      --faint: #71807A;
+      --rule: #28322C;
+      --accent: #6FC69F;
+      --accent-soft: #1B2C24;
+      --warn: #D69A62;
+      --warn-soft: #2A2119;
+      --code-bg: #0B120F;
+      --code-text: #DCE8E1;
+      --code-dim: #6C8177;
+      --code-accent: #7FCBA6;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #101512;
+    --surface: #171E1A;
+    --sunk: #1D2521;
+    --text: #E4EBE6;
+    --muted: #9AA8A1;
+    --faint: #71807A;
+    --rule: #28322C;
+    --accent: #6FC69F;
+    --accent-soft: #1B2C24;
+    --warn: #D69A62;
+    --warn-soft: #2A2119;
+    --code-bg: #0B120F;
+    --code-text: #DCE8E1;
+    --code-dim: #6C8177;
+    --code-accent: #7FCBA6;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--text);
+    font-family: "Public Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-size: 16.5px;
+    line-height: 1.62;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 78ch;
+    margin: 0 auto;
+    padding: clamp(2rem, 1rem + 4vw, 5rem) clamp(1.1rem, 0.6rem + 2.4vw, 2.5rem) 6rem;
+  }
+
+  /* ---------------------------------------------------------- masthead */
+
+  .masthead { border-bottom: 1px solid var(--rule); padding-bottom: 2rem; }
+
+  .eyebrow {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 1.1rem;
+  }
+
+  h1 {
+    font-family: "Newsreader", Georgia, "Times New Roman", serif;
+    font-weight: 600;
+    font-size: clamp(2.3rem, 1.6rem + 3.2vw, 3.6rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0 0 1rem;
+  }
+
+  .standfirst {
+    font-family: "Newsreader", Georgia, serif;
+    font-size: clamp(1.1rem, 1rem + 0.5vw, 1.32rem);
+    line-height: 1.55;
+    color: var(--muted);
+    max-width: var(--measure);
+    margin: 0;
+  }
+
+  .standfirst em { font-style: italic; color: var(--text); }
+
+  /* ------------------------------------------------------------ blocks */
+
+  section { margin-top: clamp(2.6rem, 2rem + 2vw, 4rem); }
+
+  h2 {
+    font-family: "Newsreader", Georgia, serif;
+    font-weight: 600;
+    font-size: clamp(1.45rem, 1.2rem + 1.1vw, 1.9rem);
+    line-height: 1.2;
+    letter-spacing: -0.012em;
+    text-wrap: balance;
+    margin: 0 0 0.9rem;
+  }
+
+  h3 {
+    font-size: 0.94rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    margin: 2rem 0 0.6rem;
+  }
+
+  p { max-width: var(--measure); margin: 0 0 1rem; }
+  p:last-child { margin-bottom: 0; }
+
+  strong { font-weight: 700; }
+  em { font-style: italic; }
+
+  a {
+    color: var(--accent);
+    text-underline-offset: 0.18em;
+    text-decoration-thickness: 1px;
+  }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  code {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.855em;
+    background: var(--sunk);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 0.08em 0.34em;
+  }
+
+  /* ------------------------------------------------------------- steps */
+
+  .steps { display: flex; flex-direction: column; gap: clamp(2rem, 1.6rem + 1.4vw, 3rem); }
+
+  .step { display: grid; grid-template-columns: 2.6rem 1fr; gap: 0 1.1rem; align-items: start; }
+
+  .step-n {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    width: 2.2rem;
+    height: 2.2rem;
+    display: grid;
+    place-items: center;
+    margin-top: 0.1rem;
+  }
+
+  .step-body { min-width: 0; }
+  .step-body h2 { margin-bottom: 0.5rem; }
+
+  @media (max-width: 34rem) {
+    .step { grid-template-columns: 1fr; gap: 0.7rem; }
+  }
+
+  /* ---------------------------------------------------------- commands */
+
+  .cmd {
+    background: var(--code-bg);
+    color: var(--code-text);
+    border-radius: 6px;
+    padding: 1rem 1.1rem;
+    margin: 1.1rem 0;
+    overflow-x: auto;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.815rem;
+    line-height: 1.75;
+    tab-size: 2;
+  }
+
+  .cmd pre { margin: 0; white-space: pre; }
+  .cmd .env { color: var(--code-accent); }
+  .cmd .dim { color: var(--code-dim); }
+  .cmd .cont { color: var(--code-dim); }
+
+  .out {
+    background: var(--sunk);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.9rem 1.05rem;
+    margin: 1.1rem 0;
+    overflow-x: auto;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.79rem;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+  .out pre { margin: 0; white-space: pre; }
+  .out b { color: var(--text); font-weight: 700; }
+
+  .caption {
+    font-size: 0.84rem;
+    color: var(--faint);
+    max-width: var(--measure);
+    margin: -0.4rem 0 0;
+  }
+
+  /* ---------------------------------------------------------- callouts */
+
+  .note {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 0.95rem 1.15rem;
+    border-radius: 0 4px 4px 0;
+    margin: 1.3rem 0;
+  }
+  .note.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .note p { margin-bottom: 0.5rem; }
+  .note p:last-child { margin-bottom: 0; }
+  .note .label {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 0.35rem;
+  }
+  .note.warn .label { color: var(--warn); }
+
+  /* ------------------------------------------------------------ tables */
+
+  .scroller { overflow-x: auto; margin: 1.3rem 0; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.88rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  th {
+    text-align: left;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 700;
+    padding: 0 0.85rem 0.5rem 0;
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 0.52rem 0.85rem 0.52rem 0;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  td.mono, th.mono, td.num {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.8rem;
+  }
+  td.num, th.num { text-align: right; padding-right: 0; }
+
+  tr.finish td { color: var(--accent); font-weight: 700; }
+
+  .tier {
+    display: inline-block;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.14em 0.45em;
+    border-radius: 3px;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .tier.t4 { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+  /* -------------------------------------------------------------- misc */
+
+  ul { max-width: var(--measure); padding-left: 1.15rem; margin: 0 0 1rem; }
+  li { margin-bottom: 0.4rem; }
+
+  hr {
+    border: 0;
+    border-top: 1px solid var(--rule);
+    margin: clamp(2.6rem, 2rem + 2vw, 4rem) 0 0;
+  }
+
+  footer {
+    margin-top: 2rem;
+    font-size: 0.84rem;
+    color: var(--faint);
+    max-width: var(--measure);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <p class="eyebrow">Gear Master · milestone C7</p>
+    <h1>The Threshold Run</h1>
+    <p class="standfirst">
+      How to watch a run walk the Manse chain from a cold start — find a word at
+      a bar, hear out an astronomer, open a gate that has no wall, and go down a
+      staircase for a sense nobody upstairs has yet. <em>One command if you just
+      want to see it.</em> Six if you want to make it yourself — and a straight
+      answer, at the bottom, about which half of this is learned.
+    </p>
+  </header>
+
+  <section>
+    <h2>If you only run one thing</h2>
+    <p>
+      A finished run is already committed. It is a transcript of keys a person
+      could have pressed, and the window replays it without a hand on the mouse.
+    </p>
+    <div class="cmd"><pre><span class="env">GEARMASTER_WATCH</span>=analysis/proofs/AA8D95DE31880461-grinder-medium-pathfinder_threshold.proof \
+  cargo run -p gearmaster-gui</pre></div>
+    <p>
+      A macroquad window opens on rung one and plays forward: shopping, packing,
+      doors, fights. It leaves each result screen by itself after two and a half
+      seconds. It ends at rung 26 wearing <strong>Threshold-Sighted</strong>,
+      with the mind lane open. The policy walking it is written rather than
+      trained — see <em>Which half of this is learned</em> below, which is the
+      honest part of this page.
+    </p>
+    <div class="note">
+      <span class="label">What makes it a proof</span>
+      <p>
+        The transcript replays into a fresh console and reaches the same rung
+        with <strong>zero refusals</strong>. Every key in it is one the interface
+        offers — there is no <code>skip_to</code> and no <code>force_win</code>.
+        All three halves are there: the road decisions, the shopping the chain
+        asked for, and the packing. Only the presses that <em>stuck</em>, because
+        four fifths of what the hands do is seat-and-undo.
+      </p>
+    </div>
+  </section>
+
+  <hr>
+
+  <section>
+    <h2>The chain it is walking</h2>
+    <p>
+      Nobody typed this list. <code>engine::quest::chain_to</code> walks the
+      event, town, dungeon and rumour tables <em>backwards</em> from the class at
+      the end, and the windows are then tightened against each other. The tiers
+      are what the agent is paid at.
+    </p>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th>Tier</th>
+            <th>What has to have happened</th>
+            <th class="num">Rungs</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="tier">Prerequisite</span></td>
+            <td class="mono">Holding("A Word About the Wrong Stars")</td>
+            <td class="num">8–25</td>
+          </tr>
+          <tr>
+            <td><span class="tier">Offered</span></td>
+            <td class="mono">Offered("the-astronomer")</td>
+            <td class="num">18–25</td>
+          </tr>
+          <tr>
+            <td><span class="tier">Chose</span></td>
+            <td class="mono">Holding("A Word About the Cellar")</td>
+            <td class="num">18–25</td>
+          </tr>
+          <tr>
+            <td><span class="tier">Offered</span></td>
+            <td class="mono">Offered("the-locked-gate")</td>
+            <td class="num">23–25</td>
+          </tr>
+          <tr>
+            <td><span class="tier">Chose</span></td>
+            <td class="mono">Gate("THE MANSE")</td>
+            <td class="num">26</td>
+          </tr>
+          <tr>
+            <td><span class="tier">Chose</span></td>
+            <td class="mono">Entered("the-threshold")</td>
+            <td class="num">26–50</td>
+          </tr>
+          <tr class="finish">
+            <td><span class="tier t4">Finish</span></td>
+            <td class="mono">Wearing("Threshold-Sighted")</td>
+            <td class="num">26–50</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note warn">
+      <span class="label">The deadline — rung 25</span>
+      <p>
+        THE MANSE is hidden and stands <em>after rung 25</em>, and a town gate is
+        offered on exactly one rung. So the word has to be in hand, and the gate
+        opened, before rung 25 is cleared.
+      </p>
+      <p>
+        Past that there are four rungs — 26 to 29 — where the run is still
+        offered both doors, still takes the right choice at both, and still puts
+        the town on the map. The house is twenty-five rungs behind it. Three of
+        the four tiers pay in full on a run that cannot finish, which is why the
+        cheap tiers are potential-based and add to nothing.
+      </p>
+    </div>
+  </section>
+
+  <hr>
+
+  <section>
+    <h2>Making it yourself</h2>
+    <p>
+      Six steps, in order. Everything runs from the repository root. Nothing
+      needs a network, a key, or a service — the engine has no dependencies at
+      all and the learning crates carry their own.
+    </p>
+
+    <div class="steps">
+
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-body">
+          <h2>See the chain</h2>
+          <p>
+            Derived from the tables, so this is the first thing to check after
+            any content change. It prints all three named chains and refuses the
+            one that cannot be handed to an agent.
+          </p>
+          <div class="cmd"><pre>cargo run -p gearmaster-lab --bin qquest</pre></div>
+          <p class="caption">
+            <code>pathfinder_drover</code> is refused on purpose: a county chain
+            is a flag, and the screen shows no flags.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-body">
+          <h2>Check it is reachable at all</h2>
+          <p>
+            Before spending an hour training, ask whether a run that follows the
+            plan perfectly can finish. <code>QAIM_ROAD=written</code> is handed
+            the chain and told which choice passes which stop — an upper bound,
+            not a baseline.
+          </p>
+          <div class="cmd"><pre><span class="env">QAIM_ROAD</span>=written <span class="env">QAIM_RUNS</span>=24 \
+  cargo run --release -p gearmaster-lab --bin qaim</pre></div>
+          <div class="out"><pre>Holding("A Word About the Wrong Stars")   8-25    <b>7/24</b>
+Offered("the-astronomer")               18-25     2/24
+...
+Wearing("Threshold-Sighted")            26-50    <b>1/24</b></pre></div>
+          <p class="caption">
+            The wall is the first stop, and it is about time rather than choice:
+            seven runs in twenty-four are alive and at a bar before rung 25.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-n">3</div>
+        <div class="step-body">
+          <h2>Train the pathfinder</h2>
+          <p>
+            Q-learning over the road, with packing as one macro-action into a
+            frozen packer. The chain is in the reward and two of the road
+            features are how far along it is.
+          </p>
+          <div class="cmd"><pre><span class="env">QROAD_QUEST</span>=pathfinder_threshold <span class="env">QROAD_EPISODES</span>=500 \
+  cargo run --release -p gearmaster-lab --features nn --bin qroad</pre></div>
+          <p>
+            About five seconds an episode on an M2 Max, so 500 is roughly forty
+            minutes. It writes <code>runs/pathfinder_threshold.txt</code> — plain
+            weights, one line a tensor.
+          </p>
+          <div class="note">
+            <span class="label">The packer defaults to the written control</span>
+            <p>
+              And it has to. The learned packer assembles 2.8 items and clears
+              8 rungs of 50; the chain's first door stands at rung 18. Training
+              against a packer that cannot get there makes every failure
+              ambiguous between the two agents.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-n">4</div>
+        <div class="step-body">
+          <h2>Measure what it learned</h2>
+          <p>
+            The same harness as step 2, with the trained weights in place of the
+            plan. It prints which stop each seed reached, so a run worth watching
+            can be found by its seed.
+          </p>
+          <div class="cmd"><pre><span class="env">QAIM_QUEST</span>=pathfinder_threshold \
+<span class="env">QAIM_NET</span>=runs/pathfinder_threshold.txt \
+  cargo run --release -p gearmaster-lab --bin qaim</pre></div>
+          <p class="caption">
+            Leave <code>QAIM_NET</code> off for the honest baseline: the first
+            legal step every time, which knows nothing.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-n">5</div>
+        <div class="step-body">
+          <h2>Write a proof</h2>
+          <p>
+            One seed, played and then replayed into a fresh console and compared.
+            If the two disagree the file is not written as a proof of anything.
+          </p>
+          <div class="cmd"><pre><span class="env">QPROOF_QUEST</span>=pathfinder_threshold \
+<span class="env">QPROOF_ROAD</span>=runs/pathfinder_threshold.txt \
+<span class="env">QPROOF_SEED</span>=0xAA8D95DE31880461 \
+  cargo run --release -p gearmaster-lab --bin qproof</pre></div>
+          <div class="out"><pre>seed 0xAA8D95DE31880461: rung 26, 166 road decisions, 66 packs, 220 presses
+stops passed: <b>7/7</b>
+replayed to rung 26 with 0 refusals  <b>- identical</b></pre></div>
+          <p class="caption">
+            <code>QPROOF_ROAD=written</code> uses the plan-follower instead,
+            which is how the committed proof was made.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-n">6</div>
+        <div class="step-body">
+          <h2>Watch it</h2>
+          <p>
+            The proof's own header carries this line with its filename already
+            filled in, so it can be copied straight out of the file.
+          </p>
+          <div class="cmd"><pre><span class="env">GEARMASTER_WATCH</span>=analysis/proofs/&lt;file&gt;.proof \
+  cargo run -p gearmaster-gui</pre></div>
+          <p>
+            The window opens at the board rather than the intro, plays every key
+            in order, and holds each fight's result long enough to read before
+            moving on.
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <hr>
+
+  <section>
+    <h2>Which half of this is learned</h2>
+    <p>
+      The run in the committed proof is walked by a <strong>written</strong>
+      policy that was handed the chain. The trained networks exist, and they do
+      not work. Both were given 500 episodes against the same packer:
+    </p>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr>
+            <th>Road policy</th>
+            <th class="num">Deepest rung</th>
+            <th class="num">Finished</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>No weights — first legal step</td><td class="num">1</td><td class="num">0/24</td></tr>
+          <tr><td class="mono">pathfinder_threshold</td><td class="num">1</td><td class="num">0/24</td></tr>
+          <tr><td class="mono">pathfinder_unwound</td><td class="num">1</td><td class="num">0/24</td></tr>
+          <tr class="finish"><td>Written, following the plan</td><td class="num">26</td><td class="num">1/24</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Neither model beats its own absence. Every figure above zero on this page
+      belongs to the written half, and the reason is one measurement rather than
+      a tuning problem.
+    </p>
+    <div class="note warn">
+      <span class="label">The network sees one action where the console offers four</span>
+      <p>
+        The move description was written for the <em>packing</em> agent. Its
+        one-hot has eight shapes — place, buy, sell, barter, reroll, rotate,
+        unequip, clear — and one bucket for everything else, and every field
+        after it describes a <em>piece</em>, which no road verb has.
+      </p>
+      <div class="out" style="margin:0.7rem 0 0"><pre>1,341 road verbs offered across four runs
+four kinds among them: answer, drink, fight, town
+distinct feature vectors the network can see: <b>1</b></pre></div>
+      <p style="margin-top:0.7rem">
+        So the road network chooses between <em>pack</em> — the all-zero action
+        by convention — and <em>a road verb</em>. Which road verb is the order
+        the console listed them in. A network that cannot tell two actions apart
+        cannot prefer one, and no amount of reward shaping teaches a preference
+        between things that are the same input.
+      </p>
+    </div>
+    <p>
+      Reproduce it with <code>cargo run --release -p gearmaster-lab --bin
+      qmoves</code>. The figure is pinned at 1 by a ratchet that is meant to go
+      up: fixing it means describing a road verb the way a placement is
+      described — which choice at which door, what it asks for, what it does —
+      and all of that is already on the screen, so it costs the agent-engine
+      boundary nothing.
+    </p>
+  </section>
+
+  <hr>
+
+  <section>
+    <h2>If something looks wrong</h2>
+
+    <h3>The run loses rung one over and over</h3>
+    <p>
+      The packer was handed a budget of the wrong kind. Forty is a budget on
+      <em>decisions</em> for the learned packer; the written control is
+      exhaustive over anchors and needs a budget on <em>presses</em> — its median
+      is 492. Given forty it buys pieces, seats none, and fights on what it was
+      dealt.
+    </p>
+
+    <h3>The first stop is never reached</h3>
+    <p>
+      The word is bartered for, and <code>Barter</code> belongs to the
+      quartermaster, so the pathfinder can never press it. The driver buys it
+      programmatically from a list derived from the chain's own unpassed stops.
+      If that is skipped, the first stop is unreachable by construction.
+    </p>
+
+    <h3>A checkpoint loads and behaves like noise</h3>
+    <p>
+      Road weights are stored at the width of a road pair, and that width moved
+      from 51 to 53 when the chain progress columns landed. An older file loads
+      and reads every column one place to the left.
+    </p>
+
+    <h3><code>cargo run</code> says it built without the trainer</h3>
+    <p>
+      <code>qroad</code> needs <code>--features nn</code>. Everything else in the
+      list runs without it, which is deliberate: the neural framework is off by
+      default and never in CI.
+    </p>
+  </section>
+
+  <hr>
+
+  <footer>
+    <p>
+      Written against <code>973e54f</code>. The measurements behind every figure
+      on this page are in <code>analysis/the-two-trades.md</code>, blocks C6 and
+      C7; the things this milestone turned up that are not its to fix are in
+      <code>analysis/second-order-quests.md</code>.
+    </p>
+  </footer>
+
+</div>
