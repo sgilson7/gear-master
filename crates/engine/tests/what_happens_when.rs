@@ -91,7 +91,9 @@ fn what_fires_is_what_the_fight_hands_over() {
                 if run.report(SlotKind::Greaves).assembled_count() > 0 {
                     break 'seat;
                 }
-                run.unequip(b);
+                // Putting back a piece that was just seated cannot fail, and
+                // the search wants to try the next anchor either way.
+                let _ = run.unequip(b);
             }
         }
     }

@@ -21,22 +21,20 @@
 //! that works.
 
 use gearmaster_engine::dungeon::DUNGEONS;
-use gearmaster_engine::event::{every_outcome, LadderEvent, Outcome, Requirement, Trigger, EVENTS};
-use gearmaster_engine::rumour::RUMOURS;
-use gearmaster_engine::town::{Unlock, TOWNS};
+use gearmaster_engine::event::{every_outcome, Outcome, Requirement, Trigger, EVENTS};
+use gearmaster_engine::town::TOWNS;
 
-/// The first rung a door can be answered on, and the last.
-///
-/// A `Rung` event stands on exactly one rung. `Trigger::from` returns 0 for it
-/// - the earliest a *window* opens, which is not the same question - and
-/// reading one for the other is how the first version of this audit came back
-/// clean on a table with three broken doors in it.
-fn window(e: &LadderEvent) -> (usize, usize) {
-    match e.trigger {
-        Trigger::Rung => (e.at, e.at),
-        _ => (e.trigger.from(), e.at),
-    }
-}
+// The earliest-rung arithmetic this file was written around now lives in
+// `engine::quest`, because a second walker wants it and the two must not
+// drift. `quest::chain_to` reads the same graph backwards to build a chain a
+// pathfinder can be paid along; two walkers over one graph that disagree is a
+// bug in whichever is newer, so there is one.
+//
+// Everything below is the audit as it was. What moved is where the six
+// functions live, not what they say - and two of them, `first_town` and
+// `mouth_of`, are now only reached through `word_by` and `flag_by`, which is
+// where they always did their work.
+use gearmaster_engine::quest::{door_window as window, flag_by, gives, off_the_road, word_by};
 
 /// A door pushed onto the stack by a pedestal stands on no rung at all.
 /// Flags the **engine** sets, which no walk of `EVENTS` can find.
@@ -48,111 +46,6 @@ const ENGINE_SETS: &[&str] = &[
     // `Run::close_the_trip` - a trip into THE HUNDRED that cleared no tile.
     gearmaster_engine::run::COUNTY_BUSINESS,
 ];
-
-fn off_the_road(e: &LadderEvent) -> bool {
-    matches!(e.trigger, Trigger::WhenFlagged { flag: "never", .. })
-}
-
-/// The first rung a pinned town can be walked into. The bar is in every one.
-fn first_town() -> usize {
-    TOWNS
-        .iter()
-        .filter(|t| matches!(t.unlock, Unlock::Pinned))
-        .map(|t| t.after + 1)
-        .min()
-        .expect("the road has a town on it")
-}
-
-/// The first rung a word can be in your hands, whoever hands it over.
-fn word_by(name: &str) -> Option<usize> {
-    let r = RUMOURS.iter().find(|r| r.name == name)?;
-    if r.on_the_bar {
-        return Some(first_town());
-    }
-    let by_door = EVENTS
-        .iter()
-        .filter(|e| gives(e, name))
-        .map(|e| window(e).0)
-        .min();
-    let by_town = TOWNS
-        .iter()
-        .filter(|t| t.actions.iter().any(|a| a.gives() == Some(name)))
-        .map(|t| t.after + 1)
-        .min();
-    // A county tile is the fourth way to come by a word, and the earliest of
-    // the three, because the earliest way down is the first town's own steps.
-    //
-    // Not `first_town() + 1`: the way down is not a door and does not cost the
-    // visit, so a run standing at the first gate can be in the county on the
-    // same rung it arrived at the gate on.
-    let dug_up = gearmaster_engine::event::COUNTY_EVENTS
-        .iter()
-        .any(|e| gives(e, name))
-        .then(first_town);
-    [by_door, by_town, dug_up].into_iter().flatten().min()
-}
-
-fn gives(e: &LadderEvent, name: &str) -> bool {
-    e.choices.iter().any(|c| {
-        every_outcome(&c.outcome).iter().any(|o| match o {
-            Outcome::Give(n) => *n == name,
-            Outcome::Step(b) => b.win == name,
-            Outcome::SealedBid { lots } => lots.contains(&name),
-            _ => false,
-        })
-    })
-}
-
-/// The first rung a flag can be set on, by a door or by a dungeon floor.
-fn flag_by(flag: &str) -> Option<usize> {
-    let by_door = EVENTS
-        .iter()
-        .filter(|e| {
-            e.choices.iter().any(|c| {
-                every_outcome(&c.outcome).iter().any(|o| matches!(o, Outcome::Flag(f) if *f == flag))
-            })
-        })
-        .map(|e| window(e).0)
-        .min();
-    // A dungeon stands beside the road rather than on it, so the rung it can
-    // first be cleared on is the rung its mouth first stands on.
-    let by_floor = DUNGEONS
-        .iter()
-        .filter(|d| {
-            d.also.iter().flat_map(every_outcome).any(|o| matches!(o, Outcome::Flag(f) if *f == flag))
-        })
-        .filter_map(mouth_of)
-        .min();
-    match (by_door, by_floor) {
-        (Some(a), Some(b)) => Some(a.min(b)),
-        (a, b) => a.or(b),
-    }
-}
-
-/// The first rung a dungeon's mouth stands on: a door that opens it, or the
-/// town whose action does.
-fn mouth_of(d: &gearmaster_engine::dungeon::Dungeon) -> Option<usize> {
-    let by_door = EVENTS
-        .iter()
-        .filter(|e| {
-            e.choices.iter().any(|c| {
-                every_outcome(&c.outcome).iter().any(
-                    |o| matches!(o, Outcome::Enter(id) | Outcome::StartDungeon(id) if *id == d.id),
-                )
-            })
-        })
-        .map(|e| window(e).0)
-        .min();
-    let by_town = TOWNS
-        .iter()
-        .filter(|t| t.actions.iter().any(|a| a.opens() == Some(d.id)))
-        .map(|t| t.after + 1)
-        .min();
-    match (by_door, by_town) {
-        (Some(a), Some(b)) => Some(a.min(b)),
-        (a, b) => a.or(b),
-    }
-}
 
 // ------------------------------------------------------------ the four checks
 

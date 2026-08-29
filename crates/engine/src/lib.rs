@@ -22,6 +22,7 @@ pub mod loadout;
 pub mod naming;
 pub mod pedestal;
 pub mod piece;
+pub mod quest;
 pub mod rating;
 pub mod relic;
 pub mod rng;
