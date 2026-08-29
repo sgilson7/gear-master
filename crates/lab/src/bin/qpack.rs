@@ -58,6 +58,14 @@ use gearmaster_trades::brief::Brief;
     /// most of itself at the first decision.
     const BUDGET: usize = 40;
 
+    /// **Suspect 3, from the handoff.** `qcheck`'s control column spends 120 to
+    /// 420 presses packing the same trays this agent gets forty for. A budget
+    /// that cannot reach the answer makes every episode a failure the reward
+    /// cannot distinguish from a bad policy.
+    fn budget() -> usize {
+        std::env::var("QPACK_BUDGET").ok().and_then(|v| v.parse().ok()).unwrap_or(BUDGET)
+    }
+
     /// Gradient steps a episode.
     const UPDATES: usize = 12;
 
@@ -265,6 +273,10 @@ use gearmaster_trades::brief::Brief;
         let mut target = net.snapshot();
         let mut frozen = target.net();
         let mut buffer: Vec<Step> = Vec::with_capacity(80_000);
+        // Indices into `buffer` where something assembled. Kept alongside
+        // rather than inside because the buffer is a ring and an index into it
+        // has to be dropped when the slot it names is overwritten.
+        let mut good: Vec<usize> = Vec::new();
         // **Whether this run is conditioned at all.** `QPACK_BRIEFS=0` trains
         // the control for Q8's comparison: the same network, the same shape,
         // the same episodes, and thirteen zeros where the brief goes.
@@ -276,6 +288,27 @@ use gearmaster_trades::brief::Brief;
         println!(
             "  briefs: {}",
             if want_briefs { "on, eight themes, Hollow and Warden held out" } else { "off" }
+        );
+        let phi_weight: f32 =
+            std::env::var("QPACK_PHI").ok().and_then(|v| v.parse().ok()).unwrap_or(1.5);
+        // **Suspect 1, from the handoff.** Roughly five hundred legal placements
+        // a step, forty steps, 2,500 episodes: a completing placement is about
+        // one in five hundred at random, so the buffer holds a couple of hundred
+        // of them among a hundred thousand transitions and a uniform batch of
+        // 128 sees one every four batches. This oversamples the transitions
+        // whose *shaped reward was positive* - which, since Phi counts items and
+        // nothing else, is exactly the transitions where something assembled.
+        //
+        // It changes which transitions are **sampled**, not which are rewarded,
+        // so the optimal policy is untouched. That is the whole reason to reach
+        // for this before touching the reward again.
+        let priority: f64 =
+            std::env::var("QPACK_PRIORITY").ok().and_then(|v| v.parse().ok()).unwrap_or(0.0);
+        println!(
+            "  phi {:.2}   budget {}   priority {:.2}",
+            phi_weight,
+            budget(),
+            priority
         );
         let t0 = Instant::now();
         let mut won = 0usize;
@@ -290,7 +323,7 @@ use gearmaster_trades::brief::Brief;
             let reach = 3.0 + 47.0 * (ep as f32 / episodes as f32).powf(1.5);
             let rung = (rng.next_u64() % reach as u64) as usize;
             let (mut c, rung) = situation(rng.next_u64(), rung);
-            let mut e = Packing::new(BUDGET);
+            let mut e = Packing::new(budget());
             let mut trail: Vec<([f32; PAIR], Vec<[f32; PAIR]>, f32)> = Vec::new();
             // Potential-based shaping, on the crudest possible signal:
             // **how many items are finished**. `F = γΦ(s') - Φ(s)` provably
@@ -301,9 +334,20 @@ use gearmaster_trades::brief::Brief;
             // Φ counts items and **nothing about pools**, deliberately. If the
             // shaping told it that matched pools were good, Q4 could not
             // claim it discovered them.
+            // **The one dial that moved anything.** At the original 0.15 a
+            // completing placement was worth `+0.119` shaped against `-0.03`
+            // for any other change, while the Q values were spread over 1.5 -
+            // so assembly was a whisper against the noise and the network
+            // could not hear the one event the whole task is about.
+            //
+            // Ten times the weight is three and a half times the items
+            // assembled, and 8/50 to 14/50 on the repack benchmark. It does
+            // not scale further: at 4.0 the spread blows out to 5.4 and the
+            // policy gets worse, which is the hint starting to dominate the
+            // fight it was a hint about. The band is four to ten times.
             let potential = |c: &Console| -> f32 {
                 let (_, _, items, _) = c.figures();
-                0.15 * items as f32
+                phi_weight * items as f32
             };
             let mut phi = potential(&c);
 
@@ -382,6 +426,11 @@ use gearmaster_trades::brief::Brief;
                 won += 1;
             }
             for (x, next, shaped) in trail {
+                // Phi counts items and nothing else, so a positive shaped
+                // reward is exactly "an item assembled on this press".
+                if shaped > 0.0 {
+                    good.push(buffer.len());
+                }
                 buffer.push(Step { x, r: shaped, next });
             }
             if let Some(last) = buffer.last_mut() {
@@ -390,6 +439,14 @@ use gearmaster_trades::brief::Brief;
             }
             if buffer.len() > 80_000 {
                 buffer.drain(0..20_000);
+                // The indices moved. Anything naming a drained slot is gone and
+                // everything else shifts down - an index kept past this is an
+                // index into somebody else's transition, which trains the
+                // network on a label that belongs to a different board.
+                good.retain(|&i| i >= 20_000);
+                for i in good.iter_mut() {
+                    *i -= 20_000;
+                }
             }
 
             // ---- gradient steps, plural ----
@@ -404,8 +461,18 @@ use gearmaster_trades::brief::Brief;
             if buffer.len() >= batch {
                 let mut xs = Vec::with_capacity(batch * PAIR);
                 let mut ys = Vec::with_capacity(batch);
+                // Which transitions this batch is drawn from. With priority at
+                // zero this is the whole buffer and the sampling is uniform.
                 for _ in 0..batch {
-                    let s = &buffer[(rng.next_u64() % buffer.len() as u64) as usize];
+                    let pick = if priority > 0.0
+                        && !good.is_empty()
+                        && (rng.next_u64() % 1000) as f64 / 1000.0 < priority
+                    {
+                        good[(rng.next_u64() % good.len() as u64) as usize]
+                    } else {
+                        (rng.next_u64() % buffer.len() as u64) as usize
+                    };
+                    let s = &buffer[pick];
                     xs.extend_from_slice(&s.x);
                     let bootstrap = if s.next.is_empty() {
                         0.0
@@ -514,7 +581,7 @@ use gearmaster_trades::brief::Brief;
         for i in 0..20u64 {
             let rung = (i as usize * 2) % 24;
             let (mut c, rung) = situation(0xE_A100 + i * 7919, rung);
-            let mut e = Packing::new(BUDGET);
+            let mut e = Packing::new(budget());
             loop {
                 let ms = decisions(e.moves(&c));
                 if ms.is_empty() {

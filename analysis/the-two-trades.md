@@ -685,3 +685,59 @@ theme's *grids* is not a board that fights like the theme, and choosing pieces
 by what they *do* is the packing problem — so the fidelity column is a direct
 measurement of what a trained quartermaster would be worth, and it is worth
 between 0.00 and 0.50 per creature.
+
+---
+
+# Post-merge: the three suspects, tested
+
+`HANDOFF-two-trades.md` closed the mission by naming three suspects for the
+quartermaster's plateau, in the order the measurements supported, and said each
+was one constant or one sampler rather than a rewrite. All three were then
+tested, which is cheaper than arguing about them. **One of the three is real
+and the other two are worse than doing nothing.**
+
+Each is an environment variable on the same binary, so all three ran against
+the same code, the same seed and the same 2,200 episodes.
+
+| arm | what it changes | items assembled | won |
+|---|---|---:|---:|
+| baseline | — | 0.8 | 2/20 |
+| `QPACK_PRIORITY=0.5` | oversamples transitions where something assembled | **0.6** | 0/20 |
+| `QPACK_BUDGET=120` | forty presses becomes a hundred and twenty | **1.0** | 3/20 |
+| `QPACK_PHI=0.6` | the shaping weight, 4x | **1.6** | 2/20 |
+| `QPACK_PHI=1.5` | the shaping weight, 10x | **2.8** | 3/20 |
+| `QPACK_PHI=4.0` | the shaping weight, 27x | 1.2 | 1/20 |
+
+**Suspect 2 was right and the reasoning behind it was right.** A completing
+placement was worth `+0.119` shaped against `-0.03` for any other change, while
+the Q values were spread over 1.5 — so assembly was a whisper against the
+noise, and the network could not hear the one event the whole task is about.
+Ten times the weight is **three and a half times the items**, which is the
+largest single move any change has produced in this mission.
+
+It does not scale forever: at 4.0 the Q spread blows out to 5.4 and the policy
+gets worse, which is the shaping starting to dominate the fight it is supposed
+to be a hint about. The band is roughly four to ten times the original.
+
+**Suspect 1 was wrong, and interestingly so.** Oversampling the transitions
+where an item assembled made the packer *worse* — 0.6 items against 0.8. The
+buffer was not short of completions; it was short of a reason to prefer them.
+Feeding the same network more copies of a signal it cannot hear does not make
+it louder, and it costs the diversity that the rest of the batch was carrying.
+
+**Suspect 3 was nearly neutral.** Three times the press budget bought 1.0 items
+against 0.8, and cost three times the wall clock. Forty presses was not the
+binding constraint.
+
+## What this does and does not change
+
+It does **not** move Q3's gate. The gate is 48/50 on the repack benchmark and a
+packer assembling 2.8 items an episode is not close to a packer that clears
+forty-eight rungs. Q3, Q7 and Q8 all still miss.
+
+What it changes is the diagnosis, which had been "a representation that cannot
+express the answer" since Q7. That is no longer the best reading: the
+representation could express it and the reward could not *weight* it. Whoever
+picks this up should start from `QPACK_PHI` between 0.6 and 1.5 and should not
+spend a run re-testing priority replay or the press budget — both were measured
+and both were negative.
