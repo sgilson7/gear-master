@@ -81,3 +81,79 @@ architecture rests on: 195,273 presses become **204 decisions plus 79 calls to
 **Gate met:** the partition lint passes in three directions - disjoint,
 exhaustive, and no list naming a verb that does not exist - and the horizons
 are measured rather than assumed.
+
+---
+
+# Q1 — The representation
+
+Read off **`194b8ce`** plus this milestone. The console learned to say what a
+piece does with the eight pools; the probe says a learner could notice.
+
+## Q1.1 The census
+
+Every piece, through the console's own reader:
+
+| pool | pieces producing | pieces consuming |
+|---|---:|---:|
+| mana | 132 | 31 |
+| rage | 31 | 9 |
+| faith | 36 | 12 |
+| nature | 33 | 7 |
+| **insight** | 11 | **0** |
+
+**51 of 523 pieces both make and spend something**, and **190 carry at least
+one conditional.**
+
+Insight has eleven producers and no consumers, and that is not a fault: it is
+fuel for Dread, which multiplies mind damage rather than spending a pool. It
+is the one pool whose worth is a *rate on something else*, and a packer that
+treats it like the other seven will bank a number.
+
+`view::Pools` carries produce and consume per piece, and `view::BoardPools`
+carries the board's economy: produced, consumed, **matched** - `min` of the
+two, which is what actually flows - and what is stranded or starved. None of
+it is privileged; the card prints *"on activation, spend 8 nature: if it
+works, apply curse of searing"* in as many words, and this is the same
+sentence as numbers.
+
+## Q1.2 The probe, and the bug it caught
+
+The gate: can a linear model over the board features predict whether a board
+will **successfully spend a pool** in a fight? The label comes from the log -
+a `ResourceCheck { paid: true }` - and never from the features, so the probe
+cannot cheat.
+
+Six hundred random boards, 314 of which assembled anything:
+
+| | first attempt | after the fix |
+|---|---:|---:|
+| accuracy | 87.9% | **91.4%** |
+| majority baseline | 85.7% | 85.7% |
+| lift | +2.2 | **+5.7** |
+| on boards that spent | - | 77.8% |
+| on boards that did not | - | 93.7% |
+| **balanced** | - | **85.7% against 50%** |
+
+**The first attempt failed the gate, and the reason was a wrong
+representation rather than a weak model.** `BoardPools` summed every *seated*
+piece - and a loose piece pays its passive stats and never acts, so a nature
+producer and a nature spender lying loose on one grid are two pieces that will
+never meet. The board read as matched and the fight had no match in it.
+Counting only the pieces inside **assembled items** moved the lift from +2.2
+to +5.7 and made `any-match` the feature the probe leans on hardest.
+
+That is `CLAUDE.md` §6 trap 36 in its general form - *only assembled items
+act* - and it was caught by a gate rather than by a training run that quietly
+learned nothing. **This is what Q1 is for**, and it justified itself on its
+first execution.
+
+## Q1.3 What Q1 hands Q2
+
+The features the probe leaned on, in order: `any-match`, `matched-total`,
+`prod-mana`, `pools-flowing`, `stranded-total`. Four of the five are about the
+*relationship* between pieces rather than about any piece, which is the whole
+claim - a build is a property of a board and not of a bag.
+
+**Gate met**, and with the honest metric rather than the flattering one: 14%
+of boards spend a pool, so plain accuracy rewards a model that always says no.
+Balanced accuracy is 85.7% against a 50% floor.

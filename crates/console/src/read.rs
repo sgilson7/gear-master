@@ -22,6 +22,7 @@ fn describe_piece(def: &'static PieceDef, id: Option<PieceId>, w: u8, h: u8, pri
         height: h,
         cells: def.cells.len() as u8,
         stats: def.base,
+        pools: pools_of(def),
         when: def
             .base
             .summary_by_when()
@@ -333,6 +334,7 @@ impl Console {
             classes: run.classes.iter().map(|c| c.name.to_string()).collect(),
             stats: run.player_stats(),
             figures: figures_of(run),
+            pools: board_pools(run),
             grids,
             tray,
             tray_cap: gearmaster_engine::run::INVENTORY_CAP,
@@ -354,4 +356,100 @@ impl Console {
             undoable: run.undoable().map(|s| s.to_string()),
         }
     }
+}
+
+// ---- what a piece does with the pools ---------------------------------
+//
+// Walked off the piece's own triggers and stat block. The card says all of it
+// in words; this says it in numbers, so a learner does not have to read
+// English to know that one piece makes nature and another spends it.
+
+use gearmaster_engine::piece::{walk_actions, Action, Resource, Trigger};
+
+fn pools_of(def: &'static gearmaster_engine::piece::PieceDef) -> crate::view::Pools {
+    let mut p = crate::view::Pools::default();
+    // The stat block's own pools are banked every activation - which is what
+    // `Stats::parts_when` classifies as `OnActivation`, and what T2 moved
+    // thirty-six pieces into.
+    let s = &def.base;
+    for (i, v) in [s.mana, s.rage, s.faith, s.nature].into_iter().enumerate() {
+        if v != 0 {
+            p.produces[i] += v;
+        }
+    }
+    if let Some(b) = def.assembly_bonus {
+        for (i, v) in [b.stats.mana, b.stats.rage, b.stats.faith, b.stats.nature]
+            .into_iter()
+            .enumerate()
+        {
+            if v != 0 {
+                p.produces[i] += v;
+            }
+        }
+    }
+    for t in def.triggers {
+        // **A spend is a trigger here, not an action.** `Trigger::Spend`,
+        // `SpendMana` and `Consume` are the three sinks, and every one of them
+        // is a condition: the failure branch is the whole point of them, so a
+        // piece behind one does not act every time.
+        match t {
+            Trigger::Spend { what, cost, .. } => p.consumes[what.index()] += *cost,
+            Trigger::SpendMana { cost, .. } => p.consumes[Resource::Mana.index()] += *cost,
+            // Consume spends the **whole** pool in units of `each`, so what it
+            // wants is at least one unit and as much as there is.
+            Trigger::Consume { what, each, .. } => p.consumes[what.index()] += *each,
+            _ => {}
+        }
+        let conditional = !matches!(t, Trigger::OnActivate(_) | Trigger::OnBattleStart(_));
+        let mut any = false;
+        walk_actions(t, &mut |a| {
+            any = true;
+            match a {
+                Action::Gain { what, amount } => p.produces[what.index()] += *amount,
+                Action::GainMana(n) => p.produces[Resource::Mana.index()] += *n,
+                Action::Fuse { a: from, b: and, into } => {
+                    p.consumes[from.index()] += 1;
+                    p.consumes[and.index()] += 1;
+                    p.produces[into.index()] += 1;
+                }
+                _ => {}
+            }
+        });
+        if any {
+            if conditional {
+                p.conditional = p.conditional.saturating_add(1);
+            } else {
+                p.unconditional = p.unconditional.saturating_add(1);
+            }
+        }
+    }
+    p
+}
+
+/// The board's economy: what is made, what is wanted, and what flows.
+///
+/// **Assembled items only.** A loose piece pays its passive stats and never
+/// acts (`CLAUDE.md` §6 trap 36 in its general form), so a nature producer and
+/// a nature spender both lying loose on a grid are two pieces that will never
+/// meet. Counting them made Q1's probe read a match where the fight had none,
+/// and the probe failed for it - which is the gate doing its job before a
+/// learner was trained on the wrong thing.
+fn board_pools(run: &Run) -> crate::view::BoardPools {
+    let mut b = crate::view::BoardPools::default();
+    for k in SlotKind::ALL {
+        let rep = run.report(k);
+        for id in rep.items.iter().filter(|i| i.assembled).flat_map(|i| i.pieces.iter().copied()) {
+            let p = pools_of(run.registry.def(id));
+            for i in 0..8 {
+                b.produces[i] += p.produces[i];
+                b.consumes[i] += p.consumes[i];
+            }
+        }
+    }
+    for i in 0..8 {
+        b.matched[i] = b.produces[i].min(b.consumes[i]);
+        b.stranded[i] = (b.produces[i] - b.consumes[i]).max(0);
+        b.starved[i] = (b.consumes[i] - b.produces[i]).max(0);
+    }
+    b
 }

@@ -14,8 +14,8 @@ code actually is.
 | | state |
 |---|---|
 | Q0 The ground, and the two menus | **done** - 16 verbs apiece, horizons 13 and 204 |
-| Q1 The representation | **in progress** |
-| Q2 Two environments | not started |
+| Q1 The representation | **done** - probe balanced 85.7% vs 50%; pools in the View |
+| Q2 Two environments | **in progress** |
 | Q3 The quartermaster learns | not started |
 | Q4 Pools, proven | not started |
 | Q5 The pathfinder learns | not started |
