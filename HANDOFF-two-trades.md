@@ -16,7 +16,7 @@ code actually is.
 | Q0 The ground, and the two menus | **done** - 16 verbs apiece, horizons 13 and 204 |
 | Q1 The representation | **done** - probe balanced 85.7% vs 50%; pools in the View |
 | Q2 Two environments | **done** - 1.40 ms an episode; 10^6 steps in 43 s |
-| Q3 The quartermaster learns | **GATE MISSED** - 8/50 against 48/50. Learning is real (spread 0.15->1.90) but the action factoring is wrong: rotate-then-place is a composite the agent has to discover with no undo. See analysis Q3.4 |
+| Q3 The quartermaster learns | **GATE MISSED** - 8/50, then **14/50** post-merge with `QPACK_PHI=1.5`, against 48/50. The action factoring was blamed and was not the cause; the shaping weight was. See analysis Q3.4 and the post-merge block |
 | Q4 Pools, proven | **premise confirmed** - control matches a planted pool 1 in 12; 68% of production stranded. Comparison to the learned packer owed (Q3) |
 | Q5 The pathfinder learns | **built, not trained** - the agent and its features exist; the frozen packer is the written one because Q3 missed |
 | Q6 The validity solver | **partly met** - doors 79%, branches 68%, towns 5/6, **dungeons 5 of 7** (gate wanted 7). Two left, both with named causes |
@@ -39,22 +39,43 @@ and the numbers are checked against the engine rather than argued for -
 at 87% precision**. The briefed arm trained after that change hit `items 1.1`,
 the highest any run has produced, and still lands at 0.8.
 
-So the next suspect is not the features. In order of what the measurements
-support:
+Three suspects were named here and **all three have now been tested**, because
+that is cheaper than arguing about them. Each is an environment variable on
+`qpack`, so all three ran against the same code, seed and episode count.
 
-1. **The exploration cannot find a completion.** Roughly five hundred legal
-   placements a step, ε-greedy, forty steps, 2,500 episodes. A completing
-   placement is perhaps one in five hundred at random, so the buffer holds a
-   couple of hundred of them among a hundred thousand transitions. Prioritised
-   replay keyed on `feature::mv`'s f[27] is the cheap test and it is honest -
-   it changes which transitions are *sampled*, not which are rewarded.
-2. **Φ is too quiet.** A completing placement is worth `+0.119` shaped against
-   `-0.03` for any other change, and the Q values are spread over 1.5. Raising
-   `0.15 * items` is one line and one run.
-3. **A budget of forty presses may not be enough** to assemble from a tray the
-   control needs a hundred for. `qcheck`'s control column spends 120-420.
+| arm | items | won |
+|---|---:|---:|
+| baseline | 0.8 | 2/20 |
+| `QPACK_PRIORITY=0.5` — oversample transitions that assembled | **0.6** | 0/20 |
+| `QPACK_BUDGET=120` — three times the presses | **1.0** | 3/20 |
+| `QPACK_PHI=0.6` — four times the shaping weight | **1.6** | 2/20 |
+| **`QPACK_PHI=1.5`** — ten times | **2.8** | 3/20 |
+| `QPACK_PHI=4.0` — twenty-seven times | 1.2 | 1/20 |
 
-None of these is a rewrite. All three are one constant or one sampler.
+**Start from `QPACK_PHI` between 0.6 and 1.5.** Ten times the shaping weight is
+three and a half times the items, the largest single move anything in this
+mission produced. Above that the Q spread blows out to 5.4 and it gets worse -
+the shaping starts to dominate the fight it was meant to be a hint about.
+
+**Do not spend a run re-testing the other two.** Prioritised replay made it
+*worse*: the buffer was not short of completions, it was short of a reason to
+prefer them, and more copies of a signal the network cannot hear do not make it
+louder. The press budget bought 0.2 items for three times the wall clock.
+
+On `qcheck`'s real repack benchmark this is **8/50 -> 14/50**, six or seven
+items assembled where Q7's arm assembled none, and `Place` the commonest verb
+in every column for the first time in the mission. **Q3 still misses** - the
+gate is 48/50 - by less than half of what it did.
+
+The new pathology is legible: **199 unequips against 213 placements**. The
+packer seats a piece and takes it straight back out, which is what a policy
+does when placing is worth something and it has not learned *which seat*. That
+is the next thing to look at, and it is a far more productive failure than
+pressing `Pin`.
+
+The diagnosis had been "a representation that cannot express the answer" since
+Q7. That is no longer the best reading: the representation could express it and
+the reward could not weight it.
 
 ## How to run anything
 
