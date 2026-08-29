@@ -16,7 +16,9 @@ pub mod feature;
 pub mod partition;
 pub mod pathfinder;
 pub mod qnet;
+pub mod quest;
 
 pub use env::{Goal, Move, Packing, Step, Walking};
 pub use partition::{Trade, PATHFINDER, QUARTERMASTER};
 pub use qnet::QNet;
+pub use quest::{End, Mark, Progress, Quest, Stop, Tier};
