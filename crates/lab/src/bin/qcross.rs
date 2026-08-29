@@ -39,6 +39,17 @@ fn main() {
     let runs: usize = std::env::var("QCROSS_RUNS").ok().and_then(|v| v.parse().ok()).unwrap_or(12);
     let net = |p: &str| QNet::load(p);
 
+    // **Two rows a model, and the reason is §C1.** A pair is a road policy and
+    // a packer, and if the packer cannot clear rung three then the pair's
+    // number is the packer's and the road policy is unmeasured. The first
+    // version of this table had one row a mode, both halves learned, and
+    // returned rung 1.0 for everything - which read as "the pathfinders learned
+    // nothing" and was really "the packers cannot walk".
+    //
+    // So each learned road policy appears twice: once behind the written
+    // control, which isolates it, and once behind its own mode's packer, which
+    // is the pair the mission asked for.
+    let q = |m: &str| format!("analysis/nets/quartermaster_{m}.txt");
     let pairs = vec![
         Pair {
             what: "the written pilot".into(),
@@ -47,8 +58,20 @@ fn main() {
             packer: Packer::named("control"),
         },
         Pair {
-            what: "no weights, control packer".into(),
+            what: "no weights + control packer".into(),
             road: None,
+            written: false,
+            packer: Packer::named("control"),
+        },
+        Pair {
+            what: "grinder road + control packer".into(),
+            road: net("analysis/nets/pathfinder-grinder.txt"),
+            written: false,
+            packer: Packer::named("control"),
+        },
+        Pair {
+            what: "rogue road + control packer".into(),
+            road: net("analysis/nets/pathfinder-rogue.txt"),
             written: false,
             packer: Packer::named("control"),
         },
@@ -56,15 +79,36 @@ fn main() {
             what: "grinder pair".into(),
             road: net("analysis/nets/pathfinder-grinder.txt"),
             written: false,
-            packer: Packer::named("analysis/nets/quartermaster_grinder.txt"),
+            packer: Packer::named(&q("grinder")),
         },
         Pair {
             what: "rogue pair".into(),
             road: net("analysis/nets/pathfinder-rogue.txt"),
             written: false,
-            packer: Packer::named("analysis/nets/quartermaster_rogue.txt"),
+            packer: Packer::named(&q("rogue")),
         },
     ];
+
+    // **What actually loaded.** `Packer::named` on a path that does not load is
+    // a packer that seats nothing, and a table that does not say so is a table
+    // about nothing. Same for a road net.
+    println!("what each row is actually running:");
+    for p in &pairs {
+        println!(
+            "  {:<32} road: {:<28} packer: {}",
+            p.what,
+            if p.written {
+                "the pilot's own".to_string()
+            } else {
+                match &p.road {
+                    Some(_) => "trained, loaded".into(),
+                    None => "none - first legal step".into(),
+                }
+            },
+            p.packer.describe("(as named above)")
+        );
+    }
+    println!();
 
     println!("Mean best rung over {runs} seeds, each pair in each mode.\n");
     println!("  {:<30} {:>10} {:>10}", "pair", "grinder", "rogue");
@@ -78,8 +122,15 @@ fn main() {
 
     // The gate, stated rather than implied.
     let by = |name: &str| table.iter().find(|(w, _, _)| w == name).cloned();
-    let (Some(g), Some(r)) = (by("grinder pair"), by("rogue pair")) else { return };
-    println!("\n  the gate: each pair ahead of the other in its own mode");
+    // The gate is about the road policies, so it is read off the rows where
+    // the packer is held constant.
+    let (Some(g), Some(r)) =
+        (by("grinder road + control packer"), by("rogue road + control packer"))
+    else {
+        return;
+    };
+    println!("\n  the gate: each road policy ahead of the other in its own mode,");
+    println!("  with the same packer behind both");
     println!(
         "    in grinder  {:>6.1} against {:>6.1}   {}",
         g.1,
@@ -92,7 +143,7 @@ fn main() {
         g.2,
         if r.2 > g.2 { "met" } else { "MISSED" }
     );
-    let control = by("no weights, control packer").map(|c| (c.1, c.2));
+    let control = by("no weights + control packer").map(|c| (c.1, c.2));
     if let Some((cg, cr)) = control {
         println!(
             "\n  and against no weights at all: grinder {:+.1}, rogue {:+.1}.\n  \

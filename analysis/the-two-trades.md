@@ -1030,3 +1030,150 @@ milestones.
 | training | `QROAD_QUEST=<name> cargo run --release -p gearmaster-lab --features nn --bin qroad` |
 | a proof | `QPROOF_QUEST=<name> cargo run --release -p gearmaster-lab --bin qproof` |
 | watching one | `GEARMASTER_WATCH=<proof> cargo run -p gearmaster-gui` |
+
+---
+
+# R0-R5 — The Rogue pair
+
+Read off **`b298999`** plus this milestone. The plan is
+`analysis/the-rogue-pair.html`; the measurements are `--bin qrogue`,
+`--bin qjudge`, `--bin qmoves` and `--bin qcross`.
+
+## R.1 What Rogue changes, measured
+
+Four questions the training loops depended on and none of them had an answer.
+
+**A dead Rogue run wipes in place.** Lives 1 → 4, gold back to 28, rung back to
+1, and `Console::over` is never true, because `Run::settle` replaces the run
+before anything outside can observe a zero. An episode driven by it never ends
+in Rogue: it keeps going, in a different run, at the bottom of the ladder.
+
+**The road reward paid for the same rung repeatedly** - 6.37 payments per rung
+actually reached in Grinder and 5.04 in Rogue, for opposite reasons: a Grinder
+oscillates against a wall and a Rogue is reset to the bottom.
+
+**Neither agent could see the mode.** `View::grinder` was in no feature vector,
+and the road's `f[2]` separated the two only by accident, through
+`lives_left.unwrap_or(9)` putting Grinder on 1.80 where Rogue cannot go.
+
+**And `combat.rs` never names `Mode`.** Three doors are priced by it -
+`Outcome::Spare` once and `Outcome::Underwrite` twice - and nothing else in the
+rules is.
+
+## R.2 Why a Rogue quartermaster is a reward and not a flag
+
+The packer's reward was one simulated fight. A fight is a pure function of two
+boards, so **passing `Mode::Rogue` where `qpack` passed `Mode::Grinder` would
+have produced the same packer.**
+
+`lab::scoring` prices a board against a **window** of the rungs ahead. Grinder
+averages it; Rogue averages it and then pays again for the worst thing in it,
+because in Rogue the worst thing in the window is the thing that happens and
+there are four of those in a run. The risk is not a dice roll - combat is
+deterministic - it is that the screen shows the *next* creature and nothing
+beyond it.
+
+The strong claim is a property: a board that wins its whole window is priced
+**identically** by both judges, and one that loses anywhere in it is worth
+strictly less to a Rogue. The gate is that they also *order* boards
+differently, and `--bin qjudge` finds **4 inversions in 406 pairs**. Small, and
+concentrated exactly where a run would die.
+
+## R.3 The road agent gets action features, and it was worth 1 to 18
+
+C7 closed on the finding that `feature::mv` is the *quartermaster's* move
+description and every road verb fell into its one leftover bucket:
+**1,341 road verbs across four runs, one distinct vector.**
+`pathfinder::describe` is the road's own now - seventeen kinds, then fifteen
+columns about the particular one - and the same walk produces **18**.
+
+## R.4 The curriculum had to be walked, and by the pilot
+
+`skip_to` pays the bounties and not the shops: a run stood at rung 25 that way
+carries 1,516 gold, seven pieces, one shelf and **no assembled item at all**, so
+the window has no board to look at.
+
+Walking needed the control's own walk rather than a simplified one. A walker
+that packs once a rung and presses the first road verb reaches rung 13 in
+Grinder and **rung 1** in Rogue; the pilot, which barters, sells, rerolls, grows
+and rearranges after a defeat, reaches 28 and **18**. That had looked like a
+fact about the mode and was a fact about a hundred lines of harness.
+
+And a walked situation arrives **already packed**, so the packing episode has to
+take the board apart first or it scores the pilot: the first campaign evaluated
+at 10 wins in 20 on episode zero, before a gradient.
+
+## R.5 Four models, and the cross table
+
+Quartermasters 800 episodes each; pathfinders 300 each behind the **written
+control** packer, per §C1.
+
+| | items | eval wins | training wins |
+|---|---:|---:|---:|
+| `quartermaster_grinder` | 2.9 | 4/20 | 172/399 |
+| `quartermaster_rogue` | **3.5** | 0/20 | 22/399 |
+
+Mean best rung over 12 seeds, each row in each mode:
+
+| row | grinder | rogue |
+|---|---:|---:|
+| the written pilot | **32.8** | **6.7** |
+| no weights + control packer | 1.0 | 1.0 |
+| grinder road + control packer | 1.0 | 1.0 |
+| **rogue road + control packer** | 1.0 | **2.3** |
+| grinder pair (both learned) | 1.0 | 1.0 |
+| rogue pair (both learned) | 1.0 | 1.0 |
+
+**The gate is half met.** In Rogue the Rogue policy is ahead, 2.3 against 1.0.
+In Grinder the Grinder policy is level with having no weights at all.
+
+## R.6 Why, and it is the owner's rule doing the work
+
+The traces say it in two lines. The Grinder policy presses `Fight` on an empty
+board, for ever:
+
+```
+step 0  rung 1  items 0  W0 L0   taking Press(Fight)
+step 1  rung 1  items 0  W0 L1   taking Press(Fight)     ... to 320
+```
+
+The Rogue policy packs first:
+
+```
+step 0  rung 1  items 0  W0 L0   taking Pack
+step 1  rung 1  items 1  W0 L0   taking Press(Fight)
+step 2  rung 2  items 1  W1 L0   taking Press(Fight)
+step 3  rung 2  items 1  W1 L1   taking Pack
+```
+
+Both collapse onto one verb eventually - the Rogue one stalls on `Pack` from
+step 5 - and both reached rung 53 and 47 under exploration before the greedy
+policy settled. So the ε-collapse C7 found is not fixed and the action features
+did not fix it.
+
+**What did change is which verb they collapse onto, and that is the reward.** In
+Grinder a loss costs `-1.0` and pays a bounty, so fighting an unbeatable rung is
+nearly free and the policy never learns that packing comes first. In Rogue a
+loss costs `-2.5` and four of them cost `-10` and end the episode, so the same
+architecture, the same features and the same packer produce a policy that packs
+before it fights and clears a rung.
+
+That is the owner's rule - *losing must provide negative or no value* - showing
+up as a behaviour rather than as a number, and it is the clearest evidence in
+this mission that a reward change reaches a policy.
+
+## R.7 The gates
+
+| gate | result |
+|---|---|
+| R0: the ratchet rises from 1 | **met** - 18 |
+| R0: a trained pathfinder beats the first legal step | **missed in Grinder, met in Rogue** (2.3 against 1.0) |
+| R1: a wipe is an event and per-run notes reset | met |
+| R2: losing is never worth anything | met, as a property (`trades/tests/losing.rs`) |
+| R3: the two judges order boards differently | met - 4 in 406 |
+| R4: the tray at a rung is what the run bought | met |
+| R5: each pair ahead in its own mode | **half met** |
+
+Everything above 1.0 in the cross table that is not the pilot belongs to the
+Rogue road policy. The written pilot at **32.8 against 6.7** remains the widest
+statement of how much harder the mode is, and no learned pair is near it.
