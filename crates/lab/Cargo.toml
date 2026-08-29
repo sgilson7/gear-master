@@ -29,3 +29,4 @@ gearmaster-engine = { path = "../engine" }
 gearmaster-console = { path = "../console" }
 gearmaster-oracle = { path = "../oracle" }
 gearmaster-agent = { path = "../agent" }
+gearmaster-trades = { path = "../trades" }

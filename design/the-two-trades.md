@@ -30,7 +30,7 @@ The split is **by screen**, which is how a person experiences it:
 | plays | the loadout and the shop | the road |
 | owns | buy, sell, barter, reroll, pin, place, rotate, lock, unequip, clear, grow, undo, **done** | answer, town, walk-on, throw points, leave, walk, out, drink, pedestal, crush, fight, brawl, **pack** |
 | episode | one shopping-and-packing session | one run |
-| horizon | 30-60 decisions | 200-500 decisions |
+| horizon | **13 decisions** median, 47 at the worst (Q0) | **204** median, 264 at the worst (Q0) |
 | reward | did this board win the fight in front of it | rungs cleared, and the goal |
 | asked | "make me a board that beats *that*" | "get me to *there*" |
 
@@ -245,7 +245,7 @@ the horizon estimates in §3 are estimates until this milestone.
 **Deliverable:** `analysis/the-two-trades.md` with the §1 table re-taken, the
 partition, and the measured horizons.
 **Gate:** the partition lint passes; horizons are inside the §3 figures or the
-figures move here rather than later.
+figures move here rather than later. **They moved: 13 and 204.**
 
 ## Q1 — The representation
 
@@ -270,7 +270,7 @@ call it because it is not a verb.
 **Deliverable:** both environments, a random-policy smoke test, and the
 throughput: episodes a second on eight cores.
 **Gate:** a random quartermaster episode is under 60 decisions; a random
-pathfinder episode under 600. Both replay identically from a seed.
+pathfinder episode under 600. Q0 measured the control at 13 and 204. Both replay identically from a seed.
 
 ## Q3 — The quartermaster learns
 
@@ -396,9 +396,9 @@ epochs a minute on `Autodiff<NdArray>`.
 
 | | estimate |
 |---|---|
-| quartermaster episode | 30-60 decisions, one fight - **~2 ms** |
+| quartermaster episode | 13 decisions median, one fight - **~2 ms** |
 | 10⁶ quartermaster steps | ~20k episodes ≈ **40 s of environment**, plus training |
-| pathfinder episode | 200-500 decisions, ~50 `pack` calls at ~2 ms - **~3 s** |
+| pathfinder episode | ~204 decisions, ~79 `pack` calls at ~2 ms - **~3 s** |
 | 10⁶ pathfinder steps | ~2,500 episodes ≈ **2 hours on 8 cores** |
 | a generation | one of each, plus evaluation - **half a day** |
 | the whole mission | **three to five overnights of training**, plus the building |

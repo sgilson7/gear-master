@@ -1849,6 +1849,7 @@ dependencies = [
  "gearmaster-console",
  "gearmaster-engine",
  "gearmaster-oracle",
+ "gearmaster-trades",
 ]
 
 [[package]]
@@ -1856,6 +1857,13 @@ name = "gearmaster-oracle"
 version = "0.1.0"
 dependencies = [
  "gearmaster-engine",
+]
+
+[[package]]
+name = "gearmaster-trades"
+version = "0.1.0"
+dependencies = [
+ "gearmaster-console",
 ]
 
 [[package]]

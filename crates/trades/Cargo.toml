@@ -1,0 +1,15 @@
+[package]
+name = "gearmaster-trades"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+# Two learned agents, and the same boundary the hand-written pilot has.
+#
+# `gearmaster-console` is the only dependency, so Rust's name resolution
+# refuses `gearmaster_engine::...` and `gearmaster_oracle::...` anywhere in
+# here: neither agent can simulate a fight it is not standing in, walk the
+# catalogue, or skip a rung. Training is privileged and lives in
+# `gearmaster-lab`; what is learned comes back as plain weights.
+[dependencies]
+gearmaster-console = { path = "../console" }
