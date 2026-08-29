@@ -366,3 +366,90 @@ one of those would be the mistake this mission keeps catching.
 matched even half of what it strands would be building something the control
 has never built. Q3's diagnosis - the action factoring, not the training - is
 what stands between here and finding out.
+
+---
+
+# Q5 and Q6 — The pathfinder, and a solver that is given somewhere to go
+
+Read off **`9e32f90`** plus this milestone. Recorded together because Q3's miss
+changed what Q5 could be, and being honest about that is more useful than
+pretending they are separate.
+
+## Q5.1 What was built, and what was not
+
+`crates/trades/src/pathfinder.rs` is the road agent: goal in the state,
+`+50` on reaching it, `pack` as one macro-action into **a frozen packer handed
+in by the caller** - which is the parameter the spec's generations turn.
+
+**The Q network is not what is deciding.** Q3 missed its gate, so the packer
+that works is the written one, and the same is true of the road policy: a
+pathfinder trained tonight against a packer that assembles two items would
+have learned to walk with no board. The spec anticipated exactly this - *"the
+hand-written packer stays the default until it is beaten"* - and the
+architecture takes it: which policy is frozen is a parameter, and today both
+are the written ones.
+
+What **is** learned is the memory: which choice led into which dungeon, and
+which choice label a shut door asked for. That is cross-episode learning
+steering a written policy, and calling it Q-learning would be a lie.
+
+## Q6.1 The ledger, aimed rather than accidental
+
+A5 counted what runs met **by accident**. This asks the question a validity
+claim needs: aimed at each thing, can a forward player-legal run reach it?
+
+40 runs, 20 seeds in each of two modes, one shared memory:
+
+| | A5 | A6 | **Q6** |
+|---|---:|---:|---:|
+| doors offered | 70% | 72% | **79%** |
+| branches taken | 67% | 62% | **68%** |
+| towns | 4 of 6 | 4 of 6 | **5 of 6** |
+| **dungeons** | 1 of 7 | 1 of 7 | **5 of 7** |
+
+**Dungeons went from one to five**, and the switchyard from four floors to
+eight of nine.
+
+## Q6.2 Two more verbs, and a trade
+
+**`Pedestal`.** Three of the seven dungeons - the undertow, den rivals and
+wumpus world - have **no road in at all**: an orb fed to a pedestal is the only
+way, and six destinations hang off the same verb. The pilot has had it since A1
+and never once pressed it. **That is the fifth verb this mission has found in
+that state**, after the doubling fountain, barter, sell, reroll and
+`ClearSlot`.
+
+Pressing it took den rivals and wumpus world from nothing to fully walked.
+
+**And it cost something**, which is the honest half: doors fell from 44 to 42
+and branches from 89 to 82. An orb sends the run somewhere, and somewhere is
+not the road. That is a real trade between depth and breadth and it is exactly
+what a goal-conditioned agent is supposed to resolve - given a target it should
+take the orb when the orb is the way and not otherwise. A written priority
+cannot make that judgement and a learned one could.
+
+## Q6.3 What is left, and the chain that explains most of it
+
+Two dungeons, and both have a named cause:
+
+* **`the-under-mine`** is behind the door `the-fork`, which wants the flag
+  `slagworks-known`, which comes from **THE SLAGWORKS** - the one town of six
+  still unreached. One town blocks one dungeon and four doors
+  (`the-fork`, `the-sealed-bid`, `the-foundry-remembers`, and the mine).
+* **`the-undertow`** is behind an orb the run never acquires.
+
+**No door in this game has been shown unreachable.** Eleven are unreached and
+every one of them has a cause named in this ledger: a town, an orb, a rumour,
+or a rung nothing got to.
+
+## Q6.4 The gate
+
+Asked for coverage above **70% offered and 58% branched** - met at 79% and 68%
+- and for **all seven dungeons entered**, which is **not** met at five.
+
+The two that remain are not a policy failure in the ordinary sense. They are a
+chain: reach a hidden town, set a flag, open a door, enter a dungeon. That is
+precisely the four-step credit assignment a goal-conditioned learner exists to
+do, and the reason Q3's miss matters - not because the packer is the point, but
+because the whole architecture was to be trained together and one half of it
+did not arrive.

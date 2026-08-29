@@ -13,6 +13,7 @@
 pub mod env;
 pub mod feature;
 pub mod partition;
+pub mod pathfinder;
 pub mod qnet;
 
 pub use env::{Goal, Move, Packing, Step, Walking};

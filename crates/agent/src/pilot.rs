@@ -68,6 +68,8 @@ pub struct Ended {
     pub cleared: usize,
     /// Times a door put this run inside a dungeon.
     pub dungeons: usize,
+    /// Orbs fed to a pedestal.
+    pub orbs: usize,
     pub doors: usize,
     pub towns: usize,
     pub why: &'static str,
@@ -141,6 +143,7 @@ fn play_impl(
         grew: 0,
         cleared: 0,
         dungeons: 0,
+        orbs: 0,
         doors: 0,
         towns: 0,
         why: "out of presses",
@@ -420,6 +423,20 @@ fn play_impl(
             }
             tray_changed = false;
             continue;
+        }
+
+        // An orb in the tray is a place the run has not been.
+        //
+        // Three of the seven dungeons - the undertow, den rivals and wumpus
+        // world - have **no road in at all**: an Orb of Travel fed to a
+        // pedestal is the only way, and six destinations hang off the same
+        // verb. The pilot has had `Pedestal` since A1 and never once pressed
+        // it, which is the fifth verb this mission has found in that state.
+        if let Some(pick) = menu.iter().find(|x| matches!(x, Verb::Pedestal { .. })).copied() {
+            if press(&mut c, pick, &mut e) {
+                e.orbs += 1;
+                continue;
+            }
         }
 
         // A row that has been granted and not spent is six cells nobody has.

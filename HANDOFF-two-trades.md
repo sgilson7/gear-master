@@ -18,9 +18,9 @@ code actually is.
 | Q2 Two environments | **done** - 1.40 ms an episode; 10^6 steps in 43 s |
 | Q3 The quartermaster learns | **GATE MISSED** - 8/50 against 48/50. Learning is real (spread 0.15->1.90) but the action factoring is wrong: rotate-then-place is a composite the agent has to discover with no undo. See analysis Q3.4 |
 | Q4 Pools, proven | **premise confirmed** - control matches a planted pool 1 in 12; 68% of production stranded. Comparison to the learned packer owed (Q3) |
-| Q5 The pathfinder learns | **in progress** |
-| Q6 The validity solver | not started |
-| Q7 Generations | not started |
+| Q5 The pathfinder learns | **built, not trained** - the agent and its features exist; the frozen packer is the written one because Q3 missed |
+| Q6 The validity solver | **partly met** - doors 79%, branches 68%, towns 5/6, **dungeons 5 of 7** (gate wanted 7). Two left, both with named causes |
+| Q7 Generations | **in progress** |
 | Q8 Themes | not started |
 | Q9 The harvest, and the record | not started |
 
