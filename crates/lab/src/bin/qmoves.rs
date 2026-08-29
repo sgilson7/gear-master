@@ -2,25 +2,26 @@
 //!
 //!     cargo run --release -p gearmaster-lab --bin qmoves
 //!
-//! `feature::mv` describes a candidate move for the network. It was written for
-//! the **quartermaster**, whose moves are placements, purchases and rotations,
-//! and its one-hot has eight shapes plus `_ => 8` for everything else.
+//! It was handed `feature::mv`, which describes a candidate move for the
+//! **quartermaster**: a one-hot over eight board-and-shop shapes plus `_ => 8`
+//! for everything else, and every field after it about a piece. Every verb the
+//! pathfinder owns fell into that eighth bucket, and the answer this printed
+//! was **one**.
 //!
-//! Every verb the pathfinder owns falls into that eighth bucket. This walks a
-//! run, collects the road verbs actually on offer at each decision, describes
-//! each one the way the network sees it, and counts the **distinct** vectors.
-//! If that count is one, the road network is choosing between "pack" and "some
-//! road verb", and which road verb is a coin.
+//! `pathfinder::describe` is the road's own description now. This walks a run,
+//! collects the road verbs actually on offer at each decision, describes each
+//! one the way the network sees it, and counts the **distinct** vectors. The
+//! number is a ratchet held in `crates/trades/tests/quest.rs`, and it goes up.
 
 use gearmaster_console::{Console, Difficulty, Mode};
 use gearmaster_lab::packers::Packer;
 use gearmaster_trades::env::{Step as RoadStep, Walking};
-use gearmaster_trades::{feature, pathfinder};
+use gearmaster_trades::pathfinder;
 use std::collections::BTreeMap;
 
 const BUDGET: usize = 320;
 
-fn key(f: &[f32; feature::MOVE]) -> String {
+fn key(f: &[f32; pathfinder::MOVE]) -> String {
     f.iter().map(|x| format!("{x:.3}")).collect::<Vec<_>>().join(",")
 }
 
@@ -78,11 +79,25 @@ fn main() {
             verbs.iter().map(|l| l.split_whitespace().next().unwrap_or("?").to_string()).collect();
         kinds.sort();
         kinds.dedup();
-        println!("  {:>5} presses, {:>2} verb kinds: {}", verbs.len(), kinds.len(), kinds.join(" "));
-        println!("        {}", &k[..k.len().min(96)]);
+        // The columns that are actually set, by index, because the whole
+        // point is which numbers differ and a row of zeros hides it.
+        let lit: Vec<String> = k
+            .split(',')
+            .enumerate()
+            .filter(|(_, x)| x.parse::<f32>().unwrap_or(0.0) != 0.0)
+            .map(|(i, x)| format!("[{i}]={x}"))
+            .collect();
+        println!(
+            "  {:>5} presses  {:<10} {}",
+            verbs.len(),
+            kinds.join(" "),
+            lit.join(" ")
+        );
     }
     println!(
-        "\nAnd `Pack` is the all-zero vector, which is the one thing that is\n\
-         distinguishable from all of them."
+        "\n`Pack` is kind 0 and no longer the all-zero vector. Zero was borrowed\n\
+         from the packing side's `Done`, and it made packing the only action\n\
+         with a shape of its own - which is what a policy pressing it 320 times\n\
+         out of 320 had been choosing."
     );
 }

@@ -72,23 +72,130 @@ pub fn road_on_quest(v: &View, goal: Option<&Goal>, quest: [f32; 2]) -> [f32; RO
     f
 }
 
-/// The pair a road Q network scores: the road, and one candidate step.
-pub const PAIR: usize = ROAD + feature::MOVE;
+/// How many numbers describe one road step.
+///
+/// **This did not exist until it had to.** The road agent was handed
+/// `feature::mv`, which is the *quartermaster's* move description: a one-hot
+/// over eight board-and-shop shapes, `_ => 8` for everything else, and every
+/// field after it about a **piece**, which no road verb has. So every verb the
+/// pathfinder owns described to the same vector - measured at 1,341 verbs of
+/// four kinds and **one** distinct vector (`--bin qmoves`) - and a network that
+/// cannot tell two actions apart cannot prefer one.
+///
+/// Everything below is read off the same screen a player reads. A choice's
+/// index and whether it is open are drawn on the button; which door a town verb
+/// takes and whether it spends the visit are on the gate; whether an exit has
+/// been walked already is on the map.
+pub const MOVE: usize = KINDS + 15;
 
-pub fn pair(r: &[f32; ROAD], m: &[f32; feature::MOVE]) -> [f32; PAIR] {
+/// The kinds a road step comes in, in the order they are one-hot.
+///
+/// `Pack` is one of them rather than the all-zero vector it used to be. Zero
+/// was a convention borrowed from the packing side's `Done`, and it made
+/// packing the only action with a shape of its own - which is exactly the
+/// asymmetry that had the trained policy pressing it 320 times out of 320.
+const KINDS: usize = 17;
+
+fn kind_of(s: &crate::env::Step) -> usize {
+    match s {
+        crate::env::Step::Pack => 0,
+        crate::env::Step::Press(v) => match v {
+            Verb::Fight => 1,
+            Verb::FightParty => 2,
+            Verb::Answer { .. } => 3,
+            Verb::AnswerWith { .. } => 4,
+            Verb::Town { .. } => 5,
+            Verb::WalkOn => 6,
+            Verb::ThrowPoints { .. } => 7,
+            Verb::Leave => 8,
+            Verb::Walk { .. } => 9,
+            Verb::Out => 10,
+            Verb::Perambulate { .. } => 11,
+            Verb::Drink => 12,
+            Verb::DrinkChoosing { .. } => 13,
+            Verb::Double { .. } => 14,
+            Verb::Pedestal { .. } => 15,
+            // `Crush`, and anything a later mission adds to this trade. A
+            // bucket of one is not the fault the bucket of sixteen was.
+            _ => 16,
+        },
+    }
+}
+
+/// The pair a road Q network scores: the road, and one candidate step.
+pub const PAIR: usize = ROAD + MOVE;
+
+pub fn pair(r: &[f32; ROAD], m: &[f32; MOVE]) -> [f32; PAIR] {
     let mut out = [0.0f32; PAIR];
     out[..ROAD].copy_from_slice(r);
     out[ROAD..].copy_from_slice(m);
     out
 }
 
-/// A step described for the network. `Pack` is the all-zero action, the same
-/// convention `Done` uses on the other side.
-pub fn describe(v: &View, s: &crate::env::Step) -> [f32; feature::MOVE] {
-    match s {
-        crate::env::Step::Pack => [0.0; feature::MOVE],
-        crate::env::Step::Press(verb) => feature::mv(v, *verb),
+/// A step described for the network.
+///
+/// The kind first, then whatever the screen says about *this* one: which choice
+/// at a door and whether it can be taken, which door at a gate and what it
+/// costs, which way at a set of points and whether that way has been walked.
+/// Two verbs of one kind differ here or the agent is choosing by list order.
+pub fn describe(v: &View, s: &crate::env::Step) -> [f32; MOVE] {
+    let mut f = [0.0f32; MOVE];
+    f[kind_of(s)] = 1.0;
+    let crate::env::Step::Press(verb) = s else { return f };
+
+    match verb {
+        // ---- a door, and which answer ----------------------------------
+        Verb::Answer { choice } | Verb::AnswerWith { choice, .. } => {
+            let q = v.question.as_ref();
+            let n = q.map(|q| q.choices.len()).unwrap_or(1).max(1);
+            f[KINDS] = *choice as f32 / n as f32;
+            f[KINDS + 1] = n as f32 / 4.0;
+            if let Some(c) = q.and_then(|q| q.choices.get(*choice)) {
+                f[KINDS + 2] = c.open as u8 as f32;
+                // A choice that asks for nothing is a choice a run can always
+                // take, and the ones that ask are the ones a chain is made of.
+                f[KINDS + 3] = (!c.requires.is_empty()) as u8 as f32;
+                f[KINDS + 4] = c.figure.is_some() as u8 as f32;
+            }
+        }
+        // ---- a gate, and which door -------------------------------------
+        Verb::Town { door } => {
+            let all = gearmaster_console::Door::EVERY;
+            let at = all.iter().position(|d| d == door).unwrap_or(0);
+            f[KINDS + 5] = at as f32 / all.len() as f32;
+            // The binding constraint at a town is the visit, not the door
+            // (`HANDOFF-two-agents.md` §3.6): county and pedestal are free and
+            // everything else spends the one action a town has.
+            f[KINDS + 6] = door.costs_the_visit() as u8 as f32;
+            f[KINDS + 7] = (door.opens().is_some()) as u8 as f32;
+        }
+        // ---- a set of points, and which way ------------------------------
+        Verb::ThrowPoints { exit } => {
+            if let Some(p) = v.points.as_ref() {
+                f[KINDS + 8] = *exit as f32 / p.exits.len().max(1) as f32;
+                f[KINDS + 9] = p.exits.len() as f32 / 3.0;
+                // Already walked, which is the whole question a graph asks.
+                if let Some((_, _, _, cleared)) = p.exits.get(*exit) {
+                    f[KINDS + 10] = *cleared as u8 as f32;
+                }
+            }
+        }
+        // ---- a fountain, and which of what it offers ---------------------
+        Verb::DrinkChoosing { class } | Verb::Double { class } => {
+            let n = v.fountain.as_ref().map(|f| f.offer.len()).unwrap_or(1).max(1);
+            f[KINDS + 11] = *class as f32 / n as f32;
+            f[KINDS + 12] = n as f32 / 4.0;
+        }
+        // ---- the county, and which way out of this tile ------------------
+        Verb::Walk { .. } | Verb::Perambulate { .. } => {
+            if let Some(c) = v.county.as_ref() {
+                f[KINDS + 13] = c.moves_left as f32 / 5.0;
+                f[KINDS + 14] = c.trips_left as f32 / 10.0;
+            }
+        }
+        _ => {}
     }
+    f
 }
 
 /// What a run is worth, step by step.

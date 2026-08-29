@@ -249,78 +249,100 @@ fn a_dearer_tier_is_worth_more_than_a_cheaper_one() {
 
 use gearmaster_console::{Console, Difficulty, Mode, Verb};
 use gearmaster_trades::env::Step as RoadStep;
-use gearmaster_trades::{feature, pathfinder};
+use gearmaster_trades::pathfinder;
 
-/// How many distinct feature vectors the pathfinder's own verbs describe to.
+/// Every kind of road step describes to a vector of its own.
 ///
-/// **One.** `feature::mv` was written for the quartermaster - its one-hot has
-/// eight shapes for placements, purchases, sells, barters, rerolls, rotations,
-/// unequips and clears, and `_ => 8` for everything else. Every verb the
-/// pathfinder owns lands in that eighth bucket and nothing else in the vector
-/// is filled in, because every other field is about a *piece* and a road verb
-/// has none.
+/// **They all described to one.** The road agent had been handed
+/// `feature::mv`, which is the quartermaster's move description: a one-hot over
+/// eight board-and-shop shapes, `_ => 8` for everything else, and every field
+/// after it about a *piece*, which no road verb has. So the network's action
+/// space was "pack" against "a road verb", and which road verb was the order
+/// the console listed them in.
 ///
-/// So the road network's action space, as far as it can see it, is two:
-/// `Pack`, which is the all-zero vector by convention, and "a road verb". It
-/// cannot tell `Fight` from `Answer 0` from `Town chapel` from `Drink`, and
-/// which one gets pressed is the order they came in.
-///
-/// `crates/lab/src/bin/qmoves.rs` is the measurement: 1,341 road verbs offered
-/// across four runs, four verb kinds among them, **one** distinct vector.
-///
-/// This is why every road policy in this repo that was ever called learned
-/// reached the same rung as the one that presses the first thing on the list.
+/// That is why every road policy this repo ever called learned reached about
+/// the rung the one that presses the first legal thing reaches.
 /// `analysis/the-two-trades.md` Q5.1 said "the Q network is not what is
 /// deciding" and put it down to the packer; the packer was not the reason.
 ///
-/// **The number goes up or the ratchet is pointless.** Fixing this means
-/// describing a road verb the way `mv` describes a placement - which door,
-/// which choice, what the choice asks for and what it does - and the day that
-/// lands, this constant is the measurement that says it worked.
-const ROAD_VERBS_LOOK_ALIKE: usize = 1;
-
+/// Checked against a written list rather than a walk. A walk from a fresh
+/// console meets one verb - `Fight`, over and over, because a starter board
+/// loses rung one - so counting what a walk *happens* to meet measures the walk.
+/// `crates/lab/tests/quests.rs` does the walked version, where a packer can get
+/// the run as far as a door.
 #[test]
-fn the_pathfinder_can_tell_this_many_of_its_own_verbs_apart() {
-    let mut c = Console::start(0x1212, Mode::Grinder, Difficulty::Medium);
-    let mut seen: Vec<[f32; feature::MOVE]> = Vec::new();
-    // Bounded: a walk that runs until it runs out is a hang, and this one only
-    // needs enough of a run to meet a door, a town and a fountain.
-    for _ in 0..64 {
-        let v = c.view();
-        let steps: Vec<RoadStep> = pathfinder::steps_of(&c).into_iter().map(RoadStep::Press).collect();
-        if steps.is_empty() {
-            break;
-        }
-        for s in &steps {
-            let d = pathfinder::describe(&v, s);
-            if !seen.iter().any(|x| x == &d) {
-                seen.push(d);
-            }
-        }
-        let RoadStep::Press(verb) = &steps[0] else { unreachable!() };
-        if !c.apply(*verb).ok {
-            break;
-        }
+fn every_kind_of_road_step_looks_different_to_the_network() {
+    let c = Console::start(0x1212, Mode::Grinder, Difficulty::Medium);
+    let v = c.view();
+    let steps = [
+        RoadStep::Pack,
+        RoadStep::Press(Verb::Fight),
+        RoadStep::Press(Verb::FightParty),
+        RoadStep::Press(Verb::Answer { choice: 0 }),
+        RoadStep::Press(Verb::AnswerWith { choice: 0, figure: 1 }),
+        RoadStep::Press(Verb::Town { door: gearmaster_console::Door::Pub }),
+        RoadStep::Press(Verb::WalkOn),
+        RoadStep::Press(Verb::ThrowPoints { exit: 0 }),
+        RoadStep::Press(Verb::Leave),
+        RoadStep::Press(Verb::Out),
+        RoadStep::Press(Verb::Drink),
+        RoadStep::Press(Verb::DrinkChoosing { class: 0 }),
+        RoadStep::Press(Verb::Double { class: 0 }),
+    ];
+    let mut seen: Vec<[f32; pathfinder::MOVE]> = Vec::new();
+    for s in &steps {
+        let d = pathfinder::describe(&v, s);
+        assert!(
+            !seen.iter().any(|x| x == &d),
+            "{s:?} describes identically to something before it"
+        );
+        seen.push(d);
     }
-    assert!(!seen.is_empty(), "no road verb was ever offered, so this proves nothing");
-    assert_eq!(
-        seen.len(),
-        ROAD_VERBS_LOOK_ALIKE,
-        "the number of road verbs the network can tell apart has moved. If it \
-         went up, that is the fix landing and this constant owns the \
-         re-measurement - run `--bin qmoves` and write the new figure in. If it \
-         went down, something narrowed `feature::mv` and the road agent can now \
-         see less than nothing."
+    assert_eq!(seen.len(), steps.len());
+}
+
+/// And two of one kind differ, which is the half a one-hot alone would miss.
+///
+/// A chain is made of *which* answer was taken at a door, and
+/// `HANDOFF-two-agents.md` §3.6 is about nothing else - so an agent that can
+/// tell answering from fighting and not the first answer from the second has
+/// been given half a representation.
+#[test]
+fn two_answers_and_two_town_doors_do_not_look_the_same() {
+    let c = Console::start(0x1212, Mode::Grinder, Difficulty::Medium);
+    let v = c.view();
+    let d = |s| pathfinder::describe(&v, &s);
+    assert_ne!(
+        d(RoadStep::Press(Verb::Answer { choice: 0 })),
+        d(RoadStep::Press(Verb::Answer { choice: 1 })),
+        "two answers at one door describe identically"
+    );
+    assert_ne!(
+        d(RoadStep::Press(Verb::Town { door: gearmaster_console::Door::Pub })),
+        d(RoadStep::Press(Verb::Town { door: gearmaster_console::Door::Chapel })),
+        "two doors at one gate describe identically"
+    );
+    // The county is free and every other door spends the town's one action,
+    // which is the fact `HANDOFF-two-agents.md` §3.6 turns on.
+    assert_ne!(
+        d(RoadStep::Press(Verb::Town { door: gearmaster_console::Door::County })),
+        d(RoadStep::Press(Verb::Town { door: gearmaster_console::Door::Chapel })),
+        "a free door and one that costs the visit describe identically"
     );
 }
 
-/// And `Pack` is the one action that is distinguishable, by being all zeros.
+/// And packing is not the only action with a shape of its own any more.
+///
+/// It was: `Pack` described as all zeros, borrowed from the packing side's
+/// `Done`, while every road verb shared one vector. So the only choice the
+/// network could really express was pack-or-not, and a trained one pressed
+/// `Pack` 320 times out of 320.
 #[test]
-fn packing_is_the_only_road_action_with_a_shape_of_its_own() {
+fn packing_is_a_kind_like_any_other() {
     let c = Console::start(0x1212, Mode::Grinder, Difficulty::Medium);
     let v = c.view();
     let packing = pathfinder::describe(&v, &RoadStep::Pack);
-    assert_eq!(packing, [0.0; feature::MOVE], "`Pack` stopped being the all-zero action");
+    assert_ne!(packing, [0.0; pathfinder::MOVE], "`Pack` is the all-zero action again");
     let pressing = pathfinder::describe(&v, &RoadStep::Press(Verb::Fight));
-    assert_ne!(packing, pressing, "even packing and fighting became the same vector");
+    assert_ne!(packing, pressing, "packing and fighting became the same vector");
 }

@@ -114,3 +114,81 @@ fn the_deadline_is_the_same_rung_for_both_chains_that_dress() {
         );
     }
 }
+
+// --------------------------------------------- what a walked run can see
+//
+// `crates/trades/tests/quest.rs` checks the road description against a written
+// list of verbs, which is what that crate can do: a walk from a fresh console
+// meets `Fight` and nothing else, because a starter board loses rung one and a
+// Grinder cannot slide below it.
+//
+// Here a packer is available, so the run gets as far as doors, gates and
+// fountains and the question becomes what a *run* offers rather than what a
+// list contains.
+
+/// How many distinct road-step vectors a real run produces.
+///
+/// **It was one.** Every verb the pathfinder owns described to the same vector,
+/// because the road agent had been handed the quartermaster's move description
+/// and every road verb fell into its one leftover bucket. `--bin qmoves` is the
+/// wider measurement - 1,341 verbs across four runs - and this is the cheaper
+/// guard beside it.
+///
+/// **It goes up or it does not move.** Down means something narrowed
+/// `pathfinder::describe` and the agent can see less than it could.
+const ROAD_STEPS_TOLD_APART: usize = 18;
+
+#[test]
+fn a_walked_run_offers_road_steps_the_network_can_tell_apart() {
+    use gearmaster_console::{Console, Difficulty, Mode};
+    use gearmaster_lab::packers::Packer;
+    use gearmaster_trades::env::{Step as RoadStep, Walking};
+    use gearmaster_trades::pathfinder;
+
+    let mut c = Console::start(0x1212, Mode::Grinder, Difficulty::Medium);
+    let packer = Packer::named("control");
+    let mut w = Walking::new(None, 120);
+    let mut seen: Vec<[f32; pathfinder::MOVE]> = Vec::new();
+    let mut packed_at = None;
+    // Bounded twice: by the walking budget and by the trips round the loop.
+    for _ in 0..120 {
+        let ms = w.moves(&c);
+        if ms.is_empty() {
+            break;
+        }
+        let v = c.view();
+        for s in &ms {
+            let d = pathfinder::describe(&v, s);
+            if !seen.iter().any(|x| x == &d) {
+                seen.push(d);
+            }
+        }
+        // Pack once a rung, then act - or the run loses rung one for ever and
+        // the sample is one verb repeated.
+        let at = if packed_at != Some(v.rung_shown)
+            && ms.iter().any(|s| matches!(s, RoadStep::Pack))
+        {
+            packed_at = Some(v.rung_shown);
+            ms.iter().position(|s| matches!(s, RoadStep::Pack)).expect("just checked")
+        } else {
+            ms.iter().position(|s| matches!(s, RoadStep::Press(_))).unwrap_or(0)
+        };
+        match &ms[at] {
+            RoadStep::Pack => packer.pack(&mut c, 40),
+            RoadStep::Press(verb) => {
+                if !c.apply(*verb).ok {
+                    break;
+                }
+            }
+        }
+        w.steps += 1;
+    }
+    assert_eq!(
+        seen.len(),
+        ROAD_STEPS_TOLD_APART,
+        "the number of road steps a run offers that the network can tell apart \
+         has moved. Up is the description getting richer and this constant owns \
+         the re-measurement - run `--bin qmoves` for the wider figure. Down \
+         means something narrowed `pathfinder::describe`."
+    );
+}
