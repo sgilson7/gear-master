@@ -91,6 +91,10 @@ pub struct Item {
     pub status: String,
     pub stats: Stats,
     pub pieces: Vec<PieceId>,
+    /// What each of those pieces *is*, in recipe words - "handle", "spell",
+    /// "plating". The slot panel prints them and a recipe is written in them,
+    /// so an agent that can read the recipe can read this.
+    pub roles: Vec<String>,
     pub notes: Vec<String>,
 }
 

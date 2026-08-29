@@ -16,7 +16,7 @@ use gearmaster_agent::pilot::{self, Doctrine};
 use gearmaster_console::{Console, Difficulty, Mode, Verb};
 use gearmaster_engine::bestiary::MonsterTheme;
 use gearmaster_engine::combat::{Difficulty as D, MonsterSpec, ALTERNATES, LADDER};
-use gearmaster_engine::piece::{is_boss_only, is_event_only, SlotKind, CATALOG};
+use gearmaster_engine::piece::{SlotKind, CATALOG};
 use gearmaster_oracle::gate::{self, Gate, References};
 use gearmaster_oracle::{fidelity, Board, Oracle};
 
@@ -80,30 +80,9 @@ fn main() {
         Some(t) => t.slots().to_vec(),
         None => SlotKind::ALL.to_vec(),
     };
-    let mut gear: Vec<(usize, SlotKind, u8, u8, u8)> = Vec::new();
-    let mut chunks: Vec<usize> = Vec::new();
-    let mut dropped: Vec<String> = Vec::new();
-
     let run = c.into_run();
-    for k in wanted.iter().copied() {
-        for item in run.report(k).items.iter().filter(|i| i.assembled) {
-            let names: Vec<&str> = item.pieces.iter().map(|&p| run.registry.def(p).name).collect();
-            if names.iter().any(|n| is_boss_only(n) || is_event_only(n)) {
-                dropped.push(format!("{} - holds gear a creature may not wear", item.name.full));
-                continue;
-            }
-            let slot = run.loadout.slot(k);
-            let mut placed = 0;
-            for &p in &item.pieces {
-                let Some((x, y)) = slot.anchor_of(p) else { continue };
-                gear.push((run.registry.def_index(p), k, x, y, run.registry.rotation(p)));
-                placed += 1;
-            }
-            if placed > 0 {
-                chunks.push(placed);
-            }
-        }
-    }
+    let gearmaster_lab::boards::Cut { mut gear, mut chunks, dropped } =
+        gearmaster_lab::boards::cut(&run, &wanted);
 
     println!(
         "  cut to {}: {} pieces in {} items{}",
@@ -120,15 +99,86 @@ fn main() {
         return;
     }
 
-    // ---- what it would give ------------------------------------------
-    let board = Board { gear: gear.clone(), chunks: chunks.clone(), rows: [0; 5] };
+    // ---- trim it onto the line ----------------------------------------
+    //
+    // **A board a run reached rung 52 with is too much creature.** The first
+    // harvest that had a deep run behind it came in at 0.302 off a band of
+    // 0.300 - two thousandths over, killing the two shallow reference boards
+    // in 1.3 s against a line of 17.2 - because a player's board at rung 52 is
+    // not a rung-41 creature and nothing had said so.
+    //
+    // So: drop one item at a time, keep the drop that moves the verdict
+    // nearest the line, and stop when it is accepted or when dropping stops
+    // helping. Greedy, and greedy is the right shape here - the items are
+    // whole and the curve is monotone in how many of them there are.
     let refs = References::standard();
     let oracle = Oracle::new();
-    let candidate = gearmaster_oracle::as_creature(spec, &board);
     let g = Gate { refs: &refs, rung, rank: spec.rank };
     let was = g.rows(&oracle, spec);
+
+    let judge = |gear: &Vec<(usize, SlotKind, u8, u8, u8)>, chunks: &Vec<usize>| {
+        let board = Board { gear: gear.clone(), chunks: chunks.clone(), rows: [0; 5] };
+        let candidate = gearmaster_oracle::as_creature(spec, &board);
+        let got = g.rows(&oracle, &candidate);
+        (g.judge(&was, &got, &board), board, candidate)
+    };
+    let distance = |v: &gearmaster_oracle::gate::Verdict| match v {
+        gearmaster_oracle::gate::Verdict::Accepted { off } => *off,
+        gearmaster_oracle::gate::Verdict::OffCurve { off, .. } => *off,
+        // Anything else is not a matter of degree, and dropping items cannot
+        // walk out of it - a board that holds nothing its rank owes holds less
+        // of it with one item fewer.
+        _ => f64::INFINITY,
+    };
+
+    let (mut verdict, ..) = judge(&gear, &chunks);
+    let before = format!("{:?}", verdict);
+    let mut trimmed = 0usize;
+    // Trimming can only ever make a creature *weaker*, so it is the answer
+    // when the board overshoots and no answer at all when it undershoots. The
+    // first deep harvest landed at 0.302 off a band of 0.300 because it dies
+    // to the owner's board in 12.0 s against a line of 17.2 - too little
+    // creature, not too much - and the loop below correctly refused to move.
+    // That is what `HARVEST_SEEDS` is for: a different run reaches band 41
+    // holding a different board, and searching runs is the only lever a
+    // harvest has when the one it was handed is under the line.
+    while !verdict.accepted() && trimmed < chunks.len().saturating_sub(1) {
+        // Every item, dropped in turn.
+        let mut best: Option<(f64, Vec<_>, Vec<usize>, _)> = None;
+        let mut at = 0usize;
+        for (i, &n) in chunks.iter().enumerate() {
+            let mut gear2 = gear.clone();
+            gear2.drain(at..at + n);
+            let mut chunks2 = chunks.clone();
+            chunks2.remove(i);
+            if chunks2.is_empty() {
+                at += n;
+                continue;
+            }
+            let (v, ..) = judge(&gear2, &chunks2);
+            let d = distance(&v);
+            if best.as_ref().is_none_or(|(bd, ..)| d < *bd) {
+                best = Some((d, gear2, chunks2, v));
+            }
+            at += n;
+        }
+        let Some((d, gear2, chunks2, v)) = best else { break };
+        if d >= distance(&verdict) {
+            break;
+        }
+        gear = gear2;
+        chunks = chunks2;
+        verdict = v;
+        trimmed += 1;
+        println!("  trimmed an item -> {} items, {:.3} off the line", chunks.len(), d);
+    }
+    if trimmed > 0 {
+        println!("  {} -> {:?}", before, verdict);
+    }
+
+    // ---- what it would give ------------------------------------------
+    let (verdict, board, candidate) = judge(&gear, &chunks);
     let got = g.rows(&oracle, &candidate);
-    let verdict = g.judge(&was, &got, &board);
 
     println!("\n  against the four reference boards, at Medium:");
     for (i, (label, ..)) in refs.boards.iter().enumerate() {

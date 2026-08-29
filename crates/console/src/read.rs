@@ -102,6 +102,14 @@ impl Console {
                     status: it.status.clone(),
                     stats: it.stats,
                     pieces: it.pieces.clone(),
+                    roles: it
+                        .pieces
+                        .iter()
+                        .map(|&id| {
+                            let d = run.registry.def(id);
+                            d.kind.name_in(d.slot).to_string()
+                        })
+                        .collect(),
                     notes: it.notes.clone(),
                 })
                 .collect();

@@ -13,7 +13,7 @@ use crate::brief::{Brief, BRIEF};
 /// How many numbers describe a board.
 pub const BOARD: usize = 28;
 /// How many describe one candidate move.
-pub const MOVE: usize = 26;
+pub const MOVE: usize = 29;
 /// A state-action pair, which is what a Q network scores.
 ///
 /// The brief rides on the state side: it is part of the situation, not part of
@@ -141,9 +141,118 @@ pub fn mv(v: &View, m: Verb) -> [f32; MOVE] {
             }
             f[24] = near / 4.0;
             f[25] = g.items.iter().filter(|i| !i.assembled).count() as f32 / 3.0;
+
+            // **Does this placement finish something?**
+            //
+            // Q7 ended on the claim that the packer could not learn because a
+            // move said *where* and *what* and never said whether the piece
+            // completed a recipe with what was already seated - so the one
+            // property that makes a placement good was not in the input, and
+            // three training runs at three action spaces produced one curve.
+            //
+            // This is the missing number, and it is read off the panel: the
+            // recipes are printed beside the grid (`recipe_tip`), and the
+            // roles of the pieces in an unfinished group are printed in it.
+            // A player has both. Nothing here consults the engine.
+            if let Some(p) = piece {
+                // Which groups this seat borders, by the neighbours' cells.
+                //
+                // **Diagonals count.** Orthogonal neighbours alone found 37 of
+                // the 58 real completions; `slot::sets_touch_diagonally` is why,
+                // and the panel draws groups the same way.
+                //
+                // And a piece is not one cell. `Place` names the anchor and
+                // the piece occupies a `width` by `height` box from it, so the
+                // seat borders whatever any of that box borders. The anchor
+                // alone found 46 of 58.
+                let mut ids: Vec<usize> = Vec::new();
+                let box_cells: Vec<(i32, i32)> = (0..p.height as i32)
+                    .flat_map(|dy| (0..p.width as i32).map(move |dx| (dx, dy)))
+                    .collect();
+                let around: Vec<(i32, i32)> = box_cells
+                    .iter()
+                    .flat_map(|&(cx, cy)| {
+                        [(1i32, 0i32), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)]
+                            .into_iter()
+                            .map(move |(dx, dy)| (cx + dx, cy + dy))
+                    })
+                    .collect();
+                for (dx, dy) in around {
+                    let (nx, ny) = (x as i32 + dx, y as i32 + dy);
+                    if nx < 0 || ny < 0 || nx >= w as i32 || ny >= g.rows as i32 {
+                        continue;
+                    }
+                    if let Some(i) =
+                        g.cells.get(ny as usize * w + nx as usize).and_then(|c| c.item)
+                    {
+                        if !ids.contains(&i) {
+                            ids.push(i);
+                        }
+                    }
+                }
+                let mut touching: Vec<Vec<String>> = ids
+                    .iter()
+                    .filter_map(|&i| g.items.get(i))
+                    .filter(|i| !i.assembled)
+                    .map(|i| i.roles.clone())
+                    .collect();
+                if touching.is_empty() {
+                    touching.push(Vec::new());
+                }
+                let mut best_missing = 9.0f32;
+                let mut completes = 0.0f32;
+                let mut wanted = 0.0f32;
+                for r in &g.recipes {
+                    if r.required.iter().any(|q| eq_role(q, &p.role))
+                        || r.optional.iter().any(|q| eq_role(q, &p.role))
+                    {
+                        wanted = 1.0;
+                    }
+                    // **Only the group this seat would actually join.** The
+                    // first version asked every unfinished group in the grid
+                    // and fired on 218 placements of which 58 completed
+                    // anything - recall 100%, precision 27%, because a piece
+                    // in the top-left cannot finish an item in the bottom
+                    // right and the feature did not know that. A piece joins
+                    // what it touches; if it touches nothing it starts a new
+                    // one.
+                    for mut have in touching.clone() {
+                        have.push(p.role.clone());
+                        let missing = r
+                            .required
+                            .iter()
+                            .filter(|q| !have.iter().any(|h| eq_role(q, h)))
+                            .count() as f32;
+                        if missing < best_missing {
+                            best_missing = missing;
+                        }
+                        if missing == 0.0 {
+                            completes = 1.0;
+                        }
+                    }
+                }
+                f[26] = wanted;
+                f[27] = completes;
+                f[28] = 1.0 - (best_missing.min(4.0) / 4.0);
+            }
         }
     }
     f
+}
+
+/// Whether a recipe part and a piece's role are the same thing.
+///
+/// A recipe is printed as "Handle + 1-2 Damaging + 0-2 Accessory", so its
+/// parts arrive carrying counts and capitals that a role does not.
+fn eq_role(part: &str, role: &str) -> bool {
+    let clean = |s: &str| {
+        s.trim()
+            .trim_start_matches(|c: char| c.is_ascii_digit() || c == '-' || c == ' ')
+            .trim_end_matches('s')
+            .to_ascii_lowercase()
+    };
+    let (a, b) = (clean(part), clean(role));
+    a == b || a.starts_with(&b) || b.starts_with(&a)
 }
 
 /// The board, plus what was asked for.
