@@ -358,6 +358,19 @@ impl BoardPools {
 #[derive(Clone, Debug)]
 pub struct View {
     pub rung_shown: usize,
+    /// The last fight put this run out and it has been replaced.
+    ///
+    /// **A Rogue run does not stop when it runs out of lives.** `Run::settle`
+    /// wipes it and hands back a fresh one at rung one with its lives restored,
+    /// so nothing outside ever observes a zero and `Console::over` is never
+    /// true - which is what a player sees too, because the screen tells them
+    /// the run ended and then puts them in a new one.
+    ///
+    /// It matters to an agent more than to a player. Everything a walker knows
+    /// about "this run" - which rung it has packed on, how far along a chain it
+    /// is, the best rung it has stood on - is about a run that no longer
+    /// exists, and this is the only way to be told.
+    pub wiped: bool,
     pub gold: i32,
     pub wins: u32,
     pub losses: u32,

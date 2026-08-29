@@ -58,7 +58,7 @@ fn q2_does_dying_pay() {
     println!("2. Whether the road reward pays the same rung more than once");
     let seeds = [0xAA8D95DE31880461u64, 0x1212, 0x6060, 0xF1418AF3EDF965FD, 0x1111, 0x5EED1234];
     for mode in [Mode::Grinder, Mode::Rogue] {
-      let (mut sum_best, mut sum_paid, mut sum_resets) = (0usize, 0i32, 0usize);
+      let (mut sum_best, mut sum_paid, mut sum_resets, mut sum_banked) = (0usize, 0i32, 0usize, 0.0f32);
       for seed in seeds {
         let mut c = Console::start(seed, mode, Difficulty::Medium);
         let mut w = Walking::new(None, BUDGET);
@@ -66,7 +66,12 @@ fn q2_does_dying_pay() {
         // `+1` a rung, the way `pathfinder::Reward` pays it: every step where
         // the rung went up. Summed over a whole episode.
         let (mut paid, mut best, mut packed_at, mut resets) = (0i32, 1usize, None, 0usize);
-        let mut lives_before = c.view().lives_left;
+
+        // And what the reward actually hands over, which is the question the
+        // count of rung-steps was standing in for.
+        let mut reward = gearmaster_trades::pathfinder::Reward::new(mode == Mode::Rogue);
+        let mut banked = 0.0f32;
+        let mut losses_before = 0u32;
         loop {
             let ms = w.moves(&c);
             if ms.is_empty() || w.steps >= BUDGET {
@@ -93,36 +98,43 @@ fn q2_does_dying_pay() {
             if after > before {
                 paid += 1;
             }
-            // A wipe puts the lives back up, which is the only way they rise.
-            //
-            // **And it invalidates every per-rung note the walker keeps.** A
-            // wipe comes back at rung one in a *different run* with a fresh
-            // board, so "this rung has had its packing" is a lie the moment it
-            // happens - and the first version of this probe never packed again
-            // after the first death, which is why Rogue looked four times worse
-            // than it is.
-            if v.lives_left > lives_before {
+            let lost = v.losses > losses_before;
+            losses_before = v.losses;
+            banked += reward.value(after, v.wiped, lost, false);
+            // A Rogue episode is a run and a wipe ends it, so the walk stops
+            // where a trainer's would - which is the whole difference between
+            // measuring the mode and measuring the engine's kindness to a
+            // player who has just lost everything.
+            if v.wiped {
                 resets += 1;
-                packed_at = None;
+                break;
             }
-            lives_before = v.lives_left;
+
             best = best.max(after);
         }
         sum_best += best;
         sum_paid += paid;
         sum_resets += resets;
+        sum_banked += banked;
       }
       let n = seeds.len();
       println!(
-          "   {:<8} mean best rung {:>5.1},  mean rung-steps paid {:>5.1},  paid/best {:.2},  wipes {}",
+          "   {:<8} mean best rung {:>5.1}   rung-steps climbed {:>5.1}   \
+           climbs/best {:.2}   wipes {:>3}   reward paid {:>7.1}   paid/best {:>5.2}",
           format!("{mode:?}"),
           sum_best as f32 / n as f32,
           sum_paid as f32 / n as f32,
           sum_paid as f32 / sum_best as f32,
-          sum_resets
+          sum_resets,
+          sum_banked / n as f32,
+          sum_banked / (sum_best as f32 * 4.0 / n as f32) / n as f32
       );
     }
-    println!("   a ratio above one is the same rung paid more than once\n");
+    println!(
+        "   `climbs/best` above one is the road being walked more than once, which is\n\
+         the game. `reward paid` is what the agent is given for it: at most four a\n\
+         rung of new ground, and nothing at all for the second walk.\n"
+    );
 }
 
 /// 3. What can an agent see about which mode it is in?
@@ -133,14 +145,22 @@ fn q3_what_the_screen_says_about_the_mode() {
         let v = c.view();
         let r = gearmaster_trades::pathfinder::road(&v, None);
         println!(
-            "   {:<8} view.grinder {:<5} view.lives_left {:?}   road f[2] = {:.2}",
+            "   {:<8} view.grinder {:<5} lives {:?}  wiped {:<5}  \
+             road f[2]={:.2} f[24]={:.2} f[25]={:.2}",
             format!("{mode:?}"),
             v.grinder,
             v.lives_left,
-            r[2]
+            v.wiped,
+            r[2],
+            r[24],
+            r[25]
         );
     }
-    println!("   `view.grinder` is on the screen and in no feature vector anywhere\n");
+    println!(
+        "   f[2] is the lives as a fraction of what a Rogue run gets, f[24] is the\n\
+         mode and f[25] is a wipe. f[2] used to be `lives.unwrap_or(9)/5`, which put\n\
+         Grinder on 1.80 and separated the modes by accident.\n"
+    );
 }
 
 /// 4. How much of the road is priced differently by mode?

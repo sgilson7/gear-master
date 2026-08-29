@@ -20,11 +20,18 @@ use gearmaster_console::{Console, Verb};
 /// Twenty-two until the quests landed. The last two are how far along a chain
 /// the run is, and they are not decoration: `Φ` telescopes over the progress,
 /// and a shaped reward the network cannot predict is noise rather than a hint.
-/// A pair stored at this width still zero-pads into `feature::PAIR`, which is
-/// seventy, so there is room and the file format did not move - but a road net
-/// trained at the old width reads its columns in the wrong places, so
-/// checkpoints do not survive the change.
-pub const ROAD: usize = 24;
+/// A pair stored at this width still zero-pads into `feature::PAIR`, so there
+/// is room and the file format did not move - but a road net trained at an
+/// older width reads its columns in the wrong places, so checkpoints do not
+/// survive a change here.
+///
+/// The last two are the mode and the wipe, and both had to be added rather than
+/// inferred. `f[2]` used to be `lives_left.unwrap_or(9) / 5`, which separated
+/// the modes by accident - Grinder landed on 1.80, where Rogue can never go -
+/// and left `View::grinder` in no feature vector at all. It is an honest
+/// fraction of the lives a Rogue run gets now, which puts Grinder and a Rogue
+/// on its last legs both at zero, so the mode has to be said out loud.
+pub const ROAD: usize = 26;
 
 /// The road, the run, and what it was sent to reach.
 ///
@@ -42,7 +49,7 @@ pub fn road_on_quest(v: &View, goal: Option<&Goal>, quest: [f32; 2]) -> [f32; RO
     let mut f = [0.0f32; ROAD];
     f[0] = v.rung_shown as f32 / 50.0;
     f[1] = (v.gold as f32 / 400.0).min(4.0);
-    f[2] = v.lives_left.unwrap_or(9) as f32 / 5.0;
+    f[2] = v.lives_left.unwrap_or(0) as f32 / gearmaster_console::ROGUE_LIVES as f32;
     f[3] = v.wins as f32 / 50.0;
     f[4] = v.losses as f32 / 20.0;
     f[5] = v.classes.len() as f32 / 8.0;
@@ -69,6 +76,13 @@ pub fn road_on_quest(v: &View, goal: Option<&Goal>, quest: [f32; 2]) -> [f32; RO
     }
     f[22] = quest[0];
     f[23] = quest[1];
+    // Which mode, and whether the last fight put this run out.
+    //
+    // A wipe is not a defeat with a bigger number on it. It is a *different
+    // run*, at the bottom of the ladder, with the gold and the board gone -
+    // and the only thing on the screen that says so.
+    f[24] = v.grinder as u8 as f32;
+    f[25] = v.wiped as u8 as f32;
     f
 }
 
@@ -200,35 +214,86 @@ pub fn describe(v: &View, s: &crate::env::Step) -> [f32; MOVE] {
 
 /// What a run is worth, step by step.
 ///
-/// `+1` a rung, `+3` for a rung never stood on this episode, `-1` a lost
-/// fight, and **`+50` on reaching the goal**, which ends it.
+/// A quest is paid *beside* this rather than inside it (`crate::quest`): the
+/// road's own reward is what makes a run climb, and the chain's is what makes
+/// it climb somewhere in particular.
 ///
-/// A quest is paid *beside* this rather than inside it. `Quest::pay` returns a
-/// shaping term that telescopes to nothing and a finish that does not, and the
-/// two are added: the road's own reward is what makes a run climb, and the
-/// chain's is what makes it climb somewhere in particular.
+/// ## Losing is worth nothing, and in Rogue it is worth less than that
+///
+/// The first version paid `+1` every time the rung went up. Measured over six
+/// seeds and 320 decisions (`--bin qrogue`), that paid **6.37 times** per rung
+/// actually reached in Grinder and 5.04 in Rogue, for opposite reasons: a
+/// Grinder oscillates against a wall it cannot pass and re-climbs the same
+/// rung, and a Rogue is wiped back to the bottom and climbs the first ten
+/// again. Either way the agent was being paid for ground it had already been
+/// paid for, which is a reward for dying.
+///
+/// So the road pays for a **new personal best** and for nothing else. Climbing
+/// a rung this run has already stood on is worth zero, whether the run got
+/// knocked off it or was replaced entirely - and `best` deliberately survives a
+/// wipe, because the run that replaces a dead one has not been anywhere yet and
+/// re-walking the dead one's road is not progress.
+///
+/// A loss then costs what it costs: a rung in Grinder, and in Rogue a quarter
+/// of everything, which is why the two figures differ. A wipe costs the run.
 pub struct Reward {
-    pub rung_before: usize,
-    pub best_before: usize,
+    /// The highest rung this **episode** has stood on. Not reset by a wipe.
+    best: usize,
+    rogue: bool,
 }
 
+/// What a decision that changed nothing costs.
+const STEP: f32 = -0.01;
+/// What one rung of new ground is worth.
+const NEW_RUNG: f32 = 4.0;
+/// A lost fight, by mode. Grinder gives back a rung it can grind again; Rogue
+/// gives back a quarter of the run and there is no grinding it back.
+const LOST_GRINDER: f32 = -1.0;
+const LOST_ROGUE: f32 = -2.5;
+/// The run ran out of lives and was replaced. Only Rogue can pay this.
+const WIPED: f32 = -10.0;
+/// Reaching what the episode was sent to reach.
+const GOAL: f32 = 50.0;
+
 impl Reward {
-    pub fn of(&self, after: &Console, w: &Walking, lost: bool) -> f32 {
-        let v = after.view();
-        let mut r = -0.01;
-        if v.rung_shown > self.rung_before {
-            r += 1.0;
-            if v.rung_shown > self.best_before {
-                r += 3.0;
-            }
+    pub fn new(rogue: bool) -> Reward {
+        Reward { best: 1, rogue }
+    }
+
+    /// The highest rung this episode has reached, for a report.
+    pub fn best(&self) -> usize {
+        self.best
+    }
+
+    /// What one step is worth, given what changed.
+    ///
+    /// Split from `of` so the arithmetic can be checked against a trajectory
+    /// somebody wrote down rather than one a game has to be played into - which
+    /// is the only way to state "losing is never worth anything" as a property
+    /// instead of a hope.
+    pub fn value(&mut self, rung_shown: usize, wiped: bool, lost: bool, met: bool) -> f32 {
+        let mut r = STEP;
+        if wiped {
+            // The run is gone. `best` stays, so the replacement earns nothing
+            // for walking the road the dead one already walked.
+            return r + WIPED;
+        }
+        if rung_shown > self.best {
+            r += NEW_RUNG * (rung_shown - self.best) as f32;
+            self.best = rung_shown;
         }
         if lost {
-            r -= 1.0;
+            r += if self.rogue { LOST_ROGUE } else { LOST_GRINDER };
         }
-        if w.met(after) {
-            r += 50.0;
+        if met {
+            r += GOAL;
         }
         r
+    }
+
+    pub fn of(&mut self, after: &Console, w: &Walking, lost: bool) -> f32 {
+        let v = after.view();
+        self.value(v.rung_shown, v.wiped, lost, w.met(after))
     }
 }
 
@@ -326,7 +391,7 @@ impl QNet {
 /// whether the chain's tiers are handed back - see `quest`'s module note, and
 /// note that "the budget ran out" is an ending like any other here, on purpose.
 pub fn reward_on_quest(
-    r: &Reward,
+    r: &mut Reward,
     after: &Console,
     w: &Walking,
     lost: bool,

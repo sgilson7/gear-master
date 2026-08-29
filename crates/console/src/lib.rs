@@ -34,7 +34,7 @@ pub use view::View;
 pub use gearmaster_engine::combat::Difficulty;
 pub use gearmaster_engine::county::Step;
 pub use gearmaster_engine::piece::{PieceId, PieceKind, SlotKind};
-pub use gearmaster_engine::run::Mode;
+pub use gearmaster_engine::run::{Mode, ROGUE_LIVES};
 pub use gearmaster_engine::stats::Stats;
 pub use gearmaster_engine::town::Action as Door;
 

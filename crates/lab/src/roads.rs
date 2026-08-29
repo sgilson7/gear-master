@@ -36,6 +36,19 @@ pub struct Written {
     packed_at: Option<usize>,
 }
 
+impl Written {
+    /// Forget everything about a run that no longer exists.
+    ///
+    /// **A Rogue wipe comes back at rung one in a different run**, with a fresh
+    /// board and a fresh tray, and `packed_at` is a fact about the dead one. The
+    /// probe that measured Rogue kept this note across a wipe and never packed
+    /// again, which made the mode read four times worse than it is - 4.0 mean
+    /// best rung against 8.5 - from one stale boolean.
+    fn forget(&mut self) {
+        self.packed_at = None;
+    }
+}
+
 /// Which of the offered steps to take, knowing the plan.
 ///
 /// Priority, and the order is the argument:
@@ -60,6 +73,9 @@ impl Written {
 
 fn choose(w: &mut Written, q: &Quest, p: &Progress, c: &Console, ms: &[RoadStep]) -> usize {
     let v = c.view();
+    if v.wiped {
+        w.forget();
+    }
     let index = |f: &dyn Fn(&Verb) -> bool| {
         ms.iter().position(|s| matches!(s, RoadStep::Press(x) if f(x)))
     };

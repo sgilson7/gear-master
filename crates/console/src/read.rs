@@ -360,6 +360,7 @@ impl Console {
             brawl_waiting: run.pending_brawl().is_some(),
             coming,
             last_fight,
+            wiped: run.last_settlement.as_ref().is_some_and(|s| s.run_ended),
             receipt: run.last_receipt.clone().unwrap_or_default(),
             undoable: run.undoable().map(|s| s.to_string()),
         }

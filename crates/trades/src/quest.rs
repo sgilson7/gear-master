@@ -184,6 +184,22 @@ impl Progress {
     pub fn new(q: &Quest) -> Progress {
         Progress { done: vec![false; q.stops.len()] }
     }
+
+    /// Forget everything: this is a different run now.
+    ///
+    /// **A Rogue run that loses its last life is replaced rather than ended**,
+    /// at rung one, with the gold and the board gone - and an episode does not
+    /// stop, because `Console::over` never sees the zero. So a chain half
+    /// walked by a run that died would otherwise carry its passed stops into
+    /// the run that replaced it, which is a word in a tray that burned.
+    ///
+    /// One-shot per stop is per **run**, not per episode. Those were the same
+    /// thing until Rogue.
+    pub fn wiped(&mut self) {
+        for d in &mut self.done {
+            *d = false;
+        }
+    }
     pub fn passed(&self) -> usize {
         self.done.iter().filter(|&&d| d).count()
     }
@@ -273,6 +289,18 @@ impl Quest {
         fresh
     }
 
+    /// Tick the stops, and clear them all if the run was replaced.
+    ///
+    /// Reads `View::wiped`, so a caller that pays through `pay` gets this for
+    /// nothing and one that drives `observe` itself has to ask.
+    pub fn observe_run(&self, p: &mut Progress, v: &View) -> usize {
+        if v.wiped {
+            p.wiped();
+            return 0;
+        }
+        self.observe(p, v)
+    }
+
     /// What this step of the episode pays.
     ///
     /// Call once per decision, after the console has been stepped. `finish` is
@@ -280,6 +308,14 @@ impl Quest {
     /// than held here, because how much a finish is worth is the trainer's
     /// question and how far along the run is, is this module's.
     pub fn pay(&self, p: &mut Progress, v: &View, gamma: f32, end: End, finish: f32) -> Paid {
+        // A replaced run keeps none of what the dead one passed, and the
+        // potential goes with it - which is the same rule as an episode ending,
+        // for the same reason: nothing that stopped short banks the tiers.
+        if v.wiped {
+            let before = self.potential(p);
+            p.wiped();
+            return Paid { shaped: -before, finish: 0.0, passed: 0 };
+        }
         self.pay_by(p, |m| m.seen(v), gamma, end, finish)
     }
 

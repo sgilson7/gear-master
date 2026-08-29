@@ -170,6 +170,11 @@ fn aim(
             }
         }
         w.steps += 1;
+        // A Rogue run out of lives is replaced rather than ended, so nothing
+        // else in this loop can tell. The run being measured is over.
+        if c.view().wiped {
+            break;
+        }
         q.observe(&mut p, &c.view());
         deepest = deepest.max(c.view().rung_shown);
         if q.done(&p) {

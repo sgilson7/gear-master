@@ -272,6 +272,9 @@ mod q {
             let goal = goal_for(&mut rng, best_seen, quest.is_some());
             let mut w = Walking::new(goal.clone(), BUDGET);
             let mut progress = quest.as_ref().map(Progress::new);
+            // One reward per episode, because it remembers the highest rung
+            // this episode has stood on and pays for nothing below it.
+            let mut reward = pathfinder::Reward::new(mode == Mode::Rogue);
             let mut trail: Vec<([f32; WIDE], Vec<[f32; WIDE]>, f32)> = Vec::new();
             let mut best_rung = 1usize;
 
@@ -302,7 +305,6 @@ mod q {
                         .unwrap()
                 };
                 let chosen = wide(&pairs[at]);
-                let rung_before = v.rung_shown;
                 let losses_before = v.losses;
 
                 // **`Pack` is the road's free action**, and it is the same
@@ -344,22 +346,35 @@ mod q {
                 // Whether this step ended the episode, and how - which is the
                 // argument that decides whether a chain hands its tiers back.
                 // Worked out before the reward, because the reward needs it.
+                // **A Rogue episode is a run, and a wipe ends it.** The engine
+                // is kind to a player: it replaces a dead run in place, at rung
+                // one with the lives back, so `Console::over` never sees the
+                // zero. That is a convenience at the screen and a lie to a
+                // trainer - the run being trained is gone, and everything after
+                // it belongs to a different one.
+                //
+                // Left running, an episode banked one wipe penalty per death
+                // and there were forty-three of them: the road reward came to
+                // -866 against +34 for the ground actually covered, and an
+                // agent that pressed one key and never fought would have beaten
+                // every agent that tried.
+                let wiped = c.view().wiped;
                 let ms2 = w.moves(&c);
-                let over = ms2.is_empty() || w.steps >= BUDGET;
-                let end = match (over, w.steps >= BUDGET) {
-                    (false, _) => End::Running,
-                    (true, true) => End::Truncated,
-                    (true, false) => End::Terminated,
+                let over = wiped || ms2.is_empty() || w.steps >= BUDGET;
+                let end = match (over, wiped, w.steps >= BUDGET) {
+                    (false, _, _) => End::Running,
+                    (true, true, _) => End::Terminated,
+                    (true, _, true) => End::Truncated,
+                    (true, _, false) => End::Terminated,
                 };
-                let mut rw = pathfinder::Reward { rung_before, best_before: best_seen }
-                    .of(&c, &w, lost)
+                let mut rw = reward.of(&c, &w, lost)
                     - if inert { NOTHING_HAPPENED } else { 0.0 };
                 let mut done_here = false;
                 if let (Some(q), Some(p)) = (&quest, &mut progress) {
                     // A finish ends the episode, so the ending handed to `pay`
                     // is `Terminated` on the step that finishes it whatever the
                     // budget says.
-                    let would_finish = {
+                    let would_finish = !after.wiped && {
                         let mut peek = p.clone();
                         q.observe(&mut peek, &after);
                         q.done(&peek)
@@ -385,6 +400,9 @@ mod q {
                         .collect()
                 };
                 trail.push((chosen, next, rw));
+                if wiped {
+                    break;
+                }
                 if done_here {
                     finished += 1;
                     break;

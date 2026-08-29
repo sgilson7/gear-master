@@ -130,6 +130,11 @@ fn main() {
             }
         }
         w.steps += 1;
+        // A Rogue run out of lives is replaced rather than ended, so nothing
+        // else in this loop can tell. The run being measured is over.
+        if c.view().wiped {
+            break;
+        }
         best = best.max(c.view().rung_shown);
         if let (Some(q), Some(p)) = (&quest, &mut progress) {
             q.observe(p, &c.view());
