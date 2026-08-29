@@ -9,7 +9,7 @@ use gearmaster_console::{Console, Difficulty, Mode};
 use gearmaster_engine::combat::{simulate_at, Outcome, LADDER};
 use gearmaster_engine::rng::Rng;
 use gearmaster_engine::run::Run;
-use gearmaster_trades::env::{Move, Packing, Step, Walking};
+use gearmaster_trades::env::{Packing, Step, Walking};
 use std::time::Instant;
 
 /// Stand a run at a rung with a purse and a shop, ready to be packed for.

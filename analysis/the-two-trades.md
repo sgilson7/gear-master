@@ -212,3 +212,102 @@ on rung one has never seen a board worth packing.
 
 **Gate met:** both episodes run and end, every move offered is accepted, a seed
 replays, and the packing horizon is inside sixty.
+
+---
+
+# Q3 — The quartermaster learns, and does not learn enough
+
+Read off **`7d8bfe2`** plus this milestone. **The gate is not met**, and this
+block is the record of it rather than a note that it will be met later.
+
+## Q3.1 What was built
+
+DQN over `(board, move)` pairs, because the menu is 17 to 545 verbs and changes
+shape every step, so a head with a neuron per action does not apply. Replay
+buffer of 80,000, a target network on a 200-episode clock, ε from 1.0 to 0.05,
+Huber loss, and a curriculum over rungs that widens as it trains.
+
+The reward is **one fight**, computed by the trainer and never seen by the
+agent - the asymmetric actor-critic the crate graph enforces. A win is worth
+more the faster it is won; a loss is worth more the closer it came, which is
+the gradient A6 found missing.
+
+Shaping is potential-based on **item count and nothing about pools**,
+deliberately: `F = γΦ(s') − Φ(s)` leaves the optimal policy alone, and if the
+shaping told the agent that matched pools were good, Q4 could not claim it
+discovered them.
+
+## Q3.2 Three failures, each with a number
+
+**It collapsed onto `Rotate`.** The first trained quartermaster pressed rotate
+**400 times out of 420** and assembled nothing. Rotate is free - it changes no
+item count, so the shaping neither pays nor charges it - and there is one per
+tray piece, so a nearly-flat Q picks one by chance, the state barely moves, and
+the same action wins again. A step cost was in the spec and had not been
+implemented.
+
+**The discount did not reach the reward.** γ = 0.97 over a 120-step budget
+discounts the fight to **2.6%**. The fight is the only real reward there is, so
+at that rate the agent was optimising the step cost. γ = 0.995 and a 40-step
+budget put it back: 0.995⁴⁰ is 0.82.
+
+**One gradient step an episode is 2,500 updates.** The Q spread - how far apart
+the best and worst move look - sat at **0.09 from the first evaluation to the
+last**. The network had nothing to say and never got the chance to. Twelve
+updates an episode moved it to 1.90 and the eval boards went from 0.0 items to
+0.9.
+
+## Q3.3 The gate, missed
+
+| tray | pieces | items | cleared | the control (A3) |
+|---|---:|---:|---:|---:|
+| owner | 75 | **2** | **8/50** | 17 items, **48/50** |
+| friend | 76 | 0 | 1/50 | 18 items, **49/50** |
+| preset | 24 | 0 | 2/50 | 7 items, 12/50 |
+| perfect | 62 | 0 | 1/50 | 15 items, 46/50 |
+
+And the learning curve is real, which is why this is a miss rather than a
+dead end:
+
+    episode     0   items 0.0   spread 0.15   won 0/20
+    episode   800   items 0.3   spread 1.40   won 1/20
+    episode  1600   items 0.9   spread 1.90   won 2/20
+    episode  1999   items 0.6   spread 1.90   won 1/20
+
+It is learning. It is nowhere near a greedy packer that tries every seat.
+
+## Q3.4 What is actually wrong, and it is not the amount of training
+
+The spec's stop condition 2 says a learned packer worse than a greedy one over
+a fixed tray is a learner that has not learned, and that **the fault is the
+reward or the action factoring**. It is the factoring.
+
+`Rotate` is still a third to a half of what it presses. The control does not
+*decide* to rotate - it rotates to look, and the looking is free because it
+undoes it. A learner has no undo: every rotation is a real step against a real
+budget, and it has to discover that rotate-then-place is a two-step composite
+whose value is entirely in the second step. That is a hard credit assignment
+problem invented by insisting the action space be exactly the player's.
+
+Three things would move it, in order:
+
+1. **A rotate-and-place composite**, so a placement carries its rotation. It
+   is a departure from strict action-fidelity - a person presses twice - but
+   the *board* it produces is identical, and a proof written from it still
+   replays. This is the one worth doing first.
+2. **A learned per-step value** rather than an item count, so the shaping
+   carries more than "you finished something".
+3. **More training.** 2,000 episodes is 24,000 updates; DQN normally wants
+   10⁵ to 10⁶. This is real but it is third, because the first two change what
+   is being learned rather than how long it takes.
+
+## Q3.5 What this milestone hands the rest
+
+**The hand-written packer stays the default**, which the spec says it should
+until it is beaten. Q5 and Q6 freeze *it* as the `pack` skill rather than the
+learned one, and that is not a workaround: the plan's own design freezes a
+packer while the pathfinder trains, and which packer is frozen is a parameter.
+
+The goal-conditioned pathfinder - **the validity solver, which is the
+product** - does not depend on the quartermaster being learned. It depends on
+`pack` being *good*, and the good one exists.

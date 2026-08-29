@@ -11,7 +11,10 @@
 //! decisions and two to five hundred are horizons that work.
 
 pub mod env;
+pub mod feature;
 pub mod partition;
+pub mod qnet;
 
 pub use env::{Goal, Move, Packing, Step, Walking};
 pub use partition::{Trade, PATHFINDER, QUARTERMASTER};
+pub use qnet::QNet;

@@ -16,8 +16,8 @@ code actually is.
 | Q0 The ground, and the two menus | **done** - 16 verbs apiece, horizons 13 and 204 |
 | Q1 The representation | **done** - probe balanced 85.7% vs 50%; pools in the View |
 | Q2 Two environments | **done** - 1.40 ms an episode; 10^6 steps in 43 s |
-| Q3 The quartermaster learns | **in progress** |
-| Q4 Pools, proven | not started |
+| Q3 The quartermaster learns | **GATE MISSED** - 8/50 against 48/50. Learning is real (spread 0.15->1.90) but the action factoring is wrong: rotate-then-place is a composite the agent has to discover with no undo. See analysis Q3.4 |
+| Q4 Pools, proven | **in progress** |
 | Q5 The pathfinder learns | not started |
 | Q6 The validity solver | not started |
 | Q7 Generations | not started |
