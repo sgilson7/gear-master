@@ -3,6 +3,12 @@
 Written against `fac1495` (2026-08-29). Suite: **1059 engine green, 88 GUI,
 12 CLI, 52 ignored, 0 warnings**.
 
+> **C6 and C7 have shipped.** §8 at the bottom is the ledger: what landed, what
+> the measurements say, what changed shape, and the three things this found that
+> are somebody's decision rather than somebody's bug. The milestones in §4 are
+> left exactly as the owner wrote them, because a brief that gets edited to
+> match what happened stops being a brief.
+
 Read `CLAUDE.md` first. Then `analysis/the-two-trades.md`, which is the
 measurement record for everything summarised in §1 and is far more detailed
 than this. This document is the state of the work plus the owner's decisions
@@ -534,3 +540,164 @@ cargo test -p gearmaster-cli             # 12, the replay contract
 Never start a second cargo while one is running. The engine has **zero
 dependencies** and that is deliberate — the learning crates are where `burn`
 lives, and it stays that way.
+
+
+---
+
+## 8. What shipped — C6 and C7
+
+Written against `973e54f`. Suite: **1074 engine, 88 GUI, 12 CLI, 26 trades,
+11 agent, 4 lab, 52 ignored, 0 warnings.** Every figure below is from
+`analysis/the-two-trades.md`, blocks C6 and C7.
+
+### 8.1 The chain was verified before anything was trained, and it needed to be
+
+§C7 said to check the window against `tests/completable.rs` before training. The
+check found something else: **nothing in the suite had ever walked the chain
+forward.** `chain.rs::the_chain_can_be_finished_in_one_run_in_either_mode`
+answers THE LOCKED GATE at rung 26 and then sets `run.rung` *backwards* to 25 to
+meet THE MANSE. It proves the doors and not the road.
+
+`tests/quest.rs` walks it forward and **the window is not tighter than §C7
+says**. What it is, is three bands rather than one:
+
+| the first word arrives | doors answered | town revealed | class |
+|---|---:|---|---|
+| up to rung 25 | 2 | yes | **won** |
+| rungs 26-29 | 2 | yes | never |
+| rung 30 on | 0 | no | never |
+
+The middle band is four rungs where **three of the four tiers pay in full on a
+run that cannot finish**. §3.6's ordering rule is not a general worry; it is
+about these four rungs.
+
+### 8.2 The spec derives, and it says two things nobody had written down
+
+`engine::quest::chain_to` walks the tables backwards; `completable.rs` shares
+the traversal rather than keeping a second copy. The sharp edge is
+`Station::by_when`, which takes a rung off everything behind a town gate because
+`town::between` matches `after + 1` exactly and `Run::settle` asks the instant a
+rung is cleared. Tightening every window through it gives **rung 25**, which is
+the rung the forward walk measured by playing to it. Two walkers, no shared code
+but the tables, one answer.
+
+- **The road past Francis runs through the Manse's cellar.** Both routes to the
+  mainspring wait on `threshold-cleared`. `pathfinder_unwound` derives as a
+  strict superset of `pathfinder_threshold`, nine stops to seven, sharing a
+  deadline. That is a better argument for §C7's ordering than §C7 gives.
+- **`pathfinder_drover` cannot be trained as written.** A county chain finishing
+  is a flag and `View` carries none. `lab::quests` refuses it rather than
+  dressing it headless. §8.5 is the decision.
+
+### 8.3 The farm is defended structurally, not by weights
+
+§3.6 asked for the finish to be worth more than every step combined. What
+landed is stronger: `Φ` is potential-based and is **zeroed at the end of every
+episode however it ended**, so the tiers telescope to nothing and there is no
+sum for a finish to beat.
+
+    farming four tiers and running out of road   banked  0.00
+    finishing the chain                          banked 49.11  (50 · γ⁶)
+
+Zeroing on *truncation* as well as termination is the decision the farm makes
+for us, and it is the one thing `qpack` gets wrong on its own side
+(`qpack.rs:409` zeroes on `e.finished` only). For items assembled that leak is
+nearly harmless; for a chain it is exactly the farm.
+
+### 8.4 Three things had to be fixed before training meant anything
+
+Each was a day and each is one constant or one small module.
+
+- **The packer had to become the written control**, per §C1. The learned one
+  assembles 2.8 items; the chain's first door stands at rung 18.
+- **The control needed a budget on presses rather than decisions.** It had
+  always been handed forty, which is the learned packer's budget on *decisions*;
+  `hands::pack` is exhaustive over anchors and Q0 measured its median at 492
+  presses. With forty it bought four pieces, seated none, and lost rung one for
+  ever.
+- **Neither agent can buy the word the chain starts with.** `Barter` is the
+  quartermaster's and *why* to barter is the pathfinder's. §3.3's "the driver
+  performs the purchase outside both agents' action spaces" is not the simpler
+  of two options — it is the only one. `lab::shopping` derives the list from the
+  quest's own unpassed stops.
+
+With those, the composition reaches the chain: **the word in 7 of 24 seeds, the
+chain finished in 1**, with the plan-follower and the control packer.
+`analysis/proofs/AA8D95DE31880461-grinder-medium-pathfinder_threshold.proof` is
+one such run, 7/7 stops to rung 26, replayed with zero refusals and watchable
+in the window.
+
+### 8.5 Three decisions that are the owner's
+
+1. **The drover's finish is not on the screen.** Either the county tab grows a
+   line saying which of its three chains are done — which a player arguably
+   should be told anyway — or `pathfinder_drover` is aimed at something already
+   visible. `crates/lab/tests/quests.rs` holds the refusal and names the day it
+   stops being needed.
+2. **The game gives a player no signal that the chain has become unwinnable.**
+   Past rung 25 the word is still in the tray, the doors still stand, the map
+   still draws a town nobody can reach. A player is in exactly the agent's
+   position. That is content, not a bug.
+3. **`lab`'s tests are green and invisible.** The translation between the two
+   sides of the boundary can only be tested from `lab`, which is not one of the
+   three suites every count in `CLAUDE.md` quotes. Run it with
+   `cargo test -p gearmaster-lab --test quests`.
+
+### 8.6 C7's gate is missed, and the reason is one measurement
+
+Two models, 500 episodes each. **Neither beats its own absence.**
+
+| chain | road policy | deepest rung | finished |
+|---|---|---:|---:|
+| threshold | no weights | 1 | 0/24 |
+| threshold | `pathfinder_threshold` | 1 | 0/24 |
+| threshold | written, following the plan | **26** | **1/24** |
+| unwound | `pathfinder_unwound` | 1 | 0/24 |
+| unwound | written, following the plan | **47** | 0/24 |
+
+The trace shows the trained model packing twice and then pressing `Pack` for
+the remaining 318 decisions, which is trap 44's shape exactly - a free action -
+and trap 44's fix was already in (`NOTHING_HAPPENED`, read off the board rather
+than the verb). So the shape fit and the diagnosis did not.
+
+**`feature::mv` cannot tell one road verb from another.** It is the
+quartermaster's move description: eight one-hot shapes for placements,
+purchases and rotations, `_ => 8` for everything else, and every field after
+that about a *piece*. Measured over four runs:
+
+    1,341 road verbs offered - answer, drink, fight, town
+    distinct feature vectors the network can see: 1
+
+The road network's action space, as it sees it, is `Pack` and "a road verb".
+Which road verb is the order the console listed them in.
+
+**That retires a claim in the record.** Q5.1 wrote "the Q network is not what is
+deciding" and put it down to the packer being the written one. The packer was
+not the reason. A5, A6, Q5, Q6 and C7 have every one of them measured a road
+policy that cannot distinguish its own actions, and every one of them reached
+about the rung a policy that presses the first thing on the list reaches.
+
+`crates/trades/tests/quest.rs::the_pathfinder_can_tell_this_many_of_its_own_verbs_apart`
+holds the figure at **1** and is a ratchet that goes up. `--bin qmoves` is the
+measurement.
+
+**The next milestone is the road's action features, and it is not this one.**
+Its shape is clear and all of it is on the screen: which kind of verb,
+separately rather than in one bucket; for an `Answer`, which choice and what it
+requires and what it does; for a `Town`, which door; for `ThrowPoints`, which
+exit. Landing it inside a milestone about quests would have meant the quest work
+and the feature work were measured together and neither could be attributed.
+
+### 8.7 What C6 and C7 did not do
+
+- **C1 through C5 are still open**, and C7 was reached without them by freezing
+  the written control rather than a learned packer. That is exactly what §5.3
+  says a frozen packer is for, but it means the quartermaster's half of the
+  mission is untouched: `QPACK_PHI`'s band has not been re-derived against a new
+  reward, the row has not been walked in order, and nothing packs three sets
+  that beat Francis.
+- **§3.5's gate — each model reaching its own objective more often than the
+  other two — is measurable now and `qaim` is the harness**, but with
+  `pathfinder_drover` refused there are two models rather than three, and with
+  §8.6's finding the comparison is between two policies that cannot see their
+  own actions. The harness is right and there is nothing yet to put in it.

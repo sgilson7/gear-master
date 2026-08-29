@@ -680,6 +680,16 @@ fn tier_for(top: bool, otherwise: Tier) -> Tier {
 ///
 /// Two passes over a list, and it is what turns a set of independent windows
 /// into a deadline.
+///
+/// **It tightens adjacent pairs, and that is exact only while a chain is a
+/// line.** `resolve` emits a post-order walk, which is a topological order of
+/// the dependency graph - so "i comes after i-1 in the list" always holds, but
+/// "i *depends on* i-1" only holds when the graph has no branches in it. All
+/// three chains derived today are lines, and a branch would over-constrain
+/// rather than under-constrain: a window would come out narrower than the road
+/// really is, and `no_derived_chain_has_a_station_that_cannot_be_passed` fires
+/// loudly rather than a deadline quietly being wrong. The day a chain branches,
+/// this wants the real predecessor rather than the previous line.
 fn tighten(out: &mut [Station]) {
     for i in 1..out.len() {
         let floor = out[i - 1].window.0;

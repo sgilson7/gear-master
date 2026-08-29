@@ -20,6 +20,8 @@
 *.safetensors
 analysis/proofs/*.proof
 !analysis/proofs/C434E4A68C5906EE-grinder-medium.proof
+# And one per named pathfinder, which is what C7 is evidence of.
+!analysis/proofs/*-pathfinder_*.proof
 
 # Trained checkpoints land beside whatever ran the trainer. The two that a
 # measurement in `analysis/` refers to are kept in `analysis/nets/`; the rest

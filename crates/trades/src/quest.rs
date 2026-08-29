@@ -292,15 +292,23 @@ impl Quest {
         end: End,
         finish: f32,
     ) -> Paid {
+        // **On the transition, not on the state.** `done(p)` stays true once it
+        // is true, so paying whenever it holds and something was ticked pays
+        // the finish again the next time any *other* stop is passed. For a
+        // chain whose last stop needs all the others that cannot happen; for
+        // one where a run might already be holding something, it can - and a
+        // reward that can be paid twice is the farm this module exists to stop,
+        // arrived at from inside.
+        let was_done = self.done(p);
         let before = self.potential(p);
         let fresh = self.observe_by(p, seen);
-        let won = self.done(p);
+        let won = self.done(p) && !was_done;
         // Zero at the end whichever way it ended. The tiers give back what they
         // lent, so nothing that stopped short banks them.
         let after = if end == End::Running { self.potential(p) } else { 0.0 };
         Paid {
             shaped: gamma * after - before,
-            finish: if won && fresh > 0 { finish } else { 0.0 },
+            finish: if won { finish } else { 0.0 },
             passed: fresh,
         }
     }

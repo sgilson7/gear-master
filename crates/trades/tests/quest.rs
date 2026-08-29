@@ -184,6 +184,29 @@ fn the_finish_is_paid_once_and_only_for_the_last_stop() {
     assert_eq!(again.finish, 0.0, "the finish was paid twice");
 }
 
+/// And it is paid on the **transition**, so a stop passed out of order after
+/// the finish does not pay for the finish again.
+///
+/// Not reachable on the Manse chain, whose last stop needs every other one. It
+/// is reachable on any chain where a run might already be holding something the
+/// chain asks for later, and "the finish is only worth this much once" is the
+/// load-bearing half of the whole design.
+#[test]
+fn a_stop_passed_after_the_finish_does_not_pay_for_the_finish_again() {
+    let q = threshold();
+    let mut p = Progress::new(&q);
+    let last = q.stops.len() - 1;
+    let only_the_finish = |m: &Mark| *m == q.stops[last].mark;
+    let paid = q.pay_by(&mut p, only_the_finish, GAMMA, End::Running, FINISH);
+    assert_eq!(paid.finish, FINISH, "reaching the last stop paid nothing");
+    // Now an earlier stop turns up. Something was newly passed, and the chain
+    // is still finished - which is exactly the shape that paid twice.
+    let an_earlier_one = |m: &Mark| *m == q.stops[0].mark;
+    let after = q.pay_by(&mut p, an_earlier_one, GAMMA, End::Running, FINISH);
+    assert_eq!(after.passed, 1, "the earlier stop was not passed");
+    assert_eq!(after.finish, 0.0, "the finish was paid a second time");
+}
+
 /// Progress is two numbers a network can read, and it is monotone.
 ///
 /// Without them the potential telescopes over something the agent cannot see,
@@ -216,4 +239,88 @@ fn a_dearer_tier_is_worth_more_than_a_cheaper_one() {
     // hint about where to look - it is the thing being looked for, and it is
     // paid outside `Φ` so that ending an episode cannot cancel it.
     assert_eq!(Tier::Finish.weight(), 0.0);
+}
+
+// ------------------------------------------- what the road agent can see
+//
+// Not about quests, and here because this is the file that found it: a chain
+// the pathfinder is paid along is worth nothing if the pathfinder cannot tell
+// which verb it is pressing.
+
+use gearmaster_console::{Console, Difficulty, Mode, Verb};
+use gearmaster_trades::env::Step as RoadStep;
+use gearmaster_trades::{feature, pathfinder};
+
+/// How many distinct feature vectors the pathfinder's own verbs describe to.
+///
+/// **One.** `feature::mv` was written for the quartermaster - its one-hot has
+/// eight shapes for placements, purchases, sells, barters, rerolls, rotations,
+/// unequips and clears, and `_ => 8` for everything else. Every verb the
+/// pathfinder owns lands in that eighth bucket and nothing else in the vector
+/// is filled in, because every other field is about a *piece* and a road verb
+/// has none.
+///
+/// So the road network's action space, as far as it can see it, is two:
+/// `Pack`, which is the all-zero vector by convention, and "a road verb". It
+/// cannot tell `Fight` from `Answer 0` from `Town chapel` from `Drink`, and
+/// which one gets pressed is the order they came in.
+///
+/// `crates/lab/src/bin/qmoves.rs` is the measurement: 1,341 road verbs offered
+/// across four runs, four verb kinds among them, **one** distinct vector.
+///
+/// This is why every road policy in this repo that was ever called learned
+/// reached the same rung as the one that presses the first thing on the list.
+/// `analysis/the-two-trades.md` Q5.1 said "the Q network is not what is
+/// deciding" and put it down to the packer; the packer was not the reason.
+///
+/// **The number goes up or the ratchet is pointless.** Fixing this means
+/// describing a road verb the way `mv` describes a placement - which door,
+/// which choice, what the choice asks for and what it does - and the day that
+/// lands, this constant is the measurement that says it worked.
+const ROAD_VERBS_LOOK_ALIKE: usize = 1;
+
+#[test]
+fn the_pathfinder_can_tell_this_many_of_its_own_verbs_apart() {
+    let mut c = Console::start(0x1212, Mode::Grinder, Difficulty::Medium);
+    let mut seen: Vec<[f32; feature::MOVE]> = Vec::new();
+    // Bounded: a walk that runs until it runs out is a hang, and this one only
+    // needs enough of a run to meet a door, a town and a fountain.
+    for _ in 0..64 {
+        let v = c.view();
+        let steps: Vec<RoadStep> = pathfinder::steps_of(&c).into_iter().map(RoadStep::Press).collect();
+        if steps.is_empty() {
+            break;
+        }
+        for s in &steps {
+            let d = pathfinder::describe(&v, s);
+            if !seen.iter().any(|x| x == &d) {
+                seen.push(d);
+            }
+        }
+        let RoadStep::Press(verb) = &steps[0] else { unreachable!() };
+        if !c.apply(*verb).ok {
+            break;
+        }
+    }
+    assert!(!seen.is_empty(), "no road verb was ever offered, so this proves nothing");
+    assert_eq!(
+        seen.len(),
+        ROAD_VERBS_LOOK_ALIKE,
+        "the number of road verbs the network can tell apart has moved. If it \
+         went up, that is the fix landing and this constant owns the \
+         re-measurement - run `--bin qmoves` and write the new figure in. If it \
+         went down, something narrowed `feature::mv` and the road agent can now \
+         see less than nothing."
+    );
+}
+
+/// And `Pack` is the one action that is distinguishable, by being all zeros.
+#[test]
+fn packing_is_the_only_road_action_with_a_shape_of_its_own() {
+    let c = Console::start(0x1212, Mode::Grinder, Difficulty::Medium);
+    let v = c.view();
+    let packing = pathfinder::describe(&v, &RoadStep::Pack);
+    assert_eq!(packing, [0.0; feature::MOVE], "`Pack` stopped being the all-zero action");
+    let pressing = pathfinder::describe(&v, &RoadStep::Press(Verb::Fight));
+    assert_ne!(packing, pressing, "even packing and fighting became the same vector");
 }

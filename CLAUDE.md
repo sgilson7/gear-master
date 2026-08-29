@@ -37,9 +37,11 @@ Five missions are finished and all five are deployed:
 ## 1. Orientation in five minutes
 
 ```
-cargo test -p gearmaster-engine          # the safety net: 1059 tests, 58 binaries + lib, ~40s
-cargo test -p gearmaster-gui             # 81 more; cargo build does NOT compile them
-cargo test -p gearmaster-cli             # 9 more: scripted runs, piped in twice
+cargo test -p gearmaster-engine          # the safety net: 1074 tests, 59 binaries + lib, ~40s
+cargo test -p gearmaster-gui             # 88 more; cargo build does NOT compile them
+cargo test -p gearmaster-cli             # 12 more: scripted runs, piped in twice
+cargo test -p gearmaster-trades          # 26: the partition, the features, what a quest pays
+cargo test -p gearmaster-lab --test quests   # 4, and NOTHING runs these by habit - see trap 46
 cargo run  -p gearmaster-cli             # headless REPL: play the real game in a terminal
 cargo run  -p gearmaster-gui             # macroquad GUI (native window)
 make pack                                # board packer: dress creatures by hand, saves into combat.rs
@@ -120,6 +122,7 @@ they disagree, this is the bug report"*. `analysis/` holds measurements.
 | `relic.rs` | 188 | **4** run-relics (pay from a board, off run counters), crushables |
 | `pedestal.rs` | 240 | **7** destinations, once a run; `Where::Siding` puts you down *inside* a dungeon and `Where::County` at any mouth of THE HUNDRED |
 | `county.rs` | 1,150 | **THE HUNDRED**: a 7x7 county as a pure function of a derived seed. `County`, `Tile`, `TileKind`, `Toll` (6), `Region` (3), `Chain` (3), `Step`, `Bearing`, `CIRCUIT` (16), `MOUTHS` (6, fixed), `TOLLS` (12), `FALLBACK`, `generate`, `refusals` (V1-V12), `boundary`. Derived on demand, **never stored** |
+| `quest.rs` | 480 | A chain **read backwards** out of the tables. `Objective` (8), `Tier` (4), `Mark`, `Answer`, `Station::by_when`, `chain_to`, `FORCED` (1). Nothing here is a rule; `completable.rs` shares its earliest-rung arithmetic so the two walkers cannot drift |
 | `shape.rs`, `rng.rs`, `lib.rs` | 100, 94, 37 | Polyomino math; the PRNG; exports |
 
 Five crates stand beside the three, added by THE APPRENTICE and THE TWO
@@ -208,7 +211,7 @@ CLI - 1125 in the workspace - and it builds with **no warnings** under rustc
 | Analysis | `tallies` (7) - per-item attribution over a log |
 | Words | `prose` (8 + 1 ignored printer), `two_voices` (6 + 1 ignored), `avail` (5, **43 s** - 400 seeded runs) |
 | Measurement | `baseline` (4 + 6 ignored printers), `prices` (2 + 3 ignored) |
-| Validity | **`validity` (19 + 3 ignored)** - what the repo can currently say about a build being clearable |
+| Validity | **`validity` (19 + 3 ignored)** - what the repo can currently say about a build being clearable; **`quest` (15)** - the Manse chain walked *forward*, the deadline in three bands, and the derivation agreeing with the walk about it |
 | The yard | **`switchyard` (30 + 1 ignored)** - the floor graph, the points, the chain and the balance |
 | The county | **`county` (43)** - generation, V1-V12, walking, trips, the census, memory; **`tolls` (17 + 1)** - six figures, the tax, visibility, the twelve thresholds; **`hundred` (32 + 1)** - the chains, the hill, the circuit, the checklist, the perambulation, the gaol, the map; **`acceptance_hundred` (11)** - the mission's eleven criteria |
 | The driver | **`crates/cli/tests/replay.rs` (5)** - a scripted run piped in twice and byte-compared |
@@ -414,6 +417,34 @@ reached (§Q6). A run that gets there is a stronger claim than `force_win`,
 because the build was bought with the gold that seed dealt. What is still
 missing is the *negative* - nothing proves a door is unreachable, only that
 this solver has not reached it, and eleven have not been reached.
+
+**C6 and C7 are merged.** A quest is a chain the engine reads backwards out of
+its own tables (`quest.rs`, landed inert), a thing the pathfinder is paid along
+in four tiers (`trades/quest.rs`), and a plan a driver can follow
+(`lab/{quests,packers,shopping,roads}.rs`). `design/HANDOFF-two-agents.md` §8 is
+the ledger and `analysis/the-two-trades.md` C6-C7 the measurements;
+`analysis/second-order-quests.md` is ten things they turned up that are not
+theirs to fix.
+
+Three results worth carrying: **the deadline on the Manse chain is rung 25**,
+found twice by two walkers that share no code but the tables; **the road past
+Francis runs through the Manse's cellar**, which nobody had written down and
+which the derivation says; and **`pathfinder_drover` cannot be trained as
+written**, because a county chain finishing is a flag and `View` carries none -
+`lab::quests` refuses it rather than dressing it headless.
+
+`analysis/proofs/AA8D95DE31880461-grinder-medium-pathfinder_threshold.proof` is
+the whole chain walked, 7/7 stops to rung 26, replayed with zero refusals.
+`GEARMASTER_WATCH=<it> cargo run -p gearmaster-gui` plays it in the window, and
+the file's own header carries that line.
+
+**C7's learning gate is missed and the reason is trap 50.** Two models, 500
+episodes each, and neither beats its own absence: everything above zero in that
+milestone belongs to the written half. `feature::mv` is the quartermaster's
+move description and every road verb falls into its `_ => 8` bucket, so the road
+network can see **one** vector where the console offered 1,341 verbs of four
+kinds. That is why, and it has been why since A5. **The road's action features
+are the next milestone** and its shape is in `HANDOFF-two-agents.md` §8.6.
 
 **The traps, re-derived from this tip, in the order they will find you:**
 
@@ -674,6 +705,72 @@ this solver has not reached it, and eleven have not been reached.
     the fault was that a no-op cost 0.01 while the value estimates were spread
     over 1.70. Charge for what the *board* does, not for what the verb is
     called.
+
+45. **A chain test that stands the run at each door measures the table; one
+    that lets the run arrive measures the road.** This repo had four of the
+    first kind and none of the second - `chain.rs` answers THE LOCKED GATE at
+    rung 26 and then sets `run.rung` *backwards* to 25 to meet THE MANSE, which
+    is a true claim about the doors and no claim at all about whether they can
+    be met in order. `tests/quest.rs` is the second kind. Any new chain wants
+    one of each.
+
+46. **A test that can only live in `lab` is a test nothing runs.** The engine
+    cannot see the console, `trades` cannot see the engine, and the translation
+    between them can only be checked from `lab` - which is not one of the three
+    suites every count in this file quotes. `crates/lab/tests/quests.rs` is
+    real, green and invisible. This is trap 14 in a different crate, and the
+    only defence is the run list in §1.
+
+47. **A budget on decisions and a budget on presses are not the same number.**
+    `Step::Pack` had always passed forty, which is the learned packer's budget
+    on decisions. `hands::pack` is exhaustive over anchors and Q0 measured its
+    median at 492 *presses*. Given forty it bought four pieces, seated none, and
+    lost rung one for ever - which in a trace reads exactly like a policy that
+    has decided packing is worthless. Nothing was wrong: two correct components
+    with one shared word meaning two things. The same shape as *"a predicate
+    with two readers is two predicates that happen to agree"* above, in units
+    rather than in meaning - named rather than numbered because this list has
+    two 43s and five other duplicate numbers, which is worth a tidy the day
+    somebody is in here anyway.
+
+48. **Neither agent can buy the word its own chain starts with.** `Buy` and
+    `Barter` are the quartermaster's verbs and *why* to barter for a word is a
+    fact about a door seven rungs away. The partition is exhaustive and
+    disjoint, so there is no verb to move: a driver has to press the key outside
+    both action spaces. Any chain whose first stop is a purchase has this hole.
+
+49. **Potential-based shaping leaks on truncation.** `F = γΦ(s′) − Φ(s)`
+    telescopes to `γᵀΦ(s_T) − Φ(s_0)`, which is zero only if `Φ` is zeroed at
+    the end. `qpack.rs:409` zeroes on `e.finished` - the agent saying it is done
+    - and not when the press budget ends the episode, so a truncated packing
+    banks its shaping. For items assembled that is nearly harmless. For a quest
+    it *is* the farm, because a farming episode is precisely one that ends by
+    running out of road with the cheap tiers ticked. `trades::quest` zeroes on
+    both and says why.
+
+50. **The pathfinder cannot tell its own verbs apart, and that is why the road
+    half has never worked.** `feature::mv` is the *quartermaster's* move
+    description: eight one-hot shapes for placements, purchases, sells, barters,
+    rerolls, rotations, unequips and clears, `_ => 8` for everything else, and
+    every field after the one-hot about a **piece**, which no road verb has.
+    Measured over four runs: 1,341 road verbs offered, four kinds among them,
+    and **one** distinct feature vector. So the road network chooses between
+    `Pack` - the all-zero action by convention - and "a road verb", and which
+    road verb is the order the console listed them in. `analysis/the-two-trades.md`
+    Q5.1 attributed that to the packer being the written one and it was never
+    the packer. The ratchet is
+    `trades::quest::the_pathfinder_can_tell_this_many_of_its_own_verbs_apart`
+    and `--bin qmoves` is the measurement.
+
+51. **A known failure shape is a hypothesis, not a finding.** The trained
+    pathfinder pressed `Pack` 320 times out of 320, which is trap 44 exactly -
+    and trap 44's fix was already in, charging for what the board does rather
+    than for the verb. The reading fitted perfectly and was wrong: the
+    alternative to `Pack` was not `Fight`, it was a vector identical to every
+    other road verb. Measuring the *inputs* cost twenty minutes; tuning the
+    reward would have cost forty and produced another null. When a trace matches
+    a trap in this file, check the trap's own premise before spending a run on
+    its fix.
 
 One blind spot in `prose.rs` worth knowing before it finds you: a name that
 only ever **opens** a sentence is invisible to `names_something`, because at a

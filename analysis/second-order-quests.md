@@ -172,3 +172,126 @@ shape this repo has been bitten by before (`cargo build` not compiling the GUI's
 Left as it is because moving it means either giving the engine a dependency or
 giving `trades` one, and both are worse. What is done instead is naming it here
 and in `CLAUDE.md`'s run list.
+
+## 8. A budget on decisions and a budget on presses are not the same number
+
+`Step::Pack` hands the console to a packer with a budget, and the number that
+had always been passed was **forty** - the learned packer's, where a press is a
+decision and Q0 measured thirteen of them in a typical episode.
+
+`hands::pack` is greedy over pieces and **exhaustive over seats**, so its cost
+is the number of anchors it tries: Q0 measured the same control at a median of
+492 presses an episode and 798 at the ninetieth percentile. Given forty it
+bought four pieces, seated none of them, assembled nothing, and lost rung one
+for ever - and in a trace that reads exactly like a road policy that has decided
+packing is worthless.
+
+An afternoon, and the fix is one constant. What makes it worth writing down is
+that **nothing was wrong**: `hands::pack` respected its budget, the road agent
+pressed `Pack`, the console did what it was told. Two correct components with
+one shared word meaning two things.
+
+The general shape is `CLAUDE.md` trap 43 - a predicate with two readers is two
+predicates that happen to agree - in units rather than in meaning. Any number
+crossing between the two agents wants asking what it counts.
+
+## 9. Half the shopping list is a hole in the partition, not a design choice
+
+§3.3 argues for the shopping list from the top down: *why* to barter for a word
+is a fact about a door seven rungs away, the packer cannot see it, so the
+planner decides and the driver executes.
+
+Building it found the argument from the bottom up, and it is harder. `Buy` and
+`Barter` are the quartermaster's verbs (`partition.rs`), and the agent that can
+see why the word matters is not allowed to press the key, while the agent
+allowed to press it cannot see why. **Neither agent can buy the word.** Without a
+driver doing it programmatically the first stop of the first chain is
+unreachable by construction, and no amount of training reaches it.
+
+That is worth knowing because it generalises: any chain whose first stop is a
+purchase has the same hole, and the partition is exhaustive and disjoint, so
+there is no verb to move. §3.3's second option - "the driver performs the
+purchase outside both agents' action spaces" - is not the simpler of two
+choices. It is the only one.
+
+## 10. A written control has to remember one thing, and that thing is not obvious
+
+`lab::roads` is a road policy with a priority order, and the first version had
+no state at all: answer a door, else visit a town, else fight. It pressed
+`Fight` three hundred and twenty times an episode and finished on rung one.
+
+A run that fights on the board it was dealt loses rung one; a Grinder cannot
+slide below rung one; the same fight is offered again. "Pack when the tray is
+not empty" does not fix it either - `hands::pack` leaves in the tray whatever
+it would not seat, so the tray is rarely empty and the policy packs for ever
+instead.
+
+The question a written road policy has to be able to answer is **"has this rung
+had its packing yet"**, which is one field and is the only state in the file. It
+is the same shape as `CLAUDE.md` trap 23 - a road-walking helper has to know how
+to throw a lever - one rung earlier: a road-walking helper has to know how to
+put a board together before it fights.
+
+## 11. The road agent has never had an action representation
+
+Not this milestone's to fix, and the largest thing it found.
+
+`feature::mv` describes a candidate move for the network. Its one-hot has eight
+shapes - `Place`, `Buy`, `Sell`, `Barter`, `Reroll`, `Rotate`, `Unequip`,
+`ClearSlot` - and `_ => 8` for everything else, and every field after the
+one-hot is about a **piece**: how many cells, what it costs, what it does with
+the pools, where it is being seated. Those are the quartermaster's questions and
+they are the right ones for the quartermaster.
+
+Every verb the pathfinder owns falls into the eighth bucket with no piece
+behind it. Measured (`--bin qmoves`), over four runs:
+
+    1,341 road verbs offered
+    four verb kinds among them: answer, drink, fight, town
+    distinct feature vectors the network can see: 1
+
+The road network is choosing between `Pack`, which is the all-zero vector by
+convention, and "a road verb". Which road verb is the order the console listed
+them in.
+
+**This is why the road half has never worked**, and it is a better answer than
+the one that has been on record since Q5.1: *"the Q network is not what is
+deciding"*, attributed there to Q3's miss and the packer being the written one.
+The packer was not the reason. A5, A6, Q5, Q6 and now C7 have all measured a
+road policy that cannot distinguish its own actions, and every one of them
+reached about the same rung as the policy that presses the first thing on the
+list - which is exactly what you would expect.
+
+Fixing it is its own milestone and its shape is clear: describe a road verb the
+way `mv` describes a placement. Which kind it is, separately rather than in one
+bucket; for an `Answer`, which choice and what it requires and what its outcome
+does; for a `Town`, which door; for a `ThrowPoints`, which exit. All of it is on
+the screen - `View::Question::Choice` carries `label`, `requires` and `open`,
+and `View::Town::doors` carries the door list - so none of it costs the
+boundary anything.
+
+Left undone here because it is a new representation rather than a constant, and
+because landing it inside a milestone about quests would mean the quest work and
+the feature work were measured together and neither could be attributed.
+`crates/trades/tests/quest.rs::the_pathfinder_can_tell_this_many_of_its_own_verbs_apart`
+holds the figure at 1 so the day it is fixed there is a number saying by how
+much.
+
+## 12. A diagnosis that fits is not the diagnosis
+
+The trace showed the trained model pressing `Pack` 320 times out of 320. This
+repo has seen that exact shape twice - `Rotate` 400 times out of 420, then `Pin`
+410 out of 420 - and it has a trap for it, number 44: *a free action is a scale
+problem, not a verb problem*, and the fix is to charge for what the board does.
+
+That reading fits perfectly and it is wrong. The charge was already there
+(`NOTHING_HAPPENED = 0.35`, read off the board rather than the verb, exactly as
+trap 44 says to). What the trace could not show is that the alternative to
+`Pack` was not `Fight` - it was a vector identical to every other road verb, so
+the policy was not choosing `Pack` over `Fight` at all. It was choosing the one
+action it could see against a bucket it could not see into.
+
+The general form is worth keeping: **a known failure shape is a hypothesis, not
+a finding.** The cheapest way to tell them apart was to measure the inputs
+rather than tune the reward, and the measurement took twenty minutes where the
+tuning would have taken forty and produced another null.

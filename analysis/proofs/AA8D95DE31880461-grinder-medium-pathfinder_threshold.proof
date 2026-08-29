@@ -1,0 +1,239 @@
+# seed        0xAA8D95DE31880461
+# mode        Grinder
+# difficulty  Medium
+# pathfinder  WRITTEN - follows the plan, an upper bound rather than an agent
+# packer      the written control - buys and seats
+# quest       pathfinder_threshold
+# stops       7/7
+# reached     rung 26
+# presses     220 (166 road decisions, 66 packs)
+#
+# Every line below is a key a person could press. All three halves are
+# here: the road decisions, the shopping the chain asked for, and the
+# packing - only the presses that stuck, because four fifths of what
+# the hands do is seat-and-undo.
+#
+# Watch it:
+#   GEARMASTER_WATCH=analysis/proofs/AA8D95DE31880461-grinder-medium-pathfinder_threshold.proof \
+#     cargo run -p gearmaster-gui
+
+buy 0
+buy 4
+buy 0
+place #1 weapon 0 0
+place #0 weapon 1 0
+fight
+buy 5
+buy 4
+place #3 weapon 2 0
+place #2 weapon 4 0
+place #4 greaves 0 0
+fight
+buy 3
+buy 1
+place #7 chest 0 0
+place #5 chest 0 2
+place #6 gloves 0 0
+fight
+buy 6
+buy 2
+place #8 chest 3 0
+place #9 greaves 2 0
+place #10 greaves 4 0
+fight
+buy 5
+buy 2
+place #12 chest 0 3
+place #11 helmet 0 0
+fight
+buy 2
+buy 0
+place #13 gloves 2 0
+place #14 greaves 0 2
+fight
+answer 1
+answer 0
+buy 2
+buy 3
+place #15 gloves 4 0
+place #16 gloves 0 2
+fight
+buy 0
+buy 0
+place #17 helmet 2 0
+place #18 gloves 2 2
+fight
+buy 3
+buy 4
+place #19 greaves 2 2
+place #20 greaves 0 3
+fight
+buy 1
+place #21 helmet 0 1
+fight
+buy 2
+buy 1
+place #22 gloves 3 3
+place #23 weapon 1 3
+fight
+buy 0
+buy 4
+place #24 greaves 5 1
+place #25 chest 0 5
+fight
+buy 0
+buy 3
+place #27 gloves 0 4
+place #26 greaves 0 4
+fight
+answer 0
+buy 4
+buy 3
+place #30 weapon 3 2
+place #29 greaves 4 4
+fight
+buy 3
+buy 5
+buy 1
+place #33 weapon 3 5
+place #31 greaves 2 5
+place #32 helmet 2 2
+fight
+buy 1
+buy 0
+buy 0
+place #34 helmet 0 3
+place #35 greaves 0 5
+place #36 gloves 1 4
+fight
+buy 2
+buy 2
+buy 2
+rotate #38
+place #38 chest 3 4
+place #39 weapon 0 4
+place #37 greaves 1 7
+fight
+town pub
+buy 2
+buy 0
+buy 0
+buy 0
+buy 0
+buy 0
+drink
+answer 1
+fight
+buy 1
+buy 4
+place #47 chest 0 6
+place #46 gloves 2 6
+fight
+buy 3
+buy 1
+buy 0
+place #48 helmet 4 3
+place #49 helmet 4 1
+place #50 gloves 4 6
+fight
+buy 1
+buy 3
+buy 2
+buy 0
+place #54 gloves 5 0
+place #51 helmet 2 4
+place #52 greaves 4 5
+fight
+answer 0
+buy 2
+buy 1
+place #57 helmet 4 5
+place #55 helmet 2 6
+rotate #56
+rotate #56
+rotate #56
+place #56 helmet 0 5
+fight
+answer 0
+buy 0
+buy 0
+rotate #59
+place #59 greaves 4 2
+place #58 weapon 3 0
+fight
+answer 0
+buy 0
+buy 0
+fight
+answer 1
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+fight
+answer 0
+fight
+drink
+fight
+answer 0
+place #63 gloves 5 1
+fight
+answer 0
+answer 0
+place #65 gloves 1 1
+fight
+answer 0
+answer 0
+fight
+answer 0
+town on
+brawl
+fight
+answer 0
+answer 0
+place #68 weapon 5 0
+place #67 helmet 2 7
+fight
+answer 0
+fight
+answer 0
+answer 0
+fight
+answer 0
+answer 0
+place #71 chest 4 2
+fight
+answer 0
+fight
+answer 0
+fight
+answer 0
+town cellardoor
+fight
+fight
+throw 0
+fight

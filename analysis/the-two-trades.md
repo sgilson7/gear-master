@@ -741,3 +741,277 @@ representation could express it and the reward could not *weight* it. Whoever
 picks this up should start from `QPACK_PHI` between 0.6 and 1.5 and should not
 spend a run re-testing priority replay or the press budget — both were measured
 and both were negative.
+
+---
+
+# C6 — The quest spec
+
+Read off **`727fae4`** plus this milestone. `crates/engine/quest.rs` (new, and
+landed inert), `crates/trades/quest.rs`, `crates/lab/quests.rs`. Engine 1074
+(+15), trades 26 (+7), lab 4 (new). No warnings.
+
+## C6.1 The chain, walked forward, which nobody had done
+
+`tests/chain.rs` proves each station of the Manse chain opens the next, and it
+proves it by standing the run at each door in turn - so between two of them it
+sets `run.rung` **backwards**: THE LOCKED GATE is answered at rung 26 and the
+house stands after rung 25. That is a true claim about the tables and it is not
+a claim about the road.
+
+`tests/quest.rs` walks it forward. Rung one upwards, every fight won by fiat,
+every chain door answered the moment it stands, nothing ever set back:
+
+```
+  rung  8  word    A Word About the Wrong Stars      (sump-bottom's bar)
+  rung 18  door    the-astronomer   -> "Hear him out"
+  rung 23  door    the-locked-gate  -> "Use the word"
+  rung 26  town    the-manse        -> cellar door
+  rung 26  class   Threshold-Sighted   insight true
+```
+
+The chain survives, and the deadline comes out as **three bands** rather than
+one. `lab/src/bin/qchain.rs` is the printer.
+
+| the first word arrives | doors answered | town revealed | gate stands | class |
+|---|---:|---|---|---|
+| up to rung 25 | 2 | yes | rung 26 | **won** |
+| rungs 26-29 | 2 | yes | never | - |
+| rung 30 onward | 0 | no | never | - |
+
+**The middle band is four rungs of this road where every cheap tier pays and
+nothing can be finished.** A run there is offered both doors, hears the
+astronomer out, uses the word at the gate, puts THE MANSE on the map - and the
+house stood twenty-five rungs ago. Three of the four tiers of §3.6 pay in full
+on a run that cannot finish, which is what makes the ordering rule a rule about
+this game rather than a general worry.
+
+## C6.2 The derivation, and the two walkers agreeing
+
+`engine::quest::chain_to` walks `EVENTS`, `TOWNS`, `DUNGEONS` and `RUMOURS`
+backwards from a thing at the end of a chain. `completable.rs` shares the
+earliest-rung arithmetic rather than keeping its own copy - six functions moved
+and none changed what they say.
+
+```
+pathfinder_threshold   Class("Threshold-Sighted")
+  Prerequisite   Holding("A Word About the Wrong Stars")   rungs  8-25   Bar
+  Offered        Offered("the-astronomer")                 rungs 18-25   Road
+  Chose          Holding("A Word About the Cellar")        rungs 18-25   the-astronomer / the-slagworks
+  Offered        Offered("the-locked-gate")                rungs 23-25   Road
+  Chose          Gate("the-manse")                         rung  26      the-locked-gate
+  Chose          Entered("the-threshold")                  rungs 26-50   the-manse, CellarDoor
+  Finish         Wearing("Threshold-Sighted")              rungs 26-50   Road
+  deadline: rung 25
+```
+
+**The deadline is derived and it is the rung the walk measured.** The two share
+no code but the tables: the walk found rung 25 by playing to it, and the
+derivation found it by tightening every window against its neighbours through
+`Station::by_when` - which subtracts a rung at a town gate, because
+`town::between` matches `after + 1` exactly and `Run::settle` asks for it the
+instant a rung is cleared, so a reveal landing on the gate's own rung lands
+after the question was asked.
+
+## C6.3 Two things the derivation says that nobody had written down
+
+**The road past Francis runs through the Manse's cellar.** Both routes to the
+mainspring - THE PASSENGER and THE SECOND SHADOW - wait on `threshold-cleared`,
+so a run that never went down the stair cannot open the fifty-first rung.
+`pathfinder_unwound` derives as a **strict superset** of `pathfinder_threshold`,
+nine stops to seven, and the two share a deadline: **rung 25 is the rung by
+which a run has either bought a word at a bar or lost the end of the game.**
+
+That is a stronger reason for §C7's ordering than §C7 gives.
+
+**One of the three named models cannot be trained as written.**
+`pathfinder_drover` is aimed at a chain of THE HUNDRED being finished, which the
+engine records as a flag and `View` carries no flags. `lab::quests` refuses it
+rather than dressing it headless. `analysis/second-order-quests.md` §5 has the
+argument and the two ways out; it is a console question and it is the owner's.
+
+## C6.4 The gates
+
+| gate | result |
+|---|---|
+| the three chains derive without anybody typing them | **met** - and the third is refused for a reason, which is the fourth thing derived |
+| the derived steps match what `completable.rs` believes | **met** - they share the traversal, so they cannot disagree |
+| an agent that farms a cheap tier scores less than one that finishes | **met, and stronger than asked** |
+
+The second gate is not a weighting. `Φ` is potential-based and is zeroed at the
+end of every episode **however it ended**, so over any complete trajectory the
+tiers telescope to `γᵀΦ(s_T) − Φ(s_0)` = 0. There is no sum for a finish to have
+to beat.
+
+    farming four tiers and running out of road   banked  0.00
+    finishing the chain                          banked 50 · γ⁶ = 49.11
+
+`crates/trades/tests/quest.rs` plays both, and every prefix of the chain under
+both endings, and asserts the tiers add to nothing each time.
+
+**Zeroing on truncation is the decision the farm makes for us.** `qpack.rs:409`
+zeroes on `e.finished` only, so a packing that runs out of budget banks its
+shaping - nearly harmless for items assembled, and exactly the farm for a chain,
+because a farming episode is precisely one that ends by running out of road with
+the cheap tiers ticked. The cost is a truncated bootstrap biased low by `Φ(s_T)`,
+deliberately: a chain not finished was not progress worth anything.
+
+---
+
+# C7 — The named pathfinders
+
+Read off **`973e54f`** plus this milestone. `crates/lab/{packers,shopping,roads}.rs`
+(new), `qroad` quest-conditioned, `qaim` (new, the measurement), `qproof`
+carrying all three halves of a run.
+
+## C7.1 Three things had to be true before any training meant anything
+
+**The packer must be the written control.** §C1's argument, and the arithmetic
+behind it: the learned packer assembles 2.8 items and clears 8/50 rungs, and the
+threshold chain's first door stands at rung 18. A road policy trained against a
+packer that cannot clear rung ten never sees a chain that starts at rung
+eighteen, and every failure is then ambiguous between the two agents.
+
+**The control needed its own press budget.** `Step::Pack` had always passed
+forty, which is the learned packer's budget on *decisions*. `hands::pack` is
+exhaustive over anchors and Q0 measured it at a median of **492 presses**. Given
+forty it bought four pieces, seated none, and lost rung one for ever.
+
+    with 40 presses:    items 0, rung 1, 320 decisions, every one a defeat
+    with 2,000:         items assembled, rung 26 reachable
+
+**Neither agent can buy the word.** `Buy` and `Barter` are the quartermaster's
+verbs and *why* to barter for a word is a fact about a door seven rungs away.
+`lab::shopping` derives the list from the quest's own unpassed `Holding` stops
+and the driver presses the key, which is §3.3's second option and, it turns out,
+its only one. **The word is automatic; being at a bar before rung 25 is not**,
+and that is the part left to be learned.
+
+## C7.2 Is the chain reachable at all by this composition
+
+Asked before training, because if the answer is no no amount of training makes
+it yes. `lab::roads` is a **written plan-follower** - it is handed the chain and
+told which choice at each door passes which stop, so it is an upper bound rather
+than a baseline. 24 seeds, both modes, Medium, control packer:
+
+| stop | rungs | reached |
+|---|---|---:|
+| `Holding("A Word About the Wrong Stars")` | 8-25 | **7/24** |
+| `Offered("the-astronomer")` | 18-25 | 2/24 |
+| `Holding("A Word About the Cellar")` | 18-25 | 2/24 |
+| `Offered("the-locked-gate")` | 23-25 | 2/24 |
+| `Gate("THE MANSE")` | 26 | 2/24 |
+| `Entered("the-threshold")` | 26-50 | 2/24 |
+| `Wearing("Threshold-Sighted")` | 26-50 | **1/24** |
+
+The wall is the first stop, and it is a wall about *time* rather than about
+choice: seven runs in twenty-four are alive and at a bar before rung 25.
+
+## C7.3 The artefact, and it replays
+
+`analysis/proofs/AA8D95DE31880461-grinder-medium-pathfinder_threshold.proof`:
+the whole chain, **7/7 stops, rung 26, 220 presses across 166 road decisions and
+66 packings**, and replayed from its own header into a fresh console **to the
+same rung with zero refusals**.
+
+All three halves are in it - the road decisions, the shopping the chain asked
+for, and the packing - because a transcript missing any of them replays into a
+different run. Only the presses that *stuck* are written: Q0 measured 761,840
+trial pairs in 941,965 presses, and a transcript carrying the trials would be
+four times longer and replay identically.
+
+It is watchable in the window, and the header says how.
+
+## C7.4 The training, and what it says
+
+Two models, 500 episodes each, ~40 minutes apiece on the M2 Max, written
+control packer, shopping list on. `QROAD_QUEST` names the chain and the model
+is written under it.
+
+| block | ε | `pathfinder_threshold` stops | finished | `pathfinder_unwound` stops | finished |
+|---|---:|---:|---:|---:|---:|
+| ep 100 | 0.71 | 6/7 | 0 | 6/9 | 1 |
+| ep 200 | 0.43 | 5/7 | 0 | 6/9 | 2 |
+| ep 300 | 0.14 | 5/7 | 0 | 3/9 | 0 |
+| ep 400 | 0.05 | **1/7** | 0 | **0/9** | 0 |
+| ep 499 | 0.05 | 1/7 | 0 | 0/9 | 0 |
+
+**Both curves go the wrong way as exploration decays.** The ε-greedy noise
+walks the chain and the greedy policy does not, which is the shape of a policy
+that has learned nothing about the chain and has learned something about
+something else.
+
+The evaluation, 24 seeds a row, both modes, Medium, control packer throughout:
+
+| chain | road policy | deepest rung | finished |
+|---|---|---:|---:|
+| threshold | no weights - first legal step | 1 | 0/24 |
+| threshold | `pathfinder_threshold` | 1 | 0/24 |
+| threshold | `pathfinder_unwound` | 1 | 0/24 |
+| threshold | **written, following the plan** | **26** | **1/24** |
+| unwound | no weights | 1 | 0/24 |
+| unwound | `pathfinder_threshold` | 1 | 0/24 |
+| unwound | `pathfinder_unwound` | 1 | 0/24 |
+| unwound | **written, following the plan** | **47** | 0/24 |
+
+**Neither model beats its own absence**, so §3.5's gate - each reaching its own
+objective more often than the other two - is not met and is not close. Every
+figure in this milestone that is above zero belongs to the written half.
+
+## C7.5 Why, and it is not the reward
+
+The trace says it in ten lines. The trained model packs twice and then presses
+`Pack` for the remaining three hundred and eighteen decisions:
+
+```
+step 0  rung 1  tray 2  items 0   taking Pack
+step 1  rung 1  tray 3  items 1   taking Pack
+step 2  rung 1  tray 0  items 2   taking Pack
+step 3  rung 1  tray 0  items 2   taking Pack        ... and so on to 320
+```
+
+The obvious reading is `CLAUDE.md` trap 44 - a free action is a scale problem -
+and the obvious fix is a bigger charge for a decision that changes nothing. That
+reading is wrong, and `--bin qmoves` is why.
+
+**`feature::mv` cannot tell one road verb from another.** It was written for the
+quartermaster: its one-hot has eight shapes for placements, purchases, sells,
+barters, rerolls, rotations, unequips and clears, and `_ => 8` for everything
+else. Every verb the pathfinder owns lands in that eighth bucket, and every
+other field in the vector is about a *piece*, which a road verb does not have.
+
+    1,341 road verbs offered across four runs
+    four verb kinds among them: answer, drink, fight, town
+    distinct feature vectors the network can see: 1
+
+So the road network's action space, as it can see it, is **two**: `Pack`, which
+is all zeros by convention, and "a road verb". It cannot tell `Fight` from
+`Answer 0` from `Town chapel`, and which of them gets pressed is the order the
+console listed them in.
+
+That is not a reward problem, a horizon problem or an exploration problem. A
+network that cannot distinguish two actions cannot prefer one, and no amount of
+shaping teaches a preference between things that are the same input.
+
+**It also retires a claim.** Q5.1 wrote that "the Q network is not what is
+deciding" and put it down to Q3's miss - the packer that works being the written
+one. The packer was not the reason. The road agent has never had an action
+representation, in this milestone or in Q5, Q6 or A6, and every road policy this
+repo has called learned reached the same rung as the one that presses the first
+thing on the list.
+
+`crates/trades/tests/quest.rs::the_pathfinder_can_tell_this_many_of_its_own_verbs_apart`
+holds the number at **1**, and it is a ratchet that goes up.
+
+## C7.6 The gates
+
+| gate | result |
+|---|---|
+| `pathfinder_threshold` first, as an artefact | **met** - trained, named, written to `analysis/nets/` |
+| each model reaches its own objective more often than the other two | **missed, and not close** - neither beats no weights |
+| each measured with a packer plugged in | met - the written control throughout, per §C1 |
+
+What C7 delivered that stands: the harness (`qroad` quest-conditioned, `qaim`,
+`qproof`), the shopping list, the control packer as a macro-action, the
+measurement that the chain is walkable, and **the reason the learning half has
+never worked**, which is one measurement and had been mis-attributed for three
+milestones.
