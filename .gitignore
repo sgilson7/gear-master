@@ -20,3 +20,9 @@
 *.safetensors
 analysis/proofs/*.proof
 !analysis/proofs/C434E4A68C5906EE-grinder-medium.proof
+
+# Trained checkpoints land beside whatever ran the trainer. The two that a
+# measurement in `analysis/` refers to are kept in `analysis/nets/`; the rest
+# are output, not source.
+runs/
+q8/
