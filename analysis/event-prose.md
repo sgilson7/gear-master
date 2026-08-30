@@ -126,6 +126,23 @@ from an older tip and count differently.
 
 `cargo build --workspace` is warning-free under rustc 1.95.
 
+### Where E0 actually landed
+
+**All four of E0's files are inside commit `4996676`**, whose message is about
+clipping rewards out of a Huber loss and has nothing to do with prose. Two
+Claude sessions were working in this one checkout at the same time; the other
+one staged the whole tree, so `tests/prose.rs`, `gui/src/main.rs`, the
+before-state capture and this file all went in under its message, alongside its
+own `crates/lab` work.
+
+Left as it is. The commit was not pushed and could have been unpicked, but the
+other session was mid-run and rewriting a branch under a live agent is worse
+than a wrong commit message. **If you are looking for where the three ratchets
+came from, it is `4996676`, not this commit.**
+
+The lesson is the one `CLAUDE.md` already gives about cargo, in git form: one
+working directory, one agent at a time, or stage by path and never `-A`.
+
 ### One thing that went wrong, worth writing down
 
 Two `cargo` invocations ran at once - a timed-out one of mine that had gone to
