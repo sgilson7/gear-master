@@ -1177,3 +1177,110 @@ this mission that a reward change reaches a policy.
 Everything above 1.0 in the cross table that is not the pilot belongs to the
 Rogue road policy. The written pilot at **32.8 against 6.7** remains the widest
 statement of how much harder the mode is, and no learned pair is near it.
+
+---
+
+# R6 — The flat network, and the first pathfinder that walks
+
+Read off **`4996676`** plus this milestone.
+
+## R6.1 It was never an epsilon collapse
+
+`--bin qwhy` asks what the network thinks each action is worth, which nothing in
+six milestones had asked. At rung one on an empty board:
+
+```
+  fight -0.496   pack -0.499
+```
+
+**Three thousandths**, and 0.083 averaged over every state, against rewards
+spread over four to fifty. The pathfinder was not collapsing onto a free
+action - it was a flat network whose arbitrary tie-break happened to be
+consistent, and that is indistinguishable from a policy that has decided
+something unless somebody looks at the values.
+
+A5, A6, Q5, Q6, C7 and R5 all read it the other way. Q5.1's *"the Q network is
+not what is deciding"* was right about the symptom and wrong about the cause
+twice over - first blamed on the packer (C7 retired that), then on a free
+action (this retires that).
+
+## R6.2 Three faults, and the third is the one
+
+| | was | is | worth on its own |
+|---|---|---|---|
+| learning rate | 0.0015 | 0.05 | ~0.006 of spread |
+| updates an episode | 8 | 64 | ~0.006 of spread |
+| **reward scale** | 1 | **1/25** | the whole thing |
+
+**The loss was clipping the rewards out of the gradient.**
+`min(|d|,1)·|d|` is Huber with a knee at one, so above one the gradient is `±1`
+whatever the residual is - and the targets run to **+54**, measured:
+
+```
+  target y: min -1.462  mean 0.140  max 54.100   over 794,624 batched
+```
+
+A state worth fifty pulled on the weights exactly as hard as one worth one and
+a half. The network settled on the **median** target, about `-0.5`, because most
+road decisions pay a step cost and nothing else. This is precisely why DQN clips
+rewards to `[-1,1]` when it uses that loss.
+
+`REWARD_SCALE = 1/25` puts the targets in `[-0.28, 2.27]`, where the loss is
+proportional. Every term moves together so nothing about the ordering changes.
+The behaviour changed on the spot: **320 presses of one verb became 293 pack
+and 27 fight**, before any extra training at all.
+
+The other two arms were near-null alone, which is the part worth carrying:
+stopping at the first plausible fix would have credited the rate.
+
+## R6.3 The cross table, after
+
+800 episodes a model, control packer behind both, 12 seeds a cell:
+
+| row | grinder | rogue |
+|---|---:|---:|
+| the written pilot | 32.8 | 6.7 |
+| no weights + control packer | 1.0 | 1.0 |
+| **grinder road + control packer** | **17.5** | 2.6 |
+| **rogue road + control packer** | 1.0 | **2.9** |
+| grinder pair (both learned) | 1.0 | 1.0 |
+| rogue pair (both learned) | 1.0 | 1.0 |
+
+```
+  the gate: each road policy ahead of the other in its own mode
+    in grinder    17.5 against  1.0   met
+    in rogue       2.9 against  2.6   met
+```
+
+**Both halves met.** The Grinder policy went from level with having no weights
+to **rung 17.5**, against the written pilot's 32.8 - the first learned road
+policy in this repo that walks a road. The Rogue margin is thin, 2.9 against
+2.6 over twelve seeds, and should be read as "above the floor" rather than as
+mode specialisation.
+
+The two **pairs** are still 1.0, and that is C5's problem rather than this one:
+the learned packer cannot clear rungs, so a pair is worth what its packer is.
+
+What it presses now, over 320 decisions:
+
+```
+  281  pack     31  fight     3  answer 0     3  answer 1     1  drink 2     1  town chapel
+```
+
+Six verbs, including doors, a fountain and a town gate, where before it pressed
+one verb three hundred and twenty times.
+
+## R6.4 The spread was the wrong number to fixate on
+
+The Grinder policy reaches rung 17.5 with a mean across-action spread of
+**0.008**. Smaller than the flat network's 0.083.
+
+So the magnitude never mattered. What mattered was the **distortion** - whether
+the ordering between two actions reflected the rewards or the median of a
+clipped distribution. A small spread that is correctly ordered is a working
+policy, and this is worth writing down because half a day went into treating
+the spread as the thing to grow.
+
+What the spread column *is* good for is what `qpack`'s comment always said: a
+network with nothing to say scores every move the same. It answers "has this
+learned anything at all", not "how well".

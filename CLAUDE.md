@@ -438,6 +438,14 @@ the whole chain walked, 7/7 stops to rung 26, replayed with zero refusals.
 `GEARMASTER_WATCH=<it> cargo run -p gearmaster-gui` plays it in the window, and
 the file's own header carries that line.
 
+**C7's learning gate was missed and the reason was traps 50, 52 and 53** - the
+road agent could not tell its own verbs apart, and once it could, its network
+was still flat because the loss was clipping the rewards out of the gradient.
+Fixed, a trained pathfinder reaches **rung 17.5** against the written pilot's
+32.8 and against 1.0 for no weights at all. The paragraph below is what was
+true before that and is kept because the diagnosis it names is still half the
+answer.
+
 **C7's learning gate is missed and the reason is trap 50.** Two models, 500
 episodes each, and neither beats its own absence: everything above zero in that
 milestone belongs to the written half. `feature::mv` is the quartermaster's
@@ -771,6 +779,36 @@ are the next milestone** and its shape is in `HANDOFF-two-agents.md` §8.6.
     reward would have cost forty and produced another null. When a trace matches
     a trap in this file, check the trap's own premise before spending a run on
     its fix.
+
+52. **A flat Q network looks exactly like a policy that has decided something.**
+    The road agent pressed one verb 320 times out of 320 for six milestones and
+    was written up as collapsing onto a free action. `--bin qwhy` asked what it
+    thought the actions were worth: `fight -0.496` against `pack -0.499`, three
+    thousandths apart, against rewards spread over four to fifty. It had learned
+    nothing and its arbitrary tie-break was consistent. Before diagnosing a
+    policy, print the values - a behaviour is a hypothesis about a value
+    function and not a measurement of one.
+
+53. **A Huber loss with a knee at one against targets of fifty is reward
+    clipping nobody asked for.** `min(|d|,1)·|d|` has gradient `±1` for any
+    residual over one, so a state worth fifty pulls exactly as hard as one worth
+    one and a half, and the network fits the **median** target - which on the
+    road is about `-0.5`, because most decisions pay a step cost and nothing
+    else. DQN clips rewards to `[-1,1]` precisely because it uses this loss;
+    this repo did not, for three missions. `qroad`'s `REWARD_SCALE` puts the
+    targets where the loss is proportional and took the Grinder pathfinder from
+    rung 1.0 to **17.5**. Any new reward wants its target range printed once
+    against the loss it is being fitted with.
+
+54. **A trainer without a Q-spread column cannot tell "learned nothing" from
+    "learned the wrong thing".** `qpack` has printed one since Q7 with a comment
+    saying exactly that. `qroad` did not, and six milestones of road results
+    were attributed to policy failure. It prints the spread, the loss, the
+    target range and a **per-block** deepest rung now - the old depth was a
+    running maximum, so a block that collapsed read identically to one that did
+    not. And read the spread for what it is: the Grinder policy reaches rung
+    17.5 with a spread of 0.008, *smaller* than the broken one's 0.083, because
+    what was wrong was the ordering and never the magnitude.
 
 One blind spot in `prose.rs` worth knowing before it finds you: a name that
 only ever **opens** a sentence is invisible to `names_something`, because at a

@@ -688,7 +688,26 @@ requires and what it does; for a `Town`, which door; for `ThrowPoints`, which
 exit. Landing it inside a milestone about quests would have meant the quest work
 and the feature work were measured together and neither could be attributed.
 
-### 8.7 What C6 and C7 did not do
+### 8.7 And the reason it was missed was not the one in 8.6 either
+
+R0 gave the road agent action features and the policy still pressed one verb.
+`--bin qwhy` finally asked what it thought they were worth: `fight -0.496`
+against `pack -0.499`. A flat network, three thousandths apart, against rewards
+spread over four to fifty.
+
+The loss was Huber with a knee at one and the targets ran to **+54**, so a state
+worth fifty pulled exactly as hard as one worth one and a half and the network
+fitted the median target. Scaling the reward by 1/25 put the targets where the
+loss is proportional, and the Grinder pathfinder went from **1.0 to 17.5** on
+the cross table, against the written pilot's 32.8.
+
+Both halves of R5's gate are met now. The two *pairs* are still 1.0, because a
+pair is worth what its packer is and the learned packer cannot clear rungs -
+which is C5's, not this.
+
+`analysis/the-two-trades.md` R6 has it, and `CLAUDE.md` traps 52 to 54.
+
+### 8.8 What C6 and C7 did not do
 
 - **C1 through C5 are still open**, and C7 was reached without them by freezing
   the written control rather than a learned packer. That is exactly what §5.3
