@@ -8107,7 +8107,7 @@ fn render_points(
     mx: f32,
     my: f32,
 ) -> Option<Option<usize>> {
-    let pad = 70.0;
+    let pad = EVENT_PAD;
     let w = LOGICAL_W - 2.0 * pad;
     let scene = d.floors[floor].fork;
     let lines: usize =
@@ -8319,6 +8319,38 @@ fn render_receipt(run: &Run, mx: f32, my: f32) -> bool {
     (hot && is_mouse_button_pressed(MouseButton::Left)) || is_key_pressed(KeyCode::Enter)
 }
 
+/// The event screen's frame inset, and the gap between two choice cells.
+///
+/// Named rather than written into `render_event` twice because
+/// `event_choice_cell_w` is the same arithmetic and a test reads it. A cell
+/// width that drifts from the one the renderer uses is a lint measuring
+/// nothing.
+const EVENT_PAD: f32 = 70.0;
+const EVENT_CHOICE_GAP: f32 = 18.0;
+/// Left and right inset inside one choice cell: text starts 14 in and stops 14
+/// short, so a string has `cw - 28` to live in.
+const EVENT_CHOICE_INSET: f32 = 28.0;
+/// One choice cell's height, and where the blurb starts and steps inside it.
+///
+/// Held as constants because the test derives a line budget from them: the
+/// label baseline is `TOP` down, the blurb starts a line under that and steps
+/// `STEP`, so `(H - TOP - STEP) / STEP` lines fit. A literal 4 written into the
+/// test would go stale the day the cell grows.
+const EVENT_CHOICE_H: f32 = 120.0;
+const EVENT_CHOICE_LABEL_TOP: f32 = 28.0;
+const EVENT_CHOICE_STEP: f32 = 16.0;
+
+/// The width one choice cell gets, for an event offering `n` of them.
+///
+/// Split out of `render_event` for the reason `wrap_measured` takes a measure:
+/// geometry computed between `draw_*` calls can only be checked by looking at
+/// it, and this one is checked by a test.
+fn event_choice_cell_w(n: usize) -> f32 {
+    let n = n.max(1);
+    let w = LOGICAL_W - 2.0 * EVENT_PAD;
+    (w - 56.0 - (n - 1) as f32 * EVENT_CHOICE_GAP) / n as f32
+}
+
 fn render_event(
     run: &Run,
     ev: &'static gearmaster_engine::event::LadderEvent,
@@ -8353,13 +8385,14 @@ fn render_event(
     }
 
     let n = ev.choices.len().max(1);
-    let gap = 18.0;
-    let cw = (r.w - 56.0 - (n - 1) as f32 * gap) / n as f32;
+    let gap = EVENT_CHOICE_GAP;
+    let cw = event_choice_cell_w(n);
     let top = r.y + r.h - 150.0;
     let mut chosen = None;
     let mut locked_tip: Option<String> = None;
     for (i, c) in ev.choices.iter().enumerate() {
-        let cell = Rect::new(r.x + 28.0 + i as f32 * (cw + gap), top, cw, 120.0);
+        let cell =
+            Rect::new(r.x + 28.0 + i as f32 * (cw + gap), top, cw, EVENT_CHOICE_H);
         let open = run.choice_open(c);
         let hot = open && cell.contains(Vec2::new(mx, my));
         draw_rectangle(
@@ -8390,7 +8423,7 @@ fn render_event(
         if !open && cell.contains(Vec2::new(mx, my)) {
             locked_tip = Some(c.requires.describe());
         }
-        let mut cy = cell.y + 28.0;
+        let mut cy = cell.y + EVENT_CHOICE_LABEL_TOP;
         ui_text(
             &words::retell(c.label),
             cell.x + 14.0,
@@ -8401,9 +8434,9 @@ fn render_event(
         cy += 22.0;
         // A shut door always says why it is shut.
         let text = if open { c.blurb } else { c.unmet };
-        for l in wrap_px(&words::retell_naming(text), cell.w - 28.0, 13.0) {
+        for l in wrap_px(&words::retell_naming(text), cell.w - EVENT_CHOICE_INSET, 13.0) {
             ui_text(&l, cell.x + 14.0, cy, 13.0, if open { col_ok() } else { col_bad() });
-            cy += 16.0;
+            cy += EVENT_CHOICE_STEP;
         }
         // A door that asked for a number shows the number. There is one of
         // these in the game and it is sealed, so the figure is typed into the
@@ -15578,6 +15611,114 @@ mod tests {
         assert_eq!(lines, vec!["a", "supercalifragilistic", "b"]);
     }
 
+    // ------------------------------------------------- what a cell can hold
+    //
+    // The event screen draws a choice's label and its blurb and nothing else -
+    // `Outcome::describe()` never reaches it - so those two strings are the
+    // whole of what a player has to decide on, and they are drawn into a box
+    // whose size is fixed by the number of choices on the door.
+    //
+    // This cannot assert pixels. `measure_text` needs a graphics context and
+    // panics without one, which is trap 32, and the bundled face's metrics are
+    // not readable from a test. Guessing an advance width would be a lint
+    // measuring its own guess.
+    //
+    // So it asserts a **ratio** instead: characters per pixel of the cell the
+    // string is actually drawn in. The ceiling is the worst one in the shipped
+    // game, which is known to render because it ships. Nothing about the font
+    // is assumed, and the budget can only go down.
+
+    /// Characters per 1000px of cell width, for every label and blurb drawn on
+    /// an event screen. Themed and canonical, because the screen draws
+    /// whichever the theme returns.
+    fn choice_text_density() -> Vec<(f32, f32, String)> {
+        use gearmaster_engine::event::{COUNTY_EVENTS, EVENTS};
+        let mut out = Vec::new();
+        for e in EVENTS.iter().chain(COUNTY_EVENTS.iter()) {
+            let usable = event_choice_cell_w(e.choices.len()) - EVENT_CHOICE_INSET;
+            let lines = ((EVENT_CHOICE_H - EVENT_CHOICE_LABEL_TOP - EVENT_CHOICE_STEP)
+                / EVENT_CHOICE_STEP) as usize;
+            for c in e.choices {
+                // Both columns. `retell` is what the label is drawn through and
+                // `retell_naming` the blurb, and a theme is allowed to make a
+                // string longer than the one it replaces.
+                let label = [c.label.to_string(), words::retell(c.label)];
+                let text = [c.blurb, c.unmet]
+                    .into_iter()
+                    .filter(|t| !t.is_empty())
+                    .flat_map(|t| [t.to_string(), words::retell_naming(t)])
+                    .collect::<Vec<_>>();
+                for l in label {
+                    out.push((
+                        l.chars().count() as f32 / usable * 1000.0,
+                        0.0,
+                        format!("{} / {:?} label, {} chars in {usable:.0}px", e.id, l, l.chars().count()),
+                    ));
+                }
+                for t in text {
+                    out.push((
+                        0.0,
+                        t.chars().count() as f32 / (usable * lines as f32) * 1000.0,
+                        format!(
+                            "{} / {:?}, {} chars in {usable:.0}x{lines}",
+                            e.id,
+                            c.label,
+                            t.chars().count()
+                        ),
+                    ));
+                }
+            }
+        }
+        out
+    }
+
+    /// No label may be denser than the densest one that already ships.
+    ///
+    /// Read off 8b85b29: THE COUNTY SURVEYED's "Tell her what you have been
+    /// doing down there" is 44 characters in a 428px cell. Lower it; never
+    /// raise it. A label is drawn **unwrapped**, so going over does not wrap,
+    /// it runs out of the cell and under the one beside it.
+    #[test]
+    fn no_label_is_wider_than_the_widest_one_that_ships() {
+        const BUDGET: f32 = 102.81;
+        let mut worst = (0.0f32, String::new());
+        for (label, _, what) in choice_text_density() {
+            if label > worst.0 {
+                worst = (label, what);
+            }
+        }
+        assert!(
+            worst.0 <= BUDGET,
+            "a choice label is {:.2} characters per 1000px of cell, budget is {BUDGET:.2}. \
+             A label does not wrap - it runs out of the cell.\n  {}",
+            worst.0,
+            worst.1
+        );
+    }
+
+    /// The same, for the blurb and the shut-door line.
+    ///
+    /// Read off 8b85b29: THE TURNTABLE's "Step onto the turntable" is 140
+    /// characters in a 428 by 4 box. A blurb that overruns wraps past the
+    /// bottom of the cell and draws over whatever is under it.
+    #[test]
+    fn no_blurb_is_longer_than_the_longest_one_that_ships() {
+        const BUDGET: f32 = 81.79;
+        let mut worst = (0.0f32, String::new());
+        for (_, blurb, what) in choice_text_density() {
+            if blurb > worst.0 {
+                worst = (blurb, what);
+            }
+        }
+        assert!(
+            worst.0 <= BUDGET,
+            "a blurb is {:.2} characters per 1000px of box, budget is {BUDGET:.2}. \
+             It wraps out of the bottom of the cell.\n  {}",
+            worst.0,
+            worst.1
+        );
+    }
+
     #[test]
     fn a_label_takes_the_largest_size_that_fits() {
         let sizes = [20.0f32, 16.0, 12.0];
@@ -16008,3 +16149,4 @@ mod tooltip_tests {
         assert!(joined.contains("paid"), "and it should name the paid one");
     }
 }
+

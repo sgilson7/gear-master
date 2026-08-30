@@ -385,6 +385,42 @@ fn a_title_is_a_thing_and_not_a_mood() {
     }
 }
 
+/// A scene is two paragraphs: the situation, then the offer.
+///
+/// A ratchet, in the shape `catalog_shape` uses, and it ships red-hot: 35 of
+/// the 53 scenes are over budget on the day it lands. That is the point. The
+/// prose pass this belongs to is cutting every one of them, and a number that
+/// can only go down is the only way to know a later milestone did not quietly
+/// grow one back.
+///
+/// Why two and not three. The third paragraph is where the shipped register
+/// puts its atmosphere, and a player standing at a door has one question -
+/// what do these buttons do - which the third paragraph never answers and the
+/// blurbs are supposed to. Cutting to two forces the offer into the scene.
+///
+/// One scene is allowed to be three for a reason that is not laziness and is
+/// written down here so nobody removes it: THE SECOND SHADOW's last paragraph
+/// is four words. It is a beat, not a paragraph, and the budget counts
+/// paragraphs.
+#[test]
+fn a_scene_is_two_paragraphs() {
+    // Read off 8b85b29, before the prose pass. Lower it; never raise it.
+    const BUDGET: usize = 35;
+    let over: Vec<&str> = EVENTS
+        .iter()
+        .chain(COUNTY_EVENTS.iter())
+        .filter(|e| e.prose.len() > 2)
+        .map(|e| e.id)
+        .collect();
+    assert!(
+        over.len() <= BUDGET,
+        "{} scenes run to three paragraphs or more, budget is {BUDGET}. A ratchet only \
+         goes down - if you have added one, cut it instead.\n  {}",
+        over.len(),
+        over.join(", ")
+    );
+}
+
 #[test]
 fn a_shut_door_says_why_in_words_somebody_would_use() {
     use gearmaster_engine::event::Requirement;
@@ -430,8 +466,14 @@ fn a_shut_door_says_why_in_words_somebody_would_use() {
 fn read_the_road_aloud() {
     let mut stops: Vec<(usize, String)> = Vec::new();
 
-    for e in EVENTS {
-        let mut out = format!("\n{}  [{}]  {}\n", e.title, e.id, e.where_it_stands());
+    // Both tables. The printer walked `EVENTS` only for its whole life, so
+    // nine of the fifty-three scenes a player reads were never read aloud -
+    // and a county tile is drawn on the same screen by the same code. They
+    // sort to the end, after the road, because a tile stands on no rung.
+    for e in EVENTS.iter().chain(COUNTY_EVENTS.iter()) {
+        let county = e.at == usize::MAX;
+        let where_ = if county { "county tile".to_string() } else { e.where_it_stands() };
+        let mut out = format!("\n{}  [{}]  {}\n", e.title, e.id, where_);
         for p in e.prose {
             out.push_str(&format!("\n    {}\n", wrapped(p)));
         }

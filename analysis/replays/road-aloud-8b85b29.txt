@@ -1,0 +1,1705 @@
+The road, and THE HUNDRED, read aloud at 8b85b29 - before the prose pass.
+
+Not a fixture. Nothing asserts this file; it is the before-state the prose
+pass diffs against at E9, because every lint in prose.rs is a cheap
+mechanical proxy and the one thing none of them can do is tell you whether
+a voice landed evenly across fifty-three scenes.
+
+Regenerate with:
+  cargo test -p gearmaster-engine --test prose -- --ignored --nocapture read
+
+================ THE ROAD, IN ORDER ================
+
+TWO BY TWO  [the-toads-offer]  rung 3
+
+    The Bog Toad has been sitting in this road since before you got up this
+    morning and has clearly used the time.
+
+    It does not want to fight you. It wants the square thing in your bag. It
+    says square, it says two by two, it will not be moved on the shape and
+    it will not say what it is for.
+
+    It counts the gold out onto a flat stone while you decide. It counts out
+    twice what the thing is worth. Then it counts the whole pile again, gets
+    the same number, and seems mildly disappointed by that.
+
+  > TAKE THE DEAL
+      Hand over a 2x2 component. No fight, and twice the bounty on the stone.
+      (shut) Nothing two by two in the bag. It checks. It counts the bag.
+
+  > FIGHT IT ANYWAY
+      It was going to be a fight before it was a negotiation.
+
+
+BACK IN A MINUTE  [back-in-a-minute]  rung 4
+
+    A man on the road hands you something to hold. He says his name is Wint.
+    He hands it over the way you hand a thing to somebody you have known for
+    years, and you have not known him for any years at all.
+
+    He says he is going to get a drink and asks whether you are coming. You
+    are not coming. Wint goes anyway, off the road and up the bank, and does
+    not come back, and after a while it becomes clear that not coming back
+    was always the plan.
+
+    The wrapping is a page torn out of a star chart. Somebody has drawn a
+    ring round a pub two towns up - the one that trades in words rather than
+    money - and written HE IS RIGHT under it, and underlined it once.
+
+  > Keep it
+      Whatever Wint left you, it is yours now. So is the page it came in.
+
+  > Leave it on the milestone
+      Somebody will take it. Somebody pays for the trouble of not having it.
+
+
+SUMP BOTTOM  [town, after rung 7]
+
+    Sump Bottom is nine buildings on stilts and one that gave up. The water
+    is at knee height in the street, and the answer here has been to raise
+    every doorstep by a foot each year rather than deal with the water, so
+    the doors are all at different heights and none of them are at yours.
+
+    There is a chapel, a pub, a works, and a man selling out of a cart. The
+    chapel bell rings at a quarter past instead of on the hour, because the
+    tide moves it, and nobody has the heart to take that up with anyone.
+
+    You have time for one of them before the water comes up.
+
+  > THE CHAPEL
+      The floor is stone and it cuts. A stack of Piety, which banks you a
+    point of devotion before every fight from here on. Five stacks and it
+    turns into something else.
+
+  > THE PUB
+      Nobody here takes money. They take what you are carrying, and what they
+    give back is a rumour: a condition on a door that will not otherwise be
+    there.
+
+  > THE FACTORY
+      One shift, and they pay on the hour. Twice what the last fight paid, and
+    a stack of Tired: three mana of debt at the start of every fight for the
+    rest of the run.
+
+  > THE SHOP
+      Whoever has the cart this week has five things on it that the road does
+    not stock. He does take money, and he does want all of it.
+
+  > THE WAY DOWN
+      Steps, and under them a county. Five moves of it, once from this town,
+    and what you clear down there stays cleared for the rest of the run. Not
+    a door either, and it costs you nothing to look.
+
+
+THE CASINO  [the-casino]  rungs 2 to 9
+
+    The Parlour takes anybody who can walk in, which is how you got in.
+    There is a bowl of complimentary salted rice by the door and a card over
+    it reading ONE (1) HANDFUL - HONOUR SYSTEM - WE ARE WATCHING YOU TAKE
+    IT.
+
+    You are here for Hold-Em, played the way this house plays it: one card
+    in the deck is a live wasp and no player may look at it. You have the
+    gold. You have taken your one handful.
+
+    At the third table along, two players have stopped playing Hold-Em and
+    started on each other. The room has formed a ring around it. Marlow is
+    working through the ring with a book, taking side bets in a very neat
+    hand, and the dealer is standing perfectly still with the wasp held out
+    at arm's length.
+
+  > Step in
+      Both of them at once. Marlow will want your name for the book first.
+
+  > Keep out of it
+      Not your table. Cash out, and take whatever the window gives you.
+
+
+GERALD  [the-long-way]  rungs 2 to 9
+
+    That last one took eleven seconds. You know it took eleven seconds
+    because a man at the roadside was counting out loud, and when you
+    finished he wrote the number in a notebook, said his name was Rowe, and
+    said nothing else about it.
+
+    Rowe's cart is ahead of you on the road, pulled by an animal with a
+    brass plate on its harness. The plate gives the species, which is
+    Draught Tortoise, and the name, which is Gerald, and the top speed,
+    which is given in metres per hour.
+
+    Gerald is hauling four tons of ore to Kettleworks. They set off in the
+    spring. Rowe says they are ahead of schedule, and shows you the notebook
+    again at a different page, as though that settles it.
+
+  > Ask how he does it
+      Rowe will not say on the road. He says catch them up when they get
+    there.
+
+  > Walk with them a while
+      Gerald's pace, from here on. Everything slower, every plate worth
+    double.
+
+
+THREE THINGS IN THE SHRINE  [the-shrine-fork]  rung 10
+
+    The Warded Idol stands in the shrine the way the Warded Idol always
+    stands in the shrine: plated to the eyeballs, wound to the last click,
+    entirely ready for you.
+
+    There is also a hole in the back wall, which was not in the back wall
+    when you came in. Down the hole is a seed line, three floors of it, and
+    on the bottom floor an old analyst called Wenlock prays on stone that
+    cuts his knees. He has been waiting a long while for somebody with
+    shoulders.
+
+    And there is a third thing behind the altar, asleep, with a shell on it
+    like a walnut. Nobody who works here will look straight at it. The idol
+    does not look at it either, and the idol has no eyes.
+
+  > FIGHT THE IDOL
+      The rung as written. It has been ready since before you were born.
+
+  > FOLLOW THE THING YOU SOLD
+      Three floors down, and Wenlock at the bottom with something to hand
+    over.
+      (shut) You never sold it, so it never came this way, so there is no hole in the
+    wall.
+
+  > GO ROUND THE BACK
+      A boss, this early, and it leaves something behind when it stops.
+
+
+THE TELLER  [the-teller]  rung 11
+
+    There is a windowless store here the size of a county and its entire
+    sign says LARGE. The man who owns it is Ollam. He has been carrying a
+    story he is not able to put down, and he will pay to say it to somebody
+    who is still standing afterwards.
+
+    He has tried three people. Ollam describes what happened to all three of
+    them in a level voice and with a great deal of sympathy, and then asks
+    whether you are interested.
+
+    He is not lying and he is not selling. What the story costs to hear is
+    maximum health, for the rest of the run, and he says the figure out loud
+    before you answer, because a man who has done this three times has
+    stopped being delicate about it.
+
+  > Hear it all
+      The whole thing. He takes the best piece off his own back for it.
+
+  > Hear the short version
+      Half of it, and half of what half of it costs, and he pays cash.
+
+  > Plug your ears
+      Ollam takes it well. You keep what a head can hold, which turns out to
+    matter.
+
+
+THE THEODOLITE  [the-theodolite]  rung 12
+
+    Three legs and a brass head, standing in the middle of the road with
+    nobody near it. The head turns when you touch it and keeps turning after
+    you stop.
+
+    Look through it and the road is not what is in the eyepiece. What is in
+    the eyepiece is a field with a stone in it, and a line ruled from the
+    stone to somewhere out of frame, and the line does not move when you
+    move the head.
+
+    A hand-written card is tied to one leg. Ackworth, it says, and then:
+    THREE LINES CROSS SOMEWHERE. THE CROSSING IS NOT MARKED. MARKING IT WAS
+    NEVER THE POINT.
+
+  > Take the card
+      Ackworth's handwriting, and Ackworth's arithmetic on the back.
+
+  > Take the theodolite apart
+      Brass is brass, and you read the card on the way past.
+
+
+THE BIGGER SIGN  [the-bigger-sign]  rung 13
+
+    Ollam's store is behind you and has been for some rungs now. The thing
+    that has been wrong about it the whole way is the sign.
+
+    The sign says LARGE and it is nailed to a hoarding, and the hoarding is
+    not the building. Behind the hoarding, further back and a good deal
+    taller, there is a second sign, and the second sign says EXTRA LARGE.
+
+    Nobody else on this road has looked up. Ollam's story takes the part of
+    you that would have.
+
+  > Follow the sign
+      Off the road, round the hoarding, and in. It stands after the next rung.
+      (shut) You heard Ollam out. Whatever part of you looks up is not looking up.
+
+  > Forget you saw it
+      Some knowledge is for selling, and somebody up the road is buying.
+
+
+THE STOCKMAN  [the-stockman]  rung 14
+
+    A man sitting on a gate counting something that is not there. Ketton, he
+    says, when you ask, and then he goes back to it: he gets to sixteen and
+    starts again, and Ketton has been doing it long enough that the gate has
+    worn where he sits.
+
+    Sixteen, he says, is how many places there are. Not sixteen animals and
+    not sixteen fields. Sixteen places, in a ring, and the ring does not go
+    anywhere - it goes round, and whatever is walking it has been walking it
+    since before you asked.
+
+    He will not say what is walking. He says you would not see it yet and
+    that seeing it is a thing you have to be taught by a sign, and the signs
+    are down there, and he is not going down there again.
+
+  > Count with him
+      Sixteen. Sixteen. It is not a long ring and it is not a fast walk.
+
+  > Ask what he lost
+      Two hundred head, over one winter, and he counts them still.
+
+
+EXTRA LARGE  [town, after rung 14]
+
+    It is one room. It is one room the size of a weather system, all ground
+    floor and no windows, and the far wall is a rumour rather than a thing
+    anybody in here has seen.
+
+    The aisles are numbered and the numbers go past four figures. Aisle 9 is
+    close enough to the door to walk to, which is the only reason anybody
+    knows what is in it.
+
+    In the entryway, between the doors and the trolleys, there is a stone
+    pedestal with a socket in the top of it. The manager is called Mawes,
+    and nobody who works here will discuss the pedestal, Mawes least of all.
+
+  > AISLE 9
+      Orbs, and two things that are not orbs and are shelved with them anyway.
+    It is the only place on any plane that reliably has an Orb of Travel in
+    stock.
+
+  > THE RETURNS DESK
+      They take anything back at what it cost, which nobody else does - or
+    they will put it out on consignment and you will see it again three
+    shops later, worth more.
+
+  > THE SAMPLE COUNTER
+      A free one. It is a common and it is genuinely free and whoever is on
+    the counter would like you to take two.
+
+  > THE MANAGER
+      Mawes will confirm, at length and with documents, that this store is the
+    only one, on any plane, and that the sign behind the sign is not a
+    second store.
+
+  > THE PEDESTAL
+      It stands in the entryway and takes an Orb of Travel. Feed it one and
+    you go where the orb goes and come back here. It is not a door and it
+    does not cost you your one.
+
+  > THE WAY DOWN
+      Steps, and under them a county. Five moves of it, once from this town,
+    and what you clear down there stays cleared for the rest of the run. Not
+    a door either, and it costs you nothing to look.
+
+
+HE IS STILL TALKING  [what-to-do-with-henpeck]  rung 16
+
+    The Hollow King is on the floor of his own counting house with a broken
+    hip and an excellent view of the ceiling, and he is talking.
+
+    He has been talking since he went down. He has names. He has routes. He
+    has the clearance order for the works, filed correctly, in triplicate,
+    because he is exactly the sort of man who would. All three copies are
+    available for the obvious consideration.
+
+    He is having a marvellous time. He has asked you twice now whether you
+    are getting all this.
+
+  > LET HIM TALK
+      He wants a witness and a promise. One more loss before the run ends.
+
+  > FINISH IT
+      The triplicate burns with him. You walk on angry and arrive angrier.
+
+
+THE DISPENSER  [the-dispenser]  rung 17
+
+    A machine at the roadside, humming, plugged into nothing anybody can
+    find. Every light on it works. The whole front is lit up and every row
+    is stocked and there is a bottle wedged sideways between the glass and
+    the coil where somebody's last coin went.
+
+    The one behind the red panel costs ten times what anything else in the
+    machine costs. There is a small brass plate under it and the plate says
+    WORTH IT, which is either a claim or a price.
+
+  > One coin
+      The cheapest row. It has been known to wedge.
+      (shut) The slot wants a coin and you are counting lint.
+
+  > The red one behind the glass
+      Ten times the price and it comes out with ceremony.
+      (shut) The red one is behind the glass and the glass has a price on it.
+
+  > Shake it
+      Free. Two might fall at once. Somebody might hear.
+
+
+THE COMMONS  [the-commons]  rung 18
+
+    Four posts in a line across open ground, and a fifth lying down, and
+    nothing between any of them. It is the beginning of a fence and it has
+    been the beginning of a fence for a long time.
+
+    A woman named Yaxley is putting the fifth one back up on her own, badly.
+    She explains without being asked that this is the fourth time and that
+    the fence was never about keeping anything in.
+
+    "There is a proper one further down," Yaxley says. "It goes all the way
+    round something. Nobody who put it up is still alive and it has not
+    fallen over once."
+
+  > Help her with the post
+      It takes two, which is why it has been down four times.
+
+  > Ask what is inside the proper one
+      Yaxley stops working for the first time since you arrived.
+
+
+KETTLEWORKS  [town, after rung 18]
+
+    You hear Kettleworks a rung before you see it. Two shifts, one working
+    and one asleep, and they change over without either of them stopping:
+    the sleeping shift is walked to the line by the waking shift and shaken
+    awake at the machine.
+
+    There is a board bolted to the gate. It says DAYS SINCE and then a
+    number, and the number is 0, and somebody has chalked a small sad face
+    beside it that has been rained on enough to have gone soft.
+
+    They will take a pair of hands for an hour and pay properly for it. They
+    will also take considerably more than an hour.
+
+  > THE CHAPEL
+      The floor is stone and it cuts. A stack of Piety, which banks you a
+    point of devotion before every fight from here on. Five stacks and it
+    turns into something else.
+
+  > THE PUB
+      Nobody here takes money. They take what you are carrying, and what they
+    give back is a rumour: a condition on a door that will not otherwise be
+    there.
+
+  > THE FACTORY
+      One shift, and they pay on the hour. Twice what the last fight paid, and
+    a stack of Tired: three mana of debt at the start of every fight for the
+    rest of the run.
+
+  > THE SHOP
+      Whoever has the cart this week has five things on it that the road does
+    not stock. He does take money, and he does want all of it.
+
+  > THE WAY DOWN
+      Steps, and under them a county. Five moves of it, once from this town,
+    and what you clear down there stays cleared for the rest of the run. Not
+    a door either, and it costs you nothing to look.
+
+
+THE CROWNWRIGHT  [the-crownwright]  rung 20
+
+    Padgett the crownwright works out of one room over a fish shop and does
+    not turn round when you come in, on the grounds that he can hear how
+    full your head is from where he is sitting.
+
+    "Full," he says. "Good. Most of them come up those stairs empty and want
+    me to put something in it. I make hats. I am not a philanthropist and I
+    am very much not a doctor."
+
+    He will not sell you a hat. He will take a measurement, for the record.
+    The record is a ledger four inches thick that lives under the bench, and
+    Padgett will not let you look in it.
+
+  > Stand still for it
+      It takes a minute and he hums the entire way round.
+
+  > Ask what he made last
+      It is on the shelf behind him at head height. He has been waiting.
+
+
+THE INSPECTION  [the-inspection]  rung 20
+
+    Nance Twiss sets a folding stool down in the road in front of you, sits
+    on it, and asks to see what you are wearing. She gives her name and
+    nothing else about herself, and treats that as the whole of an
+    introduction, which it is.
+
+    She grades things. Rice for the trade board, and ropes before that, and
+    she says the principle does not change between them and that people who
+    think it does are the reason she still has work.
+
+    What she is looking for is whether the things you have built agree with
+    each other. She is entirely uninterested in whether any of them is good.
+
+  > Show her everything
+      Three of your items speaking with one voice. She has a word for that.
+      (shut) She looks along the row twice and writes one word down and it is short.
+
+  > Show her the good half
+      Two that agree. Twiss grades the pair, and a graded thing is worth more.
+      (shut) Nothing you own agrees with anything else you own. She notes it.
+
+  > Decline the inspection
+      She folds the stool and says, packing it, where else people are refusing
+    this month.
+
+
+THE TIMETABLE  [the-timetable]  rung 21
+
+    Hesketh sells timetables off a folding table at the side of the road,
+    for a line that closed before the road was cut, and she sells them at
+    the printed price because she has never seen a reason to change it.
+
+    The times in them are being kept, and Hesketh has checked. Every train
+    on the sheet leaves the yard when the sheet says, and the yard is under
+    your feet, and you have not heard a train because there are no trains,
+    and the times are being kept anyway.
+
+    She will sell you one. She would also, if you had something small she
+    could use, take that instead, because the money is not the point and
+    never has been.
+
+  > Buy a timetable
+      A rung's bounty. The printed price, which she is proud of.
+      (shut) Hesketh does not do credit, and says so kindly.
+
+  > Trade her something small
+      A loose one-by-one. She turns it over twice and puts it in her coat.
+      (shut) You have nothing small enough to be worth her while.
+
+  > Leave the table alone
+      The times will go on being kept without you.
+
+
+AHEAD OF SCHEDULE  [where-it-was-going]  rung 22
+
+    Kettleworks, twelve rungs and some weeks on, and there is Gerald in the
+    yard with the harness off, eating.
+
+    The four tons went in through the doors nine days ago. Rowe has been
+    paid, has bought a hat with some of it, and is wearing the hat. He is
+    extremely pleased that you asked.
+
+    "Ahead of schedule," he says, for the second time in your acquaintance,
+    and this time he has the docket for it, and makes you look at the
+    docket.
+
+  > Ask him again
+      Whatever he did, he did by not stopping. Nothing starts fast.
+      (shut) You never asked Rowe anything on the road, so he has nothing for you at
+    Kettleworks.
+
+  > Let them eat
+      Gerald has earned that yard more than you have earned this road.
+
+
+THE GREEN LEDGER  [the-green-ledger]  rung 23
+
+    Creel has had the same column open for eleven years. He turns the ledger
+    round so you can read the figure at the bottom. It is a large number and
+    it is in green ink, because everything in this ledger is in green ink,
+    including the corrections.
+
+    The figure is roughly what you have put into the ground and pulled back
+    out of it since the Cave Rat. Creel has been keeping count the whole way
+    up, in fives, four strokes and a bar. He will not say who asked him to.
+
+    "Sign it off," he says, "and it closes, and I go home, and my wife has
+    been asking. Or put a line under it and it stays open, and I do not."
+
+  > Close the column
+      He is out of the door before the ink dries. The drawer under it is
+    yours.
+
+  > Add your own line
+      Eleven years is not so long. Creel says so himself, twice.
+
+
+WHAT THE TABLE SAID  [what-the-table-said]  rung 24
+
+    Salter's inn at this crossroads has one long table in it and nobody sits
+    at the middle of it, and nobody has for as long as Salter has held the
+    licence. He will tell you why if you ask, in a tone that says he has
+    stopped finding it interesting.
+
+    Set a thing down at the centre and the table says what the thing is
+    trying to become. Not what it is. What it is *for*, which is a different
+    question and one nothing else in the world has ever asked out loud.
+
+    It has been right every time. It has also, twice, been right about
+    things nobody wanted to be right about.
+
+  > Set a piece on it
+      It speaks the task aloud, in full, and then halves it.
+
+  > Keep your gear to yourself
+      The table says nothing. It says nothing very pointedly.
+
+
+THE CONTRACT  [the-contract]  rung 25
+
+    A man called Braddock sets a document on a milestone and does not hand
+    you a pen, on the grounds that people who need a pen handed to them do
+    not sign. He underwrites. He says the word the way another man would say
+    farriery.
+
+    The clause is one line. Your gear runs cold for three rungs - all of it,
+    every slot, no exceptions and no early exit - and if you are still
+    upright at the end of the third one, they honour their side.
+
+    Their side is four rungs' worth of gold and one loss underwritten: fall
+    inside five rungs of collecting and the house eats that fall. Braddock
+    gives both figures standing here, says you collect at rung 29, and does
+    not offer to write any of it down.
+
+  > Sign it
+      Everything of yours runs cold for three rungs. All of it.
+
+  > Walk past the milestone
+      Braddock does not look up. He was not expecting you to.
+
+
+THE SIGNAL BOX  [the-signal-box]  rungs 22 to 25
+
+    The signal box stands on legs over the cutting and the man in it is
+    called Ambrose and he does not look up, because the 21:14 is due and the
+    21:14 is more important than you are, whatever you are.
+
+    He throws the lever. Below you, in the dark, something heavy moves a
+    foot and stops, and Ambrose writes a time in a book, and the time is
+    21:14, and it is the right time.
+
+    He will set the points for you if you ask. He sets them one way. He has
+    always set them one way, and nobody has ever asked him which, and he
+    would like it noted that you did not ask either.
+
+  > Ask him to throw the points
+      He writes you into the book. The yard is open, and he will not say what
+    is in it.
+
+  > Ask what runs on the 21:14
+      Nothing. He knew that. The bounty again, for a question worth asking.
+
+  > Leave him to it
+      The 21:22 is due. He has already stopped seeing you.
+
+
+THE MANSE  [town, after rung 25]
+
+    The gate had no road behind it and now there is a house behind it, which
+    is the sort of thing that stops being strange about four minutes after
+    you notice it.
+
+    Nobody in the Manse asks who you are. Two of them are eating and one of
+    them is reading and all three of them are doing it in rooms you can hear
+    but not find, because the doors here do not stay where they were put.
+
+    There is a cellar, and the plate on the gate said HOLLIS, and nobody
+    inside will answer to it. Everybody in the house knows where the cellar
+    is and nobody in the house will take you to it.
+
+  > THE CELLAR DOOR
+      Stand at it and listen. Corvin, on the other side, sounds insane, and
+    everything Corvin says turns out to be true, and the door is not locked.
+
+  > THE GALLERY
+      They will take one piece off you at twice what anybody else pays. If it
+    was a good one, somebody will mention where the last one like it was
+    fished up.
+
+  > THE LONG TABLE
+      Eat. A hundred more maximum health for the rest of the run, and the
+    pudding is a universal constant.
+
+  > THE LIBRARY
+      One book, one piece, and the piece carries a curse of misfire for good
+    and is worth twenty-five more for having read it. The book was worth it.
+    Probably.
+
+  > THE WAY DOWN
+      Steps, and under them a county. Five moves of it, once from this town,
+    and what you clear down there stays cleared for the rest of the run. Not
+    a door either, and it costs you nothing to look.
+
+
+THE BIRD PROBLEM  [the-bird-problem]  rung 27
+
+    A courier called Pether hands you a memo. It is four pages, it is CC'd
+    to three governing bodies, and its subject line is THE COMING
+    TERRITORIAL WAR WITH THE BIRDS.
+
+    Page two lists three potential outcomes. Two of them are bad. The third
+    is described as 'bad, but ours', which is the sort of sentence that
+    takes a committee eleven weeks.
+
+    Page four is about armament and recommends racquets. The memo is absurd
+    from end to end and it is also, past the next ridge and getting closer,
+    entirely correct.
+
+  > Arm up
+      Pether has one spare and is glad to be rid of it.
+
+  > Pay the toll
+      One rung's bounty and the flock parts. Nothing follows.
+      (shut) The birds do not take promises and Pether has stopped listening.
+
+  > Ignore the memo
+      It is four pages about birds. The next one arrives with company.
+
+
+THE TURNTABLE  [the-turntable]  rungs 26 to 28
+
+    The turntable is at the bottom of the cutting and it is turning. Nobody
+    is on it. It turns a quarter of the way round, and stops, and a bell
+    rings once in the dark, and it turns back.
+
+    The yard goes off from it in two directions and both of them are unlit,
+    and on the wall of the turntable pit somebody has painted DOWN LINE and
+    UP LINE with an arrow each, and under the arrows, smaller, the words
+    BUFFER STOPS AT THE END OF BOTH.
+
+    Ambrose has thrown the points. You can hear them, thrown, somewhere out
+    past the lamp. Which way he threw them is a thing you find out by
+    walking.
+
+  > Step onto the turntable
+      Four fights on either line, and the line is your choice at the first
+    points. What is at the buffer stop stays there until somebody takes it.
+
+  > Sell the timetable to the man in the pit
+      There is a man in the pit who collects them. The bounty three times, and
+    the yard stays shut.
+
+  > Come back up
+      The turntable turns a quarter of the way round, and stops, and turns
+    back.
+
+
+THE ASTRONOMER  [the-astronomer]  rungs 18 to 29
+
+    His name is Halloway and he has been thrown out of every observatory on
+    this road, and thrown out of all of them for the same sentence, which he
+    will say to you inside ninety seconds whether or not you ask him to.
+
+    The sentence is that eleven stars this year have fallen against their
+    own arcs. Not moved. Fallen - the way a thing falls when something with
+    mass goes past it - and always in the same direction, and the direction
+    is *down*, which is not a direction the sky has.
+
+    His lens is cracked from the middle out. He says that happened on the
+    eighth one, and offers the crack as the proof.
+
+  > Hear him out
+      It takes an hour and he does not stop to breathe. He is right.
+
+  > Buy the lens
+      Three times a rung's bounty. It is cracked and he wants that for it.
+
+  > Turn him in
+      Somebody up the road pays for madmen. The bounty again, and nothing
+    else.
+
+
+THE PAYOUT  [the-payout]  rung 29
+
+    The house keeps its word and keeps it in an office, and the office is a
+    table at the roadside with Braddock behind it and a ledger open at your
+    column.
+
+    He has been reading the column while you walked. He knows to the rung
+    how cold you were and for how long, and he did not have to ask anybody.
+
+  > Collect
+      Four rungs' worth, and a name they will honour once if you fall.
+      (shut) Your column is empty. He turns the ledger round so you can see that.
+
+  > Walk on
+      The table folds up behind you very quickly indeed.
+
+
+MEMBERS AND GUESTS  [the-vip-area]  rung 30
+
+    The rope is velvet. The man with the clipboard behind it is called
+    Merrik, his badge says HOST, and Merrik would very much like to see the
+    chip.
+
+    Down the corridor behind him, past a door stencilled LINE 3 - AUTHORISED
+    ONLY, there is a noise. It is the noise gear-folk make when they have
+    been at something a very long time and nobody has told them when it
+    stops. You were mined out of a cave. You know the noise.
+
+    Merrik says there are five items on a table down there that have never
+    been for sale, and that guests are always welcome, and that he will need
+    your voice down and your hands where he can see them. He says the second
+    half in precisely the tone he said the first.
+
+  > Keep your face still
+      Look at the table. Do not look down the corridor. Merrik checks.
+      (shut) Merrik does not move the rope. Merrik has not moved the rope in eleven
+    years
+
+  > Get them out
+      Two of them are paid to stop exactly this. It costs what that costs.
+      (shut) Merrik does not move the rope. Merrik has not moved the rope in eleven
+    years
+
+  > Walk on
+      Merrik thanks you for coming and means it, and holds the door for you.
+
+
+THE WIZARD'S THIRST  [the-wizards-thirst]  rungs 8 to 31
+
+    Sam the Wise wants vials. He wants cans as well and will take either and
+    he is extremely specific about which shapes and entirely unwilling to
+    say why.
+
+    He has a hoard. He has shown three people the hoard and all three of
+    them describe the same thing, which is a great many empty vessels
+    stacked with real care in a room with the curtains shut.
+
+  > Trade him one
+      Triple what anybody pays, and he throws in a second chance at something.
+      (shut) Nothing the right shape. He looks at your bag until you move it.
+
+  > Refuse him
+      He takes it well, and then something of yours runs cold.
+
+
+THE BUYER  [the-buyer]  rung 32
+
+    The man who buys is called Vell and he works out of a hired room with
+    the door open and one chair set exactly far enough back that you have to
+    walk in to sit on it.
+
+    He does not sell. He buys three things and only those three: a word
+    somebody told you, a title you are, and a hundred of your maximum
+    health. None of them is gear and none of them has a price anywhere else.
+
+    He is entirely honest about it. Vell says what each one is worth, to the
+    gold, and the number is correct every time - and that, rather than the
+    open door or the chair, is what makes the room hard to be in.
+
+  > Sell him a word
+      Six rungs' worth. The door it opened stays shut for good.
+      (shut) You are carrying nothing anybody has told you. He is sorry to hear it.
+
+  > Sell him a title
+      Eight rungs' worth for something you are. He does not ask which.
+      (shut) You are nobody in particular yet, which he says without unkindness.
+
+  > Sell him a hundred of your maximum
+      Ten rungs' worth. It does not come back and he says so twice.
+
+
+HIGH WICK  [town, after rung 32]
+
+    Above the smoke, finally. High Wick is one street on a ridge: a chapel
+    at the top end, a pub at the bottom, a works that closed, and a shop in
+    what used to be the works.
+
+    Everybody here came up from somewhere worse and will tell you which
+    somewhere if you stand still long enough. There is a wall of small brass
+    plates in the pub with names on them, and nobody will explain the wall.
+
+    Nobody asks what you are climbing towards. They have all watched
+    somebody go past on the way to it.
+
+  > THE CHAPEL
+      The floor is stone and it cuts. A stack of Piety, which banks you a
+    point of devotion before every fight from here on. Five stacks and it
+    turns into something else.
+
+  > THE PUB
+      Nobody here takes money. They take what you are carrying, and what they
+    give back is a rumour: a condition on a door that will not otherwise be
+    there.
+
+  > THE FACTORY
+      One shift, and they pay on the hour. Twice what the last fight paid, and
+    a stack of Tired: three mana of debt at the start of every fight for the
+    rest of the run.
+
+  > THE SHOP
+      Whoever has the cart this week has five things on it that the road does
+    not stock. He does take money, and he does want all of it.
+
+  > THE PEDESTAL
+      It stands in the entryway and takes an Orb of Travel. Feed it one and
+    you go where the orb goes and come back here. It is not a door and it
+    does not cost you your one.
+
+  > THE WAY DOWN
+      Steps, and under them a county. Five moves of it, once from this town,
+    and what you clear down there stays cleared for the rest of the run. Not
+    a door either, and it costs you nothing to look.
+
+
+THE EXHIBITION  [the-exhibition]  rungs 19 to 34
+
+    Dorn and Ilder were the two finest players the ring game ever had. They
+    are both retired now and are, between them, about as bored as it is
+    possible for two people to be.
+
+    They want a demonstration bout. Two of them, one of you, in front of
+    whoever is passing, at exhibition stakes - which means nobody is going
+    to be seriously hurt and everybody is going to be seen.
+
+  > Give them a bout
+      Top of the bill, two on one. Losing costs this rung's purse and nothing
+    else.
+      (shut) Ilder looks at what you have built and is far too polite about it.
+
+  > Decline politely
+      Dorn says that is fair. Ilder does not say that is fair.
+
+
+THE LAST TRAIN  [the-last-train]  rung 34
+
+    Ambrose is on the road. He has never been on the road. He has the book
+    under his arm and the lever is not in the box any more, because the box
+    is not there any more, because the last train ran at 02:40 this morning
+    and it took the box with it.
+
+    He wants to know how far down the yard you went, and Ambrose writes the
+    answer in the book without looking at the page, in a hand that has
+    written the same eleven times a day for longer than there has been a
+    road.
+
+    There was one more train on the sheet. There was always one more train
+    on the sheet. Ambrose says the sheet was right about that too.
+
+  > Tell him both lines
+      You walked the yard twice. He closes the book. Three times the bounty,
+    and your next loss inside five rungs does not count.
+      (shut) You walked one line. Ambrose knows, because he threw the points.
+
+  > Tell him one line
+      He writes it down. The bounty again, and a nod.
+      (shut) You did not go down. He knows that too.
+
+  > Tell him you never found it
+      He has heard that before and does not believe it, and writes it down
+    anyway. There is no bounty for this and it costs you nothing.
+
+
+THE SLAGWORKS  [town, after rung 34]
+
+    The glow over the ridge is a foundry, and the foundry has been here
+    longer than the ridge has. Nothing is smelted here. Things are melted
+    down, which is a different job and is done to things that were already
+    finished once.
+
+    Two shifts, no gate, and a yard full of moulds stacked in rows going
+    back further than the light does. Every one of them has been used and
+    every one of them is clean.
+
+    The foreman is called Ossery and he keeps looking at the floor. Not at
+    anything on it.
+
+  > THE CRUCIBLE
+      Throw something in. What comes out is the same slot and about the same
+    worth and is not the same thing, and nobody here will tell you what it
+    will be.
+
+  > THE MOLD LINE
+      Ground, and the things that go under gear. One shelf, laid out once, and
+    there is always a Lightning Rod on it.
+
+  > THE TEMPERING
+      Half a rung's bounty and one piece comes out of the fire worth ten more.
+    Its name may grow a word. That is the point.
+
+  > THE FOREMAN
+      Ossery has been down there. He will say what he heard, or - if you
+    already know - he will pay you not to say it back.
+
+  > THE WAY DOWN
+      Steps, and under them a county. Five moves of it, once from this town,
+    and what you clear down there stays cleared for the rest of the run. Not
+    a door either, and it costs you nothing to look.
+
+
+THE SEALED BID  [the-sealed-bid]  rungs 34 to 36
+
+    The foundry auctions one lot a month and does it the old way. Sarn
+    writes the reserve down before anybody arrives, takes one figure from
+    each bidder, and holds no second round.
+
+    Over the reserve and the lot is yours at the reserve. Under it and the
+    lot is somebody else's, and Sarn reads your figure out anyway, to the
+    room, in the voice he reads the winning one in.
+
+  > Name a figure
+      One number, written once. Sarn reads the reserve out either way.
+      (shut) A bid is a number and you have not got one.
+
+  > Watch
+      Somebody else wins it. Sarn reads the reserve out to the room.
+
+
+THE FORK  [the-fork]  rungs 34 to 37
+
+    The seam forks. One way goes down to a mouth that is boarded from the
+    outside; the other comes back up into a yard where the Slagworks has
+    laid a shelf out for whoever arrives next.
+
+    Both are yours. Ossery says so and shrugs at being asked, because from
+    where he is standing there is no question here at all.
+
+    There is a question. It is which one first, and it is the whole
+    question: a shelf before a fight is different gear, and a shelf after
+    one is different money.
+
+  > The shelf, then the seam
+      Buy first. Whatever you find down there, you find it carrying this.
+
+  > The seam, then the shelf
+      Fight first. Whatever you come back up with, you spend it here.
+
+
+THE COUNTY SURVEYED  [the-county-surveyed]  rungs 13 to 38
+
+    There is a table set up at the side of the road with a map on it and a
+    woman holding the map down against the wind with both elbows. The map is
+    of a place that is not on the road.
+
+    Her name is Tasker and she takes what the burner told you the way
+    somebody takes a parcel they have been waiting on, and then Tasker is
+    quiet for long enough that you think you have said the wrong thing.
+
+    "That is a hundred," she says. "A subdivision, and a count. Somebody
+    counted it. Somebody kept a box."
+
+  > Ask about the box
+      Three locks and three keys. She knows what the third one was for.
+
+  > Ask what she is being paid
+      The map is not hers and the table is not hers.
+
+  > Tell her what you have been doing down there
+      Ditches, milestones, planks. She writes every one of them down.
+      (shut) You have done nothing down there worth writing down
+
+
+THE PICKET LINE  [the-picket-line]  rungs 20 to 39
+
+    The arena workers have downed tools. There are six demands chalked on
+    the board at the gate, they are numbered, and every one of them is about
+    the sand.
+
+    Demand four is about armour. Demand four is about *your* armour, which
+    is an odd thing to find on somebody else's picket, and it is there
+    because Nettle has been raking up after people like you for eleven years
+    and put it on the board herself.
+
+  > Honor the line
+      The next town's shop is shut to you. Demand four is honoured too.
+
+  > Cross it
+      Two rungs' worth in your hand, and your name on the board at the gate.
+
+
+THE CONSTABLE  [the-constable]  rungs 9 to 40
+
+    The constable is called Wragby and he is waiting at the side of the road
+    with his hands behind his back, and he has been waiting a while. He
+    knows your name and he says it the way a man says a name he has written
+    down.
+
+    There is a matter of a county, Wragby says. There is a matter of
+    somebody going about in it and coming back up with nothing to show,
+    which is not against anything, and which is the sort of thing that gets
+    looked into.
+
+    He is going to take you down and he is not asking. What he does not
+    mention, and what is perfectly obvious once the steps start, is that the
+    gaol he is taking you to is nowhere near an edge.
+
+  > Go quietly
+      Five moves, from the middle, and the middle is a long way in.
+
+  > Explain yourself
+      It works. He writes it down and it takes the afternoon.
+
+
+THE LOCKED GATE  [the-locked-gate]  rungs 23 to 41
+
+    A gate, in good repair, hung on two posts, with a lock on it that
+    somebody oils. There is no wall on either side of it and no road behind
+    it, and the grass behind it has not been walked on by anything with
+    feet.
+
+    The word Halloway gave you is not a key. It is a thing to say, and he
+    said it to himself twice before he said it to you, to be sure he had it
+    in the right order.
+
+    There is a brass plate screwed to the middle post. It says HOLLIS and
+    then a number that is longer than a house number needs to be.
+
+  > Use the word
+      It is four syllables and one of them is not a sound. The gate opens.
+
+  > Walk on
+      Keep the word. The gate is patient and the gate knows the road.
+
+
+THE BOLTER RACE  [the-thrumbus-race]  rung 41
+
+    The 45th running, and the paddock is nine deep in people who have an
+    opinion about a bolter. A bolter is the fastest thing that has ever been
+    bred and looks, standing still, like a mistake.
+
+    There is a book taking bets and a rail you can lean on and a steward
+    called Cobb who will let anybody run who signs the form, and the form is
+    one line long and the line is about teeth.
+
+  > Back a runner
+      Three rungs' worth on the nose. The jackpot is a claim on a whole board.
+      (shut) The book has seen your purse and has gone back to the book.
+
+  > Ride
+      No stake. Finish, and take something off the paddock rail.
+
+
+MOLE TOWN  [mole-town]  rung 41
+
+    The highway ends at a town built entirely at ankle height. Not ruined
+    and not small - finished, to plan, at that height, with three storeys of
+    it above ground and every storey under your knee.
+
+    Everybody here is perfectly polite about the size of you. One of them is
+    called Tibb, who is older than the rest, carries a case of tools, and
+    has been looking at what you are carrying since you arrived.
+
+  > The little shop
+      A curated shelf, at a permanent discount, because nobody your size shops
+    here.
+
+  > The mole with the tools
+      Four rungs' worth, and he takes a curse off a piece and keeps it.
+      (shut) Tibb looks at your purse, and then at you, and says nothing at all.
+
+
+THE PASSENGER  [the-passenger]  rungs 40 to 42
+
+    A courier called Larkin is carrying something in both hands on the road
+    and has been carrying it in both hands for a long time, judging by the
+    arms.
+
+    It is a calf. It is a sacred calf and it is the size of a loaf and it
+    has to be at the Last Oxen before the road gets there, and Larkin is not
+    going to make it and knows it.
+
+    It will not travel in a bag. It rides wrapped in sacking, sitting
+    somewhere on you in the open and taking up room you were using - which
+    is exactly the rent, and Larkin says so without being asked. Everybody
+    who sees it will call it a parcel and nobody will be told otherwise.
+
+  > Take it aboard
+      Five rungs of dead cells - put it on a board, because a parcel in the
+    tray is riding for free and pays nothing. Lose one fight and it is lost.
+
+  > Wish him luck
+      Larkin says thank you and means it, which does not help either of you.
+
+
+THE WASTE  [the-waste]  rungs 17 to 43
+
+    Somebody has been looking at your gear. Not at the good parts - at the
+    grid with nothing in it, which he calls waste ground and which he says
+    is a word with a legal meaning.
+
+    The man is called Vessey and improving it is his job. Waste ground that
+    stays waste for long enough stops being anybody's, Vessey says, and then
+    it is his, and then he improves it.
+
+    He would like to improve yours. Or he would like to bet you that you
+    cannot leave it exactly as it is.
+
+  > Let him improve it
+      He fills it with something. You do not choose what.
+
+  > Take the bet
+      Five rungs. Leave it empty and he pays; fill it and you do.
+
+  > Spoken for
+      It is not waste. It is where the third layer goes.
+
+
+THE GLOW OVER THE RIDGE  [the-glow-over-the-ridge]  rungs 31 to 46
+
+    There is a light over the ridge and it does not go out. It is not a
+    fire: a fire moves and this does not, and a fire goes out and this has
+    been on since before anybody on this road was born.
+
+    Whatever is under it has been melting things down for a very long time.
+    The interesting part is what it has been melting: not ore, which comes
+    out of the ground, but *finished things*, which have to be carried in -
+    and the road to it goes only one way.
+
+    A carter called Gull, coming the other way, says it is the Slagworks,
+    says it the way you would say a word you had been told not to, and does
+    not slow down while saying it.
+
+  > Follow it
+      Over the ridge and down. It is further away than it looks and then it is
+    not.
+
+  > Ignore it
+      It is a light. You have a road. The rung pays again for the trouble.
+
+
+THE FOUNDRY REMEMBERS  [the-foundry-remembers]  rungs 45 to 47
+
+    The glow is behind you and a long way behind you, and there is a man at
+    the roadside in Slagworks overalls who has walked further than that to
+    be standing here. His name is Rusk and Ossery sent him.
+
+    He says the foundry keeps a book. Rusk says it the way you say a thing
+    you have been asked to pass on exactly, and then he passes it on
+    exactly.
+
+    Nobody mentioned a book. Nobody mentioned that the crucible was
+    counting, either, and it was.
+
+  > "We kept your best"
+      You used the crucible once, and the foundry has been holding one back.
+      (shut) He checks the page twice. Your column has nothing in it.
+
+  > Say nothing
+      Rusk nods, notes it, and walks back. Prices run ahead of you after that.
+
+
+THROUGH THE CRACKED LENS  [through-the-cracked-lens]  rung 48
+
+    This high up the air stops arguing with light and the lens does what
+    Halloway said it would do, which is the thing he was thrown out of every
+    observatory on this road for describing.
+
+    It does not magnify. It focuses - on a thing rather than at a distance -
+    and what comes into focus is whatever is standing between you and the
+    top, in the gear it is standing in, from here.
+
+  > Look through it
+      Every board ahead of you, from the loadout screen, for the rest of it.
+      (shut) You would need the lens. Halloway offered it to you once, at a price.
+
+  > Keep your eyes on the road
+      There is a strong argument for not knowing. It is not a good one.
+
+
+THE SECOND SHADOW  [the-second-shadow]  rungs 43 to 49
+
+    Your shadow is ahead of you on the road, which happens when the light is
+    behind you, and the light is not behind you.
+
+    It is carrying your build. Not gear like yours - yours, the same pieces
+    in the same corners with the same one crooked, and it is holding a
+    lantern you have never owned and the lantern is what is casting it.
+
+    It has been walking at your pace since the Manse, which is a long way
+    back to have been keeping step without once being in front. It has been
+    waiting for you to be worth meeting.
+
+    It has stopped waiting.
+
+  > Face it
+      Both of them at once. It knows what you are going to do, and does it
+    first.
+
+  > Refuse
+      It follows. It is in no hurry at all and it has the light.
+
+
+THE ROAD PAST FRANCIS  [the-unwound]  rung 50
+
+    Francis is down and the road does not stop. It goes on past him for
+    about forty yards and then it goes down, and the going down is the part
+    the lens showed you.
+
+    Merrik said there was a road under the road and that it would still be
+    here when you got this far, and Merrik was right about it the way he was
+    right about everything, which is to say he said it once and did not
+    explain. Whatever is at the bottom has been unwinding the whole time you
+    were climbing.
+
+    The mainspring in your hand is the wrong shape for any lock on this
+    road. It is the right shape for that.
+
+  > Go down
+      The thing at the bottom is harder than the man you just put down, and it
+    does not stop when you do.
+      (shut) The way down wants a mainspring, and yours went somewhere else.
+
+  > Turn round
+      The road behind you is the whole game and you have just finished it.
+
+
+THE PALE  [the-pale]  county tile
+
+    A fence with no field behind it. It runs from nowhere to nowhere and it
+    is in better repair than anything else in the county, and the gate in it
+    is shut with three separate arrangements none of which is a lock.
+
+    There is a board on the gate and the board has a list on it. Somebody
+    wrote the list to be read from exactly here, one tile out, and it has
+    been read from here a great many times.
+
+  > Hand over an orb and open it
+      It goes into the gatepost. You do not get it back.
+      (shut) The list is not finished, or you have no orb to give
+
+  > Read the list again
+      It says the same thing. It will keep saying it.
+
+
+THE BOUNDARY DITCH  [the-boundary-ditch]  county tile
+
+    A ditch, and beside it the spoil from the ditch, and standing in the
+    spoil a woman called Ordish with a spade she has not put down since
+    before you came over the rise.
+
+    She is not digging a new ditch. She is digging the old one out, which
+    she explains is a different job and a worse one, and which she has been
+    paid for once, forty years ago, by somebody who has since stopped
+    existing.
+
+  > Take the other spade
+      Two hours. She talks the whole time and none of it is small.
+
+  > Ask what she has turned up
+      Forty years of ditch has forty years of things in it.
+
+
+THE FIELD BARN  [the-field-barn]  county tile
+
+    One barn, in the middle of one field, a long way from any house that
+    would want a barn. The door is shut with a stone.
+
+    Inside: hay from a year that was better than this one, a bicycle with no
+    chain, and a shelf at head height with things on it that somebody put
+    there on purpose and did not label.
+
+  > Take something off the shelf
+      It is not stealing if you leave the stone where it was.
+
+  > Sleep in the hay
+      An hour, and the roof holds.
+
+
+THE MILESTONE  [the-milestone]  county tile
+
+    A stone the height of your knee with a number cut into it. The number is
+    not a distance. It is not a year either, and it is not the number of any
+    road that has ever run past here.
+
+    Somebody has been keeping it clear of the grass. The cut edges are
+    sharp, and the stone is older than sharp edges last.
+
+  > Write the number down
+      You will know what it is for or you will not.
+
+  > Clear the grass back yourself
+      Somebody has been doing this. Now somebody has done it.
+
+
+THE GLEANERS  [the-gleaners]  county tile
+
+    Four of them working a field that has already been cut, bent over, going
+    slowly, picking up what the cutting left. They have the right to be here
+    and they will tell you so before you ask.
+
+    The oldest is called Rell and she does not straighten up to talk to you.
+    She says the field is worse every year and the right is the same right,
+    and both of those are somebody's doing.
+
+  > Glean with them
+      Slow, and split five ways at the end of it.
+
+  > Ask who cut the field
+      Rell straightens up for this one.
+
+
+THE POUND  [the-pound]  county tile
+
+    A square of wall with a gate in it, built to hold anything found
+    wandering until whoever lost it pays to have it back. There is nothing
+    in it now except a great deal of nettle.
+
+    The gate is locked and the wall is four feet high. It has been that way,
+    presumably, for as long as anybody has been paying.
+
+  > Pay the fee anyway
+      There is a slot in the gatepost and it is not rusted shut.
+      (shut) You have not got a bounty spare
+
+  > Step over the wall
+      It is four feet high. The nettles are the only guard it has.
+
+
+THE CHARCOAL BURNER  [the-charcoal-burner]  county tile
+
+    Smoke coming out of a heap of earth, and a man asleep beside it who
+    wakes the moment the smoke changes colour and not before. He is called
+    Sowerby and he has been in this county longer than the roads have.
+
+    He knows what is under every field for a mile. He says this the way a
+    man says what the weather is doing, and then he tells you one of them,
+    because you are going up and he is not.
+
+  > Listen
+      It takes as long as it takes. The heap does not wait.
+
+  > Watch the heap while he sleeps
+      He has not slept properly in nine days and it shows.
+
+
+THE DROWNED LANE  [the-drowned-lane]  county tile
+
+    The lane goes into the water and comes out the other side, and the water
+    in between is the lane as well, and has been since the brook was
+    straightened for somebody's convenience.
+
+    There is a plank. The plank is somebody's idea of a bridge and it is
+    nobody's idea of a good one.
+
+  > Take the plank
+      Quickly, and looking at the far end rather than down.
+
+  > Wade, and mend the plank after
+      Wet to the knee, and the next one across will not be.
+
+
+THE PARISH CHEST  [the-parish-chest]  county tile
+
+    An iron-bound box the size of a coffin, standing on a floor that has no
+    building on it any more. Three locks, and the three keys were given to
+    three people so that no one of them could open it alone.
+
+    Two of those people are gone and the third is not from here. The box has
+    been standing open-lidded to the rain for a long time and the locks
+    still work perfectly.
+
+  > Say what the third key was for
+      A surveyor up on the road told you, and did not know they had.
+      (shut) You do not know what the third key was for
+
+  > Look at what the rain left
+      Paper does not last. What is under the paper does.
+
+
+THE CREVICE IN THE ROCK  [dungeon, the-crevice]
+
+    The thing you sold turns up three rungs later in a hamlet that is not on
+    any map you have seen, in the hands of a line foreman who cannot
+    possibly have paid for it.
+
+    The hamlet has a new name now. It was Fenmouth when it was a fishing
+    village, before the company came and the boys were put on trains and the
+    Home for Immature Men was turned into a seed facility. There is one old
+    analyst left on the line, and Wenlock still prays to the old gods, on a
+    floor that cuts his knees, which he says helps him concentrate.
+
+    He has noticed a purple glint down between the shell and the rock that
+    will not move. He has been noticing it for six years and has told
+    nobody, because nobody who works here has the shoulders to widen a crack
+    in a rock, and he has been very patient about waiting for somebody who
+    does.
+
+    The hole in the back wall is a hole in the back wall for about four
+    feet, and then it is a staircase somebody cut, and then it is not a
+    staircase.
+
+    Wenlock is already ahead of you. He has been ahead of you for six years.
+
+  -- The Reciter --
+    The recitation stops mid-verse. Behind the pulpit, the shell has grown
+    out over a crack in the rock the way a lip grows over a bad tooth.
+    Wenlock gets a bar under it. Wenlock is seventy-one.
+
+  -- The Long Haul --
+    The train goes over on the bend. Whatever was in the cars is out in the
+    dark now, and it does not appear to want anything from you at all, and
+    it does not appear to want anything from Wenlock either, who keeps
+    walking and does not look at it once.
+
+  -- The Watchers --
+    The Core is soup and light with a piece of somewhere else sitting in the
+    middle of it. Wenlock looks at it for a while, and stops being an old
+    man, and there is a moment there where he could have kept the lot. He
+    splits it instead, the way he always said he would, and puts your share
+    in your hand on his way past. Somewhere above you, for the first time in
+    a long time, somebody is casting a line.
+
+
+THE THRESHOLD  [dungeon, the-threshold]
+
+    The man behind the cellar door is called Corvin. He has been talking for
+    a long time and he is not talking to you. He is describing a staircase.
+    He is describing it very accurately.
+
+    Behind the door there is a staircase.
+
+    Nobody in the Manse comes down here, and everybody in the Manse knows
+    exactly how many steps there are, and Corvin is the only one who will
+    say the number out loud.
+
+    The door was not locked. Doors like this never are.
+
+    Behind you it is a cellar. Ahead of you it is not, and the difference
+    happened somewhere in the middle without a line.
+
+  -- DOORKEEP --
+    The thing at the top is called DOORKEEP and it stands aside. It was
+    always going to stand aside. What it was doing was making sure you went
+    down rather than in.
+
+  -- THE STAIR THAT LISTENS --
+    The stair has been counting. Not the steps - there are 402 steps and it
+    has known that since before there were steps - it has been counting
+    *you*, and the number it has reached is one.
+
+    The stair goes on down and it does not go on down alone. At the count of
+    two hundred and one there is a landing off it, and a door in the side of
+    the rock, and a light behind the door that does not flicker when the air
+    moves.
+
+    The bottom is what Corvin told you about, and he did not mention this.
+    Down is the bottom, and whatever is pleased to see you is down there
+    waiting. Sideways is the room with the light in it, and whoever keeps
+    that room has been keeping it a long time, for a sense nobody upstairs
+    has yet.
+
+      > Keep going down
+          The bottom is the bottom, and the thing at the bottom is pleased to see
+    you.
+
+      > The landing with the light in it
+          A door in the side of the rock, at the count of two hundred and one, and
+    somebody behind it keeping stock.
+
+  -- THE LAST LANDING --
+    There is light at the bottom and the light is a person, or was, and it
+    is pleased to see you, which is the worst of it. You come back up seeing
+    with the wrong sense, and it does not stop.
+
+  -- THE SHADOW --
+    They were not guarding the door. They were keeping the stock, and they
+    have been keeping it a long time - everything on these shelves is for a
+    sense nobody upstairs has yet, priced by somebody who knew you would
+    come down eventually.
+
+
+THE UNDER-MINE  [dungeon, the-under-mine]
+
+    The mouth of it is boarded from the outside, and the boards are stamped
+    HOLLOW KING. He sealed it, and he sealed it from out here, and those are
+    two separate things to have found out.
+
+    Somebody sealed this in a hurry and somebody else has been keeping the
+    boards in repair for a very long time since, and the two of them were
+    not the same person and did not agree.
+
+    The seam was sealed from the outside. Whatever the boards are for, they
+    are not for keeping people out.
+
+    Ossery said the foundry keeps melting down what keeps climbing out of
+    the melt. He did not say what climbs out of a seam.
+
+  -- THE DIGGERS --
+    The diggers put their tools down when you come round the corner and pick
+    them up again after, which is the only part of it that is frightening.
+    There are fourteen of them, which is the number Ossery gave, and Ossery
+    has never been down here.
+
+  -- WHAT THE SEAM HID --
+    It was sealed for a reason and the reason is looking at you, and behind
+    the reason there is a vein of something the colour of a very old bar of
+    chocolate going down further than the lamp goes.
+
+
+THE UNDERTOW  [dungeon, the-undertow]
+
+    Fenn fished here for sixty years and the water goes down and does not
+    come back up, and both of those things were true the whole time he was
+    doing it.
+
+    There is a boat pulled up on the shingle with PATIENCE painted on the
+    transom, and somebody has left it there, and the paint is not old.
+
+    The water goes down and does not come back up. Neither does the light.
+
+    Sixty years is a long time to fish somewhere nothing swims.
+
+  -- THE CURRENT --
+    The water decides how fast you are allowed to be. It decided that about
+    Fenn too, for sixty years, and there is no arguing with a decision made
+    by a quantity.
+
+  -- THE THING ON THE HOOK --
+    It comes up on the line the way a thing comes up when it has chosen to.
+    Underneath it the water is deeper than the world is, and you understand,
+    all at once, what Fenn was patient about.
+
+
+DEN RIVALS  [dungeon, den-rivals]
+
+    The exhibit was called THE FURY OF A THOUSAND BEARS, it charged four
+    gold, and what it showed you was a diorama.
+
+    The museum never lied. It simply did not say where.
+
+    You counted the eyes. You stopped at forty.
+
+    The exhibit promised the fury of a thousand bears. The museum never
+    lied.
+
+  -- THE DEN MOUTH --
+    That was a hundred of them and the den goes back further than a hundred,
+    and every one of them was in the way rather than in front.
+
+  -- THE THOUSANDTH BEAR --
+    The thousandth is the one the diorama was of. The diorama was to scale.
+    The placard said A THOUSAND BEARS and did not say to what scale.
+
+
+WUMPUS WORLD  [dungeon, wumpus-world]
+
+    There are twenty rooms and one of them has a wumpus in it and the wumpus
+    does not stay in the room it is in. A card nailed up at the mouth of the
+    first says ROOMS 20, HAZARDS SOME, WUMPUS ONE, and somebody has crossed
+    out ONE and written it again.
+
+    You will smell it before you see it. That is the good news and it is
+    also, on reflection, how it finds you.
+
+    Something in the dark already knows your footsteps.
+
+    You smell it. Worse: that is how it finds you.
+
+  -- DARK FLOOR --
+    Whatever lives near a wumpus lives there by being too quick and too many
+    to be worth the trouble. Neither is a defence against somebody with a
+    torch and twenty rooms to get through.
+
+  -- THE WUMPUS --
+    It knew where you were the whole way in. What it did not know is that
+    you had stopped moving quietly a hundred yards back and had been
+    listening to it work that out. The card at the mouth said WUMPUS ONE,
+    and the card was right about the number.
+
+
+THE SWITCHYARD  [dungeon, the-switchyard]
+
+    The yard is nine rooms under the cutting, and the turntable is the
+    first, and from it two lines go off into the dark with points on each of
+    them, and a buffer stop at the end of every road.
+
+    The timetable Hesketh sells lists eleven trains a day out of here, and
+    Ambrose keeps the times. There are no trains. Something has to be moving
+    for a time to be kept, and whatever it is, it is moving to the sheet.
+
+    Four fights down either line. What is at the buffer stop was left there
+    on purpose. Nobody who left it expected to be back for it.
+
+    The turntable takes you a quarter of the way round and stops, and the
+    bell rings once, and when it turns back you are facing the other way,
+    down the yard.
+
+    Somewhere past the lamp the points are already thrown. Ambrose was here
+    first. Ambrose is always here first.
+
+  -- THE SHUNTER --
+    The shunter goes back to the turntable pit when it is done with you and
+    lies down on it, which is what it does between trains, and the turntable
+    turns a quarter of the way round under it and stops. Only the down line
+    leaves this pit. Ambrose pulled the lever for the up line a long time
+    ago and the up line has been a mile of nothing ever since.
+
+  -- THE PLATELAYERS --
+    The platelayers put the rail back where it was. They were only ever
+    going to put it back where it was. Ahead the ballast dips, and the
+    sleepers stop being level.
+
+  -- THE BALLAST --
+    The pit is where the ballast came from, and what came up out of it with
+    the ballast is still down here, and it goes back into the pit when it
+    has finished, and the lamp on the post beyond it is lit.
+
+    Past the ballast pit the Down line splits again, and there is a lamp on
+    a post here that says COAL one way and WATER the other, and the lamp is
+    lit, and there is nobody to have lit it.
+
+    Both roads end. That was painted on the wall at the top. What they end
+    at is the question.
+
+      > The coal road
+          It ends at the coal stage. There is still coal in it.
+
+      > The water road
+          It ends at the tower. The tank is full and nothing has drunk from it.
+
+  -- THE COAL STAGE --
+    The coal stage is a wooden platform with a heap on it and a shovel, and
+    the heap is warm, and under the shovel there is a ledger with a row of
+    times in it, and the last time is this morning's. Whoever was shovelling
+    was here today. What they laid under the boards, they laid for somebody
+    with a chest to put over it.
+
+  -- THE WATER TOWER --
+    The tank is full. It has been full for as long as the yard has been
+    shut, because nothing here has drunk. Under the tower there is a length
+    of rodding laid out straight, oiled, and a note pinned to it in
+    Ambrose's hand that says FOR THE FEET, which is either a joke or the
+    only instruction you are going to get.
+
+  -- THE GANTRY --
+    The gantry carries eleven signal arms and all eleven are lowered, which
+    is clear, and something up there was pulling them one at a time, and now
+    nothing is. Ahead the lamp room door is open and the room is lit.
+
+  -- THE LAMP ROOM --
+    Every lamp in the room is trimmed and filled and burning, and the lamp
+    room keeper is on the floor, and the lamps go on burning, because a lamp
+    does not know. Beyond the room the roads part under the last one.
+
+    The Up line splits under the last lamp, and the two roads run side by
+    side for a while before one bends off to the shed and the other straight
+    on to the roundhouse, and from the points you can see both ends and
+    reach one.
+
+    Ambrose has thrown these too. He throws them every day at 14:05, for a
+    train that is not coming, and today they are thrown for you.
+
+      > The shed road
+          It ends at the goods shed, and the shed is locked from the inside.
+
+      > The roundhouse road
+          It ends at the roundhouse, and something in the roundhouse is in steam.
+
+  -- THE GOODS SHED --
+    The goods shed was locked from the inside because the clerk was inside,
+    and the clerk is a very careful person and has kept the ledger up to the
+    minute, and the ledger is what is worth having: it is enchanted into a
+    hat-shaped plate on the counter, because the clerk had a head and wanted
+    somewhere to keep the accounts.
+
+  -- THE ROUNDHOUSE --
+    It was in steam. It is still in steam. It is on the turntable in the
+    roundhouse and it will be on it tomorrow, and the roundhouse is the end
+    of the yard in every sense there is. On the driver's seat there is a
+    coil of signal wire, wound neat, warm from the boiler, and a ball of
+    glass in the firebox that has not melted and is not going to.
+
