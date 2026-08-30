@@ -83,7 +83,21 @@ mod q {
     /// action, so 320 is generous rather than binding.
     const BUDGET: usize = 320;
 
-    const UPDATES: usize = 8;
+    /// Gradient steps per episode.
+    ///
+    /// **They are nearly free and this was taking eight.** An episode is three
+    /// hundred and twenty road decisions and about half of them call the
+    /// control packer, which is two thousand presses of exhaustive seat search;
+    /// a gradient step on a batch of 128 through a three-layer 96-wide net is
+    /// microseconds. So the wall clock is the environment and the learning was
+    /// rationed against a cost it does not have.
+    ///
+    /// Measured: 300 episodes at eight updates left the network with a Q spread
+    /// of 0.163 against rewards spread over four to fifty - climbing, and
+    /// nowhere near able to order two actions. `QROAD_UPDATES` moves it.
+    fn updates() -> usize {
+        std::env::var("QROAD_UPDATES").ok().and_then(|v| v.parse().ok()).unwrap_or(64)
+    }
 
     /// What a road decision that changed nothing costs.
     ///
@@ -92,6 +106,28 @@ mod q {
     /// progress, and not so much that exploring is punished into never
     /// happening.
     const NOTHING_HAPPENED: f32 = 0.35;
+
+    /// What the whole per-step reward is multiplied by before it is learned.
+    ///
+    /// **The loss is Huber with a knee at one.** `min(|d|,1)·|d|` is quadratic
+    /// for residuals under one and linear above, so above one the gradient is
+    /// `±1` whatever the residual is - and the targets here run to **+54**
+    /// (measured, `target y: min -1.462 mean 0.140 max 54.100`). A state worth
+    /// fifty therefore pulls on the weights exactly as hard as one worth one
+    /// and a half, and the network settles on the **median** target, which is
+    /// about `-0.5` because most decisions pay a step cost and nothing else.
+    ///
+    /// That is what three milestones read as a policy collapsing onto a free
+    /// action. It was a network with a Q spread of 0.003 between its best and
+    /// worst action, fitting the middle of a distribution whose tails had been
+    /// clipped out of the gradient.
+    ///
+    /// Scaling the reward is the standard answer and it is why DQN clips
+    /// rewards to `[-1,1]` when it uses this loss. Every term moves together,
+    /// so nothing about the ordering changes - `GOAL` still dominates a rung,
+    /// a rung still dominates a wasted press - and the targets land where the
+    /// loss is proportional.
+    const REWARD_SCALE: f32 = 1.0 / 25.0;
 
     /// What finishing a chain pays.
     ///
@@ -278,13 +314,49 @@ mod q {
         let mut frozen = net.frozen();
         let mut buffer: Vec<Trans> = Vec::with_capacity(60_000);
         let batch = 128usize;
-        let lr = 0.0015;
+        // **The road net was learning at a thirty-third of the packer's rate.**
+        //
+        // `qpack` runs at 0.05 and this ran at 0.0015, with eight updates an
+        // episode against twelve and three hundred episodes against thousands -
+        // something like a hundred-fold less learning in total. The result was
+        // not a policy that had learned the wrong thing. It was a network with
+        // nothing to say: Q(fight) -0.496 against Q(pack) -0.499, a spread of
+        // three thousandths, against rewards spread over four to fifty.
+        //
+        // Three milestones read that as an agent collapsing onto a free action.
+        // It was an untrained net whose arbitrary tie-break happened to be
+        // consistent, and the column that would have said so is below.
+        let lr: f32 =
+            std::env::var("QROAD_LR").ok().and_then(|v| v.parse().ok()).unwrap_or(0.05);
+        let updates = updates();
+        println!("  learning: lr {lr}   updates an episode {updates}");
         let t0 = Instant::now();
         let mut best_seen = 3usize;
         let (mut reached, mut tried) = (0usize, 0usize);
         // How far along the chain the best episode of this block got, and how
         // many finished it. The two numbers the training is actually about.
         let (mut deepest_stop, mut finished) = (0usize, 0usize);
+        // **How far apart the best and worst action look, per decision.**
+        //
+        // The packer has had this column since Q7 and the road trainer never
+        // did, which is why three milestones of road results were read as
+        // policy failures. A network with nothing to say scores every move the
+        // same, and that is a different failure from one that has learned the
+        // wrong thing - and only this number tells them apart.
+        let (mut spread, mut spreads) = (0.0f64, 0usize);
+        // **What the network is being asked to fit.** If these are small the
+        // rewards are not reaching the target and the fault is in the data; if
+        // they are large and the output is not, the fault is in the fitting.
+        // Two different problems, and nothing here could tell them apart.
+        let (mut ylo, mut yhi, mut ysum, mut yn) = (f32::MAX, f32::MIN, 0.0f64, 0usize);
+        // **The loss itself**, which nothing here reported. A loss that is
+        // falling is a network learning slowly; a loss that is flat is a
+        // network not learning at all, and the two want different fixes.
+        let (mut lsum, mut ln) = (0.0f64, 0usize);
+        // Per block rather than cumulative. `best_seen` is a running maximum
+        // over the whole run, so it cannot go down and a block that collapsed
+        // reads exactly like one that did not.
+        let mut block_deepest = 1usize;
 
         for ep in 0..episodes {
             let eps = (1.0 - ep as f32 / (episodes as f32 * 0.7)).clamp(0.05, 1.0);
@@ -324,14 +396,17 @@ mod q {
                     .iter()
                     .map(|s| pathfinder::pair(&r, &pathfinder::describe(&v, s)))
                     .collect();
+                let qs: Vec<f32> = pairs.iter().map(|p| frozen.q_pair(p)).collect();
+                let hi = qs.iter().cloned().fold(f32::MIN, f32::max);
+                let lo = qs.iter().cloned().fold(f32::MAX, f32::min);
+                spread += (hi - lo) as f64;
+                spreads += 1;
                 let at = if (rng.next_u64() % 1000) as f32 / 1000.0 < eps {
                     (rng.next_u64() % ms.len() as u64) as usize
                 } else {
-                    pairs
-                        .iter()
-                        .map(|p| frozen.q_pair(p))
+                    qs.iter()
                         .enumerate()
-                        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+                        .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
                         .map(|(i, _)| i)
                         .unwrap()
                 };
@@ -430,6 +505,9 @@ mod q {
                         .map(|s| wide(&pathfinder::pair(&r2, &pathfinder::describe(&v2, s))))
                         .collect()
                 };
+                // Scaled once, at the end, so every term of the road's reward
+                // and every tier of a chain's moves together. See REWARD_SCALE.
+                let rw = rw * REWARD_SCALE;
                 trail.push((chosen, next, rw));
                 if wiped {
                     break;
@@ -445,6 +523,7 @@ mod q {
             }
 
             best_seen = best_seen.max(best_rung);
+            block_deepest = block_deepest.max(best_rung);
             if goal.is_some() {
                 tried += 1;
                 if w.reached {
@@ -458,7 +537,7 @@ mod q {
                 buffer.drain(0..15_000);
             }
 
-            for _ in 0..UPDATES {
+            for _ in 0..updates {
                 if buffer.len() >= batch {
                     let mut xs = Vec::with_capacity(batch * PAIR);
                     let mut ys = Vec::with_capacity(batch);
@@ -470,13 +549,20 @@ mod q {
                         } else {
                             s.next.iter().map(|p| frozen.q(p)).fold(f32::MIN, f32::max)
                         };
-                        ys.push(s.r + GAMMA * boot);
+                        let y = s.r + GAMMA * boot;
+                        ylo = ylo.min(y);
+                        yhi = yhi.max(y);
+                        ysum += y as f64;
+                        yn += 1;
+                        ys.push(y);
                     }
                     let x = Tensor::<B, 2>::from_data(TensorData::new(xs, [batch, WIDE]), &dev);
                     let y = Tensor::<B, 2>::from_data(TensorData::new(ys, [batch, 1]), &dev);
                     let out = net.forward(x);
                     let d = out.sub(y);
                     let loss = d.clone().abs().clamp(0.0, 1.0).mul(d.abs()).mean();
+                    lsum += loss.clone().into_scalar() as f64;
+                    ln += 1;
                     let grads = loss.backward();
                     let step = |p: &mut Tensor<B, 2>| {
                         if let Some(gr) = p.grad(&grads) {
@@ -499,26 +585,53 @@ mod q {
             if ep % 100 == 0 || ep + 1 == episodes {
                 match &quest {
                     Some(q) => println!(
-                        "  episode {:>5}   eps {:.2}   buffer {:>6}   deepest rung {:>3}   \
-                         stops {:>2}/{:<2}   finished {:>3}",
+                        "  episode {:>5}   eps {:.2}   buffer {:>6}   deepest {:>3} \
+                         (ever {:>3})   stops {:>2}/{:<2}   finished {:>3}  spread {:>6.3}",
                         ep,
                         eps,
                         buffer.len(),
+                        block_deepest,
                         best_seen,
                         deepest_stop,
                         q.stops.len(),
-                        finished
+                        finished,
+                        spread / spreads.max(1) as f64
                     ),
                     None => println!(
-                        "  episode {:>5}   eps {:.2}   buffer {:>6}   deepest {:>3}   \
-                         goals reached {:>3}/{:<4}",
-                        ep, eps, buffer.len(), best_seen, reached, tried
+                        "  episode {:>5}   eps {:.2}   buffer {:>6}   deepest {:>3} \
+                         (ever {:>3})   goals {:>3}/{:<4}  spread {:>6.3}",
+                        ep,
+                        eps,
+                        buffer.len(),
+                        block_deepest,
+                        best_seen,
+                        reached,
+                        tried,
+                        spread / spreads.max(1) as f64
                     ),
                 }
+                println!(
+                    "                 target y: min {:>7.3}  mean {:>7.3}  max {:>7.3}   \
+                     loss {:>8.5}   over {} batched",
+                    ylo,
+                    ysum / yn.max(1) as f64,
+                    yhi,
+                    lsum / ln.max(1) as f64,
+                    yn
+                );
                 reached = 0;
                 tried = 0;
                 deepest_stop = 0;
                 finished = 0;
+                spread = 0.0;
+                spreads = 0;
+                block_deepest = 1;
+                ylo = f32::MAX;
+                yhi = f32::MIN;
+                ysum = 0.0;
+                yn = 0;
+                lsum = 0.0;
+                ln = 0;
             }
         }
 
