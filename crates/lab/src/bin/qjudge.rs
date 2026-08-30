@@ -54,6 +54,34 @@ fn main() {
         }
     }
 
+    // **How much each judge distinguishes one board from another.**
+    //
+    // The owner's reading of why the Grinder packer values every state alike:
+    // in Grinder a run retries for ever, so no board is really different from
+    // another. The packer's reward never sees a retry - it is a fight - but the
+    // same thing shows up one level down, in the judges themselves. Grinder
+    // takes the mean of the window and a board that wins its whole window
+    // scores about 1.7, which is most of them. Rogue subtracts the worst rung,
+    // so the same set splits in two.
+    //
+    // If that is right the Grinder column has little spread and the Rogue
+    // column has a lot, and there is nothing for a network to learn from the
+    // first.
+    let sd = |f: &dyn Fn(&(String, f32, f32)) -> f32| {
+        let n = all.len().max(1) as f32;
+        let mean = all.iter().map(f).sum::<f32>() / n;
+        (all.iter().map(|x| (f(x) - mean) * (f(x) - mean)).sum::<f32>() / n).sqrt()
+    };
+    let gsd = sd(&|x| x.1);
+    let rsd = sd(&|x| x.2);
+    println!("\nHow much each judge tells one board from another, over {} boards:", all.len());
+    println!("  grinder   sd {gsd:.3}");
+    println!("  rogue     sd {rsd:.3}");
+    println!(
+        "  the rogue judge spreads the same boards {:.1} times as widely",
+        if gsd > 0.0 { rsd / gsd } else { 0.0 }
+    );
+
     // Where the two disagree, which is the whole question.
     let mut inversions = 0;
     let mut shown = 0;
