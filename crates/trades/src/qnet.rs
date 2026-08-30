@@ -36,6 +36,27 @@ fn row(text: &str, name: &str) -> Vec<f32> {
 }
 
 impl QNet {
+    /// The layers, for a harness that wants to look at them.
+    ///
+    /// Read-only, by reference, and with each layer's fan-in beside it so a
+    /// caller can compare what a weight is now against what it was drawn as -
+    /// `init` uses `sqrt(2/fan_in)`, and a bias is drawn as exactly zero.
+    ///
+    /// Nothing an agent does reads these; it calls `q`. This exists because
+    /// "has this network learned anything" is a question about the numbers
+    /// rather than about the behaviour, and six milestones of this mission
+    /// were spent reading a behaviour and guessing.
+    pub fn layers(&self) -> Vec<(&'static str, &[f32], usize)> {
+        vec![
+            ("w1", &self.w1, PAIR),
+            ("b1", &self.b1, 0),
+            ("w2", &self.w2, self.hidden),
+            ("b2", &self.b2, 0),
+            ("w3", &self.w3, self.hidden),
+            ("b3", std::slice::from_ref(&self.b3), 0),
+        ]
+    }
+
     pub fn parse(text: &str) -> Option<QNet> {
         let (w1, b1, w2, b2, w3, b3) = (
             row(text, "w1"),
