@@ -11879,7 +11879,138 @@ fn render_panel(
 
 // ================================================================= main
 
+mod curve;
 mod watch;
+
+/// Draw a trainer's log: the mean per block, and the maximum beside it.
+///
+/// **Two series and one reference line**, and the reason is the whole of
+/// `analysis/the-collapse.md`. What a trainer printed for its whole life was
+/// the deepest single run in each block, and depth in this game is heavy-tailed
+/// enough that the maximum wanders between three and thirteen while the policy
+/// under it never moves. Drawn together, the flat line and the wandering one
+/// say that at a glance; drawn alone, the wandering one reads as a policy
+/// learning and then forgetting, which is what it was read as.
+///
+/// The control's own mean, measured by the trainer in the same harness before
+/// a gradient is taken, is the line to beat.
+fn draw_curve(c: &curve::Curve) {
+    let (pad, top) = (70.0, 130.0);
+    let (px, py) = (pad, top);
+    let (pw, ph) = (LOGICAL_W - pad * 2.0, LOGICAL_H - top - 150.0);
+
+    ui_text(&c.name(), pad, 52.0, 30.0, col_gold());
+    ui_text(&c.settings, pad, 86.0, 19.0, col_dim());
+
+    draw_rectangle(px, py, pw, ph, col_panel());
+    draw_rectangle_lines(px, py, pw, ph, 2.0, Color::from_rgba(80, 80, 105, 255));
+
+    let Some(b) = curve::bounds(&c.blocks, c.control_mean) else {
+        centered_text(
+            "waiting for the first block",
+            px + pw / 2.0,
+            py + ph / 2.0,
+            24.0,
+            col_dim(),
+        );
+        return;
+    };
+
+    // Rungs up the left, every two, because `bounds` rounds the top to an even
+    // one and a gridline nobody can name is decoration.
+    let mut rung = 0.0;
+    while rung <= b.top {
+        let (_, y) = curve::at(&b, b.first, rung, px, py, pw, ph);
+        draw_line(px, y, px + pw, y, 1.0, Color::from_rgba(60, 60, 78, 255));
+        ui_text(&format!("{rung:.0}"), px - 30.0, y + 6.0, 17.0, col_dim());
+        rung += 2.0;
+    }
+
+    // The control, dashed, because it is a measurement and not a series.
+    if let Some(m) = c.control_mean {
+        let (_, y) = curve::at(&b, b.first, m, px, py, pw, ph);
+        let mut x = px;
+        while x < px + pw {
+            draw_line(x, y, (x + 14.0).min(px + pw), y, 2.0, col_ok());
+            x += 26.0;
+        }
+        ui_text(
+            &format!("the written control, mean {m:.1}"),
+            px + 10.0,
+            y - 10.0,
+            18.0,
+            col_ok(),
+        );
+    }
+
+    let line = |series: &dyn Fn(&curve::Block) -> Option<f32>, colour: Color, thick: f32| {
+        let mut last: Option<(f32, f32)> = None;
+        for blk in &c.blocks {
+            let Some(v) = series(blk) else {
+                last = None;
+                continue;
+            };
+            let p = curve::at(&b, blk.episode, v, px, py, pw, ph);
+            if let Some(q) = last {
+                draw_line(q.0, q.1, p.0, p.1, thick, colour);
+            }
+            last = Some(p);
+        }
+    };
+
+    // The maximum first and dim, so the mean is drawn over it.
+    line(&|blk: &curve::Block| Some(blk.deepest as f32), col_dim(), 1.5);
+    line(&|blk: &curve::Block| blk.mean, col_gold(), 3.0);
+
+    // A key for a series that is not on the panel is worse than no key: it is
+    // the gold line the eye goes looking for and cannot find.
+    let mut key = py + ph + 30.0;
+    if c.has_mean() {
+        ui_text("mean rung in the block - what the policy does", pad, key, 20.0, col_gold());
+        key += line_h(20.0);
+        ui_text(
+            "deepest single run in the block - a maximum, and mostly the seed",
+            pad,
+            key,
+            20.0,
+            col_dim(),
+        );
+    } else {
+        ui_text(
+            "deepest single run in the block - a maximum, and all this log has",
+            pad,
+            key,
+            20.0,
+            col_dim(),
+        );
+        key += line_h(20.0);
+        ui_text(
+            "no mean was written down, so what the policy did is not in this file",
+            pad,
+            key,
+            20.0,
+            col_bad(),
+        );
+    }
+    key += line_h(20.0) + 6.0;
+
+    if let Some(l) = c.last() {
+        ui_text(
+            &format!(
+                "episode {}   eps {:.2}   buffer {}   deepest ever {}   spread {:.3}",
+                l.episode, l.eps, l.buffer, l.ever, l.spread
+            ),
+            pad,
+            key,
+            20.0,
+            Color::from_rgba(200, 204, 226, 255),
+        );
+        key += line_h(20.0);
+    }
+    if let Some(f) = &c.finished {
+        ui_text(f, pad, key, 19.0, col_ok());
+    }
+}
 
 #[macroquad::main(window_conf)]
 async fn main() {
@@ -11957,12 +12088,19 @@ async fn main() {
     // Where the game opens: the intro pages, then the mode picker, then play.
     // Any debug hook skips straight to the board.
     // `GEARMASTER_WATCH=<proof>` plays a recorded run into the window.
+    let mut curve = std::env::var("GEARMASTER_CURVE")
+        .ok()
+        .and_then(|p| curve::Curve::open(&p).or_else(|| {
+            eprintln!("GEARMASTER_CURVE={p}: no such file");
+            None
+        }));
     let watched = std::env::var("GEARMASTER_WATCH").ok();
     let mut watcher = watched.as_deref().and_then(watch::Watcher::load).map(|(w, h)| {
         run = Run::start(h.seed, h.mode, h.difficulty);
         (w, h)
     });
     let skip_intro = watcher.is_some()
+        || curve.is_some()
         || std::env::var("GEARMASTER_PACK").is_ok()
         || std::env::var("GEARMASTER_PRESET").is_ok()
         || std::env::var("GEARMASTER_FIGHT").is_ok()
@@ -12336,6 +12474,34 @@ async fn main() {
         clear_background(col_bg());
 
         let (mx, my) = viewport.mouse();
+
+        // ---- the curve ---------------------------------------------------
+        //
+        // `GEARMASTER_CURVE=<log>` draws a trainer's log instead of the game,
+        // re-reading it while it grows so a run in progress can be watched.
+        // Taken before anything that touches `run`, because a curve is a file
+        // and has nothing to do with the game standing behind it.
+        if let Some(c) = curve.as_mut() {
+            c.follow(get_time());
+            draw_curve(c);
+            // The same capture every other screen has. Without it this one
+            // could only be checked by looking at it on somebody's desk, which
+            // is the thing `GEARMASTER_SHOT` exists to avoid.
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                frame += 1;
+                if let Some(path) = &shot_path {
+                    if frame >= shot_after {
+                        get_screen_data().export_png(path);
+                        println!("screenshot: {}", path);
+                        return;
+                    }
+                }
+            }
+            next_frame().await;
+            continue;
+        }
+
         // Everything drawn this frame speaks the run's theme.
         words::set(run.theme);
         let reports = run.reports();
