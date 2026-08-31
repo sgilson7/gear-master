@@ -67,6 +67,15 @@ mod q {
     /// The seed the trainer's own draws come from.
     const ROW_SEED: u64 = 0x0D0E_5EED;
 
+    /// Episodes to a block: the unit this trainer reports and chooses on.
+    ///
+    /// It has to be large enough that a block's **mean** is quieter than a
+    /// change worth noticing. Measured over a policy held completely still
+    /// (`--bin qhand`, `QHAND_BLOCKS`): a hundred runs have a block mean that
+    /// moves by 0.2 of a rung between blocks and a block *maximum* that moves
+    /// by ten.
+    const BLOCK: usize = 100;
+
     /// How many of the next state's candidates the bootstrap looks at.
     ///
     /// `max_a Q(s',a)` over every candidate is correct and it is unaffordable
@@ -121,6 +130,14 @@ mod q {
             h.matmul(self.w3.clone()).add(self.b3.clone().repeat_dim(0, rows))
         }
         fn text(&self) -> String {
+            // **What the pair meant**, written down beside the weights.
+            //
+            // A width is not a version: the feature vector this repo trains
+            // against has widened twice, and a checkpoint saved before a
+            // widening reads its columns in the wrong places afterwards while
+            // still being a perfectly well-formed file. The stamp is what lets
+            // `QNet::load_at` refuse it in a sentence.
+            let mut out = format!("pair {}\n", PAIR);
             let rows: [(&str, &Tensor<B, 2>); 6] = [
                 ("w1", &self.w1),
                 ("b1", &self.b1),
@@ -129,7 +146,6 @@ mod q {
                 ("w3", &self.w3),
                 ("b3", &self.b3),
             ];
-            let mut out = String::new();
             for (n, t) in rows {
                 out.push_str(n);
                 for x in t.clone().inner().to_data().convert::<f32>().into_vec::<f32>().unwrap() {
@@ -182,6 +198,9 @@ mod q {
         for _ in 0..CONTROLS {
             let mut pack = |c: &mut Console| {
                 gearmaster_lab::packers::control(c, PACK_BUDGET);
+                // The control does not report its presses; this loop wants the
+                // rung it reached and nothing else.
+                Vec::new()
             };
             let (_, out) = row::run(r.next_u64(), mode, Difficulty::Medium, &mut pack);
             sum += out.deepest;
@@ -201,17 +220,31 @@ mod q {
         let batch = 128usize;
         let t0 = Instant::now();
         let (mut deepest_block, mut deepest_ever, mut ran) = (0usize, 0usize, 0usize);
-        // **The best weights, not the last.**
+        let mut depth_sum = 0usize;
+        // **The best weights, not the last - and best means the deepest mean.**
         //
-        // This wrote only at the end, and the end is not where the policy was
-        // best: run r12 reached rung 11 at episode 2,600 with epsilon already at
-        // 0.07 and then degraded over thirteen hundred episodes at the floor to
-        // rung 2, which is what got saved. Two hours of training and the good
-        // net was thrown away on the way past.
+        // This wrote only at the end, and the end is not where the policy is
+        // necessarily best, so a block is kept as it goes.
         //
-        // Kept on the block's own depth rather than on a separate evaluation,
-        // because a block is fifty runs and an evaluation would be more.
-        let mut best_text: Option<(usize, String)> = None;
+        // What a block is judged on is the thing that took a mission to learn.
+        // It was the block's **maximum**, and a maximum over a hundred episodes
+        // is nearly all seed: depth in this game is heavy-tailed, so a policy
+        // that cannot reach rung four prints a 13 whenever one seed in eight
+        // hundred carries it there. Run r12 was written up as climbing to rung
+        // 11 and forgetting; `--bin qhand` prints the same column out of a
+        // *file*, which cannot learn or forget, and the mean beneath it never
+        // moves. The file that milestone saved as "the best block, rung 11"
+        // plays at rung 2.
+        //
+        // So the mean, which over the same blocks moves by two tenths of a rung
+        // rather than by ten, and which separates the written control from a
+        // rung-two net where the maximum does not.
+        //
+        // Not a greedy evaluation, and that was measured rather than assumed:
+        // on identical seeds the exploration floor is worth **+0.07 of a rung**
+        // against playing greedily, which is smaller than the block mean's own
+        // noise and not worth the runs it would cost.
+        let mut best_text: Option<(f32, String)> = None;
         let (mut spread, mut spreads) = (0.0f64, 0usize);
 
         for ep in 0..episodes {
@@ -266,12 +299,18 @@ mod q {
                     trail.push((pairs[at], best));
                     at
                 });
+                // The keys, for the run's tape, before `done` is consumed by
+                // the reward. A tape without the packing replays into an empty
+                // board, so this is the half that makes an episode watchable.
+                let keys = row::keys(&done);
                 presses.extend(done);
+                keys
             };
 
             let (_c, out) = row::run(seed, mode, Difficulty::Medium, &mut pack);
             deepest_block = deepest_block.max(out.deepest);
             deepest_ever = deepest_ever.max(out.deepest);
+            depth_sum += out.deepest;
             ran += 1;
 
             // **What the run was worth, credited to every decision in it.**
@@ -360,27 +399,33 @@ mod q {
             if ep % 50 == 49 {
                 frozen = net.frozen();
             }
-            if ep % 100 == 0 || ep + 1 == episodes {
-                if best_text.as_ref().is_none_or(|(d, _)| deepest_block > *d) {
-                    best_text = Some((deepest_block, net.text()));
+            if ep % BLOCK == 0 || ep + 1 == episodes {
+                let mean = depth_sum as f32 / ran.max(1) as f32;
+                // A short block is not a measurement of a policy. The first
+                // block here is one episode and the last is whatever is left,
+                // and a single lucky run would otherwise pin the best weights
+                // to the network's initialisation for the whole run.
+                if ran >= BLOCK && best_text.as_ref().is_none_or(|(m, _)| mean > *m) {
+                    best_text = Some((mean, net.text()));
                 }
                 println!(
-                    "  episode {:>5}   eps {:.2}   buffer {:>6}   deepest rung {:>3} \
-                     (ever {:>3})   spread {:>6.3}",
+                    "  episode {:>5}   eps {:.2}   buffer {:>6}   mean rung {:>5.2}   \
+                     deepest {:>3} (ever {:>3})   spread {:>6.3}",
                     ep,
                     eps,
                     buffer.len(),
+                    mean,
                     deepest_block,
                     deepest_ever,
                     spread / spreads.max(1) as f64
                 );
                 deepest_block = 0;
+                depth_sum = 0;
                 ran = 0;
                 spread = 0.0;
                 spreads = 0;
             }
         }
-        let _ = ran;
         println!("trained in {:.1}s", t0.elapsed().as_secs_f64());
         std::fs::create_dir_all("runs").ok();
         // The last weights, and the best ones. A collapse at the exploration
@@ -388,10 +433,10 @@ mod q {
         // which is which rather than quietly handing over whichever it ended on.
         std::fs::write("runs/quartermaster_row_last.txt", net.text()).unwrap();
         match &best_text {
-            Some((d, t)) => {
+            Some((m, t)) => {
                 std::fs::write("runs/quartermaster_row.txt", t).unwrap();
                 println!(
-                    "wrote runs/quartermaster_row.txt (best block, rung {d}) \
+                    "wrote runs/quartermaster_row.txt (best block, mean rung {m:.2}) \
                      and runs/quartermaster_row_last.txt (final)"
                 );
             }

@@ -50,6 +50,17 @@ const ROAD_PRESSES: usize = 40;
 /// What one run did.
 #[derive(Clone, Debug, Default)]
 pub struct Ran {
+    /// Every key the run pressed that stuck, in order.
+    ///
+    /// **Verbs rather than lines.** A `Verb` is `Copy`, so a run's tape is one
+    /// `Vec` and no formatting; the same tape as strings would be two hundred
+    /// `format!`s an episode, four thousand times a training run, to serve the
+    /// one episode in twenty-five that anybody looks at. A proof is written out
+    /// of this when one is wanted, and not before.
+    ///
+    /// This is a proof in the making: `(seed, mode, difficulty, [verb])` is all
+    /// a proof is, and the other three are the arguments to `run`.
+    pub tape: Vec<Verb>,
     /// The deepest rung it stood on, shown the way the screen shows it.
     pub deepest: usize,
     /// Fights won and lost.
@@ -67,7 +78,16 @@ pub struct Ran {
 /// throws a lever, drinks a fountain. **Not a policy** - it is the road being
 /// got out of the way so the packer's episode is about packing. When the road
 /// agent joins this loop it takes this over.
-fn walk_on(c: &mut Console) {
+fn walk_on(c: &mut Console, tape: &mut Vec<Verb>) {
+    // Only what stuck. A refused key is not something a person could press
+    // again to the same effect, and a transcript carrying one does not replay.
+    let press = |c: &mut Console, v: Verb, tape: &mut Vec<Verb>| {
+        let ok = c.apply(v).ok;
+        if ok {
+            tape.push(v);
+        }
+        ok
+    };
     for _ in 0..ROAD_PRESSES {
         let v = c.view();
         if v.question.is_some() {
@@ -75,7 +95,7 @@ fn walk_on(c: &mut Console) {
             // everything under it.
             let pick = v.question.as_ref().and_then(|q| q.choices.iter().find(|ch| ch.open));
             let Some(ch) = pick else { break };
-            if !c.apply(Verb::Answer { choice: ch.index }).ok {
+            if !press(c, Verb::Answer { choice: ch.index }, tape) {
                 break;
             }
             continue;
@@ -83,20 +103,20 @@ fn walk_on(c: &mut Console) {
         if v.town.is_some() {
             // Walk past. A town is one action and spending it is a decision
             // this loop is not qualified to make.
-            if !c.apply(Verb::WalkOn).ok {
+            if !press(c, Verb::WalkOn, tape) {
                 break;
             }
             continue;
         }
         if v.fountain.is_some() {
-            if !c.apply(Verb::Drink).ok {
+            if !press(c, Verb::Drink, tape) {
                 break;
             }
             continue;
         }
         if let Some(p) = v.points.as_ref() {
             let _ = p;
-            if !c.apply(Verb::ThrowPoints { exit: 0 }).ok {
+            if !press(c, Verb::ThrowPoints { exit: 0 }, tape) {
                 break;
             }
             continue;
@@ -104,7 +124,7 @@ fn walk_on(c: &mut Console) {
         if v.in_dungeon {
             // Out, rather than down. A dungeon is a detour and this episode is
             // about the ladder.
-            if !c.apply(Verb::Leave).ok {
+            if !press(c, Verb::Leave, tape) {
                 break;
             }
             continue;
@@ -117,11 +137,20 @@ fn walk_on(c: &mut Console) {
 ///
 /// `pack` is handed in so the caller decides which packer is playing - the same
 /// parameter the two-agent split turns on everywhere else.
+/// **`pack` returns what it pressed**, because the thing that presses is the
+/// only thing that knows. The road's keys and the fight's are pressed in here
+/// and taped in here; the packing's are pressed by a closure the caller owns,
+/// and a tape assembled anywhere else would have to guess the order.
+///
+/// A caller that does not care returns an empty vector and gets a tape with the
+/// road and the fights in it, which is not a proof of anything - a transcript
+/// missing the packing replays into a different board. `keys` turns
+/// `pack_with`'s own record into the vector this wants.
 pub fn run(
     seed: u64,
     mode: Mode,
     difficulty: Difficulty,
-    pack: &mut dyn FnMut(&mut Console),
+    pack: &mut dyn FnMut(&mut Console) -> Vec<Verb>,
 ) -> (Console, Ran) {
     let mut c = Console::start(seed, mode, difficulty);
     let mut out = Ran { deepest: 1, ..Ran::default() };
@@ -137,8 +166,9 @@ pub fn run(
             out.died = true;
             break;
         }
-        walk_on(&mut c);
-        pack(&mut c);
+        walk_on(&mut c, &mut out.tape);
+        let pressed = pack(&mut c);
+        out.tape.extend(pressed);
         out.packs += 1;
         let before = c.view();
         let fight = if before.brawl_waiting { Verb::FightParty } else { Verb::Fight };
@@ -146,6 +176,7 @@ pub fn run(
             // Nothing to fight and nothing in the way: the road has run out.
             break;
         }
+        out.tape.push(fight);
         let after = c.view();
         if after.rung_shown > before.rung_shown {
             out.wins += 1;
@@ -227,6 +258,27 @@ pub struct Pressed {
     pub before: gearmaster_console::view::Figures,
     pub after: gearmaster_console::view::Figures,
     pub items_after: usize,
+    /// The key it was. `None` is `Move::Done` - a decision, and not a key.
+    ///
+    /// A `Verb` is `Copy`, so carrying it costs nothing and answers two
+    /// questions at once: what belongs on a tape, and what a key histogram
+    /// would count. The second was asked for in the collapse brief and there
+    /// was no field that could answer it.
+    pub verb: Option<Verb>,
+    /// Whether the console took it.
+    ///
+    /// `Packing::step` documents `false` as a bug in the caller, and nothing
+    /// anywhere noticed one. A refused press must stay off the tape, so this
+    /// had to be looked at, and now it can be counted.
+    pub stuck: bool,
+}
+
+/// The keys out of a packing, for a tape.
+///
+/// What stuck, in order, `Done` dropped. This is what `run`'s `pack` closure
+/// hands back.
+pub fn keys(pressed: &[Pressed]) -> Vec<Verb> {
+    pressed.iter().filter(|p| p.stuck).filter_map(|p| p.verb).collect()
 }
 
 fn items_of(c: &Console) -> usize {
@@ -260,8 +312,18 @@ pub fn pack_with(
         }
         let before = c.view().figures;
         let at = choose(c, &ms);
-        e.step(c, ms[at.min(ms.len() - 1)]);
-        out.push(Pressed { before, after: c.view().figures, items_after: items_of(c) });
+        let m = ms[at.min(ms.len() - 1)];
+        let stuck = e.step(c, m);
+        out.push(Pressed {
+            before,
+            after: c.view().figures,
+            items_after: items_of(c),
+            verb: match m {
+                Move::Press(v) => Some(v),
+                Move::Done => None,
+            },
+            stuck,
+        });
         if e.finished {
             break;
         }
