@@ -30,13 +30,23 @@ const SHELF: &str = "../../analysis/nets";
 
 /// Checkpoints saved against a feature vector that no longer exists.
 ///
-/// **This list may only get shorter.** Each of these is a net some measurement
-/// in `analysis/the-two-trades.md` was read off, and none of them can be fed
-/// today: seven are 70 wide against a packing pair of 315, and the two road
+/// **This list may only get shorter - and when it does not, the commit says
+/// which measurement it just cost.** Each of these is a net some measurement was
+/// read off, and none of them can be fed today: seven are 70 wide against a packing pair of 315, and the two road
 /// nets are 70 wide because `qroad` stores a road net at the *packing* width -
 /// which is why trainers stamp `pair` now, and why these nine, written before
 /// the stamp, cannot say which road columns they read.
 const STALE: &[&str] = &[
+    // **These two were added, and that is the cost of a feature change.**
+    // `analysis/the-collapse.md` M1 widened `feature::MOVE` from 32 to 38 so
+    // that `Lock`, `Grow`, `Undo` and `Pin` stop being one identical vector,
+    // and a widened pair invalidates every net trained against the old one.
+    // What can no longer be repeated is M0.2 and M0.3 - the provenance of r12's
+    // two checkpoints and the reconstruction of its column out of a held-still
+    // policy. Both are written down with their numbers; neither can be re-run
+    // until something is retrained at 321.
+    "qrow-r12-best.txt",
+    "qrow-r12-last.txt",
     "pathfinder-grinder.txt",
     "pathfinder-rogue.txt",
     "pathfinder-threshold.txt",

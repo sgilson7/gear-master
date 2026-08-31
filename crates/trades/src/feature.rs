@@ -31,8 +31,21 @@ pub const LAYOUT: usize = 5 * GRID_CELLS;
 /// representation of it: the move gained a column and a row, but the state
 /// never said what was already there for the piece to sit against.
 pub const BOARD: usize = 30 + LAYOUT;
+/// The kinds a packing move comes in, in the order they are one-hot.
+///
+/// **Thirteen, and it was nine.** Four verbs shared the catch-all and none of
+/// them carried a piece, so `Lock`, `Grow`, `Undo` and `Pin` were one identical
+/// vector - and a network that cannot tell two actions apart cannot prefer one.
+/// See the comment on the match in `mv` for what that cost.
+const KINDS: usize = 13;
+/// Where the band describing the *piece* a move is about starts.
+const PIECE: usize = KINDS;
+/// Where the band describing *where it goes* starts.
+const WHERE: usize = PIECE + 13;
+/// Where the band describing *what locking would fix* starts.
+const LOCK: usize = WHERE + 10;
 /// How many describe one candidate move.
-pub const MOVE: usize = 32;
+pub const MOVE: usize = LOCK + 2;
 /// A state-action pair, which is what a Q network scores.
 ///
 /// The brief rides on the state side: it is part of the situation, not part of
@@ -135,7 +148,24 @@ pub fn mv(v: &View, m: Verb) -> [f32; MOVE] {
         Verb::Rotate { .. } | Verb::RotateLocked { .. } => 5,
         Verb::Unequip { .. } | Verb::UnequipLocked { .. } => 6,
         Verb::ClearSlot { .. } | Verb::ClearAll => 7,
-        _ => 8,
+        // **The four that used to share the catch-all.** Measured over forty
+        // episodes: locking was on the menu for 6,198 decisions and scored
+        // identically to pinning a shelf on **every one of them**, because
+        // `Lock`, `Grow`, `Undo` and `Pin` were one bucket and none of them is
+        // in the `piece` match below, so all four were the same vector.
+        // `max_by` returns the last maximum and `Pin` is pushed onto the menu
+        // after `Lock`, so the agent pressed that vector 1,653 times and got
+        // `Pin` every time - by menu order rather than by policy. It never
+        // locked once. `analysis/the-collapse.md` M1.
+        Verb::Lock { .. } => 8,
+        Verb::Grow { .. } => 9,
+        Verb::Undo => 10,
+        Verb::Pin { .. } => 11,
+        // `PlaceLocked` is not here on purpose: `Console::menu` cannot
+        // enumerate where a whole assembled item may be dropped without
+        // lifting it first, so it is a verb the console accepts and the menu
+        // never offers. It is not in the action space and needs no shape.
+        _ => 12,
     };
     f[kind] = 1.0;
 
@@ -151,16 +181,16 @@ pub fn mv(v: &View, m: Verb) -> [f32; MOVE] {
         _ => None,
     };
     if let Some(p) = piece {
-        f[9] = p.cells as f32 / 8.0;
-        f[10] = s(p.price, 60.0);
-        f[11] = p.triggers.len() as f32 / 4.0;
-        f[12] = p.pools.produces_any() as u8 as f32;
-        f[13] = p.pools.consumes_any() as u8 as f32;
-        f[14] = p.pools.self_feeding() as u8 as f32;
-        f[15] = p.pools.conditional as f32 / 4.0;
-        f[16] = s(p.stats.health, 200.0);
-        f[17] = s(p.stats.physical_damage + p.stats.magic_damage, 40.0);
-        f[18] = s(p.stats.armor, 40.0);
+        f[PIECE + 0] = p.cells as f32 / 8.0;
+        f[PIECE + 1] = s(p.price, 60.0);
+        f[PIECE + 2] = p.triggers.len() as f32 / 4.0;
+        f[PIECE + 3] = p.pools.produces_any() as u8 as f32;
+        f[PIECE + 4] = p.pools.consumes_any() as u8 as f32;
+        f[PIECE + 5] = p.pools.self_feeding() as u8 as f32;
+        f[PIECE + 6] = p.pools.conditional as f32 / 4.0;
+        f[PIECE + 7] = s(p.stats.health, 200.0);
+        f[PIECE + 8] = s(p.stats.physical_damage + p.stats.magic_damage, 40.0);
+        f[PIECE + 9] = s(p.stats.armor, 40.0);
         // **Does this piece feed something the board already wants, or want
         // something the board already makes?** The two numbers a build is made
         // of, and neither is a property of the piece alone.
@@ -174,15 +204,15 @@ pub fn mv(v: &View, m: Verb) -> [f32; MOVE] {
                 fed += v.pools.stranded[i].min(p.pools.consumes[i]);
             }
         }
-        f[19] = s(feeds, 8.0);
-        f[20] = s(fed, 8.0);
-        f[21] = ((feeds > 0) || (fed > 0)) as u8 as f32;
+        f[PIECE + 10] = s(feeds, 8.0);
+        f[PIECE + 11] = s(fed, 8.0);
+        f[PIECE + 12] = ((feeds > 0) || (fed > 0)) as u8 as f32;
     }
 
     // Where it is going, for a placement: which grid, how full it already is,
     // and how many neighbours the seat touches.
     if let Verb::Place { slot, x, y, .. } = m {
-        f[22] = SlotKind::ALL.iter().position(|&k| k == slot).unwrap_or(0) as f32 / 5.0;
+        f[WHERE + 0] = SlotKind::ALL.iter().position(|&k| k == slot).unwrap_or(0) as f32 / 5.0;
         // **Where the piece is going, which was not in here.** A move said which
         // grid, how full it was, how many neighbours the seat touched and
         // whether it completed a recipe - so the same piece at (3,2) and at
@@ -196,16 +226,16 @@ pub fn mv(v: &View, m: Verb) -> [f32; MOVE] {
         {
             let gw = gearmaster_console::view::GRID_W as f32;
             let rows = v.grids.iter().find(|g| g.slot == slot).map(|g| g.rows).unwrap_or(8) as f32;
-            f[29] = x as f32 / gw.max(1.0);
-            f[30] = y as f32 / rows.max(1.0);
+            f[WHERE + 7] = x as f32 / gw.max(1.0);
+            f[WHERE + 8] = y as f32 / rows.max(1.0);
             let dx = (x as f32).min(gw - 1.0 - x as f32);
             let dy = (y as f32).min(rows - 1.0 - y as f32);
-            f[31] = dx.min(dy) / 3.0;
+            f[WHERE + 9] = dx.min(dy) / 3.0;
         }
         if let Some(g) = v.grids.iter().find(|g| g.slot == slot) {
             let w = gearmaster_console::view::GRID_W as usize;
             let fill = g.cells.iter().filter(|c| c.piece.is_some()).count() as f32;
-            f[23] = fill / g.cells.len().max(1) as f32;
+            f[WHERE + 1] = fill / g.cells.len().max(1) as f32;
             let mut near = 0.0;
             for (dx, dy) in [(1i32, 0i32), (-1, 0), (0, 1), (0, -1)] {
                 let (nx, ny) = (x as i32 + dx, y as i32 + dy);
@@ -216,8 +246,8 @@ pub fn mv(v: &View, m: Verb) -> [f32; MOVE] {
                     near += 1.0;
                 }
             }
-            f[24] = near / 4.0;
-            f[25] = g.items.iter().filter(|i| !i.assembled).count() as f32 / 3.0;
+            f[WHERE + 2] = near / 4.0;
+            f[WHERE + 3] = g.items.iter().filter(|i| !i.assembled).count() as f32 / 3.0;
 
             // **Does this placement finish something?**
             //
@@ -308,10 +338,44 @@ pub fn mv(v: &View, m: Verb) -> [f32; MOVE] {
                         }
                     }
                 }
-                f[26] = wanted;
-                f[27] = completes;
-                f[28] = 1.0 - (best_missing.min(4.0) / 4.0);
+                f[WHERE + 4] = wanted;
+                f[WHERE + 5] = completes;
+                f[WHERE + 6] = 1.0 - (best_missing.min(4.0) / 4.0);
             }
+        }
+    }
+
+    // **What locking would fix, and where.**
+    //
+    // A lock is a decision about a particular item on a particular grid, and
+    // the two things that decide whether it is worth pressing are how much
+    // there is to lose and how crowded the grid already is - an unlocked item
+    // negotiates with whatever it is touching, so an item alone on an empty
+    // grid is in no danger and one of five pieces on a full grid is.
+    //
+    // The slot and the fill share their fields with a placement's, because
+    // they mean the same thing for both and a network that has learned what a
+    // crowded weapon grid looks like should not have to learn it twice.
+    if let Verb::Lock { piece } = m {
+        if let Some((g, item)) = v
+            .grids
+            .iter()
+            .find_map(|g| g.items.iter().find(|i| i.pieces.contains(&piece)).map(|i| (g, i)))
+        {
+            f[WHERE] = SlotKind::ALL.iter().position(|&k| k == g.slot).unwrap_or(0) as f32 / 5.0;
+            f[WHERE + 1] = g.cells.iter().filter(|c| c.piece.is_some()).count() as f32
+                / g.cells.len().max(1) as f32;
+            f[LOCK] = item.pieces.len() as f32 / 6.0;
+            f[LOCK + 1] = g.items.iter().filter(|i| i.assembled).count() as f32 / 3.0;
+        }
+    }
+
+    // A grow is about a grid too, and it had no shape at all.
+    if let Verb::Grow { slot } = m {
+        f[WHERE] = SlotKind::ALL.iter().position(|&k| k == slot).unwrap_or(0) as f32 / 5.0;
+        if let Some(g) = v.grids.iter().find(|g| g.slot == slot) {
+            f[WHERE + 1] = g.cells.iter().filter(|c| c.piece.is_some()).count() as f32
+                / g.cells.len().max(1) as f32;
         }
     }
     f
