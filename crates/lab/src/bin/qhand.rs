@@ -20,7 +20,7 @@
 //! before it takes a gradient: **mean rung 6.0, best 13**. If that number moves,
 //! the harness moved and nothing else here means anything.
 
-use gearmaster_console::{Console, Difficulty, Mode};
+use gearmaster_console::{Console, Difficulty, Mode, Verb};
 use gearmaster_engine::rng::Rng;
 use gearmaster_lab::{packers, row};
 use gearmaster_trades::brief::Brief;
@@ -108,6 +108,119 @@ fn blocks(net: Option<&QNet>, mode: Mode, eps: f32, blocks: usize, per: usize) {
     }
 }
 
+/// **What it presses, and what becomes of what it builds.**
+///
+/// The collapse brief asked for a key histogram and said the single cheapest
+/// diagnostic in two missions was one. This is it, plus the question the
+/// histogram alone cannot answer: an item the packer finished is paid for on
+/// the press that finishes it, **once, on a new high** - and an unlocked item
+/// negotiates with whatever it is touching (`loadout::lock_assembled_in`), so
+/// seating the next piece can take it apart again. The reward is not refunded.
+///
+/// So the number worth printing is the gap between the items an episode was
+/// *paid* for and the items it was still holding at the end.
+fn keys(net: Option<&QNet>, mode: Mode, runs: usize) {
+    let mut seeds = Rng::new(ROW_SEED);
+    let mut explore = Rng::new(ROW_SEED ^ 0xA5A5_A5A5);
+    let mut count: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    let (mut paid, mut held, mut broke, mut refused) = (0usize, 0usize, 0usize, 0usize);
+    let (mut deepest, mut presses) = (0usize, 0usize);
+    // Was locking ever on the table, and could the network tell it from the
+    // other verb in its feature bucket? `Lock` and `Pin` both fall into
+    // `feature::mv`'s `_ => 8`, and neither carries a piece, so both are the
+    // same thirty-two numbers. If they score identically then the choice
+    // between them is not the policy's - it is `max_by`, which returns the
+    // *last* maximum, and `Pin` is pushed onto the menu after `Lock`.
+    let (mut lock_offered, mut lock_tied) = (0usize, 0usize);
+
+    for _ in 0..runs {
+        let seed = seeds.next_u64();
+        // The reward's own bookkeeping, copied: `best_items` runs across the
+        // whole episode and pays only when the count passes its own high.
+        let mut best_items = 0usize;
+        let mut last_items = 0usize;
+        let mut pressed: Vec<row::Pressed> = Vec::new();
+        let mut pack = |c: &mut Console| {
+            let Some(net) = net else {
+                packers::control(c, PACK_BUDGET);
+                return Vec::new();
+            };
+            let done = row::pack_with(c, PACK_BUDGET, |c, ms| {
+                let v = c.view();
+                let b = feature::briefed(&feature::board(&v), &Brief::NONE);
+                let qs: Vec<f32> = ms
+                    .iter()
+                    .map(|m| match m {
+                        Move::Press(verb) => net.q(&feature::pair(&b, &feature::mv(&v, *verb))),
+                        Move::Done => net.q(&feature::pair(&b, &[0.0; feature::MOVE])),
+                    })
+                    .collect();
+                let find = |want: fn(&Verb) -> bool| {
+                    ms.iter().position(|m| matches!(m, Move::Press(v) if want(v)))
+                };
+                let l = find(|v| matches!(v, Verb::Lock { .. }));
+                let p = find(|v| matches!(v, Verb::Pin { .. }));
+                if l.is_some() {
+                    lock_offered += 1;
+                    if let (Some(l), Some(p)) = (l, p) {
+                        if qs[l] == qs[p] {
+                            lock_tied += 1;
+                        }
+                    }
+                }
+                qs.iter()
+                    .enumerate()
+                    .max_by(|a, b| a.1.partial_cmp(b.1).expect("real"))
+                    .map(|(i, _)| i)
+                    .expect("not empty")
+            });
+            let out = row::keys(&done);
+            pressed.extend(done);
+            out
+        };
+        let (_, ran) = row::run(seed, mode, Difficulty::Medium, &mut pack);
+        deepest = deepest.max(ran.deepest);
+        let _ = &mut explore;
+
+        for p in &pressed {
+            presses += 1;
+            let name = match p.verb {
+                Some(v) => v.line().split_whitespace().next().unwrap_or("?").to_string(),
+                None => "done".to_string(),
+            };
+            *count.entry(name).or_default() += 1;
+            if !p.stuck {
+                refused += 1;
+            }
+            if p.items_after > best_items {
+                paid += p.items_after - best_items;
+                best_items = p.items_after;
+            }
+            if p.items_after < last_items {
+                broke += last_items - p.items_after;
+            }
+            last_items = p.items_after;
+        }
+        held += last_items;
+    }
+
+    println!("\n  over {runs} episodes, {presses} presses, deepest rung {deepest}");
+    println!("  {:<14} {:>8} {:>8}", "key", "times", "share");
+    for (k, n) in &count {
+        println!("  {k:<14} {n:>8} {:>7.1}%", 100.0 * *n as f32 / presses.max(1) as f32);
+    }
+    println!("\n  items the reward paid for:        {paid}");
+    println!("  items still standing at the end:  {held}");
+    println!("  paid for and gone by the end:     {}", paid.saturating_sub(held));
+    println!("  presses that took an item apart:  {broke}");
+    println!("  presses the console refused:      {refused}");
+    println!("\n  decisions where locking was offered:  {lock_offered}");
+    println!(
+        "  ...and scored *identically* to pin:   {lock_tied}  ({:.0}%)",
+        100.0 * lock_tied as f32 / lock_offered.max(1) as f32
+    );
+}
+
 fn main() {
     let runs: usize =
         std::env::var("QHAND_RUNS").ok().and_then(|v| v.parse().ok()).unwrap_or(6);
@@ -125,6 +238,13 @@ fn main() {
             "runs/quartermaster_row_last.txt".into(),
         ],
     };
+
+    if let Ok(path) = std::env::var("QHAND_KEYS") {
+        let net = if path == "control" { None } else { QNet::load_at(&path, feature::PAIR).ok() };
+        println!("  {path}, {mode:?}");
+        keys(net.as_ref(), mode, runs);
+        return;
+    }
 
     // Rebuilding the trainer's column wants a net, an exploration rate and a
     // number of blocks; the default run is the greedy table.

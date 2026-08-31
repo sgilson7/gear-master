@@ -253,3 +253,102 @@ episodes - is the same statistic returning to where the seeds put it, and needs
 no explanation beyond that. Neither half is a fact about learning, and the Q
 spread rising through both is a value function drifting under a behaviour that
 never changed.
+
+# M1 — What it presses, and why it never locks
+
+Read off `ba59f86`. `--bin qhand` with `QHAND_KEYS`, forty episodes of Rogue
+under `runs/quartermaster_row.txt`.
+
+The collapse brief asked for a key histogram and said the cheapest diagnostic in
+two missions had been one. Here it is, and it answers a question that was not
+the one being asked.
+
+```
+  over 40 episodes, 7968 presses, deepest rung 3
+  key               times    share
+  buy                 194     2.4%
+  clear                13     0.2%
+  done                  8     0.1%
+  pin                1653    20.7%
+  place              3182    39.9%
+  reroll                1     0.0%
+  sell                 37     0.5%
+  unequip            2880    36.1%
+```
+
+**It never locks.** Not once in seven thousand nine hundred and sixty-eight
+presses. And it is not a preference:
+
+```
+  decisions where locking was offered:  6198
+  ...and scored *identically* to pin:   6198  (100%)
+```
+
+`feature::mv` sorts a move into one of eight one-hot shapes and `_ => 8` for
+everything else, and **bucket 8 is `PlaceLocked`, `Lock`, `Undo`, `Grow` and
+`Pin`**. None of the five is in the `piece` match either, so fields 9-21 are
+zero for all of them. All five are the same thirty-two numbers.
+
+So on six thousand one hundred and ninety-eight decisions the network scored
+`Lock` and `Pin` exactly equal, and `Iterator::max_by` returns the **last**
+maximum. `Lock` is pushed onto the menu inside the per-slot loop and `Pin` in
+the shop section after it, so the last one is always `Pin`. The agent pressed
+the bucket-8 vector 1,653 times and the console executed `Pin` every time -
+**by menu order, not by policy**.
+
+This is `CLAUDE.md` trap 50 inside the quartermaster's own features. Trap 50 was
+written up as the *road* agent's fault, because `feature::mv` is the packer's
+description and every road verb fell into its catch-all. Nobody looked at what
+fell into the catch-all from the packing side.
+
+## M1.1 What that costs, and what it does not
+
+An unlocked item **negotiates with whatever it is touching**
+(`loadout::lock_assembled_in`): pack two flush and the optional pieces drift to
+whichever core is nearest, so seating the next piece can take apart the item
+before it. That is the repo's own trap 4 in a different costume.
+
+Measured over the same forty episodes:
+
+```
+  items the reward paid for:        54
+  items still standing at the end:  48
+  paid for and gone by the end:      6
+  presses that took an item apart: 1618
+```
+
+Two readings, and only one of them holds up.
+
+**The reward leak is real and it is small.** An item is paid for on the press
+that finishes it and only on a new high for the run, so six items in forty
+episodes were paid for and were gone by the end. The churn earns nothing,
+because the high-water mark does not pay twice.
+
+**The thrash is real and it is large.** 1,618 presses took an item apart, one
+press in five, and the histogram underneath it is 3,182 placements against
+2,880 unequips. The packer seats a piece and pulls it out again, and it cannot
+fix what it builds because the verb for fixing it is indistinguishable from the
+verb for pinning a shop shelf.
+
+**And it is not the collapse.** There was no collapse (M0.3, M0.5): the mean
+was flat at about 2.0 from episode 0 to episode 3,400. A mechanism that only
+bites once a board is full enough for two items to touch cannot explain a curve
+that never moved, and this policy's deepest rung over forty episodes is **3**.
+
+What it is a candidate for is the *standing* question - Q3, Q7 and Q8's, that
+the quartermaster does not learn to pack. A packer that cannot lock cannot hold
+a multi-item board, and a board it cannot hold is a rung it cannot clear. That
+is a claim about the ceiling rather than about a fall, and it is the first
+named, measured candidate this mission has had for it.
+
+## M1.2 The fix, and what it costs
+
+`feature::mv` has to tell bucket 8 apart. `Lock` wants its own kind and
+something about the item it would fix; `PlaceLocked` wants to be a *placement* -
+it is one, and today it is described as nothing at all, which is dormant only
+because nothing ever locks.
+
+Widening `MOVE` changes `feature::PAIR`, which invalidates every saved net. That
+is now a loud failure rather than a silent one (`QNet::load_at`, and the ledger
+in `trades/tests/checkpoints.rs`), and every net on the shelf is already
+unfeedable, so the cost is a retrain that was needed anyway.
