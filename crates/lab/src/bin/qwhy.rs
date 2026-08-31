@@ -29,9 +29,15 @@ use std::collections::BTreeMap;
 fn main() {
     let path = std::env::var("QWHY_NET")
         .unwrap_or_else(|_| "analysis/nets/pathfinder-grinder.txt".into());
-    let Some(net) = QNet::load(&path) else {
-        eprintln!("{path} did not load");
-        return;
+    // A road pair, not a packing one - and a road net is stored at the packing
+    // width, so the file's shape cannot say which columns it read. What it can
+    // say is why it is being refused.
+    let net = match QNet::load_at(&path, pathfinder::PAIR) {
+        Ok(net) => net,
+        Err(why) => {
+            eprintln!("{why}");
+            return;
+        }
     };
     let mode = if std::env::var("QWHY_MODE").as_deref() == Ok("rogue") {
         Mode::Rogue

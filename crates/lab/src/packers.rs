@@ -161,23 +161,31 @@ pub fn learned_recording(
 /// a number about nothing.
 pub enum Packer {
     Control,
-    Learned(Option<gearmaster_trades::QNet>),
+    /// A net, or the sentence saying why there is not one.
+    ///
+    /// The reason is kept rather than dropped because "did not load" was the
+    /// whole of what this said for two commits while every checkpoint in the
+    /// repo was the wrong width, and the useful half was the width.
+    Learned(Result<gearmaster_trades::QNet, String>),
 }
 
 impl Packer {
     pub fn named(what: &str) -> Packer {
         match what {
             "control" | "" => Packer::Control,
-            path => Packer::Learned(gearmaster_trades::QNet::load(path)),
+            path => Packer::Learned(gearmaster_trades::QNet::load_at(
+                path,
+                gearmaster_trades::feature::PAIR,
+            )),
         }
     }
 
     pub fn describe(&self, what: &str) -> String {
         match self {
             Packer::Control => "the written control - buys and seats".into(),
-            Packer::Learned(Some(_)) => format!("learned, from {what}"),
-            Packer::Learned(None) => {
-                format!("NOTHING - {what} did not load, so the road walks on what it is given")
+            Packer::Learned(Ok(_)) => format!("learned, from {what}"),
+            Packer::Learned(Err(why)) => {
+                format!("NOTHING - the road walks on what it is given: {why}")
             }
         }
     }
@@ -189,7 +197,7 @@ impl Packer {
     pub fn pack_recording(&self, c: &mut Console, budget: usize, said: &mut Vec<String>) {
         match self {
             Packer::Control => control_recording(c, budget, said),
-            Packer::Learned(net) => learned_recording(net.as_ref(), c, budget, said),
+            Packer::Learned(net) => learned_recording(net.as_ref().ok(), c, budget, said),
         }
     }
 }

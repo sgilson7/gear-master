@@ -1,5 +1,14 @@
 # Handoff — the quartermaster reaches rung 11 and then forgets how
 
+> **Its premise did not survive M0 of the plan written from it.** The
+> `deepest in block` column below is a *maximum* over a hundred episodes, and a
+> net held completely still prints the same wander - 7, 7, 3, 7, 11, 9, 3, 11 -
+> with a flat mean of 2.1 beneath it. Nothing climbed to rung 11 and nothing
+> forgot. See `analysis/the-collapse.md` M0.3, `design/the-collapse.md`, and
+> `CLAUDE.md` trap 56. This document is kept as it was written, because what it
+> got right - *do not train anything until the triage is done* - is the reason
+> the triage happened at all.
+
 Written against `9e9198b`. Suite: **engine 1075, GUI 90, CLI 12, trades 36,
 agent 11, lab 11, 0 warnings.**
 

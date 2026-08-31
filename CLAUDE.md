@@ -42,10 +42,12 @@ cargo test -p gearmaster-gui             # 88 more; cargo build does NOT compile
 cargo test -p gearmaster-cli             # 12 more: scripted runs, piped in twice
 cargo test -p gearmaster-trades          # 26: the partition, the features, what a quest pays
 cargo test -p gearmaster-lab --test quests   # 4, and NOTHING runs these by habit - see trap 46
+cargo test -p gearmaster-lab --test row      # 4: a run's tape replays, and is not trivial
 cargo run  -p gearmaster-cli             # headless REPL: play the real game in a terminal
 cargo run  -p gearmaster-gui             # macroquad GUI (native window)
 make pack                                # board packer: dress creatures by hand, saves into combat.rs
 # docs/ holds the published wasm web build (index.html + gearmaster.wasm)
+GEARMASTER_CURVE=analysis/nets/qrow-r13.log cargo run -p gearmaster-gui   # a trainer's log, drawn while it grows
 ```
 
 **Toolchain.** `Cargo.toml` says `rust-version = "1.83"` and that is now the
@@ -809,6 +811,30 @@ are the next milestone** and its shape is in `HANDOFF-two-agents.md` §8.6.
     not. And read the spread for what it is: the Grinder policy reaches rung
     17.5 with a spread of 0.008, *smaller* than the broken one's 0.083, because
     what was wrong was the ordering and never the magnitude.
+
+55. **A saved net is keyed to the feature width of the day it was saved, and
+    `load` returned `None` about it silently.** `cf91f65` took `BOARD` from 30
+    to 270 and every checkpoint in `analysis/nets/` stopped loading that
+    afternoon: `qmind` reported on four nets it had not opened, `qcross` ran the
+    written control against itself, and `Packer::Learned(None)` was the floor
+    wearing a trained net's name. Nothing went red. Worse, a *road* net is
+    stored at the **packing** width - `qroad` pads a road pair up to
+    `feature::PAIR` before feeding it in - so the file's shape cannot say which
+    road columns it read, and two on the shelf are 70 wide against a road pair
+    of 64. Trainers stamp `pair <n>` now, `QNet::load_at` refuses by it in a
+    sentence, and `trades/tests/checkpoints.rs` holds the nine files nobody can
+    feed as a list that may only get shorter.
+
+56. **A block maximum is not a policy, and a whole handoff was written about
+    one.** `qrow` prints `deepest rung` every hundred episodes and that figure
+    is a *max*. Depth here is heavy-tailed and mostly a property of the seed -
+    the written control is mean 5.3 and max 47 over a hundred runs - so the
+    column wanders between 3 and 13 while the policy under it does not move at
+    all. `design/HANDOFF-the-collapse.md` reads that wander as a policy climbing
+    to rung 11 and forgetting; `--bin qhand`'s `QHAND_BLOCKS` prints the same
+    column out of a *file*, which cannot learn or forget, and the mean beneath
+    it is flat at 2.1. This is trap 54 exactly, in the one trainer that was
+    never given the fix: **print the mean, and evaluate greedily.**
 
 One blind spot in `prose.rs` worth knowing before it finds you: a name that
 only ever **opens** a sentence is invisible to `names_something`, because at a

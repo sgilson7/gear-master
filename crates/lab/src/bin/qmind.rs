@@ -2,8 +2,16 @@
 //!
 //!     cargo run --release -p gearmaster-lab --bin qmind
 //!
-//! Both agents are the same shape: 70 -> 96 -> 96 -> 1 with ReLU, 16,225
-//! numbers. `QNet::parse` reads them out of a text file, one line a tensor.
+//! `QNet::read` takes them out of a text file, one line a tensor, and the shape
+//! is read out of the file rather than assumed: a packing net is
+//! `feature::PAIR -> 96 -> 96 -> 1` with ReLU and a road net is stored at the
+//! same width with a narrower pair inside it. Both numbers have moved twice, so
+//! the width is printed beside every net below - a checkpoint whose width is
+//! not this build's is a measurement nobody can repeat, and it used to say
+//! `did not load` and nothing else.
+//!
+//! Give it `QMIND_NET=<path>` to look at one net, `QMIND_KIND=road|packing` to
+//! say which agent's it is when the file does not.
 //!
 //! ## Why the biases are the honest column
 //!
@@ -43,24 +51,91 @@ fn stats(v: &[f32]) -> (f32, f32, f32) {
     (mean, sd, big)
 }
 
+/// Which agent's net this is, which decides what it may be fed.
+#[derive(Copy, Clone, PartialEq)]
+enum Kind {
+    Packing,
+    Road,
+}
+
+impl Kind {
+    fn wants(self) -> usize {
+        match self {
+            Kind::Packing => feature::PAIR,
+            Kind::Road => pathfinder::PAIR,
+        }
+    }
+}
+
+/// What a file says it is, when nobody has said.
+///
+/// The stamp if there is one. Failing that the width, which is the right
+/// question for a packing net and only half of one for a road net - so the
+/// guess is printed rather than assumed.
+fn guess(path: &str) -> Kind {
+    let Ok(text) = std::fs::read_to_string(path) else { return Kind::Packing };
+    let Ok(net) = QNet::read(&text) else { return Kind::Packing };
+    match net.declared() {
+        Some(w) if w == pathfinder::PAIR => Kind::Road,
+        Some(_) => Kind::Packing,
+        None if net.width() == feature::PAIR => Kind::Packing,
+        None => Kind::Road,
+    }
+}
+
 fn main() {
-    for (what, path) in [
-        ("rogue quartermaster", "analysis/nets/quartermaster_rogue.txt"),
-        ("grinder quartermaster", "analysis/nets/quartermaster_grinder.txt"),
-        ("rogue pathfinder", "analysis/nets/pathfinder-rogue.txt"),
-        ("grinder pathfinder", "analysis/nets/pathfinder-grinder.txt"),
-    ] {
+    // **The two nets this instrument was needed for and never listed.** The
+    // collapse is a comparison between the best block and the one the run
+    // ended on, and `qmind` looked at four published nets and neither of these.
+    let shelf: Vec<(String, String, Kind)> = match std::env::var("QMIND_NET") {
+        Ok(path) => {
+            let kind = match std::env::var("QMIND_KIND").as_deref() {
+                Ok("road") => Kind::Road,
+                Ok("packing") => Kind::Packing,
+                _ => guess(&path),
+            };
+            vec![("the net asked for".into(), path, kind)]
+        }
+        Err(_) => [
+            ("the row, best block", "runs/quartermaster_row.txt", Kind::Packing),
+            ("the row, where it ended", "runs/quartermaster_row_last.txt", Kind::Packing),
+            ("rogue quartermaster", "analysis/nets/quartermaster_rogue.txt", Kind::Packing),
+            ("grinder quartermaster", "analysis/nets/quartermaster_grinder.txt", Kind::Packing),
+            ("rogue pathfinder", "analysis/nets/pathfinder-rogue.txt", Kind::Road),
+            ("grinder pathfinder", "analysis/nets/pathfinder-grinder.txt", Kind::Road),
+        ]
+        .iter()
+        .map(|(w, p, k)| (w.to_string(), p.to_string(), *k))
+        .collect(),
+    };
+
+    for (what, path, kind) in shelf {
         println!("\n================ {what}\n{path}");
-        let Some(net) = QNet::load(path) else {
-            println!("  did not load");
-            continue;
+        let net = match QNet::load_at(&path, kind.wants()) {
+            Ok(net) => net,
+            // The refusal is the measurement here as much as anything below it.
+            Err(why) => {
+                println!("  {why}");
+                continue;
+            }
         };
+        println!(
+            "  {} wide, stamped {}, hidden 96",
+            net.width(),
+            match net.declared() {
+                Some(w) => w.to_string(),
+                None => "nothing".into(),
+            }
+        );
         weights(&net);
-        if what.contains("quartermaster") {
-            packing_values(&net);
-            briefed_against_bare(&net);
-        } else {
-            road_values(&net, if what.contains("rogue") { Mode::Rogue } else { Mode::Grinder });
+        match kind {
+            Kind::Packing => {
+                packing_values(&net);
+                briefed_against_bare(&net);
+            }
+            Kind::Road => {
+                road_values(&net, if what.contains("rogue") { Mode::Rogue } else { Mode::Grinder })
+            }
         }
     }
 }

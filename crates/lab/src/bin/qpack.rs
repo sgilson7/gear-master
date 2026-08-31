@@ -295,7 +295,9 @@ use gearmaster_trades::brief::Brief;
     }
     impl Frozen {
         fn net(&self) -> gearmaster_trades::QNet {
-            let mut text = String::new();
+            // The pair this net was fed, so a file of it can be refused later
+            // by something that would otherwise only see a well-formed shape.
+            let mut text = format!("pair {}\n", PAIR);
             for (n, v) in &self.rows {
                 text.push_str(n);
                 for x in v {

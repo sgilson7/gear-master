@@ -50,7 +50,16 @@ fn main() {
         Ok("grinder") => vec![Mode::Grinder],
         _ => vec![Mode::Rogue],
     };
-    let net = |p: &str| QNet::load(p);
+    // A **road** pair, which is not what `QNet::load` asks for: a road net is
+    // stored at the packing width, so the width it must be opened at is the one
+    // the caller is about to feed it. A refusal here says which number is wrong.
+    let net = |p: &str| match QNet::load_at(p, gearmaster_trades::pathfinder::PAIR) {
+        Ok(n) => Some(n),
+        Err(why) => {
+            eprintln!("  {why}");
+            None
+        }
+    };
 
     // **Two rows a model, and the reason is §C1.** A pair is a road policy and
     // a packer, and if the packer cannot clear rung three then the pair's

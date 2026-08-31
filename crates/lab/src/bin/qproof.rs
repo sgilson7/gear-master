@@ -55,7 +55,18 @@ fn main() {
     };
     let road_path = std::env::var("QPROOF_ROAD").unwrap_or_else(|_| "runs/pathfinder.txt".into());
     let written = road_path == "written";
-    let road_net = if written { None } else { QNet::load(&road_path) };
+    // A road pair, so a road width - see `QNet::load_at`.
+    let road_net = if written {
+        None
+    } else {
+        match QNet::load_at(&road_path, gearmaster_trades::pathfinder::PAIR) {
+            Ok(n) => Some(n),
+            Err(why) => {
+                eprintln!("  {why}");
+                None
+            }
+        }
+    };
     let pack_path = std::env::var("QPROOF_PACKER").unwrap_or_else(|_| "control".into());
     let packer = Packer::named(&pack_path);
     let quest: Option<Quest> = match std::env::var("QPROOF_QUEST") {

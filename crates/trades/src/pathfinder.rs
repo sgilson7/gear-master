@@ -10,7 +10,6 @@
 //! reaches one dungeon.
 
 use crate::env::{Goal, Walking};
-use crate::feature;
 use crate::qnet::QNet;
 use gearmaster_console::view::View;
 use gearmaster_console::{Console, Verb};
@@ -20,8 +19,8 @@ use gearmaster_console::{Console, Verb};
 /// Twenty-two until the quests landed. The last two are how far along a chain
 /// the run is, and they are not decoration: `Φ` telescopes over the progress,
 /// and a shaped reward the network cannot predict is noise rather than a hint.
-/// A pair stored at this width still zero-pads into `feature::PAIR`, so there
-/// is room and the file format did not move - but a road net trained at an
+/// A pair stored at this width is zero-padded up to whatever width the net was
+/// saved at, so the file format did not move - but a road net trained at an
 /// older width reads its columns in the wrong places, so checkpoints do not
 /// survive a change here.
 ///
@@ -391,13 +390,20 @@ impl Pathfinder<'_> {
 }
 
 impl QNet {
-    /// Score a road pair. The road network is wider than the packing one, so
-    /// this is the same arithmetic against a different width.
+    /// Score a road pair. A road pair is narrower than a packing one, so this
+    /// is the same arithmetic against a different width.
+    ///
+    /// **Over the net's rows, not this build's width.** A pair is `PAIR` long
+    /// and a net is stored at whatever the packing vector was that day, so the
+    /// rows past the pair meet an implicit zero - which is what `qroad` pads
+    /// them with when it trains one. A net stored at 70 and a net stored at 315
+    /// therefore both read the same 64 numbers, and neither needs a buffer.
+    ///
+    /// What this cannot check is whether those 64 columns *mean* the same
+    /// thing, which is what the `pair` stamp is for and why `load_at` is how a
+    /// road net should be opened.
     pub fn q_pair(&self, x: &[f32; PAIR]) -> f32 {
-        let mut v = [0.0f32; feature::PAIR];
-        let n = v.len().min(x.len());
-        v[..n].copy_from_slice(&x[..n]);
-        self.q(&v)
+        self.eval(x)
     }
 }
 

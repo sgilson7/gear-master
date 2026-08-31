@@ -231,7 +231,13 @@ mod q {
             .collect()
         }
         fn text(&self) -> String {
-            let mut out = String::new();
+            // **The road pair, not the file's width.** This net is stored
+            // `WIDE` because `wide()` pads a road pair up to the packing width
+            // before it is fed in, so the shape of the file is a fact about the
+            // quartermaster's vector and says nothing about which road columns
+            // were read. Two nets on the shelf are 70 wide for exactly that
+            // reason and the road pair is 64.
+            let mut out = format!("pair {}\n", PAIR);
             for (n, v) in self.plain() {
                 out.push_str(n);
                 for x in v {
