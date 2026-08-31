@@ -76,6 +76,33 @@ mod q {
     /// by ten.
     const BLOCK: usize = 100;
 
+    /// Whether the bootstrap chooses and values with the same network.
+    ///
+    /// **It did, and that is what `max_a Q(s',a)` means.** One network picks
+    /// the action *and* says what it is worth, so any upward error in an
+    /// estimate is exactly what the max selects for, and the inflated value is
+    /// fed back in as the next target. With `GAMMA` at 0.999 over a whole run
+    /// there are hundreds of steps for it to compound over.
+    ///
+    /// Measured, once the loss stopped scaling the gradients away (M2): the
+    /// mean target climbed +0.17 -> +2.83 -> +3.34 over sixteen hundred
+    /// episodes and had not stopped, against a plausible return of about 2 -
+    /// while the mean rung fell 1.85 -> 1.66 -> 1.36. Values rising without
+    /// plateau and performance falling is the textbook signature, and it is
+    /// what `design/HANDOFF-the-collapse.md` guessed at before there were any
+    /// gradients for it to happen to.
+    ///
+    /// Double-DQN: the **online** net picks the action, the **frozen** one says
+    /// what it is worth. An error has to be shared by two networks a target
+    /// refresh apart to survive, which is what breaks the feedback.
+    ///
+    /// The selector is a snapshot taken once an episode rather than the live
+    /// weights - at most twenty-four gradient steps stale, and a hundredth of
+    /// the cost of running the training graph over every candidate.
+    fn double() -> bool {
+        std::env::var("QROW_DOUBLE").map(|v| v != "0").unwrap_or(true)
+    }
+
     /// How many of the next state's candidates the bootstrap looks at.
     ///
     /// `max_a Q(s',a)` over every candidate is correct and it is unaffordable
@@ -257,10 +284,19 @@ mod q {
             best
         );
 
+        let double = double();
+        println!("  bootstrap: {}", if double {
+            "double - the online net picks, the frozen net values"
+        } else {
+            "single - one net picks and values, which is what overestimates"
+        });
+
         let dev = Default::default();
         let mut rng = Rng::new(ROW_SEED);
         let mut net = Net::new(&mut rng, &dev);
         let mut frozen = net.frozen();
+        // The selector, refreshed every episode. See `double`.
+        let mut online = net.frozen();
         let mut buffer: Vec<Trans> = Vec::with_capacity(80_000);
         let batch = 128usize;
         let t0 = Instant::now();
@@ -485,6 +521,9 @@ mod q {
                 buffer.drain(0..20_000);
             }
 
+            if double {
+                online = net.frozen();
+            }
             for u in 0..updates {
                 if buffer.len() < batch {
                     break;
@@ -496,6 +535,24 @@ mod q {
                     xs.extend_from_slice(&s.x);
                     let boot = if s.next.is_empty() {
                         0.0
+                    } else if double {
+                        // Chosen by one, valued by the other.
+                        //
+                        // Scored once each, by hand. `max_by` calls its
+                        // comparator O(n) times and a closure that scores both
+                        // sides evaluates the network **twice per comparison** -
+                        // thirty forward passes over sixteen candidates instead
+                        // of sixteen, which measured as 4.3 s an episode against
+                        // 1.9. A network is not a cheap key.
+                        let (mut pick, mut best) = (0usize, f32::MIN);
+                        for (i, p) in s.next.iter().enumerate() {
+                            let q = online.q(p);
+                            if q > best {
+                                best = q;
+                                pick = i;
+                            }
+                        }
+                        frozen.q(&s.next[pick])
                     } else {
                         s.next.iter().map(|p| frozen.q(p)).fold(f32::MIN, f32::max)
                     };
