@@ -822,6 +822,13 @@ M0), "there is no milestone pricing"
 frame lint is red" (it is green; `FRAMES` are all dressed), "`MonsterTheme`
 does not exist in the engine" (`bestiary.rs`).
 
+**One question is open and has its own brief.** `design/HANDOFF-the-collapse.md`:
+the quartermaster trained on the row reaches **rung 11 with exploration already
+at 0.07** - past the written control's 6.0 through the same loop - and then
+degrades over thirteen hundred episodes to rung 2. The Q spread *rises* through
+the turn, which rules out every flat-network fault this mission has already
+found and makes it a different animal. Triage before training anything.
+
 ## 7. Etiquette
 
 Match the module doc-comment voice (deadpan, first principles, one idea per
