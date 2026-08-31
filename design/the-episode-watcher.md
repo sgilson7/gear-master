@@ -162,6 +162,39 @@ with no epsilon in it cannot be read - a random press is a random press and not
 a policy's opinion. Deliverable: a directory of proofs from a short run, each
 replaying, and a count of any that did not.
 
+**W2 and W3 - the window follows a directory, and restarts. Done, together.**
+They could not be separated: `Watcher::next` and the `path` it compares against
+are dead code until something advances on them, and this repo builds
+warning-free, so shipping W2 alone would have meant a `#[allow(dead_code)]` -
+a check turned off is a check that was not run.
+
+`next_in` is a plain function over names, tested without a filesystem, and it
+answers the three cases: the newest, `None` when that is already in hand, and
+the newest again when the file being played has been **pruned out from under the
+window** - which is the expected case rather than an error, because the trainer
+keeps the last few and the window is ten times slower.
+
+The advance is taken at the top of the frame, before anything reads `run`. The
+layout, the reports and the worn list are all built from it further down, and
+swapping the run underneath them would draw one episode's board with another's
+geometry for a frame. Eleven locals are cleared with it and the list is written
+out where it happens: a `Playback` holds the old fight's log, a `Drag` and the
+pedestal's two slots hold `PieceId`s from a registry about to be replaced, and
+`pinned` and `log_focus` are indices into lists that will not exist. The pace
+and the pause carry over, because those belong to the viewer.
+
+Measured end to end: a directory holding `ep-000020`, a newer `ep-000050`
+dropped in at eight seconds, and the window finishes the first, picks up the
+second, and restarts at its seed - a different run at a different rung against a
+different creature.
+
+One thing fixed on the way that was not in this plan: the watcher's banner was
+drawn **before** the render rather than after, so during a fight the words YOUR
+GEAR came down on top of the file name - and saying which episode you are
+looking at is the whole job of that strip. It is drawn in the overlay slot at
+the end of the frame now, beside `render_dungeon_tint`, whose comment already
+said why that slot exists.
+
 **W2 - the watcher follows a directory.** Newest-wins selection as a plain
 function over `(entries, current)` so it is testable without a filesystem;
 `Watcher` gains the advance. Deliverable: tests for selection, and the

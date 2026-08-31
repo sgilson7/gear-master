@@ -12095,7 +12095,7 @@ async fn main() {
             None
         }));
     let watched = std::env::var("GEARMASTER_WATCH").ok();
-    let mut watcher = watched.as_deref().and_then(watch::Watcher::load).map(|(w, h)| {
+    let mut watcher = watched.as_deref().and_then(watch::Watcher::open).map(|(w, h)| {
         run = Run::start(h.seed, h.mode, h.difficulty);
         (w, h)
     });
@@ -12502,6 +12502,54 @@ async fn main() {
             continue;
         }
 
+        // ---- on to the next episode --------------------------------------
+        //
+        // A directory of proofs is a trainer that is still running, so when
+        // this episode is spent the window takes the **newest** on disk rather
+        // than the next in sequence - the window is ten times slower than the
+        // trainer and the backlog is stale by construction.
+        //
+        // Not mid-episode and not mid-fight: `Watcher::next` says nothing until
+        // the tape is spent, and `pb.is_none()` keeps the last bout on screen
+        // until it has played out.
+        //
+        // **Taken here, before anything this frame reads `run`.** The layout,
+        // the reports and the worn list below are all built from it, and
+        // swapping the run underneath them would draw one episode's board with
+        // another's geometry for a frame.
+        //
+        // Everything cleared below belongs to the run that just ended: a
+        // `Playback` holds the old fight's log, a `Drag` and the pedestal's two
+        // slots hold `PieceId`s out of a registry that is about to be replaced,
+        // and `pinned` and `log_focus` are indices into lists that will not
+        // exist. The pace and the pause are the viewer's rather than the
+        // episode's, so those carry over.
+        if pb.is_none() {
+            if let Some(path) = watcher.as_ref().and_then(|(w, _)| w.next()) {
+                if let Some((mut w2, h2)) = watch::Watcher::load(&path) {
+                    if let Some((old, _)) = watcher.as_ref() {
+                        w2.dir = old.dir.clone();
+                        w2.every = old.every;
+                        w2.paused = old.paused;
+                    }
+                    run = Run::start(h2.seed, h2.mode, h2.difficulty);
+                    drag = Drag::None;
+                    pb = None;
+                    result_since = None;
+                    settled = false;
+                    pinned = None;
+                    bartering = None;
+                    log_scroll = 0;
+                    log_focus = None;
+                    at_pedestal = false;
+                    pedestal_seated = None;
+                    pedestal_held = None;
+                    message = format!("watching {}", w2.name);
+                    watcher = Some((w2, h2));
+                }
+            }
+        }
+
         // Everything drawn this frame speaks the run's theme.
         words::set(run.theme);
         let reports = run.reports();
@@ -12557,10 +12605,6 @@ async fn main() {
                     w.schedule(now);
                 }
             }
-        }
-
-        if let Some((w, h)) = watcher.as_ref() {
-            draw_watch_strip(w, h, &run);
         }
 
         if let Some(p) = pb.as_mut() {
@@ -14214,6 +14258,13 @@ async fn main() {
         }
         // Last, so it sits over the boards rather than under them.
         render_dungeon_tint(&run);
+        // And the watcher's banner over that. It used to be drawn before the
+        // render, which put it *under* every panel: during a fight the words
+        // YOUR GEAR came down on top of the file name, and the one thing the
+        // strip is for is saying which episode you are looking at.
+        if let Some((w, h)) = watcher.as_ref() {
+            draw_watch_strip(w, h, &run);
+        }
 
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(path) = &shot_path {

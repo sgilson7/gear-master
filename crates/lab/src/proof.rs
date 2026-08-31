@@ -102,8 +102,16 @@ pub fn write(
     }
     std::fs::create_dir_all(dir).map_err(|e| format!("{dir}: {e}"))?;
     let path = format!("{dir}/{name}.proof");
-    std::fs::write(&path, text(seed, mode, difficulty, tape, reached, notes))
-        .map_err(|e| format!("{path}: {e}"))?;
+    // **Written beside and renamed into place.** A watcher is reading this
+    // directory while the trainer writes to it, and `fs::write` is not atomic:
+    // a window that opened a half-written file would play a truncated episode
+    // under a header claiming a rung it never reaches, and nothing would say
+    // so. A rename within one directory is atomic, and `.tmp` is not `.proof`,
+    // so the file is invisible to `proofs_in` until it is whole.
+    let tmp = format!("{path}.tmp");
+    std::fs::write(&tmp, text(seed, mode, difficulty, tape, reached, notes))
+        .map_err(|e| format!("{tmp}: {e}"))?;
+    std::fs::rename(&tmp, &path).map_err(|e| format!("{path}: {e}"))?;
     Ok(path)
 }
 

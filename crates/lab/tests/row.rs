@@ -220,3 +220,33 @@ fn pruning_keeps_the_newest_and_drops_the_rest() {
         .collect();
     assert_eq!(left, vec!["ep-000050.proof", "ep-000075.proof"], "the newest by name");
 }
+
+/// A watcher reads this directory while the trainer writes to it.
+///
+/// `fs::write` is not atomic, so a proof has to appear whole or not at all -
+/// otherwise a window opens a truncated episode under a header claiming a rung
+/// it never reaches, and nothing anywhere says so. The temporary is not a
+/// `.proof`, so it is invisible to the watcher's own listing until the rename.
+#[test]
+fn a_proof_appears_whole_or_not_at_all() {
+    let dir = scratch("atomic");
+    let (_, out) = row::run(SEED, MODE, Difficulty::Medium, &mut first_key);
+    gearmaster_lab::proof::write(
+        &dir,
+        "ep-000000",
+        SEED,
+        MODE,
+        Difficulty::Medium,
+        &out.tape,
+        out.deepest,
+        &[],
+    )
+    .expect("a proof");
+    let left: Vec<String> = std::fs::read_dir(&dir)
+        .expect("a directory")
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(left, vec!["ep-000000.proof"], "no temporary is left behind");
+    assert_eq!(gearmaster_lab::proof::listed(&dir).len(), 1);
+}

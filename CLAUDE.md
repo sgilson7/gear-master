@@ -48,6 +48,8 @@ cargo run  -p gearmaster-gui             # macroquad GUI (native window)
 make pack                                # board packer: dress creatures by hand, saves into combat.rs
 # docs/ holds the published wasm web build (index.html + gearmaster.wasm)
 GEARMASTER_CURVE=analysis/nets/qrow-r13.log cargo run -p gearmaster-gui   # a trainer's log, drawn while it grows
+QROW_WATCH=runs/watch cargo run --release -p gearmaster-lab --features nn --bin qrow   # write episodes as proofs
+GEARMASTER_WATCH=runs/watch cargo run -p gearmaster-gui  # ...and watch them play, newest first
 ```
 
 **Toolchain.** `Cargo.toml` says `rust-version = "1.83"` and that is now the
