@@ -136,7 +136,13 @@ fn the_deadline_is_the_same_rung_for_both_chains_that_dress() {
 ///
 /// **It goes up or it does not move.** Down means something narrowed
 /// `pathfinder::describe` and the agent can see less than it could.
-const ROAD_STEPS_TOLD_APART: usize = 18;
+///
+/// One, then eighteen when the road got a description of its own, then
+/// **sixty-four** when every action gained the rung it is being taken at - the
+/// owner's point that *to choose to fight at rung 16 is a different decision
+/// from choosing to fight at rung 17*, which the action half of the pair had
+/// said nothing about. `--bin qmoves` reads 119 over four runs.
+const ROAD_STEPS_TOLD_APART: usize = 64;
 
 #[test]
 fn a_walked_run_offers_road_steps_the_network_can_tell_apart() {

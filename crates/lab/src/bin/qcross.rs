@@ -37,6 +37,19 @@ struct Pair {
 
 fn main() {
     let runs: usize = std::env::var("QCROSS_RUNS").ok().and_then(|v| v.parse().ok()).unwrap_or(12);
+    // **Rogue by default, and Grinder only when asked.**
+    //
+    // Grinder is designed to always be possible: a loss costs a rung and still
+    // pays a bounty, so a run farms its way past anything it can eventually
+    // beat. That makes it the uninteresting half of the solving problem, and
+    // it is also the expensive half - a Grinder episode runs to the decision
+    // budget where a Rogue one ends at the wipe, which is about 227 decisions
+    // against 14.
+    let modes: Vec<Mode> = match std::env::var("QCROSS_MODES").as_deref() {
+        Ok("both") => vec![Mode::Grinder, Mode::Rogue],
+        Ok("grinder") => vec![Mode::Grinder],
+        _ => vec![Mode::Rogue],
+    };
     let net = |p: &str| QNet::load(p);
 
     // **Two rows a model, and the reason is §C1.** A pair is a road policy and
@@ -110,49 +123,39 @@ fn main() {
     }
     println!();
 
-    println!("Mean best rung over {runs} seeds, each pair in each mode.\n");
-    println!("  {:<30} {:>10} {:>10}", "pair", "grinder", "rogue");
-    let mut table: Vec<(String, f64, f64)> = Vec::new();
+    println!("Mean best rung over {runs} seeds.\n");
+    print!("  {:<32}", "pair");
+    for m in &modes {
+        print!(" {:>10}", format!("{m:?}").to_lowercase());
+    }
+    println!();
+    let mut table: Vec<(String, Vec<f64>)> = Vec::new();
     for p in &pairs {
-        let g = mean_best(p, Mode::Grinder, runs);
-        let r = mean_best(p, Mode::Rogue, runs);
-        println!("  {:<30} {:>10.1} {:>10.1}", p.what, g, r);
-        table.push((p.what.clone(), g, r));
+        let cells: Vec<f64> = modes.iter().map(|m| mean_best(p, *m, runs)).collect();
+        print!("  {:<32}", p.what);
+        for c in &cells {
+            print!(" {:>10.1}", c);
+        }
+        println!();
+        table.push((p.what.clone(), cells));
     }
 
-    // The gate, stated rather than implied.
-    let by = |name: &str| table.iter().find(|(w, _, _)| w == name).cloned();
-    // The gate is about the road policies, so it is read off the rows where
-    // the packer is held constant.
-    let (Some(g), Some(r)) =
-        (by("grinder road + control packer"), by("rogue road + control packer"))
-    else {
-        return;
-    };
-    println!("\n  the gate: each road policy ahead of the other in its own mode,");
-    println!("  with the same packer behind both");
-    println!(
-        "    in grinder  {:>6.1} against {:>6.1}   {}",
-        g.1,
-        r.1,
-        if g.1 > r.1 { "met" } else { "MISSED" }
-    );
-    println!(
-        "    in rogue    {:>6.1} against {:>6.1}   {}",
-        r.2,
-        g.2,
-        if r.2 > g.2 { "met" } else { "MISSED" }
-    );
-    let control = by("no weights + control packer").map(|c| (c.1, c.2));
-    if let Some((cg, cr)) = control {
-        println!(
-            "\n  and against no weights at all: grinder {:+.1}, rogue {:+.1}.\n  \
-             A pair that is not ahead of that has not learned to walk a road, and \n  \
-             the mode it was trained for is not what is being measured.",
-            g.1 - cg,
-            r.2 - cr
-        );
+    // What the learned road policy is worth against knowing nothing, in each
+    // mode that was run. The cross-mode gate belongs to `QCROSS_MODES=both`.
+    let by = |name: &str| table.iter().find(|(w, _)| w == name).cloned();
+    let floor = by("no weights + control packer");
+    println!("\n  what the weights are worth, against no weights at all:");
+    for (name, cells) in table.iter().filter(|(w, _)| w.contains("road +") || w.contains("pair")) {
+        print!("  {name:<32}");
+        for (k, c) in cells.iter().enumerate() {
+            let f = floor.as_ref().map(|(_, v)| v[k]).unwrap_or(0.0);
+            print!(" {:>+10.1}", c - f);
+        }
+        println!();
     }
+    println!(
+        "\n  A row that is not ahead of the floor has not learned to walk a road,\n           and the mode it was trained for is not what is being measured."
+    );
 }
 
 fn mean_best(p: &Pair, mode: Mode, runs: usize) -> f64 {
@@ -194,7 +197,11 @@ fn walk(p: &Pair, seed: u64, mode: Mode) -> usize {
             None => 0,
         };
         match &ms[at] {
-            RoadStep::Pack => p.packer.pack(&mut c, 40),
+            RoadStep::Pack => {
+                let before = c.clone();
+                p.packer.pack(&mut c, 40);
+                w.packed(&before, &c);
+            }
             RoadStep::Press(verb) => {
                 if !c.apply(*verb).ok {
                     break;

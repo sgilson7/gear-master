@@ -58,6 +58,7 @@ fn main() {
         weights(&net);
         if what.contains("quartermaster") {
             packing_values(&net);
+            briefed_against_bare(&net);
         } else {
             road_values(&net, if what.contains("rogue") { Mode::Rogue } else { Mode::Grinder });
         }
@@ -93,6 +94,64 @@ fn weights(net: &QNet) {
                 (sd / want - 1.0) * 100.0
             );
         }
+    }
+}
+
+/// **The same packer, asked for a theme and asked for nothing.**
+///
+/// `qpack` trains every episode under a real brief and evaluates under a fixed
+/// one; `lab::packers::learned` hands over `Brief::NONE`, thirteen zeros,
+/// because nothing in the road agent's world asks for a theme. So the packer
+/// plays under conditioning it has never been trained on, and the figure that
+/// says whether that matters is this one: the same situations packed twice.
+fn briefed_against_bare(net: &QNet) {
+    use gearmaster_lab::scoring::{self, Judge};
+    use gearmaster_lab::themes;
+    let themed = themes::brief(themes::trained()[0]);
+    println!("\n  the same boards, packed under two briefs:");
+    println!("    {:<22} {:>7} {:>9}", "asked for", "items", "score");
+    for (name, w) in [("a theme", themed), ("nothing", Brief::NONE)] {
+        let (mut items, mut score, mut n) = (0usize, 0.0f32, 0usize);
+        for seed in [0x1212u64, 0xAA8D95DE31880461, 0xF1418AF3EDF965FD] {
+            for rung in [0usize, 4, 9] {
+                let (mut c, walked) =
+                    curriculum::repack_at(seed, Mode::Rogue, Difficulty::Medium, rung);
+                if !walked.arrived {
+                    continue;
+                }
+                let mut e = Packing::new(40);
+                loop {
+                    let ms: Vec<Move> = e.moves(&c);
+                    if ms.is_empty() {
+                        break;
+                    }
+                    let v = c.view();
+                    let b = feature::briefed(&feature::board(&v), &w);
+                    let at = ms
+                        .iter()
+                        .map(|m| match m {
+                            Move::Press(verb) => {
+                                net.q(&feature::pair(&b, &feature::mv(&v, *verb)))
+                            }
+                            Move::Done => net.q(&feature::pair(&b, &[0.0; feature::MOVE])),
+                        })
+                        .enumerate()
+                        .max_by(|a, b| a.1.partial_cmp(&b.1).expect("real"))
+                        .map(|(i, _)| i)
+                        .expect("not empty");
+                    e.step(&mut c, ms[at]);
+                    if e.finished {
+                        break;
+                    }
+                }
+                let (stats, built) = c.board_for_scoring();
+                items += built.len();
+                score += scoring::score(stats, &built, rung, Judge::Rogue);
+                n += 1;
+            }
+        }
+        let n = n.max(1) as f32;
+        println!("    {name:<22} {:>7.1} {:>9.2}", items as f32 / n, score / n);
     }
 }
 
@@ -177,7 +236,11 @@ fn road_values(net: &QNet, mode: Mode) {
             .map(|(i, _)| i)
             .expect("not empty");
         match &ms[at] {
-            RoadStep::Pack => packer.pack(&mut c, 40),
+            RoadStep::Pack => {
+                let before = c.clone();
+                packer.pack(&mut c, 40);
+                w.packed(&before, &c);
+            }
             RoadStep::Press(verb) => {
                 if !c.apply(*verb).ok {
                     break;

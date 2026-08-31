@@ -100,7 +100,7 @@ pub fn road_on_quest(v: &View, goal: Option<&Goal>, quest: [f32; 2]) -> [f32; RO
 /// index and whether it is open are drawn on the button; which door a town verb
 /// takes and whether it spends the visit are on the gate; whether an exit has
 /// been walked already is on the map.
-pub const MOVE: usize = KINDS + 15;
+pub const MOVE: usize = KINDS + 15 + 6;
 
 /// The kinds a road step comes in, in the order they are one-hot.
 ///
@@ -155,6 +155,23 @@ pub fn pair(r: &[f32; ROAD], m: &[f32; MOVE]) -> [f32; PAIR] {
 pub fn describe(v: &View, s: &crate::env::Step) -> [f32; MOVE] {
     let mut f = [0.0f32; MOVE];
     f[kind_of(s)] = 1.0;
+    // **Where on the road this decision is being taken**, on every action and
+    // not only on the fights. Two `Pack`s twenty rungs apart are two different
+    // decisions about two different boards against two different creatures.
+    let w = KINDS + 15;
+    f[w] = v.rung_shown as f32 / 50.0;
+    f[w + 1] = (v.coming.stats.health as f32 / 4000.0).min(4.0);
+    f[w + 2] = v.coming.brings.len() as f32 / 12.0;
+    f[w + 3] = (v.coming.bounty as f32 / 200.0).min(4.0);
+    // How the board answers what is standing in front of it: seconds of the
+    // creature's health at the damage this board does, and whether the fight
+    // is winnable inside the clock at all. `SUDDEN_DEATH_MS` is thirty
+    // seconds, so anything past that is decided by the clock and not the
+    // boards - which is the one thing a player is told to watch for.
+    let dps = (v.figures.physical_dps + v.figures.magic_dps).max(1) as f32 / 1000.0;
+    let secs = v.coming.stats.health.max(0) as f32 / dps.max(0.001);
+    f[w + 4] = (secs / 30.0).min(4.0);
+    f[w + 5] = (secs < 30.0) as u8 as f32;
     let crate::env::Step::Press(verb) = s else { return f };
 
     match verb {

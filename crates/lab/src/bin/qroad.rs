@@ -127,7 +127,35 @@ mod q {
     /// so nothing about the ordering changes - `GOAL` still dominates a rung,
     /// a rung still dominates a wasted press - and the targets land where the
     /// loss is proportional.
-    const REWARD_SCALE: f32 = 1.0 / 25.0;
+    ///
+    /// **A twenty-fifth was too much, and `--bin qmind` said so.** It put the
+    /// targets in `[-0.28, 2.27]` and the value function came out at about
+    /// 0.2 - and the gradients shrank with it, so the hidden layers ended 4%
+    /// from where they were initialised while the packer's, whose reward is
+    /// not scaled, moved 15%. Only the output layer learned: `w3` at +177% of
+    /// its initial spread on top of `w1` and `w2` at +4%, which is a linear
+    /// readout on random features.
+    ///
+    /// So the knee moves instead. `HUBER` below decides where the loss stops
+    /// being proportional, the loss is divided by it so the gradients stay the
+    /// same size whatever it is, and the reward only has to be scaled far
+    /// enough to keep the value function somewhere a network can reach.
+    fn reward_scale() -> f32 {
+        std::env::var("QROAD_SCALE").ok().and_then(|v| v.parse().ok()).unwrap_or(1.0 / 5.0)
+    }
+
+    /// Where the loss stops being proportional to the residual.
+    ///
+    /// `min(|d|,k)·|d| / k` is quadratic below `k` and linear above it, and
+    /// **dividing by `k` is the point**: the gradient is `2|d|/k` below and `1`
+    /// above, so it is bounded by two whatever `k` is. That decouples *where
+    /// the loss is proportional* from *how large the gradients are*, which the
+    /// original `min(|d|,1)·|d|` welded together - and welding them together
+    /// is what clipped a target of fifty down to the pull of a target of one
+    /// and a half.
+    fn huber() -> f32 {
+        std::env::var("QROAD_HUBER").ok().and_then(|v| v.parse().ok()).unwrap_or(12.0)
+    }
 
     /// What finishing a chain pays.
     ///
@@ -329,7 +357,11 @@ mod q {
         let lr: f32 =
             std::env::var("QROAD_LR").ok().and_then(|v| v.parse().ok()).unwrap_or(0.05);
         let updates = updates();
-        println!("  learning: lr {lr}   updates an episode {updates}");
+        let scale = reward_scale();
+        let knee = huber();
+        println!(
+            "  learning: lr {lr}   updates an episode {updates}   reward x{scale}   huber knee {knee}"
+        );
         let t0 = Instant::now();
         let mut best_seen = 3usize;
         let (mut reached, mut tried) = (0usize, 0usize);
@@ -431,10 +463,12 @@ mod q {
                         // wants a word gets one the moment the run is standing
                         // somewhere that sells it - and *being* there in time is
                         // what the agent is being paid to work out.
+                        let before = c.clone();
                         if let (Some(q), Some(p)) = (&quest, &progress) {
                             gearmaster_lab::shopping::fetch(q, p, &mut c);
                         }
                         packer.pack(&mut c, pack_budget);
+                        w.packed(&before, &c);
                     }
                     RoadStep::Press(verb) => {
                         if !c.apply(*verb).ok {
@@ -507,7 +541,7 @@ mod q {
                 };
                 // Scaled once, at the end, so every term of the road's reward
                 // and every tier of a chain's moves together. See REWARD_SCALE.
-                let rw = rw * REWARD_SCALE;
+                let rw = rw * scale;
                 trail.push((chosen, next, rw));
                 if wiped {
                     break;
@@ -560,7 +594,9 @@ mod q {
                     let y = Tensor::<B, 2>::from_data(TensorData::new(ys, [batch, 1]), &dev);
                     let out = net.forward(x);
                     let d = out.sub(y);
-                    let loss = d.clone().abs().clamp(0.0, 1.0).mul(d.abs()).mean();
+                    // Huber, normalised by its own knee - see `huber`.
+                    let loss =
+                        d.clone().abs().clamp(0.0, knee).mul(d.abs()).div_scalar(knee).mean();
                     lsum += loss.clone().into_scalar() as f64;
                     ln += 1;
                     let grads = loss.backward();

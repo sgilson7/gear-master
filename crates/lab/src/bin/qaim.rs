@@ -166,8 +166,10 @@ fn aim(
         }
         match &ms[at] {
             RoadStep::Pack => {
+                let before = c.clone();
                 shopping::fetch(q, &p, &mut c);
                 packer.pack(&mut c, pack_budget);
+                w.packed(&before, &c);
             }
             RoadStep::Press(verb) => {
                 if !c.apply(*verb).ok {

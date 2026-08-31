@@ -116,6 +116,49 @@ pub struct Walking {
     /// What it was sent to reach, if anything.
     pub goal: Option<Goal>,
     pub reached: bool,
+    /// The board, the tray and the purse as they were when `Pack` last did
+    /// nothing.
+    ///
+    /// **`Pack` was offered on nearly every decision and most of them could
+    /// not change anything.** Once a rung has been packed the packer has
+    /// nothing left to seat, so pressing it again is a no-op that still costs
+    /// a decision - and `--bin qmind` measured the consequence: **2.0 choices
+    /// per road decision**, so for most of a run the road agent was choosing
+    /// between fighting and doing nothing at all.
+    ///
+    /// A no-op that is always on the menu is the same fault the packing side
+    /// had with `Rotate` and then `Pin` (`CLAUDE.md` trap 44), and taking the
+    /// verb away is not the answer there either. What is different here is
+    /// that the console can say whether pressing it *could* do anything: if
+    /// nothing about the board, the tray or the purse has moved since the last
+    /// press that did nothing, the next press cannot do anything either.
+    idle_pack: Option<PackState>,
+}
+
+/// What a packing could possibly work from.
+///
+/// Not the whole board - the cells a packer would rearrange do not matter to
+/// whether it *can* rearrange them. What matters is how many pieces it has to
+/// hand, how many items are already built, and whether there is money for
+/// another shelf.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+struct PackState {
+    tray: usize,
+    items: usize,
+    gold: i32,
+    shop: usize,
+}
+
+impl PackState {
+    fn of(c: &Console) -> PackState {
+        let v = c.view();
+        PackState {
+            tray: v.tray.len(),
+            items: v.grids.iter().map(|g| g.items.iter().filter(|i| i.assembled).count()).sum(),
+            gold: v.gold,
+            shop: v.shop.iter().filter(|s| s.affordable).count(),
+        }
+    }
 }
 
 /// What the pathfinder was told to do.
@@ -148,7 +191,18 @@ pub enum Step {
 
 impl Walking {
     pub fn new(goal: Option<Goal>, budget: usize) -> Walking {
-        Walking { steps: 0, budget, best_rung: 1, goal, reached: false }
+        Walking { steps: 0, budget, best_rung: 1, goal, reached: false, idle_pack: None }
+    }
+
+    /// Say that a packing changed nothing, so it need not be offered again
+    /// until something moves.
+    ///
+    /// The caller has to tell the episode this, because the episode does not
+    /// run the packer - `Step::Pack` is a macro-action into whichever packer
+    /// the caller froze, which is the parameter the whole split turns on.
+    pub fn packed(&mut self, before: &Console, after: &Console) {
+        let (a, b) = (PackState::of(before), PackState::of(after));
+        self.idle_pack = (a == b).then_some(b);
     }
 
     pub fn moves(&self, c: &Console) -> Vec<Step> {
@@ -161,8 +215,10 @@ impl Walking {
             .filter(|&v| owner(v) == Trade::Pathfinder)
             .map(Step::Press)
             .collect();
-        // Packing is only worth offering when there is something to pack with.
-        if !c.tray_ids().is_empty() || !c.view().shop.is_empty() {
+        // Packing is worth offering when it could do something. Something to
+        // pack with, and not the same nothing it did last time.
+        let something = !c.tray_ids().is_empty() || c.view().shop.iter().any(|s| s.affordable);
+        if something && self.idle_pack != Some(PackState::of(c)) {
             out.push(Step::Pack);
         }
         out

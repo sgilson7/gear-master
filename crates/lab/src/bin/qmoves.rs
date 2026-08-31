@@ -61,7 +61,11 @@ fn main() {
                 ms.iter().position(|s| matches!(s, RoadStep::Press(_))).unwrap_or(0)
             };
             match &ms[at] {
-                RoadStep::Pack => packer.pack(&mut c, 40),
+                RoadStep::Pack => {
+                let before = c.clone();
+                packer.pack(&mut c, 40);
+                w.packed(&before, &c);
+            }
                 RoadStep::Press(verb) => {
                     if !c.apply(*verb).ok {
                         break;

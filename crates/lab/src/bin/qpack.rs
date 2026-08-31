@@ -328,13 +328,42 @@ use gearmaster_trades::brief::Brief;
         // the control for Q8's comparison: the same network, the same shape,
         // the same episodes, and thirteen zeros where the brief goes.
         let want_briefs = std::env::var("QPACK_BRIEFS").as_deref() != Ok("0");
+        // **How often an episode is asked for nothing in particular.**
+        //
+        // A brief is thirteen numbers describing a board somebody wants, and
+        // every training episode drew a real one. The composition
+        // (`lab::packers::learned`) hands the packer `Brief::NONE` - thirteen
+        // zeros - because nothing in the road agent's world asks for a theme.
+        //
+        // So the packer played, every run, under conditioning it had seen only
+        // if `QPACK_BRIEFS=0`, which nothing ever set. It is the fault
+        // `brief.rs` names for a *held-out theme* - "a coordinate that was zero
+        // in every gradient it ever took" - except all thirteen coordinates, at
+        // play time, in every run. Measured: 6 eval wins in 20 under a themed
+        // brief, and a pair that wipes at rung one on six seeds out of six.
+        //
+        // A quarter of episodes ask for nothing, so the unconditioned case is
+        // one the gradient has actually seen. It costs the themed case a
+        // quarter of its episodes and nothing else - `Brief::NONE` is a real
+        // brief rather than a missing value, which is what `brief.rs` says it
+        // is and what Q8's control always was.
+        let bare: f64 =
+            std::env::var("QPACK_BARE").ok().and_then(|v| v.parse().ok()).unwrap_or(0.25);
         // The learning curve is read against one fixed brief so the figure
         // printed at episode 400 and the one at 2400 are comparable.
         let eval_brief =
             if want_briefs { themes::brief(themes::trained()[0]) } else { Brief::NONE };
         println!(
             "  briefs: {}",
-            if want_briefs { "on, eight themes, Hollow and Warden held out" } else { "off" }
+            if want_briefs {
+                format!(
+                    "on, eight themes, Hollow and Warden held out; {:.0}% of episodes \
+                     asked for nothing, which is what the composition hands over",
+                    bare * 100.0
+                )
+            } else {
+                "off - every episode asked for nothing".to_string()
+            }
         );
         let phi_weight: f32 =
             std::env::var("QPACK_PHI").ok().and_then(|v| v.parse().ok()).unwrap_or(1.5);
@@ -424,7 +453,8 @@ use gearmaster_trades::brief::Brief;
             // from the eight; the two held out are never seen here and are the
             // whole of the Q8 measurement.
             let themes_pool = themes::trained();
-            let w = if want_briefs {
+            let asked_for_nothing = (rng.next_u64() % 1000) as f64 / 1000.0 < bare;
+            let w = if want_briefs && !asked_for_nothing {
                 themes::brief(themes_pool[(rng.next_u64() % themes_pool.len() as u64) as usize])
             } else {
                 Brief::NONE
@@ -584,9 +614,13 @@ use gearmaster_trades::brief::Brief;
                 // be real progress or none at all. This is the same twenty
                 // situations every time.
                 let (ewon, eitems, esteps, espread) = evaluate(&frozen, &eval_brief, &pool, judge);
+                // And under the brief the composition actually hands over,
+                // which is the number that predicts what a run will do.
+                let (bwon, bitems, _, _) = evaluate(&frozen, &Brief::NONE, &pool, judge);
                 println!(
                     "  episode {:>5}   eps {:.2}   buffer {:>6}   training {:>3}/{:<4}   \
-                     EVAL won {:>2}/20  items {:>4.1}  steps {:>5.1}  spread {:>6.3}",
+                     EVAL won {:>2}/20  items {:>4.1}  steps {:>5.1}  spread {:>6.3}  \
+                     | asked-for-nothing won {:>2}/20  items {:>4.1}",
                     ep,
                     eps,
                     buffer.len(),
@@ -595,7 +629,9 @@ use gearmaster_trades::brief::Brief;
                     ewon,
                     eitems,
                     esteps,
-                    espread
+                    espread,
+                    bwon,
+                    bitems
                 );
                 won = 0;
                 seen = 0;

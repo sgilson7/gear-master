@@ -116,10 +116,12 @@ fn main() {
         };
         match &ms[at] {
             RoadStep::Pack => {
+                let before = c.clone();
                 if let (Some(q), Some(p)) = (&quest, &progress) {
                     said.extend(shopping::fetch(q, p, &mut c));
                 }
                 packer.pack_recording(&mut c, PACK_BUDGET, &mut said);
+                w.packed(&before, &c);
                 packs += 1;
             }
             RoadStep::Press(verb) => {
