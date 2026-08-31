@@ -505,7 +505,25 @@ use gearmaster_trades::brief::Brief;
                 };
                 let after = feature::board(&c.view());
                 let inert = after == b[..feature::BOARD] && !e.finished;
-                let phi2 = if e.finished { 0.0 } else { potential(&c) };
+                // **Zeroed on any ending, not only on `Done`.**
+                //
+                // `e.finished` is true when the agent says it has stopped and
+                // false when the press budget stops it - and the last
+                // transition is treated as terminal either way (`next` is
+                // cleared below). So an episode that ran out of budget kept its
+                // potential and one that pressed `Done` gave it back: with
+                // `QPACK_PHI` at 1.5 and four items assembled, burning the
+                // budget was worth **six points** over stopping.
+                //
+                // The agent found it and never stopped. `steps 40.0` in every
+                // eval line of every run, which is a number that was on screen
+                // the whole time and read as a budget being generous.
+                //
+                // `next` is empty exactly when the episode is over, which is
+                // the question this needs to ask - and it is the same fix
+                // `trades::quest` already makes on the road side, recorded in
+                // `analysis/second-order-quests.md` §3 and applied only there.
+                let phi2 = if next.is_empty() { 0.0 } else { potential(&c) };
                 let shaped = GAMMA * phi2
                     - phi
                     - STEP_COST

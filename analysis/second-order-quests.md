@@ -295,3 +295,60 @@ The general form is worth keeping: **a known failure shape is a hypothesis, not
 a finding.** The cheapest way to tell them apart was to measure the inputs
 rather than tune the reward, and the measurement took twenty minutes where the
 tuning would have taken forty and produced another null.
+
+## 13. Two ways to end an episode, paying different amounts
+
+Found by watching a proof rather than by any instrument in the repo.
+
+The trained packer's 262-key run: **206 `clear`, 16 `buy`, 15 `sell`, 4 `fight`,
+3 `reroll`, and not one `place`.** It bought pieces, sold them, and swept the
+board two hundred times.
+
+Two rewards were telling it to.
+
+**One.** `scoring::score` opened with `if items.is_empty() { return -1.5 }`.
+That constant was calibrated when the reward was a single fight and the range
+was `[-1.0, +2.3]`, so it sat strictly below anything real. `Judge::Rogue`
+subtracts the worst rung in the window and takes the range to about `-2.0`, and
+the constant was never re-checked against the range it had just moved. A losing
+board scored `-1.78` and an empty one `-1.5`, so **owning nothing paid a quarter
+of a point over owning something mediocre** and `ClearAll` is one free press.
+
+**Two.** `phi2 = if e.finished { 0.0 } else { potential(&c) }`. `e.finished` is
+true when the agent presses `Done` and false when the press budget ends the
+episode - and the last transition is treated as terminal either way. So the
+potential was given back by stopping and kept by running out. At `QPACK_PHI`
+1.5 and four items, **burning the budget was worth six points over stopping**,
+and the packer never once pressed `Done`: `steps 40.0` in every eval line of
+every run in this mission, a number that was on screen throughout and read as
+a generous budget.
+
+Both are the same shape - two routes to an ending priced differently - and the
+second is the leak this file's §3 described in `qpack` and then fixed **only on
+the road side**. Writing a fault down is not fixing it.
+
+Fixed: the empty board is simulated like any other so the floor lands where the
+fights put it, and `Φ` is zeroed whenever the episode is over rather than only
+when the agent says so.
+
+## 14. Two things the audit found and did not change
+
+Both are real and neither is a bug in the ordering, so they are measurements
+rather than fixes, and changing them alongside §13 would confound what §13's
+retrain is measuring.
+
+**The packer is never charged for the gold it spends.** `scoring` reads a board
+and `qpack`'s episode reward reads the board and the brief; nothing anywhere
+reads the purse. So buying and selling are free apart from `STEP_COST`, and a
+packer that empties the run's gold into pieces it does not seat pays nothing for
+it. In Grinder that is nearly harmless - a run farms gold back. **In Rogue the
+purse is bounded by four lives**, so what a packing spends is a thing the rest
+of the run cannot get back, and the agent cannot see it.
+
+**`QPACK_PHI` is out of band with the reward it now shapes.** `HANDOFF-two-agents.md`
+§3.2 says the 0.6-1.5 band was measured against a reward capped near 1.8 and
+must be re-derived if the terminal reward moves. `Φ = 1.5 × items` reaches
+**7.5** on five items against a window score in `[-2.0, +2.3]`, so the hint is
+three times the size of the thing it is a hint about. Potential-based shaping
+cannot change which policy is optimal, so this is not an ordering fault - but it
+decides what the search looks at, and C4's arms are the way to settle it.
