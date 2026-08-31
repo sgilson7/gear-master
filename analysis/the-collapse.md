@@ -475,3 +475,80 @@ The third time a trainer here has needed a column to tell "learning nothing"
 from "learning the wrong thing": trap 54 gave the road one, M2 gave the loss
 one, and the objective had none. If items climb while the rung falls, the
 optimiser is innocent and the lever is `RUNG`, `ASSEMBLED` or `QUALITY`.
+
+# M4 — Everything worked, and the rung did not move
+
+Read off `b5be2d7`. `qrow-r17-double.log`, 4,000 episodes, 8,441 s. The net is
+`runs/quartermaster_row.txt` (best block, mean rung 2.36) and `--bin qhand`'s
+`QHAND_KEYS` over forty episodes is the reading.
+
+## M4.1 The two fixes did what they were supposed to
+
+**M1, the features.** Locking was offered on 5,982 decisions and scored
+identically to pinning on **0 of them**, against 6,198 of 6,198 before. And the
+agent presses it: `lock` 32 times, against never.
+
+**M2, the loss.** The value function learns now: spread **2.037** against 0.051,
+mean target **+5.45** against +0.04. Before, four thousand episodes moved the
+weights 0% from their initialisation.
+
+## M4.2 And the policy is exactly where it started
+
+| | mean rung, epsilon at the floor |
+|---|---|
+| r12/r13 - old features, old knee, single | ~2.07 |
+| r17 - new features, knee 3, Double-DQN | **2.10** |
+| the written control | 6.0 |
+
+Three fixes, one of which took the network from learning nothing to learning a
+great deal, and **the thing being learned is worth 0.03 of a rung**.
+
+## M4.3 What it spends its presses on now
+
+```
+  place              4257    49.5%        buy                 282     3.3%
+  undo               3911    45.5%        unequip              56     0.7%
+  lock                 32     0.4%        pin                   0     0.0%
+```
+
+Against the same measurement before the feature change: place 39.9%, unequip
+36.1%, pin 20.7%, lock 0.0%.
+
+**`Undo` is 45.5% of every press, and place-then-undo is a no-op pair.** Four
+thousand two hundred placements and three thousand nine hundred undos: the
+packer seats a piece and takes the move back, over and over, and spends its
+forty decisions a rung doing it.
+
+That is `CLAUDE.md` trap 44 for the **third** time in this repo. It was `Rotate`
+400 times out of 420; `Rotate` was removed and it was `Pin` 410 out of 420; the
+features were fixed so that `Pin` and `Lock` stopped being one key, and it is
+`Undo`. The trap's own words: *taking verbs away one at a time cannot work,
+because there is always another cheapest key.*
+
+`NOTHING` is **0.0**, and its comment says why: *"there is nothing to dither
+into: the packing budget bounds each rung at forty presses."* There is. A
+place-and-undo pair is two presses of the forty and leaves the board where it
+was.
+
+## M4.4 Which is the same finding as M3, from the other end
+
+A wasted budget should be expensive - a worse board is a shallower run - and it
+is not, because **depth is worth almost nothing at the margin**. Rung 2 pays
+0.16; the four lives a Rogue run always spends cost 1.84; an assembled item pays
+1 to 3. Nothing in that arithmetic makes forty good decisions worth more than
+forty wasted ones.
+
+So M3's reading and M4's converge on one constant. `RUNG = 1/25` is what pays
+for depth, and it does not pay enough for the objective to be the objective.
+
+## M4.5 What this run cannot say
+
+The Double-DQN comparison is honest only to episode 1,800, where the control was
+stopped. r17 fell to 1.25 by episode 2,000 and **recovered to 2.1-2.3 once
+epsilon reached the floor**, so the "monotone decline" M3 reported was partly the
+exploration schedule and not only the policy. Whether the single-net arm would
+have recovered too is not known, and M3.1's table should be read as a comparison
+of the exploring phase alone.
+
+The knee is also starting to bite: `past the knee of 3: 0.9%` at the end, with
+targets reaching +13.61. Still small, and the column is there to be watched.
