@@ -421,3 +421,57 @@ Every one of them was read off a network that was barely being fitted:
 The three suspects `HANDOFF-two-trades.md` names for the packer were each "one
 constant or one sampler rather than a rewrite". This was a third constant nobody
 had looked at, and it sat under all of them.
+
+# M3 — Double-DQN was not it, and the reward was
+
+Read off `a478d0f`. Two arms, same seed, same knee of 3, same schedule:
+`analysis/nets/qrow-r16-single.log` and `qrow-r17-double.log`.
+
+## M3.1 What the A/B says
+
+| episode | single: mean / target | double: mean / target |
+|---:|---|---|
+| 500 | 1.61 / +1.080 | 1.68 / +0.957 |
+| 1000 | 1.61 / +2.364 | 1.84 / +2.111 |
+| 1400 | 1.51 / +3.025 | 1.72 / +2.832 |
+| 1800 | 1.49 / +3.761 | 1.45 / +3.368 |
+
+Mean rung from episode 1000 on: **single 1.55, double 1.64** - against a
+block-to-block noise of 0.2 (M0.4), which is nothing.
+
+**Double-DQN damps the target growth by about a tenth and does not arrest it.**
+Both arms climb at the same slope with no plateau, and the mean rung declines in
+both. It is kept because it is theoretically right and costs only CPU, and it is
+written down here as *measured not to be the fix* so nobody later reads it as
+one.
+
+## M3.2 And the failure to move the curve is the finding
+
+If the values were inflating through the bootstrap, decoupling the choice from
+the valuation should bend that curve. It barely moved it. So the value growth is
+**genuine**: the agent really is earning more, and the depth is falling while it
+does.
+
+Which the reward explains without any help from the optimiser:
+
+* an assembled item pays `ASSEMBLED + quality`, **1 to 3**, on the press that
+  finishes it;
+* reaching rung 2 pays `4/25 = 0.16`;
+* and `worth` subtracts `0.5` a life, so a Rogue run - which always ends with
+  its four lives spent - carries a terminal term of about **-1.84** whatever it
+  does. Depth moves that by 1.28 across four whole rungs.
+
+The return is almost entirely assembly at the place this policy lives. Rising
+value with falling depth is not a bug in the optimiser. It is an agent doing
+exactly what it was paid to do, and `RUNG = 1/25` is the constant that pays it.
+
+That is the third time in this mission that a known failure shape fitted the
+evidence and was wrong (trap 51), and the second time in this document.
+
+## M3.3 The column that would have said so
+
+`qrow` prints **items paid and items held** an episode beside the mean rung now.
+The third time a trainer here has needed a column to tell "learning nothing"
+from "learning the wrong thing": trap 54 gave the road one, M2 gave the loss
+one, and the objective had none. If items climb while the rung falls, the
+optimiser is innocent and the lever is `RUNG`, `ASSEMBLED` or `QUALITY`.

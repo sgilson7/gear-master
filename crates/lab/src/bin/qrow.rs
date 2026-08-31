@@ -346,6 +346,16 @@ mod q {
         //
         // Cheap: the targets are already in hand as plain floats, and the
         // residuals are read back once an episode rather than once an update.
+        // **What it built, beside how deep it got.**
+        //
+        // The third time this mission has needed a column to tell "learning
+        // nothing" from "learning the wrong thing" - trap 54 for the road, M2
+        // for the loss, and this. An item pays 1 to 3 on the press that
+        // finishes it and reaching rung 2 pays `4/25 = 0.16`, so the return is
+        // mostly assembly and hardly at all depth at the place this policy
+        // actually lives. If items climb while the rung falls, the agent is
+        // doing exactly what it was paid to do and the optimiser is innocent.
+        let (mut items_paid, mut items_held) = (0usize, 0usize);
         let (mut tlo, mut thi) = (f32::MAX, f32::MIN);
         let (mut tsum, mut tn) = (0.0f64, 0usize);
         let (mut dsum, mut dn, mut dover) = (0.0f64, 0usize, 0usize);
@@ -507,6 +517,8 @@ mod q {
                     }
                 })
                 .collect();
+            items_paid += best_items;
+            items_held += presses.last().map(|p| p.items_after).unwrap_or(0);
             for i in 0..n {
                 let x = trail[i].0;
                 // **What was on offer at the next decision.** The last one has
@@ -616,11 +628,13 @@ mod q {
                 }
                 println!(
                     "  episode {:>5}   eps {:.2}   buffer {:>6}   mean rung {:>5.2}   \
-                     deepest {:>3} (ever {:>3})   spread {:>6.3}",
+                     items {:>4.2} paid {:>4.2} held   deepest {:>3} (ever {:>3})   spread {:>6.3}",
                     ep,
                     eps,
                     buffer.len(),
                     mean,
+                    items_paid as f32 / ran.max(1) as f32,
+                    items_held as f32 / ran.max(1) as f32,
                     deepest_block,
                     deepest_ever,
                     spread / spreads.max(1) as f64
@@ -641,6 +655,8 @@ mod q {
                 );
                 deepest_block = 0;
                 depth_sum = 0;
+                items_paid = 0;
+                items_held = 0;
                 ran = 0;
                 spread = 0.0;
                 spreads = 0;
