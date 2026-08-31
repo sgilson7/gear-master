@@ -11,7 +11,26 @@ use gearmaster_console::{SlotKind, Verb};
 use crate::brief::{Brief, BRIEF};
 
 /// How many numbers describe a board.
-pub const BOARD: usize = 30;
+/// How many cells of one grid the layout carries.
+///
+/// Six wide by eight down, which is `SLOT_W` by the base `SLOT_H`. Grids grow
+/// rows past eight and those rows are not in here - a growable board would need
+/// a ragged encoding and the eight that every grid always has are the eight
+/// that matter for a recipe.
+pub const GRID_CELLS: usize = 6 * 8;
+
+/// The five grids, cell by cell.
+pub const LAYOUT: usize = 5 * GRID_CELLS;
+
+/// Thirty numbers about what the board *is*, and then what it **looks like**.
+///
+/// **The layout was not in here at all.** A forty-eight-cell grid was one
+/// number - the fraction of it that was full - so a board with its weapon grid
+/// packed solid down the left and one with the same count scattered were the
+/// same input. Packing is a spatial problem and the state had no spatial
+/// representation of it: the move gained a column and a row, but the state
+/// never said what was already there for the piece to sit against.
+pub const BOARD: usize = 30 + LAYOUT;
 /// How many describe one candidate move.
 pub const MOVE: usize = 32;
 /// A state-action pair, which is what a Q network scores.
@@ -76,6 +95,30 @@ pub fn board(v: &View) -> [f32; BOARD] {
     // How many lives are left, which in Rogue is how much room a board has to
     // be wrong. `None` in Grinder, where there is no such thing.
     f[29] = v.lives_left.unwrap_or(0) as f32 / gearmaster_console::ROGUE_LIVES as f32;
+    // ---- and what the board looks like ----
+    //
+    // One column a cell, five grids of six by eight, in `SlotKind::ALL` order
+    // so a grid is always in the same place. Occupied is one and empty is nought
+    // - not *which* piece, because a piece reaches this vector as its properties
+    // rather than its name everywhere else and a cell is no place to start
+    // naming them.
+    //
+    // What this buys is the question a packer actually asks: is there room here,
+    // and is that room next to the thing I am trying to finish.
+    for (gi, slot) in SlotKind::ALL.iter().enumerate() {
+        let Some(g) = v.grids.iter().find(|g| g.slot == *slot) else { continue };
+        let w = gearmaster_console::view::GRID_W as usize;
+        let base = 30 + gi * GRID_CELLS;
+        for y in 0..8usize {
+            for x in 0..w {
+                if let Some(c) = g.cells.get(y * w + x) {
+                    if c.piece.is_some() {
+                        f[base + y * w + x] = 1.0;
+                    }
+                }
+            }
+        }
+    }
     f
 }
 

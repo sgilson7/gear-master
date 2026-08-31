@@ -179,11 +179,41 @@ pub const POW: f32 = 2.0;
 /// 47 is 88. The Huber knee in the trainer covers it.
 pub const RUNG: f32 = 1.0 / 25.0;
 
+/// What finishing an item is worth at all, before its quality.
+pub const ASSEMBLED: f32 = 1.0;
+
+/// The most an item's quality can add on top.
+pub const QUALITY: f32 = 2.0;
+
 /// What one spent life costs.
 ///
 /// A Rogue run has four, so a run that reached rung ten on its last is worth
 /// less than one that reached it on its first.
 pub const LIFE: f32 = 0.5;
+
+/// What finishing an item is worth, once, on the press that finishes it.
+///
+/// **Depth is the objective and assembling is the means**, and a reward for the
+/// end alone is a reward an agent cannot climb from the bottom: a run that
+/// assembles its first item and still dies at rung three has done something
+/// right and the depth term barely notices. So finishing an item pays on the
+/// spot, and pays more for a better one.
+///
+/// Quality is read as the **change in what the board does a second** -
+/// `Figures` is the game's own "what this board does in a second", drawn on the
+/// county tab - so an item that adds damage, flow or armour is worth more than
+/// one that adds nothing. No lookup and no table: the same numbers a player
+/// sees, differenced across the press that assembled it.
+///
+/// It is capped, because an item that doubles the board's output is still one
+/// item and the run's depth is what the episode is about.
+pub fn assembly_bonus(before: &gearmaster_console::view::Figures, after: &gearmaster_console::view::Figures) -> f32 {
+    let d = |a: i64, b: i64| (a - b).max(0) as f32;
+    let gain = d(after.physical_dps + after.magic_dps, before.physical_dps + before.magic_dps)
+        + d(after.armour_ps, before.armour_ps)
+        + d(after.flow, before.flow);
+    ASSEMBLED + (gain / 10_000.0).min(QUALITY)
+}
 
 /// What a run was worth, growing with the depth it reached.
 pub fn worth(ran: &Ran) -> f32 {
@@ -191,16 +221,34 @@ pub fn worth(ran: &Ran) -> f32 {
     d.powf(POW) * RUNG - ran.losses as f32 * LIFE
 }
 
+/// What one press did to the board, for a reward that pays per press.
+#[derive(Copy, Clone, Debug)]
+pub struct Pressed {
+    pub before: gearmaster_console::view::Figures,
+    pub after: gearmaster_console::view::Figures,
+    pub items_after: usize,
+}
+
+fn items_of(c: &Console) -> usize {
+    c.view().grids.iter().map(|g| g.items.iter().filter(|i| i.assembled).count()).sum()
+}
+
 /// The packing an episode does at one rung, as a closure over a policy.
 ///
 /// Separate from `run` so the same walk can be driven by the written control,
 /// by a learned net, or by a trainer that is recording what it pressed.
+///
+/// Returns what each press did - the board's figures either side of it and how
+/// many items stood afterwards - because a reward that pays for finishing an
+/// item has to know **which press finished it**, and the chooser cannot see the
+/// other side of its own decision.
 pub fn pack_with(
     c: &mut Console,
     budget: usize,
     mut choose: impl FnMut(&Console, &[Move]) -> usize,
-) {
+) -> Vec<Pressed> {
     let mut e = Packing::new(budget);
+    let mut out = Vec::new();
     loop {
         let ms: Vec<Move> = e
             .moves(c)
@@ -210,10 +258,13 @@ pub fn pack_with(
         if ms.is_empty() {
             break;
         }
+        let before = c.view().figures;
         let at = choose(c, &ms);
         e.step(c, ms[at.min(ms.len() - 1)]);
+        out.push(Pressed { before, after: c.view().figures, items_after: items_of(c) });
         if e.finished {
             break;
         }
     }
+    out
 }

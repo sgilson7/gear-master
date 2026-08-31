@@ -212,9 +212,12 @@ mod q {
             // and an empty `next` means `boot = 0` - no bootstrapping at all,
             // so the run's worth reaches the last press and nothing else.
             let mut trail: Vec<([f32; PAIR], Vec<[f32; PAIR]>)> = Vec::new();
+            // What each press did, in the same order as `trail`, so a press that
+            // finished an item can be paid for on the press that finished it.
+            let mut presses: Vec<row::Pressed> = Vec::new();
 
             let mut pack = |c: &mut Console| {
-                row::pack_with(c, PACK_BUDGET, |c, ms| {
+                let done = row::pack_with(c, PACK_BUDGET, |c, ms| {
                     let v = c.view();
                     let b = feature::briefed(&feature::board(&v), &Brief::NONE);
                     let pairs: Vec<[f32; PAIR]> = ms
@@ -252,6 +255,7 @@ mod q {
                     trail.push((pairs[at], best));
                     at
                 });
+                presses.extend(done);
             };
 
             let (_c, out) = row::run(seed, mode, Difficulty::Medium, &mut pack);
@@ -267,13 +271,39 @@ mod q {
             // almost in full and one at the start through `gamma^n`.
             let worth = row::worth(&out);
             let n = trail.len();
+            // **Finishing an item pays on the spot, and only for a new high.**
+            //
+            // Depth is the objective and assembling is the means, and a reward
+            // for the end alone is one an agent cannot climb from the bottom: a
+            // run that builds its first item and still dies at rung three has
+            // done something right and the depth term barely notices.
+            //
+            // A one-off reward is not potential-based, so it *can* change which
+            // policy is best - and the obvious exploit is to sweep the board and
+            // rebuild, which is exactly what a trained packer did two hundred
+            // times when the empty-board floor paid better than a mediocre one.
+            // Paying only when the count passes its own high makes that worth
+            // nothing.
+            let mut best_items = 0usize;
+            let bonuses: Vec<f32> = presses
+                .iter()
+                .map(|p| {
+                    if p.items_after > best_items {
+                        best_items = p.items_after;
+                        row::assembly_bonus(&p.before, &p.after)
+                    } else {
+                        0.0
+                    }
+                })
+                .collect();
             for i in 0..n {
                 let x = trail[i].0;
                 // **What was on offer at the next decision.** The last one has
                 // nothing after it, which is what makes it terminal and what
                 // stops the run's worth being bootstrapped out of existence.
                 let next = if i + 1 < n { trail[i + 1].1.clone() } else { Vec::new() };
-                let r = if i + 1 == n { worth } else { -NOTHING };
+                let r = bonuses.get(i).copied().unwrap_or(0.0)
+                    + if i + 1 == n { worth } else { -NOTHING };
                 buffer.push(Trans { x, r, next });
             }
             if buffer.len() > 80_000 {
