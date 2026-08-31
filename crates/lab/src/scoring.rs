@@ -111,13 +111,26 @@ pub fn window(stats: Stats, items: &[ItemProfile], rung: usize) -> Vec<f32> {
 
 /// What a board is worth to a run in this mode, standing at this rung.
 ///
-/// An empty board is worth `-1.5` in both, which is the one thing the two
-/// judges agree about without asking: a board with no items is not a bad
-/// answer, it is no answer.
+/// **There is no sentinel for an empty board and there must not be one.**
+///
+/// There was: `if items.is_empty() { return -1.5 }`, a number calibrated when
+/// the reward was a single fight and the range was `[-1.0, +2.3]`, so `-1.5`
+/// sat strictly below anything a real board could score. `Judge::Rogue`
+/// subtracts the worst rung in the window and takes the range down to about
+/// `-2.0`, and the constant was never re-checked against it.
+///
+/// So a board that lost its window scored `-1.78` and an empty board scored
+/// `-1.5`, and **owning nothing was worth a quarter of a point over owning
+/// something mediocre**. `ClearAll` is free, always legal and takes a board
+/// there in one press. The trained packer found it: 206 `clear` presses in a
+/// 262-key run, sixteen buys, fifteen sells and **not one placement**. It had
+/// learned the reward exactly.
+///
+/// An empty board loses every fight in the window on its own merits, so
+/// simulating it gives the true floor and the ordering stays monotone in board
+/// quality. A constant standing in for a measurement is a constant that goes
+/// stale the next time the measurement's range moves, and this one did.
 pub fn score(stats: Stats, items: &[ItemProfile], rung: usize, judge: Judge) -> f32 {
-    if items.is_empty() {
-        return -1.5;
-    }
     let each = window(stats, items, rung);
     let mean = each.iter().sum::<f32>() / each.len() as f32;
     match judge {

@@ -183,11 +183,82 @@ fn a_board_that_falls_over_one_rung_later_is_worth_less_to_a_rogue() {
     );
 }
 
-/// An empty board is the one thing both judges agree about without asking.
+/// An empty board is scored, not stipulated.
+///
+/// This used to assert `score(ZERO, &[], 4, judge) == -1.5`, which is the
+/// sentinel that caused the bug below - so the test that should have caught it
+/// was instead the thing pinning it in place. What is true of an empty board is
+/// not a number somebody chose: it loses every fight in the window, and both
+/// judges should say so without being told.
 #[test]
-fn no_board_at_all_is_not_a_bad_board_but_no_answer() {
+fn no_board_at_all_loses_every_fight_in_the_window() {
     use gearmaster_engine::stats::Stats;
     for judge in [Judge::Grinder, Judge::Rogue] {
-        assert_eq!(scoring::score(Stats::ZERO, &[], 4, judge), -1.5);
+        let bare = scoring::score(Stats::ZERO, &[], 4, judge);
+        assert!(bare < 0.0, "{judge:?} pays {bare:+.2} for owning nothing at all");
     }
+    // And the Rogue judge charges for it twice, because the worst rung in a
+    // window of losses is a loss.
+    assert!(
+        scoring::score(Stats::ZERO, &[], 4, Judge::Rogue)
+            < scoring::score(Stats::ZERO, &[], 4, Judge::Grinder),
+        "the Rogue judge did not charge for the worst rung of an empty board"
+    );
+}
+
+// ------------------------------------------- the floor, and why it is not a constant
+
+/// **An empty board must be worth less than a bad one, under either judge.**
+///
+/// It was not. `score` opened with `if items.is_empty() { return -1.5 }`, a
+/// number calibrated when the reward was one fight and the range was
+/// `[-1.0, +2.3]` - strictly below anything a real board could score.
+/// `Judge::Rogue` subtracts the worst rung in its window and took the range
+/// down to about `-2.0`, and the sentinel was never re-checked against it.
+///
+/// So a board that lost its window scored `-1.78` against an empty board's
+/// `-1.5`, and **owning nothing paid a quarter of a point over owning
+/// something mediocre**. `ClearAll` is free, always legal, and gets there in
+/// one press. The trained packer found it and pressed `clear` **206 times in a
+/// 262-key run** - sixteen buys, fifteen sells, and not one placement. It had
+/// learned the reward exactly, and the reward was wrong.
+///
+/// The fix is not a better constant. An empty board loses every fight in the
+/// window on its own merits, so it is simulated like any other and the floor
+/// is wherever the fights put it. This test is what stops a sentinel coming
+/// back the next time a judge changes the range underneath it.
+#[test]
+fn owning_nothing_is_worth_less_than_owning_something_bad() {
+    use gearmaster_console::Verb;
+    let mut tested = 0;
+    for seed in [0xF1418AF3EDF965FDu64, 0x5EED1234] {
+        for rung in [4usize, 19] {
+            let (mut c, walked) = curriculum::walk_to(seed, Mode::Grinder, Difficulty::Medium, rung);
+            if !walked.arrived {
+                continue;
+            }
+            let (stats, items) = c.board_for_scoring();
+            if items.is_empty() {
+                continue;
+            }
+            // The same run with its board swept off, which is one press away
+            // from where it is standing.
+            c.apply(Verb::ClearAll);
+            let (bare_stats, bare) = c.board_for_scoring();
+            assert!(bare.is_empty(), "ClearAll left {} items on the board", bare.len());
+            for judge in [Judge::Grinder, Judge::Rogue] {
+                let with = scoring::score(stats, &items, rung, judge);
+                let without = scoring::score(bare_stats, &bare, rung, judge);
+                assert!(
+                    without < with,
+                    "{seed:#x} at rung {}: {judge:?} pays {without:+.2} for an empty board \
+                     and {with:+.2} for a real one, so sweeping the board is a free \
+                     improvement and an agent will find it",
+                    rung + 1
+                );
+            }
+            tested += 1;
+        }
+    }
+    assert!(tested >= 2, "only {tested} boards were walked, so this proves little");
 }
