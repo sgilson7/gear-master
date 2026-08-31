@@ -201,6 +201,17 @@ mod q {
         let batch = 128usize;
         let t0 = Instant::now();
         let (mut deepest_block, mut deepest_ever, mut ran) = (0usize, 0usize, 0usize);
+        // **The best weights, not the last.**
+        //
+        // This wrote only at the end, and the end is not where the policy was
+        // best: run r12 reached rung 11 at episode 2,600 with epsilon already at
+        // 0.07 and then degraded over thirteen hundred episodes at the floor to
+        // rung 2, which is what got saved. Two hours of training and the good
+        // net was thrown away on the way past.
+        //
+        // Kept on the block's own depth rather than on a separate evaluation,
+        // because a block is fifty runs and an evaluation would be more.
+        let mut best_text: Option<(usize, String)> = None;
         let (mut spread, mut spreads) = (0.0f64, 0usize);
 
         for ep in 0..episodes {
@@ -350,6 +361,9 @@ mod q {
                 frozen = net.frozen();
             }
             if ep % 100 == 0 || ep + 1 == episodes {
+                if best_text.as_ref().is_none_or(|(d, _)| deepest_block > *d) {
+                    best_text = Some((deepest_block, net.text()));
+                }
                 println!(
                     "  episode {:>5}   eps {:.2}   buffer {:>6}   deepest rung {:>3} \
                      (ever {:>3})   spread {:>6.3}",
@@ -369,8 +383,22 @@ mod q {
         let _ = ran;
         println!("trained in {:.1}s", t0.elapsed().as_secs_f64());
         std::fs::create_dir_all("runs").ok();
-        let path = "runs/quartermaster_row.txt";
-        std::fs::write(path, net.text()).unwrap();
-        println!("wrote {path}");
+        // The last weights, and the best ones. A collapse at the exploration
+        // floor is a real thing this loop does, so the run keeps both and says
+        // which is which rather than quietly handing over whichever it ended on.
+        std::fs::write("runs/quartermaster_row_last.txt", net.text()).unwrap();
+        match &best_text {
+            Some((d, t)) => {
+                std::fs::write("runs/quartermaster_row.txt", t).unwrap();
+                println!(
+                    "wrote runs/quartermaster_row.txt (best block, rung {d}) \
+                     and runs/quartermaster_row_last.txt (final)"
+                );
+            }
+            None => {
+                std::fs::write("runs/quartermaster_row.txt", net.text()).unwrap();
+                println!("wrote runs/quartermaster_row.txt");
+            }
+        }
     }
 }
