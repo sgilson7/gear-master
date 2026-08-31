@@ -12579,7 +12579,28 @@ async fn main() {
             }
             let step_now = is_key_pressed(KeyCode::Right) && w.paused;
             let now = get_time();
-            if pb.is_none() && run.phase == Phase::Loadout && (w.ready(now) || step_now) {
+            // **A scene is not a verb, and a watcher has no hands.**
+            //
+            // `Run::pending_scene` is prose with a button: the engine raises it
+            // - after a brawl an event arranged, after a dungeon landing - and
+            // only a click clears it. Nothing on a tape can, because the
+            // console never had a verb for it to record.
+            //
+            // So the window sat on the scene for ever while the tape drained
+            // invisibly behind it, and the banner was not even drawn, because
+            // the scene returns from the frame long before the overlay slot at
+            // the end of it. That reads exactly as "it broke after the brawl".
+            //
+            // It is spent like a press instead: one beat at the viewer's own
+            // pace, longer if they slow it down, and it holds while paused.
+            // `CLAUDE.md` trap 23 - a walker that can reach a lever has to know
+            // how to throw one.
+            if run.pending_scene.is_some() {
+                if w.ready(now) || step_now {
+                    run.pending_scene = None;
+                    w.schedule(now);
+                }
+            } else if pb.is_none() && run.phase == Phase::Loadout && (w.ready(now) || step_now) {
                 if let Some(v) = w.peek() {
                     match v {
                         Verb::Fight | Verb::FightParty => {
@@ -13019,6 +13040,12 @@ async fn main() {
                 hp_bar(gutter, y - 22.0, w, 30.0, max, max, col_ok());
                 armor_bar(gutter, y + 10.0, w, 20.0, *armor, max);
             }
+            // The banner, here too: this branch leaves the frame before the
+            // overlay slot at the end of it, and a scene with no banner over it
+            // is the picture of a watcher that has stopped.
+            if let Some((w, h)) = watcher.as_ref() {
+                draw_watch_strip(w, h, &run);
+            }
             #[cfg(not(target_arch = "wasm32"))]
             {
                 frame += 1;
@@ -13050,6 +13077,12 @@ async fn main() {
                 let label = m.name;
                 let size = fitting_size(label, cell - 8.0, &[12.0, 11.0, 10.0, 9.0]);
                 draw_capped(label, cx, cy + cell * 0.72, cell - 8.0, size, LIGHTGRAY, 1);
+            }
+            // The banner, here too: this branch leaves the frame before the
+            // overlay slot at the end of it, and a scene with no banner over it
+            // is the picture of a watcher that has stopped.
+            if let Some((w, h)) = watcher.as_ref() {
+                draw_watch_strip(w, h, &run);
             }
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -13086,6 +13119,12 @@ async fn main() {
                         message = format!("You walk out of {}.", words::retell(name));
                     }
                 }
+            }
+            // The banner, here too: this branch leaves the frame before the
+            // overlay slot at the end of it, and a scene with no banner over it
+            // is the picture of a watcher that has stopped.
+            if let Some((w, h)) = watcher.as_ref() {
+                draw_watch_strip(w, h, &run);
             }
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -13137,6 +13176,12 @@ async fn main() {
             if is_key_pressed(KeyCode::Escape) {
                 tools_open = false;
             }
+            // The banner, here too: this branch leaves the frame before the
+            // overlay slot at the end of it, and a scene with no banner over it
+            // is the picture of a watcher that has stopped.
+            if let Some((w, h)) = watcher.as_ref() {
+                draw_watch_strip(w, h, &run);
+            }
             #[cfg(not(target_arch = "wasm32"))]
             {
                 frame += 1;
@@ -13160,6 +13205,12 @@ async fn main() {
         if run.last_receipt.is_some() {
             if render_receipt(&run, mx, my) {
                 run.take_receipt();
+            }
+            // The banner, here too: this branch leaves the frame before the
+            // overlay slot at the end of it, and a scene with no banner over it
+            // is the picture of a watcher that has stopped.
+            if let Some((w, h)) = watcher.as_ref() {
+                draw_watch_strip(w, h, &run);
             }
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -13327,6 +13378,12 @@ async fn main() {
                     }
                 };
             }
+            // The banner, here too: this branch leaves the frame before the
+            // overlay slot at the end of it, and a scene with no banner over it
+            // is the picture of a watcher that has stopped.
+            if let Some((w, h)) = watcher.as_ref() {
+                draw_watch_strip(w, h, &run);
+            }
             #[cfg(not(target_arch = "wasm32"))]
             {
                 frame += 1;
@@ -13364,6 +13421,12 @@ async fn main() {
                 None => {}
             }
             render_stack_strip(&run, mx, my);
+            // The banner, here too: this branch leaves the frame before the
+            // overlay slot at the end of it, and a scene with no banner over it
+            // is the picture of a watcher that has stopped.
+            if let Some((w, h)) = watcher.as_ref() {
+                draw_watch_strip(w, h, &run);
+            }
             #[cfg(not(target_arch = "wasm32"))]
             {
                 frame += 1;
@@ -13416,6 +13479,12 @@ async fn main() {
                     None => format!("{}.", words::retell(c.label)),
                 };
             }
+            // The banner, here too: this branch leaves the frame before the
+            // overlay slot at the end of it, and a scene with no banner over it
+            // is the picture of a watcher that has stopped.
+            if let Some((w, h)) = watcher.as_ref() {
+                draw_watch_strip(w, h, &run);
+            }
             #[cfg(not(target_arch = "wasm32"))]
             {
                 frame += 1;
@@ -13451,6 +13520,12 @@ async fn main() {
                     message =
                         format!("You drink, and it names you {}.", words::class(taken.name));
                 }
+            }
+            // The banner, here too: this branch leaves the frame before the
+            // overlay slot at the end of it, and a scene with no banner over it
+            // is the picture of a watcher that has stopped.
+            if let Some((w, h)) = watcher.as_ref() {
+                draw_watch_strip(w, h, &run);
             }
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -13612,6 +13687,12 @@ async fn main() {
             if shut || is_key_pressed(KeyCode::Escape) {
                 picker_open = false;
             }
+            // The banner, here too: this branch leaves the frame before the
+            // overlay slot at the end of it, and a scene with no banner over it
+            // is the picture of a watcher that has stopped.
+            if let Some((w, h)) = watcher.as_ref() {
+                draw_watch_strip(w, h, &run);
+            }
             #[cfg(not(target_arch = "wasm32"))]
             {
                 frame += 1;
@@ -13655,6 +13736,12 @@ async fn main() {
             }
             if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::G) {
                 glossary_open = false;
+            }
+            // The banner, here too: this branch leaves the frame before the
+            // overlay slot at the end of it, and a scene with no banner over it
+            // is the picture of a watcher that has stopped.
+            if let Some((w, h)) = watcher.as_ref() {
+                draw_watch_strip(w, h, &run);
             }
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -13747,6 +13834,12 @@ async fn main() {
                 || is_mouse_button_pressed(MouseButton::Left)
             {
                 map_open = false;
+            }
+            // The banner, here too: this branch leaves the frame before the
+            // overlay slot at the end of it, and a scene with no banner over it
+            // is the picture of a watcher that has stopped.
+            if let Some((w, h)) = watcher.as_ref() {
+                draw_watch_strip(w, h, &run);
             }
             #[cfg(not(target_arch = "wasm32"))]
             {
