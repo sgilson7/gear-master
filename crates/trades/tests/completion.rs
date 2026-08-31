@@ -12,7 +12,12 @@ use gearmaster_trades::feature::{self, MOVE};
 
 #[test]
 fn a_move_has_room_for_the_completion_numbers() {
-    assert_eq!(MOVE, 29, "f[26] wanted, f[27] completes, f[28] how near");
+    assert_eq!(
+        MOVE, 32,
+        "f[26] wanted, f[27] completes, f[28] how near - and f[29..32] where the \
+         piece is going, which a move did not say until the same seat at (3,2) \
+         and (4,2) was found to describe identically"
+    );
 }
 
 #[test]

@@ -11,9 +11,9 @@ use gearmaster_console::{SlotKind, Verb};
 use crate::brief::{Brief, BRIEF};
 
 /// How many numbers describe a board.
-pub const BOARD: usize = 28;
+pub const BOARD: usize = 30;
 /// How many describe one candidate move.
-pub const MOVE: usize = 29;
+pub const MOVE: usize = 32;
 /// A state-action pair, which is what a Q network scores.
 ///
 /// The brief rides on the state side: it is part of the situation, not part of
@@ -61,6 +61,21 @@ pub fn board(v: &View) -> [f32; BOARD] {
     f[25] = v.tray.len() as f32 / v.tray_cap.max(1) as f32;
     f[26] = s(v.coming.stats.health, 4_000.0);
     f[27] = v.coming.brings.len() as f32 / 12.0;
+    // ---- and where on the ladder this is ----
+    //
+    // **The rung was not in here at all.** Packing at rung three and packing at
+    // rung seventeen are different problems - different creature, different
+    // purse, different room for error - and the nearest thing this vector had
+    // was the coming creature's health, which conflates "deep" with "tanky" and
+    // says nothing about a rung-3 Wall against a rung-17 Striker.
+    //
+    // So every Q value a placement earned was earned without knowing where on
+    // the road it was being made. It is the same fault the road agent had, in
+    // the other trade.
+    f[28] = v.rung_shown as f32 / 50.0;
+    // How many lives are left, which in Rogue is how much room a board has to
+    // be wrong. `None` in Grinder, where there is no such thing.
+    f[29] = v.lives_left.unwrap_or(0) as f32 / gearmaster_console::ROGUE_LIVES as f32;
     f
 }
 
@@ -125,6 +140,25 @@ pub fn mv(v: &View, m: Verb) -> [f32; MOVE] {
     // and how many neighbours the seat touches.
     if let Verb::Place { slot, x, y, .. } = m {
         f[22] = SlotKind::ALL.iter().position(|&k| k == slot).unwrap_or(0) as f32 / 5.0;
+        // **Where the piece is going, which was not in here.** A move said which
+        // grid, how full it was, how many neighbours the seat touched and
+        // whether it completed a recipe - so the same piece at (3,2) and at
+        // (4,2) described identically unless one of those four happened to
+        // differ. Two seats with one neighbour each, both completing nothing,
+        // were the same input.
+        //
+        // The column, the row, and how close the anchor sits to an edge -
+        // because a shape against an edge has fewer ways to grow and the panel
+        // draws exactly that.
+        {
+            let gw = gearmaster_console::view::GRID_W as f32;
+            let rows = v.grids.iter().find(|g| g.slot == slot).map(|g| g.rows).unwrap_or(8) as f32;
+            f[29] = x as f32 / gw.max(1.0);
+            f[30] = y as f32 / rows.max(1.0);
+            let dx = (x as f32).min(gw - 1.0 - x as f32);
+            let dy = (y as f32).min(rows - 1.0 - y as f32);
+            f[31] = dx.min(dy) / 3.0;
+        }
         if let Some(g) = v.grids.iter().find(|g| g.slot == slot) {
             let w = gearmaster_console::view::GRID_W as usize;
             let fill = g.cells.iter().filter(|c| c.piece.is_some()).count() as f32;

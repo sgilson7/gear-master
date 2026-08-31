@@ -157,21 +157,38 @@ pub fn run(
     (c, out)
 }
 
+/// How steeply a run's worth grows with the rung it reached.
+///
+/// Squared, which is the owner's shape: reaching a rung nothing has reached is
+/// worth more than the rung before it, so a value function has a trace to
+/// follow back to whatever made the new depth possible.
+pub const POW: f32 = 2.0;
+
+/// What one rung squared is worth.
+///
+/// **Not `(rung/50)^2` scaled to ten.** That was the first version and it is
+/// the wrong normalisation for an agent that starts at the bottom: it puts the
+/// whole of the curve's growth in the top half of a ladder the agent has never
+/// seen, so rung 4 was worth 0.064 and rung 5 was worth 0.100 while a run's
+/// step charges came to six. The thing the episode was about was one percent of
+/// what it was charged for, and the charge grew with depth because a deeper run
+/// is more packings.
+///
+/// A twenty-fifth of the square bites where the agent actually lives - rung 5
+/// is 1.0, rung 10 is 4, rung 20 is 16 - and still grows fast enough that rung
+/// 47 is 88. The Huber knee in the trainer covers it.
+pub const RUNG: f32 = 1.0 / 25.0;
+
+/// What one spent life costs.
+///
+/// A Rogue run has four, so a run that reached rung ten on its last is worth
+/// less than one that reached it on its first.
+pub const LIFE: f32 = 0.5;
+
 /// What a run was worth, growing with the depth it reached.
-///
-/// The owner's shape, applied to a whole run rather than to one board: reaching
-/// a rung nothing has reached is worth more than the rung before it, so a value
-/// function has a trace to follow back to whatever made the new depth possible.
-///
-/// `(deepest/50)^p * DEPTH`, which is the same curve `scoring::depth_gain` uses
-/// for a single board - one run of it, from the bottom.
 pub fn worth(ran: &Ran) -> f32 {
-    let l = gearmaster_engine::combat::LADDER.len() as f32;
-    let depth = (ran.deepest as f32 / l).powf(crate::scoring::DEPTH_POW) * crate::scoring::DEPTH;
-    // And what the losses cost. A Rogue run has four lives and every one spent
-    // is a quarter of the run, so a run that reached rung ten on its last life
-    // is worth less than one that reached it on its first.
-    depth - ran.losses as f32 * 0.5
+    let d = ran.deepest as f32;
+    d.powf(POW) * RUNG - ran.losses as f32 * LIFE
 }
 
 /// The packing an episode does at one rung, as a closure over a policy.

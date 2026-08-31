@@ -50,7 +50,19 @@ mod q {
     const PACK_BUDGET: usize = 40;
 
     /// What a decision that changed nothing costs.
-    const NOTHING: f32 = 0.05;
+    ///
+    /// **Nothing, and that is a decision.** It was 0.05, and a run reaching
+    /// rung four makes about a hundred and twenty decisions - so the run paid
+    /// six in step charges to earn 0.064 for the depth, and a deeper run is
+    /// more packings and therefore a larger charge. The reward was punishing
+    /// the thing it was for.
+    ///
+    /// A per-press charge is there to stop an agent dithering, and here there
+    /// is nothing to dither into: the packing budget bounds each rung at forty
+    /// presses and the episode ends when the *run* dies rather than when the
+    /// agent stops pressing. There is no free action to defend against, so
+    /// there is no charge.
+    const NOTHING: f32 = 0.0;
 
     /// The seed the trainer's own draws come from.
     const ROW_SEED: u64 = 0x0D0E_5EED;
@@ -144,7 +156,10 @@ mod q {
         let lr: f32 = std::env::var("QROW_LR").ok().and_then(|v| v.parse().ok()).unwrap_or(0.05);
         let updates: usize =
             std::env::var("QROW_UPDATES").ok().and_then(|v| v.parse().ok()).unwrap_or(24);
-        let knee: f32 = std::env::var("QROW_HUBER").ok().and_then(|v| v.parse().ok()).unwrap_or(12.0);
+        // The knee has to cover what a run can be worth: rung 47 squared over
+        // twenty-five is 88.
+        let knee: f32 =
+            std::env::var("QROW_HUBER").ok().and_then(|v| v.parse().ok()).unwrap_or(120.0);
         let mode = if std::env::var("QROW_MODE").as_deref() == Ok("grinder") {
             Mode::Grinder
         } else {
