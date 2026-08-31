@@ -352,3 +352,48 @@ must be re-derived if the terminal reward moves. `Φ = 1.5 × items` reaches
 three times the size of the thing it is a hint about. Potential-based shaping
 cannot change which policy is optimal, so this is not an ordering fault - but it
 decides what the search looks at, and C4's arms are the way to settle it.
+
+## 15. A watch condition set in advance is worth more than a diagnosis after
+
+Not a fault of the code so much as the only thing that caught one.
+
+Before the row trainer started, the number the written control reaches through
+the same loop was printed: **mean rung 6.0, best 13**, before a gradient is
+taken. And the condition was said out loud: *if the agent has not passed 6.0 by
+the time exploration bottoms out, the fault is credit assignment and not
+training length.*
+
+At episode 2,500 with epsilon at 0.11 it reached rung 3 - worse than its own
+random exploration had managed at 5. The condition fired, the search went
+straight to the credit assignment, and the bug was one line:
+`trail.push((pairs[at], Vec::new(), 0.0))`. Every transition's `next` was empty,
+so `boot = 0`, so the TD target was the immediate reward and the run's worth
+reached the final press and nothing before it.
+
+The value of stating the condition first is that it is a **prediction**. Without
+it the same numbers read as "it needs more episodes", which is what they had
+read as three times already in this mission, and the honest cost of that reading
+is measured in hours rather than in minutes.
+
+The general form: before a training run, write down what number would mean the
+harness is wrong rather than the learning, and what the control gets on the same
+harness. Both are cheap. Neither existed for A5, Q5, Q6 or C7, and all four
+concluded something about a policy that turned out to be about a reward or a
+representation.
+
+## 16. Two costs that are not the same cost
+
+`max_a Q(s',a)` over every candidate is correct and unaffordable. A packing
+state offers about a hundred and eighty moves, so a batch of 128 is
+twenty-three thousand forward passes an update, twenty-four updates an episode
+is half a million, and four thousand episodes is four hours - of which almost
+none is the environment.
+
+The road agent had the opposite shape. There the environment was the whole cost
+(a control packing is two thousand presses of exhaustive seat search) and the
+gradient steps were free, so rationing them at eight an episode was rationing
+against a cost that did not exist.
+
+Same trainer, same architecture, opposite bottleneck - so "how many updates can
+I afford" has to be asked separately for each agent, and answered with a
+measurement rather than with the other one's number.
