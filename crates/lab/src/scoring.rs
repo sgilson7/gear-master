@@ -48,6 +48,61 @@ use gearmaster_engine::stats::Stats;
 /// in `qpack` was written about.
 pub const WINDOW: usize = 3;
 
+/// How far ahead `reach` will walk before it stops counting.
+///
+/// Ten. The walk stops at the first loss anyway, so this only binds on a board
+/// that is beating everything - and a board that clears ten consecutive rungs
+/// from where it stands has answered the question. It is also the cost control:
+/// `reach` simulates a fight per rung, so an uncapped walk on a strong board is
+/// forty fights an episode where the window is three.
+pub const REACH_CAP: usize = 10;
+
+/// How steeply the depth reward grows. Two is a square, three a cube.
+pub const DEPTH_POW: f32 = 2.0;
+
+/// What clearing the whole ladder from rung nought would be worth.
+///
+/// The depth term is `((reached/50)^p - (from/50)^p) * DEPTH`, so it is zero for
+/// a board that clears nothing and grows faster the deeper the board already
+/// is. Three rungs cleared from rung 4 is worth 0.13; the same three from rung
+/// 40 is worth 1.0, near eight times as much.
+pub const DEPTH: f32 = 10.0;
+
+/// How many consecutive rungs this board clears from `rung`, up to `REACH_CAP`.
+///
+/// **This is the Rogue question, asked directly.** A Rogue run dies on a loss,
+/// so how far a board gets before it loses one is not a proxy for anything - it
+/// is the thing. `repack.rs` has walked the ladder this way since THE
+/// APPRENTICE to say how far a packed board got; this is the same walk, started
+/// where the run is standing and stopped where the run would stop.
+pub fn reach(stats: Stats, items: &[ItemProfile], rung: usize) -> usize {
+    let mut cleared = 0;
+    for i in 0..REACH_CAP {
+        let at = rung + i;
+        if at >= LADDER.len() {
+            break;
+        }
+        if one_fight(stats, items, &LADDER[at]) <= 0.0 {
+            break;
+        }
+        cleared += 1;
+    }
+    cleared
+}
+
+/// What getting from `rung` to `rung + cleared` is worth, growing with depth.
+///
+/// Zero for a board that clears nothing, so an empty board and a board that
+/// loses where it stands are separated by the fight score rather than by this -
+/// and there is no floor to drift out of range, which is the fault that had a
+/// trained packer pressing `ClearAll` two hundred times.
+pub fn depth_gain(rung: usize, cleared: usize) -> f32 {
+    let l = LADDER.len() as f32;
+    let to = ((rung + cleared) as f32 / l).powf(DEPTH_POW);
+    let from = (rung as f32 / l).powf(DEPTH_POW);
+    (to - from) * DEPTH
+}
+
 /// How much the worst rung in the window counts, over and above the mean.
 ///
 /// A Rogue board that beats two of three and dies on the third has not "scored
@@ -131,15 +186,27 @@ pub fn window(stats: Stats, items: &[ItemProfile], rung: usize) -> Vec<f32> {
 /// quality. A constant standing in for a measurement is a constant that goes
 /// stale the next time the measurement's range moves, and this one did.
 pub fn score(stats: Stats, items: &[ItemProfile], rung: usize, judge: Judge) -> f32 {
-    let each = window(stats, items, rung);
-    let mean = each.iter().sum::<f32>() / each.len() as f32;
     match judge {
-        Judge::Grinder => mean,
-        // The worst thing in the window, weighted - because in Rogue the worst
-        // thing in the window is the thing that happens.
+        // Grinder is not what this mission spends its machine on: a loss costs
+        // a rung and still pays a bounty, so a run farms past anything it can
+        // eventually beat. The window mean is left as it was.
+        Judge::Grinder => {
+            let each = window(stats, items, rung);
+            each.iter().sum::<f32>() / each.len() as f32
+        }
+        // **How far this board gets before it dies, and each rung dearer than
+        // the last.** A Rogue run ends on a loss, so consecutive rungs cleared
+        // is the objective rather than a proxy for it - and squaring the depth
+        // means reaching a rung nothing has reached leaves a trace far larger
+        // than the one before it, which is what a value function can be
+        // followed back along.
+        //
+        // The fight where the run is standing is still scored, so a board that
+        // clears nothing is graded on how close it came - the gradient A6 found
+        // missing, without which every losing board scores the same.
         Judge::Rogue => {
-            let worst = each.iter().cloned().fold(f32::INFINITY, f32::min);
-            mean + DREAD * worst.min(0.0)
+            let here = one_fight(stats, items, &LADDER[rung.min(LADDER.len() - 1)]);
+            here + depth_gain(rung, reach(stats, items, rung))
         }
     }
 }

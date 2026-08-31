@@ -365,6 +365,10 @@ use gearmaster_trades::brief::Brief;
                 "off - every episode asked for nothing".to_string()
             }
         );
+        // Where the loss stops being proportional. The depth term reaches about
+        // eleven, so this has to cover it.
+        let knee: f32 =
+            std::env::var("QPACK_HUBER").ok().and_then(|v| v.parse().ok()).unwrap_or(12.0);
         let phi_weight: f32 =
             std::env::var("QPACK_PHI").ok().and_then(|v| v.parse().ok()).unwrap_or(1.5);
         // **Suspect 1, from the handoff.** Roughly five hundred legal placements
@@ -401,12 +405,20 @@ use gearmaster_trades::brief::Brief;
         let judge = Judge::of_mode(mode);
         let t_pool = Instant::now();
         let pool = Pool::build(mode, &[0, 2, 4, 7, 10, 14, 18, 23, 28, 34], 2);
+        // **Which rungs, not how many.** A walk arrives only if the pilot gets
+        // that deep, and in Rogue it usually does not - so the pool is
+        // bottom-heavy and the packer may never be shown a board from past the
+        // first ten rungs while the pathfinder is learning to walk to forty.
+        // The count alone could not say that.
+        let mut at: Vec<usize> = pool.at.iter().map(|(r, _)| r + 1).collect();
+        at.sort_unstable();
         println!(
-            "  judge: {}   pool: {} situations from {} walks in {:.0}s",
+            "  judge: {}   pool: {} situations from {} walks in {:.0}s, at rungs {:?}",
             judge.name(),
             pool.at.len(),
             pool.walks,
-            t_pool.elapsed().as_secs_f64()
+            t_pool.elapsed().as_secs_f64(),
+            at
         );
         if pool.at.is_empty() {
             eprintln!("nothing walked - there is no curriculum to train against");
@@ -603,7 +615,22 @@ use gearmaster_trades::brief::Brief;
                 let out = net.forward(x);
                 // Huber, so one wild target cannot dominate a batch.
                 let d = out.sub(y);
-                let loss = d.clone().abs().clamp(0.0, 1.0).mul(d.abs()).mean();
+                // Huber, normalised by its own knee.
+                //
+                // **`clamp(0.0, 1.0)` was here, and it is the fault that cost
+                // the pathfinder three milestones.** Above the knee the
+                // gradient is the knee, so with a knee of one a target of
+                // eleven pulls exactly as hard as one of one and a half and the
+                // network fits the median instead. The depth reward reaches
+                // about eleven, so a knee of one would have clipped the whole of
+                // it out of the gradient - and this trainer had the same line
+                // the road trainer did, unfixed.
+                //
+                // Dividing by the knee keeps the gradient bounded by two
+                // whatever the knee is, so where the loss is proportional and
+                // how large the steps are stop being one decision.
+                let loss =
+                    d.clone().abs().clamp(0.0, knee).mul(d.abs()).div_scalar(knee).mean();
                 let grads = loss.backward();
                 let step = |p: &mut Tensor<B, 2>, g: &<B as AutodiffBackend>::Gradients| {
                     if let Some(gr) = p.grad(g) {

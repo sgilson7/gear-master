@@ -42,6 +42,9 @@ struct Situation {
     window: Vec<f32>,
     grinder: f32,
     rogue: f32,
+    /// The fight where the board is standing, and how many it clears from there.
+    here: f32,
+    reach: usize,
 }
 
 /// Walked once. Each walk is a whole control run of shops and fights.
@@ -70,9 +73,12 @@ fn walk() -> Vec<Situation> {
             if items.is_empty() {
                 continue;
             }
+            let w = scoring::window(stats, &items, rung);
             out.push(Situation {
                 what: format!("{seed:#x} at rung {}", rung + 1),
-                window: scoring::window(stats, &items, rung),
+                here: w[0],
+                reach: scoring::reach(stats, &items, rung),
+                window: w,
                 grinder: scoring::score(stats, &items, rung, Judge::Grinder),
                 rogue: scoring::score(stats, &items, rung, Judge::Rogue),
             });
@@ -83,45 +89,57 @@ fn walk() -> Vec<Situation> {
 
 /// **The property, and it holds on every board.**
 ///
-/// A board that wins its whole window is priced the same by both judges - there
-/// is nothing to be afraid of, so being afraid costs nothing. A board that
-/// loses anywhere in it is worth strictly less to a Rogue, because in Rogue the
-/// losing rung is the one that ends the run.
-///
-/// This is what `Judge::Rogue` *is*, stated from the outside, and it is the
-/// half that does not depend on which boards a sample happened to contain.
+/// The Rogue judge asks how far a board gets before it dies, because a Rogue
+/// run dies on a loss - so consecutive rungs cleared is the objective and not a
+/// proxy for it. A board that clears nothing scores the fight where it stands
+/// and no more; a board that clears something scores strictly higher.
 #[test]
-fn the_rogue_judge_charges_for_a_losing_rung_and_the_grinder_one_does_not() {
-    let all = situations();
-    assert!(all.len() >= 3, "only {} boards were walked, so this proves little", all.len());
-    let mut safe = 0;
-    let mut risky = 0;
-    for s in all {
-        let worst = s.window.iter().cloned().fold(f32::INFINITY, f32::min);
-        if worst < 0.0 {
-            risky += 1;
+fn a_board_that_clears_nothing_scores_only_the_fight_it_is_standing_in() {
+    for s in situations() {
+        let cleared = s.reach;
+        if cleared == 0 {
             assert!(
-                s.rogue < s.grinder,
-                "{}: window {:?} has a loss in it and the two judges agree ({} vs {})",
+                (s.rogue - s.here).abs() < 1e-4,
+                "{}: clears nothing and scored {:+.2} against a standing fight of {:+.2}",
                 s.what,
-                s.window,
-                s.grinder,
-                s.rogue
+                s.rogue,
+                s.here
             );
         } else {
-            safe += 1;
             assert!(
-                (s.rogue - s.grinder).abs() < 1e-4,
-                "{}: window {:?} wins throughout and the judges differ ({} vs {})",
+                s.rogue > s.here,
+                "{}: clears {cleared} and scored {:+.2}, no better than the fight it stands in \
+                 at {:+.2}",
                 s.what,
-                s.window,
-                s.grinder,
-                s.rogue
+                s.rogue,
+                s.here
             );
         }
     }
-    assert!(risky > 0, "no walked board loses anywhere in its window, so nothing was tested");
-    assert!(safe > 0, "every walked board loses somewhere, so the safe half was not tested");
+}
+
+/// **The point of the exponent: the same progress is worth more, deeper in.**
+///
+/// The owner's, and the reason the term is a power rather than a count -
+/// *"making it to the next rung leaves behind a q reward trace that can be
+/// followed"*. Clearing three rungs from rung 4 is worth 0.13; the same three
+/// from rung 40 is worth 1.0.
+#[test]
+fn the_same_rungs_cleared_are_worth_more_the_deeper_they_are() {
+    let shallow = scoring::depth_gain(4, 3);
+    let deep = scoring::depth_gain(40, 3);
+    assert!(
+        deep > shallow * 4.0,
+        "three rungs from 40 paid {deep:+.3} against {shallow:+.3} from rung 4, which is not \
+         a trace worth following"
+    );
+    // And it is monotone, so there is never a reason to prefer being shallower.
+    let mut last = f32::MIN;
+    for rung in (0..40).step_by(4) {
+        let g = scoring::depth_gain(rung, 3);
+        assert!(g > last, "the depth reward fell between rung {} and {}", rung - 4, rung);
+        last = g;
+    }
 }
 
 /// **The gate.** Some pair of real boards is ranked in opposite orders.
@@ -197,13 +215,13 @@ fn no_board_at_all_loses_every_fight_in_the_window() {
         let bare = scoring::score(Stats::ZERO, &[], 4, judge);
         assert!(bare < 0.0, "{judge:?} pays {bare:+.2} for owning nothing at all");
     }
-    // And the Rogue judge charges for it twice, because the worst rung in a
-    // window of losses is a loss.
-    assert!(
-        scoring::score(Stats::ZERO, &[], 4, Judge::Rogue)
-            < scoring::score(Stats::ZERO, &[], 4, Judge::Grinder),
-        "the Rogue judge did not charge for the worst rung of an empty board"
+    // And it clears nothing, so the depth term pays it nothing.
+    assert_eq!(
+        scoring::reach(Stats::ZERO, &[], 4),
+        0,
+        "an empty board cleared a rung"
     );
+    assert_eq!(scoring::depth_gain(4, 0), 0.0);
 }
 
 // ------------------------------------------- the floor, and why it is not a constant
@@ -249,8 +267,11 @@ fn owning_nothing_is_worth_less_than_owning_something_bad() {
             for judge in [Judge::Grinder, Judge::Rogue] {
                 let with = scoring::score(stats, &items, rung, judge);
                 let without = scoring::score(bare_stats, &bare, rung, judge);
+                // Never an *improvement*. Equal is allowed and it is honest:
+                // a board that does no damage at all is worth exactly what no
+                // board is worth, and at rung 20 one of these is.
                 assert!(
-                    without < with,
+                    without <= with + 1e-4,
                     "{seed:#x} at rung {}: {judge:?} pays {without:+.2} for an empty board \
                      and {with:+.2} for a real one, so sweeping the board is a free \
                      improvement and an agent will find it",
