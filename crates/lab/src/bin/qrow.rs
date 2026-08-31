@@ -181,6 +181,20 @@ mod q {
         } else {
             Mode::Rogue
         };
+        // **Proofs, for a window to watch.** `QROW_WATCH=<dir>` writes an
+        // episode's tape every `QROW_WATCH_EVERY` episodes and keeps the last
+        // `QROW_WATCH_KEEP`. Not every episode: an episode is about 1.8 s of
+        // training and about 18 s to replay at the window's pace, so the
+        // watcher is ten times slower than the trainer by construction and can
+        // only ever sample. See `design/the-episode-watcher.md`.
+        let watch = std::env::var("QROW_WATCH").ok();
+        let watch_every: usize =
+            std::env::var("QROW_WATCH_EVERY").ok().and_then(|v| v.parse().ok()).unwrap_or(25);
+        let watch_keep: usize =
+            std::env::var("QROW_WATCH_KEEP").ok().and_then(|v| v.parse().ok()).unwrap_or(20);
+        if let Some(dir) = &watch {
+            println!("  watching: a proof every {watch_every} episodes into {dir}, keeping {watch_keep}");
+        }
         println!(
             "  the row: one episode is one run, from rung one until it dies\n  \
              {mode:?}   lr {lr}   updates {updates}   huber knee {knee}   gamma {GAMMA}"
@@ -245,6 +259,10 @@ mod q {
         // against playing greedily, which is smaller than the block mean's own
         // noise and not worth the runs it would cost.
         let mut best_text: Option<(f32, String)> = None;
+        // Proofs written, and proofs that would not replay. The second is the
+        // number worth printing: a tape that does not replay would put a run in
+        // the window that never happened, and nothing else would say so.
+        let (mut proofs, mut unreplayable) = (0usize, 0usize);
         let (mut spread, mut spreads) = (0.0f64, 0usize);
 
         for ep in 0..episodes {
@@ -312,6 +330,39 @@ mod q {
             deepest_ever = deepest_ever.max(out.deepest);
             depth_sum += out.deepest;
             ran += 1;
+
+            if let Some(dir) = &watch {
+                if ep % watch_every == 0 {
+                    // The epsilon goes in the header because a proof without
+                    // one cannot be read: at 0.29 a third of what the window
+                    // shows is a coin, and that is not the policy's opinion.
+                    let notes = [
+                        ("episode", ep.to_string()),
+                        ("epsilon", format!("{eps:.2}")),
+                        ("block mean", format!("{:.2}", depth_sum as f32 / ran as f32)),
+                        ("packer", "learned, mid-training".to_string()),
+                    ];
+                    match gearmaster_lab::proof::write(
+                        dir,
+                        &format!("ep-{ep:06}"),
+                        seed,
+                        mode,
+                        Difficulty::Medium,
+                        &out.tape,
+                        out.deepest,
+                        &notes,
+                    ) {
+                        Ok(_) => {
+                            proofs += 1;
+                            gearmaster_lab::proof::prune(dir, watch_keep);
+                        }
+                        Err(why) => {
+                            unreplayable += 1;
+                            eprintln!("  proof refused: {why}");
+                        }
+                    }
+                }
+            }
 
             // **What the run was worth, credited to every decision in it.**
             //
@@ -427,6 +478,11 @@ mod q {
             }
         }
         println!("trained in {:.1}s", t0.elapsed().as_secs_f64());
+        if watch.is_some() {
+            println!(
+                "  {proofs} proofs written, {unreplayable} refused for not replaying"
+            );
+        }
         std::fs::create_dir_all("runs").ok();
         // The last weights, and the best ones. A collapse at the exploration
         // floor is a real thing this loop does, so the run keeps both and says

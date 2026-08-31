@@ -137,6 +137,19 @@ one's.
 
 ## 4. Milestones
 
+**W0 - the tape. Done** (`712cb31`).
+
+**W1 - the trainer writes proofs. Done.** `lab::proof` writes a tape, refuses
+one that does not replay, and prunes to the newest few; `qrow` takes
+`QROW_WATCH`, `QROW_WATCH_EVERY` (25) and `QROW_WATCH_KEEP` (20) and prints how
+many were written and how many were refused. Measured on sixty episodes at one
+in ten: **six written, none refused**, and a proof the trainer wrote opens in
+the window and plays. Two things came out of building it that the design had
+not said: the difficulty needs the debug spelling rather than `name()`, because
+`name()` shouts it and every proof in the repo says `Medium`; and the epsilon
+belongs in the header, because at 0.29 a third of what the window shows is a
+coin and not a policy's opinion.
+
 **W0 - the tape.** `Pressed` carries its `Verb`; the pack closure returns what
 it pressed; `Ran` carries the tape. Deliverable: a test in `crates/lab` that a
 taped row run replays into the same rung with zero refusals - `qproof`'s

@@ -116,3 +116,107 @@ fn a_packer_that_does_not_report_leaves_the_packing_off_the_tape() {
     assert_eq!(packing, 0, "the written control reports nothing, so it tapes nothing");
     assert!(!out.tape.is_empty(), "but the road and the fights are still taped");
 }
+
+// ---- what the tape is written as ------------------------------------------
+
+/// A directory of this test's own, named for the test that uses it.
+fn scratch(what: &str) -> String {
+    let dir = std::env::temp_dir().join(format!("gearmaster-proof-{what}"));
+    std::fs::remove_dir_all(&dir).ok();
+    dir.to_string_lossy().into_owned()
+}
+
+#[test]
+fn a_written_proof_replays_and_says_what_it_claims() {
+    let dir = scratch("written");
+    let (_, out) = row::run(SEED, MODE, Difficulty::Medium, &mut first_key);
+    let path = gearmaster_lab::proof::write(
+        &dir,
+        "ep-000000",
+        SEED,
+        MODE,
+        Difficulty::Medium,
+        &out.tape,
+        out.deepest,
+        &[("episode", "0".into()), ("epsilon", "1.00".into())],
+    )
+    .expect("a tape that replays is a proof");
+
+    // Parsed back the way `gui::watch` and `lab/tests/proofs.rs` parse it, by
+    // column. If this drifts, the window stops being able to open what the
+    // trainer writes and nothing else says so.
+    let text = std::fs::read_to_string(&path).expect("readable");
+    let seed = text
+        .lines()
+        .find_map(|l| l.strip_prefix("# seed        0x"))
+        .and_then(|r| u64::from_str_radix(r.trim(), 16).ok())
+        .expect("a seed in the header");
+    let claimed: usize = text
+        .lines()
+        .find_map(|l| l.strip_prefix("# reached     rung "))
+        .and_then(|r| r.split_whitespace().next())
+        .and_then(|r| r.parse().ok())
+        .expect("a reached in the header");
+    assert_eq!(seed, SEED);
+    assert_eq!(claimed, out.deepest);
+    assert!(text.contains("# mode        Rogue"), "the mode has to be in there - see trap on proofs.rs");
+    assert!(
+        text.contains("# difficulty  Medium"),
+        "one spelling of the difficulty, the one every other proof uses"
+    );
+
+    // And the keys survive the round trip through text.
+    let keys: Vec<Verb> = text.lines().filter_map(Verb::parse).collect();
+    assert_eq!(keys, out.tape, "every key written parses back to the key it was");
+}
+
+/// The refusal is the point of the exercise.
+#[test]
+fn a_tape_that_does_not_replay_is_refused_rather_than_written() {
+    let dir = scratch("refused");
+    let (_, out) = row::run(SEED, MODE, Difficulty::Medium, &mut first_key);
+    // A rung it never reached. Nothing else about the tape is wrong, which is
+    // exactly the shape a stale claim takes.
+    let err = gearmaster_lab::proof::write(
+        &dir,
+        "ep-000000",
+        SEED,
+        MODE,
+        Difficulty::Medium,
+        &out.tape,
+        out.deepest + 5,
+        &[],
+    )
+    .expect_err("a claim the replay disagrees with is not a proof");
+    assert!(err.contains("claims rung"), "the refusal says which number was wrong: {err}");
+    assert!(
+        gearmaster_lab::proof::listed(&dir).is_empty(),
+        "and it wrote no file"
+    );
+}
+
+#[test]
+fn pruning_keeps_the_newest_and_drops_the_rest() {
+    let dir = scratch("pruned");
+    let (_, out) = row::run(SEED, MODE, Difficulty::Medium, &mut first_key);
+    for ep in [0usize, 25, 50, 75] {
+        gearmaster_lab::proof::write(
+            &dir,
+            &format!("ep-{ep:06}"),
+            SEED,
+            MODE,
+            Difficulty::Medium,
+            &out.tape,
+            out.deepest,
+            &[],
+        )
+        .expect("a proof");
+    }
+    assert_eq!(gearmaster_lab::proof::listed(&dir).len(), 4);
+    assert_eq!(gearmaster_lab::proof::prune(&dir, 2), 2, "two of four go");
+    let left: Vec<String> = gearmaster_lab::proof::listed(&dir)
+        .iter()
+        .map(|p| p.file_name().expect("a name").to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(left, vec!["ep-000050.proof", "ep-000075.proof"], "the newest by name");
+}
