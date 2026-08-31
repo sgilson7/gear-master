@@ -172,10 +172,29 @@ mod q {
         let lr: f32 = std::env::var("QROW_LR").ok().and_then(|v| v.parse().ok()).unwrap_or(0.05);
         let updates: usize =
             std::env::var("QROW_UPDATES").ok().and_then(|v| v.parse().ok()).unwrap_or(24);
-        // The knee has to cover what a run can be worth: rung 47 squared over
-        // twenty-five is 88.
+        // **Where the loss stops being proportional, and it was forty times
+        // too far out.**
+        //
+        // It was 120, sized to cover what a run *can* be worth - rung 47
+        // squared over twenty-five is 88. But `min(|d|,k)*|d|/k` is `d^2/k`
+        // below the knee, so its gradient is `2|d|/k`: bounded by two at the
+        // knee, and proportional to **1/k** everywhere below it. Sizing the
+        // knee for a rung nothing has ever reached scaled every gradient in
+        // three missions of training down by two orders of magnitude.
+        //
+        // Measured, which is trap 53's own closing instruction finally carried
+        // out: the targets run `[-1.96, +3.04]` and **0.0%** of residuals ever
+        // reached the knee. Three hundred episodes at 120 moved the Q spread
+        // from 0.051 to 0.053 and the mean target from -0.024 to +0.040; the
+        // same three hundred at a knee of 3 moved them to **0.118** and
+        // **+0.225**. The optimiser was not stuck, it was idling.
+        //
+        // Three, because that is the top of the range the targets actually
+        // occupy. As the value function fits, the targets grow - so read the
+        // `past the knee` figure the block line prints: it is 0% now, and when
+        // it is not, this number is the one to raise.
         let knee: f32 =
-            std::env::var("QROW_HUBER").ok().and_then(|v| v.parse().ok()).unwrap_or(120.0);
+            std::env::var("QROW_HUBER").ok().and_then(|v| v.parse().ok()).unwrap_or(3.0);
         let mode = if std::env::var("QROW_MODE").as_deref() == Ok("grinder") {
             Mode::Grinder
         } else {
@@ -192,8 +211,20 @@ mod q {
             std::env::var("QROW_WATCH_EVERY").ok().and_then(|v| v.parse().ok()).unwrap_or(25);
         let watch_keep: usize =
             std::env::var("QROW_WATCH_KEEP").ok().and_then(|v| v.parse().ok()).unwrap_or(20);
+        // **And every episode that gets somewhere, whether or not it is a
+        // sample.** One in twenty-five is a fine cadence for "what is it doing
+        // now" and useless for "what does it do when it gets deep": a policy
+        // whose mean is rung two puts a rung-seven episode in the sample about
+        // never, and twenty proofs off a live run were rung 1 and 2 without
+        // exception. Those go in a directory of their own, because `prune`
+        // drops by name and would eat them first.
+        let watch_deep: usize =
+            std::env::var("QROW_WATCH_DEEP").ok().and_then(|v| v.parse().ok()).unwrap_or(5);
         if let Some(dir) = &watch {
-            println!("  watching: a proof every {watch_every} episodes into {dir}, keeping {watch_keep}");
+            println!(
+                "  watching: a proof every {watch_every} episodes into {dir}, keeping \
+                 {watch_keep}\n  ...and every episode reaching rung {watch_deep} into {dir}/deep, kept"
+            );
         }
         println!(
             "  the row: one episode is one run, from rung one until it dies\n  \
@@ -262,8 +293,26 @@ mod q {
         // Proofs written, and proofs that would not replay. The second is the
         // number worth printing: a tape that does not replay would put a run in
         // the window that never happened, and nothing else would say so.
-        let (mut proofs, mut unreplayable) = (0usize, 0usize);
+        let (mut proofs, mut unreplayable, mut deep) = (0usize, 0usize, 0usize);
         let (mut spread, mut spreads) = (0.0f64, 0usize);
+        // **What the net is being asked to fit, against the loss fitting it.**
+        //
+        // `CLAUDE.md` trap 53's own closing instruction, which was written for
+        // the road and never carried out here: *any new reward wants its target
+        // range printed once against the loss it is being fitted with.*
+        //
+        // The loss is `|d| * min(|d|, knee) / knee`, which for every residual
+        // under the knee is **d^2 / knee** - a squared loss divided by 120. Its
+        // gradient is `2d/120`, where a squared loss gives `2d`. So if nothing
+        // ever reaches the knee, the knee is not clipping anything; it is
+        // quietly scaling every gradient in the run down by a factor of 120,
+        // and that is a very different failure from the one trap 53 records.
+        //
+        // Cheap: the targets are already in hand as plain floats, and the
+        // residuals are read back once an episode rather than once an update.
+        let (mut tlo, mut thi) = (f32::MAX, f32::MIN);
+        let (mut tsum, mut tn) = (0.0f64, 0usize);
+        let (mut dsum, mut dn, mut dover) = (0.0f64, 0usize, 0usize);
 
         for ep in 0..episodes {
             let eps = (1.0 - ep as f32 / (episodes as f32 * 0.7)).clamp(0.05, 1.0);
@@ -332,6 +381,31 @@ mod q {
             ran += 1;
 
             if let Some(dir) = &watch {
+                // The deep ones first, and they are the point of the exercise.
+                if out.deepest >= watch_deep {
+                    let notes = [
+                        ("episode", ep.to_string()),
+                        ("epsilon", format!("{eps:.2}")),
+                        ("block mean", format!("{:.2}", depth_sum as f32 / ran as f32)),
+                        ("packer", "learned, mid-training".to_string()),
+                    ];
+                    match gearmaster_lab::proof::write(
+                        &format!("{dir}/deep"),
+                        &format!("rung{:02}-ep{:06}", out.deepest, ep),
+                        seed,
+                        mode,
+                        Difficulty::Medium,
+                        &out.tape,
+                        out.deepest,
+                        &notes,
+                    ) {
+                        Ok(_) => deep += 1,
+                        Err(why) => {
+                            unreplayable += 1;
+                            eprintln!("  deep proof refused: {why}");
+                        }
+                    }
+                }
                 if ep % watch_every == 0 {
                     // The epsilon goes in the header because a proof without
                     // one cannot be read: at 0.29 a third of what the window
@@ -411,7 +485,7 @@ mod q {
                 buffer.drain(0..20_000);
             }
 
-            for _ in 0..updates {
+            for u in 0..updates {
                 if buffer.len() < batch {
                     break;
                 }
@@ -427,10 +501,34 @@ mod q {
                     };
                     ys.push(s.r + GAMMA * boot);
                 }
+                for &t in &ys {
+                    tlo = tlo.min(t);
+                    thi = thi.max(t);
+                    tsum += t as f64;
+                    tn += 1;
+                }
                 let x = Tensor::<B, 2>::from_data(TensorData::new(xs, [batch, PAIR]), &dev);
                 let y = Tensor::<B, 2>::from_data(TensorData::new(ys, [batch, 1]), &dev);
                 let out = net.forward(x);
                 let d = out.sub(y);
+                // Once an episode, not once an update: reading a tensor back
+                // costs a synchronisation and this is a measurement, not a step.
+                if u == 0 {
+                    for r in d
+                        .clone()
+                        .inner()
+                        .to_data()
+                        .convert::<f32>()
+                        .into_vec::<f32>()
+                        .expect("its own residuals")
+                    {
+                        dsum += r.abs() as f64;
+                        dn += 1;
+                        if r.abs() > knee {
+                            dover += 1;
+                        }
+                    }
+                }
                 let loss = d.clone().abs().clamp(0.0, knee).mul(d.abs()).div_scalar(knee).mean();
                 let grads = loss.backward();
                 let step = |p: &mut Tensor<B, 2>| {
@@ -470,17 +568,39 @@ mod q {
                     deepest_ever,
                     spread / spreads.max(1) as f64
                 );
+                // The second line: what it is fitting, and what the loss does
+                // with the difference.
+                let over = 100.0 * dover as f64 / dn.max(1) as f64;
+                println!(
+                    "       targets {:+.2}..{:+.2} mean {:+.3}   residual mean {:.3}   \
+                     past the knee of {:.0}: {:.1}%   gradient 1/{:.0} of a squared loss",
+                    if tn == 0 { 0.0 } else { tlo },
+                    if tn == 0 { 0.0 } else { thi },
+                    tsum / tn.max(1) as f64,
+                    dsum / dn.max(1) as f64,
+                    knee,
+                    over,
+                    knee
+                );
                 deepest_block = 0;
                 depth_sum = 0;
                 ran = 0;
                 spread = 0.0;
                 spreads = 0;
+                tlo = f32::MAX;
+                thi = f32::MIN;
+                tsum = 0.0;
+                tn = 0;
+                dsum = 0.0;
+                dn = 0;
+                dover = 0;
             }
         }
         println!("trained in {:.1}s", t0.elapsed().as_secs_f64());
         if watch.is_some() {
             println!(
-                "  {proofs} proofs written, {unreplayable} refused for not replaying"
+                "  {proofs} proofs written, {deep} of them deep, \
+                 {unreplayable} refused for not replaying"
             );
         }
         std::fs::create_dir_all("runs").ok();

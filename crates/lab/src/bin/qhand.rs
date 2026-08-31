@@ -239,6 +239,97 @@ fn main() {
         ],
     };
 
+    // **Ask for a deep episode rather than wait for one.**
+    //
+    // `qrow` samples one episode in twenty-five, and a policy whose mean is
+    // rung two almost never has a deep one in the sample - twenty proofs off a
+    // live run were rung 1 and 2 without exception. This plays until it finds
+    // one that got where you asked and writes that as a proof.
+    if let Ok(want) = std::env::var("QHAND_DEEP") {
+        let want: usize = want.parse().unwrap_or(7);
+        let which = std::env::var("QHAND_NET").unwrap_or_else(|_| "control".into());
+        let out = std::env::var("QHAND_OUT").unwrap_or_else(|_| "runs/deep".into());
+        let tries: usize =
+            std::env::var("QHAND_TRIES").ok().and_then(|v| v.parse().ok()).unwrap_or(200);
+        let net = if which == "control" {
+            None
+        } else {
+            match QNet::load_at(&which, feature::PAIR) {
+                Ok(n) => Some(n),
+                Err(why) => {
+                    eprintln!("  {why}");
+                    return;
+                }
+            }
+        };
+        println!("  {which}, {mode:?}: looking for a run that reaches rung {want}, {tries} tries");
+        let mut seeds = Rng::new(ROW_SEED);
+        let (mut found, mut best) = (0usize, 0usize);
+        for i in 0..tries {
+            let seed = seeds.next_u64();
+            let mut pack = |c: &mut Console| -> Vec<gearmaster_console::Verb> {
+                match &net {
+                    Some(n) => {
+                        let done = row::pack_with(c, PACK_BUDGET, |c, ms| {
+                            let v = c.view();
+                            let b = feature::briefed(&feature::board(&v), &Brief::NONE);
+                            ms.iter()
+                                .map(|m| match m {
+                                    Move::Press(verb) => {
+                                        n.q(&feature::pair(&b, &feature::mv(&v, *verb)))
+                                    }
+                                    Move::Done => n.q(&feature::pair(&b, &[0.0; feature::MOVE])),
+                                })
+                                .enumerate()
+                                .max_by(|a, b| a.1.partial_cmp(&b.1).expect("real"))
+                                .map(|(i, _)| i)
+                                .expect("not empty")
+                        });
+                        row::keys(&done)
+                    }
+                    None => {
+                        // The written control records lines rather than verbs,
+                        // and a line is what a proof is made of anyway - the
+                        // round trip is the format, and `proof::write` refuses
+                        // anything that does not replay.
+                        let mut said = Vec::new();
+                        packers::control_recording(c, PACK_BUDGET, &mut said);
+                        said.iter().filter_map(|l| gearmaster_console::Verb::parse(l)).collect()
+                    }
+                }
+            };
+            let (_, ran) = row::run(seed, mode, Difficulty::Medium, &mut pack);
+            best = best.max(ran.deepest);
+            if ran.deepest < want {
+                continue;
+            }
+            let notes = [
+                ("packed by", which.clone()),
+                ("try", i.to_string()),
+                ("epsilon", "0.00  (greedy)".to_string()),
+            ];
+            let name = format!("deep-rung{:02}-{:016X}", ran.deepest, seed);
+            match gearmaster_lab::proof::write(
+                &out,
+                &name,
+                seed,
+                mode,
+                Difficulty::Medium,
+                &ran.tape,
+                ran.deepest,
+                &notes,
+            ) {
+                Ok(path) => {
+                    found += 1;
+                    println!("  rung {:>2}   {path}", ran.deepest);
+                }
+                Err(why) => println!("  rung {:>2}   REFUSED: {why}", ran.deepest),
+            }
+        }
+        println!("\n  {found} written, deepest seen {best}");
+        return;
+    }
+
     if let Ok(path) = std::env::var("QHAND_KEYS") {
         let net = if path == "control" { None } else { QNet::load_at(&path, feature::PAIR).ok() };
         println!("  {path}, {mode:?}");

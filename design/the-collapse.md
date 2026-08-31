@@ -244,6 +244,41 @@ M1 and M2 are the two most likely to end this early and cheaply. If either says
 "one verb" or "`b3` is enormous", M3 becomes confirmation rather than
 discovery.
 
+## Kept for later: batches on one seed
+
+The owner's proposal, recorded because it is a real technique and because the
+reason it is *not* next is a measurement rather than an opinion.
+
+**The proposal.** Batch the episodes, take the deepest run of a batch, and start
+the next batch from it, so the value function is led back to the best thing the
+policy has done.
+
+That is self-imitation learning with a little Go-Explore in it, and both work on
+problems shaped like this one. Two things stop the form as first stated:
+
+* **Best-of-batch is a maximum statistic, and M0.3 measured this loop's maxima
+  as mostly seed.** A fixed net that cannot learn prints block maxima of 3 to
+  13. Selecting on that selects on noise, which is the fault that produced the
+  phantom collapse and saved a rung-2 net labelled "rung 11".
+* **A tape does not transfer across seeds.** A verb is
+  `Place { piece: PieceId, .. }` or `Buy { shelf }`, bound to one run's registry
+  and shop - which is why a proof is `(seed, mode, difficulty, [verb])` and why
+  `proof::write` refuses one that will not replay. The best run's actions
+  applied to another seed are not a worse plan, they are not a plan.
+
+**The form that works is a batch on one seed.** Then depth differences inside a
+batch are policy rather than luck, the best tape replays exactly, and "start
+from the best run and carry on from there" is well defined. The open question
+becomes generalisation: seeds would have to be cycled across batches, and a
+policy that is excellent on the seeds it batched is the thing to check for.
+
+**Why it is not next.** M2 below. The value function is not being misled, it is
+barely being fitted: a target range of `[-1.96, +3.04]` against a Huber knee of
+**120**, so nothing ever reaches the knee and every gradient in the run is
+`2|d|/120`. Better data through an optimiser that cannot use it is a null result
+nobody can interpret, and this mission has already lost three milestones to
+exactly that.
+
 ## What is not in this document
 
 Training longer. Grinder. Reading the spread as health - the working Grinder

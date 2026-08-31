@@ -352,3 +352,72 @@ Widening `MOVE` changes `feature::PAIR`, which invalidates every saved net. That
 is now a loud failure rather than a silent one (`QNet::load_at`, and the ledger
 in `trades/tests/checkpoints.rs`), and every net on the shelf is already
 unfeedable, so the cost is a retrain that was needed anyway.
+
+# M2 — The knee was forty times too far out
+
+Read off `30d6f27` plus this milestone. `CLAUDE.md` trap 53's own closing
+instruction, which was written for the road and never carried out here: *any new
+reward wants its target range printed once against the loss it is being fitted
+with.*
+
+`qrow` prints it every block now. Three hundred episodes:
+
+```
+  episode   299   eps 0.05   mean rung  2.07   spread  0.053
+       targets -1.96..+3.04 mean +0.040   residual mean 0.049
+       past the knee of 120: 0.0%   gradient 1/120 of a squared loss
+```
+
+**The targets occupy `[-1.96, +3.04]` and the knee is at 120.** Nothing reaches
+it, in any block, ever.
+
+`min(|d|,k)*|d|/k` is `d^2/k` below the knee, so the gradient is `2|d|/k` -
+bounded by two *at* the knee, and proportional to **1/k** everywhere below it.
+`qroad`'s comment says dividing by the knee "decouples where the loss is
+proportional from how large the gradients are", and that is true at the top of
+the range and false at the bottom, which is where `qrow` has always lived.
+
+The knee was chosen to cover what a run *can* be worth - rung 47 squared over
+twenty-five is 88 - rather than what a run has ever been worth. The agent has
+never passed rung 11.
+
+## M2.1 The same three hundred episodes, with the knee where the targets are
+
+Same seed, same everything, one constant:
+
+| | knee 120 | knee 3 |
+|---|---|---|
+| Q spread, episode 0 -> 299 | 0.051 -> **0.053** | 0.051 -> **0.118** |
+| mean target | -0.024 -> +0.040 | -0.024 -> **+0.225** |
+| residual mean | 0.026 -> 0.049 | 0.026 -> 0.070 |
+| mean rung at 299 | 2.07 | 1.79 |
+
+**The value function was not stuck, it was idling.** At 120 the spread did not
+move in three hundred episodes - 0.051 to 0.053, which is the flat network this
+mission has diagnosed four times and never once traced to the loss. At 3 it
+more than doubled, and the mean target climbed toward the returns instead of
+sitting on zero.
+
+**And read that for exactly what it is.** A spread answers "has this learned
+anything at all" and not "is it any good" - `analysis/the-two-trades.md` R6.4,
+and the Grinder pathfinder walks a road at a spread of 0.008. Depth has not
+moved: 1.79 against 2.07, inside the block noise of 0.2, over three hundred
+episodes with epsilon at the floor for barely a hundred of them. **Nothing here
+says the packer is fixed.** What it says is that until now the optimiser was not
+in a position to fix it, and that every null result this mission has recorded
+was measured through it.
+
+## M2.2 What this does to the four faults before it
+
+Every one of them was read off a network that was barely being fitted:
+
+* Q3, Q7, Q8 - the quartermaster does not learn to pack. Measured at 1/120.
+* R6.1 to R6.3 - the flat road network. `qroad` found its own version of this
+  and fixed it by scaling the reward, then set its knee to 12; `qrow` inherited
+  the shape and none of the reasoning.
+* M1 - the packer never locks. That is a *feature* fault and stands on its own:
+  no gradient size makes two identical vectors distinguishable.
+
+The three suspects `HANDOFF-two-trades.md` names for the packer were each "one
+constant or one sampler rather than a rewrite". This was a third constant nobody
+had looked at, and it sat under all of them.
