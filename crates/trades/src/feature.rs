@@ -37,13 +37,17 @@ pub const BOARD: usize = 30 + LAYOUT;
 /// them carried a piece, so `Lock`, `Grow`, `Undo` and `Pin` were one identical
 /// vector - and a network that cannot tell two actions apart cannot prefer one.
 /// See the comment on the match in `mv` for what that cost.
-const KINDS: usize = 13;
+///
+/// **Public because a diagnostic reads them.** Where a trained net's weight
+/// mass sits is a question about which band of this vector it fell on, and a
+/// binary that hard-coded the offsets would drift the day one of them moves.
+pub const KINDS: usize = 13;
 /// Where the band describing the *piece* a move is about starts.
-const PIECE: usize = KINDS;
+pub const PIECE: usize = KINDS;
 /// Where the band describing *where it goes* starts.
-const WHERE: usize = PIECE + 13;
+pub const WHERE: usize = PIECE + 13;
 /// Where the band describing *what locking would fix* starts.
-const LOCK: usize = WHERE + 10;
+pub const LOCK: usize = WHERE + 10;
 /// How many describe one candidate move.
 pub const MOVE: usize = LOCK + 2;
 /// A state-action pair, which is what a Q network scores.
