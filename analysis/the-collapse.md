@@ -552,3 +552,75 @@ of the exploring phase alone.
 
 The knee is also starting to bite: `past the knee of 3: 0.9%` at the end, with
 targets reaching +13.61. Still small, and the column is there to be watched.
+
+# M5 — A demonstration, once and then every tenth episode
+
+Read off `6530065`. Three arms, same seed stream, same everything else:
+`qrow-r18-rungsquared.log` (none), `qrow-r21-demo18.log` (once at episode zero),
+`qrow-r22-demo-every10.log` (every tenth episode).
+
+The demonstration is a **rung-18 run**, re-derived rather than replayed: episode
+zero is played by `analysis/nets/qrow-r18-best.txt` on seed
+`0x39D5A382B5751272`, and it reproduces to the press - 840 transitions, mean
+rung 18.00, thirteen items built and twelve held.
+
+## M5.1 Once did nothing, and it was the predicted nothing
+
+One episode each, from the same initialisation. The biases are the honest
+column, because they start at exactly zero:
+
+| | with the demonstration | without |
+|---|---:|---:|
+| transitions banked | **840** | 157 |
+| `b1` largest | 0.0010 | 0.0006 |
+| `b2` largest | 0.0012 | 0.0008 |
+| `b3` | **0.0089** | 0.0035 |
+| `w1` / `w2` / `w3` against init | +0% / -0% / -5% | +0% / -0% / -5% |
+
+So it moved the biases about two and a half times further than an ordinary first
+episode - real, and the size 840 transitions against 157 would predict. The
+weight matrices are the same at this resolution, and a `b3` of 0.0089 against
+the 0.05 a full run reaches is a rounding error.
+
+And it changed nothing about the play:
+
+```
+  episodes   1-100:   no demonstration 1.65    once 1.75
+  episodes 101-200:   no demonstration 1.75    once 1.78
+```
+
+Against a block noise of 0.2. **840 transitions is about one percent of the
+first draws from a buffer of eighty thousand, and none at all by episode two
+thousand**, because the buffer drains twenty thousand at a time. One good
+trajectory cannot outvote a hundred thousand mediocre ones. That is dilution
+rather than a verdict on demonstrations, which is why the next arm exists.
+
+## M5.2 Every tenth episode, which is no longer dilution
+
+At episode 100: buffer 20,329, of which eleven demonstrations at 840 apiece is
+**9,240 - forty-five percent of everything the network has seen.**
+
+```
+  episodes 1-100, mean rung
+    no demonstration          1.65
+    once                      1.75
+    every tenth episode       1.70
+```
+
+**Nothing, at a hundred episodes.** Three arms inside a tenth of a rung of each
+other, against a block noise of 0.2, with epsilon at 0.96 - so almost every
+press is a coin and the policy is barely expressed either way. This is recorded
+because it was asked for at a hundred, and it is far too early to be a verdict
+on anything; the stretch that decides it is past episode 2,800.
+
+## M5.3 A demonstration is not a measurement, and the column says so
+
+The teacher reaches rung 18 and now plays every tenth episode, so counting those
+would put about 1.8 of a rung into the reported mean and the curve would show
+progress belonging to a file. Its transitions go into the buffer, which is the
+whole point of it, and **nothing it does is counted as something the learner
+did** - not the mean, not the items, not the deepest, and not the window the
+best weights are chosen over.
+
+That is visible in the log: episode zero's block reads `mean rung 0.00`, because
+the only episode in it was the teacher's.

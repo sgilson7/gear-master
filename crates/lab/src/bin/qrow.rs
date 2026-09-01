@@ -67,14 +67,26 @@ mod q {
     /// The seed the trainer's own draws come from.
     const ROW_SEED: u64 = 0x0D0E_5EED;
 
-    /// Episodes to a block: the unit this trainer reports and chooses on.
+    /// Episodes to a block: the unit this trainer **reports** on.
     ///
-    /// It has to be large enough that a block's **mean** is quieter than a
-    /// change worth noticing. Measured over a policy held completely still
-    /// (`--bin qhand`, `QHAND_BLOCKS`): a hundred runs have a block mean that
-    /// moves by 0.2 of a rung between blocks and a block *maximum* that moves
-    /// by ten.
-    const BLOCK: usize = 100;
+    /// Twenty-five, for a curve with four times the resolution. A block mean
+    /// over twenty-five runs is about twice as noisy as one over a hundred -
+    /// roughly 0.4 of a rung against 0.2, measured over a policy held
+    /// completely still (`--bin qhand`, `QHAND_BLOCKS`) - which is a fine
+    /// trade for a picture and a bad one for a decision.
+    ///
+    /// So it is no longer what the weights are chosen on. See `KEEP_OVER`.
+    const BLOCK: usize = 25;
+
+    /// Episodes the **best weights** are chosen over.
+    ///
+    /// A hundred, whatever the reporting block is. Keeping the best net is a
+    /// decision and a decision wants the quieter statistic: `qrow` used to pick
+    /// on a block *maximum* and saved a rung-2 net labelled "rung 11"
+    /// (`analysis/the-collapse.md` M0), and picking on a noisy mean is the same
+    /// mistake with a smaller error bar. Reporting can be as fine as it likes;
+    /// choosing may not.
+    const KEEP_OVER: usize = 100;
 
     /// Whether the bootstrap chooses and values with the same network.
     ///
@@ -308,6 +320,17 @@ mod q {
         let demo_seed: Option<u64> = std::env::var("QROW_DEMO_SEED")
             .ok()
             .and_then(|v| u64::from_str_radix(v.trim_start_matches("0x"), 16).ok());
+        // **How often the teacher plays.**
+        //
+        // Once was measured and did nothing: 840 transitions against a buffer
+        // of 80,000 is about one percent of the first draws and none at all by
+        // episode two thousand, because the buffer drains twenty thousand at a
+        // time. One good trajectory cannot outvote a hundred thousand mediocre
+        // ones. Every tenth episode gives it a standing share instead - a
+        // demonstration is 840 transitions where an ordinary episode is about
+        // 120, so it is roughly two fifths of everything the buffer sees.
+        let demo_every: usize =
+            std::env::var("QROW_DEMO_EVERY").ok().and_then(|v| v.parse().ok()).unwrap_or(10);
 
         let watch_deep: usize =
             std::env::var("QROW_WATCH_DEEP").ok().and_then(|v| v.parse().ok()).unwrap_or(5);
@@ -349,6 +372,9 @@ mod q {
         );
 
         let double = double();
+        if teacher.is_some() {
+            println!("  the teacher plays every {demo_every} episodes, and is not counted in the mean");
+        }
         println!("  bootstrap: {}", if double {
             "double - the online net picks, the frozen net values"
         } else {
@@ -390,6 +416,8 @@ mod q {
         // against playing greedily, which is smaller than the block mean's own
         // noise and not worth the runs it would cost.
         let mut best_text: Option<(f32, String)> = None;
+        // The selection window, which is not the reporting block.
+        let (mut keep_sum, mut keep_n) = (0usize, 0usize);
         // Proofs written, and proofs that would not replay. The second is the
         // number worth printing: a tape that does not replay would put a run in
         // the window that never happened, and nothing else would say so.
@@ -431,7 +459,7 @@ mod q {
             // Drawn either way, so the seed stream is identical with and
             // without a demonstration and the two runs stay comparable.
             let drawn = rng.next_u64();
-            let following = ep == 0 && teacher.is_some();
+            let following = teacher.is_some() && ep % demo_every == 0;
             let seed = match (demo_seed, following) {
                 (Some(s), true) => s,
                 _ => drawn,
@@ -497,10 +525,23 @@ mod q {
             };
 
             let (_c, out) = row::run(seed, mode, Difficulty::Medium, &mut pack);
-            deepest_block = deepest_block.max(out.deepest);
-            deepest_ever = deepest_ever.max(out.deepest);
-            depth_sum += out.deepest;
-            ran += 1;
+            // **A demonstration is not a measurement of the policy.**
+            //
+            // The teacher reaches rung 18 and it plays every tenth episode, so
+            // counting those would put about 1.8 of a rung into the reported
+            // mean and the curve would show progress that belongs to a file.
+            // Its transitions go into the buffer, which is the point of it, and
+            // nothing it does is counted as something the learner did - not the
+            // mean, not the items, not the deepest, and not the window the best
+            // weights are chosen over.
+            if !following {
+                deepest_block = deepest_block.max(out.deepest);
+                deepest_ever = deepest_ever.max(out.deepest);
+                depth_sum += out.deepest;
+                keep_sum += out.deepest;
+                keep_n += 1;
+                ran += 1;
+            }
 
             if let Some(dir) = &watch {
                 // **The deepest episode of the run, in one place.**
@@ -648,8 +689,14 @@ mod q {
                     }
                 })
                 .collect();
-            items_paid += best_items;
-            items_held += presses.last().map(|p| p.items_after).unwrap_or(0);
+            // Counted here rather than above, because `best_items` is the
+            // reward's own high-water mark and is not known until the bonuses
+            // have been walked. Guarded the same way: the teacher's items are
+            // the teacher's.
+            if !following {
+                items_paid += best_items;
+                items_held += presses.last().map(|p| p.items_after).unwrap_or(0);
+            }
             for i in 0..n {
                 let x = trail[i].0;
                 // **What was on offer at the next decision.** The last one has
@@ -748,15 +795,20 @@ mod q {
             if ep % 50 == 49 {
                 frozen = net.frozen();
             }
+            // The weights are chosen on their own window, so the reporting
+            // block can be made as fine as anybody wants without moving what
+            // gets saved.
+            if keep_n >= KEEP_OVER {
+                let over = keep_sum as f32 / keep_n as f32;
+                if best_text.as_ref().is_none_or(|(m, _)| over > *m) {
+                    best_text = Some((over, net.text()));
+                }
+                keep_sum = 0;
+                keep_n = 0;
+            }
+
             if ep % BLOCK == 0 || ep + 1 == episodes {
                 let mean = depth_sum as f32 / ran.max(1) as f32;
-                // A short block is not a measurement of a policy. The first
-                // block here is one episode and the last is whatever is left,
-                // and a single lucky run would otherwise pin the best weights
-                // to the network's initialisation for the whole run.
-                if ran >= BLOCK && best_text.as_ref().is_none_or(|(m, _)| mean > *m) {
-                    best_text = Some((mean, net.text()));
-                }
                 println!(
                     "  episode {:>5}   eps {:.2}   buffer {:>6}   mean rung {:>5.2}   \
                      items {:>4.2} paid {:>4.2} held   deepest {:>3} (ever {:>3})   spread {:>6.3}",
@@ -818,8 +870,8 @@ mod q {
             Some((m, t)) => {
                 std::fs::write("runs/quartermaster_row.txt", t).unwrap();
                 println!(
-                    "wrote runs/quartermaster_row.txt (best block, mean rung {m:.2}) \
-                     and runs/quartermaster_row_last.txt (final)"
+                    "wrote runs/quartermaster_row.txt (best {KEEP_OVER} episodes, \
+                     mean rung {m:.2}) and runs/quartermaster_row_last.txt (final)"
                 );
             }
             None => {
