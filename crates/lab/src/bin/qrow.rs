@@ -220,8 +220,26 @@ mod q {
         // occupy. As the value function fits, the targets grow - so read the
         // `past the knee` figure the block line prints: it is 0% now, and when
         // it is not, this number is the one to raise.
+        //
+        // **Five, chosen by measurement rather than by argument.**
+        //
+        // `row::RUNG` became one, so a rung pays its whole square and the
+        // targets span 1 to 121 - and no single quadratic region covers that.
+        // Too high and every ordinary residual has its gradient scaled away
+        // (M2); too low and a run worth a hundred and nineteen pulls exactly as
+        // hard as one worth two (trap 53). Three hundred episodes apiece, same
+        // seed:
+        //
+        //     knee 20   spread 0.071   past the knee 0.0%
+        //     knee  5   spread 0.119   past the knee 0.1%
+        //     knee  2   spread 0.133   past the knee 0.1%
+        //
+        // Five, because two buys a tenth more gradient for two and a half times
+        // less headroom, and the targets grow as the value function fits. The
+        // `past the knee` figure is the check: a few percent is Huber doing its
+        // job on the tail and forty percent is trap 53.
         let knee: f32 =
-            std::env::var("QROW_HUBER").ok().and_then(|v| v.parse().ok()).unwrap_or(3.0);
+            std::env::var("QROW_HUBER").ok().and_then(|v| v.parse().ok()).unwrap_or(5.0);
         let mode = if std::env::var("QROW_MODE").as_deref() == Ok("grinder") {
             Mode::Grinder
         } else {

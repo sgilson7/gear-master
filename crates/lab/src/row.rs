@@ -197,18 +197,40 @@ pub const POW: f32 = 2.0;
 
 /// What one rung squared is worth.
 ///
-/// **Not `(rung/50)^2` scaled to ten.** That was the first version and it is
-/// the wrong normalisation for an agent that starts at the bottom: it puts the
-/// whole of the curve's growth in the top half of a ladder the agent has never
-/// seen, so rung 4 was worth 0.064 and rung 5 was worth 0.100 while a run's
-/// step charges came to six. The thing the episode was about was one percent of
-/// what it was charged for, and the charge grew with depth because a deeper run
-/// is more packings.
+/// **One. The square, undivided.**
 ///
-/// A twenty-fifth of the square bites where the agent actually lives - rung 5
-/// is 1.0, rung 10 is 4, rung 20 is 16 - and still grows fast enough that rung
-/// 47 is 88. The Huber knee in the trainer covers it.
-pub const RUNG: f32 = 1.0 / 25.0;
+/// It was `(rung/50)^2` scaled to ten, which put the whole of the curve's
+/// growth in the top half of a ladder the agent had never seen. That was
+/// replaced by a twenty-fifth of the square on the argument that it "bites
+/// where the agent actually lives", and it was the same mistake one notch
+/// along - four thousand episodes measured what it actually paid:
+///
+/// | rung reached | what the run was worth |
+/// |---:|---:|
+/// | 2 | **-1.84** |
+/// | 5 | -1.00 |
+/// | 7 | **-0.04** |
+/// | 11 | +2.84 |
+///
+/// A Rogue run always ends with its four lives spent, so `LIFE` takes a flat
+/// 2.0 off every episode - and against that, reaching **rung 7 paid less than
+/// nothing**, and less than assembling a single item. `analysis/the-collapse.md`
+/// M3 and M4: the agent learned to farm assemblies and ignore the ladder,
+/// because that is what it was paid for. It spent 45% of its presses undoing
+/// its own placements and its mean rung did not move in four thousand episodes
+/// of a value function that was finally learning.
+///
+/// Undivided, a rung is worth far more than anything else on the board: rung 2
+/// pays 2.0 where an item pays 1 to 3, and every rung after that widens the gap
+/// - 3 pays 7, 7 pays 47. Clearing the next creature is the objective and now
+/// it is priced like one.
+///
+/// **This moves the target range about twenty-five fold**, and a Huber knee has
+/// to be sized to the range it is fitting or it either clips everything
+/// (`CLAUDE.md` trap 53) or scales every gradient away (M2). `qrow` prints the
+/// range against the knee every block; that column is the check on this
+/// constant.
+pub const RUNG: f32 = 1.0;
 
 /// What finishing an item is worth at all, before its quality.
 pub const ASSEMBLED: f32 = 1.0;
