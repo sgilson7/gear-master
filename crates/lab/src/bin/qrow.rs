@@ -187,6 +187,14 @@ mod q {
         }
     }
 
+    /// The candidates the bootstrap will look at: the best `BOOTSTRAP_KEEP`
+    /// under the behaviour policy, ranked while the scores are already in hand.
+    fn best_of(pairs: &[[f32; PAIR]], qs: &[f32]) -> Vec<[f32; PAIR]> {
+        let mut ranked: Vec<(usize, f32)> = qs.iter().cloned().enumerate().collect();
+        ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).expect("real"));
+        ranked.iter().take(BOOTSTRAP_KEEP).map(|(i, _)| pairs[*i]).collect()
+    }
+
     struct Trans {
         x: [f32; PAIR],
         r: f32,
@@ -263,6 +271,44 @@ mod q {
         // never, and twenty proofs off a live run were rung 1 and 2 without
         // exception. Those go in a directory of their own, because `prune`
         // drops by name and would eat them first.
+        // **One run, handed to a fresh network as its first experience.**
+        //
+        // `QROW_DEMO_NET=<net> QROW_DEMO_SEED=<hex>` plays that seed with that
+        // network, greedily, as episode zero - and its transitions go into the
+        // buffer like any other episode's.
+        //
+        // **Not by replaying a proof, and the reason is worth keeping.** A tape
+        // is keys, and keys are not the whole decision: the first attempt
+        // followed a rung-13 tape through eighty presses exactly and then
+        // diverged, because `row::run` is a function of the *packer* and a tape
+        // only records what the packer pressed. Rebuilding an episode from its
+        // output means reconstructing every hidden thing the output does not
+        // carry. Re-deriving it from the packer that made it is exact by
+        // construction, and `row::run(seed, mode, difficulty, packer)` is
+        // already that function.
+        //
+        // What to expect, so the result can be read either way: a thousand
+        // transitions against a buffer of eighty thousand, sampled uniformly,
+        // is about one percent of the first draw and less after that. If it
+        // does nothing, that is dilution rather than a verdict on
+        // demonstrations - the next thing to try is repeating it or protecting
+        // it from eviction, not dropping the idea.
+        let teacher = std::env::var("QROW_DEMO_NET")
+            .ok()
+            .and_then(|p| match gearmaster_trades::QNet::load_at(&p, PAIR) {
+                Ok(n) => {
+                    println!("  demonstration: episode 0 played by {p}");
+                    Some(n)
+                }
+                Err(why) => {
+                    eprintln!("  {why}");
+                    None
+                }
+            });
+        let demo_seed: Option<u64> = std::env::var("QROW_DEMO_SEED")
+            .ok()
+            .and_then(|v| u64::from_str_radix(v.trim_start_matches("0x"), 16).ok());
+
         let watch_deep: usize =
             std::env::var("QROW_WATCH_DEEP").ok().and_then(|v| v.parse().ok()).unwrap_or(5);
         if let Some(dir) = &watch {
@@ -380,7 +426,14 @@ mod q {
 
         for ep in 0..episodes {
             let eps = (1.0 - ep as f32 / (episodes as f32 * 0.7)).clamp(0.05, 1.0);
-            let seed = rng.next_u64();
+            // Drawn either way, so the seed stream is identical with and
+            // without a demonstration and the two runs stay comparable.
+            let drawn = rng.next_u64();
+            let following = ep == 0 && teacher.is_some();
+            let seed = match (demo_seed, following) {
+                (Some(s), true) => s,
+                _ => drawn,
+            };
             // The chosen pair at each decision **and every pair that was on
             // offer there**, because the second is what the decision before it
             // bootstraps from. Storing only the chosen one leaves `next` empty,
@@ -407,6 +460,20 @@ mod q {
                     let lo = qs.iter().cloned().fold(f32::MAX, f32::min);
                     spread += (hi - lo) as f64;
                     spreads += 1;
+                    // Following the demonstration: whatever the teacher would
+                    // press here, with no exploration. Same function, same
+                    // seed, same answer as the run this came from.
+                    if let (true, Some(t)) = (following, &teacher) {
+                        let i = pairs
+                            .iter()
+                            .map(|p| t.q(p))
+                            .enumerate()
+                            .max_by(|a, b| a.1.partial_cmp(&b.1).expect("real"))
+                            .map(|(i, _)| i)
+                            .expect("not empty");
+                        trail.push((pairs[i], best_of(&pairs, &qs)));
+                        return i;
+                    }
                     let at = if (rng.next_u64() % 1000) as f32 / 1000.0 < eps {
                         (rng.next_u64() % ms.len() as u64) as usize
                     } else {
@@ -416,18 +483,7 @@ mod q {
                             .map(|(i, _)| i)
                             .expect("not empty")
                     };
-                    // Ranked now, while the scores are already in hand, so the
-                    // bootstrap can look at a few good candidates rather than
-                    // every candidate. See `BOOTSTRAP_KEEP`.
-                    let mut ranked: Vec<(usize, f32)> =
-                        qs.iter().cloned().enumerate().collect();
-                    ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).expect("real"));
-                    let best: Vec<[f32; PAIR]> = ranked
-                        .iter()
-                        .take(BOOTSTRAP_KEEP)
-                        .map(|(i, _)| pairs[*i])
-                        .collect();
-                    trail.push((pairs[at], best));
+                    trail.push((pairs[at], best_of(&pairs, &qs)));
                     at
                 });
                 // The keys, for the run's tape, before `done` is consumed by
@@ -460,6 +516,7 @@ mod q {
                         mode,
                         Difficulty::Medium,
                         &out.tape,
+                        &out.pack_ends,
                         out.deepest,
                         &notes,
                     ) {
@@ -487,6 +544,7 @@ mod q {
                         mode,
                         Difficulty::Medium,
                         &out.tape,
+                        &out.pack_ends,
                         out.deepest,
                         &notes,
                     ) {
@@ -690,7 +748,7 @@ mod q {
         println!("trained in {:.1}s", t0.elapsed().as_secs_f64());
         if watch.is_some() {
             println!(
-                "  {proofs} proofs written, {deep} of them deep, \
+                "  {proofs} sampled proofs and {deep} deep ones written, \
                  {unreplayable} refused for not replaying"
             );
         }

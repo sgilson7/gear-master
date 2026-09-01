@@ -137,6 +137,7 @@ fn a_written_proof_replays_and_says_what_it_claims() {
         MODE,
         Difficulty::Medium,
         &out.tape,
+        &out.pack_ends,
         out.deepest,
         &[("episode", "0".into()), ("epsilon", "1.00".into())],
     )
@@ -184,6 +185,7 @@ fn a_tape_that_does_not_replay_is_refused_rather_than_written() {
         MODE,
         Difficulty::Medium,
         &out.tape,
+        &out.pack_ends,
         out.deepest + 5,
         &[],
     )
@@ -207,6 +209,7 @@ fn pruning_keeps_the_newest_and_drops_the_rest() {
             MODE,
             Difficulty::Medium,
             &out.tape,
+            &out.pack_ends,
             out.deepest,
             &[],
         )
@@ -238,6 +241,7 @@ fn a_proof_appears_whole_or_not_at_all() {
         MODE,
         Difficulty::Medium,
         &out.tape,
+        &out.pack_ends,
         out.deepest,
         &[],
     )

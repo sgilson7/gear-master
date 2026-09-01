@@ -316,6 +316,7 @@ fn main() {
                 mode,
                 Difficulty::Medium,
                 &ran.tape,
+                &ran.pack_ends,
                 ran.deepest,
                 &notes,
             ) {

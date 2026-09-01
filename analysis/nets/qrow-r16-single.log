@@ -1,0 +1,43 @@
+  watching: a proof every 25 episodes into runs/watch, keeping 20
+  ...and every episode reaching rung 5 into runs/watch/deep, kept
+  the row: one episode is one run, from rung one until it dies
+  Rogue   lr 0.05   updates 24   huber knee 3   gamma 0.999
+  the written control through this loop: mean rung 6.0, best 13
+  episode     0   eps 1.00   buffer    157   mean rung  1.00   deepest   1 (ever   1)   spread  0.051
+       targets -1.96..+0.07 mean -0.024   residual mean 0.026   past the knee of 3: 0.0%   gradient 1/3 of a squared loss
+  episode   100   eps 0.96   buffer  11274   mean rung  1.60   deepest   3 (ever   3)   spread  0.083
+       targets -2.14..+3.12 mean +0.008   residual mean 0.081   past the knee of 3: 0.0%   gradient 1/3 of a squared loss
+  episode   200   eps 0.93   buffer  23992   mean rung  1.85   deepest   4 (ever   4)   spread  0.171
+       targets -2.14..+3.37 mean +0.174   residual mean 0.141   past the knee of 3: 0.0%   gradient 1/3 of a squared loss
+  episode   300   eps 0.89   buffer  36610   mean rung  1.75   deepest   6 (ever   6)   spread  0.253
+       targets -2.14..+3.94 mean +0.443   residual mean 0.151   past the knee of 3: 0.0%   gradient 1/3 of a squared loss
+  episode   400   eps 0.86   buffer  50894   mean rung  1.75   deepest   3 (ever   6)   spread  0.334
+       targets -2.14..+4.49 mean +0.752   residual mean 0.137   past the knee of 3: 0.0%   gradient 1/3 of a squared loss
+  episode   500   eps 0.82   buffer  64612   mean rung  1.61   deepest   3 (ever   6)   spread  0.433
+       targets -2.14..+4.76 mean +1.080   residual mean 0.146   past the knee of 3: 0.0%   gradient 1/3 of a squared loss
+  episode   600   eps 0.79   buffer  79486   mean rung  1.74   deepest   3 (ever   6)   spread  0.541
+       targets -2.14..+5.19 mean +1.400   residual mean 0.147   past the knee of 3: 0.1%   gradient 1/3 of a squared loss
+  episode   700   eps 0.75   buffer  74817   mean rung  1.79   deepest   3 (ever   6)   spread  0.671
+       targets -2.14..+5.54 mean +1.744   residual mean 0.148   past the knee of 3: 0.3%   gradient 1/3 of a squared loss
+  episode   800   eps 0.71   buffer  69196   mean rung  1.72   deepest   3 (ever   6)   spread  0.780
+       targets -2.14..+5.89 mean +2.016   residual mean 0.134   past the knee of 3: 0.3%   gradient 1/3 of a squared loss
+  episode   900   eps 0.68   buffer  63241   mean rung  1.69   deepest   3 (ever   6)   spread  0.849
+       targets -2.14..+6.18 mean +2.216   residual mean 0.138   past the knee of 3: 0.4%   gradient 1/3 of a squared loss
+  episode  1000   eps 0.64   buffer  76849   mean rung  1.61   deepest   3 (ever   6)   spread  0.935
+       targets -2.14..+6.62 mean +2.364   residual mean 0.144   past the knee of 3: 0.5%   gradient 1/3 of a squared loss
+  episode  1100   eps 0.61   buffer  71381   mean rung  1.67   deepest   3 (ever   6)   spread  0.980
+       targets -2.14..+6.83 mean +2.497   residual mean 0.141   past the knee of 3: 0.4%   gradient 1/3 of a squared loss
+  episode  1200   eps 0.57   buffer  65390   mean rung  1.53   deepest   3 (ever   6)   spread  1.034
+       targets -2.14..+7.09 mean +2.666   residual mean 0.141   past the knee of 3: 0.4%   gradient 1/3 of a squared loss
+  episode  1300   eps 0.54   buffer  60152   mean rung  1.66   deepest   3 (ever   6)   spread  1.177
+       targets -2.14..+7.42 mean +2.828   residual mean 0.144   past the knee of 3: 0.4%   gradient 1/3 of a squared loss
+  episode  1400   eps 0.50   buffer  73661   mean rung  1.51   deepest   3 (ever   6)   spread  1.287
+       targets -2.14..+7.81 mean +3.025   residual mean 0.150   past the knee of 3: 0.3%   gradient 1/3 of a squared loss
+  episode  1500   eps 0.46   buffer  67196   mean rung  1.53   deepest   3 (ever   6)   spread  1.359
+       targets -2.14..+8.24 mean +3.189   residual mean 0.150   past the knee of 3: 0.2%   gradient 1/3 of a squared loss
+  episode  1600   eps 0.43   buffer  79356   mean rung  1.36   deepest   2 (ever   6)   spread  1.387
+       targets -2.14..+8.38 mean +3.343   residual mean 0.151   past the knee of 3: 0.3%   gradient 1/3 of a squared loss
+  episode  1700   eps 0.39   buffer  72740   mean rung  1.57   deepest   6 (ever   6)   spread  1.532
+       targets -2.14..+8.71 mean +3.574   residual mean 0.157   past the knee of 3: 0.3%   gradient 1/3 of a squared loss
+  episode  1800   eps 0.36   buffer  66852   mean rung  1.49   deepest   3 (ever   6)   spread  1.630
+       targets -2.14..+9.37 mean +3.761   residual mean 0.158   past the knee of 3: 0.3%   gradient 1/3 of a squared loss

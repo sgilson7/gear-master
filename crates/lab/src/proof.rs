@@ -44,6 +44,7 @@ pub fn text(
     mode: Mode,
     difficulty: Difficulty,
     tape: &[Verb],
+    breaks: &[usize],
     reached: usize,
     notes: &[(&str, String)],
 ) -> String {
@@ -70,9 +71,34 @@ pub fn text(
          # before reading any of it as a policy's opinion.\n#\n",
     );
     out.push_str("\n");
-    for v in tape {
+    // `; pack` where one packing ended. A semicolon starts a comment, so
+    // `Verb::parse` returns nothing for these and every existing reader - the
+    // window, `tests/proofs.rs`, `replay` below - skips them exactly as before.
+    // Only something rebuilding the episode decision by decision needs them.
+    for (i, v) in tape.iter().enumerate() {
+        if breaks.contains(&i) {
+            out.push_str("; pack\n");
+        }
         out.push_str(&v.line());
         out.push('\n');
+    }
+    out
+}
+
+/// The keys of a proof, split at the `; pack` markers.
+///
+/// Empty groups are kept: a packing that pressed nothing is still a packing,
+/// and dropping it would shift every group after it.
+pub fn packings(text: &str) -> Vec<Vec<Verb>> {
+    let mut out: Vec<Vec<Verb>> = vec![Vec::new()];
+    for line in text.lines() {
+        if line.trim_start().starts_with("; pack") {
+            out.push(Vec::new());
+            continue;
+        }
+        if let Some(v) = Verb::parse(line) {
+            out.last_mut().expect("one group always").push(v);
+        }
     }
     out
 }
@@ -90,6 +116,7 @@ pub fn write(
     mode: Mode,
     difficulty: Difficulty,
     tape: &[Verb],
+    breaks: &[usize],
     reached: usize,
     notes: &[(&str, String)],
 ) -> Result<String, String> {
@@ -109,7 +136,7 @@ pub fn write(
     // so. A rename within one directory is atomic, and `.tmp` is not `.proof`,
     // so the file is invisible to `proofs_in` until it is whole.
     let tmp = format!("{path}.tmp");
-    std::fs::write(&tmp, text(seed, mode, difficulty, tape, reached, notes))
+    std::fs::write(&tmp, text(seed, mode, difficulty, tape, breaks, reached, notes))
         .map_err(|e| format!("{tmp}: {e}"))?;
     std::fs::rename(&tmp, &path).map_err(|e| format!("{path}: {e}"))?;
     Ok(path)

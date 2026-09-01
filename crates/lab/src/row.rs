@@ -61,6 +61,16 @@ pub struct Ran {
     /// This is a proof in the making: `(seed, mode, difficulty, [verb])` is all
     /// a proof is, and the other three are the arguments to `run`.
     pub tape: Vec<Verb>,
+    /// Where each packing ended, as an index into `tape`.
+    ///
+    /// **A tape of keys is not a replayable episode on its own.** Every key in
+    /// it is legal in several different packings, so a replay that does not
+    /// know where one packing stopped will hand the next one somebody else's
+    /// presses - and the keys keep matching while the board quietly diverges.
+    /// Measured: a rung-20 tape followed 317 keys correctly and then asked to
+    /// buy from a shelf it could no longer afford, because a fight four rungs
+    /// earlier had been fought with the wrong board.
+    pub pack_ends: Vec<usize>,
     /// The deepest rung it stood on, shown the way the screen shows it.
     pub deepest: usize,
     /// Fights won and lost.
@@ -169,6 +179,7 @@ pub fn run(
         walk_on(&mut c, &mut out.tape);
         let pressed = pack(&mut c);
         out.tape.extend(pressed);
+        out.pack_ends.push(out.tape.len());
         out.packs += 1;
         let before = c.view();
         let fight = if before.brawl_waiting { Verb::FightParty } else { Verb::Fight };
