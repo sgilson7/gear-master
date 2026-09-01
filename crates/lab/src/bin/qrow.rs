@@ -394,6 +394,8 @@ mod q {
         // number worth printing: a tape that does not replay would put a run in
         // the window that never happened, and nothing else would say so.
         let (mut proofs, mut unreplayable, mut deep) = (0usize, 0usize, 0usize);
+        // The deepest episode seen, for the `best.*` trio.
+        let mut best_deep = 0usize;
         let (mut spread, mut spreads) = (0.0f64, 0usize);
         // **What the net is being asked to fit, against the loss fitting it.**
         //
@@ -501,6 +503,43 @@ mod q {
             ran += 1;
 
             if let Some(dir) = &watch {
+                // **The deepest episode of the run, in one place.**
+                //
+                // Every deep episode is kept below, which is a hundred and
+                // seventy-seven files to sift by the end. The best one is the
+                // one anybody actually asks for, so it is also written to a
+                // fixed pair of names and overwritten whenever it is beaten -
+                // `best.proof` to watch and `best.net` to re-derive it from,
+                // because an episode is a function of its packer and the tape
+                // alone cannot be replayed (see `QROW_DEMO_NET`).
+                if out.deepest > best_deep {
+                    best_deep = out.deepest;
+                    let notes = [
+                        ("episode", ep.to_string()),
+                        ("epsilon", format!("{eps:.2}")),
+                        ("packer", format!("{dir}/deep/best.net")),
+                    ];
+                    if gearmaster_lab::proof::write(
+                        &format!("{dir}/deep"),
+                        "best",
+                        seed,
+                        mode,
+                        Difficulty::Medium,
+                        &out.tape,
+                        &out.pack_ends,
+                        out.deepest,
+                        &notes,
+                    )
+                    .is_ok()
+                    {
+                        std::fs::write(format!("{dir}/deep/best.net"), net.text()).ok();
+                        std::fs::write(
+                            format!("{dir}/deep/best.seed"),
+                            format!("{seed:#018X}\n"),
+                        )
+                        .ok();
+                    }
+                }
                 // The deep ones first, and they are the point of the exercise.
                 if out.deepest >= watch_deep {
                     let notes = [
@@ -520,7 +559,23 @@ mod q {
                         out.deepest,
                         &notes,
                     ) {
-                        Ok(_) => deep += 1,
+                        Ok(_) => {
+                            deep += 1;
+                            // **And the network that played it.**
+                            //
+                            // This run recorded a hundred and seventy-seven
+                            // deep episodes and kept none of the nets that
+                            // produced them, so its best - a rung 20 - could be
+                            // watched and never re-derived. An episode is a
+                            // function of its packer; keeping the tape without
+                            // the packer keeps the output and throws away the
+                            // thing that made it.
+                            std::fs::write(
+                                format!("{dir}/deep/rung{:02}-ep{:06}.net", out.deepest, ep),
+                                net.text(),
+                            )
+                            .ok();
+                        }
                         Err(why) => {
                             unreplayable += 1;
                             eprintln!("  deep proof refused: {why}");
@@ -749,7 +804,9 @@ mod q {
         if watch.is_some() {
             println!(
                 "  {proofs} sampled proofs and {deep} deep ones written, \
-                 {unreplayable} refused for not replaying"
+                 {unreplayable} refused for not replaying\n  \
+                 deepest episode kept as best.proof / best.net / best.seed \
+                 (rung {best_deep})"
             );
         }
         std::fs::create_dir_all("runs").ok();
