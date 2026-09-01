@@ -12601,12 +12601,12 @@ async fn main() {
             #[cfg(not(target_arch = "wasm32"))]
             if std::env::var("GEARMASTER_WATCH_DEBUG").is_ok() && frame % 240 == 0 {
                 println!(
-                    "  frame {frame:>6}  press {:>4}/{:<4}  pb {}  phase {:?}  scene {}  next {:?}",
+                    "  frame {frame:>6}  press {:>4}/{:<4}  pb {}  phase {:?}  undo {:<5} next {:?}",
                     w.at(),
                     w.len(),
                     if pb.is_some() { "PLAYING" } else { "none   " },
                     run.phase,
-                    if run.pending_scene.is_some() { "yes" } else { "no " },
+                    if run.undoable().is_some() { "HELD" } else { "-" },
                     w.peek().map(|v| v.line()).unwrap_or_else(|| "-".into()),
                 );
             }
