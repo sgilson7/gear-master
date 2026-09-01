@@ -12567,7 +12567,40 @@ async fn main() {
         // One press at a time, and never while a fight is on screen: a fight
         // is the thing worth watching and stepping past it would be showing
         // the log rather than the bout.
+        // **A playback that outlived its fight.**
+        //
+        // `pb` is cleared inside the fight screen, and the fight screen is only
+        // drawn while the phase is `Fighting` - so if anything puts the run back
+        // in the loadout while a `Playback` is still alive, nothing can ever
+        // clear it. The watcher steps only on `pb.is_none()`, so it stops dead:
+        // measured at press 167 of 665, `pb PLAYING` with `phase Loadout`,
+        // unchanged for twenty-seven thousand frames.
+        //
+        // A playback is only meaningful while the run is fighting, so that pair
+        // of states is not a situation to handle, it is one that cannot be
+        // allowed to persist.
+        if pb.is_some() && run.phase != Phase::Fighting {
+            pb = None;
+            settled = true;
+        }
+
         if let Some((w, _)) = watcher.as_mut() {
+            // `GEARMASTER_WATCH_DEBUG=1` says, every so often, why the watcher
+            // is not stepping. Added because a stalled playback looks exactly
+            // like a slow one from the outside, and two screenshots could not
+            // tell them apart.
+            #[cfg(not(target_arch = "wasm32"))]
+            if std::env::var("GEARMASTER_WATCH_DEBUG").is_ok() && frame % 240 == 0 {
+                println!(
+                    "  frame {frame:>6}  press {:>4}/{:<4}  pb {}  phase {:?}  scene {}  next {:?}",
+                    w.at(),
+                    w.len(),
+                    if pb.is_some() { "PLAYING" } else { "none   " },
+                    run.phase,
+                    if run.pending_scene.is_some() { "yes" } else { "no " },
+                    w.peek().map(|v| v.line()).unwrap_or_else(|| "-".into()),
+                );
+            }
             if is_key_pressed(KeyCode::Space) {
                 w.paused = !w.paused;
             }
@@ -12606,6 +12639,13 @@ async fn main() {
                         Verb::Fight | Verb::FightParty => {
                             // Through the window's own path, so the battle
                             // screen plays out exactly as it does for a person.
+                            //
+                            // **This is a second implementation of what a proof
+                            // verifies through the first**, and they are known
+                            // to disagree - see the divergence guard below.
+                            // Routing fights through the console instead was
+                            // tried and does not fix it, and costs the animation
+                            // that is the whole reason to watch.
                             pb = begin_next_fight(&mut run, playback_speed);
                             settled = pb.is_none();
                             log_focus = None;
@@ -12615,10 +12655,35 @@ async fn main() {
                             // implementation of what a verb does.
                             let held = std::mem::replace(&mut run, Run::seeded(0));
                             let mut c = Console::standing_in(held, 0);
-                            let out = c.apply(other);
-                            run = c.into_run();
-                            if !out.lines.is_empty() {
-                                message = out.lines.join("  ");
+                            // **Offered before pressed.** A tape is only
+                            // replayable while the window's run matches the one
+                            // that recorded it, and fights here go through
+                            // `begin_next_fight` rather than the console - a
+                            // second implementation of the one thing the proof's
+                            // own verification exercised through the first. When
+                            // they disagree the tape starts naming pieces this
+                            // run has never owned, and `apply` panics inside the
+                            // registry rather than refusing.
+                            //
+                            // So: say where it parted company and stop, which is
+                            // a diagnosis instead of a crash.
+                            let offered = c.menu().contains(&other);
+                            if offered {
+                                let out = c.apply(other);
+                                run = c.into_run();
+                                if !out.lines.is_empty() {
+                                    message = out.lines.join("  ");
+                                }
+                            } else {
+                                run = c.into_run();
+                                message = format!(
+                                    "the tape diverged at press {} of {}: {} is not on offer",
+                                    w.at(),
+                                    w.len(),
+                                    other.line()
+                                );
+                                eprintln!("  {message}");
+                                w.paused = true;
                             }
                         }
                     }
