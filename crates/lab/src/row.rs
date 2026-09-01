@@ -206,6 +206,26 @@ pub fn run(
 /// follow back to whatever made the new depth possible.
 pub const POW: f32 = 2.0;
 
+/// The exponent actually used, which `QROW_POW` may override.
+///
+/// An experiment rather than a setting: squaring took the floor mean from 2.10
+/// to 3.02 by making a rung worth more than anything else on the board, and the
+/// question is whether cubing it - rung 2 pays 8, rung 3 pays 27 - buys more of
+/// the same or simply outruns the loss. Read once, so a run cannot change its
+/// own objective half way through.
+///
+/// **Whatever this is, the Huber knee has to be sized to it.** Cubed, a rung-13
+/// run is worth 2,195 where squared it was 167, and a knee left at 5 would clip
+/// every rung above the first (`CLAUDE.md` trap 53) while one large enough to
+/// hold the tail scales every ordinary gradient away (`analysis/the-collapse.md`
+/// M2). `qrow` prints the range against the knee every block.
+pub fn pow() -> f32 {
+    static P: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    *P.get_or_init(|| {
+        std::env::var("QROW_POW").ok().and_then(|v| v.parse().ok()).unwrap_or(POW)
+    })
+}
+
 /// What one rung squared is worth.
 ///
 /// **One. The square, undivided.**
@@ -282,7 +302,7 @@ pub fn assembly_bonus(before: &gearmaster_console::view::Figures, after: &gearma
 /// What a run was worth, growing with the depth it reached.
 pub fn worth(ran: &Ran) -> f32 {
     let d = ran.deepest as f32;
-    d.powf(POW) * RUNG - ran.losses as f32 * LIFE
+    d.powf(pow()) * RUNG - ran.losses as f32 * LIFE
 }
 
 /// What one press did to the board, for a reward that pays per press.
