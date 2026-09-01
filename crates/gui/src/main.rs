@@ -12580,6 +12580,15 @@ async fn main() {
         // of states is not a situation to handle, it is one that cannot be
         // allowed to persist.
         if pb.is_some() && run.phase != Phase::Fighting {
+            // **Settle before dropping it.** The first version of this guard
+            // set `settled = true` and threw the playback away, which skipped
+            // `Run::settle` - so the fight's gold, its rung and its knock-back
+            // were never applied and the run carried on from a state that never
+            // existed. That turned a visible deadlock into an invisible
+            // divergence, which is the worse of the two. `settle` is idempotent
+            // and returns `None` when it has already run, so this is safe on
+            // every path that reaches here.
+            run.settle();
             pb = None;
             settled = true;
         }
