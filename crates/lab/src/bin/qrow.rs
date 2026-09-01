@@ -543,7 +543,17 @@ mod q {
                 ran += 1;
             }
 
+            // **Nothing the teacher played is captured either.**
+            //
+            // The statistics excluded it and the artefacts did not, so a run
+            // with a demonstration every tenth episode wrote 449 deep proofs of
+            // which **401 were the teacher's rung-18 run**, and `best.proof` -
+            // the file that is supposed to be the run's deepest episode - was
+            // the teacher at episode zero with epsilon 1.00. A demonstration
+            // presented as something the learner did is the same fault as
+            // counting it in the mean, one directory along.
             if let Some(dir) = &watch {
+              if !following {
                 // **The deepest episode of the run, in one place.**
                 //
                 // Every deep episode is kept below, which is a hundred and
@@ -654,6 +664,7 @@ mod q {
                         }
                     }
                 }
+              }
             }
 
             // **What the run was worth, credited to every decision in it.**

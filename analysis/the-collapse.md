@@ -624,3 +624,40 @@ best weights are chosen over.
 
 That is visible in the log: episode zero's block reads `mean rung 0.00`, because
 the only episode in it was the teacher's.
+
+## M5.4 Every tenth episode, measured: it is worse
+
+r22 ran to four thousand. The demonstration was 45% of the buffer throughout,
+so this is a reading about demonstrations rather than about dilution.
+
+| | floor mean (ep 2800+) | range | items paid / held |
+|---|---:|---|---|
+| r18, no demonstration | **3.02** | 2.62-3.30 | 2.65 / 1.99 |
+| r22, teacher every 10 | **2.14** | 1.35-2.65 | 1.51 / 0.81 |
+
+**Down 0.88 of a rung**, which is very nearly all of what `RUNG = 1.0` won in
+the first place, and the items fall with it - 1.51 built against 2.65, 54% kept
+against 75%. The ranges barely overlap. This is not noise.
+
+So the answer is not "it did nothing": one demonstration was too little to
+matter and a standing 45% share is enough to do harm. The plausible mechanism is
+off-policy staleness - nearly half of every batch is a fixed trajectory from a
+different network on one seed, which the learner cannot reproduce and whose
+values it is being fitted to anyway. It is also the third variant of this idea
+to fail here, and the repo had already measured prioritised replay - the same
+family - as negative for this packer.
+
+**r18's configuration is the baseline.** `QROW_DEMO_NET` unset is the default.
+
+## M5.5 Two artefacts that lied, and they were mine
+
+The statistics excluded the teacher and the **artefacts did not**. r22 wrote 449
+deep proofs of which **401 were the teacher's rung-18 run** - the same episode,
+four hundred times - and `best.proof`, the file that is meant to be the run's
+deepest episode, was the teacher at episode zero with epsilon 1.00.
+
+That is the same fault as counting a demonstration in the mean, one directory
+along, and it was flagged one milestone earlier and then made anyway. Both
+captures are guarded now: 22 episodes with three teacher runs at rung 18 write
+no rung-18 proof at all and `best.proof` reads rung 2, which is what the learner
+did.
