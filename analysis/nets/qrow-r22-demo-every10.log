@@ -1,0 +1,334 @@
+  demonstration: episode 0 played by analysis/nets/qrow-r18-best.txt
+  watching: a proof every 25 episodes into runs/watch, keeping 20
+  ...and every episode reaching rung 5 into runs/watch/deep, kept
+  the row: one episode is one run, from rung one until it dies
+  Rogue   lr 0.05   updates 24   huber knee 5   gamma 0.999
+  the written control through this loop: mean rung 6.0, best 13
+  the teacher plays every 10 episodes, and is not counted in the mean
+  bootstrap: double - the online net picks, the frozen net values
+  episode     0   eps 1.00   buffer    840   mean rung  0.00   items 0.00 paid 0.00 held   deepest   0 (ever   0)   spread  0.069
+       targets -0.13..+321.50 mean +0.101   residual mean 0.047   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode    25   eps 0.99   buffer   5601   mean rung  1.70   items 1.30 paid 0.26 held   deepest   3 (ever   3)   spread  0.060
+       targets -1.00..+321.50 mean +0.233   residual mean 0.965   past the knee of 5: 0.3%   gradient 1/5 of a squared loss
+  episode    50   eps 0.98   buffer  10563   mean rung  1.50   items 1.09 paid 0.27 held   deepest   2 (ever   3)   spread  0.067
+       targets -1.00..+321.50 mean +0.218   residual mean 0.276   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode    75   eps 0.97   buffer  15116   mean rung  1.96   items 1.30 paid 0.43 held   deepest   3 (ever   3)   spread  0.095
+       targets -1.00..+321.50 mean +0.254   residual mean 0.372   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   100   eps 0.96   buffer  20329   mean rung  1.64   items 1.32 paid 0.41 held   deepest   4 (ever   4)   spread  0.100
+       targets -1.00..+321.50 mean +0.274   residual mean 0.077   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode   125   eps 0.96   buffer  24748   mean rung  1.87   items 1.35 paid 0.35 held   deepest   6 (ever   6)   spread  0.105
+       targets -1.00..+321.50 mean +0.365   residual mean 0.092   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode   150   eps 0.95   buffer  30018   mean rung  1.82   items 1.18 paid 0.36 held   deepest   3 (ever   6)   spread  0.113
+       targets -1.00..+321.50 mean +0.316   residual mean 0.282   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   175   eps 0.94   buffer  34816   mean rung  1.87   items 1.35 paid 0.39 held   deepest   3 (ever   6)   spread  0.131
+       targets -1.00..+321.50 mean +0.469   residual mean 0.291   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   200   eps 0.93   buffer  40392   mean rung  1.82   items 1.45 paid 0.50 held   deepest   3 (ever   6)   spread  0.136
+       targets -1.00..+321.50 mean +0.398   residual mean 0.189   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   225   eps 0.92   buffer  45072   mean rung  2.04   items 1.48 paid 0.43 held   deepest   4 (ever   6)   spread  0.141
+       targets -1.00..+321.50 mean +0.493   residual mean 0.300   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   250   eps 0.91   buffer  50526   mean rung  1.77   items 1.27 paid 0.41 held   deepest   2 (ever   6)   spread  0.147
+       targets -1.00..+321.50 mean +0.528   residual mean 0.195   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   275   eps 0.90   buffer  54955   mean rung  1.57   items 1.35 paid 0.30 held   deepest   3 (ever   6)   spread  0.158
+       targets -1.00..+321.50 mean +0.595   residual mean 0.409   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode   300   eps 0.89   buffer  60705   mean rung  2.23   items 1.45 paid 0.41 held   deepest   7 (ever   7)   spread  0.167
+       targets -1.00..+321.50 mean +0.637   residual mean 0.201   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   325   eps 0.88   buffer  65680   mean rung  2.00   items 1.39 paid 0.48 held   deepest   4 (ever   7)   spread  0.175
+       targets -1.00..+321.50 mean +0.724   residual mean 0.108   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   350   eps 0.88   buffer  71311   mean rung  2.09   items 1.50 paid 0.64 held   deepest   4 (ever   7)   spread  0.185
+       targets -1.00..+321.50 mean +0.764   residual mean 0.502   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   375   eps 0.87   buffer  76336   mean rung  1.96   items 1.52 paid 0.43 held   deepest   3 (ever   7)   spread  0.193
+       targets -1.00..+321.50 mean +0.890   residual mean 0.107   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   400   eps 0.86   buffer  61829   mean rung  1.95   items 1.23 paid 0.27 held   deepest   6 (ever   7)   spread  0.204
+       targets -1.00..+321.50 mean +0.884   residual mean 0.310   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   425   eps 0.85   buffer  66567   mean rung  1.74   items 1.39 paid 0.17 held   deepest   3 (ever   7)   spread  0.205
+       targets -1.00..+321.50 mean +0.993   residual mean 0.409   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode   450   eps 0.84   buffer  72076   mean rung  1.91   items 1.45 paid 0.55 held   deepest   3 (ever   7)   spread  0.222
+       targets -1.00..+321.50 mean +1.002   residual mean 0.303   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   475   eps 0.83   buffer  76763   mean rung  1.61   items 1.61 paid 0.57 held   deepest   3 (ever   7)   spread  0.222
+       targets -1.00..+321.50 mean +1.195   residual mean 0.208   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   500   eps 0.82   buffer  62194   mean rung  2.05   items 1.55 paid 0.32 held   deepest   5 (ever   7)   spread  0.240
+       targets -1.00..+321.50 mean +1.173   residual mean 0.329   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode   525   eps 0.81   buffer  66940   mean rung  1.57   items 1.52 paid 0.30 held   deepest   3 (ever   7)   spread  0.240
+       targets -1.00..+321.50 mean +1.365   residual mean 0.407   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   550   eps 0.80   buffer  72835   mean rung  1.95   items 1.41 paid 0.59 held   deepest   3 (ever   7)   spread  0.256
+       targets -1.00..+321.50 mean +1.314   residual mean 0.403   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   575   eps 0.79   buffer  77507   mean rung  1.57   items 1.30 paid 0.30 held   deepest   3 (ever   7)   spread  0.261
+       targets -1.00..+321.50 mean +1.469   residual mean 0.305   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   600   eps 0.79   buffer  63718   mean rung  2.23   items 1.64 paid 0.50 held   deepest   4 (ever   7)   spread  0.280
+       targets -1.00..+321.50 mean +1.491   residual mean 0.103   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   625   eps 0.78   buffer  68614   mean rung  1.78   items 1.39 paid 0.22 held   deepest   5 (ever   7)   spread  0.275
+       targets -1.00..+321.50 mean +1.645   residual mean 0.400   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   650   eps 0.77   buffer  74212   mean rung  1.68   items 1.50 paid 0.23 held   deepest   3 (ever   7)   spread  0.309
+       targets -1.00..+321.50 mean +1.618   residual mean 0.406   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode   675   eps 0.76   buffer  79328   mean rung  1.91   items 1.30 paid 0.22 held   deepest   3 (ever   7)   spread  0.288
+       targets -1.00..+321.50 mean +1.810   residual mean 0.509   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode   700   eps 0.75   buffer  64806   mean rung  1.64   items 1.27 paid 0.45 held   deepest   3 (ever   7)   spread  0.330
+       targets -1.00..+321.50 mean +1.853   residual mean 0.418   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   725   eps 0.74   buffer  69713   mean rung  1.65   items 1.26 paid 0.26 held   deepest   2 (ever   7)   spread  0.305
+       targets -1.00..+321.50 mean +1.979   residual mean 0.115   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   750   eps 0.73   buffer  75443   mean rung  1.86   items 1.23 paid 0.27 held   deepest   4 (ever   7)   spread  0.340
+       targets -1.00..+321.50 mean +2.027   residual mean 0.210   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   775   eps 0.72   buffer  60586   mean rung  1.78   items 1.52 paid 0.26 held   deepest   3 (ever   7)   spread  0.316
+       targets -1.00..+321.50 mean +2.175   residual mean 0.204   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   800   eps 0.71   buffer  66505   mean rung  1.82   items 1.55 paid 0.32 held   deepest   3 (ever   7)   spread  0.350
+       targets -1.00..+321.50 mean +2.157   residual mean 0.109   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   825   eps 0.71   buffer  71596   mean rung  1.78   items 1.57 paid 0.52 held   deepest   2 (ever   7)   spread  0.313
+       targets -1.00..+321.50 mean +2.364   residual mean 0.398   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   850   eps 0.70   buffer  77422   mean rung  1.73   items 1.32 paid 0.18 held   deepest   2 (ever   7)   spread  0.356
+       targets -1.00..+321.50 mean +2.386   residual mean 0.213   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode   875   eps 0.69   buffer  62638   mean rung  1.87   items 1.48 paid 0.30 held   deepest   3 (ever   7)   spread  0.315
+       targets -1.00..+321.50 mean +2.442   residual mean 0.105   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode   900   eps 0.68   buffer  68634   mean rung  1.82   items 1.41 paid 0.27 held   deepest   3 (ever   7)   spread  0.354
+       targets -1.00..+321.50 mean +2.461   residual mean 0.202   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode   925   eps 0.67   buffer  74028   mean rung  1.87   items 1.52 paid 0.30 held   deepest   3 (ever   7)   spread  0.316
+       targets -1.00..+321.50 mean +2.596   residual mean 0.299   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode   950   eps 0.66   buffer  79812   mean rung  1.64   items 1.32 paid 0.27 held   deepest   2 (ever   7)   spread  0.368
+       targets -1.00..+321.50 mean +2.622   residual mean 0.105   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode   975   eps 0.65   buffer  64988   mean rung  1.57   items 1.26 paid 0.22 held   deepest   2 (ever   7)   spread  0.321
+       targets -1.00..+321.50 mean +2.780   residual mean 0.200   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1000   eps 0.64   buffer  70885   mean rung  1.77   items 1.14 paid 0.32 held   deepest   3 (ever   7)   spread  0.367
+       targets -1.00..+321.50 mean +2.784   residual mean 0.305   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1025   eps 0.63   buffer  75982   mean rung  1.65   items 1.43 paid 0.35 held   deepest   2 (ever   7)   spread  0.315
+       targets -1.00..+321.50 mean +2.900   residual mean 0.294   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1050   eps 0.62   buffer  61981   mean rung  1.91   items 1.45 paid 0.36 held   deepest   4 (ever   7)   spread  0.362
+       targets -1.00..+321.50 mean +2.930   residual mean 0.204   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1075   eps 0.62   buffer  67372   mean rung  2.17   items 1.48 paid 0.65 held   deepest   4 (ever   7)   spread  0.309
+       targets -1.00..+321.50 mean +3.077   residual mean 0.101   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1100   eps 0.61   buffer  73204   mean rung  1.68   items 1.50 paid 0.32 held   deepest   3 (ever   7)   spread  0.367
+       targets -1.00..+321.50 mean +3.083   residual mean 0.204   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1125   eps 0.60   buffer  78620   mean rung  1.87   items 1.70 paid 0.48 held   deepest   4 (ever   7)   spread  0.326
+       targets -1.00..+321.50 mean +3.357   residual mean 0.308   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1150   eps 0.59   buffer  64909   mean rung  1.95   items 1.45 paid 0.23 held   deepest   3 (ever   7)   spread  0.367
+       targets -1.00..+321.50 mean +3.353   residual mean 0.216   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1175   eps 0.58   buffer  70270   mean rung  1.78   items 1.52 paid 0.48 held   deepest   3 (ever   7)   spread  0.324
+       targets -1.00..+321.50 mean +3.514   residual mean 0.202   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1200   eps 0.57   buffer  76122   mean rung  1.77   items 1.77 paid 0.59 held   deepest   3 (ever   7)   spread  0.377
+       targets -1.00..+321.50 mean +3.502   residual mean 0.409   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1225   eps 0.56   buffer  61522   mean rung  1.87   items 1.52 paid 0.39 held   deepest   3 (ever   7)   spread  0.329
+       targets -1.00..+321.50 mean +3.666   residual mean 0.109   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1250   eps 0.55   buffer  67548   mean rung  1.86   items 1.73 paid 0.41 held   deepest   3 (ever   7)   spread  0.378
+       targets -1.00..+321.50 mean +3.659   residual mean 0.117   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1275   eps 0.54   buffer  72755   mean rung  1.83   items 1.48 paid 0.61 held   deepest   3 (ever   7)   spread  0.334
+       targets -1.00..+321.50 mean +3.907   residual mean 0.424   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1300   eps 0.54   buffer  78873   mean rung  1.91   items 1.59 paid 0.55 held   deepest   2 (ever   7)   spread  0.381
+       targets -1.00..+321.50 mean +3.939   residual mean 0.111   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1325   eps 0.53   buffer  64172   mean rung  2.00   items 1.70 paid 0.57 held   deepest   3 (ever   7)   spread  0.348
+       targets -1.00..+321.50 mean +4.101   residual mean 0.220   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1350   eps 0.52   buffer  70475   mean rung  2.14   items 2.00 paid 0.55 held   deepest   4 (ever   7)   spread  0.381
+       targets -1.00..+321.50 mean +4.061   residual mean 0.227   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1375   eps 0.51   buffer  76007   mean rung  2.00   items 1.83 paid 0.65 held   deepest   4 (ever   7)   spread  0.354
+       targets -1.00..+321.50 mean +4.214   residual mean 0.217   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1400   eps 0.50   buffer  62249   mean rung  2.00   items 2.14 paid 0.91 held   deepest   3 (ever   7)   spread  0.404
+       targets -1.00..+321.50 mean +4.217   residual mean 0.314   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1425   eps 0.49   buffer  67654   mean rung  1.96   items 1.74 paid 0.74 held   deepest   3 (ever   7)   spread  0.375
+       targets -1.00..+321.50 mean +4.372   residual mean 0.222   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1450   eps 0.48   buffer  73836   mean rung  2.09   items 1.77 paid 0.95 held   deepest   4 (ever   7)   spread  0.426
+       targets -1.00..+321.50 mean +4.414   residual mean 0.123   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1475   eps 0.47   buffer  79349   mean rung  2.04   items 1.96 paid 0.83 held   deepest   4 (ever   7)   spread  0.390
+       targets -1.00..+321.50 mean +4.509   residual mean 0.336   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1500   eps 0.46   buffer  65711   mean rung  2.09   items 2.18 paid 1.00 held   deepest   3 (ever   7)   spread  0.439
+       targets -1.00..+321.50 mean +4.556   residual mean 0.228   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1525   eps 0.46   buffer  71614   mean rung  2.17   items 2.43 paid 1.22 held   deepest   5 (ever   7)   spread  0.426
+       targets -1.00..+321.50 mean +4.636   residual mean 0.143   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1550   eps 0.45   buffer  77821   mean rung  1.91   items 2.09 paid 0.91 held   deepest   3 (ever   7)   spread  0.464
+       targets -1.00..+321.50 mean +4.613   residual mean 0.339   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1575   eps 0.44   buffer  63496   mean rung  1.83   items 2.13 paid 0.74 held   deepest   3 (ever   7)   spread  0.422
+       targets -1.00..+321.50 mean +4.872   residual mean 0.464   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1600   eps 0.43   buffer  69931   mean rung  2.05   items 2.18 paid 0.91 held   deepest   3 (ever   7)   spread  0.467
+       targets -1.00..+321.50 mean +4.849   residual mean 0.366   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1625   eps 0.42   buffer  75517   mean rung  1.83   items 2.17 paid 0.61 held   deepest   3 (ever   7)   spread  0.447
+       targets -1.00..+321.50 mean +4.975   residual mean 0.167   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1650   eps 0.41   buffer  62159   mean rung  2.27   items 2.00 paid 1.18 held   deepest   5 (ever   7)   spread  0.469
+       targets -1.00..+321.50 mean +4.968   residual mean 0.156   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1675   eps 0.40   buffer  68199   mean rung  2.26   items 2.48 paid 1.09 held   deepest   5 (ever   7)   spread  0.478
+       targets -1.00..+321.50 mean +5.114   residual mean 0.157   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1700   eps 0.39   buffer  74541   mean rung  1.91   items 2.09 paid 0.77 held   deepest   3 (ever   7)   spread  0.520
+       targets -1.00..+321.50 mean +5.063   residual mean 0.262   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1725   eps 0.38   buffer  60211   mean rung  1.70   items 1.78 paid 0.78 held   deepest   2 (ever   7)   spread  0.522
+       targets -1.00..+321.50 mean +5.246   residual mean 0.362   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1750   eps 0.38   buffer  66530   mean rung  1.77   items 1.82 paid 0.68 held   deepest   2 (ever   7)   spread  0.550
+       targets -1.00..+321.50 mean +5.274   residual mean 0.270   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1775   eps 0.37   buffer  72397   mean rung  1.91   items 1.91 paid 0.57 held   deepest   3 (ever   7)   spread  0.493
+       targets -1.00..+321.50 mean +5.415   residual mean 0.163   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1800   eps 0.36   buffer  78936   mean rung  2.05   items 1.91 paid 0.64 held   deepest   3 (ever   7)   spread  0.540
+       targets -1.00..+321.50 mean +5.491   residual mean 0.257   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1825   eps 0.35   buffer  64964   mean rung  2.09   items 2.04 paid 0.52 held   deepest   3 (ever   7)   spread  0.468
+       targets -1.00..+321.50 mean +5.568   residual mean 0.457   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  1850   eps 0.34   buffer  71459   mean rung  2.09   items 2.09 paid 0.95 held   deepest   3 (ever   7)   spread  0.502
+       targets -1.00..+321.50 mean +5.578   residual mean 0.242   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1875   eps 0.33   buffer  77289   mean rung  2.04   items 1.87 paid 0.61 held   deepest   3 (ever   7)   spread  0.459
+       targets -1.00..+321.50 mean +5.713   residual mean 0.148   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1900   eps 0.32   buffer  63701   mean rung  1.95   items 1.95 paid 0.55 held   deepest   5 (ever   7)   spread  0.487
+       targets -1.00..+321.50 mean +5.714   residual mean 0.139   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1925   eps 0.31   buffer  69574   mean rung  2.13   items 1.96 paid 0.52 held   deepest   4 (ever   7)   spread  0.479
+       targets -1.00..+321.50 mean +5.945   residual mean 0.268   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1950   eps 0.30   buffer  76168   mean rung  2.09   items 1.91 paid 0.86 held   deepest   5 (ever   7)   spread  0.513
+       targets -1.00..+321.50 mean +5.967   residual mean 0.265   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  1975   eps 0.29   buffer  61987   mean rung  2.04   items 1.87 paid 0.65 held   deepest   3 (ever   7)   spread  0.455
+       targets -1.00..+321.50 mean +6.218   residual mean 0.375   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2000   eps 0.29   buffer  68292   mean rung  2.05   items 1.91 paid 0.77 held   deepest   4 (ever   7)   spread  0.500
+       targets -1.00..+321.50 mean +6.208   residual mean 0.169   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2025   eps 0.28   buffer  74095   mean rung  2.04   items 1.87 paid 0.83 held   deepest   3 (ever   7)   spread  0.448
+       targets -1.00..+321.50 mean +6.422   residual mean 0.387   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2050   eps 0.27   buffer  60668   mean rung  1.86   items 2.05 paid 0.59 held   deepest   3 (ever   7)   spread  0.486
+       targets -1.00..+321.50 mean +6.431   residual mean 0.166   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2075   eps 0.26   buffer  66873   mean rung  2.17   items 1.78 paid 0.78 held   deepest   4 (ever   7)   spread  0.438
+       targets -1.00..+321.50 mean +6.586   residual mean 0.386   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2100   eps 0.25   buffer  73322   mean rung  1.91   items 1.86 paid 0.82 held   deepest   3 (ever   7)   spread  0.485
+       targets -1.00..+321.50 mean +6.550   residual mean 0.245   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2125   eps 0.24   buffer  79416   mean rung  2.22   items 1.96 paid 0.65 held   deepest   5 (ever   7)   spread  0.433
+       targets -1.00..+321.50 mean +6.725   residual mean 0.309   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2150   eps 0.23   buffer  66306   mean rung  2.27   items 2.14 paid 0.45 held   deepest   4 (ever   7)   spread  0.464
+       targets -1.00..+321.50 mean +6.737   residual mean 0.260   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2175   eps 0.22   buffer  72155   mean rung  1.87   items 1.87 paid 0.65 held   deepest   3 (ever   7)   spread  0.433
+       targets -1.00..+321.50 mean +6.867   residual mean 0.281   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2200   eps 0.21   buffer  78604   mean rung  1.82   items 1.50 paid 0.41 held   deepest   2 (ever   7)   spread  0.477
+       targets -1.00..+321.50 mean +6.922   residual mean 0.399   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2225   eps 0.21   buffer  64326   mean rung  1.61   items 1.48 paid 0.39 held   deepest   2 (ever   7)   spread  0.430
+       targets -1.00..+321.50 mean +6.862   residual mean 0.333   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2250   eps 0.20   buffer  71172   mean rung  2.14   items 1.73 paid 0.73 held   deepest   6 (ever   7)   spread  0.461
+       targets -1.00..+321.50 mean +6.856   residual mean 0.250   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2275   eps 0.19   buffer  76496   mean rung  1.39   items 1.30 paid 0.43 held   deepest   2 (ever   7)   spread  0.446
+       targets -1.00..+321.50 mean +6.976   residual mean 0.271   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2300   eps 0.18   buffer  62744   mean rung  1.41   items 1.09 paid 0.23 held   deepest   3 (ever   7)   spread  0.483
+       targets -1.00..+321.50 mean +6.978   residual mean 0.261   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2325   eps 0.17   buffer  68906   mean rung  2.13   items 2.04 paid 0.70 held   deepest   5 (ever   7)   spread  0.459
+       targets -1.00..+321.50 mean +6.999   residual mean 0.163   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2350   eps 0.16   buffer  75587   mean rung  2.00   items 1.91 paid 1.00 held   deepest   4 (ever   7)   spread  0.502
+       targets -1.00..+321.50 mean +7.029   residual mean 0.139   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2375   eps 0.15   buffer  62058   mean rung  2.30   items 2.87 paid 1.70 held   deepest   3 (ever   7)   spread  0.484
+       targets -1.00..+321.50 mean +7.103   residual mean 0.300   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2400   eps 0.14   buffer  69304   mean rung  2.55   items 2.41 paid 1.18 held   deepest   7 (ever   7)   spread  0.513
+       targets -1.00..+321.50 mean +7.106   residual mean 0.278   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2425   eps 0.13   buffer  76560   mean rung  3.22   items 2.70 paid 1.78 held   deepest  11 (ever  11)   spread  0.496
+       targets -1.00..+321.50 mean +7.289   residual mean 0.378   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2450   eps 0.12   buffer  63988   mean rung  2.64   items 2.64 paid 1.64 held   deepest   6 (ever  11)   spread  0.535
+       targets -1.00..+321.50 mean +7.267   residual mean 0.205   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2475   eps 0.12   buffer  70156   mean rung  2.04   items 2.35 paid 1.35 held   deepest   3 (ever  11)   spread  0.529
+       targets -1.00..+321.50 mean +7.217   residual mean 0.262   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2500   eps 0.11   buffer  77514   mean rung  2.77   items 2.59 paid 1.14 held   deepest   7 (ever  11)   spread  0.553
+       targets -1.00..+321.50 mean +7.231   residual mean 0.186   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2525   eps 0.10   buffer  64194   mean rung  2.43   items 2.09 paid 0.91 held   deepest   7 (ever  11)   spread  0.491
+       targets -1.00..+321.50 mean +7.298   residual mean 0.177   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2550   eps 0.09   buffer  71330   mean rung  2.36   items 2.36 paid 1.09 held   deepest   6 (ever  11)   spread  0.586
+       targets -1.00..+321.50 mean +7.208   residual mean 0.267   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2575   eps 0.08   buffer  77464   mean rung  1.91   items 1.52 paid 1.00 held   deepest   3 (ever  11)   spread  0.544
+       targets -1.00..+321.50 mean +7.229   residual mean 0.173   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2600   eps 0.07   buffer  64253   mean rung  1.95   items 1.64 paid 0.55 held   deepest   3 (ever  11)   spread  0.647
+       targets -1.00..+321.50 mean +7.263   residual mean 0.197   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2625   eps 0.06   buffer  70259   mean rung  1.87   items 1.26 paid 0.65 held   deepest   3 (ever  11)   spread  0.581
+       targets -1.00..+321.50 mean +7.376   residual mean 0.312   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2650   eps 0.05   buffer  76835   mean rung  1.73   items 1.14 paid 0.50 held   deepest   2 (ever  11)   spread  0.633
+       targets -1.00..+321.50 mean +7.376   residual mean 0.366   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2675   eps 0.05   buffer  63030   mean rung  2.09   items 1.26 paid 0.87 held   deepest   7 (ever  11)   spread  0.531
+       targets -1.00..+321.50 mean +7.219   residual mean 0.148   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2700   eps 0.05   buffer  69938   mean rung  2.09   items 1.09 paid 0.55 held   deepest   3 (ever  11)   spread  0.576
+       targets -1.00..+321.50 mean +7.273   residual mean 0.148   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2725   eps 0.05   buffer  76040   mean rung  2.09   items 1.70 paid 1.00 held   deepest   3 (ever  11)   spread  0.561
+       targets -1.00..+321.50 mean +7.190   residual mean 0.347   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2750   eps 0.05   buffer  62833   mean rung  2.09   items 1.82 paid 1.14 held   deepest   3 (ever  11)   spread  0.649
+       targets -1.00..+321.50 mean +7.158   residual mean 0.140   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2775   eps 0.05   buffer  69057   mean rung  2.09   items 1.48 paid 0.74 held   deepest   3 (ever  11)   spread  0.658
+       targets -1.00..+321.50 mean +7.153   residual mean 0.251   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2800   eps 0.05   buffer  75935   mean rung  2.05   items 1.27 paid 0.86 held   deepest   3 (ever  11)   spread  0.655
+       targets -1.00..+321.50 mean +7.190   residual mean 0.260   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2825   eps 0.05   buffer  62183   mean rung  2.00   items 1.52 paid 0.87 held   deepest   2 (ever  11)   spread  0.634
+       targets -1.00..+321.50 mean +7.283   residual mean 0.206   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2850   eps 0.05   buffer  69060   mean rung  2.00   items 1.45 paid 0.59 held   deepest   4 (ever  11)   spread  0.642
+       targets -1.00..+321.50 mean +7.353   residual mean 0.356   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2875   eps 0.05   buffer  75713   mean rung  2.35   items 1.61 paid 0.87 held   deepest   4 (ever  11)   spread  0.645
+       targets -1.00..+321.50 mean +7.580   residual mean 0.200   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2900   eps 0.05   buffer  62873   mean rung  2.18   items 1.91 paid 1.36 held   deepest   3 (ever  11)   spread  0.685
+       targets -1.00..+321.50 mean +7.524   residual mean 0.195   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  2925   eps 0.05   buffer  69532   mean rung  2.52   items 1.61 paid 1.13 held   deepest   7 (ever  11)   spread  0.650
+       targets -1.00..+321.50 mean +7.659   residual mean 0.483   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  2950   eps 0.05   buffer  76942   mean rung  2.45   items 1.86 paid 0.77 held   deepest   6 (ever  11)   spread  0.713
+       targets -1.00..+321.50 mean +7.604   residual mean 0.266   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  2975   eps 0.05   buffer  63453   mean rung  2.35   items 1.52 paid 1.04 held   deepest   7 (ever  11)   spread  0.670
+       targets -1.00..+321.50 mean +7.646   residual mean 0.564   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3000   eps 0.05   buffer  70557   mean rung  2.36   items 1.55 paid 0.73 held   deepest   7 (ever  11)   spread  0.864
+       targets -1.00..+321.50 mean +7.698   residual mean 0.304   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  3025   eps 0.05   buffer  76959   mean rung  2.26   items 1.52 paid 1.09 held   deepest   4 (ever  11)   spread  0.876
+       targets -1.00..+321.50 mean +7.742   residual mean 0.701   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3050   eps 0.05   buffer  63979   mean rung  2.23   items 1.50 paid 1.00 held   deepest   3 (ever  11)   spread  0.695
+       targets -1.00..+321.50 mean +7.814   residual mean 0.426   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3075   eps 0.05   buffer  70149   mean rung  2.26   items 1.35 paid 0.78 held   deepest   4 (ever  11)   spread  0.700
+       targets -1.00..+321.50 mean +7.849   residual mean 0.183   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  3100   eps 0.05   buffer  76925   mean rung  2.14   items 1.50 paid 0.95 held   deepest   3 (ever  11)   spread  0.869
+       targets -1.00..+321.50 mean +7.895   residual mean 0.497   past the knee of 5: 0.3%   gradient 1/5 of a squared loss
+  episode  3125   eps 0.05   buffer  63275   mean rung  2.22   items 1.13 paid 0.78 held   deepest   7 (ever  11)   spread  0.663
+       targets -1.00..+321.50 mean +8.150   residual mean 0.224   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  3150   eps 0.05   buffer  70053   mean rung  2.05   items 1.05 paid 0.73 held   deepest   4 (ever  11)   spread  0.793
+       targets -1.00..+321.50 mean +8.098   residual mean 0.263   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  3175   eps 0.05   buffer  76280   mean rung  2.13   items 1.13 paid 0.74 held   deepest   5 (ever  11)   spread  0.673
+       targets -1.00..+321.50 mean +8.067   residual mean 0.404   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3200   eps 0.05   buffer  63127   mean rung  2.05   items 1.45 paid 0.86 held   deepest   3 (ever  11)   spread  0.872
+       targets -1.00..+321.50 mean +8.154   residual mean 0.347   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  3225   eps 0.05   buffer  69234   mean rung  1.91   items 1.35 paid 0.52 held   deepest   2 (ever  11)   spread  0.647
+       targets -1.00..+321.50 mean +8.307   residual mean 0.306   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3250   eps 0.05   buffer  76040   mean rung  1.91   items 1.77 paid 0.77 held   deepest   3 (ever  11)   spread  0.712
+       targets -1.00..+321.50 mean +8.256   residual mean 0.357   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3275   eps 0.05   buffer  62775   mean rung  2.57   items 1.52 paid 0.78 held   deepest   7 (ever  11)   spread  0.630
+       targets -1.00..+321.50 mean +8.451   residual mean 0.424   past the knee of 5: 0.3%   gradient 1/5 of a squared loss
+  episode  3300   eps 0.05   buffer  69882   mean rung  2.32   items 1.91 paid 1.18 held   deepest   4 (ever  11)   spread  0.738
+       targets -1.00..+321.50 mean +8.391   residual mean 0.253   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3325   eps 0.05   buffer  76547   mean rung  2.65   items 1.74 paid 0.78 held   deepest   5 (ever  11)   spread  0.662
+       targets -1.00..+321.50 mean +8.410   residual mean 0.270   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  3350   eps 0.05   buffer  63682   mean rung  2.36   items 1.77 paid 0.55 held   deepest   4 (ever  11)   spread  0.744
+       targets -1.00..+321.50 mean +8.363   residual mean 0.261   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3375   eps 0.05   buffer  70193   mean rung  2.48   items 1.70 paid 1.22 held   deepest   7 (ever  11)   spread  0.737
+       targets -1.00..+321.50 mean +8.524   residual mean 0.380   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3400   eps 0.05   buffer  77439   mean rung  2.45   items 1.86 paid 1.00 held   deepest   8 (ever  11)   spread  0.787
+       targets -1.00..+321.50 mean +8.565   residual mean 0.462   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3425   eps 0.05   buffer  63667   mean rung  2.00   items 1.74 paid 1.17 held   deepest   3 (ever  11)   spread  0.664
+       targets -1.00..+321.50 mean +8.705   residual mean 0.313   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3450   eps 0.05   buffer  70646   mean rung  2.09   items 1.55 paid 0.95 held   deepest   4 (ever  11)   spread  0.922
+       targets -1.00..+321.50 mean +8.738   residual mean 0.169   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  3475   eps 0.05   buffer  77141   mean rung  2.35   items 1.48 paid 0.83 held   deepest   7 (ever  11)   spread  0.915
+       targets -1.00..+321.50 mean +8.911   residual mean 0.310   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3500   eps 0.05   buffer  64186   mean rung  2.18   items 1.77 paid 0.82 held   deepest   4 (ever  11)   spread  0.761
+       targets -1.00..+321.50 mean +8.919   residual mean 0.215   past the knee of 5: 0.0%   gradient 1/5 of a squared loss
+  episode  3525   eps 0.05   buffer  70492   mean rung  2.22   items 1.78 paid 1.13 held   deepest   4 (ever  11)   spread  0.844
+       targets -1.00..+321.50 mean +8.971   residual mean 0.348   past the knee of 5: 0.3%   gradient 1/5 of a squared loss
+  episode  3550   eps 0.05   buffer  77648   mean rung  2.36   items 1.82 paid 0.95 held   deepest   4 (ever  11)   spread  0.746
+       targets -1.00..+321.50 mean +9.066   residual mean 0.310   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3575   eps 0.05   buffer  63778   mean rung  2.13   items 1.52 paid 0.87 held   deepest   4 (ever  11)   spread  0.780
+       targets -1.00..+321.50 mean +9.138   residual mean 0.235   past the knee of 5: 0.3%   gradient 1/5 of a squared loss
+  episode  3600   eps 0.05   buffer  70651   mean rung  2.05   items 1.45 paid 0.86 held   deepest   3 (ever  11)   spread  0.924
+       targets -1.00..+321.50 mean +9.177   residual mean 0.401   past the knee of 5: 0.3%   gradient 1/5 of a squared loss
+  episode  3625   eps 0.05   buffer  76858   mean rung  1.91   items 1.30 paid 0.30 held   deepest   3 (ever  11)   spread  0.819
+       targets -1.00..+321.50 mean +9.006   residual mean 0.161   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  3650   eps 0.05   buffer  63626   mean rung  1.86   items 1.27 paid 0.41 held   deepest   4 (ever  11)   spread  0.807
+       targets -1.00..+321.50 mean +9.019   residual mean 0.183   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3675   eps 0.05   buffer  69409   mean rung  1.48   items 1.13 paid 0.26 held   deepest   2 (ever  11)   spread  0.810
+       targets -1.00..+321.50 mean +9.053   residual mean 0.171   past the knee of 5: 0.3%   gradient 1/5 of a squared loss
+  episode  3700   eps 0.05   buffer  75938   mean rung  1.73   items 1.27 paid 0.55 held   deepest   9 (ever  11)   spread  0.955
+       targets -1.00..+321.50 mean +9.041   residual mean 0.278   past the knee of 5: 0.3%   gradient 1/5 of a squared loss
+  episode  3725   eps 0.05   buffer  61581   mean rung  1.35   items 1.00 paid 0.17 held   deepest   2 (ever  11)   spread  0.738
+       targets -1.00..+321.50 mean +9.278   residual mean 0.322   past the knee of 5: 0.4%   gradient 1/5 of a squared loss
+  episode  3750   eps 0.05   buffer  68035   mean rung  1.64   items 1.14 paid 0.23 held   deepest   4 (ever  11)   spread  0.838
+       targets -1.00..+321.50 mean +9.298   residual mean 0.431   past the knee of 5: 0.4%   gradient 1/5 of a squared loss
+  episode  3775   eps 0.05   buffer  74157   mean rung  1.83   items 1.30 paid 0.70 held   deepest   3 (ever  11)   spread  0.697
+       targets -1.00..+321.50 mean +9.350   residual mean 0.175   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  3800   eps 0.05   buffer  61019   mean rung  2.05   items 1.55 paid 1.05 held   deepest   4 (ever  11)   spread  0.774
+       targets -1.00..+321.50 mean +9.337   residual mean 0.379   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3825   eps 0.05   buffer  67054   mean rung  2.00   items 1.39 paid 1.00 held   deepest   3 (ever  11)   spread  0.812
+       targets -1.00..+321.50 mean +9.426   residual mean 0.280   past the knee of 5: 0.4%   gradient 1/5 of a squared loss
+  episode  3850   eps 0.05   buffer  74283   mean rung  2.41   items 1.91 paid 1.14 held   deepest   5 (ever  11)   spread  0.864
+       targets -1.00..+321.50 mean +9.384   residual mean 0.350   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3875   eps 0.05   buffer  60544   mean rung  2.17   items 1.35 paid 0.61 held   deepest   5 (ever  11)   spread  0.896
+       targets -1.00..+321.50 mean +9.553   residual mean 0.195   past the knee of 5: 0.3%   gradient 1/5 of a squared loss
+  episode  3900   eps 0.05   buffer  67264   mean rung  2.00   items 1.36 paid 0.86 held   deepest   3 (ever  11)   spread  1.005
+       targets -1.00..+321.50 mean +9.670   residual mean 0.293   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+  episode  3925   eps 0.05   buffer  73659   mean rung  2.17   items 1.26 paid 0.65 held   deepest   6 (ever  11)   spread  0.933
+       targets -1.00..+321.50 mean +9.763   residual mean 0.329   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3950   eps 0.05   buffer  60500   mean rung  2.18   items 1.64 paid 0.86 held   deepest   4 (ever  11)   spread  0.981
+       targets -1.00..+321.50 mean +9.761   residual mean 0.195   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3975   eps 0.05   buffer  66529   mean rung  2.00   items 1.61 paid 0.74 held   deepest   3 (ever  11)   spread  0.934
+       targets -1.00..+321.50 mean +9.974   residual mean 0.378   past the knee of 5: 0.2%   gradient 1/5 of a squared loss
+  episode  3999   eps 0.05   buffer  72637   mean rung  2.27   items 1.73 paid 0.73 held   deepest   5 (ever  11)   spread  0.988
+       targets -1.00..+321.50 mean +10.000   residual mean 0.422   past the knee of 5: 0.1%   gradient 1/5 of a squared loss
+trained in 12039.9s
+  160 sampled proofs and 448 deep ones written, 0 refused for not replaying
+  deepest episode kept as best.proof / best.net / best.seed (rung 18)
+wrote runs/quartermaster_row.txt (best 100 episodes, mean rung 2.53) and runs/quartermaster_row_last.txt (final)

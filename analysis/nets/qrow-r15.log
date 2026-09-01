@@ -1,0 +1,7 @@
+  watching: a proof every 25 episodes into runs/watch, keeping 20
+  ...and every episode reaching rung 5 into runs/watch/deep, kept
+  the row: one episode is one run, from rung one until it dies
+  Rogue   lr 0.05   updates 24   huber knee 120   gamma 0.999
+  the written control through this loop: mean rung 6.0, best 13
+  episode     0   eps 1.00   buffer    157   mean rung  1.00   deepest   1 (ever   1)   spread  0.051
+  episode   100   eps 0.96   buffer  11102   mean rung  1.60   deepest   3 (ever   3)   spread  0.055

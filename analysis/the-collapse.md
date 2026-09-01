@@ -661,3 +661,48 @@ along, and it was flagged one milestone earlier and then made anyway. Both
 captures are guarded now: 22 episodes with three teacher runs at rung 18 write
 no rung-18 proof at all and `best.proof` reads rung 2, which is what the learner
 did.
+
+# M6 — Cubed, and it is a wash
+
+Read off `7fe756f`. `QROW_POW=3` against r18's 2, knee 5 in both arms, so the
+exponent is the only variable. `analysis/nets/qrow-r23-cubed.log`.
+
+| | floor mean (2800+) | range | items paid / held |
+|---|---:|---|---|
+| r18, squared | 3.02 | 2.62-3.30 | 2.65 / 1.99 |
+| r23, cubed | **3.08** | 2.40-3.84 | 1.48 / 1.32 |
+
+**+0.06 of a rung**, against a block noise of 0.4 at twenty-five episodes. The
+cubed arm is wider in both directions, which is variance and not improvement.
+
+And it reaches that depth with **half the board**: 1.48 items built against 2.65
+and 1.32 held against 1.99. Whatever the steeper reward bought in rung-chasing,
+it appears to have paid for with board quality, and the two cancelled.
+
+## M6.1 A reading of mine that did not survive
+
+At episode 2,600 this looked like a win and was reported as one - "ahead, and by
+more than noise", 3.04 against r18's 2.28 over episodes 2,400 to 2,600. It was
+true and it was premature: **r18 had not reached its floor yet**, and climbed
+from 2.28 to 3.02 over the following blocks. Floor-to-floor is the only fair
+comparison between two arms whose epsilon schedules are identical, and the
+caution was written down in the same message and then not weighted heavily
+enough.
+
+## M6.2 And the last stretch was inside trap 53
+
+```
+  targets -1.00..+2605.41 mean +27.759   residual mean 2.480   past the knee of 5: 7.8%
+```
+
+Clipping rose from 0.6% early to **7.8%** as the value function grew into the
+cubed targets. The alarm was set at 10% and never fired because the run ended
+first. So the tail of that arm was partly fitting a flat gradient - a residual
+of two thousand pulling exactly as hard as one of five - which is the fault the
+knee exists to avoid, arriving gradually rather than at once.
+
+A fair cubed test would raise the knee as the targets grow rather than fixing it
+at the start. That is a schedule rather than a constant, and it is not obviously
+worth two hours to chase +0.06.
+
+**`POW` stays 2.0.** `runs/quartermaster_row.txt` is r18's best net again.

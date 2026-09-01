@@ -1,0 +1,9 @@
+  demonstration: runs/demo/rung20-ep003127.proof, seed 0x960DE84B20CA081E, 957 packing keys
+  watching: a proof every 25 episodes into runs/watch, keeping 20
+  ...and every episode reaching rung 5 into runs/watch/deep, kept
+  the row: one episode is one run, from rung one until it dies
+  Rogue   lr 0.05   updates 24   huber knee 5   gamma 0.999
+  the written control through this loop: mean rung 6.0, best 13
+  bootstrap: double - the online net picks, the frozen net values
+  episode     0   eps 1.00   buffer    378   mean rung  7.00   items 5.00 paid 4.00 held   deepest   7 (ever   7)   spread  0.060
+       targets -0.11..+47.00 mean +0.114   residual mean 0.069   past the knee of 5: 0.0%   gradient 1/5 of a squared loss

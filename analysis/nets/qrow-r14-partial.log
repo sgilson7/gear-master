@@ -1,0 +1,26 @@
+  watching: a proof every 25 episodes into runs/watch, keeping 20
+  the row: one episode is one run, from rung one until it dies
+  Rogue   lr 0.05   updates 24   huber knee 120   gamma 0.999
+  the written control through this loop: mean rung 6.0, best 13
+  episode     0   eps 1.00   buffer    157   mean rung  1.00   deepest   1 (ever   1)   spread  0.051
+  episode   100   eps 0.96   buffer  11102   mean rung  1.60   deepest   3 (ever   3)   spread  0.055
+  episode   200   eps 0.93   buffer  23639   mean rung  1.81   deepest   3 (ever   3)   spread  0.057
+  episode   300   eps 0.89   buffer  35818   mean rung  1.75   deepest   4 (ever   4)   spread  0.061
+  episode   400   eps 0.86   buffer  48776   mean rung  1.85   deepest   4 (ever   4)   spread  0.065
+  episode   500   eps 0.82   buffer  61563   mean rung  1.84   deepest   4 (ever   4)   spread  0.072
+  episode   600   eps 0.79   buffer  75199   mean rung  1.95   deepest   3 (ever   4)   spread  0.077
+  episode   700   eps 0.75   buffer  69651   mean rung  2.10   deepest   7 (ever   7)   spread  0.083
+  episode   800   eps 0.71   buffer  64226   mean rung  2.03   deepest   6 (ever   7)   spread  0.089
+  episode   900   eps 0.68   buffer  78897   mean rung  2.00   deepest   7 (ever   7)   spread  0.095
+  episode  1000   eps 0.64   buffer  74256   mean rung  2.29   deepest   6 (ever   7)   spread  0.103
+  episode  1100   eps 0.61   buffer  69358   mean rung  2.15   deepest   6 (ever   7)   spread  0.106
+  episode  1200   eps 0.57   buffer  65063   mean rung  2.17   deepest   7 (ever   7)   spread  0.113
+  episode  1300   eps 0.54   buffer  60409   mean rung  2.17   deepest   5 (ever   7)   spread  0.117
+  episode  1400   eps 0.50   buffer  75892   mean rung  2.14   deepest   6 (ever   7)   spread  0.121
+  episode  1500   eps 0.46   buffer  72716   mean rung  2.37   deepest   7 (ever   7)   spread  0.126
+  episode  1600   eps 0.43   buffer  70073   mean rung  2.26   deepest   7 (ever   7)   spread  0.129
+  episode  1700   eps 0.39   buffer  67548   mean rung  2.26   deepest   7 (ever   7)   spread  0.132
+  episode  1800   eps 0.36   buffer  65330   mean rung  2.24   deepest   7 (ever   7)   spread  0.135
+  episode  1900   eps 0.32   buffer  62900   mean rung  2.26   deepest  11 (ever  11)   spread  0.139
+  episode  2000   eps 0.29   buffer  60591   mean rung  2.06   deepest   7 (ever  11)   spread  0.139
+  episode  2100   eps 0.25   buffer  78646   mean rung  2.08   deepest   6 (ever  11)   spread  0.144
