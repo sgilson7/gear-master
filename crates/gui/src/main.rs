@@ -19,7 +19,6 @@ use gearmaster_engine::rating::{resale_price, shop_price, Rarity};
 use gearmaster_engine::combat::Difficulty;
 use gearmaster_engine::run::{lives_in_words, Mode, ROGUE_LIVES};
 use gearmaster_engine::run::{Phase, Run};
-use gearmaster_console::{Console, Verb};
 use gearmaster_engine::shape::Shape;
 use gearmaster_engine::slot::{SLOT_H, SLOT_W};
 mod pack;
@@ -2827,17 +2826,20 @@ fn draw_watch_strip(w: &watch::Watcher, h: &watch::Header, run: &Run) {
 }
 
 fn begin_next_fight(run: &mut Run, speed: f32) -> Option<Playback> {
-    // A brawl an event arranged is the thing in the road, not a detour round
-    // it, so it goes ahead.
-    if let Some(specs) = run.pending_brawl() {
-        let profiles = run.combat_items();
-        return Some(Playback::new(run.fight_party(&specs), &profiles, speed));
-    }
-    if run.road_is_blocked().is_some() {
+    // Which fight is `watch::start_fight`'s answer and not a second one. This
+    // function used to decide it itself, which made the window a second reader
+    // of a proof the file had already been verified against - and a second
+    // reader that nothing could drive without a graphics context.
+    if !watch::start_fight(run) {
         return None;
     }
+    playback_of(run, speed)
+}
+
+/// The animation for the fight the run is already holding.
+fn playback_of(run: &Run, speed: f32) -> Option<Playback> {
     let profiles = run.combat_items();
-    Some(Playback::new(run.fight_next(), &profiles, speed))
+    Some(Playback::new(run.log.as_ref()?, &profiles, speed))
 }
 
 fn schedule_for(log: &CombatLog, want: Side, who: u8, count: usize) -> Vec<Vec<u32>> {
@@ -12552,15 +12554,6 @@ async fn main() {
 
         // Everything drawn this frame speaks the run's theme.
         words::set(run.theme);
-        let reports = run.reports();
-        // The fullest single slot, not the total: each slot lists its own.
-        let worn_count: usize = reports.iter().map(|r| r.assembled_count()).max().unwrap_or(0);
-        let layout = Layout::build(&run, worn_count);
-        // What is actually finished and worn, for the strip under the boards.
-        // Only needed out of combat; during a fight the battle screen has its
-        // own copy from the log.
-        let worn: Vec<ItemProfile> =
-            if run.phase == Phase::Loadout { run.combat_items() } else { Vec::new() };
 
         // ---- the watcher -------------------------------------------------
         //
@@ -12644,57 +12637,36 @@ async fn main() {
                 }
             } else if pb.is_none() && run.phase == Phase::Loadout && (w.ready(now) || step_now) {
                 if let Some(v) = w.peek() {
-                    match v {
-                        Verb::Fight | Verb::FightParty => {
-                            // Through the window's own path, so the battle
-                            // screen plays out exactly as it does for a person.
-                            //
-                            // **This is a second implementation of what a proof
-                            // verifies through the first**, and they are known
-                            // to disagree - see the divergence guard below.
-                            // Routing fights through the console instead was
-                            // tried and does not fix it, and costs the animation
-                            // that is the whole reason to watch.
-                            pb = begin_next_fight(&mut run, playback_speed);
-                            settled = pb.is_none();
-                            log_focus = None;
-                        }
-                        other => {
-                            // Through the agent's own console, so there is one
-                            // implementation of what a verb does.
-                            let held = std::mem::replace(&mut run, Run::seeded(0));
-                            let mut c = Console::standing_in(held, 0);
-                            // **Offered before pressed.** A tape is only
-                            // replayable while the window's run matches the one
-                            // that recorded it, and fights here go through
-                            // `begin_next_fight` rather than the console - a
-                            // second implementation of the one thing the proof's
-                            // own verification exercised through the first. When
-                            // they disagree the tape starts naming pieces this
-                            // run has never owned, and `apply` panics inside the
-                            // registry rather than refusing.
-                            //
-                            // So: say where it parted company and stop, which is
-                            // a diagnosis instead of a crash.
-                            let offered = c.menu().contains(&other);
-                            if offered {
-                                let out = c.apply(other);
-                                run = c.into_run();
-                                if !out.lines.is_empty() {
-                                    message = out.lines.join("  ");
-                                }
-                            } else {
-                                run = c.into_run();
-                                message = format!(
-                                    "the tape diverged at press {} of {}: {} is not on offer",
-                                    w.at(),
-                                    w.len(),
-                                    other.line()
-                                );
-                                eprintln!("  {message}");
-                                w.paused = true;
-                            }
-                        }
+                    // Through `watch::press`, which is the window's verb path
+                    // with the drawing taken out - so `watch::drive` walks
+                    // exactly what the window walks, and the proof tests in this
+                    // crate can say where a tape gets without a window to put it
+                    // in. A fight is the one verb that does not go through the
+                    // console, deliberately: the battle screen is the whole
+                    // reason to watch, and it wants the log rather than a run
+                    // that has already settled.
+                    let p = watch::press(&mut run, v);
+                    if p.fighting {
+                        pb = playback_of(&run, playback_speed);
+                        settled = pb.is_none();
+                        log_focus = None;
+                    } else if !p.offered {
+                        // **Say where it parted company and stop**, which is a
+                        // diagnosis instead of a crash. A tape is replayable
+                        // only while the window's run is the one that recorded
+                        // it; a verb the menu does not carry names a piece this
+                        // run has never owned, and `apply` would panic inside
+                        // the registry rather than refuse.
+                        message = format!(
+                            "the tape diverged at press {} of {}: {} is not on offer",
+                            w.at(),
+                            w.len(),
+                            v.line()
+                        );
+                        eprintln!("  {message}");
+                        w.paused = true;
+                    } else if !p.lines.is_empty() {
+                        message = p.lines.join("  ");
                     }
                     w.advance();
                     w.schedule(now);
@@ -12787,6 +12759,32 @@ async fn main() {
                 }
             }
         }
+
+        // **Built after every press, and not before one.**
+        //
+        // A `Card` carries a `PieceId` and the drawing resolves it against
+        // `run.registry`. This used to sit at the top of the frame, above the
+        // watcher - so a press applied in the middle of the frame was drawn
+        // against a card list describing the run before it. Almost every verb
+        // survives that; `undo` does not, because it restores a whole
+        // `BoardSnapshot` and an undone purchase makes the registry **smaller**.
+        // The first card drawn out of the stale list then panicked in
+        // `PieceRegistry::instance`, measured at press 254 of 665 on
+        // `runs/show/deep-rung13-239A554D7F922603.proof`.
+        //
+        // A person never met it: every hand-driven control on this screen is
+        // read *after* the drawing, so their press lands on the next frame's
+        // layout. The watcher is the one hand that presses mid-frame.
+        // Nothing between here and the drawing may touch the run.
+        let reports = run.reports();
+        // The fullest single slot, not the total: each slot lists its own.
+        let worn_count: usize = reports.iter().map(|r| r.assembled_count()).max().unwrap_or(0);
+        let layout = Layout::build(&run, worn_count);
+        // What is actually finished and worn, for the strip under the boards.
+        // Only needed out of combat; during a fight the battle screen has its
+        // own copy from the log.
+        let worn: Vec<ItemProfile> =
+            if run.phase == Phase::Loadout { run.combat_items() } else { Vec::new() };
 
         // The opening runs before the game proper and swallows the frame.
         if opening != Opening::Playing {

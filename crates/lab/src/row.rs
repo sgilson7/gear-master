@@ -162,7 +162,22 @@ pub fn run(
     difficulty: Difficulty,
     pack: &mut dyn FnMut(&mut Console) -> Vec<Verb>,
 ) -> (Console, Ran) {
-    let mut c = Console::start(seed, mode, difficulty);
+    run_from(Console::start(seed, mode, difficulty), pack)
+}
+
+/// The same loop, carried on from a run somebody else has already walked.
+///
+/// `Console` is `Clone`, so a probe can take a copy of a run standing at a rung
+/// and ask what happens to it from there - which is the only way to ask a
+/// **counterfactual** about one decision. `run` is this with a fresh console.
+///
+/// The `Ran` it hands back is about the stretch it walked and not about the
+/// whole run: `deepest` is still the deepest rung *stood on*, so a probe that
+/// starts at rung nine and clears three more reads twelve.
+pub fn run_from(
+    mut c: Console,
+    pack: &mut dyn FnMut(&mut Console) -> Vec<Verb>,
+) -> (Console, Ran) {
     let mut out = Ran { deepest: 1, ..Ran::default() };
 
     for _ in 0..CEILING * 4 {
@@ -268,6 +283,62 @@ pub const ASSEMBLED: f32 = 1.0;
 
 /// The most an item's quality can add on top.
 pub const QUALITY: f32 = 2.0;
+
+/// What the **n**th piece of taken-back work costs inside one packing.
+///
+/// The nth costs `n * CHURN`, so the first is nearly free and the twentieth is
+/// twenty times as dear. Taking a piece out to reseat it is a legitimate move;
+/// doing it twenty times is the thrash `analysis/the-collapse.md` M4 measured -
+/// `undo` at 45.5% of every press, and still 24.7% after the reward was fixed,
+/// against `place` at 44.7%. The packer seats a piece and takes the move back.
+///
+/// **Increasing, because a flat charge cannot tell those apart**, and `CLAUDE.md`
+/// trap 44 is the record of trying: a no-op cost 0.01 against value estimates
+/// spread over 1.70 and nothing happened, and taking the verb out of the action
+/// space just moved the thrash to the next cheapest key - `Rotate`, then `Pin`,
+/// then `Undo`.
+///
+/// **And per packing, not per run.** The last flat step charge punished the
+/// objective: a deeper run is more packings, so it paid more for going further.
+/// The count resets at every packing, so depth costs nothing and only churn
+/// inside one visit does.
+pub fn churn() -> f32 {
+    static C: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    *C.get_or_init(|| {
+        std::env::var("QROW_CHURN").ok().and_then(|v| v.parse().ok()).unwrap_or(0.02)
+    })
+}
+
+/// Whether a press takes work back rather than doing any.
+fn takes_back(v: Option<Verb>) -> bool {
+    matches!(
+        v,
+        Some(Verb::Unequip { .. })
+            | Some(Verb::UnequipLocked { .. })
+            | Some(Verb::Undo)
+            | Some(Verb::ClearSlot { .. })
+            | Some(Verb::ClearAll)
+    )
+}
+
+/// What each press of one packing costs in churn, in the order it was pressed.
+///
+/// Hand it the presses of a **single** packing; the count is what resets.
+pub fn churn_penalty(packing: &[Pressed]) -> Vec<f32> {
+    let c = churn();
+    let mut n = 0.0f32;
+    packing
+        .iter()
+        .map(|p| {
+            if p.stuck && takes_back(p.verb) {
+                n += 1.0;
+                -c * n
+            } else {
+                0.0
+            }
+        })
+        .collect()
+}
 
 /// What one spent life costs.
 ///
