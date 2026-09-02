@@ -476,3 +476,133 @@ measurements in §A point at them rather than at this one:
 
 Neither has been run, and `CLAUDE.md` trap 51 is the reason this section does
 not say which will work.
+
+---
+
+# G — Return decomposition: a wash on depth, and negative on the gap
+
+Read off `ca770b1`. `analysis/nets/qrow-r27-redist.log`, 3,000 episodes, 5,981 s,
+same seed stream and the same control as E and F. `QROW_REDIST=1` stops paying
+`worth` on the last press and pays the telescoped increments at the packings
+that won them, which is return-equivalent by construction and checked to a
+residual of `+0.00e0` on the first episode.
+
+## G.1 The four arms
+
+| | floor mean (ep 2100+) | median | range | items held | Q spread |
+|---|---:|---:|---|---:|---:|
+| control, terminal reward | 2.926 | 2.80 | 1.52-5.16 | 1.61 | 0.314 |
+| duel, gradient anchor | 1.367 | 1.32 | 1.12-1.92 | 0.04 | 0.200 |
+| duel, detached anchor | 1.501 | 1.44 | 1.00-2.04 | 0.13 | 1.952 |
+| **redistribution** | **2.939** | 2.92 | 1.76-4.12 | 0.99 | 2.025 |
+
+Thirty-seven blocks apiece. **+0.013 of a rung**, against a block noise of about
+0.4 - which is nothing, and is the first arm of the three that is not a
+regression.
+
+What did move is the *shape*: the range narrows at both ends, 1.76-4.12 against
+1.52-5.16. Lower variance and the same mean is what a redistribution that
+preserves the sum and removes the terminal spike should do, and it did it.
+
+## G.2 The target spike is gone and the mean is untouched
+
+```
+                      max target ever   mean target   worst clipping
+  control                        2702        +3.718             0.2%
+  redistribution                   23        +3.738             0.2%
+```
+
+**A hundred and twenty-two fold smaller maximum at the same mean.** The mean
+cannot move - the redistribution is return-equivalent, so it is the same total
+by construction - and the maximum is the terminal spike being spread over the
+episode. This is the cleanest confirmation available that the mechanism did what
+it was written to do.
+
+It also settles a plausible reason for expecting a gain, in the negative: the
+worst clipping either arm ever saw is **0.2%**, so the knee of 5 was never
+scaling the control's gradients away and there was no clipped gradient here to
+rescue. `CLAUDE.md` trap 53 is about a knee too far *out*; this would have been
+a knee too far in, and the column says it never happened. (The detached dueling
+arm hit 12.3% in eight blocks, which is one more way that arm misbehaved.)
+
+## G.3 And the gap - the thing it was aimed at - got worse
+
+```
+  gap as a share of the state value, at the written control's states
+  rung        1     2     3     4     5     6     7     8     9    10    11    12
+  control  0.32  0.70  1.34  1.69  1.42  0.59  0.14  1.69  0.33  0.49  2.93  0.46
+  redist   0.07  0.53  0.60  0.20  0.04  0.40  0.00  0.00  0.00  0.00  0.00  0.00
+```
+
+**Exactly 0.0000 at six consecutive rungs.** Not small - zero: the network scores
+its first and second choice identically from rung seven up, so the greedy policy
+there is decided by menu order and nothing else. That is `CLAUDE.md` trap 50's
+fault reached by a third road.
+
+And the ablation says the capacity went the same way it went for the dueling
+arms:
+
+```
+  band zeroed                      control    redist
+  the rung, and the lives left         28%      104%
+  the layout, 240 cells                81%       51%
+```
+
+## G.4 Why, and it is what the doc comment predicted
+
+`row::spread`'s own comment says it in advance: *"What it does not buy is credit
+at the decision: it moves the payment from the end of the run to the end of the
+rung, and A.1 measures 78% of rungs as coming out the same whatever was pressed
+at them."*
+
+That is exactly what happened. The redistribution anchored the **value** function
+locally - spread 2.025 against 0.314, targets 23 against 2702 - and gave the
+**policy** nothing new to discriminate on, because the redistributed reward is
+still not a function of the decision. It is a function of the rung, and the rung
+is not a function of the decision at 78% of the states being graded.
+
+The behaviour has a tell that is almost too on-the-nose. The trained policy's
+key histogram is:
+
+```
+  pin      1261    58.2%          place     310    14.3%
+  undo      193     8.9%          lock      169     7.8%
+```
+
+**It presses `Pin` for 58% of its presses** - a shop-shelf toggle that does
+nothing whatever to the board - and reaches the same depth as the control, which
+packs. A whole arm of this experiment is an accidental replication of §A: past
+rung three, a policy that does almost nothing gets where a policy that packs
+gets.
+
+## G.5 What is and is not refuted
+
+Refuted: **redistributing the return over rungs**. It is a genuine
+return-equivalent redistribution and it is RUDDER's construction with the
+regression replaced by a closed form - but RUDDER's power is in *where* it
+redistributes, and it redistributes onto the state-action pairs a learned model
+says predicted the return. Onto time-blocks is the cheap half, and the cheap half
+is measured here as a wash.
+
+Not refuted: RUDDER proper. A learned contribution analysis over the sequence
+could in principle put the credit on the *press* that made the board that won
+rung nine, which is the thing §A.2's +1.8 rungs is made of and the thing none of
+the four arms has touched. It needs a sequence model over 350-step episodes,
+which is a different order of work from any arm in this document.
+
+## G.6 Four arms, one direction
+
+Every intervention tried has moved the ablation the same way:
+
+```
+  zeroing the rung and the lives left, as a share of Q's across-state spread
+    control                28%
+    duel, detached        149%
+    redistribution        104%
+```
+
+Three architectures and two reward schemes, and each one ends up *more*
+dependent on the two numbers that say where the run is and less on the board.
+That is not four failures of tuning. It is four measurements of the same
+property of the environment, which §A states directly and which no change on the
+learner's side of the boundary has moved.
