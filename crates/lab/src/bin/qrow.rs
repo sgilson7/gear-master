@@ -115,6 +115,67 @@ mod q {
         std::env::var("QROW_DOUBLE").map(|v| v != "0").unwrap_or(true)
     }
 
+    /// Where the state stops and the move starts, in the pair.
+    ///
+    /// The board and the brief are the situation; the last `feature::MOVE`
+    /// numbers are the candidate key. A dueling net reads the first part with
+    /// one tower and the whole thing with another.
+    const SPLIT: usize = PAIR - feature::MOVE;
+
+    /// Whether `Q` is split into a state value and an advantage over stopping.
+    ///
+    /// **Off by default, because this is an arm and not a decision.**
+    ///
+    /// `analysis/the-action-gap.md` measures what this is for: at the written
+    /// packer's own states the gap between the best key and the next best is
+    /// 0.15% to 2.1% of the state's value, and zeroing two of the 321 inputs -
+    /// the rung and the lives left - moves `Q` by more than zeroing the other
+    /// 319 together. So the network spends its capacity re-deriving where the
+    /// run is inside every key's estimate, and what is left over to say which
+    /// key is a fifth of a percent of the answer. That is the situation the
+    /// dueling architecture was introduced for, and Seaquest's own quoted
+    /// figure - an action gap of 0.04 against a state value of 15 - is 0.27%.
+    ///
+    /// The identifiability anchor is a **reference action** rather than the
+    /// mean over the menu, because the buffer keeps the chosen pair and the
+    /// next state's candidates and no menu at all. `Q(s,a) = V(s) + A(s,a) -
+    /// A(s, done)`, where "done" is the all-zero move `Move::Done` already
+    /// encodes - so `Q(s, done)` is exactly `V(s)` and every other key is
+    /// priced as what it is worth over stopping here. See `QNet`'s `Duel`.
+    fn dueling() -> bool {
+        std::env::var("QROW_DUEL").map(|v| v != "0").unwrap_or(false)
+    }
+
+    /// Whether the anchor carries a gradient, and it may not.
+    ///
+    /// **The first dueling arm was refuted by its own output bias.** `Q = V(s)
+    /// + A(x) - A(anchor)` evaluates one tower twice, so the advantage tower's
+    /// output bias appears in both terms with opposite sign and its gradient is
+    /// `1 - 1 = 0` - identically, for ever. `--bin qmind` printed `b3 ... 0
+    /// (exact) NO` after three thousand episodes beside the control's 0.6012,
+    /// and the rest of that tower is starved for the same reason: `x` differs
+    /// from the anchor in 38 of 321 columns, so every other parameter receives
+    /// a difference of two nearly identical gradients. Measured against the
+    /// control's same tower, `b1` moved 0.15 as far and `w3` 0.09 as far.
+    ///
+    /// The textbook cure is to subtract the **mean over the menu** instead, and
+    /// it is not affordable in this architecture: standard dueling gets every
+    /// action's advantage out of one forward pass because the action is an
+    /// *output*, and here it is an *input*, so a differentiable menu mean is
+    /// sixteen more towers a sample - eighteen against three, which is ten
+    /// hours for three thousand episodes rather than two.
+    ///
+    /// So the anchor keeps its job and loses its gradient. `Q` is unchanged in
+    /// value, `Q(s, done)` is still exactly `V(s)`, and the advantage tower now
+    /// takes `dA(x)/dtheta` rather than the difference of two of them. A
+    /// semi-gradient, which is what a TD target already is.
+    ///
+    /// `QROW_DUEL_ANCHOR=grad` is the arm that was measured and refuted, kept
+    /// so the comparison can be repeated.
+    fn anchor_grad() -> bool {
+        std::env::var("QROW_DUEL_ANCHOR").as_deref() == Ok("grad")
+    }
+
     /// How many of the next state's candidates the bootstrap looks at.
     ///
     /// `max_a Q(s',a)` over every candidate is correct and it is unaffordable
@@ -142,7 +203,8 @@ mod q {
         Tensor::<B, 2>::from_data(TensorData::new(v, [r, c]), d).require_grad()
     }
 
-    struct Net {
+    /// Three layers and two rectifiers. Both towers are this.
+    struct Tower {
         w1: Tensor<B, 2>,
         b1: Tensor<B, 2>,
         w2: Tensor<B, 2>,
@@ -151,10 +213,10 @@ mod q {
         b3: Tensor<B, 2>,
     }
 
-    impl Net {
-        fn new(rng: &mut Rng, d: &Dev) -> Net {
-            Net {
-                w1: mat(init(rng, PAIR, HIDDEN), PAIR, HIDDEN, d),
+    impl Tower {
+        fn new(rng: &mut Rng, d: &Dev, wide: usize) -> Tower {
+            Tower {
+                w1: mat(init(rng, wide, HIDDEN), wide, HIDDEN, d),
                 b1: mat(vec![0.0; HIDDEN], 1, HIDDEN, d),
                 w2: mat(init(rng, HIDDEN, HIDDEN), HIDDEN, HIDDEN, d),
                 b2: mat(vec![0.0; HIDDEN], 1, HIDDEN, d),
@@ -168,6 +230,57 @@ mod q {
             let h = relu(h.matmul(self.w2.clone()).add(self.b2.clone().repeat_dim(0, rows)));
             h.matmul(self.w3.clone()).add(self.b3.clone().repeat_dim(0, rows))
         }
+        fn each(&mut self) -> [&mut Tensor<B, 2>; 6] {
+            [
+                &mut self.w1,
+                &mut self.b1,
+                &mut self.w2,
+                &mut self.b2,
+                &mut self.w3,
+                &mut self.b3,
+            ]
+        }
+    }
+
+    struct Net {
+        /// The whole pair. On a plain net this *is* `Q`.
+        adv: Tower,
+        /// The state alone, when this is a dueling net. See `dueling`.
+        val: Option<Tower>,
+        /// Ones over the state band and noughts over the move band, for
+        /// building the reference-action pair without a slice-assign.
+        mask: Tensor<B, 2>,
+    }
+
+    impl Net {
+        fn new(rng: &mut Rng, d: &Dev) -> Net {
+            let mut mask = vec![0.0f32; PAIR];
+            mask[..SPLIT].fill(1.0);
+            let adv = Tower::new(rng, d, PAIR);
+            // **Drawn either way**, so the seed stream is identical with and
+            // without the value tower and the two arms of the A/B stay
+            // comparable. One `rng` here feeds the initialisation, the episode
+            // seeds, the exploration and the replay sampling, so a tower drawn
+            // only in one arm would change every episode that arm ever plays -
+            // and the comparison would be of two different curricula. The
+            // demonstration arm above carries the same line for the same
+            // reason.
+            let val = Tower::new(rng, d, SPLIT);
+            Net { adv, val: dueling().then_some(val), mask: Tensor::<B, 2>::from_data(TensorData::new(mask, [1, PAIR]), d) }
+        }
+        fn forward(&self, x: Tensor<B, 2>) -> Tensor<B, 2> {
+            let a = self.adv.forward(x.clone());
+            let Some(v) = &self.val else { return a };
+            let rows = x.dims()[0];
+            // The same board with the move struck out, which is `Move::Done`.
+            let anchor = x.clone().mul(self.mask.clone().repeat_dim(0, rows));
+            let base = v.forward(anchor.clone().slice([0..rows, 0..SPLIT]));
+            // See `anchor_grad`. Detached, the advantage tower takes its own
+            // gradient instead of the difference of two nearly identical ones.
+            let off = self.adv.forward(anchor);
+            let off = if anchor_grad() { off } else { Tensor::from_inner(off.inner()) };
+            base.add(a).sub(off)
+        }
         fn text(&self) -> String {
             // **What the pair meant**, written down beside the weights.
             //
@@ -177,14 +290,27 @@ mod q {
             // still being a perfectly well-formed file. The stamp is what lets
             // `QNet::load_at` refuse it in a sentence.
             let mut out = format!("pair {}\n", PAIR);
-            let rows: [(&str, &Tensor<B, 2>); 6] = [
-                ("w1", &self.w1),
-                ("b1", &self.b1),
-                ("w2", &self.w2),
-                ("b2", &self.b2),
-                ("w3", &self.w3),
-                ("b3", &self.b3),
+            let mut rows: Vec<(&str, &Tensor<B, 2>)> = vec![
+                ("w1", &self.adv.w1),
+                ("b1", &self.adv.b1),
+                ("w2", &self.adv.w2),
+                ("b2", &self.adv.b2),
+                ("w3", &self.adv.w3),
+                ("b3", &self.adv.b3),
             ];
+            if let Some(v) = &self.val {
+                // The split goes in the file for the same reason the pair does:
+                // a reader may not assume this build's constants.
+                out.push_str(&format!("split {}\n", SPLIT));
+                rows.extend([
+                    ("v1", &v.w1),
+                    ("vb1", &v.b1),
+                    ("v2", &v.w2),
+                    ("vb2", &v.b2),
+                    ("v3", &v.w3),
+                    ("vb3", &v.b3),
+                ]);
+            }
             for (n, t) in rows {
                 out.push_str(n);
                 for x in t.clone().inner().to_data().convert::<f32>().into_vec::<f32>().unwrap() {
@@ -381,9 +507,80 @@ mod q {
             "single - one net picks and values, which is what overestimates"
         });
 
+        // Where the two checkpoints go. `QROW_OUT=<prefix>` moves them, so an
+        // A/B can run both arms at once without each clobbering the other's
+        // weights - which is how two hours of one arm becomes two hours of
+        // both.
+        let out = std::env::var("QROW_OUT").unwrap_or_else(|_| "runs/quartermaster_row".into());
+        let (out_best, out_last) = (format!("{out}.txt"), format!("{out}_last.txt"));
+
         let dev = Default::default();
         let mut rng = Rng::new(ROW_SEED);
         let mut net = Net::new(&mut rng, &dev);
+        // **The two halves of this trainer are two implementations of one
+        // function**, and a dueling net has three towers' worth of composition
+        // to get wrong. `forward` is the burn graph the gradient flows through;
+        // `QNet` is the hand-rolled arithmetic that chooses every key and every
+        // bootstrap. If they disagree the run trains one function and plays
+        // another, and nothing anywhere would go red.
+        //
+        // So: score the same random pairs both ways, once, and print the worst
+        // disagreement. `CLAUDE.md` trap 42 - "the engine treats these
+        // identically" is a claim about one code path.
+        {
+            let check = net.frozen();
+            // Its own stream, for the same reason: a diagnostic may not move
+            // the run it is diagnosing.
+            let mut rng = Rng::new(ROW_SEED ^ 0x0000_C4EC);
+            let n = 8usize;
+            let mut xs = Vec::with_capacity(n * PAIR);
+            let mut pairs: Vec<[f32; PAIR]> = Vec::new();
+            for _ in 0..n {
+                let mut p = [0.0f32; PAIR];
+                for v in p.iter_mut() {
+                    *v = ((rng.next_u64() >> 11) as f32 / (1u64 << 53) as f32 - 0.5) * 2.0;
+                }
+                xs.extend_from_slice(&p);
+                pairs.push(p);
+            }
+            let want = net
+                .forward(Tensor::<B, 2>::from_data(TensorData::new(xs, [n, PAIR]), &dev))
+                .inner()
+                .to_data()
+                .convert::<f32>()
+                .into_vec::<f32>()
+                .expect("its own output");
+            let got: Vec<f32> = pairs.iter().map(|p| check.q(p)).collect();
+            let set = check.q_set(&pairs);
+            let worst = want
+                .iter()
+                .zip(got.iter())
+                .map(|(a, b)| (a - b).abs())
+                .fold(0.0f32, f32::max);
+            // `q_set` shares the state terms across a menu, so it may only be
+            // asked about pairs that share a state - these do not. It is
+            // checked on a set that does.
+            let mut shared = pairs.clone();
+            for p in shared.iter_mut() {
+                p[..SPLIT].copy_from_slice(&pairs[0][..SPLIT]);
+            }
+            let one_by_one: Vec<f32> = shared.iter().map(|p| check.q(p)).collect();
+            let together = check.q_set(&shared);
+            let worst_set = one_by_one
+                .iter()
+                .zip(together.iter())
+                .map(|(a, b)| (a - b).abs())
+                .fold(0.0f32, f32::max);
+            let _ = set;
+            println!(
+                "  graph against evaluator: worst {worst:.2e}   q_set against q: worst {worst_set:.2e}   \
+                 dueling {}",
+                check.is_dueling()
+            );
+            assert!(worst < 1e-3, "the training graph and the acting evaluator disagree by {worst}");
+            assert!(worst_set < 1e-3, "q_set and q disagree by {worst_set}");
+        }
+
         let mut frozen = net.frozen();
         // The selector, refreshed every episode. See `double`.
         let mut online = net.frozen();
@@ -473,6 +670,8 @@ mod q {
             // What each press did, in the same order as `trail`, so a press that
             // finished an item can be paid for on the press that finished it.
             let mut presses: Vec<row::Pressed> = Vec::new();
+            // One `(from, to)` a packing, into `presses`.
+            let mut press_ends: Vec<(usize, usize)> = Vec::new();
 
             let mut pack = |c: &mut Console| {
                 let done = row::pack_with(c, PACK_BUDGET, |c, ms| {
@@ -485,7 +684,10 @@ mod q {
                             Move::Done => feature::pair(&b, &[0.0; feature::MOVE]),
                         })
                         .collect();
-                    let qs: Vec<f32> = pairs.iter().map(|p| frozen.q(p)).collect();
+                    // `q_set` and not `q` a key: a menu is one board and many
+                    // moves, and a dueling net's two state terms are the same
+                    // for every one of them.
+                    let qs: Vec<f32> = frozen.q_set(&pairs);
                     let hi = qs.iter().cloned().fold(f32::MIN, f32::max);
                     let lo = qs.iter().cloned().fold(f32::MAX, f32::min);
                     spread += (hi - lo) as f64;
@@ -494,9 +696,9 @@ mod q {
                     // press here, with no exploration. Same function, same
                     // seed, same answer as the run this came from.
                     if let (true, Some(t)) = (following, &teacher) {
-                        let i = pairs
-                            .iter()
-                            .map(|p| t.q(p))
+                        let i = t
+                            .q_set(&pairs)
+                            .into_iter()
                             .enumerate()
                             .max_by(|a, b| a.1.partial_cmp(&b.1).expect("real"))
                             .map(|(i, _)| i)
@@ -520,6 +722,9 @@ mod q {
                 // the reward. A tape without the packing replays into an empty
                 // board, so this is the half that makes an episode watchable.
                 let keys = row::keys(&done);
+                // Where this packing's presses start and end, because the churn
+                // charge resets at every packing and `presses` is the whole run.
+                press_ends.push((presses.len(), presses.len() + done.len()));
                 presses.extend(done);
                 keys
             };
@@ -708,6 +913,13 @@ mod q {
                 items_paid += best_items;
                 items_held += presses.last().map(|p| p.items_after).unwrap_or(0);
             }
+            // The churn charge, packing by packing, laid back over the run.
+            let mut churn = vec![0.0f32; presses.len()];
+            for &(from, to) in &press_ends {
+                for (k, c) in row::churn_penalty(&presses[from..to]).into_iter().enumerate() {
+                    churn[from + k] = c;
+                }
+            }
             for i in 0..n {
                 let x = trail[i].0;
                 // **What was on offer at the next decision.** The last one has
@@ -715,6 +927,7 @@ mod q {
                 // stops the run's worth being bootstrapped out of existence.
                 let next = if i + 1 < n { trail[i + 1].1.clone() } else { Vec::new() };
                 let r = bonuses.get(i).copied().unwrap_or(0.0)
+                    + churn.get(i).copied().unwrap_or(0.0)
                     + if i + 1 == n { worth } else { -NOTHING };
                 buffer.push(Trans { x, r, next });
             }
@@ -746,8 +959,7 @@ mod q {
                         // of sixteen, which measured as 4.3 s an episode against
                         // 1.9. A network is not a cheap key.
                         let (mut pick, mut best) = (0usize, f32::MIN);
-                        for (i, p) in s.next.iter().enumerate() {
-                            let q = online.q(p);
+                        for (i, q) in online.q_set(&s.next).into_iter().enumerate() {
                             if q > best {
                                 best = q;
                                 pick = i;
@@ -795,12 +1007,14 @@ mod q {
                             .require_grad();
                     }
                 };
-                step(&mut net.w1);
-                step(&mut net.b1);
-                step(&mut net.w2);
-                step(&mut net.b2);
-                step(&mut net.w3);
-                step(&mut net.b3);
+                for p in net.adv.each() {
+                    step(p);
+                }
+                if let Some(v) = net.val.as_mut() {
+                    for p in v.each() {
+                        step(p);
+                    }
+                }
             }
 
             if ep % 50 == 49 {
@@ -876,18 +1090,18 @@ mod q {
         // The last weights, and the best ones. A collapse at the exploration
         // floor is a real thing this loop does, so the run keeps both and says
         // which is which rather than quietly handing over whichever it ended on.
-        std::fs::write("runs/quartermaster_row_last.txt", net.text()).unwrap();
+        std::fs::write(&out_last, net.text()).unwrap();
         match &best_text {
             Some((m, t)) => {
-                std::fs::write("runs/quartermaster_row.txt", t).unwrap();
+                std::fs::write(&out_best, t).unwrap();
                 println!(
-                    "wrote runs/quartermaster_row.txt (best {KEEP_OVER} episodes, \
-                     mean rung {m:.2}) and runs/quartermaster_row_last.txt (final)"
+                    "wrote {out_best} (best {KEEP_OVER} episodes, \
+                     mean rung {m:.2}) and {out_last} (final)"
                 );
             }
             None => {
-                std::fs::write("runs/quartermaster_row.txt", net.text()).unwrap();
-                println!("wrote runs/quartermaster_row.txt");
+                std::fs::write(&out_best, net.text()).unwrap();
+                println!("wrote {out_best}");
             }
         }
     }

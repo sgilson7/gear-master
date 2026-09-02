@@ -266,3 +266,108 @@ what it was shown and has not learned a policy.
   argument - 1 through 4, and the gap tables, which are per-state - are
   hundreds. The 100% cells at rungs 8, 10 and 11 are 12, 10 and 10 visits and
   should be read as "most" rather than "all".
+
+---
+
+# E — The first remedy, and it was refuted by its own output bias
+
+Read off `b23cafe`. Two arms, 3,000 episodes each, same seed stream, same
+reward as r18 (`QROW_CHURN=0`), run concurrently:
+`analysis/nets/qrow-r24-control.log` and `qrow-r25-duel.log`.
+
+The intervention is a **dueling head**, chosen because §B.3's measurement is
+the measurement the dueling architecture was introduced for. The anchor is a
+reference action rather than the mean over the menu, because the replay buffer
+keeps the chosen pair and the *next* state's candidates and no menu at all:
+
+```
+  Q(s,a) = V(s) + A(s,a) - A(s, done)
+```
+
+## E.1 What the arms did
+
+| | floor mean (ep 2100+, eps at 0.05) | range | items paid / held |
+|---|---:|---|---|
+| control, plain `Q` | **2.926** | 1.52-5.16 | 2.29 / 1.61 |
+| dueling, reference anchor | **1.367** | 1.12-1.92 | 1.00 / 0.04 |
+
+Thirty-seven blocks apiece and the ranges do not overlap. The control lands
+where r18's floor did (3.02, and not identical because the value tower is drawn
+from the same stream either way, so this pair of arms is not seed-identical to
+r18 - only to each other). The dueling arm sits a third of a rung above
+"nothing at all, ever", which §A.2 measures at 1.00, and it finishes a run
+holding **0.04 items**.
+
+## E.2 And the mechanism is arithmetic, not a hyperparameter
+
+`--bin qmind`, the two nets, and the biases are the honest column because they
+start at exactly zero:
+
+```
+  advantage tower          duel          control
+  b1  sd                 0.0076           0.0508
+  b2  sd                 0.0098           0.0400
+  w3  against init          +11%            +117%
+  b3                 0 (exact)  NO          0.6012
+```
+
+**`b3` is exactly zero after three thousand episodes**, and it could not have
+been anything else. It is the advantage tower's output bias, the tower is
+evaluated twice, and the two evaluations are subtracted:
+
+```
+  dQ/db3  =  dA(x)/db3 - dA(anchor)/db3  =  1 - 1  =  0
+```
+
+Identically, for ever. And the same cancellation starves the rest of that
+tower to the degree that `x` resembles the anchor - they differ in 38 of 321
+columns, and §B.2 already measured that band as the one the answer moves least
+with. `b1` moved 0.15 as far as the control's and `w3` 0.09 as far.
+
+With the advantage stream starved, everything else follows: `Q`'s across-state
+standard deviation is **0.117** against the control's 2.089, the action gap is
+0.00% to 1.32% with **13 to 19 keys inside 1% of the best** at rungs 7 to 13,
+and at rungs 7 and 8 the gap is 0.0000 exactly. The split did form - mean `|V|`
+0.416 against mean `|A|` 0.074, so `A` is 15% of the answer - and what it
+formed was a value function with a decoration on it.
+
+## E.3 What this refutes, and what it does not
+
+It refutes **this form of the anchor** and nothing about dueling. The textbook
+constraint subtracts the mean advantage over the menu, which does not cancel
+because standard dueling reads the action as an *output* - one forward pass
+gives every action's advantage from a different output unit. Here the action is
+an **input**, so a differentiable menu mean is sixteen more towers a sample,
+eighteen against three, which is about ten hours for three thousand episodes
+against two. That is why the reference action was chosen and it is the thing
+that has to be got right.
+
+**The affordable correction is to detach the anchor.** `Q` is unchanged in
+value, `Q(s, done)` is still exactly `V(s)`, and the advantage tower takes
+`dA(x)/dtheta` rather than the difference of two of them - a semi-gradient,
+which is what a TD target already is. One hundred episodes with
+`QROW_DUEL_ANCHOR` at its default:
+
+```
+  b3   0.0193   yes
+```
+
+against exactly zero after three thousand. The gradient path is open, so the
+remedy has not in fact been tested yet. `QROW_DUEL_ANCHOR=grad` is the arm
+above, kept so the comparison can be repeated.
+
+## E.4 The instrument that caught it
+
+Nothing in the training curve says "your output bias cannot receive gradient".
+The block line prints a mean rung and a Q spread, and both of them said what
+they say for any bad policy. What named it was `qmind`'s bias column, which
+exists because a weight that has moved is hard to see against its own spread
+and **a bias starts at exactly zero** - so the one printed word that mattered
+was `NO`.
+
+That is the fourth time in this mission that the diagnostic which settled a
+question was one that reports a *mechanism* rather than a behaviour, and the
+third time the behaviour on its own supported a wrong reading: a policy at rung
+1.37 with 0.04 items held reads exactly like a policy that has learned to do
+nothing, which is `CLAUDE.md` trap 44's shape and was the first thing this
+looked like.
