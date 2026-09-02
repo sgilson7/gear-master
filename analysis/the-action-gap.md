@@ -722,3 +722,121 @@ moves `Q` by 28% of its across-state spread in the control, 104% under
 redistribution and 149% under the detached duel. Nothing on the learner's side
 of the boundary has moved the thing A measures, and the fifth arm's own
 diagnostic says in advance that it would not either.
+
+---
+
+# I — Temporal abstraction, and the prediction attached to it was wrong
+
+Read off `d83429b`. `analysis/nets/qrow-r28-abstract.log`, 3,000 episodes,
+5,606 s, same seed stream and the same control. `QROW_ABSTRACT=1
+QROW_REDIST=1`: the target for every press in a packing is the reward that
+actually accrued to the end of that packing plus `gamma^k` times the value at
+the start of the next one. An episode goes from about 350 chained bootstraps to
+about nine.
+
+**This is the first arm that moved anything**, and the prediction written into
+its commit message said it would not.
+
+## I.1 Depth
+
+| | reward | backup | floor mean | sd | min block |
+|---|---|---|---:|---:|---:|
+| control | terminal | press | 2.926 | 0.933 | 1.52 |
+| G, redistribution | per-rung | press | 2.939 | 0.456 | 1.76 |
+| **I, abstraction** | per-rung | **packing** | **3.265** | 0.375 | **2.72** |
+
+Thirty-seven blocks apiece. **+0.339 of a rung, which is 2.0 standard errors**
+of the difference - not overwhelming, and the first thing in this document that
+is outside the noise at all. The distribution is the better evidence: **33 of 37
+blocks are above the control's median**, against the control's own 16 of 37, and
+the arm's *worst* block is 2.72 against a control median of 2.80.
+
+## I.2 The gap, which is what it was measured against
+
+```
+  rung        1     2     3     4     5     6     7     8     9    10    11    12    13
+  control  0.32  0.70  1.34  1.69  1.42  0.59  0.14  1.69  0.33  0.49  2.93  0.46  0.38
+  abstract 5.34  2.74  3.12  0.25  4.56  0.28  0.99  0.69  2.63  2.15  1.37  1.81  7.54
+
+  keys within 1% of the best
+  control     8    10     6     2     6     6    10     7     8     3     3    19    23
+  abstract    1     3     3     4     3     5     3     2     2     2     2     2     1
+```
+
+**Mean gap 2.57% against 0.96%**, and the tie-breaking problem is largely gone:
+a mean of **2.5 keys inside one percent of the best against 8.5**, and a unique
+best at rungs 1 and 13 where the control had eight and twenty-three.
+
+## I.3 And the ablation reverses, for the first time
+
+G.6 said four arms had all moved the same way and that nothing on the learner's
+side of the boundary had moved what A measures. This moved it:
+
+```
+  band zeroed                    control   duel detach   redist   abstraction
+  the rung, and the lives left       28%          149%     104%           18%
+  what the board is                  38%           26%      18%           73%
+  the layout, 240 cells               81%           15%      51%           77%
+```
+
+The dependence on the two run-progress scalars is **lower than the control's**,
+and the two bands that describe the *board* are the highest they have been in
+any arm. This is the first network in five that is looking at the thing it is
+supposed to be packing.
+
+## I.4 What it presses
+
+```
+  lock       912    38.6%          place     574    24.3%
+  pin        308    13.0%          unequip   218     9.2%
+  undo       166     7.0%          buy        76     3.2%
+```
+
+**`Lock` is 38.6% of its choices**, against 0.0% in every arm before the feature
+fix and 0.4% after it (`analysis/the-collapse.md` M4.3). And `undo` is **7.0%**
+against 22.9% in the control and 45.5% at M4.3. The place-then-undo thrash that
+three milestones of this mission read as a free-action problem is not there.
+
+M1.1 is why that matters and it was written two missions ago: an unlocked item
+negotiates with whatever it touches, so a packer that cannot hold a multi-item
+board cannot clear a rung that needs one. This is the first policy to lock.
+
+## I.5 The prediction was wrong, and why
+
+`QROW_ABSTRACT`'s doc comment and its commit both said: the recorded state at
+the start of the next packing is the same for every press of this one, so the
+bootstrap stops varying with what was pressed - and since the reward is zero on
+99% of presses, that successor state is *the last place action-dependence
+survives in this target*. The gap should therefore fall.
+
+It rose, threefold. The error was in the last clause, and the measurements in B
+are what should have caught it.
+
+One-step TD's action-dependence flows entirely through `max_a Q(s', a)`. B
+measured that `Q` here is very nearly `V`: two of 321 inputs move it more than
+the other 319 together. **A bootstrap through a value function that is almost a
+state-value launders the action out of the target.** So the successor state was
+not where action-dependence survived; it was where it was being destroyed.
+
+Extending the horizon to forty presses of *realised* reward moves the target
+toward Monte Carlo, which is unbiased about the action taken - and across a
+replay buffer, different actions at similar states are followed by different
+realised futures, which is exactly the signal a bootstrapped `V` cannot carry.
+
+That is the mechanism, it is consistent with all five arms, and it says the
+right way to read A is not "the environment has no signal" but **"the signal is
+there and one-step bootstrapping cannot reach it."** A.2's +1.8 rungs was always
+the evidence for that and it took five arms to read it properly.
+
+## I.6 What this does not say
+
+* **+0.339 at 2.0 standard errors is one run.** It wants a repeat on a second
+  seed stream before it is a fact, and this document has been wrong at two
+  standard errors before (`analysis/the-collapse.md` M6.1).
+* It is still far short of the written control's 5.62.
+* Abstraction and redistribution moved together, and G measures redistribution
+  alone at +0.012, so the abstraction is carrying it - but an abstraction-only
+  arm was not run, because with a terminal reward there is nothing for an
+  option's return to accumulate.
+* Nothing here says the packing is the right option boundary. It is the obvious
+  one and it is the only one tried.
