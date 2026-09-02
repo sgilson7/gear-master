@@ -747,7 +747,7 @@ its commit message said it would not.
 
 Thirty-seven blocks apiece. **+0.339 of a rung, which is 2.0 standard errors**
 of the difference - not overwhelming, and the first thing in this document that
-is outside the noise at all. The distribution is the better evidence: **33 of 37
+is outside the noise at all. **It did not survive a second seed stream; see J.** The distribution is the better evidence: **33 of 37
 blocks are above the control's median**, against the control's own 16 of 37, and
 the arm's *worst* block is 2.72 against a control median of 2.80.
 
@@ -762,6 +762,12 @@ the arm's *worst* block is 2.72 against a control median of 2.80.
   control     8    10     6     2     6     6    10     7     8     3     3    19    23
   abstract    1     3     3     4     3     5     3     2     2     2     2     2     1
 ```
+
+> **Corrected by J.2.** "Mean gap 2.57% against 0.96%" is one normalisation -
+> the gap over the state's own value - and the other one available does not
+> agree: over `Q`'s across-state spread the gap is 1.44% against 1.79%, which is
+> flat to slightly *down*. The tie count below replicated on a second stream and
+> the ratio below did not survive being divided differently. Read the ties.
 
 **Mean gap 2.57% against 0.96%**, and the tie-breaking problem is largely gone:
 a mean of **2.5 keys inside one percent of the best against 8.5**, and a unique
@@ -840,3 +846,112 @@ the evidence for that and it took five arms to read it properly.
   option's return to accumulate.
 * Nothing here says the packing is the right option boundary. It is the obvious
   one and it is the only one tried.
+
+---
+
+# J — The confirmation: the depth did not survive, three other things did
+
+Read off `684039a`. `analysis/nets/qrow-r29-s2-control.log` and
+`qrow-r30-s2-abstract.log`, 3,000 episodes each, `QROW_SEED=0xFACEB00C` -
+chosen out of eight candidates because the written control reads **5.8** through
+that stream against 6.0 through the original, and the others read anywhere from
+3.5 to 13.0. Both arms move, because a number from one stream is comparable only
+to a number from the same one.
+
+## J.1 The depth did not confirm
+
+| | floor mean | sd | min | max | items held |
+|---|---:|---:|---:|---:|---:|
+| stream 1, control | 2.926 | 0.933 | 1.52 | 5.16 | 1.61 |
+| stream 1, abstraction | 3.265 | 0.375 | 2.72 | 4.52 | 1.15 |
+| stream 2, control | 2.704 | 0.790 | 1.36 | 4.58 | 1.55 |
+| stream 2, abstraction | 2.774 | 0.372 | 2.24 | 3.84 | 0.89 |
+
+```
+  stream 1   abstraction - control  = +0.339 +/- 0.165  = +2.0 se   (33/37 blocks above the control's median)
+  stream 2   abstraction - control  = +0.069 +/- 0.144  = +0.5 se   (22/37)
+  pooled                              +0.186 +/- 0.108  = +1.7 se
+```
+
+**I.1's headline was a seed.** The pooled estimate is +0.19 of a rung at 1.7
+standard errors, which is not a result, and `analysis/the-collapse.md` M6.1 is
+the record of this document making exactly this mistake before at exactly this
+threshold. The confirmation run is what it is for.
+
+## J.2 And the gap claim was one normalisation of two
+
+I.2 reported the action gap as a share of the state's own value and called it
+threefold. Divided by `Q`'s across-state spread instead - which is the better
+proxy for the estimation noise the gap has to survive, because a network whose
+values are six times larger has six times larger errors too - it does not move:
+
+```
+  net             mean gap   gap/bestQ   gap/Qsd   keys within 1% of best
+  s1 control        0.0373       0.96%     1.79%                     8.5
+  s1 abstract       0.1963       2.16%     1.44%                     2.5
+  s2 control        0.0505       1.08%     5.14%                     5.7
+  s2 abstract       0.2549       6.03%     4.88%                     2.2
+```
+
+The abstraction net's values are five to six times wider across states and its
+gaps scale with them. **Relative to the value's magnitude the gap improved on
+both streams; relative to the value's spread it did not.** I.2 quoted the first
+and did not check the second, and the strong form of that claim is withdrawn.
+
+What is left of it is the tie count, which fell on both streams - 8.5 to 2.5 and
+5.7 to 2.2 - and which is the measure with a behavioural meaning: how many keys
+the greedy argmax cannot separate from its own choice. It shares the `bestQ`
+normalisation and should be read with that in mind.
+
+## J.3 Three things did replicate, and cleanly
+
+**The variance halves.** On both streams the abstraction arm's block standard
+deviation is under half the control's - 0.375 against 0.933, and 0.372 against
+0.790 - and its worst block is far better while its best is worse. It is a
+policy that never has a bad block, and the control's higher mean on stream 1 was
+partly carried by occasional very good ones.
+
+**The ablation reverses, and by more the worse the control is.**
+
+```
+  zeroing the rung and the lives left, as a share of Q's across-state spread
+                       control    abstraction
+    stream 1               28%            18%
+    stream 2               84%            39%
+```
+
+Halved on both. On stream 2 the control is a far worse case - 84% of its answer
+is those two inputs - and the abstraction still cuts it to 39%, with the board
+bands rising to 48% and 55%.
+
+**It locks, and it stops thrashing.**
+
+```
+  stream 2       lock     undo
+    control      1.1%    27.4%
+    abstraction 45.3%     6.8%
+```
+
+Against stream 1's 38.6% and 7.0%. `analysis/the-collapse.md` M4.3 measured
+`undo` at 45.5% and three milestones of this mission read that as a free-action
+problem; M1.1 measured `lock` at 0.0% and named it as the reason a packer cannot
+hold a multi-item board. **Both reverse under the semi-MDP backup, on two
+independent seed streams**, and neither the action space nor the verb costs were
+touched to do it.
+
+## J.4 What the pair of runs actually establishes
+
+* The semi-MDP backup changes what the network *looks at* and what it *presses*,
+  reproducibly, and in the direction A says it should.
+* It does **not** reliably reach a deeper rung. +0.19 pooled at 1.7 se.
+* It makes the policy markedly more consistent, which is a real result and not
+  the one that was claimed.
+
+Those are compatible, and the compatible reading is the one this whole document
+keeps arriving at from new directions: a better packer is worth about a fifth of
+a rung, because A.1 measured 78% of rungs as coming out the same however they
+are packed. **Depth was never going to be a sensitive instrument for packing
+quality, and every arm here has been graded on it.** The thing to fix next is
+probably the measurement rather than the learner - an evaluation that scores the
+board instead of the ladder would have separated these five arms in minutes
+rather than in fourteen hours of training.
