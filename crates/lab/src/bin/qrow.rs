@@ -129,6 +129,32 @@ mod q {
         std::env::var("QROW_REDIST").map(|v| v != "0").unwrap_or(false)
     }
 
+    /// Whether the bootstrap happens at the packing rather than at the press.
+    ///
+    /// **Temporal abstraction, in the credit and not in the action space.** A
+    /// packing is a natural option: forty decisions, a termination condition,
+    /// and an outcome the environment scores. So the target for every press in
+    /// a packing is the reward that actually accrued to the end of that packing
+    /// plus `gamma^k` times the value at the start of the **next** one - which
+    /// is the semi-MDP backup, and it turns an episode from 350 chained
+    /// bootstraps into about nine.
+    ///
+    /// **It is paired with `QROW_REDIST` on purpose.** An option's reward in an
+    /// SMDP is what accrued during it, and with the reward left terminal that
+    /// is exactly zero for every packing but the last - so there would be
+    /// nothing for the accumulation to accumulate.
+    ///
+    /// And there is a prediction attached, written before the run: the recorded
+    /// state at the start of the next packing is the **same for every press of
+    /// this one**, so the bootstrap term no longer varies with what was
+    /// pressed. Today it does - `s_{i+1}` is the board after press `i`, which
+    /// is the last place action-dependence survives in this target. If that is
+    /// the operative effect, the action gap should fall further, and the arm is
+    /// a test of that rather than a hope.
+    fn abstracted() -> bool {
+        std::env::var("QROW_ABSTRACT").map(|v| v != "0").unwrap_or(false)
+    }
+
     /// Where the state stops and the move starts, in the pair.
     ///
     /// The board and the brief are the situation; the last `feature::MOVE`
@@ -350,6 +376,9 @@ mod q {
     struct Trans {
         x: [f32; PAIR],
         r: f32,
+        /// What the bootstrap is multiplied by. `GAMMA` for a one-press
+        /// transition; `gamma^k` when the backup spans a whole packing.
+        g: f32,
         next: Vec<[f32; PAIR]>,
     }
 
@@ -597,6 +626,8 @@ mod q {
 
         // Whether the return-equivalence check below has been run.
         let mut redist_checked = false;
+        // Whether the abstraction has said how deep it made the episode.
+        let mut abstract_said = false;
 
         let mut frozen = net.frozen();
         // The selector, refreshed every episode. See `double`.
@@ -982,22 +1013,67 @@ mod q {
                     );
                 }
             }
+            // Every press's own reward, before the backup decides how far it
+            // reaches.
+            let rew: Vec<f32> = (0..n)
+                .map(|i| {
+                    bonuses.get(i).copied().unwrap_or(0.0)
+                        + churn.get(i).copied().unwrap_or(0.0)
+                        + if redistribute() {
+                            paid[i]
+                        } else if i + 1 == n {
+                            worth
+                        } else {
+                            -NOTHING
+                        }
+                })
+                .collect();
+            // Which packing each press belongs to, and where that packing ends.
+            let mut ends_at = vec![n; n];
+            if abstracted() {
+                for &(from, to) in &press_ends {
+                    for e in ends_at.iter_mut().take(to.min(n)).skip(from) {
+                        *e = to.min(n);
+                    }
+                }
+            }
             for i in 0..n {
                 let x = trail[i].0;
+                if abstracted() {
+                    // **The semi-MDP backup.** Everything this packing pays
+                    // from here to its end, actually realised, and then the
+                    // value at the start of the next packing discounted by how
+                    // many presses that took. The last packing has nothing
+                    // after it, which is what makes it terminal.
+                    let to = ends_at[i];
+                    let mut r = 0.0f32;
+                    let mut g = 1.0f32;
+                    for j in i..to {
+                        r += g * rew[j];
+                        g *= GAMMA;
+                    }
+                    let next = if to < n { trail[to].1.clone() } else { Vec::new() };
+                    buffer.push(Trans { x, r, g, next });
+                    continue;
+                }
                 // **What was on offer at the next decision.** The last one has
                 // nothing after it, which is what makes it terminal and what
                 // stops the run's worth being bootstrapped out of existence.
                 let next = if i + 1 < n { trail[i + 1].1.clone() } else { Vec::new() };
-                let r = bonuses.get(i).copied().unwrap_or(0.0)
-                    + churn.get(i).copied().unwrap_or(0.0)
-                    + if redistribute() {
-                        paid[i]
-                    } else if i + 1 == n {
-                        worth
-                    } else {
-                        -NOTHING
-                    };
-                buffer.push(Trans { x, r, next });
+                buffer.push(Trans { x, r: rew[i], g: GAMMA, next });
+            }
+            if abstracted() && !abstract_said {
+                abstract_said = true;
+                let lens: Vec<usize> = press_ends.iter().map(|&(f, t)| t - f).collect();
+                let mean = lens.iter().sum::<usize>() as f32 / lens.len().max(1) as f32;
+                println!(
+                    "  abstraction: {} packings, {mean:.1} presses each, so the bootstrap \
+                     carries gamma^{mean:.0} = {:.3} and the episode is {} backups deep \
+                     rather than {n}",
+                    lens.len(),
+                    GAMMA.powf(mean),
+                    lens.len()
+                );
             }
             if buffer.len() > 80_000 {
                 buffer.drain(0..20_000);
@@ -1037,7 +1113,7 @@ mod q {
                     } else {
                         s.next.iter().map(|p| frozen.q(p)).fold(f32::MIN, f32::max)
                     };
-                    ys.push(s.r + GAMMA * boot);
+                    ys.push(s.r + s.g * boot);
                 }
                 for &t in &ys {
                     tlo = tlo.min(t);
