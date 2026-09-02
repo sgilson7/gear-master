@@ -376,6 +376,76 @@ pub fn worth(ran: &Ran) -> f32 {
     d.powf(pow()) * RUNG - ran.losses as f32 * LIFE
 }
 
+/// A run's worth, paid where it was earned instead of all at the end.
+///
+/// **Return decomposition, and here it is exact rather than learned.**
+///
+/// `worth` is `deepest^pow - losses*LIFE` and it arrives on the very last press
+/// of the episode. `analysis/the-action-gap.md` A.3 measures what that does: an
+/// episode is about 350 decisions and at `gamma = 0.999` the terminal reward
+/// reaches the first of them at 0.70 of its face value and the last at 1.00, so
+/// three hundred and fifty state-action pairs receive the same number to within
+/// thirty percent. There is no temporal structure in the credit at all, and
+/// every transition but one has a reward of zero - so the target is `gamma *
+/// max Q(s',.)` almost everywhere and the value has to walk backwards three
+/// hundred steps by bootstrapping alone.
+///
+/// RUDDER's answer is to redistribute the episode's return onto the decisions
+/// that predicted it, by *regressing* the return on the whole sequence. Here no
+/// regression is needed, because the return telescopes in closed form:
+///
+/// ```text
+///   D^2  =  sum over k of  (k^2 - (k-1)^2)
+/// ```
+///
+/// So the depth term decomposes exactly into a payment made at the moment the
+/// run first stood on each rung, and the life term into one made at the fight
+/// that cost it. The sum is unchanged, which is what makes the redistributed
+/// process **return-equivalent** and its optimal policy the same one.
+///
+/// What it buys is that the reward now *differs between transitions inside an
+/// episode*, and differs in the direction of the thing being learned. What it
+/// does not buy is credit at the *decision*: it moves the payment from the end
+/// of the run to the end of the rung, and A.1 measures 78% of rungs as coming
+/// out the same whatever was pressed at them. This is the affordable half.
+///
+/// `rungs[p]` is the rung standing when packing `p` began and `ended_at` is the
+/// rung the run finished on. The residual - anything the telescoping does not
+/// account for, such as a last packing whose fight never happened - is put on
+/// the final packing, so the sum is `worth` by construction and a caller can
+/// check it.
+pub fn spread(rungs: &[usize], ended_at: usize, worth: f32) -> Vec<f32> {
+    let mut pay = vec![0.0f32; rungs.len()];
+    if rungs.is_empty() {
+        return pay;
+    }
+    let p = pow();
+    // The rung you start on is already stood upon, and paying for it is what
+    // makes the telescoping sum to `deepest^pow` rather than to
+    // `deepest^pow - 1`. A constant cannot change which policy is best; it is
+    // here so the identity is exact and the check below means something.
+    let mut most = rungs[0];
+    pay[0] += (most as f32).powf(p) * RUNG;
+    for i in 0..rungs.len() {
+        let after = if i + 1 < rungs.len() { rungs[i + 1] } else { ended_at };
+        let then = most.max(after);
+        if then > most {
+            pay[i] += ((then as f32).powf(p) - (most as f32).powf(p)) * RUNG;
+            most = then;
+        }
+        // A fight that did not move the rung is a fight that was lost, which is
+        // the same rule `run` counts `losses` by.
+        if after <= rungs[i] {
+            pay[i] -= LIFE;
+        }
+    }
+    let sum: f32 = pay.iter().sum();
+    if let Some(last) = pay.last_mut() {
+        *last += worth - sum;
+    }
+    pay
+}
+
 /// What one press did to the board, for a reward that pays per press.
 #[derive(Copy, Clone, Debug)]
 pub struct Pressed {

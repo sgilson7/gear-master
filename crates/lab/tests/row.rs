@@ -254,3 +254,83 @@ fn a_proof_appears_whole_or_not_at_all() {
     assert_eq!(left, vec!["ep-000000.proof"], "no temporary is left behind");
     assert_eq!(gearmaster_lab::proof::listed(&dir).len(), 1);
 }
+
+/// **The redistributed run is worth exactly what the run was worth.**
+///
+/// That identity is the whole licence for `row::spread`: a reward redistribution
+/// preserves the optimal policy when it is *return-equivalent*, which means the
+/// sum over the episode is unchanged. If it drifts, the agent is being trained
+/// on a different objective than the one being reported, and nothing in a
+/// training curve would say so.
+mod decomposition {
+    use gearmaster_lab::row;
+
+    fn total(v: &[f32]) -> f32 {
+        v.iter().sum()
+    }
+
+    /// A run that climbed 1 -> 2 -> 3 -> 4 without losing a fight.
+    #[test]
+    fn a_clean_climb_pays_the_square_of_the_rung_it_reached() {
+        let rungs = vec![1, 2, 3];
+        let worth = 4.0f32.powf(row::pow()) * row::RUNG;
+        let pay = row::spread(&rungs, 4, worth);
+        assert_eq!(pay.len(), 3);
+        assert!((total(&pay) - worth).abs() < 1e-4, "paid {} for a worth of {worth}", total(&pay));
+        // And it telescopes: each packing is paid the increment its fight won.
+        assert!((pay[0] - (1.0 + (4.0 - 1.0))).abs() < 1e-4, "the first packing got {}", pay[0]);
+        assert!((pay[1] - (9.0 - 4.0)).abs() < 1e-4, "the second got {}", pay[1]);
+        assert!((pay[2] - (16.0 - 9.0)).abs() < 1e-4, "the third got {}", pay[2]);
+    }
+
+    /// A fight that does not move the rung is a fight that was lost, which is
+    /// the rule `row::run` counts `losses` by - so the life comes off at the
+    /// packing that cost it and not at the end.
+    #[test]
+    fn a_lost_fight_costs_a_life_where_it_was_lost() {
+        // 1 -> 1 (lost) -> 2 -> 2 (lost), ending on 2.
+        let rungs = vec![1, 1, 2];
+        let worth = 2.0f32.powf(row::pow()) * row::RUNG - 2.0 * row::LIFE;
+        let pay = row::spread(&rungs, 2, worth);
+        assert!((total(&pay) - worth).abs() < 1e-4, "paid {} for a worth of {worth}", total(&pay));
+        assert!(pay[0] < pay[1], "the packing whose fight was lost paid worse");
+    }
+
+    /// Knocked back and climbing again pays nothing for ground already bought.
+    ///
+    /// The depth term is a **high-water mark**, so a run that reaches rung five,
+    /// falls to three and climbs back is paid once for the five. Anything else
+    /// would make being knocked back a source of income.
+    #[test]
+    fn ground_won_twice_is_paid_for_once() {
+        let rungs = vec![1, 3, 5, 3, 4];
+        let worth = 5.0f32.powf(row::pow()) * row::RUNG - 2.0 * row::LIFE;
+        let pay = row::spread(&rungs, 5, worth);
+        assert!((total(&pay) - worth).abs() < 1e-4, "paid {} for a worth of {worth}", total(&pay));
+        // The climb back from 3 to 4 to 5 buys no depth: it has been paid for.
+        assert!(pay[3] <= 0.0, "re-treading rung 4 paid {}", pay[3]);
+    }
+
+    /// The identity holds over a run the harness actually played, which is the
+    /// case the hand-written ones above are a model of.
+    #[test]
+    fn it_holds_over_a_run_that_was_really_played() {
+        use gearmaster_console::{Console, Difficulty, Mode};
+        let mut rungs: Vec<usize> = Vec::new();
+        let mut pack = |c: &mut Console| {
+            rungs.push(c.view().rung_shown);
+            gearmaster_lab::packers::control(c, 40);
+            Vec::new()
+        };
+        let (c, ran) = row::run(0x0D0E_5EED, Mode::Rogue, Difficulty::Medium, &mut pack);
+        let worth = row::worth(&ran);
+        let pay = row::spread(&rungs, c.view().rung_shown, worth);
+        assert_eq!(pay.len(), rungs.len(), "one payment a packing");
+        assert!(
+            (total(&pay) - worth).abs() < 1e-3,
+            "a real run reaching rung {} was worth {worth} and paid {}",
+            ran.deepest,
+            total(&pay)
+        );
+    }
+}

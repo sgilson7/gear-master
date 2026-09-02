@@ -115,6 +115,20 @@ mod q {
         std::env::var("QROW_DOUBLE").map(|v| v != "0").unwrap_or(true)
     }
 
+    /// Whether the run's worth is paid where it was earned.
+    ///
+    /// **Return decomposition.** `row::spread` is the whole argument; what this
+    /// switch does is stop paying `worth` on the last press of the episode and
+    /// pay the telescoped increments at the packings that won them instead. The
+    /// sum is identical, so the process is return-equivalent and its optimal
+    /// policy is unchanged - and the trainer checks that identity on its first
+    /// episode and prints the residual rather than trusting it.
+    ///
+    /// Off by default, because it is an arm.
+    fn redistribute() -> bool {
+        std::env::var("QROW_REDIST").map(|v| v != "0").unwrap_or(false)
+    }
+
     /// Where the state stops and the move starts, in the pair.
     ///
     /// The board and the brief are the situation; the last `feature::MOVE`
@@ -581,6 +595,9 @@ mod q {
             assert!(worst_set < 1e-3, "q_set and q disagree by {worst_set}");
         }
 
+        // Whether the return-equivalence check below has been run.
+        let mut redist_checked = false;
+
         let mut frozen = net.frozen();
         // The selector, refreshed every episode. See `double`.
         let mut online = net.frozen();
@@ -672,8 +689,12 @@ mod q {
             let mut presses: Vec<row::Pressed> = Vec::new();
             // One `(from, to)` a packing, into `presses`.
             let mut press_ends: Vec<(usize, usize)> = Vec::new();
+            // The rung standing at each packing, which is what a redistributed
+            // return is telescoped over. See `row::spread`.
+            let mut rungs: Vec<usize> = Vec::new();
 
             let mut pack = |c: &mut Console| {
+                rungs.push(c.view().rung_shown);
                 let done = row::pack_with(c, PACK_BUDGET, |c, ms| {
                     let v = c.view();
                     let b = feature::briefed(&feature::board(&v), &Brief::NONE);
@@ -730,6 +751,9 @@ mod q {
             };
 
             let (_c, out) = row::run(seed, mode, Difficulty::Medium, &mut pack);
+            // The rung it finished standing on, which the last packing's fight
+            // decided and `rungs` therefore has no entry for.
+            let ended_at = _c.view().rung_shown;
             // **A demonstration is not a measurement of the policy.**
             //
             // The teacher reaches rung 18 and it plays every tenth episode, so
@@ -920,6 +944,44 @@ mod q {
                     churn[from + k] = c;
                 }
             }
+            // **The run's worth, paid where it was earned.** One payment a
+            // packing out of `row::spread`, laid onto the last transition of
+            // that packing - the decision that produced the board its fight was
+            // won with. A packing that pressed nothing carries its payment
+            // forward, and whatever is left lands on the final transition, so
+            // the episode's total is `worth` however the packings fell.
+            let mut paid = vec![0.0f32; n];
+            if redistribute() && n > 0 {
+                let per = row::spread(&rungs, ended_at, worth);
+                let mut owed = 0.0f32;
+                for (p, amount) in per.iter().enumerate() {
+                    owed += amount;
+                    let (from, to) = press_ends.get(p).copied().unwrap_or((0, 0));
+                    if to > from && to <= n {
+                        paid[to - 1] += owed;
+                        owed = 0.0;
+                    }
+                }
+                paid[n - 1] += owed;
+                // **Return-equivalence, checked rather than assumed.** The
+                // licence for redistributing at all is that the episode's total
+                // is unchanged; if it drifts, the agent is being trained on a
+                // different objective than the one being reported and no curve
+                // would say so. Once, on the first episode that has one.
+                if !redist_checked {
+                    redist_checked = true;
+                    let got: f32 = paid.iter().sum();
+                    println!(
+                        "  redistribution: {} packings, worth {worth:+.4}, paid {got:+.4}, residual {:+.2e}",
+                        rungs.len(),
+                        got - worth
+                    );
+                    assert!(
+                        (got - worth).abs() < 1e-2,
+                        "the redistribution is not return-equivalent: {got} against {worth}"
+                    );
+                }
+            }
             for i in 0..n {
                 let x = trail[i].0;
                 // **What was on offer at the next decision.** The last one has
@@ -928,7 +990,13 @@ mod q {
                 let next = if i + 1 < n { trail[i + 1].1.clone() } else { Vec::new() };
                 let r = bonuses.get(i).copied().unwrap_or(0.0)
                     + churn.get(i).copied().unwrap_or(0.0)
-                    + if i + 1 == n { worth } else { -NOTHING };
+                    + if redistribute() {
+                        paid[i]
+                    } else if i + 1 == n {
+                        worth
+                    } else {
+                        -NOTHING
+                    };
                 buffer.push(Trans { x, r, next });
             }
             if buffer.len() > 80_000 {
