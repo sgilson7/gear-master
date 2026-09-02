@@ -606,3 +606,119 @@ dependent on the two numbers that say where the run is and less on the board.
 That is not four failures of tuning. It is four measurements of the same
 property of the environment, which §A states directly and which no change on the
 learner's side of the boundary has moved.
+
+---
+
+# H — Full RUDDER, asked what it would redistribute onto
+
+Read off `592fe4c`. `--bin qrudder`, 120 episodes under the control arm's best
+net at eps 0.05, 31,497 presses, 74 s.
+
+G redistributed the return over **rungs**, in closed form. RUDDER proper
+redistributes onto the state-action pairs a *learned* model says predicted the
+return, which could in principle put the credit on the press that built the item
+that won rung nine. This asks it to, and reads the answer before any arm is run:
+**a contribution analysis cannot manufacture signal that is not in the data**,
+and if its credit lands where G's did then G has already measured what that is
+worth.
+
+## H.1 The forecaster, and why it is Markov
+
+RUDDER uses an LSTM because Atari is partially observed. This game is fully
+observed - the board, the purse, the rung and the lives *are* the state - so a
+prefix should tell a forecaster nothing the last state does not. That claim is
+tested rather than assumed:
+
+```
+  returns to go: mean +34.81, sd 59.48
+  epoch   1   held-out R2 +0.537
+  epoch  40   held-out R2 +0.511
+```
+
+**A Markov forecaster explains about half the variance of the realised return**,
+and it does so in one epoch. It does not improve with training, which is what a
+model that has already extracted what its inputs carry looks like.
+
+Half is not all, and this does not establish that a sequence model would add
+nothing - the unexplained half is at least partly *future* stochasticity, the
+shop's next deal and which creature is coming, which no predictor of the past
+can reach. What H.2 shows is that the half it does explain is not the half that
+would help.
+
+## H.2 The credit lands nowhere in particular - less selectively than chance
+
+`R_t = r_t + V(s_t) - V(s_{t-1})`. Where does the mass go? Beside it, the same
+analysis run with an **untrained** forecaster, because `R_t` is a difference of
+two forecasts one press apart and most of what it measures could be the
+difference of two prediction *errors*:
+
+```
+  concentration of |R_t|             untrained (control)     trained
+  presses that won their rung                       0.7x        1.2x
+  the last press of any packing                     4.6x        1.1x
+  presses that finished an item                     1.6x        1.0x
+```
+
+A ratio of 1.0 is credit spread exactly in proportion to how many presses there
+are. **The trained analysis is at 1.0 to 1.2 everywhere**, and the *untrained*
+one concentrates four and a half times harder at the presses a fight is fought
+with - because those are simply the presses where the state changes most, and a
+random projection notices that.
+
+So training does not sharpen the redistribution. It **flattens** it.
+
+By key, the same thing:
+
+```
+  key         presses   mean |R|    share      share of presses
+  place        15194      4.3297    52.0%               48.2%
+  undo          8242      4.5119    29.4%               26.2%
+  buy           1875      4.7024     7.0%                6.0%
+  unequip       1689      4.6358     6.2%                5.4%
+  pin           2121      0.4928     0.8%                6.7%
+```
+
+Every row is its own share of the presses, to within a point or two - except
+`pin`, which the forecaster prices at a ninth of everything else. That one row
+is worth keeping: **it knows perfectly well that pinning a shelf does nothing**,
+so the flatness elsewhere is not blindness. It is an accurate report that a
+place and its undo, a buy and a sell, all move the forecast by about the same
+amount.
+
+## H.3 Which is A, arrived at from the last available direction
+
+What a return predictor learns here is what B measured four times over: the
+return is a function of where the run is on the ladder. That function is
+**constant within a packing**, so its differences across the presses of a
+packing carry no signal, and what is left is noise distributed evenly.
+
+RUDDER finds the state-action pairs that *predict* the return. In this
+environment the thing that predicts the return is the rung, and the rung is not
+a function of the press - at 78% of the states being graded (A.1), by direct
+counterfactual.
+
+**This is the negative result the method is entitled to**, and it is worth being
+precise about what it is not. It is not "RUDDER does not work". It is: a
+contribution analysis over these episodes, with a forecaster that genuinely
+predicts their returns, distributes credit uniformly over presses - so the arm
+it would justify is one whose reward is a flatter version of the reward G
+already measured as a wash. Two hours of training would produce a number this
+binary predicted in seventy-four seconds, and that ordering was the point.
+
+## H.4 The five arms
+
+```
+  arm                          floor mean   gap at rungs 7-12      verdict
+  control, terminal reward          2.926   0.14-2.93%             the baseline
+  duel, gradient anchor             1.367   0.00-0.34%             refuted (E.2)
+  duel, detached anchor             1.501   0.00-0.47%             refuted (F.2)
+  redistribution over rungs         2.939   0.00%                  a wash (G.1)
+  RUDDER, learned redistribution        -   -                      not run (H.2)
+```
+
+Four trained arms across three architectures and two reward schemes, and the
+ablation moved the same way in every one: zeroing the rung and the lives left
+moves `Q` by 28% of its across-state spread in the control, 104% under
+redistribution and 149% under the detached duel. Nothing on the learner's side
+of the boundary has moved the thing A measures, and the fifth arm's own
+diagnostic says in advance that it would not either.
