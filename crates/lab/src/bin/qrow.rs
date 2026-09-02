@@ -67,6 +67,26 @@ mod q {
     /// The seed the trainer's own draws come from.
     const ROW_SEED: u64 = 0x0D0E_5EED;
 
+    /// The stream actually used, which `QROW_SEED` may replace.
+    ///
+    /// **For confirming a result on a second stream and nothing else.** Every
+    /// arm in `analysis/the-action-gap.md` E to I shares this one, which is what
+    /// makes them comparable; a number measured on a different stream is
+    /// comparable only to another number measured on the same one. So a
+    /// confirmation run moves *both* arms, and the written control's line at
+    /// the top of the run says what the new stream deals - if that moves a long
+    /// way, the streams are not equally hard and the two are not comparable
+    /// either.
+    fn row_seed() -> u64 {
+        static S: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+        *S.get_or_init(|| {
+            std::env::var("QROW_SEED")
+                .ok()
+                .and_then(|v| u64::from_str_radix(v.trim_start_matches("0x"), 16).ok())
+                .unwrap_or(ROW_SEED)
+        })
+    }
+
     /// Episodes to a block: the unit this trainer **reports** on.
     ///
     /// Twenty-five, for a curve with four times the resolution. A block mean
@@ -520,7 +540,7 @@ mod q {
         // which is the mistake the curriculum walker made once already, where a
         // simplified walk read as a fact about Rogue and was a fact about a
         // hundred lines of harness.
-        let mut r = Rng::new(ROW_SEED);
+        let mut r = Rng::new(row_seed());
         let (mut sum, mut best) = (0usize, 0usize);
         const CONTROLS: usize = 6;
         for _ in 0..CONTROLS {
@@ -558,7 +578,7 @@ mod q {
         let (out_best, out_last) = (format!("{out}.txt"), format!("{out}_last.txt"));
 
         let dev = Default::default();
-        let mut rng = Rng::new(ROW_SEED);
+        let mut rng = Rng::new(row_seed());
         let mut net = Net::new(&mut rng, &dev);
         // **The two halves of this trainer are two implementations of one
         // function**, and a dueling net has three towers' worth of composition
@@ -574,7 +594,7 @@ mod q {
             let check = net.frozen();
             // Its own stream, for the same reason: a diagnostic may not move
             // the run it is diagnosing.
-            let mut rng = Rng::new(ROW_SEED ^ 0x0000_C4EC);
+            let mut rng = Rng::new(row_seed() ^ 0x0000_C4EC);
             let n = 8usize;
             let mut xs = Vec::with_capacity(n * PAIR);
             let mut pairs: Vec<[f32; PAIR]> = Vec::new();
