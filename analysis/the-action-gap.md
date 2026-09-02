@@ -371,3 +371,108 @@ third time the behaviour on its own supported a wrong reading: a policy at rung
 1.37 with 0.04 items held reads exactly like a policy that has learned to do
 nothing, which is `CLAUDE.md` trap 44's shape and was the first thing this
 looked like.
+
+---
+
+# F — The corrected arm, and dueling does not transfer to a pair input
+
+Read off `67cc9d7`. `analysis/nets/qrow-r26-duel-detached.log`, 3,000 episodes,
+7,010 s, same seed stream and same control as E.
+
+## F.1 The fix worked, mechanically and completely
+
+`--bin qmind` on the advantage tower, the three arms side by side:
+
+```
+                     duel (grad)   duel (detach)   control
+  b3                0 (exact) NO          0.8843    0.6012
+  b1  sd                  0.0076          0.3924    0.0508
+  w1  against init            +0%            +98%       +2%
+  w3  against init           +11%           +425%     +117%
+```
+
+The output bias that could not receive gradient now receives it, and the tower
+around it moved further than the control's did. Whatever else follows, E.2's
+diagnosis was right and its cure does what it says.
+
+## F.2 And the remedy is refuted on the metric it was chosen for
+
+The whole point of a dueling head here was §B.3's gap. It got **narrower**:
+
+```
+  gap as a share of the state value, at the written control's states
+  rung        1     2     3     4     5     6     7     8     9    10    11    12
+  control  0.32  0.70  1.34  1.69  1.42  0.59  0.14  1.69  0.33  0.49  2.93  0.46
+  duel     0.28  0.06  0.07  0.06  0.33  0.18  0.08  0.34  0.47  0.21  0.23  0.37
+```
+
+Smaller at eleven rungs of twelve, and by five to twenty fold over rungs 2 to 4.
+The floor mean follows it down - **1.501 against the control's 2.926**, 37 blocks
+apiece, and 0.13 items held against 1.61.
+
+The ablation says where the capacity went instead, and it is the opposite of
+what the architecture was for:
+
+```
+  band zeroed                      control    duel (detach)
+  the rung, and the lives left         28%             149%
+  the layout, 240 cells                81%              15%
+  purse, tray, what is coming          45%              20%
+```
+
+The dueling net is **more** concentrated on the two run-progress scalars than
+the plain one, not less, and it has largely stopped reading the board.
+
+## F.3 Why, and it is the architecture rather than the tuning
+
+Standard dueling reads the action as an **output**: `A(s, .)` is a vector with
+one unit per action, and the constraint subtracts the mean *along the action
+axis at a fixed state*. That subtraction is what makes an advantage an
+advantage, and it is free because one forward pass produces the whole vector.
+
+This repo reads the action as an **input**, because the menu is 100 to 545 keys
+and changes shape every step - which is why `feature::pair` exists at all. There
+is no action axis to subtract along without scoring the whole menu, and a
+differentiable menu mean is eighteen towers a sample against three.
+
+Both anchors fail, for opposite reasons, and between them they cover the
+options:
+
+* **anchored with gradient** - the tower is evaluated twice and subtracted, so
+  the advantage's own parameters cancel and it learns nothing (E.2);
+* **anchored without gradient** - nothing centres the advantage any more, and
+  since `A` reads the state as well as the move, it is simply a second `Q`
+  network summed with a state-only one. Nothing makes it an advantage.
+
+The second reading has a tell that is hard to argue with. `b3` and `vb3` are
+both **0.8843**, to every digit printed. They must be: the two output biases sit
+either side of an addition, so each receives exactly `dLoss/dQ`, and starting
+from zero at one learning rate they move identically for ever. The two towers
+are not doing two jobs; one of them is a duplicated parameter and a handicapped
+copy of the other.
+
+And the behaviour matches. The key histogram is `place` 62.3%, **`clear` 25.4%**,
+`undo` 10.8% - a quarter of every press is `ClearSlot` or `ClearAll`, which
+§A.1 measures as the one thing a carried board cannot survive.
+
+## F.4 What is refuted, precisely
+
+**Dueling, in a `Q(state, action)` architecture with a variable menu.** Not
+dueling in general, and not the diagnosis in §A and §B, which stands untouched -
+both arms agree with it, and the detached one agrees with it harder.
+
+What the two arms rule out is the cheap version. Making this work would mean
+storing the menu in the buffer and paying for a differentiable mean over it, and
+that is a factor of six on a two-hour run before anybody knows whether it helps.
+
+That leaves the two families of §6 that do not need an action axis, and the
+measurements in §A point at them rather than at this one:
+
+* **return decomposition** - redistribute the episode's return onto the
+  decisions that predicted it, which is the direct attack on A.2's displacement
+  and A.3's broadcast;
+* **temporal abstraction** - credit a whole packing rather than forty presses,
+  which turns 350 smeared decisions an episode into about nine.
+
+Neither has been run, and `CLAUDE.md` trap 51 is the reason this section does
+not say which will work.
