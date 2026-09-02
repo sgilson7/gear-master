@@ -798,6 +798,11 @@ supposed to be packing.
   undo       166     7.0%          buy        76     3.2%
 ```
 
+> **Corrected by K.2.** `Verb::Lock` is a toggle and half of these presses are
+> unlocks, measured. The thrash did not stop; it moved from place-then-undo to
+> lock-then-unlock, and the board shows it - 1.50 items against the plain arm's
+> 4.32. Read K.2 rather than the paragraph below.
+
 **`Lock` is 38.6% of its choices**, against 0.0% in every arm before the feature
 fix and 0.4% after it (`analysis/the-collapse.md` M4.3). And `undo` is **7.0%**
 against 22.9% in the control and 45.5% at M4.3. The place-then-undo thrash that
@@ -924,7 +929,8 @@ Halved on both. On stream 2 the control is a far worse case - 84% of its answer
 is those two inputs - and the abstraction still cuts it to 39%, with the board
 bands rising to 48% and 55%.
 
-**It locks, and it stops thrashing.**
+**It locks, and it stops thrashing** - *and K.2 measures half of that locking as
+unlocking, so this row is the thrash moving rather than stopping.*
 
 ```
   stream 2       lock     undo
@@ -955,3 +961,108 @@ quality, and every arm here has been graded on it.** The thing to fix next is
 probably the measurement rather than the learner - an evaluation that scores the
 board instead of the ladder would have separated these five arms in minutes
 rather than in fourteen hours of training.
+
+---
+
+# K — Grading the board instead of the run, and what it caught in ten minutes
+
+Read off `b15e604`. `--bin qgrade`. J.4 ended on the claim that depth is not a
+sensitive instrument for packing quality and that the measurement was the thing
+to fix. This is the fix, and it is not a new idea: `scoring::reach` has been in
+the repo since THE APPRENTICE and asks the question directly - **how many
+consecutive rungs does this board clear from where it stands?**
+
+Depth is not being replaced by a proxy. `reach` *is* depth, asked of every board
+rather than once of a whole run: it walks the ladder ahead of the board and
+stops at the first fight it loses, which is where a Rogue run stops. You do not
+reach a deeper rung unless the board is good enough, and that implication is
+what it evaluates.
+
+## K.1 The instrument
+
+Twenty runs, greedy, Rogue at Medium:
+
+```
+  packer                       boards      reach       se       gain    items    depth
+  the written control             173      1.179    0.120     0.0562     3.42     5.50
+  r24, plain (the control arm)    185      1.676    0.176     0.2179     4.32     6.10
+  r28, abstraction                131      0.779    0.119     0.0258     1.50     3.30
+  r27, redistribution             114      0.430    0.074     0.0060     0.60     2.55
+```
+
+Twenty runs give twenty depths. The same twenty give **173 to 185 boards**, each
+a fact rather than a draw because the fight is deterministic. And the depth
+column shows why that matters: `qhand` on the same seeds gives r24's runs as
+
+```
+  [2, 3, 3, 45, 7, 2, 13, 2, 3, 9, 3, 3, 2, 3, 7, 5, 2, 3, 2, 3]
+```
+
+**A mean of 6.1 with a median of 3, carried by one seed.** Every arm in E to J
+was graded on that statistic, over three thousand episodes and two hours apiece.
+
+## K.2 What it caught: `lock` is the fourth cheapest key
+
+I.4 and J.3 both reported the abstraction arm pressing `lock` on 38-45% of its
+choices and `undo` on 7% against the control's 23-27%, and read it as the first
+policy to hold a multi-item board. That reading was wrong.
+
+`Verb::Lock` is a **toggle**. `Console::apply` calls `toggle_lock_item` and
+answers "locked" or "unlocked", and `menu` offers it for every assembled item
+whether it is locked or not. Pressing it twice on the same item returns the
+board to where it was, for two presses of the forty.
+
+Counted directly, ten runs apiece, by watching the locked-item count either side
+of every `lock` press:
+
+```
+  packer              locked   unlocked   unlock share
+  r24, plain              35         34            49%
+  r27, redistribution     86         83            49%
+  r28, abstraction       458        454            50%
+```
+
+**Half of every lock press is an unlock.** The abstraction arm does it thirteen
+times as often as the plain one - 912 presses against 69 - and its board shows
+it: 1.50 items against 4.32, and 0.78 rungs of reach against 1.68.
+
+So the semi-MDP backup did not stop the thrash. It **moved** it, from
+place-then-undo to lock-then-unlock, and `CLAUDE.md` trap 44's own words are the
+description: *there is always another cheapest key.* What is new is that nobody
+took a verb away this time - the backup simply made a different no-op the
+cheapest, which means the trap is not about the action space at all. It is about
+an environment where doing nothing is never punished (A.1).
+
+I.4 and J.3 are corrected in place.
+
+## K.3 And the ordering by board quality is not the ordering by depth
+
+```
+  by reach     r24 1.676  >  written 1.179  >  r28 0.779  >  r27 0.430
+  by floor     r28 3.265  >  r24 2.926  >  r27 2.939        (stream 1, exploring)
+```
+
+The arm that won on the training floor builds the **worst** boards of the two
+trained ones, and the plain arm builds the best - better than the written
+control on these seeds. Two things are behind that and both are worth keeping:
+
+* `runs/duel-control.txt` is a **best block** out of thirty windows, played
+  greedily. The floor mean is the average policy through training and these are
+  not the same statistic - `analysis/the-collapse.md` M0 is the record of that
+  distinction costing a mission a wrong label.
+* The floor is measured with 5% exploration, and A.1 measured random presses as
+  the one thing a carried board does not survive. A policy that tolerates being
+  jostled scores better there than one that does not.
+
+## K.4 What this changes about how to run the next arm
+
+* **Grade on `reach`, not depth.** Ten minutes and 180 observations against two
+  hours and twenty, and it separated four packers at four to nine standard
+  errors where depth separated none of them reliably.
+* **Audit the no-ops before reading a key histogram as behaviour.** Three
+  milestones read `undo` at 45% as a policy; one read `lock` at 45% as a virtue.
+  Both were the same key press with a different name on it. A histogram wants a
+  column saying how many of those presses changed the board.
+* The caveat on K.1: 185 boards come from 20 runs, so boards within a run are
+  correlated and the true standard errors are wider than printed. The orderings
+  are large enough to survive that; the exact figures are not.
