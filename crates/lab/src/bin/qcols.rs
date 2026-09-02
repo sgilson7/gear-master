@@ -322,6 +322,20 @@ fn behaviour(net: &QNet, runs: usize) {
     }
 
     if !pairs.is_empty() {
+        // **Did the split take?** A dueling net that put everything in `V` and
+        // nothing in `A` is the same failure wearing a new architecture, and
+        // the two magnitudes are the only thing that says which happened.
+        let parts: Vec<(f32, f32)> = pairs.iter().filter_map(|p| net.parts(p)).collect();
+        if !parts.is_empty() {
+            let n = parts.len() as f64;
+            let v = parts.iter().map(|p| p.0.abs() as f64).sum::<f64>() / n;
+            let a = parts.iter().map(|p| p.1.abs() as f64).sum::<f64>() / n;
+            println!(
+                "\n  the split, over {} pairs: mean |V| {v:.4}   mean |A| {a:.4}   A is {:.1}% of the answer",
+                parts.len(),
+                100.0 * a / (v + a).max(1e-9)
+            );
+        }
         ablate(net, &pairs);
     }
     println!("\n  what it thinks each kind of key is worth, over {runs} runs");

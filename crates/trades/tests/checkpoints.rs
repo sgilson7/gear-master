@@ -176,3 +176,135 @@ fn a_stamp_is_what_a_loader_checks() {
         "a stamp larger than the weights is a file that cannot be believed"
     );
 }
+
+/// **A dueling net's two towers compose to what its two readers both say.**
+///
+/// `Q(s,a) = V(s) + A(s,a) - A(s, done)`. Three things have to agree about that
+/// and they are written in three places: the trainer's burn graph, `QNet::eval`
+/// scoring one pair, and `QNet::q_set` scoring a menu with the state terms
+/// lifted out of the loop. The trainer checks itself against `eval` at startup
+/// and prints the worst disagreement; this checks the other two, and pins the
+/// file format they both read.
+///
+/// The identity that makes the decomposition identifiable at all is the one to
+/// hold on to: **the all-zero move is the anchor**, so `Q(s, done)` is exactly
+/// `V(s)`. If that stops being true the advantage is measured against a moving
+/// baseline and every number `--bin qcols` prints about the split is wrong.
+mod dueling {
+    use super::*;
+
+    /// A tiny well-formed dueling checkpoint: hidden 2, and a split that puts
+    /// the last two columns in the move band.
+    fn tiny() -> String {
+        let pair = feature::PAIR;
+        let split = pair - feature::MOVE;
+        let row = |name: &str, n: usize, f: &dyn Fn(usize) -> f32| {
+            let mut s = String::from(name);
+            for i in 0..n {
+                s.push_str(&format!(" {:.6}", f(i)));
+            }
+            s.push('\n');
+            s
+        };
+        let h = 2usize;
+        let mut out = format!("pair {pair}\nsplit {split}\n");
+        // Advantage tower: something that varies with the move band, so the
+        // advantage is not trivially zero.
+        out.push_str(&row("w1", pair * h, &|i| ((i % 7) as f32 - 3.0) * 0.01));
+        out.push_str(&row("b1", h, &|i| 0.1 * (i as f32 + 1.0)));
+        out.push_str(&row("w2", h * h, &|i| 0.2 - 0.05 * i as f32));
+        out.push_str(&row("b2", h, &|_| 0.05));
+        out.push_str(&row("w3", h, &|i| 0.7 - 0.3 * i as f32));
+        out.push_str(&row("b3", 1, &|_| -0.2));
+        // Value tower, over the state alone.
+        out.push_str(&row("v1", split * h, &|i| ((i % 5) as f32 - 2.0) * 0.02));
+        out.push_str(&row("vb1", h, &|i| 0.3 - 0.1 * i as f32));
+        out.push_str(&row("v2", h * h, &|i| 0.15 + 0.05 * i as f32));
+        out.push_str(&row("vb2", h, &|_| -0.02));
+        out.push_str(&row("v3", h, &|i| 0.4 + 0.2 * i as f32));
+        out.push_str(&row("vb3", 1, &|_| 0.6));
+        out
+    }
+
+    fn a_board() -> [f32; feature::PAIR] {
+        let mut x = [0.0f32; feature::PAIR];
+        for (i, v) in x.iter_mut().enumerate() {
+            *v = (((i * 37) % 11) as f32 - 5.0) / 10.0;
+        }
+        x
+    }
+
+    #[test]
+    fn the_all_zero_move_is_priced_at_the_state_value_alone() {
+        let net = QNet::read(&tiny()).expect("a well-formed dueling net");
+        assert!(net.is_dueling());
+        let mut done = a_board();
+        done[feature::PAIR - feature::MOVE..].fill(0.0);
+        let (v, a) = net.parts(&done).expect("dueling");
+        assert!(a.abs() < 1e-5, "the anchor's advantage is {a}, and it has to be nought");
+        assert!(
+            (net.q(&done) - v).abs() < 1e-5,
+            "Q(s, done) is {} and V(s) is {v}",
+            net.q(&done)
+        );
+    }
+
+    #[test]
+    fn a_real_move_is_priced_at_the_state_value_plus_its_advantage() {
+        let net = QNet::read(&tiny()).expect("a well-formed dueling net");
+        let x = a_board();
+        let (v, a) = net.parts(&x).expect("dueling");
+        assert!(a.abs() > 1e-4, "the advantage is {a}, so this fixture proves nothing");
+        assert!((net.q(&x) - (v + a)).abs() < 1e-5, "Q is {} and V+A is {}", net.q(&x), v + a);
+    }
+
+    /// `q_set` lifts the state terms out of the loop, and may only be handed
+    /// pairs that share a state. Same answers, one board, many moves.
+    #[test]
+    fn scoring_a_menu_together_gives_what_scoring_it_one_at_a_time_gives() {
+        let net = QNet::read(&tiny()).expect("a well-formed dueling net");
+        let base = a_board();
+        let split = feature::PAIR - feature::MOVE;
+        let menu: Vec<[f32; feature::PAIR]> = (0..6)
+            .map(|k| {
+                let mut x = base;
+                x[split..].fill(0.0);
+                x[split + k] = 1.0;
+                x
+            })
+            .collect();
+        let together = net.q_set(&menu);
+        for (i, x) in menu.iter().enumerate() {
+            assert!(
+                (together[i] - net.q(x)).abs() < 1e-5,
+                "key {i}: q_set says {} and q says {}",
+                together[i],
+                net.q(x)
+            );
+        }
+    }
+
+    /// A plain net is unchanged by all of this, which is the other half of the
+    /// claim: `QROW_DUEL` defaults to off and every net on the shelf is plain.
+    #[test]
+    fn a_net_with_no_value_tower_is_the_net_it_always_was() {
+        let text = std::fs::read_to_string(format!("{SHELF}/qrow-r18-best.txt"))
+            .expect("the published baseline");
+        let net = QNet::read(&text).expect("reads");
+        assert!(!net.is_dueling());
+        assert!(net.parts(&a_board()).is_none());
+        let x = a_board();
+        assert_eq!(net.q_set(&[x])[0], net.q(&x));
+    }
+
+    /// A value tower with no `split` is a file nobody can read, and it says so.
+    #[test]
+    fn a_value_tower_without_a_split_is_refused_in_a_sentence() {
+        let bad = tiny().replace(&format!("split {}\n", feature::PAIR - feature::MOVE), "");
+        let why = match QNet::read(&bad) {
+            Err(e) => e,
+            Ok(_) => panic!("a value tower with no split was accepted"),
+        };
+        assert!(why.contains("split"), "the refusal was {why:?}");
+    }
+}
