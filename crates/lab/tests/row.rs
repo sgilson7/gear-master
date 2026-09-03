@@ -478,3 +478,44 @@ mod revisits {
         assert_eq!(row::revisit_penalty(&forward, 1), vec![0.0, 0.0, 0.0]);
     }
 }
+
+/// Two things the fingerprint has to get right about the shop, and it got one
+/// of them wrong first.
+///
+/// A **pin** holds a shelf through a restock and changes nothing about what the
+/// board is or what it can fight, so it must read as a press that left the
+/// board where it was. Hashing the flag made every pin configuration novel -
+/// sixty-four of them across six shelves, more than the forty-press budget can
+/// spend - and `pin` went from 0.0% of a trained policy's choices to 22.7%
+/// under the charge. A finer fingerprint is not a better one.
+///
+/// A **reroll** changes the stock and costs gold, so it must read as novel;
+/// charging for it would be a step charge on the one key that buys new options.
+#[test]
+fn pinning_a_shelf_is_a_revisit_and_rerolling_it_is_not() {
+    use gearmaster_console::{Console, Difficulty, Mode, Verb};
+    use gearmaster_lab::row;
+    let mut c = Console::start(0x0D0E_5EED, Mode::Rogue, Difficulty::Medium);
+    let before = row::fingerprint(&c);
+
+    let pin = c
+        .menu()
+        .into_iter()
+        .find(|v| matches!(v, Verb::Pin { .. }))
+        .expect("a shelf to hold");
+    assert!(c.apply(pin).ok, "it pins");
+    assert_eq!(
+        row::fingerprint(&c),
+        before,
+        "a pin changes nothing the board does, so it has to read as a no-op"
+    );
+
+    if c.menu().contains(&Verb::Reroll) {
+        assert!(c.apply(Verb::Reroll).ok, "it rerolls");
+        assert_ne!(
+            row::fingerprint(&c),
+            before,
+            "a reroll costs gold and changes the shelves, so it is a real decision"
+        );
+    }
+}

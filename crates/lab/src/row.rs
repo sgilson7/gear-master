@@ -497,8 +497,21 @@ pub fn fingerprint(c: &Console) -> u64 {
     // and charging for it would have been a step charge on the one key that
     // buys new options.
     //
-    // A shelf is its piece and whether it is held. The price is a function of
-    // the piece and the run, so it adds nothing a collision could need.
+    // A shelf is **what is on it**, and deliberately not whether it is held.
+    //
+    // The first version hashed `shelf.pinned` too, on the reasoning that a pin
+    // is a key a packing may press. That made every pin configuration a board
+    // nobody had seen: six shelves is sixty-four of them, which is more novel
+    // states than the forty-press budget can spend, and the agent found it -
+    // `pin` went from 0.0% of choices to **22.7%** under the charge. A finer
+    // fingerprint is not a better one; it invented a free-action generator out
+    // of a flag that changes nothing the board does.
+    //
+    // A pin holds a shelf through a restock and alters nothing about what the
+    // board is or what it can fight, so a pin press *is* a press that left the
+    // board where it was, and charging it is correct. A reroll changes the
+    // stock and is novel, which is also correct - it costs gold and buys new
+    // options. Excluding the flag gets both right; including it got one wrong.
     for shelf in &v.shop {
         eat(shelf.index as u64);
         eat(shelf.piece.id.map(|i| i.0 as u64 + 1).unwrap_or(0));
@@ -507,7 +520,6 @@ pub fn fingerprint(c: &Console) -> u64 {
         for b in shelf.piece.name.bytes() {
             eat(b as u64);
         }
-        eat(shelf.pinned as u64);
     }
     eat(v.gold as u64);
     h
