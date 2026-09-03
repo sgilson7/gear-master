@@ -1066,3 +1066,115 @@ control on these seeds. Two things are behind that and both are worth keeping:
 * The caveat on K.1: 185 boards come from 20 runs, so boards within a run are
   correlated and the true standard errors are wider than printed. The orderings
   are large enough to survive that; the exact figures are not.
+
+---
+
+# L — The missing bit was real, and it moved the thrash rather than stopping it
+
+Read off `e4a53dd`. `qrow-r31-w39-control.log` and `qrow-r32-w39-abstract.log`,
+3,000 episodes each at pair 322, same seed stream, same settings as r24 and r28
+in every other respect. The only change is `feature::MOVE` gaining one number:
+**whether a lock press would lock or unlock.**
+
+## L.1 It worked, exactly where the backup left room to learn
+
+```
+  what the `lock` key does when it is pressed, 10 runs apiece
+  packer                    locked   unlocked   unlock share
+  r28, abstraction (321)       458        454            50%
+  r31, control (322)            73          0             0%
+  r32, abstraction (322)       574        536            48%
+```
+
+**The plain arm never unlocks again.** Seventy-three locks, none of them undone.
+Given the bit, it learned in one run that one face of the toggle is worthless -
+which is what K.2 said would happen and is the whole case for the widening.
+
+**The abstraction arm still toggles**, at 48%, and does it more than before -
+1,110 presses against 912. The feature let it *tell* the two apart and gave it
+no reason to prefer either, because the semi-MDP backup builds every press's
+target from the same next-packing state (I's own prediction, which was wrong
+about the gap and right about this). Where the target does not vary with the
+action, a distinguishable no-op is still a free no-op.
+
+## L.2 And the plain arm's thrash went straight back to `undo`
+
+```
+  r31, control (322)      place 49.8%   undo 31.0%   clear 8.9%   buy 6.4%   lock 2.6%
+  r24, control (321)      place 44.8%   undo 22.9%   pin  8.1%    buy 5.2%   lock 0.0%
+  r32, abstraction (322)  lock  51.1%   pin  16.4%   place 13.8%  buy 5.7%   undo 4.7%
+```
+
+Undo is **31.0%**, up from 22.9%. The presses freed from lock-toggling did not
+go into packing; they went into the next cheapest key.
+
+That is `CLAUDE.md` trap 44 for the **fifth** time, and the list is now long
+enough to be a proof rather than a pattern:
+
+```
+  Rotate 400/420   ->  removed the verb        ->  Pin 410/420
+  Pin (via M1)     ->  fixed the features      ->  Undo 45.5%
+  Undo             ->  the semi-MDP backup     ->  Lock 45%, half of it unlocking
+  Lock (via L)     ->  fixed the features      ->  Undo 31.0%
+```
+
+Two verb removals and two feature fixes, and each one relocated it. The trap's
+own sentence - *there is always another cheapest key* - has been read as advice
+about action spaces for three missions. It is not. **A.1 is why**: 78% of rungs
+come out the same however they are packed, so the environment never charges for
+doing nothing, and the cheapest key is whatever the menu happens to offer.
+
+`NOTHING` is 0.0 and its comment says *"there is nothing to dither into: the
+packing budget bounds each rung at forty presses"*. That is falsified five
+times.
+
+## L.3 What the widening did buy
+
+**Buying roughly doubled**, which was the other half of the complaint:
+
+```
+  buy, as a share of choices     321      322
+    control                     5.2%     6.4%
+    abstraction                 1.8%     5.7%
+```
+
+Depth did not move, and by now that is the expected answer rather than a
+disappointment:
+
+```
+                                floor mean      the extra column
+  control      321 -> 322    2.926 -> 3.024     +0.098 +/- 0.229
+  abstraction  321 -> 322    3.265 -> 3.368     +0.102 +/- 0.115
+```
+
+Both inside noise, and the abstraction-minus-control gap is unchanged at +0.343
++/- 0.195 against 321's +0.339 +/- 0.165 - which is at least a consistent
+replication of I.1 on a third pair of runs, if not of its significance.
+
+Board quality is flat to slightly down against the written control:
+
+```
+  packer                boards    reach       se    items    depth
+  the written control      173    1.179    0.120     3.42     5.50
+  r31, control (322)       136    0.971    0.142     1.96     3.75
+  r32, abstraction (322)   145    1.034    0.149     1.68     4.15
+```
+
+## L.4 The change the evidence now supports, and nobody has made
+
+Every fix so far has been about *which verbs exist* or *how they are described*.
+The measurement says the fault is neither: it is that **a press which leaves the
+board where it was costs nothing**, and there are always more ways to spend
+forty presses doing that than there are ways to spend them well.
+
+The general form is verb-agnostic and the plumbing is already there.
+`row::Pressed` carries the board's `Figures` either side of every press and the
+item count after it, so *"this press put the board back where the one before it
+found it"* is computable today with nothing new recorded. Charging for that
+catches place-then-undo, lock-then-unlock, pin, rotate and whatever the sixth
+one turns out to be, in one rule - and it does not punish a single legitimate
+lock, which a flat "changed nothing" charge would.
+
+That is trap 44's own prescription - *charge for what the board does, not for
+what the verb is called* - and it has never been implemented, because the
+constant that would carry it is 0.0 behind a comment saying it is not needed.
