@@ -519,3 +519,148 @@ fn pinning_a_shelf_is_a_revisit_and_rerolling_it_is_not() {
         );
     }
 }
+
+/// **Saying "I am done" is not putting the board back where it was.**
+///
+/// `Move::Done` leaves the board exactly as it stands, so a fingerprint test
+/// calls it a revisit - and charging it puts a price on the one action a
+/// dithering packer is supposed to reach for. `Packing`'s own doc comment says
+/// why it exists: *without it a packer dithers, and a step cost alone does not
+/// teach it to stop; it teaches it to press the cheapest key.*
+///
+/// Measured over four trained nets, `Done` is offered at every single decision
+/// and chosen on 0.0% to 0.9% of them. It does not need a reason to be chosen
+/// less often.
+#[test]
+fn saying_done_is_not_charged_as_a_revisit() {
+    use gearmaster_console::Verb;
+    use gearmaster_lab::row;
+    let at = |state: u64, verb: Option<Verb>| row::Pressed {
+        before: Default::default(),
+        after: Default::default(),
+        items_after: 0,
+        verb,
+        stuck: true,
+        state,
+    };
+    // A press back to the start, then `Done`, which changes nothing further.
+    let packing = [at(2, Some(Verb::Undo)), at(1, Some(Verb::Undo)), at(1, None)];
+    let pay = row::revisit_penalty(&packing, 1);
+    assert_eq!(pay[0], 0.0);
+    assert!(pay[1] < 0.0, "going back to the start is a revisit");
+    assert_eq!(pay[2], 0.0, "`Done` sits on a board it has seen and pays nothing");
+}
+
+/// Ending the packing where it starts going in circles.
+///
+/// N closed the case for *pricing* a revisit: two verb removals, two feature
+/// fixes and a charge, and the share of presses that put the board back where
+/// it was finished at 76%. M.2 gives the arithmetic - no charge is above the
+/// network's error floor and below the objective at once. Ending the packing is
+/// the only quantity in this system that is, because the cost is the rest of
+/// the budget.
+mod ending {
+    use gearmaster_console::{Console, Difficulty, Mode, Verb};
+    use gearmaster_lab::row;
+    use gearmaster_trades::env::Move;
+
+    fn a_run() -> Console {
+        Console::start(0x0D0E_5EED, Mode::Rogue, Difficulty::Medium)
+    }
+
+    /// A chooser that seats a piece and takes it straight back.
+    fn cycling(n: &mut usize) -> impl FnMut(&Console, &[Move]) -> usize + '_ {
+        move |_, ms| {
+            *n += 1;
+            if *n % 2 == 1 {
+                ms.iter()
+                    .position(|m| matches!(m, Move::Press(Verb::Place { .. })))
+                    .unwrap_or(0)
+            } else {
+                ms.iter().position(|m| matches!(m, Move::Press(Verb::Undo))).unwrap_or(0)
+            }
+        }
+    }
+
+    /// A packer that seats a piece and takes it back gets two presses under the
+    /// rule and the whole budget without it.
+    #[test]
+    fn a_packing_that_cycles_stops_and_one_that_does_not_runs_on() {
+        let mut n = 0usize;
+        let mut c = a_run();
+        let stopped = row::pack_with_ending(&mut c, 12, Some(0), cycling(&mut n));
+        assert_eq!(
+            stopped.len(),
+            2,
+            "the undo puts the board back where the packing began, and that is where \
+             it ends - two presses of twelve, which is the whole point: the cost of a \
+             cycle is the budget it did not spend"
+        );
+
+        // Tolerating two lets the cycle run twice more before it bites.
+        let mut n = 0usize;
+        let mut c = a_run();
+        let tolerant = row::pack_with_ending(&mut c, 12, Some(2), cycling(&mut n));
+        assert!(
+            tolerant.len() > stopped.len(),
+            "a tolerance of two ran {} presses against {}",
+            tolerant.len(),
+            stopped.len()
+        );
+
+        // And off is exactly what it always was.
+        let mut n = 0usize;
+        let mut c = a_run();
+        let mut m = 0usize;
+        let mut c2 = a_run();
+        assert_eq!(
+            row::pack_with_ending(&mut c, 12, None, cycling(&mut n)).len(),
+            row::pack_with(&mut c2, 12, cycling(&mut m)).len(),
+            "`pack_with` is `pack_with_ending` with the switch read from the edge"
+        );
+
+        let mut c = a_run();
+        let mut n = 0usize;
+        let pressed = row::pack_with(&mut c, 12, |_, ms| {
+            n += 1;
+            // Alternate: the first placement, then undo, for ever.
+            if n % 2 == 1 {
+                ms.iter()
+                    .position(|m| matches!(m, Move::Press(Verb::Place { .. })))
+                    .unwrap_or(0)
+            } else {
+                ms.iter().position(|m| matches!(m, Move::Press(Verb::Undo))).unwrap_or(0)
+            }
+        });
+        assert_eq!(
+            pressed.len(),
+            12,
+            "with the switch off a cycle spends the whole budget, which is what N \
+             measured at 76% of presses"
+        );
+    }
+
+    /// And the fingerprints say the cycle is a cycle, which is what the switch
+    /// keys on. Two presses in, the board is back where it started.
+    #[test]
+    fn the_fingerprints_of_a_cycle_repeat() {
+        let mut c = a_run();
+        let start = row::fingerprint(&c);
+        let mut n = 0usize;
+        let pressed = row::pack_with(&mut c, 6, |_, ms| {
+            n += 1;
+            if n % 2 == 1 {
+                ms.iter()
+                    .position(|m| matches!(m, Move::Press(Verb::Place { .. })))
+                    .unwrap_or(0)
+            } else {
+                ms.iter().position(|m| matches!(m, Move::Press(Verb::Undo))).unwrap_or(0)
+            }
+        });
+        let states: Vec<u64> = pressed.iter().map(|p| p.state).collect();
+        assert!(states.len() >= 4, "the fixture pressed {} times", states.len());
+        assert_eq!(states[1], start, "the undo puts it back where the packing began");
+        assert_eq!(states[3], start, "and again");
+        assert_eq!(states[0], states[2], "and the placement is the same board twice");
+    }
+}

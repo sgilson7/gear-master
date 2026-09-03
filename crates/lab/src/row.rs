@@ -568,6 +568,31 @@ pub fn revisit() -> f32 {
     })
 }
 
+/// How many revisits a packing will tolerate before it simply ends.
+///
+/// **The intervention the charge could not be.** N closed the case for pricing
+/// a revisit: six relocations, two verb removals, two feature fixes and a
+/// charge, and the share of presses that put the board back where it was
+/// finished at 76%. M.2 is why, in arithmetic - the charge has to clear the gap
+/// a revisit out-scores its best clean alternative by, whose 90th percentile
+/// wants 0.40, and 0.40 a press costs an episode about sixty-four against
+/// returns of four to nine. **No size is above the network's error floor and
+/// below the objective at once.**
+///
+/// Ending the packing is the only quantity in this system that is. A cycle then
+/// costs the rest of the budget - twenty or thirty presses that could have
+/// bought and seated - which is enormous next to 0.02 and cannot swamp the
+/// return, because it *is* the return: a worse board, priced by the fight.
+///
+/// It is not a reward and it changes the rules. A person may cycle a board all
+/// day; an agent under this may not. That is the trade, and it is the reason
+/// this is a switch rather than a default: `QROW_STOP_REVISITS=n` tolerates `n`
+/// of them and ends on the next, unset leaves the packing as it was.
+pub fn stop_revisits() -> Option<usize> {
+    static S: std::sync::OnceLock<Option<usize>> = std::sync::OnceLock::new();
+    *S.get_or_init(|| std::env::var("QROW_STOP_REVISITS").ok().and_then(|v| v.parse().ok()))
+}
+
 /// What each press of one packing costs for putting the board back somewhere it
 /// has been, in the order it was pressed.
 ///
@@ -580,6 +605,16 @@ pub fn revisit_penalty(packing: &[Pressed], start: u64) -> Vec<f32> {
         .iter()
         .map(|p| {
             if !p.stuck {
+                return 0.0;
+            }
+            // **`Done` is never a revisit.** It is the agent saying it has
+            // nothing more to do, and it leaves the board exactly where it is -
+            // so a fingerprint test calls it a revisit and charges the one
+            // action a dithering packer is supposed to reach for. `Packing`'s
+            // own doc says why it exists: *without it a packer dithers, and a
+            // step cost alone does not teach it to stop; it teaches it to press
+            // the cheapest key.* Charging it teaches the opposite.
+            if p.verb.is_none() {
                 return 0.0;
             }
             if seen.contains(&p.state) {
@@ -639,10 +674,27 @@ fn items_of(c: &Console) -> usize {
 pub fn pack_with(
     c: &mut Console,
     budget: usize,
+    choose: impl FnMut(&Console, &[Move]) -> usize,
+) -> Vec<Pressed> {
+    pack_with_ending(c, budget, stop_revisits(), choose)
+}
+
+/// The same, with the cycle rule named rather than read out of the environment.
+///
+/// `ending` is how many revisits the packing tolerates before it stops;
+/// `None` never stops, which is what every caller had before `stop_revisits`
+/// existed. The env var is read once, at the edge, in `pack_with` - so a test
+/// can have both behaviours in one process and a trainer still has one switch.
+pub fn pack_with_ending(
+    c: &mut Console,
+    budget: usize,
+    ending: Option<usize>,
     mut choose: impl FnMut(&Console, &[Move]) -> usize,
 ) -> Vec<Pressed> {
     let mut e = Packing::new(budget);
     let mut out = Vec::new();
+    let mut seen: Vec<u64> = if ending.is_some() { vec![fingerprint(c)] } else { Vec::new() };
+    let mut back = 0usize;
     loop {
         let ms: Vec<Move> = e
             .moves(c)
@@ -667,6 +719,23 @@ pub fn pack_with(
             stuck,
             state: fingerprint(c),
         });
+        // **The packing ends where it starts going in circles.** `Done` is
+        // excluded for the same reason it is excluded from the charge: it
+        // leaves the board where it stands and it is the agent saying it has
+        // finished, which is the thing this is trying to make attractive.
+        if let Some(allowed) = ending {
+            let state = out.last().expect("just pushed").state;
+            if !matches!(m, Move::Done) {
+                if seen.contains(&state) {
+                    back += 1;
+                    if back > allowed {
+                        break;
+                    }
+                } else {
+                    seen.push(state);
+                }
+            }
+        }
         if e.finished {
             break;
         }
