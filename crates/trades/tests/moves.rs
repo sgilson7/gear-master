@@ -132,3 +132,50 @@ fn two_different_locks_do_not_describe_identically() {
         "every lock on every board is the same press unless it says what it would fix"
     );
 }
+
+/// **And a lock says nothing about whether it would lock or unlock.**
+///
+/// `Verb::Lock` is a toggle: `Console::apply` calls `toggle_lock_item` and
+/// answers "locked" or "unlocked", and `menu` offers it for every assembled
+/// item whether it is locked or not. So the same key is two opposite actions,
+/// and `feature::mv` describes both of them with the same numbers - the `LOCK`
+/// band reads how many pieces the item has and how many items stand, and
+/// nothing reads `item.locked`.
+///
+/// That is `locking_an_item_does_not_look_like_pinning_a_shop_shelf` one level
+/// down and it is the same fault: **a network that cannot tell two actions
+/// apart cannot prefer one.** Measured over ten runs in
+/// `analysis/the-action-gap.md` K.2, the trained packers press this key 69 to
+/// 912 times and **half of every press is an unlock** - which is not a policy
+/// dithering, it is a coin, because the two faces are one input.
+///
+/// A packer that locks and unlocks the same item spends two of its forty
+/// presses returning the board to where it was. `CLAUDE.md` trap 44 has caught
+/// that shape three times in three other verbs, and each time the fix was to
+/// take a verb away; here there is nothing to take away, because locking is a
+/// thing a packer genuinely needs to do (M1.1). What is missing is the bit that
+/// says which way it goes.
+#[test]
+fn locking_and_unlocking_do_not_describe_identically() {
+    let mut c = a_board_with_an_item();
+    let piece = an_assembled_piece(&c);
+    let unlocked = feature::mv(&c.view(), Verb::Lock { piece });
+
+    // Press it, so the same verb now means the opposite thing.
+    assert!(c.apply(Verb::Lock { piece }).ok, "the item locks");
+    let locked_now = c
+        .view()
+        .grids
+        .iter()
+        .flat_map(|g| g.items.iter())
+        .any(|i| i.locked && i.pieces.contains(&piece));
+    assert!(locked_now, "the press was supposed to lock it");
+
+    let would_unlock = feature::mv(&c.view(), Verb::Lock { piece });
+    assert_ne!(
+        unlocked, would_unlock,
+        "locking an item and unlocking it are the same {} numbers, so the network \
+         scores them equal and the console toggles on whichever `max_by` returned last",
+        feature::MOVE
+    );
+}

@@ -49,7 +49,22 @@ pub const WHERE: usize = PIECE + 13;
 /// Where the band describing *what locking would fix* starts.
 pub const LOCK: usize = WHERE + 10;
 /// How many describe one candidate move.
-pub const MOVE: usize = LOCK + 2;
+///
+/// **Thirty-nine, and it was thirty-eight.** `Verb::Lock` is a *toggle* -
+/// `Console::apply` calls `toggle_lock_item` and answers "locked" or
+/// "unlocked", and `menu` offers it for every assembled item whether it is
+/// locked or not - so one key is two opposite actions and this vector described
+/// both of them with the same numbers. A network that cannot tell two actions
+/// apart cannot prefer one, and `Iterator::max_by` returns the last maximum, so
+/// what came out was a coin: measured over ten runs, the trained packers press
+/// this key 69 to 912 times and **half of every press is an unlock**
+/// (`analysis/the-action-gap.md` K.2). Two of the forty presses, spent putting
+/// the board back where it was.
+///
+/// That is the same fault as `Lock` and `Pin` sharing a bucket, one level down,
+/// and `moves.rs::locking_and_unlocking_do_not_describe_identically` is the
+/// lint. The bit that was missing is which way the toggle goes.
+pub const MOVE: usize = LOCK + 3;
 /// A state-action pair, which is what a Q network scores.
 ///
 /// The brief rides on the state side: it is part of the situation, not part of
@@ -371,6 +386,10 @@ pub fn mv(v: &View, m: Verb) -> [f32; MOVE] {
                 / g.cells.len().max(1) as f32;
             f[LOCK] = item.pieces.len() as f32 / 6.0;
             f[LOCK + 1] = g.items.iter().filter(|i| i.assembled).count() as f32 / 3.0;
+            // **Which way the toggle goes.** One key, two opposite actions; see
+            // the comment on `MOVE`. This is the whole of the difference
+            // between "hold this item together" and "let it go again".
+            f[LOCK + 2] = (!item.locked) as u8 as f32;
         }
     }
 

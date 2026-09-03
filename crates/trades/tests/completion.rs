@@ -13,12 +13,14 @@ use gearmaster_trades::feature::{self, MOVE};
 #[test]
 fn a_move_has_room_for_the_completion_numbers() {
     assert_eq!(
-        MOVE, 38,
+        MOVE, 39,
         "the completion numbers, where the piece is going - which a move did not \
          say until the same seat at (3,2) and (4,2) was found to describe \
          identically - and, since `analysis/the-collapse.md` M1, a shape apiece \
          for the four verbs that shared a bucket and two numbers saying what a \
-         lock would fix"
+         lock would fix, and since `analysis/the-action-gap.md` K.2 a third one \
+         saying whether the lock would lock or unlock, because `Verb::Lock` is a \
+         toggle and its two faces were one input"
     );
 }
 

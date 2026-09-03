@@ -47,6 +47,21 @@ const STALE: &[&str] = &[
     // until something is retrained at 321.
     "qrow-r12-best.txt",
     "qrow-r12-last.txt",
+    // **And these two, for the same reason one widening later.**
+    // `analysis/the-action-gap.md` K.2 found `Verb::Lock` to be a toggle whose
+    // two faces described identically, so `MOVE` went from 38 to 39 and the
+    // pair from 321 to 322. What can no longer be re-run is B.1 to B.3 - where
+    // r18's and r23's weight went, what their answers depend on, and their
+    // action gaps - and E to K's readings of the run nets, which are not on
+    // this shelf. All of it is written down with its numbers.
+    //
+    // The new column is the **last** of the pair, so a 321-wide net reading a
+    // 322-wide vector would read every column it was trained on and ignore the
+    // new one. `load_at` refuses it anyway, and should: a loader cannot know
+    // that a widening was a pure append, and M0.1 is what happens when it
+    // guesses.
+    "qrow-r18-best.txt",
+    "qrow-r23-best.txt",
     "pathfinder-grinder.txt",
     "pathfinder-rogue.txt",
     "pathfinder-threshold.txt",
