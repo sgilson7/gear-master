@@ -1270,3 +1270,98 @@ where this packing started". **`rustc` printed `variable does not need to be
 mutable` about that exact line**, which is the whole diagnosis, and I read past
 it to the numbers. A warning on a variable a diagnostic is built around is not
 housekeeping.
+
+---
+
+# N — The charge does not work, and M said why before the run
+
+Read off `14c2339`. `qrow-r35-revisit2-control.log` and
+`qrow-r36-revisit2-abstract.log`, 3,000 episodes each at pair 322 with
+`QROW_REVISIT=0.02`, the fingerprint corrected (no pin flag) and `Done` no
+longer charged. Against r31 and r32, one variable.
+
+## N.1 It moved nothing
+
+```
+                              floor mean          the charge      revisits   done
+  control, no charge     3.024 +/- 0.169                    -             -      -
+  control, charged       3.102 +/- 0.115    +0.078 +/- 0.205         76.3%   0.0%
+  abstraction, no charge 3.368 +/- 0.097                    -             -      -
+  abstraction, charged   3.338 +/- 0.091    -0.030 +/- 0.133         75.0%   0.4%
+```
+
+Depth is unchanged in both. **The revisit share at the floor is 76.3% and
+75.0%, against 74.5% and 72.3% when the charge was first tried and 80.3%
+uncharged.** Three quarters of every press puts the board somewhere it has
+already been, with a charge on it, a corrected fingerprint, and `Done` free.
+
+And `Done` is chosen on **0.0% and 0.4%** of the decisions it is offered at -
+which is every one of them.
+
+M.2 gave the arithmetic before this ran: the charge has to exceed the gap by
+which a revisit out-scores the best clean press, that gap's 90th percentile
+wants 0.033 and 0.40, and at 0.40 an episode costs about 64 against returns of
+four to nine. **There is no size that is simultaneously above the network's
+error floor and below the objective**, and the run is what that looks like.
+
+## N.2 The lock fix works in one arm and cannot work in the other
+
+```
+  what the `lock` key does when pressed          locked   unlocked   share
+  the plain arm, at 322, charged                     17          0      0%
+  the abstraction arm, at 322, charged              713        705     50%
+```
+
+The plain arm has not unlocked once in any run since the feature landed. The
+abstraction arm toggles at 50% in **every** run - before the feature, after it,
+and now with a charge on top. Its `lock` share is 55.9%, the highest yet.
+
+That is I's structural point holding: the semi-MDP backup builds every press's
+target from the same next-packing state, so nothing within a packing varies with
+what was pressed. **A feature the network cannot get a gradient on is not a
+feature**, and a charge it cannot attribute is not a charge.
+
+## N.3 And the plain arm's thrash is at its highest
+
+```
+  the plain arm's keys, at 322      place   undo   buy   pin   lock
+    no charge                       49.8%  31.0%  6.4%  0.0%   2.6%
+    charged (this run)              45.2%  38.7%  6.8%  1.9%   1.0%
+```
+
+`undo` at **38.7%**, up from 31.0%. Six relocations now: `Rotate`, `Pin`, `Undo`,
+`Lock`, `Undo` again, and `Undo` higher still under a charge meant to stop it.
+
+## N.4 What did move, and it is not the charge
+
+```
+  packer                       boards    reach       se    items    depth
+  the written control             148    1.291    0.135     3.68     6.00
+  the plain arm, charged          109    0.771    0.118     2.27     3.81
+  the abstraction arm, charged    124    1.210    0.160     1.63     4.31
+```
+
+**The abstraction arm's board quality is 1.210 against the written control's
+1.291** - the closest a trained packer has come, on the instrument that has a
+hundred and twenty observations rather than sixteen. It gets there holding 1.63
+items against the control's 3.68, which is its own puzzle and a better one than
+any of the last five arms produced.
+
+## N.5 The case for charging is closed
+
+Six relocations, two verb removals, two feature fixes and one charge, and the
+measured share of presses that put the board back where it was is where it
+started. The remaining interventions are structural rather than economic, and
+both change the rules the agent plays under:
+
+* **mask a revisit out of the menu.** Exact, and `qcharge` already computes it -
+  press each candidate on a clone and drop the ones that land somewhere seen.
+  Costs a console clone per candidate per decision, which that binary measures
+  as affordable for a diagnostic and would need timing for a trainer.
+* **end the packing on a revisit.** Free to detect, and makes a cycle cost the
+  rest of the budget rather than 0.02 - which is the only quantity in this
+  system large enough to matter and small enough not to swamp the return.
+
+Neither is a reward. That is the point: A.1 measured an environment in which
+doing nothing is never punished, and six attempts to price it have now
+established that pricing is the wrong lever.
