@@ -1178,3 +1178,95 @@ lock, which a flat "changed nothing" charge would.
 That is trap 44's own prescription - *charge for what the board does, not for
 what the verb is called* - and it has never been implemented, because the
 constant that would carry it is 0.0 behind a comment saying it is not needed.
+
+---
+
+# M — The charge against the gap it has to close
+
+Read off `c9e4202`. `--bin qcharge`, six greedy runs a net, whether a candidate
+revisits decided by **pressing it on a clone** and fingerprinting the result
+rather than inferred from the verb.
+
+`row::revisit` was sized in the previous section against the **episode return** -
+the total came to about one assembled item, which is the right way to size
+something that must not swamp the objective and no way at all to size something
+that must flip an `argmax`. What it has to overcome is how far the chosen
+revisit out-scores the best press that is not one.
+
+```
+                                        rv-control     rv-abstract
+  decisions                                   1240            1412
+  menu                                     47 keys         72 keys
+  ...of which revisit                           18%             11%
+  it chose a revisit on                         86%             80%
+  a clean press was available on               100%            100%
+
+  best - second (the ordinary gap)   median 0.0055   median 0.0112
+  best - best clean, where it chose  median 0.0056   median 0.0776
+                                       90th 0.0328     90th 0.3954
+  best - done                        median 0.1786   median 0.6596
+
+  the charge, 0.02, as a multiple of
+    the median gap it must close                3.58x           0.26x
+    the 90th percentile of it                   0.61x           0.05x
+```
+
+## M.1 Two arms, two different answers
+
+**For the plain arm the charge is already three and a half times the gap it has
+to close, and the policy revisits anyway** - 86% of decisions, with a clean
+press available at every one of them. So the charge is not the binding
+constraint there. It is arithmetically sufficient against the *fitted* gap and
+behaviourally ineffective, which puts the fault below it: a systematic 0.02 is
+buried under the network's own approximation error, and `CLAUDE.md` trap 44's
+original sentence is the same observation - *a no-op cost 0.01 while the value
+estimates were spread over 1.70*.
+
+**For the abstraction arm it is four times too small** - 0.26x the median gap,
+0.05x the 90th. There the arithmetic says plainly that it cannot work.
+
+## M.2 And there is no size that works for both
+
+To clear the 90th percentile of the gap wants 0.033 for the plain arm and
+**0.40** for the abstraction arm. At 0.40 a press against an 80% revisit rate
+and forty presses, one packing costs 12.8 and an episode of five costs about
+**64** - against episode returns of four to nine at the rungs these policies
+reach. That is the "step charge a hundred times the objective" that
+`design/HANDOFF-the-collapse.md` lists as a known way to kill a run, arrived at
+from the requirement rather than by accident.
+
+So the window is narrow for the plain arm and empty for the abstraction one.
+**A per-press charge cannot be simultaneously above the network's error floor
+and below the objective**, and that is an argument about arithmetic rather than
+about tuning. What it argues for is making a revisit *unavailable* rather than
+expensive - masking it out of the menu, or ending the packing on one - which is
+the kind of intervention the action-space literature says is decisive where
+shaping is not, and which changes the rules the agent plays under.
+
+## M.3 `Done` is a long way behind and not out of reach
+
+`Move::Done` is offered at every decision and chosen on 0.0% to 0.9% of them,
+and the policy rates it **0.18 and 0.66 below** its own choice. A per-press
+charge accumulated over a whole packing is 0.02 x 30 = 0.6, which is the same
+order - so for the plain arm `Done` is reachable in principle by the charge it
+already has, and for the abstraction arm it is not.
+
+That is worth knowing because `Done` is the one press guaranteed to cost nothing
+further, and `Packing`'s own doc comment predicted this whole section:
+*without it a packer dithers, and a step cost alone does not teach it to stop;
+it teaches it to press the cheapest key.*
+
+## M.4 Two of my own bugs, because both were instructive
+
+`Move::Done` was being **charged as a revisit**. It leaves the board exactly
+where it stands, so the fingerprint test called it a cycle and put a price on
+the one action a dithering packer is supposed to reach for. Fixed, pinned in
+`row.rs::saying_done_is_not_charged_as_a_revisit`, and the two arms running at
+the time were restarted because they exist to test precisely that.
+
+And `qcharge`'s first answer was that 1% of the menu revisits, against the
+trainer's 74%. Its `seen` set was never pushed to, so "revisit" meant "back to
+where this packing started". **`rustc` printed `variable does not need to be
+mutable` about that exact line**, which is the whole diagnosis, and I read past
+it to the numbers. A warning on a variable a diagnostic is built around is not
+housekeeping.
