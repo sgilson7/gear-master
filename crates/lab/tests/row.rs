@@ -334,3 +334,147 @@ mod decomposition {
         );
     }
 }
+
+/// **A press that puts the board back where it has been costs something, and
+/// nothing else does.**
+///
+/// `CLAUDE.md` trap 44 has been relocated five times - `Rotate`, `Pin`, `Undo`,
+/// `Lock` half of it unlocking, and `Undo` again - by two verb removals and two
+/// feature fixes. This is the rule that does not care which key it was, and
+/// these are the four things it has to get right for that to be worth anything.
+mod revisits {
+    use gearmaster_console::{Console, Difficulty, Mode, SlotKind, Verb};
+    use gearmaster_lab::row;
+
+    /// A run with something in the tray, ready to be packed.
+    fn a_tray() -> Console {
+        Console::start(0x0D0E_5EED, Mode::Rogue, Difficulty::Medium)
+    }
+
+    fn seat(c: &mut Console) -> Verb {
+        let v = c
+            .menu()
+            .into_iter()
+            .find(|v| matches!(v, Verb::Place { .. }))
+            .expect("something to place");
+        assert!(c.apply(v).ok, "the placement sticks");
+        v
+    }
+
+    #[test]
+    fn placing_a_piece_and_undoing_it_is_charged_and_the_placement_is_not() {
+        let mut c = a_tray();
+        let start = row::fingerprint(&c);
+        let placed = seat(&mut c);
+        let after = row::fingerprint(&c);
+        assert_ne!(start, after, "a placement moves the board");
+        assert!(c.apply(Verb::Undo).ok, "and it can be taken back");
+        assert_eq!(
+            row::fingerprint(&c),
+            start,
+            "undoing a placement puts the board exactly back, which is what makes \
+             place-then-undo a no-op pair rather than two decisions"
+        );
+        let _ = placed;
+    }
+
+    /// The one that keeps the rule honest.
+    ///
+    /// L measured a packer pressing `lock` on half its choices with half of
+    /// those unlocking. A rule that charged for "a press that changed no
+    /// figures" would charge the lock as well as the unlock, and locking is a
+    /// thing a packer genuinely needs to do - `analysis/the-collapse.md` M1.1.
+    /// The fingerprint reads `item.locked`, so only the unlock returns anywhere.
+    #[test]
+    fn locking_is_free_and_unlocking_again_is_not() {
+        let mut c = a_tray();
+        // Seat pieces until something assembles, so there is an item to lock.
+        let mut item = None;
+        for _ in 0..60 {
+            let assembled: Vec<_> = c
+                .view()
+                .grids
+                .iter()
+                .flat_map(|g| g.items.iter())
+                .filter(|i| i.assembled)
+                .filter_map(|i| i.pieces.first().copied())
+                .collect();
+            if let Some(&first) = assembled.first() {
+                item = Some(first);
+                break;
+            }
+            if c.menu().iter().any(|v| matches!(v, Verb::Place { .. })) {
+                seat(&mut c);
+            } else if let Some(buy) =
+                c.menu().into_iter().find(|v| matches!(v, Verb::Buy { .. }))
+            {
+                if !c.apply(buy).ok {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        let Some(item) = item else {
+            // No item on this seed within the budget; the claim is about the
+            // rule, and `locking_and_unlocking_do_not_describe_identically` in
+            // `trades` covers the same ground from the feature side.
+            return;
+        };
+        let before = row::fingerprint(&c);
+        assert!(c.apply(Verb::Lock { piece: item }).ok, "it locks");
+        let locked = row::fingerprint(&c);
+        assert_ne!(before, locked, "locking is a real change and must not read as a revisit");
+        assert!(c.apply(Verb::Lock { piece: item }).ok, "and the same key unlocks it");
+        assert_eq!(
+            row::fingerprint(&c),
+            before,
+            "unlocking puts the board back, so the second press is the one that pays"
+        );
+    }
+
+    /// Two different placements are two decisions, not a cycle.
+    #[test]
+    fn two_different_placements_are_not_a_revisit() {
+        let mut c = a_tray();
+        let mut seen = vec![row::fingerprint(&c)];
+        for _ in 0..3 {
+            if !c.menu().iter().any(|v| matches!(v, Verb::Place { .. })) {
+                break;
+            }
+            seat(&mut c);
+            let f = row::fingerprint(&c);
+            assert!(!seen.contains(&f), "each placement is a board nobody has seen before");
+            seen.push(f);
+        }
+        assert!(seen.len() > 1, "the fixture placed nothing and proves nothing");
+    }
+
+    /// And the charge itself: flat, per packing, and zero without a revisit.
+    ///
+    /// Flat because revisits are not sparse - 80.3% of presses, measured - and
+    /// an increasing charge over that is quadratic in the packing's length.
+    #[test]
+    fn every_revisit_costs_the_same_and_nothing_else_costs_anything() {
+        let same = |state: u64| row::Pressed {
+            before: Default::default(),
+            after: Default::default(),
+            items_after: 0,
+            verb: Some(Verb::Undo),
+            stuck: true,
+            state,
+        };
+        // Start at 1; press to 2, back to 1, to 2, to 1: three revisits.
+        let packing = [same(2), same(1), same(2), same(1)];
+        let pay = row::revisit_penalty(&packing, 1);
+        let c = row::revisit();
+        assert_eq!(pay[0], 0.0, "a board nobody has seen is not a revisit");
+        for (i, p) in pay.iter().enumerate().skip(1) {
+            assert!((p + c).abs() < 1e-6, "revisit {i} cost {p}, and every one costs {c}");
+        }
+
+        // A packing that never doubles back pays nothing at all.
+        let forward = [same(2), same(3), same(4)];
+        assert_eq!(row::revisit_penalty(&forward, 1), vec![0.0, 0.0, 0.0]);
+    }
+}

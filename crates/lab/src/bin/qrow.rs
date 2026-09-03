@@ -648,6 +648,12 @@ mod q {
         let mut redist_checked = false;
         // Whether the abstraction has said how deep it made the episode.
         let mut abstract_said = false;
+        // **What the revisit charge is actually charging**, because a constant
+        // that nobody prints is a constant nobody can size. Trap 53's closing
+        // instruction, which is that any new reward wants its range printed
+        // once against what it is being added to.
+        let (mut revisit_presses, mut revisit_of) = (0usize, 0usize);
+        let mut revisit_charge = 0.0f64;
 
         let mut frozen = net.frozen();
         // The selector, refreshed every episode. See `double`.
@@ -743,9 +749,13 @@ mod q {
             // The rung standing at each packing, which is what a redistributed
             // return is telescoped over. See `row::spread`.
             let mut rungs: Vec<usize> = Vec::new();
+            // What the board was before each packing began, so a press that
+            // undoes the whole packing is a revisit like any other.
+            let mut starts: Vec<u64> = Vec::new();
 
             let mut pack = |c: &mut Console| {
                 rungs.push(c.view().rung_shown);
+                starts.push(row::fingerprint(c));
                 let done = row::pack_with(c, PACK_BUDGET, |c, ms| {
                     let v = c.view();
                     let b = feature::briefed(&feature::board(&v), &Brief::NONE);
@@ -995,6 +1005,24 @@ mod q {
                     churn[from + k] = c;
                 }
             }
+            // **And the charge for putting the board back somewhere it has
+            // been**, which is the same thing said without naming a verb. See
+            // `row::revisit_penalty`. Packing by packing, because the set of
+            // boards seen resets when the problem does.
+            let mut revisits = vec![0.0f32; presses.len()];
+            for (p, &(from, to)) in press_ends.iter().enumerate() {
+                let start = starts.get(p).copied().unwrap_or(0);
+                for (k, c) in
+                    row::revisit_penalty(&presses[from..to], start).into_iter().enumerate()
+                {
+                    revisits[from + k] = c;
+                }
+            }
+            if !following {
+                revisit_presses += revisits.iter().filter(|c| **c < 0.0).count();
+                revisit_charge += revisits.iter().sum::<f32>() as f64;
+                revisit_of += presses.len();
+            }
             // **The run's worth, paid where it was earned.** One payment a
             // packing out of `row::spread`, laid onto the last transition of
             // that packing - the decision that produced the board its fight was
@@ -1039,6 +1067,7 @@ mod q {
                 .map(|i| {
                     bonuses.get(i).copied().unwrap_or(0.0)
                         + churn.get(i).copied().unwrap_or(0.0)
+                        + revisits.get(i).copied().unwrap_or(0.0)
                         + if redistribute() {
                             paid[i]
                         } else if i + 1 == n {
@@ -1225,6 +1254,20 @@ mod q {
                     over,
                     knee
                 );
+                // The third: what the revisit charge cost this block, against
+                // the returns it is being subtracted from. A charge nobody
+                // prints is a charge nobody can size.
+                if row::revisit() > 0.0 {
+                    println!(
+                        "       revisits {:.1}% of presses   charge {:+.2} an episode                            against a mean target of {:+.3}",
+                        100.0 * revisit_presses as f64 / revisit_of.max(1) as f64,
+                        revisit_charge / ran.max(1) as f64,
+                        tsum / tn.max(1) as f64
+                    );
+                }
+                revisit_presses = 0;
+                revisit_of = 0;
+                revisit_charge = 0.0;
                 deepest_block = 0;
                 depth_sum = 0;
                 items_paid = 0;

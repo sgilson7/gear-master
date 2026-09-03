@@ -446,6 +446,140 @@ pub fn spread(rungs: &[usize], ended_at: usize, worth: f32) -> Vec<f32> {
     pay
 }
 
+/// What the board **is**, as one number.
+///
+/// Everything a packing decision can change and nothing it cannot: which piece
+/// sits in which cell of which grid, which items are locked, what is in the
+/// tray and what is in the purse. Two boards with the same fingerprint are the
+/// same board, so a press that reproduces an earlier fingerprint put the board
+/// back somewhere it had already been.
+///
+/// **Read off the `View`**, which is the screen, so this is a fact about what a
+/// player would see rather than about engine internals. It is a hash and not an
+/// equality test because a packing is forty presses and keeping forty whole
+/// boards to compare against is the expensive way to ask a cheap question; a
+/// 64-bit collision inside one packing is not a thing that will happen.
+pub fn fingerprint(c: &Console) -> u64 {
+    let v = c.view();
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut eat = |x: u64| {
+        h ^= x;
+        h = h.wrapping_mul(0x100_0000_01b3);
+    };
+    for g in &v.grids {
+        eat(g.slot as u64 + 1);
+        eat(g.rows as u64);
+        for cell in &g.cells {
+            // The piece in it, and nought for an empty cell.
+            eat(cell.piece.map(|p| p.0 as u64 + 1).unwrap_or(0));
+        }
+        // **Locked, because locking is a real change and must not read as a
+        // no-op.** A lock alters nothing about where the pieces sit, so a
+        // fingerprint over cells alone would charge for locking and then charge
+        // again for unlocking, which is the opposite of what is wanted: one of
+        // those two is a legitimate press.
+        for item in &g.items {
+            eat(item.locked as u64);
+            for p in &item.pieces {
+                eat(p.0 as u64 + 1);
+            }
+        }
+    }
+    for p in &v.tray {
+        eat(p.id.map(|i| i.0 as u64 + 1).unwrap_or(0));
+    }
+    // **The shop, because `Buy`, `Sell`, `Reroll` and `Pin` are packing keys.**
+    //
+    // Left out of the first version, and the printed diagnostic said so at
+    // once: 85.8% of presses read as revisits, because a reroll changes only
+    // the shelves and a pin changes only a flag, so both looked like a board
+    // that had gone nowhere. A reroll is a real decision that costs real gold,
+    // and charging for it would have been a step charge on the one key that
+    // buys new options.
+    //
+    // A shelf is its piece and whether it is held. The price is a function of
+    // the piece and the run, so it adds nothing a collision could need.
+    for shelf in &v.shop {
+        eat(shelf.index as u64);
+        eat(shelf.piece.id.map(|i| i.0 as u64 + 1).unwrap_or(0));
+        // A shelf the shop has restocked carries a different piece under the
+        // same index; one that has not carries the same name.
+        for b in shelf.piece.name.bytes() {
+            eat(b as u64);
+        }
+        eat(shelf.pinned as u64);
+    }
+    eat(v.gold as u64);
+    h
+}
+
+/// What the **n**th press that puts the board somewhere it has already been
+/// costs, inside one packing.
+///
+/// **The general form of `CLAUDE.md` trap 44, which five relocations earned.**
+/// `Rotate` was pressed 400 times in 420 and taken out of the action space;
+/// then `Pin` 410 in 420 and given its own features; then `Undo` at 45.5%; then
+/// `Lock` at 45% with half of it unlocking; and then, once locking and
+/// unlocking could be told apart, `Undo` again at 31.0%. Two verb removals and
+/// two feature fixes, and every one of them moved the thrash to whatever the
+/// menu offered next.
+///
+/// The trap's own sentence is *charge for what the board does, not for what the
+/// verb is called*, and this is that sentence: a press is a no-op if the board
+/// it produces is one this packing has already produced, whatever key it was.
+/// Place-then-undo, lock-then-unlock, a rotation and back, a three-press cycle
+/// - all one rule, and none of them needs naming.
+///
+/// It does not charge a legitimate press. Locking an item changes the
+/// fingerprint, so the first lock is free; it is the *unlock* that returns the
+/// board to where it was, and only that one pays.
+///
+/// **Flat, and per packing**, and the flatness was chosen by the printed
+/// figure rather than by argument. The first version charged the nth revisit
+/// `n * REVISIT`, which is the shape `churn_penalty` uses and the right one for
+/// a sparse event. Revisits are not sparse: measured, **80.3% of presses put
+/// the board somewhere it had already been**, because in a
+/// place-undo-place-undo cycle both halves revisit after the first two. An
+/// increasing charge over that is quadratic in the length of the packing, and
+/// at 0.005 a press it already came to -12.67 an episode against episode
+/// returns of four to nine - which is the "step charge a hundred times the
+/// objective" that `design/HANDOFF-the-collapse.md` lists as a known way to
+/// kill a run.
+///
+/// The set resets at every packing, because a board legitimately passes through
+/// the same state at two different rungs and a run that goes deeper must not
+/// pay for going deeper.
+pub fn revisit() -> f32 {
+    static R: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    *R.get_or_init(|| {
+        std::env::var("QROW_REVISIT").ok().and_then(|v| v.parse().ok()).unwrap_or(0.02)
+    })
+}
+
+/// What each press of one packing costs for putting the board back somewhere it
+/// has been, in the order it was pressed.
+///
+/// `start` is the fingerprint before the packing began, so a press that undoes
+/// the whole packing pays like any other revisit.
+pub fn revisit_penalty(packing: &[Pressed], start: u64) -> Vec<f32> {
+    let c = revisit();
+    let mut seen: Vec<u64> = vec![start];
+    packing
+        .iter()
+        .map(|p| {
+            if !p.stuck {
+                return 0.0;
+            }
+            if seen.contains(&p.state) {
+                -c
+            } else {
+                seen.push(p.state);
+                0.0
+            }
+        })
+        .collect()
+}
+
 /// What one press did to the board, for a reward that pays per press.
 #[derive(Copy, Clone, Debug)]
 pub struct Pressed {
@@ -465,6 +599,8 @@ pub struct Pressed {
     /// anywhere noticed one. A refused press must stay off the tape, so this
     /// had to be looked at, and now it can be counted.
     pub stuck: bool,
+    /// What the board was after this press. See `fingerprint`.
+    pub state: u64,
 }
 
 /// The keys out of a packing, for a tape.
@@ -517,6 +653,7 @@ pub fn pack_with(
                 Move::Done => None,
             },
             stuck,
+            state: fingerprint(c),
         });
         if e.finished {
             break;
