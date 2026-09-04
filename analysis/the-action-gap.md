@@ -1365,3 +1365,80 @@ both change the rules the agent plays under:
 Neither is a reward. That is the point: A.1 measured an environment in which
 doing nothing is never punished, and six attempts to price it have now
 established that pricing is the wrong lever.
+
+---
+
+# O — Ending the packing helps when it is played and hurts when it is trained
+
+Read off `9abc1f1`. `qrow-r37-stop-control.log` and `qrow-r38-stop-abstract.log`,
+3,000 episodes each at pair 322 with `QROW_STOP_REVISITS=0`, against r31 and r32.
+
+## O.1 Trained under the rule, it is worse
+
+```
+                        floor mean          the rule       items
+  control, plain   3.024 +/- 0.169                 -        1.79
+  control, ending  2.409 +/- 0.119  -0.616 +/- 0.207        0.82
+  abstract, plain  3.368 +/- 0.097                 -        1.15
+  abstract, ending 3.254 +/- 0.073  -0.114 +/- 0.122        0.96
+```
+
+Three standard errors down for the plain arm and flat for the other, and **items
+held fell in both** - 1.79 to 0.82. The mechanism is not subtle: an item takes
+several placements, and if any of them recreates a board this packing has seen,
+the packing is over. Early in training almost every press is random, so cycles
+arrive at once: the replay buffer holds **480 transitions at episode 25 against
+about 3,000** without the rule. It is cut off before it can build anything, and
+it never sees what a long productive packing looks like.
+
+That is a curriculum fault rather than an objection to the rule. The rule is
+hardest exactly when the policy is least able to avoid it.
+
+## O.2 Played under the rule, it is better - for nets that did not train on it
+
+Thirty runs a net, the same nets played both ways:
+
+```
+  net                              played off   played on
+  the written control                   1.172       1.172
+  w39-control   (trained without)       0.772       1.124
+  w39-abstract  (trained without)       0.896       0.910
+  stop-control  (trained with)          0.943       0.873
+  stop-abstract (trained with)          1.010       1.299
+```
+
+A net that never trained under it gains most: `w39-control` goes 0.772 to 1.124,
+which is nearly the written control's 1.172, for nothing. Stopping a policy
+before it churns a board it has already built is worth more than anything six
+reward changes managed.
+
+## O.3 And the highest number in this table is the banding confound
+
+`stop-abstract` played under the rule reads **1.299**, above the written
+control's 1.172 and the best any trained packer has scored. Banded by the rung
+it was measured at, it is not:
+
+```
+  packer                   r1+    r2+    r3+    r4+    r6+    r9+
+  the written control     0.77   0.34   0.86   3.04   2.33   1.81
+  w39-control             0.37   0.73   1.26   2.56   4.00   1.79
+  stop-abstract           0.96   0.98   1.75   2.46   1.00   2.12
+```
+
+It builds **better shallow boards and worse deep ones**, and the aggregate
+favours it because it spends more of its life at rungs one to three where it is
+strong. K's own warning about this confound is why the banded table is printed
+beside the mean, and it is the second time in this document that a headline has
+needed it.
+
+## O.4 What to carry forward
+
+* **The rule belongs at play time, not in training.** The play-time gain is
+  free and measured on four nets; the training loss is three standard errors on
+  the arm that matters.
+* If it is to be trained under, it wants a **schedule**: tolerate many revisits
+  while epsilon is high and tighten as it falls, so the packing is only cut off
+  once the policy has some chance of avoiding it. That is one number in
+  `pack_with_ending` and it has not been tried.
+* Nothing here changes A. Depth still moves by tenths whatever is done to the
+  packer, and `reach` still separates packers that depth cannot.
