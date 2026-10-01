@@ -3,7 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>Gear Master</title>
+<title>Gear Master — Sam Gilson</title>
+<meta name="description" content="Arrange components into gear, then watch the build take part in an automatic battle.">
+<link rel="canonical" href="https://sgilson7.github.io/gear-master/">
+<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Gear Master">
+<meta property="og:description" content="Arrange components into gear, then watch the build take part in an automatic battle.">
+<meta property="og:url" content="https://sgilson7.github.io/gear-master/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Gear Master">
+<meta name="twitter:description" content="Arrange components into gear, then watch the build take part in an automatic battle.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "Gear Master",
+  "description": "Arrange components into gear, then watch the build take part in an automatic battle.",
+  "url": "https://sgilson7.github.io/gear-master/"
+}
+</script>
 <style>
   html, body {
     margin: 0; padding: 0; height: 100%; overflow: hidden;
@@ -19,6 +38,10 @@
     align-items: center; justify-content: center; gap: 14px;
     background: #08080c; z-index: 10;
   }
+  #loading h1.title { margin: 0; font-weight: 400; }
+  #loading .blurb { max-width: 46ch; margin: 0; text-align: center; font-size: 14px; line-height: 1.6; }
+  #loading .links { margin: 0; font-size: 13px; }
+  #loading .links a { color: #9fb9d8; }
   #loading .title { font-size: 26px; letter-spacing: 3px; color: #f0c85a; }
   #loading .sub { font-size: 13px; color: #6a6a80; }
 
@@ -57,10 +80,14 @@
 </head>
 <body>
   <div id="loading">
-    <div class="title">GEAR MASTER</div>
-    <div class="sub">loading…</div>
+    <h1 class="title">Gear Master</h1>
+    <p class="blurb">Arrange components into gear, then watch the build take part in an automatic battle.</p>
+    <p class="links"><a href="/projects/gear-master/">About Gear Master</a>
+       &middot; <a href="/projects/">Tools and games</a></p>
+    <p class="sub" id="status">Loading Gear Master…</p>
+    <noscript><p class="sub">This game requires JavaScript and WebAssembly.</p></noscript>
   </div>
-  <canvas id="glcanvas" tabindex="1"></canvas>
+  <canvas id="glcanvas" tabindex="1" aria-label="Gear Master game"></canvas>
 
   <div id="music">
     <header id="music-toggle"><span>SOUNDTRACK</span><span id="music-caret">fold</span></header>
@@ -75,11 +102,27 @@
   </div>
 
   <script src="https://w.soundcloud.com/player/api.js"></script>
+  <!-- Declared before the bundle, which assigns to this global without
+       declaring it and throws under "use strict" otherwise. -->
+  <script>var register_plugin;</script>
   <script src="mq_js_bundle.js"></script>
   <script>
     // The shim swaps to the canvas once the module is up; give it a beat, then
     // clear the splash and hand it keyboard focus.
     load("gearmaster.wasm?v=a5c532a25a4d");
+    // A failed fetch of the module or a plugin leaves the splash up for ever
+    // with no account of why. The status line says what happened instead; the
+    // waiting state itself is unchanged.
+    (function () {
+      const fail = () => {
+        const canvas = document.getElementById("glcanvas");
+        if (canvas && canvas.width > 0) return;   // already running
+        const el = document.getElementById("status");
+        if (el) el.textContent = "The game could not load. Reload the page and try again.";
+      };
+      window.addEventListener("error", fail);
+      window.addEventListener("unhandledrejection", fail);
+    })();
     (function waitForStart() {
       const canvas = document.getElementById("glcanvas");
       if (canvas.width > 0 && canvas.height > 0) {
