@@ -109,14 +109,15 @@
   <script>
     // The shim swaps to the canvas once the module is up; give it a beat, then
     // clear the splash and hand it keyboard focus.
-    load("gearmaster.wasm?v=a5c532a25a4d");
-    // A failed fetch of the module or a plugin leaves the splash up for ever
-    // with no account of why. The status line says what happened instead; the
-    // waiting state itself is unchanged.
+    load("gearmaster.wasm?v=6979a988c530");
+    // A failed fetch of the module leaves the splash up for ever with no
+    // account of why. The status line says what happened instead; the waiting
+    // state itself is unchanged, and an error raised once the canvas is up is
+    // not a failure to load.
     (function () {
       const fail = () => {
         const canvas = document.getElementById("glcanvas");
-        if (canvas && canvas.width > 0) return;   // already running
+        if (canvas && canvas.width > 0) return;
         const el = document.getElementById("status");
         if (el) el.textContent = "The game could not load. Reload the page and try again.";
       };
